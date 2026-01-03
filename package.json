@@ -1,0 +1,123 @@
+{
+  "name": "servalsheets",
+  "version": "1.1.0",
+  "description": "Production-grade Google Sheets MCP server with 15 tools, 158 actions, safety rails, and enterprise features",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "servalsheets": "./dist/cli.js"
+  },
+  "mcpName": "io.github.khill1269.servalsheets",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khill1269/servalsheets"
+  },
+  "homepage": "https://github.com/khill1269/servalsheets#readme",
+  "bugs": {
+    "url": "https://github.com/khill1269/servalsheets/issues"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:clean": "npm run clean && npm run build",
+    "dev": "tsx watch src/cli.ts",
+    "start": "node dist/cli.js",
+    "start:http": "node dist/http-server.js",
+    "start:remote": "node dist/remote-server.js",
+    "test": "vitest",
+    "test:integration": "TEST_REAL_API=true vitest tests/integration/",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src/**/*.ts",
+    "typecheck": "tsc --noEmit",
+    "validate:server-json": "node scripts/validate-server-json.mjs",
+    "verify:build": "npm run build && node dist/cli.js --version && echo 'Build OK'",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "docker:build": "docker build -t servalsheets .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env servalsheets",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-sheets",
+    "spreadsheet",
+    "anthropic",
+    "claude",
+    "ai-tools",
+    "oauth",
+    "connector"
+  ],
+  "author": {
+    "name": "Thomas Lee Cahill",
+    "url": "https://github.com/khill1269"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
+    "googleapis": "^169.0.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^11.0.0",
+    "p-queue": "^9.0.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.17.0",
+    "zod": "^4.3.4",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/crypto-js": "^4.2.2",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.0",
+    "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "eslint": "^9.17.0",
+    "fast-check": "^4.5.3",
+    "prettier": "^3.4.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.19.0",
+    "typedoc": "^0.28.15",
+    "typedoc-plugin-markdown": "^4.9.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "dist",
+    "examples",
+    "server.json",
+    "README.md",
+    "LICENSE",
+    "SKILL.md",
+    "SECURITY.md",
+    "PERFORMANCE.md",
+    "MONITORING.md",
+    "DEPLOYMENT.md",
+    "TROUBLESHOOTING.md",
+    "FIRST_TIME_USER.md",
+    "PROMPTS_GUIDE.md",
+    "QUICKSTART_CREDENTIALS.md",
+    "CLAUDE_DESKTOP_SETUP.md",
+    "CHANGELOG.md",
+    "DOCUMENTATION.md"
+  ]
+}

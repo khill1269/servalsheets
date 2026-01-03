@@ -1,0 +1,575 @@
+# Security Best Practices
+
+This guide covers security best practices for deploying and operating ServalSheets in production.
+
+## Table of Contents
+
+- [Token Storage](#token-storage)
+- [Authentication Methods](#authentication-methods)
+- [Service Account Security](#service-account-security)
+- [OAuth Security](#oauth-security)
+- [Production Deployment](#production-deployment)
+- [Incident Response](#incident-response)
+
+---
+
+## Token Storage
+
+### Encrypted Token Store
+
+ServalSheets supports encrypted token storage using AES-256-GCM encryption.
+
+#### Generate Encryption Key
+
+```bash
+# Generate a secure 32-byte key (64 hex characters)
+openssl rand -hex 32
+
+# Example output:
+# 8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+```
+
+#### Configure Token Store
+
+```bash
+export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
+export GOOGLE_TOKEN_STORE_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+```
+
+#### Key Rotation Procedure
+
+**Recommended**: Rotate encryption keys annually or when compromised.
+
+```bash
+# 1. Generate new key
+NEW_KEY=$(openssl rand -hex 32)
+
+# 2. Set new key as secondary
+export GOOGLE_TOKEN_STORE_KEY_NEW=$NEW_KEY
+
+# 3. Restart ServalSheets
+# It will automatically re-encrypt tokens with new key
+
+# 4. Update primary key
+export GOOGLE_TOKEN_STORE_KEY=$NEW_KEY
+unset GOOGLE_TOKEN_STORE_KEY_NEW
+
+# 5. Restart again
+```
+
+#### File Permissions
+
+Ensure token store has restricted permissions:
+
+```bash
+# Set owner-only read/write
+chmod 600 ~/.config/servalsheets/tokens.enc
+
+# Verify
+ls -la ~/.config/servalsheets/tokens.enc
+# Should show: -rw------- (600)
+```
+
+---
+
+## Authentication Methods
+
+### Service Account vs OAuth
+
+| Factor | Service Account | OAuth |
+|--------|----------------|-------|
+| **Use Case** | Server automation | User-specific access |
+| **Setup Complexity** | Medium | High |
+| **Credential Storage** | JSON file | Encrypted token store |
+| **Sharing Required** | Yes | No (user's own sheets) |
+| **Rotation** | Annual | Per-session |
+| **Audit Trail** | Service account email | User email |
+| **Best For** | Production servers | Desktop apps |
+
+### When to Use Each
+
+**Use Service Account when:**
+- ✅ Automating spreadsheet operations
+- ✅ Server-to-server communication
+- ✅ No user interaction required
+- ✅ Same operations for all users
+- ✅ Long-running processes
+
+**Use OAuth when:**
+- ✅ User-specific access needed
+- ✅ Desktop/mobile applications
+- ✅ Per-user permissions required
+- ✅ Interactive user consent needed
+- ✅ Multi-tenant scenarios
+
+---
+
+## Service Account Security
+
+### Creating Secure Service Accounts
+
+1. **Use Descriptive Names**
+   ```
+   servalsheets-prod@project-id.iam.gserviceaccount.com
+   servalsheets-staging@project-id.iam.gserviceaccount.com
+   ```
+
+2. **Separate Service Accounts per Environment**
+   - Production: `servalsheets-prod`
+   - Staging: `servalsheets-staging`
+   - Development: `servalsheets-dev`
+
+3. **Principle of Least Privilege**
+   - Don't grant project-wide roles
+   - Share only necessary spreadsheets
+   - Use Viewer role when read-only access sufficient
+
+### Key Management
+
+#### Generate Keys Securely
+
+```bash
+# In Google Cloud Console:
+# 1. IAM & Admin → Service Accounts
+# 2. Select service account
+# 3. Keys → Add Key → Create new key
+# 4. Choose JSON format
+# 5. Key downloads automatically
+
+# Verify key format
+cat service-account-key.json | jq .
+```
+
+#### Store Keys Securely
+
+```bash
+# Create secure directory
+mkdir -p ~/.config/google
+chmod 700 ~/.config/google
+
+# Move key
+mv ~/Downloads/servalsheets-*.json ~/.config/google/servalsheets-prod.json
+
+# Set restrictive permissions
+chmod 600 ~/.config/google/servalsheets-prod.json
+
+# Verify
+ls -la ~/.config/google/
+```
+
+#### Rotate Keys Annually
+
+```bash
+# 1. Generate new key in Google Cloud Console
+# 2. Download new key
+# 3. Update environment variable
+export GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/servalsheets-prod-new.json
+
+# 4. Test with new key
+servalsheets --help
+
+# 5. If successful, delete old key
+# In Google Cloud Console: Keys → Delete old key
+
+# 6. Rename new key
+mv ~/.config/google/servalsheets-prod-new.json ~/.config/google/servalsheets-prod.json
+```
+
+### Access Control
+
+#### Spreadsheet Sharing
+
+**Best Practice**: Share spreadsheets explicitly, not via "Anyone with link"
+
+```bash
+# Share with service account
+# In Google Sheets:
+# 1. Click Share
+# 2. Add: servalsheets-prod@project-id.iam.gserviceaccount.com
+# 3. Role: Editor (or Viewer if read-only)
+# 4. Uncheck "Notify people"
+```
+
+#### Audit Access
+
+```bash
+# List all spreadsheets service account can access
+# Use sheets_spreadsheet tool with action: "list"
+# Or Google Drive API: files.list with query: 'me in owners'
+```
+
+---
+
+## OAuth Security
+
+### OAuth 2.1 with PKCE
+
+ServalSheets implements OAuth 2.1 with PKCE (Proof Key for Code Exchange) for enhanced security.
+
+#### Setup OAuth Client
+
+1. **Google Cloud Console**
+   - APIs & Services → Credentials
+   - Create OAuth 2.0 Client ID
+   - Application type: Web application
+   - Authorized redirect URIs: `http://localhost:3000/oauth/callback`
+
+2. **Configure ServalSheets**
+   ```bash
+   export GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+   export GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+   export GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/callback
+   ```
+
+#### Token Security
+
+**Access Tokens:**
+- Short-lived (1 hour)
+- Never log or expose
+- Encrypt in token store
+
+**Refresh Tokens:**
+- Long-lived (until revoked)
+- Encrypt in token store
+- Rotate on suspicious activity
+
+#### Revoke Compromised Tokens
+
+```bash
+# If tokens compromised:
+
+# 1. Revoke in Google Account
+# Visit: https://myaccount.google.com/permissions
+# Find "ServalSheets" → Remove Access
+
+# 2. Delete local token store
+rm ~/.config/servalsheets/tokens.enc
+
+# 3. Re-authenticate
+# Restart ServalSheets
+```
+
+---
+
+## Production Deployment
+
+### Pre-Deployment Checklist
+
+#### Infrastructure
+
+- [ ] **Use HTTPS only** (TLS 1.3 preferred)
+- [ ] **Enable rate limiting** (default: 100 req/min per IP)
+- [ ] **Configure CORS** (restrict to your domains)
+- [ ] **Set up monitoring** (health checks, alerts)
+- [ ] **Enable audit logging** (JSON structured logs)
+- [ ] **Use encrypted token store** (AES-256-GCM)
+- [ ] **Restrict network access** (firewall rules)
+
+#### Authentication
+
+- [ ] **Rotate service account keys** (if > 1 year old)
+- [ ] **Use separate keys per environment** (prod/staging/dev)
+- [ ] **Set restrictive file permissions** (600 for keys)
+- [ ] **Store keys outside code repository** (never commit!)
+- [ ] **Use secrets management** (Vault, AWS Secrets Manager, etc.)
+
+#### Configuration
+
+- [ ] **Set NODE_ENV=production**
+- [ ] **Configure logging level** (info or warn in prod)
+- [ ] **Set resource limits** (memory, CPU)
+- [ ] **Enable auto-restart** (PM2, systemd, K8s)
+- [ ] **Configure timeout values** (30s API, 120s request)
+
+#### Monitoring
+
+- [ ] **Set up health checks** (/health endpoint)
+- [ ] **Configure alerts** (errors, rate limits, quota)
+- [ ] **Enable metrics collection** (Prometheus, CloudWatch)
+- [ ] **Set up log aggregation** (ELK, Splunk, CloudWatch Logs)
+- [ ] **Test failover procedures**
+
+### Environment Variables
+
+#### Required
+
+```bash
+# Authentication (choose one)
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# OR
+export GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+export GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+```
+
+#### Recommended
+
+```bash
+# Production mode
+export NODE_ENV=production
+
+# Logging
+export LOG_LEVEL=info              # info, warn, error
+export LOG_FORMAT=json             # json or text
+
+# Rate limiting (adjust based on quota)
+export SERVALSHEETS_READS_PER_MINUTE=300
+export SERVALSHEETS_WRITES_PER_MINUTE=60
+
+# Token store (recommended)
+export GOOGLE_TOKEN_STORE_PATH=/secure/path/tokens.enc
+export GOOGLE_TOKEN_STORE_KEY=$(cat /secure/path/token-store-key.txt)
+
+# Timeouts
+export GOOGLE_API_TIMEOUT_MS=30000
+export REQUEST_TIMEOUT_MS=120000
+
+# HTTP server (if using)
+export PORT=3000
+export CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+```
+
+### Secrets Management
+
+#### Using Vault
+
+```bash
+# Store service account key in Vault
+vault kv put secret/servalsheets/prod \
+  service_account_key=@service-account.json \
+  token_store_key=$(openssl rand -hex 32)
+
+# Retrieve in startup script
+export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
+vault kv get -field=service_account_key secret/servalsheets/prod > $GOOGLE_APPLICATION_CREDENTIALS
+chmod 600 $GOOGLE_APPLICATION_CREDENTIALS
+
+export GOOGLE_TOKEN_STORE_KEY=$(vault kv get -field=token_store_key secret/servalsheets/prod)
+```
+
+#### Using AWS Secrets Manager
+
+```bash
+# Store secrets
+aws secretsmanager create-secret \
+  --name servalsheets/prod/service-account \
+  --secret-string file://service-account.json
+
+# Retrieve in startup script
+aws secretsmanager get-secret-value \
+  --secret-id servalsheets/prod/service-account \
+  --query SecretString \
+  --output text > /tmp/sa-key.json
+
+export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json
+chmod 600 $GOOGLE_APPLICATION_CREDENTIALS
+```
+
+### Network Security
+
+#### Firewall Rules
+
+```bash
+# Allow only necessary traffic
+# Inbound: HTTPS (443) only
+# Outbound: Google API (443) only
+
+# Example: iptables
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 443 -d sheets.googleapis.com -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 443 -d www.googleapis.com -j ACCEPT
+```
+
+#### HTTPS/TLS Configuration
+
+```javascript
+// src/http-server.ts (production example)
+const httpsOptions = {
+  key: fs.readFileSync('/path/to/privkey.pem'),
+  cert: fs.readFileSync('/path/to/fullchain.pem'),
+  minVersion: 'TLSv1.3',
+  ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256',
+};
+
+https.createServer(httpsOptions, app).listen(443);
+```
+
+---
+
+## Incident Response
+
+### Security Incident Response Plan
+
+#### 1. Identify Incident
+
+**Indicators of Compromise:**
+- Unexpected API calls
+- Rate limit exhaustion
+- Unauthorized spreadsheet access
+- Token store tampering
+- Unusual error patterns
+
+#### 2. Contain
+
+**Immediate Actions:**
+```bash
+# Stop service
+systemctl stop servalsheets
+
+# Revoke service account keys
+# Google Cloud Console → IAM → Service Accounts → Keys → Delete
+
+# Revoke OAuth tokens
+# https://myaccount.google.com/permissions
+
+# Rotate encryption keys
+NEW_KEY=$(openssl rand -hex 32)
+export GOOGLE_TOKEN_STORE_KEY=$NEW_KEY
+
+# Delete token store
+rm ~/.config/servalsheets/tokens.enc
+```
+
+#### 3. Investigate
+
+**Collect Evidence:**
+```bash
+# Export logs
+journalctl -u servalsheets > incident-logs-$(date +%Y%m%d-%H%M%S).txt
+
+# Check API usage
+# Google Cloud Console → APIs & Services → Dashboard
+# Review quota usage and API calls
+
+# Review audit logs
+# Google Cloud Console → Logging → Logs Explorer
+# Filter: resource.type="service_account"
+
+# Check file access
+ls -la ~/.config/servalsheets/
+stat ~/.config/servalsheets/tokens.enc
+```
+
+#### 4. Remediate
+
+**Steps:**
+1. Generate new service account
+2. Generate new encryption keys
+3. Update all secrets in secrets manager
+4. Re-deploy with new credentials
+5. Audit all spreadsheet permissions
+6. Remove old service account access
+
+#### 5. Document
+
+**Incident Report Template:**
+```markdown
+# Security Incident Report
+
+Date: YYYY-MM-DD
+Severity: [Critical/High/Medium/Low]
+
+## Summary
+[Brief description]
+
+## Timeline
+- HH:MM - Incident detected
+- HH:MM - Service stopped
+- HH:MM - Keys revoked
+- HH:MM - Service restored
+
+## Impact
+- Affected systems: [list]
+- Data accessed: [yes/no/unknown]
+- Downtime: [duration]
+
+## Root Cause
+[Detailed analysis]
+
+## Remediation
+- [Action taken]
+- [Action taken]
+
+## Prevention
+- [Measure implemented]
+- [Measure implemented]
+```
+
+### Contact Information
+
+**Google Workspace Security:**
+- Report abuse: https://support.google.com/code/contact/abuse
+
+**Vulnerability Disclosure:**
+- Report security issues: security@anthropic.com
+
+---
+
+## Security Updates
+
+### Stay Informed
+
+- **MCP Security Advisories**: https://modelcontextprotocol.io/security
+- **Google API Security**: https://developers.google.com/sheets/api/guides/security
+- **Node.js Security**: https://nodejs.org/en/security/
+
+### Update Schedule
+
+- **Critical**: Within 24 hours
+- **High**: Within 1 week
+- **Medium**: Next maintenance window
+- **Low**: Next minor version
+
+### Verify Updates
+
+```bash
+# Check for npm security issues
+npm audit
+
+# Fix automatically
+npm audit fix
+
+# Check dependencies
+npm outdated
+
+# Update ServalSheets
+npm update servalsheets
+```
+
+---
+
+## Compliance
+
+### Data Protection
+
+ServalSheets processes Google Sheets data on behalf of users:
+
+- **GDPR**: Users control data, service account is data processor
+- **CCPA**: No sale of data, users have access/deletion rights
+- **HIPAA**: Not HIPAA compliant (Google Sheets isn't HIPAA compliant)
+- **SOC 2**: Google Sheets is SOC 2 certified
+
+### Data Retention
+
+- **Logs**: Retain 90 days (configurable)
+- **Token store**: Until revoked
+- **Service account keys**: Until rotated
+
+### Audit Logging
+
+Enable structured JSON logging for compliance:
+
+```bash
+export LOG_FORMAT=json
+export LOG_LEVEL=info
+export AUDIT_LOG_PATH=/var/log/servalsheets/audit.log
+```
+
+---
+
+## Questions?
+
+For security questions or to report vulnerabilities:
+- Email: security@anthropic.com
+- Issues: https://github.com/khill1269/servalsheets/security
+
+**Do not disclose security vulnerabilities in public issues.**
