@@ -384,7 +384,7 @@ export class OAuthProvider {
     router.get('/.well-known/mcp.json', (_req, res) => {
       res.json({
         name: 'servalsheets',
-        version: '1.1.1',
+        version: '1.2.0',
         description: 'Production-grade Google Sheets MCP server',
         oauth: {
           authorization_endpoint: `${this.config.issuer}/oauth/authorize`,

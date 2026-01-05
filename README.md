@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 15 tools, 156 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 15 tools, 159 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)

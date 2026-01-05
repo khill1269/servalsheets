@@ -284,7 +284,7 @@ export function createHttpServer(options: HttpServerOptions = {}) {
 
     res.json({
       status: 'healthy',
-      version: '1.1.1',
+      version: '1.2.0',
       protocol: 'MCP 2025-11-25',
       uptime: Math.floor(process.uptime()),
       cache: cacheStats ? {
@@ -309,7 +309,7 @@ export function createHttpServer(options: HttpServerOptions = {}) {
   app.get('/info', (_req: Request, res: Response) => {
     res.json({
       name: 'servalsheets',
-      version: '1.1.1',
+      version: '1.2.0',
       description: 'Production-grade Google Sheets MCP server',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,

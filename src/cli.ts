@@ -55,7 +55,7 @@ for (let i = 0; i < args.length; i++) {
         process.exit(0);
       })
       .catch(() => {
-        console.log('servalsheets v1.1.1');
+        console.log('servalsheets v1.2.0');
         process.exit(0);
       });
     // Prevent further execution while waiting for import

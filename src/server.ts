@@ -621,7 +621,7 @@ export class ServalSheetsServer {
   getInfo(): { name: string; version: string; tools: number; actions: number } {
     return {
       name: this.options.name ?? 'servalsheets',
-      version: this.options.version ?? '1.1.1',
+      version: this.options.version ?? '1.2.0',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
     };

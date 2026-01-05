@@ -12,7 +12,8 @@ export * from './oauth-config.js';
 // Caching
 export * from './cache-factory.js';
 export * from './cache-manager.js';
-export * from './cache-store.js';
+export type { CacheStore, CacheEntry as CacheStoreEntry } from './cache-store.js';
+export { InMemoryCacheStore, RedisCacheStore } from './cache-store.js';
 
 // Circuit Breaker & Resilience
 export * from './circuit-breaker.js';

@@ -30,6 +30,6 @@ export * from './services/index.js';
 export * from './handlers/index.js';
 
 // Version info
-export const VERSION = '1.1.1';
+export const VERSION = '1.2.0';
 export const MCP_PROTOCOL_VERSION = '2025-11-25';
 export const SHEETS_API_VERSION = 'v4';

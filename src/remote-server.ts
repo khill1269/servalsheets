@@ -235,7 +235,7 @@ async function main(): Promise<void> {
         type: process.env['SESSION_STORE_TYPE'] || 'memory',
         ready: true, // TODO: Add Redis ping check
       },
-      version: '1.1.1',
+      version: '1.2.0',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
     };
@@ -256,7 +256,7 @@ async function main(): Promise<void> {
   app.get('/info', (_req, res) => {
     res.json({
       name: 'servalsheets',
-      version: '1.1.1',
+      version: '1.2.0',
       description: 'Production-grade Google Sheets MCP server',
       protocol: 'MCP 2025-11-25',
       tools: getToolMetadata(),
