@@ -12,6 +12,7 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ColorSchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -19,7 +20,7 @@ const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
-export const SheetSpreadsheetInputSchema = z.discriminatedUnion('action', [
+const SpreadsheetActionSchema = z.discriminatedUnion('action', [
   // GET
   z.object({
     action: z.literal('get'),
@@ -70,7 +71,11 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsSpreadsheetOutputSchema = z.discriminatedUnion('success', [
+export const SheetSpreadsheetInputSchema = z.object({
+  request: SpreadsheetActionSchema,
+});
+
+const SpreadsheetResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -80,12 +85,17 @@ export const SheetsSpreadsheetOutputSchema = z.discriminatedUnion('success', [
     newSpreadsheetId: z.string().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsSpreadsheetOutputSchema = z.object({
+  response: SpreadsheetResponseSchema,
+});
 
 export const SHEETS_SPREADSHEET_ANNOTATIONS: ToolAnnotations = {
   title: 'Spreadsheet',
@@ -97,3 +107,5 @@ export const SHEETS_SPREADSHEET_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsSpreadsheetInput = z.infer<typeof SheetSpreadsheetInputSchema>;
 export type SheetsSpreadsheetOutput = z.infer<typeof SheetsSpreadsheetOutputSchema>;
+export type SpreadsheetAction = z.infer<typeof SpreadsheetActionSchema>;
+export type SpreadsheetResponse = z.infer<typeof SpreadsheetResponseSchema>;

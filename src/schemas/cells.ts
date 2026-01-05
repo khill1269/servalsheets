@@ -12,6 +12,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -26,7 +27,7 @@ const DataValidationSchema = z.object({
   showDropdown: z.boolean().optional().default(true),
 });
 
-export const SheetsCellsInputSchema = z.discriminatedUnion('action', [
+const CellsActionSchema = z.discriminatedUnion('action', [
   // ADD_NOTE
   BaseSchema.extend({
     action: z.literal('add_note'),
@@ -116,7 +117,11 @@ export const SheetsCellsInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsCellsOutputSchema = z.discriminatedUnion('success', [
+export const SheetsCellsInputSchema = z.object({
+  request: CellsActionSchema,
+});
+
+const CellsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -129,12 +134,17 @@ export const SheetsCellsOutputSchema = z.discriminatedUnion('success', [
     })).optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsCellsOutputSchema = z.object({
+  response: CellsResponseSchema,
+});
 
 export const SHEETS_CELLS_ANNOTATIONS: ToolAnnotations = {
   title: 'Cell Operations',
@@ -146,3 +156,5 @@ export const SHEETS_CELLS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsCellsInput = z.infer<typeof SheetsCellsInputSchema>;
 export type SheetsCellsOutput = z.infer<typeof SheetsCellsOutputSchema>;
+export type CellsAction = z.infer<typeof CellsActionSchema>;
+export type CellsResponse = z.infer<typeof CellsResponseSchema>;

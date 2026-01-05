@@ -104,15 +104,16 @@ export function registerKnowledgeResources(server: McpServer): number {
   const knowledgeDir = join(__dirname, '../knowledge');
 
   if (!existsSync(knowledgeDir)) {
-    console.log('[ServalSheets] Knowledge directory not found at:', knowledgeDir);
-    console.log('[ServalSheets] Skipping knowledge resource registration');
+    // Use console.error to write to stderr (not stdout in STDIO mode)
+    console.error('[ServalSheets] Knowledge directory not found at:', knowledgeDir);
+    console.error('[ServalSheets] Skipping knowledge resource registration');
     return 0;
   }
 
   const resources = discoverKnowledgeFiles(knowledgeDir);
 
   if (resources.length === 0) {
-    console.log('[ServalSheets] No knowledge files found');
+    console.error('[ServalSheets] No knowledge files found');
     return 0;
   }
 
@@ -122,9 +123,9 @@ export function registerKnowledgeResources(server: McpServer): number {
     return acc;
   }, {} as Record<string, number>);
 
-  console.log('[ServalSheets] Discovered knowledge resources:');
+  console.error('[ServalSheets] Discovered knowledge resources:');
   for (const [cat, count] of Object.entries(byCategory)) {
-    console.log(`  - ${cat}: ${count} files`);
+    console.error(`  - ${cat}: ${count} files`);
   }
 
   // Register each resource
@@ -160,7 +161,7 @@ export function registerKnowledgeResources(server: McpServer): number {
     );
   }
 
-  console.log(`[ServalSheets] Registered ${resources.length} knowledge resources`);
+  console.error(`[ServalSheets] Registered ${resources.length} knowledge resources`);
   return resources.length;
 }
 

@@ -5,6 +5,8 @@
  * Implementations: in-memory (development), Redis (production)
  */
 
+import { logger } from '../utils/logger.js';
+
 /**
  * Session store interface for storing temporary data with TTL
  */
@@ -131,7 +133,10 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     if (keysToDelete.length > 0) {
-      console.log(`[SessionStore] Cleaned up ${keysToDelete.length} expired entries`);
+      logger.debug('Session store cleanup', {
+        expiredEntries: keysToDelete.length,
+        remainingKeys: this.store.size,
+      });
     }
   }
 
@@ -196,7 +201,7 @@ export class RedisSessionStore implements SessionStore {
 
       await this.client.connect();
       this.connected = true;
-      console.log('[RedisSessionStore] Connected to Redis');
+      console.error('[RedisSessionStore] Connected to Redis');
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
@@ -276,10 +281,10 @@ export class RedisSessionStore implements SessionStore {
  */
 export function createSessionStore(redisUrl?: string): SessionStore {
   if (redisUrl) {
-    console.log('[SessionStore] Using Redis session store');
+    console.error('[SessionStore] Using Redis session store');
     return new RedisSessionStore(redisUrl);
   }
 
-  console.log('[SessionStore] Using in-memory session store');
+  console.error('[SessionStore] Using in-memory session store');
   return new InMemorySessionStore();
 }

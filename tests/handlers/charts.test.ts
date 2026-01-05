@@ -48,27 +48,29 @@ describe('ChartsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'create',
-      spreadsheetId: 'sheet-id',
-      sheetId: 0,
-      chartType: 'BAR',
-      data: {
-        sourceRange: { a1: 'Sheet1!A1:B2' },
-      },
-      position: {
-        anchorCell: 'Sheet1!A1',
-        offsetX: 0,
-        offsetY: 0,
-        width: 400,
-        height: 300,
+      request: {
+        action: 'create',
+        spreadsheetId: 'sheet-id',
+        sheetId: 0,
+        chartType: 'BAR',
+        data: {
+          sourceRange: { a1: 'Sheet1!A1:B2' },
+        },
+        position: {
+          anchorCell: 'Sheet1!A1',
+          offsetX: 0,
+          offsetY: 0,
+          width: 400,
+          height: 300,
+        },
       },
     });
 
     const parsed = SheetsChartsOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.chartId).toBe(123);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.chartId).toBe(123);
     }
   });
 
@@ -87,28 +89,32 @@ describe('ChartsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'list',
-      spreadsheetId: 'sheet-id',
+      request: {
+        action: 'list',
+        spreadsheetId: 'sheet-id',
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.charts).toHaveLength(1);
-      expect(result.charts?.[0].chartId).toBe(5);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.charts).toHaveLength(1);
+      expect(result.response.charts?.[0].chartId).toBe(5);
     }
   });
 
   it('supports dryRun on delete', async () => {
     const result = await handler.handle({
-      action: 'delete',
-      spreadsheetId: 'sheet-id',
-      chartId: 7,
-      safety: { dryRun: true },
+      request: {
+        action: 'delete',
+        spreadsheetId: 'sheet-id',
+        chartId: 7,
+        safety: { dryRun: true },
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.dryRun).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.dryRun).toBe(true);
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });

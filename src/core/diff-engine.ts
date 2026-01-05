@@ -6,8 +6,9 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import CryptoJS from 'crypto-js';
+import { createHash } from 'crypto';
 import type { DiffResult, DiffOptions, CellValue } from '../schemas/shared.js';
+import PQueue from 'p-queue';
 
 type CellChangeRecord = {
   cell: string;
@@ -91,51 +92,76 @@ export class DiffEngine {
       includeGridData: false,
     });
 
-    const sheets: SheetState[] = [];
-    
-    for (const sheet of response.data.sheets ?? []) {
-      const props = sheet.properties;
-      if (!props) continue;
+    const shouldCaptureSamples = targetTier !== 'METADATA';
+    const shouldCaptureFull = targetTier === 'FULL';
 
-      const escapedTitle = (props.title ?? '').replace(/'/g, "''");
-      const sampleData: SheetSamples = { firstRows: [], lastRows: [] };
-      const shouldCaptureSamples = targetTier !== 'METADATA';
-      if (shouldCaptureSamples) {
-        const firstRange = `'${escapedTitle}'!A1:ZZ${sampleSize}`;
-        sampleData.firstRows = await this.getRangeValues(spreadsheetId, firstRange);
+    // Create queue to limit concurrent sheet fetches (prevent OOM on large spreadsheets)
+    const concurrency = parseInt(process.env['DIFF_ENGINE_CONCURRENCY'] ?? '10');
+    const queue = new PQueue({ concurrency });
 
-        if ((props.gridProperties?.rowCount ?? 0) > sampleSize * 2) {
-          const lastRange = `'${escapedTitle}'!A${(props.gridProperties?.rowCount ?? 0) - sampleSize}:ZZ${props.gridProperties?.rowCount ?? sampleSize}`;
-          sampleData.lastRows = await this.getRangeValues(spreadsheetId, lastRange);
+    // Parallelize data fetching for all sheets with concurrency limit
+    const sheets: SheetState[] = await Promise.all(
+      (response.data.sheets ?? []).map((sheet) => queue.add(async () => {
+        const props = sheet.properties;
+        if (!props) {
+          return null;
         }
-      }
 
-      let values: CellValue[][] | undefined;
-      const shouldCaptureFull = targetTier === 'FULL';
-      if (shouldCaptureFull) {
+        const escapedTitle = (props.title ?? '').replace(/'/g, "''");
         const rowCount = props.gridProperties?.rowCount ?? 0;
         const columnCount = props.gridProperties?.columnCount ?? 0;
-        const maxRows = Math.min(
+
+        // Fetch sample data and full values in parallel for this sheet
+        const [sampleData, values] = await Promise.all([
+          // Sample data fetch
+          (async (): Promise<SheetSamples> => {
+            if (!shouldCaptureSamples) {
+              return { firstRows: [], lastRows: [] };
+            }
+
+            const firstRange = `'${escapedTitle}'!A1:ZZ${sampleSize}`;
+            const firstRowsPromise = this.getRangeValues(spreadsheetId, firstRange);
+
+            const lastRowsPromise = rowCount > sampleSize * 2
+              ? this.getRangeValues(
+                  spreadsheetId,
+                  `'${escapedTitle}'!A${rowCount - sampleSize}:ZZ${rowCount}`
+                )
+              : Promise.resolve([]);
+
+            const [firstRows, lastRows] = await Promise.all([firstRowsPromise, lastRowsPromise]);
+            return { firstRows, lastRows };
+          })(),
+          // Full values fetch
+          (async (): Promise<CellValue[][] | undefined> => {
+            if (!shouldCaptureFull) {
+              return undefined;
+            }
+
+            const maxRows = Math.min(
+              rowCount,
+              Math.ceil(maxFullDiffCells / Math.max(columnCount, 1))
+            );
+            // Match SAMPLE range limit (ZZ = column 702) instead of capping at Z (column 26)
+            const endCol = this.columnIndexToLetter(Math.min(Math.max(columnCount - 1, 0), 701));
+            const fullRange = `'${escapedTitle}'!A1:${endCol}${maxRows}`;
+            return this.getRangeValues(spreadsheetId, fullRange);
+          })(),
+        ]);
+
+        const sheetState: SheetState = {
+          sheetId: props.sheetId ?? 0,
+          title: props.title ?? '',
           rowCount,
-          Math.ceil(maxFullDiffCells / Math.max(columnCount, 1))
-        );
-        const endCol = this.columnIndexToLetter(Math.min(Math.max(columnCount - 1, 0), 25));
-        const fullRange = `'${escapedTitle}'!A1:${endCol}${maxRows}`;
-        values = await this.getRangeValues(spreadsheetId, fullRange);
-      }
+          columnCount,
+          checksum: '', // Will be computed if needed
+          sampleData: sampleData.firstRows.length || sampleData.lastRows.length ? sampleData : undefined,
+          values,
+        };
 
-      const sheetState: SheetState = {
-        sheetId: props.sheetId ?? 0,
-        title: props.title ?? '',
-        rowCount: props.gridProperties?.rowCount ?? 0,
-        columnCount: props.gridProperties?.columnCount ?? 0,
-        checksum: '', // Will be computed if needed
-        sampleData: sampleData.firstRows.length || sampleData.lastRows.length ? sampleData : undefined,
-        values,
-      };
-
-      sheets.push(sheetState);
-    }
+        return sheetState;
+      }))
+    ).then(results => results.filter((s): s is SheetState => s !== null));
 
     // Compute overall checksum from sheet metadata
     const stateString = JSON.stringify(sheets.map(s => ({
@@ -144,12 +170,12 @@ export class DiffEngine {
       rows: s.rowCount,
       cols: s.columnCount,
     })));
-    
+
     return {
       timestamp: new Date().toISOString(),
       spreadsheetId,
       sheets,
-      checksum: CryptoJS.MD5(stateString).toString(),
+      checksum: createHash('md5').update(stateString).digest('hex'),
     };
   }
 
@@ -168,9 +194,9 @@ export class DiffEngine {
 
     const values = response.data.values ?? [];
     const valuesString = JSON.stringify(values);
-    
+
     return {
-      checksum: CryptoJS.MD5(valuesString).toString(),
+      checksum: createHash('md5').update(valuesString).digest('hex'),
       rowCount: values.length,
       values: values as CellValue[][],
     };
@@ -234,8 +260,11 @@ export class DiffEngine {
     after: SpreadsheetState,
     sampleSize: number = this.sampleSize
   ): Promise<DiffResult> {
-    type SampleDiff = Extract<DiffResult, { tier: 'SAMPLE' }>;
-    const samples: SampleDiff['samples'] = {
+    const samples: {
+      firstRows: CellChangeRecord[];
+      lastRows: CellChangeRecord[];
+      randomRows: CellChangeRecord[];
+    } = {
       firstRows: [],
       lastRows: [],
       randomRows: [],

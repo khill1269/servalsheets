@@ -43,17 +43,19 @@ describe('PivotHandler', () => {
 
   it('creates a pivot table', async () => {
     const result = await handler.handle({
-      action: 'create',
-      spreadsheetId: 'sheet-id',
-      sourceRange: { a1: 'Sheet1!A1:B5' },
-      values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }],
+      request: {
+        action: 'create',
+        spreadsheetId: 'sheet-id',
+        sourceRange: { a1: 'Sheet1!A1:B5' },
+        values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }],
+      },
     });
 
     const parsed = SheetsPivotOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.pivotTable?.sheetId).toBeDefined();
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.pivotTable?.sheetId).toBeDefined();
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
   });
@@ -69,27 +71,31 @@ describe('PivotHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'list',
-      spreadsheetId: 'sheet-id',
+      request: {
+        action: 'list',
+        spreadsheetId: 'sheet-id',
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.pivotTables?.[0].title).toBe('Sheet1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.pivotTables?.[0].title).toBe('Sheet1');
     }
   });
 
   it('supports dryRun on delete', async () => {
     const result = await handler.handle({
-      action: 'delete',
-      spreadsheetId: 'sheet-id',
-      sheetId: 0,
-      safety: { dryRun: true },
+      request: {
+        action: 'delete',
+        spreadsheetId: 'sheet-id',
+        sheetId: 0,
+        safety: { dryRun: true },
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.dryRun).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.dryRun).toBe(true);
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });

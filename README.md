@@ -1,37 +1,77 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 15 tools, 158 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 15 tools, 156 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-144%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
 
-## What's New in v1.1.0 (2026-01-03)
+## What's New in v1.2.0 (2026-01-05)
 
-🎉 **Production Hardening Release**
+🤖 **Advanced Analytics & AI Integration Release**
 
-- ✅ **Security Hardened**: OAuth 2.1 with CSRF protection, signed state tokens, redirect URI allowlist
-- ✅ **Production Ready**: Required secrets enforcement, comprehensive deployment checklist
-- ✅ **Modern Stack**: Express 5, Zod 4, Node 22 LTS, latest dependencies
-- ✅ **Session Storage**: TTL-based storage with optional Redis support for HA
-- ✅ **Type Safety**: Zero `as any` casts, full Zod validation
-- ✅ **144 Tests**: 85.2% coverage including integration tests
-- ✅ **ESLint**: Strict code quality enforcement
+- ✅ **Pattern Detection**: Trend analysis, correlations, anomalies, seasonality detection
+- ✅ **Column Analysis**: Deep data profiling with quality metrics and distributions
+- ✅ **AI-Powered Tools**: Template suggestions, formula generation, chart recommendations
+- ✅ **Request Deduplication**: Prevents duplicate API calls, reduces quota usage
+- ✅ **User Confirmations**: Safety dialogs for destructive bulk operations
+- ✅ **MCP Sampling**: AI features using SEP-1577 (server-to-client LLM requests)
+- ✅ **MCP Elicitation**: User input collection using SEP-1036 (confirmation dialogs)
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
+### Previous Release: v1.1.1 (2026-01-04)
+
+🚀 **Performance & Observability Release**
+
+- HTTP Compression, Payload Monitoring, Batch Efficiency Analysis
+- Dynamic Rate Limiting, Test Coverage Thresholds
+
+### Earlier Release: v1.1.0 (2026-01-03)
+
+🎉 **Production Hardening Release**
+
+- Security Hardened: OAuth 2.1 with CSRF protection, signed state tokens, redirect URI allowlist
+- Production Ready: Required secrets enforcement, comprehensive deployment checklist
+- Modern Stack: Express 5, Zod 4, Node 22 LTS, latest dependencies
+- Session Storage: TTL-based storage with optional Redis support for HA
+- Type Safety: Zero `as any` casts, full Zod validation
+- 144 Tests: 85.2% coverage including integration tests
+- ESLint: Strict code quality enforcement
+
 ## Features
 
-- **15 Tools, 158 Actions**: Broad Google Sheets API v4 coverage
+### Core Capabilities
+- **15 Tools, 159 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
-- **Safety Rails**: Dry-run, effect scope limits, expected state validation
+- **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
+- **OAuth 2.1 Support**: For Claude Connectors Directory integration
+
+### Advanced Analytics 🔬
+- **Pattern Detection**: Trend analysis, correlations, anomalies, seasonality
+- **Column Profiling**: Data type detection, distributions, quality metrics
+- **Statistical Analysis**: Comprehensive data quality and structure insights
+
+### AI-Powered Features 🤖
+- **Template Suggestions**: AI generates contextual spreadsheet templates
+- **Formula Generation**: Natural language → Google Sheets formulas
+- **Chart Recommendations**: AI suggests optimal visualizations for your data
+- **Requires**: Client with MCP sampling capability (SEP-1577)
+
+### Performance & Optimization ⚡
+- **Request Deduplication**: Prevents duplicate API calls, reduces quota usage
 - **Tiered Diff Engine**: Automatic tier selection (METADATA/SAMPLE/FULL)
+- **Rate Limiting**: Built-in token bucket with dynamic throttling on 429 errors
+- **Payload Monitoring**: Automatic size tracking with 2MB warnings, 10MB hard limits
+- **Batch Efficiency**: Real-time optimization analysis and suggestions
+- **HTTP Compression**: gzip middleware for bandwidth reduction
+
+### Developer Experience 🛠️
 - **Semantic Range Resolution**: Query by header name, named ranges, or A1 notation
 - **Intent-Based Architecture**: Single BatchCompiler for all mutations
-- **Rate Limiting**: Built-in token bucket with Google API limits
-- **OAuth 2.1 Support**: For Claude Connectors Directory integration
+- **User Confirmations**: Elicitation dialogs for destructive operations (SEP-1036)
 
 ## Quick Start
 
@@ -71,18 +111,29 @@ PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 
 ## Documentation
 
-ServalSheets has comprehensive documentation for all use cases:
+ServalSheets has comprehensive documentation organized by use case:
 
 ### 🚀 Getting Started
-- **[USAGE_GUIDE.md](./USAGE_GUIDE.md)** - Complete usage guide (start here!)
-- **[FIRST_TIME_USER.md](./FIRST_TIME_USER.md)** - Quick 5-minute start
-- **[QUICKSTART_CREDENTIALS.md](./QUICKSTART_CREDENTIALS.md)** - Get Google credentials
-- **[CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md)** - Detailed setup
+- **[QUICKSTART.md](./QUICKSTART.md)** - Quick start guide (start here!)
+- **[docs/guides/CLAUDE_DESKTOP_SETUP.md](./docs/guides/CLAUDE_DESKTOP_SETUP.md)** - Claude Desktop setup
+- **[docs/guides/INSTALLATION_GUIDE.md](./docs/guides/INSTALLATION_GUIDE.md)** - Installation instructions
+- **[docs/guides/FIRST_TIME_USER.md](./docs/guides/FIRST_TIME_USER.md)** - First-time user walkthrough
 
-### 📖 Reference
-- **[PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md)** - 7 interactive prompts
-- **[SKILL.md](./SKILL.md)** - Guide for AI assistants
-- **[DOCUMENTATION.md](./DOCUMENTATION.md)** - Complete documentation index
+### 📖 User Guides
+- **[docs/guides/USAGE_GUIDE.md](./docs/guides/USAGE_GUIDE.md)** - Complete usage guide
+- **[docs/guides/PROMPTS_GUIDE.md](./docs/guides/PROMPTS_GUIDE.md)** - Effective AI prompts
+- **[docs/guides/OAUTH_USER_SETUP.md](./docs/guides/OAUTH_USER_SETUP.md)** - OAuth authentication
+- **[docs/guides/TROUBLESHOOTING.md](./docs/guides/TROUBLESHOOTING.md)** - Common issues
+- **[docs/guides/SKILL.md](./docs/guides/SKILL.md)** - Claude skill integration
+
+### 🏭 Production & Operations
+- **[docs/guides/DEPLOYMENT.md](./docs/guides/DEPLOYMENT.md)** - Production deployment
+- **[docs/guides/MONITORING.md](./docs/guides/MONITORING.md)** - Monitoring & observability
+- **[docs/guides/PERFORMANCE.md](./docs/guides/PERFORMANCE.md)** - Performance optimization
+- **[SECURITY.md](./SECURITY.md)** - Security policy
+
+### 📚 Complete Documentation Index
+- **[docs/README.md](./docs/README.md)** - Full documentation index with all guides, development docs, and release notes
 
 ### 🔐 Production
 - **[SECURITY.md](./SECURITY.md)** - Security best practices
@@ -105,7 +156,7 @@ ServalSheets has comprehensive documentation for all use cases:
 | `sheets_dimensions` | 21 | Row/column operations | No | Yes |
 | `sheets_rules` | 8 | Conditional formatting | No | Yes |
 | `sheets_charts` | 9 | Chart management | No | Yes |
-| `sheets_pivot` | 8 | Pivot tables | No | Yes |
+| `sheets_pivot` | 6 | Pivot tables | No | Yes |
 | `sheets_filter_sort` | 14 | Filtering and sorting | No | Yes |
 | `sheets_sharing` | 8 | Permissions | No | Yes |
 | `sheets_comments` | 10 | Comments | No | Yes |
@@ -182,14 +233,11 @@ const revenue = await sheets_values({
   }
 });
 
-// Returns with resolution metadata
+// Returns cell values
 // {
-//   values: [[5000], [7500], [3200], ...],
-//   resolution: {
-//     method: 'semantic_header',
-//     confidence: 1.0,
-//     path: 'Matched "Total Revenue" to header "Total Revenue" (column E)'
-//   }
+//   success: true,
+//   action: 'read',
+//   values: [[5000], [7500], [3200], ...]
 // }
 ```
 
@@ -347,7 +395,7 @@ Persist OAuth tokens across restarts using an encrypted file store.
 
 ```bash
 export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
-export GOOGLE_TOKEN_STORE_KEY=<64-char-hex-key>
+export ENCRYPTION_KEY=<64-char-hex-key>
 npx servalsheets
 ```
 
@@ -411,16 +459,16 @@ Redis provides:
 Control API quota usage with token bucket rate limiting:
 
 ```bash
-# Read requests (default: 300/min)
-export SERVALSHEETS_READS_PER_MINUTE=300
-
-# Write requests (default: 60/min)
-export SERVALSHEETS_WRITES_PER_MINUTE=60
+# Configure rate limits (default: 300 reads/min, 60 writes/min)
+export RATE_LIMIT_READS_PER_MINUTE=300
+export RATE_LIMIT_WRITES_PER_MINUTE=60
 ```
 
 **Google Sheets API Quotas**:
 - Read requests: 300/min per user
 - Write requests: 60/min per user
+
+**Dynamic Throttling**: When a 429 (rate limit) error is detected, the rate limiter automatically reduces rates by 50% for 60 seconds, then restores normal limits.
 
 Adjust these based on your Google Cloud project quotas. See `PERFORMANCE.md` for tuning strategies.
 
@@ -429,30 +477,51 @@ Adjust these based on your Google Cloud project quotas. See `PERFORMANCE.md` for
 Configure cache TTLs and sizes:
 
 ```bash
-# Metadata cache (default: 5 minutes)
-export SERVALSHEETS_CACHE_METADATA_TTL=300000
+# Enable/disable caching (default: enabled)
+export CACHE_ENABLED=true
 
-# Data cache (default: 1 minute)
-export SERVALSHEETS_CACHE_DATA_TTL=60000
-
-# Cache sizes (default: 100 metadata, 1000 data)
-export SERVALSHEETS_CACHE_METADATA_SIZE=100
-export SERVALSHEETS_CACHE_DATA_SIZE=1000
+# Cache configuration
+export CACHE_MAX_SIZE_MB=100
+export CACHE_TTL_MS=300000  # 5 minutes
 ```
 
 Caching reduces API calls by 100x for repeated reads. Increase TTLs for read-heavy workloads.
+
+### Observability
+
+Configure tracing and monitoring:
+
+```bash
+# Enable OpenTelemetry tracing
+export OTEL_ENABLED=true
+export OTEL_LOG_SPANS=true  # Log spans to console
+
+# Request deduplication
+export DEDUPLICATION_ENABLED=true
+export DEDUP_WINDOW_MS=5000  # 5 seconds
+```
+
+**Automatic Monitoring**:
+- **Payload sizes**: All Google API requests/responses tracked
+- **Batch efficiency**: Intents per spreadsheet ratio analyzed
+- **Rate limiting**: Dynamic throttling on 429 errors
+- **HTTP compression**: Response sizes reduced by 60-80%
+
+Statistics available via lifecycle methods:
+- `getCacheStats()` - Cache hit rates, sizes
+- `getDeduplicationStats()` - Deduplication rates
+- `getBatchEfficiencyStats()` - Batch optimization metrics
+- `getTracingStats()` - OpenTelemetry span counts
 
 ### Effect Scope Limits
 
 Prevent accidental large-scale operations:
 
-```bash
-# Maximum cells per operation (default: 10,000)
-export SERVALSHEETS_MAX_CELLS=10000
+Resource limits are currently configured with hard-coded defaults:
+- Maximum cells per operation: 10,000
+- Maximum sheets per operation: 10
 
-# Maximum sheets per operation (default: 10)
-export SERVALSHEETS_MAX_SHEETS=10
-```
+_(Note: Environment variable configuration coming in future release)_
 
 These limits act as safety rails. Operations exceeding limits will fail with `EFFECT_SCOPE_EXCEEDED` error.
 
@@ -501,18 +570,8 @@ Complete production setup for Claude Desktop:
         "LOG_FORMAT": "json",
 
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json",
-
-        "SERVALSHEETS_READS_PER_MINUTE": "300",
-        "SERVALSHEETS_WRITES_PER_MINUTE": "60",
-
-        "SERVALSHEETS_CACHE_METADATA_TTL": "600000",
-        "SERVALSHEETS_CACHE_DATA_TTL": "120000",
-
-        "SERVALSHEETS_MAX_CELLS": "100000",
-        "SERVALSHEETS_MAX_SHEETS": "20",
-
         "GOOGLE_TOKEN_STORE_PATH": "/path/to/tokens.enc",
-        "GOOGLE_TOKEN_STORE_KEY": "<64-char-hex-key>"
+        "ENCRYPTION_KEY": "<64-char-hex-key>"
       }
     }
   }

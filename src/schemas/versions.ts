@@ -10,6 +10,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -37,7 +38,7 @@ const SnapshotSchema = z.object({
   size: z.number().int().optional(),
 });
 
-export const SheetsVersionsInputSchema = z.discriminatedUnion('action', [
+const VersionsActionSchema = z.discriminatedUnion('action', [
   // LIST_REVISIONS
   BaseSchema.extend({
     action: z.literal('list_revisions'),
@@ -108,7 +109,11 @@ export const SheetsVersionsInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsVersionsOutputSchema = z.discriminatedUnion('success', [
+export const SheetsVersionsInputSchema = z.object({
+  request: VersionsActionSchema,
+});
+
+const VersionsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -127,12 +132,17 @@ export const SheetsVersionsOutputSchema = z.discriminatedUnion('success', [
     exportData: z.string().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsVersionsOutputSchema = z.object({
+  response: VersionsResponseSchema,
+});
 
 export const SHEETS_VERSIONS_ANNOTATIONS: ToolAnnotations = {
   title: 'Version Control',
@@ -144,3 +154,5 @@ export const SHEETS_VERSIONS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsVersionsInput = z.infer<typeof SheetsVersionsInputSchema>;
 export type SheetsVersionsOutput = z.infer<typeof SheetsVersionsOutputSchema>;
+export type VersionsAction = z.infer<typeof VersionsActionSchema>;
+export type VersionsResponse = z.infer<typeof VersionsResponseSchema>;

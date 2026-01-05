@@ -6,6 +6,8 @@
  */
 
 import type { drive_v3 } from 'googleapis';
+import { ServiceError, NotFoundError } from '../core/errors.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
 
 export interface Snapshot {
   id: string;
@@ -30,11 +32,20 @@ export class SnapshotService {
   private defaultFolderId: string | null;
   private maxSnapshots: number;
   private snapshots: Map<string, Snapshot[]> = new Map();
+  private driveCircuit: CircuitBreaker;
 
   constructor(options: SnapshotServiceOptions) {
     this.driveApi = options.driveApi;
     this.defaultFolderId = options.defaultFolderId ?? null;
     this.maxSnapshots = options.maxSnapshots ?? 10;
+
+    // Initialize circuit breaker for Drive API calls
+    this.driveCircuit = new CircuitBreaker({
+      failureThreshold: 5,
+      successThreshold: 2,
+      timeout: 60000, // 60 seconds
+      name: 'drive-api',
+    });
   }
 
   /**
@@ -57,15 +68,23 @@ export class SnapshotService {
       requestBody.parents = [this.defaultFolderId];
     }
 
-    // Copy the spreadsheet
-    const response = await this.driveApi.files.copy({
-      fileId: spreadsheetId,
-      requestBody,
+    // Copy the spreadsheet (with circuit breaker protection)
+    const response = await this.driveCircuit.execute(async () => {
+      return await this.driveApi.files.copy({
+        fileId: spreadsheetId,
+        requestBody,
+      });
     });
 
     const copyId = response.data?.id;
     if (!copyId) {
-      throw new Error('Failed to create snapshot: no file ID returned');
+      throw new ServiceError(
+        'Failed to create snapshot: Google API did not return a file ID',
+        'SNAPSHOT_CREATION_FAILED',
+        'Google Drive',
+        true,
+        { spreadsheetId, name: snapshotName }
+      );
     }
 
     const snapshot: Snapshot = {
@@ -119,20 +138,28 @@ export class SnapshotService {
   async restore(snapshotId: string): Promise<string> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new Error(`Snapshot ${snapshotId} not found`);
+      throw new NotFoundError('Snapshot', snapshotId, { operation: 'restore' });
     }
 
-    // Copy snapshot to create restored file
-    const response = await this.driveApi.files.copy({
-      fileId: snapshot.copySpreadsheetId,
-      requestBody: {
-        name: `Restored from ${snapshot.name}`,
-      },
+    // Copy snapshot to create restored file (with circuit breaker protection)
+    const response = await this.driveCircuit.execute(async () => {
+      return await this.driveApi.files.copy({
+        fileId: snapshot.copySpreadsheetId,
+        requestBody: {
+          name: `Restored from ${snapshot.name}`,
+        },
+      });
     });
 
     const restoredId = response.data?.id;
     if (!restoredId) {
-      throw new Error('Failed to restore snapshot: no file ID returned');
+      throw new ServiceError(
+        'Failed to restore snapshot: Google API did not return a file ID',
+        'SNAPSHOT_RESTORE_FAILED',
+        'Google Drive',
+        true,
+        { snapshotId }
+      );
     }
 
     return restoredId;
@@ -144,12 +171,14 @@ export class SnapshotService {
   async delete(snapshotId: string): Promise<void> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new Error(`Snapshot ${snapshotId} not found`);
+      throw new NotFoundError('Snapshot', snapshotId, { operation: 'delete' });
     }
 
-    // Delete the copy
-    await this.driveApi.files.delete({
-      fileId: snapshot.copySpreadsheetId,
+    // Delete the copy (with circuit breaker protection)
+    await this.driveCircuit.execute(async () => {
+      return await this.driveApi.files.delete({
+        fileId: snapshot.copySpreadsheetId,
+      });
     });
 
     // Remove from memory

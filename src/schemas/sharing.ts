@@ -11,6 +11,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -28,7 +29,7 @@ const PermissionSchema = z.object({
   expirationTime: z.string().optional(),
 });
 
-export const SheetsSharingInputSchema = z.discriminatedUnion('action', [
+const SharingActionSchema = z.discriminatedUnion('action', [
   // SHARE
   BaseSchema.extend({
     action: z.literal('share'),
@@ -90,7 +91,11 @@ export const SheetsSharingInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsSharingOutputSchema = z.discriminatedUnion('success', [
+export const SheetsSharingInputSchema = z.object({
+  request: SharingActionSchema,
+});
+
+const SharingResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -99,12 +104,17 @@ export const SheetsSharingOutputSchema = z.discriminatedUnion('success', [
     sharingLink: z.string().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsSharingOutputSchema = z.object({
+  response: SharingResponseSchema,
+});
 
 export const SHEETS_SHARING_ANNOTATIONS: ToolAnnotations = {
   title: 'Sharing & Permissions',
@@ -116,3 +126,5 @@ export const SHEETS_SHARING_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsSharingInput = z.infer<typeof SheetsSharingInputSchema>;
 export type SheetsSharingOutput = z.infer<typeof SheetsSharingOutputSchema>;
+export type SharingAction = z.infer<typeof SharingActionSchema>;
+export type SharingResponse = z.infer<typeof SharingResponseSchema>;

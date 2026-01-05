@@ -47,13 +47,15 @@ describe('AnalysisHandler', () => {
 
   it('runs data quality check', async () => {
     const result = await handler.handle({
-      action: 'data_quality',
-      spreadsheetId: 'sheet-id',
+      request: {
+        action: 'data_quality',
+        spreadsheetId: 'sheet-id',
+      },
     });
 
     const parsed = SheetsAnalysisOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
+    expect(result.response.success).toBe(true);
   });
 
   it('compares ranges', async () => {
@@ -62,15 +64,17 @@ describe('AnalysisHandler', () => {
       .mockResolvedValueOnce({ data: { values: [['A'], [2]] } });
 
     const result = await handler.handle({
-      action: 'compare_ranges',
-      spreadsheetId: 'sheet-id',
-      range1: { a1: 'Sheet1!A1:A2' },
-      range2: { a1: 'Sheet1!A1:A2' },
+      request: {
+        action: 'compare_ranges',
+        spreadsheetId: 'sheet-id',
+        range1: { a1: 'Sheet1!A1:A2' },
+        range2: { a1: 'Sheet1!A1:A2' },
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.comparison?.diffCount).toBeGreaterThan(0);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.comparison?.diffCount).toBeGreaterThan(0);
     }
   });
 });

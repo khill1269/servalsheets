@@ -40,6 +40,7 @@ export interface TaskStore {
   getTaskResult(taskId: string): Promise<TaskResult | null>;
   deleteTask(taskId: string): Promise<void>;
   cleanupExpiredTasks(): Promise<number>;
+  getAllTasks(): Promise<Task[]>;
 }
 
 /**
@@ -212,7 +213,9 @@ export class InMemoryTaskStore implements TaskStore {
   /**
    * Get all active tasks (for debugging/monitoring)
    *
-   * @returns Array of all non-expired tasks
+   * Returns tasks sorted by creation time (newest first)
+   *
+   * @returns Array of all non-expired tasks, sorted newest first
    */
   async getAllTasks(): Promise<Task[]> {
     const now = Date.now();
@@ -224,6 +227,13 @@ export class InMemoryTaskStore implements TaskStore {
         activeTasks.push(task);
       }
     }
+
+    // Sort by creation time, newest first
+    activeTasks.sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
 
     return activeTasks;
   }
@@ -251,49 +261,341 @@ export class InMemoryTaskStore implements TaskStore {
 }
 
 /**
- * Redis-backed task store (placeholder for production)
+ * Redis-backed task store for production use
  *
- * Implementation notes:
- * - Use Redis hashes for task metadata
- * - Use Redis strings for task results (with JSON serialization)
- * - Use Redis TTL for automatic expiration
- * - Use Redis pub/sub for task status notifications
+ * Features:
+ * - Distributed task state across multiple instances
+ * - Automatic TTL-based expiration
+ * - Horizontal scaling support
+ * - Persistent task history
  *
- * Example:
- * - Key: tasks:{taskId} → hash with status, createdAt, etc.
- * - Key: task_results:{taskId} → JSON string of CallToolResult
- * - Channel: task_status:{taskId} → publish status updates
+ * Implementation:
+ * - Redis hashes for task metadata (tasks:{taskId})
+ * - Redis strings for task results (task_results:{taskId})
+ * - Redis TTL for automatic expiration
+ * - Redis SCAN for efficient task listing
  */
 export class RedisTaskStore implements TaskStore {
-  constructor(/* redisClient: Redis */) {
-    throw new Error('RedisTaskStore not yet implemented - use InMemoryTaskStore');
+  private client: any; // Redis client (dynamic import)
+  private connected: boolean = false;
+  private keyPrefix: string;
+
+  constructor(
+    private redisUrl: string,
+    keyPrefix: string = 'servalsheets:task:'
+  ) {
+    this.keyPrefix = keyPrefix;
   }
 
-  async createTask(_options: { ttl?: number }): Promise<Task> {
-    throw new Error('Not implemented');
+  /**
+   * Initialize Redis connection (lazy)
+   */
+  private async ensureConnected(): Promise<void> {
+    if (this.connected) {
+      return;
+    }
+
+    try {
+      // Dynamic import to make Redis optional
+      // @ts-ignore - Redis is an optional peer dependency
+      const { createClient } = await import('redis');
+
+      this.client = createClient({
+        url: this.redisUrl,
+      });
+
+      this.client.on('error', (err: Error) => {
+        console.error('[RedisTaskStore] Redis error:', err);
+      });
+
+      await this.client.connect();
+      this.connected = true;
+      console.error('[RedisTaskStore] Connected to Redis');
+    } catch (error) {
+      throw new Error(
+        `Failed to connect to Redis at ${this.redisUrl}. ` +
+        `Make sure Redis is installed (npm install redis) and running. ` +
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
-  async getTask(_taskId: string): Promise<Task | null> {
-    throw new Error('Not implemented');
+  private getTaskKey(taskId: string): string {
+    return `${this.keyPrefix}${taskId}`;
   }
 
-  async updateTaskStatus(_taskId: string, _status: TaskStatus, _message?: string): Promise<void> {
-    throw new Error('Not implemented');
+  private getResultKey(taskId: string): string {
+    return `${this.keyPrefix}result:${taskId}`;
   }
 
-  async storeTaskResult(_taskId: string, _status: 'completed' | 'failed', _result: CallToolResult): Promise<void> {
-    throw new Error('Not implemented');
+  /**
+   * Create a new task
+   */
+  async createTask(options: { ttl?: number } = {}): Promise<Task> {
+    await this.ensureConnected();
+
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const now = new Date().toISOString();
+    const ttl = options.ttl ?? 3600000; // Default 1 hour
+
+    const task: Task = {
+      taskId,
+      status: 'working',
+      createdAt: now,
+      lastUpdatedAt: now,
+      ttl,
+      pollInterval: 5000,
+    };
+
+    // Store as Redis hash
+    const taskKey = this.getTaskKey(taskId);
+    await this.client.hSet(taskKey, {
+      taskId,
+      status: task.status,
+      createdAt: task.createdAt,
+      lastUpdatedAt: task.lastUpdatedAt,
+      ttl: task.ttl.toString(),
+      pollInterval: task.pollInterval?.toString() ?? '5000',
+    });
+
+    // Set expiration (convert ms to seconds)
+    const ttlSeconds = Math.ceil(ttl / 1000);
+    await this.client.expire(taskKey, ttlSeconds);
+
+    return task;
   }
 
-  async getTaskResult(_taskId: string): Promise<TaskResult | null> {
-    throw new Error('Not implemented');
+  /**
+   * Get task by ID
+   */
+  async getTask(taskId: string): Promise<Task | null> {
+    await this.ensureConnected();
+
+    const taskKey = this.getTaskKey(taskId);
+    const taskData = await this.client.hGetAll(taskKey);
+
+    if (!taskData || Object.keys(taskData).length === 0) {
+      return null;
+    }
+
+    // Parse task data
+    const task: Task = {
+      taskId: taskData['taskId'],
+      status: taskData['status'] as TaskStatus,
+      statusMessage: taskData['statusMessage'],
+      createdAt: taskData['createdAt'],
+      lastUpdatedAt: taskData['lastUpdatedAt'],
+      ttl: parseInt(taskData['ttl'], 10),
+      pollInterval: taskData['pollInterval'] ? parseInt(taskData['pollInterval'], 10) : undefined,
+    };
+
+    return task;
   }
 
-  async deleteTask(_taskId: string): Promise<void> {
-    throw new Error('Not implemented');
+  /**
+   * Update task status and message
+   */
+  async updateTaskStatus(
+    taskId: string,
+    status: TaskStatus,
+    message?: string
+  ): Promise<void> {
+    await this.ensureConnected();
+
+    const taskKey = this.getTaskKey(taskId);
+
+    // Check if task exists
+    const exists = await this.client.exists(taskKey);
+    if (!exists) {
+      throw new Error(`Task not found: ${taskId}`);
+    }
+
+    const now = new Date().toISOString();
+    const updates: Record<string, string> = {
+      status,
+      lastUpdatedAt: now,
+    };
+
+    if (message !== undefined) {
+      updates['statusMessage'] = message;
+    }
+
+    await this.client.hSet(taskKey, updates);
   }
 
+  /**
+   * Store task result (terminal state)
+   */
+  async storeTaskResult(
+    taskId: string,
+    status: 'completed' | 'failed',
+    result: CallToolResult
+  ): Promise<void> {
+    await this.ensureConnected();
+
+    // Update task status
+    await this.updateTaskStatus(taskId, status);
+
+    // Store result as JSON
+    const resultKey = this.getResultKey(taskId);
+    const taskResult: TaskResult = { result, status };
+    await this.client.set(resultKey, JSON.stringify(taskResult));
+
+    // Set same expiration as task
+    const taskKey = this.getTaskKey(taskId);
+    const ttl = await this.client.ttl(taskKey);
+    if (ttl > 0) {
+      await this.client.expire(resultKey, ttl);
+    }
+  }
+
+  /**
+   * Get task result
+   */
+  async getTaskResult(taskId: string): Promise<TaskResult | null> {
+    await this.ensureConnected();
+
+    const resultKey = this.getResultKey(taskId);
+    const resultData = await this.client.get(resultKey);
+
+    if (!resultData) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(resultData) as TaskResult;
+    } catch (error) {
+      console.error('[RedisTaskStore] Failed to parse task result:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete task and its result
+   */
+  async deleteTask(taskId: string): Promise<void> {
+    await this.ensureConnected();
+
+    const taskKey = this.getTaskKey(taskId);
+    const resultKey = this.getResultKey(taskId);
+
+    await this.client.del([taskKey, resultKey]);
+  }
+
+  /**
+   * Clean up expired tasks
+   *
+   * Note: Redis handles TTL automatically, but this provides
+   * explicit cleanup for monitoring purposes
+   */
   async cleanupExpiredTasks(): Promise<number> {
-    throw new Error('Not implemented');
+    await this.ensureConnected();
+
+    let cleaned = 0;
+    let cursor = '0';
+
+    // Use SCAN to iterate over task keys
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: `${this.keyPrefix}*`,
+        COUNT: 100,
+      });
+
+      cursor = result.cursor;
+      const keys = result.keys;
+
+      for (const key of keys) {
+        // Skip result keys
+        if (key.includes(':result:')) continue;
+
+        // Check if key still exists (may have been expired)
+        const exists = await this.client.exists(key);
+        if (!exists) {
+          cleaned++;
+        }
+      }
+    } while (cursor !== '0');
+
+    return cleaned;
+  }
+
+  /**
+   * Get all active tasks
+   */
+  async getAllTasks(): Promise<Task[]> {
+    await this.ensureConnected();
+
+    const tasks: Task[] = [];
+    let cursor = '0';
+
+    // Use SCAN to iterate over task keys
+    do {
+      const result = await this.client.scan(cursor, {
+        MATCH: `${this.keyPrefix}task_*`,
+        COUNT: 100,
+      });
+
+      cursor = result.cursor;
+      const keys = result.keys;
+
+      for (const key of keys) {
+        // Skip result keys
+        if (key.includes(':result:')) continue;
+
+        const taskData = await this.client.hGetAll(key);
+        if (taskData && Object.keys(taskData).length > 0) {
+          const task: Task = {
+            taskId: taskData['taskId'],
+            status: taskData['status'] as TaskStatus,
+            statusMessage: taskData['statusMessage'],
+            createdAt: taskData['createdAt'],
+            lastUpdatedAt: taskData['lastUpdatedAt'],
+            ttl: parseInt(taskData['ttl'], 10),
+            pollInterval: taskData['pollInterval'] ? parseInt(taskData['pollInterval'], 10) : undefined,
+          };
+          tasks.push(task);
+        }
+      }
+    } while (cursor !== '0');
+
+    // Sort by creation time, newest first
+    tasks.sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
+
+    return tasks;
+  }
+
+  /**
+   * Disconnect from Redis
+   */
+  async disconnect(): Promise<void> {
+    if (this.connected && this.client) {
+      await this.client.quit();
+      this.connected = false;
+    }
+  }
+
+  /**
+   * Get task count by status (for monitoring)
+   */
+  async getTaskStats(): Promise<Record<TaskStatus, number>> {
+    const tasks = await this.getAllTasks();
+
+    const stats: Record<TaskStatus, number> = {
+      working: 0,
+      input_required: 0,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
+    };
+
+    for (const task of tasks) {
+      stats[task.status]++;
+    }
+
+    return stats;
   }
 }

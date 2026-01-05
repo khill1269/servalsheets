@@ -1,13 +1,14 @@
 /**
  * ServalSheets - Range Resolver
- * 
+ *
  * Resolves semantic range queries to A1 notation
  * MCP Protocol: 2025-11-25
- * 
+ *
  * Tighten-up #6: Strict resolution with confidence
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
 import { LRUCache } from 'lru-cache';
 import type { 
   RangeInput, 
@@ -70,8 +71,15 @@ export class RangeResolver {
     this.fuzzyMatchThreshold = options.fuzzyMatchThreshold ?? 0.8;
     
     this.headerCache = new LRUCache<string, HeaderCache>({
-      max: 100,
+      max: 1000, // Increased from 100 to support larger workloads
       ttl: this.cacheTtlMs,
+      updateAgeOnGet: true,
+      dispose: (value, key) => {
+        // Log evicted entries in debug mode
+        if (process.env['LOG_LEVEL'] === 'debug') {
+          logger.debug('Range cache entry evicted', { key });
+        }
+      },
     });
   }
 
@@ -506,5 +514,23 @@ export class RangeResolver {
         this.headerCache.delete(key);
       }
     }
+  }
+
+  /**
+   * Get cache statistics for monitoring
+   */
+  getCacheStats(): { size: number; max: number; hitRate: number } {
+    const size = this.headerCache.size;
+    const max = this.headerCache.max;
+
+    // Calculate approximate hit rate from cache size vs max
+    // In a well-utilized cache, size approaching max indicates good hit rate
+    const hitRate = max > 0 ? (size / max) * 100 : 0;
+
+    return {
+      size,
+      max,
+      hitRate: Math.min(hitRate, 100),
+    };
   }
 }

@@ -8,11 +8,17 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsPivotInput, SheetsPivotOutput } from '../schemas/pivot.js';
+import type {
+  SheetsPivotInput,
+  SheetsPivotOutput,
+  PivotAction,
+  PivotResponse,
+} from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
-import { parseA1Notation, parseCellReference, toGridRange, type GridRangeInput } from '../utils/google-api.js';
+import { parseA1Notation, parseCellReference, toGridRange, type GridRangeInput } from '../utils/google-sheets-helpers.js';
+import { RangeResolutionError } from '../core/range-resolver.js';
 
-type PivotSuccess = Extract<SheetsPivotOutput, { success: true }>;
+type PivotSuccess = Extract<PivotResponse, { success: true }>;
 
 export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -24,59 +30,69 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
 
   async handle(input: SheetsPivotInput): Promise<SheetsPivotOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: PivotResponse;
+      switch (req.action) {
         case 'create':
-          return await this.handleCreate(input);
+          response = await this.handleCreate(req);
+          break;
         case 'update':
-          return await this.handleUpdate(input);
+          response = await this.handleUpdate(req);
+          break;
         case 'delete':
-          return await this.handleDelete(input);
+          response = await this.handleDelete(req);
+          break;
         case 'list':
-          return await this.handleList(input);
+          response = await this.handleList(req);
+          break;
         case 'get':
-          return await this.handleGet(input);
+          response = await this.handleGet(req);
+          break;
         case 'refresh':
-          return await this.handleRefresh(input);
+          response = await this.handleRefresh(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsPivotInput): Intent[] {
-    if ('spreadsheetId' in input) {
-      const mutatingActions: Array<SheetsPivotInput['action']> = [
+    const req = input.request;
+    if ('spreadsheetId' in req) {
+      const mutatingActions: Array<PivotAction['action']> = [
         'create',
         'update',
         'delete',
         'refresh',
       ];
-      if (!mutatingActions.includes(input.action)) {
+      if (!mutatingActions.includes(req.action)) {
         return [];
       }
 
-      const destructiveActions: Array<SheetsPivotInput['action']> = ['delete'];
-      const type = input.action === 'create'
+      const destructiveActions: Array<PivotAction['action']> = ['delete'];
+      const type = req.action === 'create'
         ? 'ADD_PIVOT_TABLE'
-        : input.action === 'delete'
+        : req.action === 'delete'
         ? 'DELETE_PIVOT_TABLE'
         : 'UPDATE_PIVOT_TABLE';
 
       return [{
         type,
-        target: { spreadsheetId: input.spreadsheetId },
+        target: { spreadsheetId: req.spreadsheetId },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
-          sourceAction: input.action,
+          sourceAction: req.action,
           priority: 1,
-          destructive: destructiveActions.includes(input.action),
+          destructive: destructiveActions.includes(req.action),
         },
       }];
     }
@@ -88,8 +104,8 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   // ============================================================
 
   private async handleCreate(
-    input: Extract<SheetsPivotInput, { action: 'create' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'create' }>
+  ): Promise<PivotResponse> {
     const sourceRange = await this.toGridRange(input.spreadsheetId, input.sourceRange);
     const destination = await this.toDestination(input.spreadsheetId, input.destinationCell, input.destinationSheetId);
 
@@ -131,8 +147,8 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   private async handleUpdate(
-    input: Extract<SheetsPivotInput, { action: 'update' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'update' }>
+  ): Promise<PivotResponse> {
     const sheetId = input.sheetId;
     const pivotRange = await this.findPivotRange(input.spreadsheetId, sheetId);
 
@@ -181,8 +197,8 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   private async handleDelete(
-    input: Extract<SheetsPivotInput, { action: 'delete' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'delete' }>
+  ): Promise<PivotResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete', {}, undefined, true);
     }
@@ -200,8 +216,8 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   private async handleList(
-    input: Extract<SheetsPivotInput, { action: 'list' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'list' }>
+  ): Promise<PivotResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties,sheets.data.rowData.values.pivotTable',
@@ -227,8 +243,8 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   private async handleGet(
-    input: Extract<SheetsPivotInput, { action: 'get' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'get' }>
+  ): Promise<PivotResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: [`'${input.sheetId}'!1:1`],
@@ -267,10 +283,10 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   private async handleRefresh(
-    input: Extract<SheetsPivotInput, { action: 'refresh' }>
-  ): Promise<SheetsPivotOutput> {
+    input: Extract<PivotAction, { action: 'refresh' }>
+  ): Promise<PivotResponse> {
     // Sheets API does not expose explicit pivot refresh; rewriting pivot triggers refresh.
-    const getInput: Extract<SheetsPivotInput, { action: 'get' }> = {
+    const getInput: Extract<PivotAction, { action: 'get' }> = {
       action: 'get',
       spreadsheetId: input.spreadsheetId,
       sheetId: input.sheetId,
@@ -369,13 +385,18 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
 
     const match = sheets.find(s => s.properties?.title === sheetName);
     if (!match) {
-      throw new Error(`Sheet not found: ${sheetName}`);
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        'SHEET_NOT_FOUND',
+        { sheetName, spreadsheetId },
+        false
+      );
     }
     return match.properties?.sheetId ?? 0;
   }
 
   private mapPivotGroup = (
-    group: NonNullable<Extract<SheetsPivotInput, { action: 'create' }>['rows']>[number]
+    group: NonNullable<Extract<PivotAction, { action: 'create' }>['rows']>[number]
   ): sheets_v4.Schema$PivotGroup => ({
     sourceColumnOffset: group.sourceColumnOffset,
     showTotals: group.showTotals,
@@ -402,7 +423,7 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
     } : undefined,
   });
 
-  private mapPivotValue = (value: NonNullable<Extract<SheetsPivotInput, { action: 'create' }>['values']>[number]): sheets_v4.Schema$PivotValue => ({
+  private mapPivotValue = (value: NonNullable<Extract<PivotAction, { action: 'create' }>['values']>[number]): sheets_v4.Schema$PivotValue => ({
     sourceColumnOffset: value.sourceColumnOffset,
     summarizeFunction: value.summarizeFunction,
     name: value.name,
@@ -410,7 +431,7 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   });
 
   private mapPivotFilter = (
-    filter: NonNullable<Extract<SheetsPivotInput, { action: 'create' }>['filters']>[number]
+    filter: NonNullable<Extract<PivotAction, { action: 'create' }>['filters']>[number]
   ): sheets_v4.Schema$PivotFilterSpec => ({
     columnOffsetIndex: filter.sourceColumnOffset,
     filterCriteria: {

@@ -8,9 +8,14 @@
 import type { drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsCommentsInput, SheetsCommentsOutput } from '../schemas/comments.js';
+import type {
+  SheetsCommentsInput,
+  SheetsCommentsOutput,
+  CommentsAction,
+  CommentsResponse,
+} from '../schemas/index.js';
 
-type CommentsSuccess = Extract<SheetsCommentsOutput, { success: true }>;
+type CommentsSuccess = Extract<CommentsResponse, { success: true }>;
 
 export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsCommentsOutput> {
   private driveApi: drive_v3.Drive | undefined;
@@ -22,45 +27,70 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
 
   async handle(input: SheetsCommentsInput): Promise<SheetsCommentsOutput> {
     if (!this.driveApi) {
-      return this.error({
-        code: 'INTERNAL_ERROR',
-        message: 'Drive API not available',
-        retryable: false,
-        suggestedFix: 'Initialize Drive API client with drive.file scope.',
-      });
+      return {
+        response: this.error({
+          code: 'INTERNAL_ERROR',
+          message: 'Drive API not available - required for comment operations',
+          details: {
+            action: input.request.action,
+            spreadsheetId: input.request.spreadsheetId,
+            requiredScope: 'https://www.googleapis.com/auth/drive.file',
+          },
+          retryable: false,
+          resolution: 'Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.',
+          resolutionSteps: [
+            '1. Verify GOOGLE_APPLICATION_CREDENTIALS or service account setup',
+            '2. Ensure drive.file scope is included in OAuth scopes',
+            '3. Re-authenticate if using OAuth',
+          ],
+        }),
+      };
     }
 
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: CommentsResponse;
+      switch (req.action) {
         case 'add':
-          return await this.handleAdd(input);
+          response = await this.handleAdd(req);
+          break;
         case 'update':
-          return await this.handleUpdate(input);
+          response = await this.handleUpdate(req);
+          break;
         case 'delete':
-          return await this.handleDelete(input);
+          response = await this.handleDelete(req);
+          break;
         case 'list':
-          return await this.handleList(input);
+          response = await this.handleList(req);
+          break;
         case 'get':
-          return await this.handleGet(input);
+          response = await this.handleGet(req);
+          break;
         case 'resolve':
-          return await this.handleResolve(input);
+          response = await this.handleResolve(req);
+          break;
         case 'reopen':
-          return await this.handleReopen(input);
+          response = await this.handleReopen(req);
+          break;
         case 'add_reply':
-          return await this.handleAddReply(input);
+          response = await this.handleAddReply(req);
+          break;
         case 'update_reply':
-          return await this.handleUpdateReply(input);
+          response = await this.handleUpdateReply(req);
+          break;
         case 'delete_reply':
-          return await this.handleDeleteReply(input);
+          response = await this.handleDeleteReply(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
@@ -73,8 +103,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   // ============================================================
 
   private async handleAdd(
-    input: Extract<SheetsCommentsInput, { action: 'add' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'add' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.create({
       fileId: input.spreadsheetId,
       requestBody: {
@@ -88,8 +118,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleUpdate(
-    input: Extract<SheetsCommentsInput, { action: 'update' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'update' }>
+  ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
       return this.success('update', {}, undefined, true);
     }
@@ -105,8 +135,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleDelete(
-    input: Extract<SheetsCommentsInput, { action: 'delete' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'delete' }>
+  ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete', {}, undefined, true);
     }
@@ -120,8 +150,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleList(
-    input: Extract<SheetsCommentsInput, { action: 'list' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'list' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.list({
       fileId: input.spreadsheetId,
       includeDeleted: input.includeDeleted ?? false,
@@ -135,8 +165,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleGet(
-    input: Extract<SheetsCommentsInput, { action: 'get' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'get' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.get({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
@@ -147,8 +177,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleResolve(
-    input: Extract<SheetsCommentsInput, { action: 'resolve' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'resolve' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
@@ -159,8 +189,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleReopen(
-    input: Extract<SheetsCommentsInput, { action: 'reopen' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'reopen' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
@@ -171,8 +201,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleAddReply(
-    input: Extract<SheetsCommentsInput, { action: 'add_reply' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'add_reply' }>
+  ): Promise<CommentsResponse> {
     const response = await this.driveApi!.replies.create({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
@@ -184,8 +214,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleUpdateReply(
-    input: Extract<SheetsCommentsInput, { action: 'update_reply' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'update_reply' }>
+  ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_reply', {}, undefined, true);
     }
@@ -201,8 +231,8 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   }
 
   private async handleDeleteReply(
-    input: Extract<SheetsCommentsInput, { action: 'delete_reply' }>
-  ): Promise<SheetsCommentsOutput> {
+    input: Extract<CommentsAction, { action: 'delete_reply' }>
+  ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete_reply', {}, undefined, true);
     }

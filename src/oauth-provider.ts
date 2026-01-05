@@ -1,21 +1,30 @@
 /**
  * ServalSheets - OAuth Provider
- * 
+ *
  * MCP-level OAuth for Claude Connectors Directory
  * Handles OAuth 2.1 flow for authenticating Claude to our server
  * MCP Protocol: 2025-11-25
+ *
+ * SECURITY: PKCE (Proof Key for Code Exchange) is REQUIRED for all authorization flows.
+ * Only S256 code challenge method is supported.
+ * This follows OAuth 2.1 security best practices.
  */
 
 import express, { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { randomUUID, randomBytes, createHash, createHmac } from 'crypto';
+import { rateLimit } from 'express-rate-limit';
 import { SessionStore, createSessionStore } from './storage/session-store.js';
+import { getSessionStoreConfig } from './config/env.js';
+import { logger } from './utils/logger.js';
+import { CircuitBreaker } from './utils/circuit-breaker.js';
 
 export interface OAuthConfig {
   issuer: string;
   clientId: string;
   clientSecret: string;
   jwtSecret: string;
+  jwtSecretPrevious?: string;  // Previous JWT secret for rotation (optional)
   stateSecret: string;  // HMAC secret for state tokens
   allowedRedirectUris: string[];  // Allowlist of redirect URIs
   accessTokenTtl?: number;  // seconds
@@ -33,6 +42,7 @@ interface TokenPayload {
   iat: number;
   scope: string;
   googleAccessToken?: string;
+  googleRefreshToken?: string;
 }
 
 interface AuthorizationCode {
@@ -40,9 +50,10 @@ interface AuthorizationCode {
   clientId: string;
   redirectUri: string;
   scope: string;
-  codeChallenge: string | undefined;
-  codeChallengeMethod: string | undefined;
+  codeChallenge: string;  // Now required (PKCE enforced)
+  codeChallengeMethod: string;  // Now required (PKCE enforced)
   googleAccessToken: string | undefined;
+  googleRefreshToken: string | undefined;
   expiresAt: number;
 }
 
@@ -70,12 +81,29 @@ interface StoredState {
 }
 
 /**
+ * Supported OAuth scopes
+ */
+const SUPPORTED_SCOPES = ['sheets:read', 'sheets:write', 'sheets:admin'] as const;
+type SupportedScope = typeof SUPPORTED_SCOPES[number];
+
+/**
+ * Scope hierarchy - higher scopes include lower scopes
+ */
+const SCOPE_HIERARCHY: Record<string, string[]> = {
+  'sheets:admin': ['sheets:write', 'sheets:read'],
+  'sheets:write': ['sheets:read'],
+  'sheets:read': [],
+};
+
+/**
  * OAuth 2.1 Provider for MCP authentication
  */
 export class OAuthProvider {
-  private config: Required<Omit<OAuthConfig, 'sessionStore'>> & { sessionStore?: SessionStore };
+  private config: Required<Omit<OAuthConfig, 'sessionStore' | 'jwtSecretPrevious'>> & { sessionStore?: SessionStore; jwtSecretPrevious?: string };
   private sessionStore: SessionStore;
   private cleanupInterval: NodeJS.Timeout;
+  private jwtSecrets: string[]; // Active JWT secrets (primary + previous)
+  private oauthCircuit: CircuitBreaker;
 
   constructor(config: OAuthConfig) {
     this.config = {
@@ -86,8 +114,59 @@ export class OAuthProvider {
       ...config,
     };
 
-    // Initialize session store (use provided or create in-memory)
-    this.sessionStore = config.sessionStore ?? createSessionStore();
+    // Initialize JWT secrets array (primary + previous for rotation)
+    this.jwtSecrets = [config.jwtSecret];
+    if (config.jwtSecretPrevious) {
+      this.jwtSecrets.push(config.jwtSecretPrevious);
+      logger.info('JWT secret rotation enabled', {
+        activeSecrets: this.jwtSecrets.length,
+      });
+    }
+
+    // Initialize circuit breaker for OAuth token exchanges
+    this.oauthCircuit = new CircuitBreaker({
+      failureThreshold: 5,
+      successThreshold: 2,
+      timeout: 30000, // 30 seconds for OAuth calls
+      name: 'google-oauth',
+    });
+
+    // ✅ SECURITY: Validate production requirements
+    const isProduction = process.env['NODE_ENV'] === 'production';
+    if (isProduction && !config.sessionStore && !process.env['REDIS_URL']) {
+      throw new Error(
+        'Redis session store required in production (REDIS_URL not set). ' +
+        'In-memory session store does not support multiple instances or persist across restarts.'
+      );
+    }
+
+    // Initialize session store based on environment configuration
+    if (config.sessionStore) {
+      // Use provided session store (for testing or custom implementations)
+      this.sessionStore = config.sessionStore;
+    } else {
+      // Use environment-configured session store
+      try {
+        const storeConfig = getSessionStoreConfig();
+        this.sessionStore = createSessionStore(storeConfig.redisUrl);
+      } catch (error) {
+        // If config validation fails, fall back to in-memory (development only)
+        // Production validation in lifecycle.ts will catch this earlier
+        if (isProduction) {
+          throw new Error(`Failed to initialize session store in production: ${error}`);
+        }
+        console.warn('[OAuthProvider] Session store config error, using in-memory:', error);
+        this.sessionStore = createSessionStore();
+      }
+    }
+
+    if (isProduction && !config.sessionStore) {
+      logger.info('Production mode: Using Redis session store', {
+        redisConfigured: !!process.env['REDIS_URL']
+      });
+    } else if (!isProduction) {
+      logger.warn('⚠️  Development mode: Using in-memory session store (not suitable for production)');
+    }
 
     // Start cleanup task for expired entries
     this.cleanupInterval = setInterval(() => this.cleanupExpired(), 60000); // Every minute
@@ -109,12 +188,86 @@ export class OAuthProvider {
 
   /**
    * Validate redirect URI against allowlist
+   * HIGH-002 FIX: Use URL parsing instead of string matching to prevent open redirect
+   *
+   * Security: Validates origin and pathname separately to prevent:
+   * - Fragment injection (e.g., http://localhost:3000/callback#evil.com)
+   * - Query parameter injection (e.g., http://localhost:3000/callback?redirect=evil.com)
+   * - Path traversal attacks
    */
   private validateRedirectUri(uri: string): boolean {
-    return this.config.allowedRedirectUris.some(allowed => {
-      // Exact match or starts with allowed + query params
-      return uri === allowed || uri.startsWith(allowed + '?');
-    });
+    try {
+      const url = new URL(uri);
+
+      return this.config.allowedRedirectUris.some(allowed => {
+        try {
+          const allowedUrl = new URL(allowed);
+
+          // Must match origin (protocol + host + port) AND pathname exactly
+          // Query parameters are allowed to vary (OAuth state, etc.)
+          // Fragments are allowed but origin/pathname must still match
+          return url.origin === allowedUrl.origin &&
+                 url.pathname === allowedUrl.pathname;
+        } catch {
+          // If allowed URI is invalid, skip it
+          return false;
+        }
+      });
+    } catch {
+      // If provided URI is invalid URL, reject it
+      return false;
+    }
+  }
+
+  /**
+   * Validate and normalize requested scopes
+   * Returns normalized scope string or null if invalid
+   */
+  private validateScope(requestedScope: string | undefined): { valid: boolean; scope?: string; error?: string } {
+    // Default to sheets:read if no scope provided
+    if (!requestedScope) {
+      return { valid: true, scope: 'sheets:read' };
+    }
+
+    // Parse requested scopes (space-separated)
+    const scopes = requestedScope.split(' ').filter(s => s.length > 0);
+
+    // Validate each scope
+    for (const scope of scopes) {
+      if (!SUPPORTED_SCOPES.includes(scope as SupportedScope)) {
+        return {
+          valid: false,
+          error: `Invalid scope '${scope}'. Supported scopes: ${SUPPORTED_SCOPES.join(', ')}`
+        };
+      }
+    }
+
+    // If multiple scopes requested, use the highest one (most permissive)
+    // Admin > Write > Read
+    if (scopes.includes('sheets:admin')) {
+      return { valid: true, scope: 'sheets:admin' };
+    }
+    if (scopes.includes('sheets:write')) {
+      return { valid: true, scope: 'sheets:write' };
+    }
+    if (scopes.includes('sheets:read')) {
+      return { valid: true, scope: 'sheets:read' };
+    }
+
+    // Shouldn't reach here, but fallback to read
+    return { valid: true, scope: 'sheets:read' };
+  }
+
+  /**
+   * Check if a given scope includes another scope
+   * Example: sheets:admin includes sheets:write and sheets:read
+   */
+  private scopeIncludes(grantedScope: string, requiredScope: string): boolean {
+    if (grantedScope === requiredScope) {
+      return true;
+    }
+    const hierarchy = SCOPE_HIERARCHY[grantedScope] || [];
+    return hierarchy.includes(requiredScope);
   }
 
   /**
@@ -186,6 +339,30 @@ export class OAuthProvider {
    */
   createRouter(): express.Router {
     const router = express.Router();
+    const isTestEnv = process.env['NODE_ENV'] === 'test';
+
+    // Rate limiter for OAuth endpoints
+    const oauthLimiter = rateLimit({
+      windowMs: 60 * 1000, // 1 minute
+      max: 10, // 10 requests per minute per IP
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (req, res) => {
+        logger.warn('OAuth rate limit exceeded', {
+          ip: req.ip,
+          path: req.path,
+        });
+        res.status(429).json({
+          error: 'too_many_requests',
+          error_description: 'Too many OAuth requests. Try again in 1 minute.',
+        });
+      },
+    });
+
+    // Apply rate limiting to OAuth endpoints (skip in tests)
+    if (!isTestEnv) {
+      router.use('/oauth', oauthLimiter);
+    }
 
     // OAuth 2.0 Authorization Server Metadata (RFC 8414)
     router.get('/.well-known/oauth-authorization-server', (_req, res) => {
@@ -207,7 +384,7 @@ export class OAuthProvider {
     router.get('/.well-known/mcp.json', (_req, res) => {
       res.json({
         name: 'servalsheets',
-        version: '4.0.0',
+        version: '1.1.1',
         description: 'Production-grade Google Sheets MCP server',
         oauth: {
           authorization_endpoint: `${this.config.issuer}/oauth/authorize`,
@@ -258,13 +435,52 @@ export class OAuthProvider {
         return;
       }
 
+      // ✅ SECURITY: Validate requested scope
+      const scopeValidation = this.validateScope(scope);
+      if (!scopeValidation.valid) {
+        res.status(400).json({
+          error: 'invalid_scope',
+          error_description: scopeValidation.error
+        });
+        return;
+      }
+      const validatedScope = scopeValidation.scope!;
+
+      // ✅ SECURITY: Require PKCE (OAuth 2.1 best practice)
+      if (!code_challenge || !code_challenge_method) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'code_challenge and code_challenge_method are required (PKCE)'
+        });
+        return;
+      }
+
+      // Validate code_challenge_method (only S256 is supported)
+      if (code_challenge_method !== 'S256') {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Only code_challenge_method=S256 is supported'
+        });
+        return;
+      }
+
+      // Validate code_challenge format (base64url, 43-128 characters)
+      if (!/^[A-Za-z0-9_-]{43,128}$/.test(code_challenge)) {
+        res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'code_challenge must be a 43-128 character base64url string'
+        });
+        return;
+      }
+
       // For Claude Connectors, redirect to Google OAuth first
       if (this.config.googleClientId) {
         const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
         googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
         googleAuthUrl.searchParams.set('redirect_uri', `${this.config.issuer}/oauth/google-callback`);
         googleAuthUrl.searchParams.set('response_type', 'code');
-        googleAuthUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive');
+        // Match old project's "admin" scope mode: spreadsheets + drive.file + drive.readonly
+        googleAuthUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly');
         googleAuthUrl.searchParams.set('access_type', 'offline');
         googleAuthUrl.searchParams.set('prompt', 'consent');
 
@@ -272,7 +488,7 @@ export class OAuthProvider {
         const stateData: StateData = {
           originalState: state,
           redirectUri: redirect_uri,
-          scope,
+          scope: validatedScope,
           codeChallenge: code_challenge,
           codeChallengeMethod: code_challenge_method,
         };
@@ -290,7 +506,7 @@ export class OAuthProvider {
           code,
           clientId: client_id,
           redirectUri: redirect_uri,
-          scope: scope ?? 'sheets:read',
+          scope: validatedScope,
           codeChallenge: code_challenge,
           codeChallengeMethod: code_challenge_method,
           googleAccessToken: undefined,
@@ -337,23 +553,25 @@ export class OAuthProvider {
           return;
         }
         
-        // Exchange code for Google tokens
-        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            code: code,
-            client_id: this.config.googleClientId,
-            client_secret: this.config.googleClientSecret,
-            redirect_uri: `${this.config.issuer}/oauth/google-callback`,
-            grant_type: 'authorization_code',
-          }),
-        });
+        // Exchange code for Google tokens (with circuit breaker protection)
+        const googleTokens = await this.oauthCircuit.execute(async () => {
+          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              code: code,
+              client_id: this.config.googleClientId,
+              client_secret: this.config.googleClientSecret,
+              redirect_uri: `${this.config.issuer}/oauth/google-callback`,
+              grant_type: 'authorization_code',
+            }),
+          });
 
-        const googleTokens = await tokenResponse.json() as {
-          access_token: string;
-          refresh_token?: string;
-        };
+          return await tokenResponse.json() as {
+            access_token: string;
+            refresh_token?: string;
+          };
+        });
 
         // Generate our authorization code
         const authCode = randomBytes(32).toString('hex');
@@ -367,6 +585,7 @@ export class OAuthProvider {
             codeChallenge: stateData.codeChallenge,
             codeChallengeMethod: stateData.codeChallengeMethod,
             googleAccessToken: googleTokens.access_token,
+            googleRefreshToken: googleTokens.refresh_token,
             expiresAt: Date.now() + 600000,
           } as AuthorizationCode,
           600 // 10 minutes
@@ -433,27 +652,35 @@ export class OAuthProvider {
         return;
       }
 
-      try {
-        // ✅ SECURITY FIX: Verify aud and iss in introspection too
-        const payload = jwt.verify(token, this.config.jwtSecret, {
-          algorithms: ['HS256'],
-          audience: this.config.clientId,
-          issuer: this.config.issuer,
-          clockTolerance: 30
-        }) as TokenPayload;
+      // Try all active secrets (supports rotation)
+      for (const secret of this.jwtSecrets) {
+        try {
+          // ✅ SECURITY FIX: Verify aud and iss in introspection too
+          const payload = jwt.verify(token, secret, {
+            algorithms: ['HS256'],
+            audience: this.config.clientId,
+            issuer: this.config.issuer,
+            clockTolerance: 30
+          }) as TokenPayload;
 
-        res.json({
-          active: true,
-          sub: payload.sub,
-          aud: payload.aud,
-          iss: payload.iss,
-          exp: payload.exp,
-          iat: payload.iat,
-          scope: payload.scope,
-        });
-      } catch {
-        res.json({ active: false });
+          res.json({
+            active: true,
+            sub: payload.sub,
+            aud: payload.aud,
+            iss: payload.iss,
+            exp: payload.exp,
+            iat: payload.iat,
+            scope: payload.scope,
+          });
+          return; // Success, return early
+        } catch {
+          // Try next secret
+          continue;
+        }
       }
+
+      // All secrets failed
+      res.json({ active: false });
     });
 
     return router;
@@ -482,21 +709,26 @@ export class OAuthProvider {
       return;
     }
 
-    // Verify PKCE if present
-    if (authCode.codeChallenge && authCode.codeChallengeMethod === 'S256') {
-      if (!codeVerifier) {
-        res.status(400).json({ error: 'invalid_grant', error_description: 'Code verifier required' });
-        return;
-      }
+    // ✅ SECURITY: Verify PKCE (now always required)
+    if (!codeVerifier) {
+      res.status(400).json({
+        error: 'invalid_grant',
+        error_description: 'code_verifier is required (PKCE)'
+      });
+      return;
+    }
 
-      const expectedChallenge = createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url');
+    // authCode.codeChallenge is guaranteed to exist (enforced at auth endpoint)
+    const expectedChallenge = createHash('sha256')
+      .update(codeVerifier)
+      .digest('base64url');
 
-      if (expectedChallenge !== authCode.codeChallenge) {
-        res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid code verifier' });
-        return;
-      }
+    if (expectedChallenge !== authCode.codeChallenge) {
+      res.status(400).json({
+        error: 'invalid_grant',
+        error_description: 'Invalid code_verifier (PKCE verification failed)'
+      });
+      return;
     }
 
     // Generate tokens
@@ -509,9 +741,13 @@ export class OAuthProvider {
         iss: this.config.issuer,
         scope: authCode.scope,
         googleAccessToken: authCode.googleAccessToken,
+        googleRefreshToken: authCode.googleRefreshToken,
       } as Partial<TokenPayload>,
-      this.config.jwtSecret,
-      { expiresIn: this.config.accessTokenTtl }
+      this.jwtSecrets[0]!, // Use primary secret for signing
+      {
+        expiresIn: this.config.accessTokenTtl,
+        header: { alg: 'HS256', kid: '0' }, // Key ID to identify which secret was used
+      }
     );
 
     const refreshTokenValue = randomBytes(32).toString('hex');
@@ -521,6 +757,7 @@ export class OAuthProvider {
         userId,
         clientId: authCode.clientId,
         scope: authCode.scope,
+        googleRefreshToken: authCode.googleRefreshToken,
         expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
       } as RefreshTokenData,
       this.config.refreshTokenTtl
@@ -551,25 +788,30 @@ export class OAuthProvider {
 
     const tokenData = tokenDataRaw as RefreshTokenData;
 
-    // Generate new access token
+    // Generate new access token (preserve Google tokens)
     const accessToken = jwt.sign(
       {
         sub: tokenData.userId,
         aud: tokenData.clientId,
         iss: this.config.issuer,
         scope: tokenData.scope,
+        googleRefreshToken: tokenData.googleRefreshToken,
       } as Partial<TokenPayload>,
-      this.config.jwtSecret,
-      { expiresIn: this.config.accessTokenTtl }
+      this.jwtSecrets[0]!, // Use primary secret for signing
+      {
+        expiresIn: this.config.accessTokenTtl,
+        header: { alg: 'HS256', kid: '0' }, // Key ID to identify which secret was used
+      }
     );
 
-    // Rotate refresh token (best practice)
+    // Rotate refresh token (best practice) - preserve Google refresh token
     const newRefreshToken = randomBytes(32).toString('hex');
     await this.sessionStore.delete(`refresh:${refreshToken}`);
     await this.sessionStore.set(
       `refresh:${newRefreshToken}`,
       {
         ...tokenData,
+        googleRefreshToken: tokenData.googleRefreshToken,
         expiresAt: Date.now() + this.config.refreshTokenTtl * 1000,
       } as RefreshTokenData,
       this.config.refreshTokenTtl
@@ -598,28 +840,39 @@ export class OAuthProvider {
 
       const token = authHeader.slice(7);
 
-      try {
-        // ✅ SECURITY FIX: Verify aud and iss claims
-        const payload = jwt.verify(token, this.config.jwtSecret, {
-          algorithms: ['HS256'],
-          audience: this.config.clientId,
-          issuer: this.config.issuer,
-          clockTolerance: 30 // 30 second clock skew tolerance
-        }) as TokenPayload;
+      // Try all active secrets (supports rotation)
+      let lastError: Error | null = null;
 
-        (req as Request & { auth: TokenPayload }).auth = payload;
-        next();
-      } catch (err) {
-        if (err instanceof jwt.TokenExpiredError) {
-          res.status(401).json({ error: 'invalid_token', error_description: 'Token expired' });
-          return;
+      for (const secret of this.jwtSecrets) {
+        try {
+          // ✅ SECURITY FIX: Verify aud and iss claims
+          const payload = jwt.verify(token, secret, {
+            algorithms: ['HS256'],
+            audience: this.config.clientId,
+            issuer: this.config.issuer,
+            clockTolerance: 30 // 30 second clock skew tolerance
+          }) as TokenPayload;
+
+          (req as Request & { auth: TokenPayload }).auth = payload;
+          next();
+          return; // Success, return early
+        } catch (err) {
+          lastError = err as Error;
+          // Try next secret
+          continue;
         }
-        if (err instanceof jwt.JsonWebTokenError) {
-          res.status(401).json({ error: 'invalid_token', error_description: err.message });
-          return;
-        }
-        res.status(401).json({ error: 'invalid_token', error_description: 'Invalid token' });
       }
+
+      // All secrets failed, return error from last attempt
+      if (lastError instanceof jwt.TokenExpiredError) {
+        res.status(401).json({ error: 'invalid_token', error_description: 'Token expired' });
+        return;
+      }
+      if (lastError instanceof jwt.JsonWebTokenError) {
+        res.status(401).json({ error: 'invalid_token', error_description: lastError.message });
+        return;
+      }
+      res.status(401).json({ error: 'invalid_token', error_description: 'Invalid token' });
     };
   }
 
@@ -628,5 +881,12 @@ export class OAuthProvider {
    */
   getGoogleToken(req: Request): string | undefined {
     return (req as Request & { auth?: TokenPayload }).auth?.googleAccessToken;
+  }
+
+  /**
+   * Extract Google refresh token from validated request
+   */
+  getGoogleRefreshToken(req: Request): string | undefined {
+    return (req as Request & { auth?: TokenPayload }).auth?.googleRefreshToken;
   }
 }

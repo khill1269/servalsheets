@@ -11,6 +11,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -23,7 +24,7 @@ const DestructiveBaseSchema = BaseSchema.extend({
   safety: SafetyOptionsSchema.optional(),
 });
 
-export const SheetsDimensionsInputSchema = z.discriminatedUnion('action', [
+const DimensionsActionSchema = z.discriminatedUnion('action', [
   // INSERT_ROWS
   BaseSchema.extend({
     action: z.literal('insert_rows'),
@@ -179,7 +180,11 @@ export const SheetsDimensionsInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsDimensionsOutputSchema = z.discriminatedUnion('success', [
+export const SheetsDimensionsInputSchema = z.object({
+  request: DimensionsActionSchema,
+});
+
+const DimensionsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -192,12 +197,17 @@ export const SheetsDimensionsOutputSchema = z.discriminatedUnion('success', [
     alreadyMissing: z.boolean().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsDimensionsOutputSchema = z.object({
+  response: DimensionsResponseSchema,
+});
 
 export const SHEETS_DIMENSIONS_ANNOTATIONS: ToolAnnotations = {
   title: 'Rows & Columns',
@@ -209,3 +219,5 @@ export const SHEETS_DIMENSIONS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsDimensionsInput = z.infer<typeof SheetsDimensionsInputSchema>;
 export type SheetsDimensionsOutput = z.infer<typeof SheetsDimensionsOutputSchema>;
+export type DimensionsAction = z.infer<typeof DimensionsActionSchema>;
+export type DimensionsResponse = z.infer<typeof DimensionsResponseSchema>;

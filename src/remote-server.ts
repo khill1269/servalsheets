@@ -1,12 +1,12 @@
 /**
  * ServalSheets - Remote Server Entry Point
- * 
+ *
  * Combined HTTP/SSE server with OAuth 2.1 support
  * For Claude Connectors Directory
  * MCP Protocol: 2025-11-25
  */
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -16,6 +16,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { OAuthProvider } from './oauth-provider.js';
 import { createGoogleApiClient } from './services/google-api.js';
+import { validateEnv } from './config/env.js';
 import {
   TOOL_COUNT,
   ACTION_COUNT,
@@ -29,15 +30,23 @@ import {
   DiffEngine,
   PolicyEnforcer,
   RangeResolver,
+  TaskStoreAdapter,
 } from './core/index.js';
 import { SnapshotService } from './services/snapshot.js';
 import { createHandlers, type HandlerContext } from './handlers/index.js';
 import { logger } from './utils/logger.js';
+import { registerKnowledgeResources } from './resources/knowledge.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
   registerServalSheetsTools,
 } from './mcp/registration.js';
+import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
+import { requestDeduplicator } from './utils/request-deduplication.js';
+import { sessionLimiter } from './utils/session-limiter.js';
+import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
+
+patchMcpServerRequestHandler();
 
 export interface RemoteServerConfig {
   port: number;
@@ -51,12 +60,15 @@ export interface RemoteServerConfig {
   googleClientId: string;
   googleClientSecret: string;
   corsOrigins: string[];
+  accessTokenTtl: number;   // seconds
+  refreshTokenTtl: number;  // seconds
 }
 
 interface SessionData {
   transport: SSEServerTransport;
   mcpServer: McpServer;
   googleToken: string | null;
+  taskStore: TaskStoreAdapter;
 }
 
 function loadConfig(): RemoteServerConfig {
@@ -77,6 +89,20 @@ function loadConfig(): RemoteServerConfig {
     if (!clientSecret) {
       throw new Error('OAUTH_CLIENT_SECRET is required in production. Generate with: openssl rand -hex 32');
     }
+
+    // ✅ SECURITY: Require Redis in production for session and task store
+    const redisUrl = process.env['REDIS_URL'];
+    if (!redisUrl) {
+      throw new Error(
+        'REDIS_URL is required in production. ' +
+        'In-memory session store does not support multiple instances or persist across restarts. ' +
+        'Set REDIS_URL=redis://localhost:6379 or your Redis connection string.'
+      );
+    }
+
+    logger.info('Production mode: Redis session and task store required', {
+      redisUrl: redisUrl.replace(/:\/\/.*@/, '://*****@')  // Mask credentials in logs
+    });
   } else {
     // Development mode: warn if using random secrets
     if (!jwtSecret || !stateSecret || !clientSecret) {
@@ -86,7 +112,9 @@ function loadConfig(): RemoteServerConfig {
 
   return {
     port: parseInt(process.env['PORT'] ?? '3000', 10),
-    host: process.env['HOST'] ?? '0.0.0.0',
+    // HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
+    // Override with HOST=0.0.0.0 in production if external access needed
+    host: process.env['HOST'] ?? '127.0.0.1',
     issuer: process.env['OAUTH_ISSUER'] ?? 'https://servalsheets.example.com',
     clientId: process.env['OAUTH_CLIENT_ID'] ?? 'servalsheets',
     clientSecret: clientSecret ?? randomUUID(),
@@ -96,15 +124,54 @@ function loadConfig(): RemoteServerConfig {
     googleClientId: process.env['GOOGLE_CLIENT_ID'] ?? '',
     googleClientSecret: process.env['GOOGLE_CLIENT_SECRET'] ?? '',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'https://claude.ai,https://claude.com').split(','),
+    // Token expiration (seconds)
+    accessTokenTtl: parseInt(process.env['ACCESS_TOKEN_TTL'] ?? '3600', 10),      // 1 hour default
+    refreshTokenTtl: parseInt(process.env['REFRESH_TOKEN_TTL'] ?? '2592000', 10), // 30 days default
   };
 }
 
+/**
+ * Start remote server - convenience function for CLI
+ */
+export async function startRemoteServer(options: { port?: number } = {}): Promise<void> {
+  if (options.port) {
+    process.env['PORT'] = options.port.toString();
+  }
+  await main();
+}
+
 async function main(): Promise<void> {
+  // HIGH-004 FIX: Validate environment variables on startup
+  validateEnv();
+
   const config = loadConfig();
   const app = express();
 
   // Security
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    strictTransportSecurity: process.env['NODE_ENV'] === 'production'
+      ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+      : false,
+  }));
+
+  // HTTPS Enforcement (Production Only)
+  if (process.env['NODE_ENV'] === 'production') {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+
+      if (!isHttps) {
+        logger.warn('Rejected non-HTTPS request', { path: req.path, ip: req.ip });
+        res.status(426).json({
+          error: 'UPGRADE_REQUIRED',
+          message: 'HTTPS required in production',
+        });
+        return;
+      }
+      next();
+    });
+  }
+
   app.set('trust proxy', 1);
 
   // CORS
@@ -114,6 +181,17 @@ async function main(): Promise<void> {
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID', 'X-Request-ID'],
   }));
+
+  // Origin Validation
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.get('origin');
+    if (origin && !config.corsOrigins.includes(origin)) {
+      logger.warn('Invalid Origin', { origin, allowed: config.corsOrigins });
+      res.status(403).json({ error: 'FORBIDDEN', message: 'Invalid Origin' });
+      return;
+    }
+    next();
+  });
 
   // Rate limiting
   app.use(rateLimit({
@@ -136,18 +214,41 @@ async function main(): Promise<void> {
     allowedRedirectUris: config.allowedRedirectUris,
     googleClientId: config.googleClientId,
     googleClientSecret: config.googleClientSecret,
+    accessTokenTtl: config.accessTokenTtl,
+    refreshTokenTtl: config.refreshTokenTtl,
   });
 
   // Mount OAuth routes
   app.use(oauth.createRouter());
 
-  // Health check
+  // Health check with OAuth readiness validation
+  // MEDIUM-003 FIX: Comprehensive health check
   app.get('/health', (_req, res) => {
-    res.json({
-      status: 'healthy',
-      version: '4.0.0',
+    const checks = {
+      server: 'healthy',
+      oauth: {
+        configured: Boolean(config.googleClientId && config.googleClientSecret),
+        issuer: config.issuer,
+        clientId: config.clientId,
+      },
+      session: {
+        type: process.env['SESSION_STORE_TYPE'] || 'memory',
+        ready: true, // TODO: Add Redis ping check
+      },
+      version: '1.1.1',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
+    };
+
+    // Overall status
+    const isHealthy = checks.oauth.configured;
+    const status = isHealthy ? 'healthy' : 'degraded';
+    const httpStatus = isHealthy ? 200 : 503;
+
+    res.status(httpStatus).json({
+      status,
+      checks,
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -155,7 +256,7 @@ async function main(): Promise<void> {
   app.get('/info', (_req, res) => {
     res.json({
       name: 'servalsheets',
-      version: '4.0.0',
+      version: '1.1.1',
       description: 'Production-grade Google Sheets MCP server',
       protocol: 'MCP 2025-11-25',
       tools: getToolMetadata(),
@@ -167,8 +268,25 @@ async function main(): Promise<void> {
 
   // SSE endpoint (requires auth)
   app.get('/sse', oauth.validateToken(), async (req, res) => {
-    const sessionId = randomUUID();
+    // Extract user ID from token (use Google token hash as user ID)
     const googleToken = oauth.getGoogleToken(req) ?? null;
+    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+
+    // Check session limits before creating new session
+    const limitCheck = sessionLimiter.canCreateSession(userId);
+    if (!limitCheck.allowed) {
+      res.status(429).json({
+        error: {
+          code: 'TOO_MANY_SESSIONS',
+          message: limitCheck.reason,
+          retryable: true,
+        }
+      });
+      return;
+    }
+
+    const sessionId = randomUUID();
+    const googleRefreshToken = oauth.getGoogleRefreshToken(req) ?? undefined;
 
     // SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -177,16 +295,30 @@ async function main(): Promise<void> {
     res.setHeader('X-Session-ID', sessionId);
 
     try {
-      // Create Google client if token available
+      // Create Google client if token available (with refresh token for auto-refresh)
       const googleClient = googleToken
-        ? await createGoogleApiClient({ accessToken: googleToken })
+        ? await createGoogleApiClient({
+            accessToken: googleToken,
+            refreshToken: googleRefreshToken,
+          })
         : undefined;
 
+      // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
+      const { createTaskStore } = await import('./core/task-store-factory.js');
+      const taskStore = await createTaskStore();
+
       // Create MCP server
-      const mcpServer = new McpServer({
-        name: 'servalsheets',
-        version: '4.0.0',
-      });
+      const mcpServer = new McpServer(
+        {
+          name: 'servalsheets',
+          version: '1.2.0',
+        },
+        {
+          capabilities: createServerCapabilities(),
+          instructions: SERVER_INSTRUCTIONS,
+          taskStore,
+        }
+      );
 
       // Create SSE transport
       const transport = new SSEServerTransport('/sse/message', res);
@@ -216,6 +348,8 @@ async function main(): Promise<void> {
             hasElevatedAccess: googleClient.hasElevatedAccess,
             scopes: googleClient.scopes,
           },
+          samplingServer: mcpServer.server, // Pass underlying Server instance for sampling
+          requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
         };
 
         handlers = createHandlers({
@@ -228,16 +362,26 @@ async function main(): Promise<void> {
       registerServalSheetsTools(mcpServer, handlers);
       registerServalSheetsResources(mcpServer, googleClient ?? null);
       registerServalSheetsPrompts(mcpServer);
+      registerKnowledgeResources(mcpServer);
 
       // Connect
       await mcpServer.connect(transport);
 
-      // Store session
-      sessions.set(sessionId, { transport, mcpServer, googleToken });
+      // Store session with task store
+      sessions.set(sessionId, { transport, mcpServer, googleToken, taskStore });
+
+      // Register session in limiter
+      sessionLimiter.registerSession(sessionId, userId);
 
       // Cleanup on disconnect
       req.on('close', () => {
+        const session = sessions.get(sessionId);
+        if (session) {
+          // Dispose task store resources
+          session.taskStore.dispose();
+        }
         sessions.delete(sessionId);
+        sessionLimiter.unregisterSession(sessionId);
         if (typeof transport.close === 'function') {
           transport.close();
         }
@@ -285,10 +429,14 @@ async function main(): Promise<void> {
     const session = sessions.get(sessionId);
 
     if (session) {
+      // Dispose task store resources
+      session.taskStore.dispose();
+
       if (typeof session.transport.close === 'function') {
         session.transport.close();
       }
       sessions.delete(sessionId);
+      sessionLimiter.unregisterSession(sessionId);
       res.json({ success: true });
     } else {
       res.status(404).json({ error: 'Session not found' });
@@ -317,6 +465,10 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((error: unknown) => {
-  logger.error('Remote server failed', { error });
-});
+// CLI entry point - only run when called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error: unknown) => {
+    logger.error('Remote server failed', { error });
+    process.exit(1);
+  });
+}

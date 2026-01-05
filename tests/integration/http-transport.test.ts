@@ -18,7 +18,7 @@ import type { Express } from 'express';
 
 describe('HTTP Transport Integration Tests', () => {
   let app: Express;
-  let server: { app: Express; start: () => Promise<void>; transports: Map<string, any> };
+  let server: { app: Express; start: () => Promise<void>; sessions: Map<string, any> };
 
   beforeAll(async () => {
     // Create HTTP server for testing
@@ -35,13 +35,16 @@ describe('HTTP Transport Integration Tests', () => {
   });
 
   afterAll(async () => {
-    // Clean up any active transports
-    server.transports.forEach((transport) => {
-      if (typeof transport.close === 'function') {
-        transport.close();
+    // Clean up any active sessions/transports
+    server.sessions.forEach((session) => {
+      if (typeof session.transport?.close === 'function') {
+        session.transport.close();
+      }
+      if (typeof session.taskStore?.dispose === 'function') {
+        session.taskStore.dispose();
       }
     });
-    server.transports.clear();
+    server.sessions.clear();
   });
 
   describe('Health and Info Endpoints', () => {
@@ -53,7 +56,7 @@ describe('HTTP Transport Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         status: 'healthy',
-        version: '4.0.0',
+        version: '1.1.1',
         protocol: 'MCP 2025-11-25',
       });
     });
@@ -66,7 +69,7 @@ describe('HTTP Transport Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '4.0.0',
+        version: '1.1.1',
         description: 'Production-grade Google Sheets MCP server',
         protocol: 'MCP 2025-11-25',
       });
@@ -88,7 +91,7 @@ describe('HTTP Transport Integration Tests', () => {
         id: 1,
         method: 'initialize',
         params: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: '2025-11-25',
           capabilities: {},
           clientInfo: {
             name: 'test-client',
@@ -134,7 +137,7 @@ describe('HTTP Transport Integration Tests', () => {
         id: 1,
         method: 'initialize',
         params: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: '2025-11-25',
           capabilities: {},
           clientInfo: {
             name: 'test-client',
@@ -165,7 +168,7 @@ describe('HTTP Transport Integration Tests', () => {
         id: 1,
         method: 'initialize',
         params: {
-          protocolVersion: '2024-11-05',
+          protocolVersion: '2025-11-25',
           capabilities: {},
           clientInfo: {
             name: 'test-client',
@@ -298,7 +301,7 @@ describe('HTTP Transport Integration Tests', () => {
           id: 1,
           method: 'initialize',
           params: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: '2025-11-25',
             capabilities: {},
             clientInfo: {
               name: 'test-client',
@@ -321,7 +324,7 @@ describe('HTTP Transport Integration Tests', () => {
           id: 1,
           method: 'initialize',
           params: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: '2025-11-25',
             capabilities: {},
             clientInfo: {
               name: 'test-client',

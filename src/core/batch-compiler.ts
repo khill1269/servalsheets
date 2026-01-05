@@ -1,12 +1,12 @@
 /**
  * ServalSheets - Batch Compiler
- * 
+ *
  * Compiles intents into Google Sheets API requests
  * Tighten-up #8: Single batchUpdate compiler
  */
 
 import type { sheets_v4 } from 'googleapis';
-import CryptoJS from 'crypto-js';
+import { createHash } from 'crypto';
 import type { Intent, IntentType } from './intent.js';
 import { INTENT_TO_REQUEST_TYPE, DESTRUCTIVE_INTENTS, HIGH_RISK_INTENTS } from './intent.js';
 import type { RateLimiter } from './rate-limiter.js';
@@ -14,6 +14,10 @@ import type { DiffEngine } from './diff-engine.js';
 import type { PolicyEnforcer } from './policy-enforcer.js';
 import type { SnapshotService } from '../services/snapshot.js';
 import type { SafetyOptions, DiffResult, ErrorDetail } from '../schemas/shared.js';
+import { monitorPayload, type PayloadMetrics } from '../utils/payload-monitor.js';
+import { analyzeBatchEfficiency } from '../utils/batch-efficiency.js';
+import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 
 export interface CompiledBatch {
   spreadsheetId: string;
@@ -32,6 +36,7 @@ export interface ExecutionResult {
   snapshotId?: string | undefined;  // Allow undefined for exactOptionalPropertyTypes
   error?: ErrorDetail;
   dryRun: boolean;
+  payloadMetrics?: PayloadMetrics;
 }
 
 export interface ProgressEvent {
@@ -59,6 +64,11 @@ export interface SafetyExecutionOptions {
   highRisk?: boolean;
   range?: string;
   operation: () => Promise<void>;
+  diffOptions?: {
+    tier?: 'METADATA' | 'SAMPLE' | 'FULL';
+    sampleSize?: number;
+    maxFullDiffCells?: number;
+  };
 }
 
 /**
@@ -87,6 +97,9 @@ export class BatchCompiler {
    * Compile intents into batched API requests
    */
   async compile(intents: Intent[]): Promise<CompiledBatch[]> {
+    // Monitor batch efficiency
+    analyzeBatchEfficiency(intents);
+
     // 1. Validate against policy
     await this.policyEnforcer.validateIntents(intents);
 
@@ -136,6 +149,7 @@ export class BatchCompiler {
       message: 'Validating safety constraints',
       spreadsheetId: batch.spreadsheetId,
     });
+    await sendProgress(0, 4, 'Validating safety constraints');
 
     // 1. Effect scope check (Tighten-up #2)
     if (safety?.effectScope) {
@@ -210,6 +224,7 @@ export class BatchCompiler {
       message: 'Capturing current state',
       spreadsheetId: batch.spreadsheetId,
     });
+    await sendProgress(1, 4, 'Capturing current state');
 
     // 5. Capture before state (for diff)
     const diffTier = this.diffEngine.getDefaultTier();
@@ -229,13 +244,57 @@ export class BatchCompiler {
       message: `Executing ${batch.requests.length} request(s)`,
       spreadsheetId: batch.spreadsheetId,
     });
+    await sendProgress(2, 4, `Executing ${batch.requests.length} request(s)`);
 
-    // 7. Execute the batch
+    // 7. Validate payload size BEFORE execution
+    const requestPayload = { requests: batch.requests };
+    const payloadSize = JSON.stringify(requestPayload).length;
+    const MAX_PAYLOAD_SIZE = 9_000_000; // 9MB (leave 1MB buffer for Google's 10MB limit)
+    const WARNING_THRESHOLD = 7_000_000; // 7MB warning threshold
+
+    if (payloadSize > MAX_PAYLOAD_SIZE) {
+      return {
+        ...baseResult,
+        success: false,
+        responses: [],
+        snapshotId, // Return snapshot ID if already created
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: `Request payload (${(payloadSize / 1_000_000).toFixed(2)}MB) exceeds Google's 9MB limit`,
+          retryable: false,
+          suggestedFix: 'Split operation into smaller batches or reduce data size',
+          details: {
+            payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
+            limitMB: 9,
+            requestCount: batch.requests.length,
+          },
+        },
+      };
+    }
+
+    // Log warning if approaching limit
+    if (payloadSize > WARNING_THRESHOLD) {
+      logger.warn('Payload size approaching limit', {
+        spreadsheetId: batch.spreadsheetId,
+        payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
+        limitMB: 9,
+        requestCount: batch.requests.length,
+      });
+    }
+
+    // 8. Execute the batch
     try {
       const response = await this.sheetsApi.spreadsheets.batchUpdate({
         spreadsheetId: batch.spreadsheetId,
-        requestBody: { requests: batch.requests },
+        requestBody: requestPayload,
       });
+
+      // Monitor payload sizes
+      const payloadMetrics = monitorPayload(
+        `batchUpdate:${batch.spreadsheetId}`,
+        requestPayload,
+        response.data
+      );
 
       // Progress: diffing
       this.onProgress?.({
@@ -245,6 +304,7 @@ export class BatchCompiler {
         message: 'Capturing changes',
         spreadsheetId: batch.spreadsheetId,
       });
+      await sendProgress(3, 4, 'Capturing changes');
 
       // 8. Capture after state and generate diff
       const afterState = await this.diffEngine.captureState(batch.spreadsheetId, { tier: diffTier });
@@ -256,6 +316,7 @@ export class BatchCompiler {
         responses: response.data.replies ?? [],
         diff,
         snapshotId,
+        payloadMetrics,
       };
     } catch (error) {
       return {
@@ -287,6 +348,7 @@ export class BatchCompiler {
       message: 'Validating safety constraints',
       spreadsheetId: options.spreadsheetId,
     });
+    await sendProgress(0, 4, 'Validating safety constraints');
 
     if (safety?.effectScope) {
       const maxCells = safety.effectScope.maxCellsAffected ?? 50000;
@@ -370,9 +432,15 @@ export class BatchCompiler {
       message: 'Capturing current state',
       spreadsheetId: options.spreadsheetId,
     });
+    await sendProgress(1, 4, 'Capturing current state');
 
-    const diffTier = this.diffEngine.getDefaultTier();
-    const beforeState = await this.diffEngine.captureState(options.spreadsheetId, { tier: diffTier });
+    // Use provided diffOptions or fall back to default tier
+    const diffTier = options.diffOptions?.tier ?? this.diffEngine.getDefaultTier();
+    const beforeState = await this.diffEngine.captureState(options.spreadsheetId, {
+      tier: diffTier,
+      sampleSize: options.diffOptions?.sampleSize,
+      maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
+    });
 
     let snapshotId: string | undefined;
     if (highRisk && (safety?.autoSnapshot !== false)) {
@@ -386,6 +454,7 @@ export class BatchCompiler {
       message: 'Executing operation',
       spreadsheetId: options.spreadsheetId,
     });
+    await sendProgress(2, 4, 'Executing operation');
 
     try {
       await options.operation();
@@ -406,8 +475,13 @@ export class BatchCompiler {
       message: 'Capturing changes',
       spreadsheetId: options.spreadsheetId,
     });
+    await sendProgress(3, 4, 'Capturing changes');
 
-    const afterState = await this.diffEngine.captureState(options.spreadsheetId, { tier: diffTier });
+    const afterState = await this.diffEngine.captureState(options.spreadsheetId, {
+      tier: diffTier,
+      sampleSize: options.diffOptions?.sampleSize,
+      maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
+    });
     const diff = await this.diffEngine.diff(beforeState, afterState);
 
     return {
@@ -420,25 +494,51 @@ export class BatchCompiler {
   }
 
   /**
-   * Execute multiple batches in sequence
+   * Execute multiple batches with parallelization by spreadsheet
+   * Batches for different spreadsheets run in parallel
+   * Batches for the same spreadsheet run sequentially (maintains safety)
    */
   async executeAll(
     batches: CompiledBatch[],
     safety?: SafetyOptions
   ): Promise<ExecutionResult[]> {
-    const results: ExecutionResult[] = [];
-    
-    for (const batch of batches) {
-      const result = await this.execute(batch, safety);
-      results.push(result);
-      
-      // Stop on first failure unless we want partial execution
-      if (!result.success) {
-        break;
+    // Group batches by spreadsheetId for parallel execution
+    const batchesBySpreadsheet = new Map<string, Array<{ batch: CompiledBatch; index: number }>>();
+
+    batches.forEach((batch, index) => {
+      const spreadsheetId = batch.spreadsheetId;
+      if (!batchesBySpreadsheet.has(spreadsheetId)) {
+        batchesBySpreadsheet.set(spreadsheetId, []);
       }
-    }
-    
-    return results;
+      batchesBySpreadsheet.get(spreadsheetId)!.push({ batch, index });
+    });
+
+    // Execute each spreadsheet's batches sequentially, but different spreadsheets in parallel
+    const spreadsheetResults = await Promise.all(
+      Array.from(batchesBySpreadsheet.values()).map(async (spreadsheetBatches) => {
+        const groupResults: Array<{ result: ExecutionResult; index: number }> = [];
+
+        for (const { batch, index } of spreadsheetBatches) {
+          const result = await this.execute(batch, safety);
+          groupResults.push({ result, index });
+
+          // Stop on first failure within this spreadsheet's batches
+          if (!result.success) {
+            break;
+          }
+        }
+
+        return groupResults;
+      })
+    );
+
+    // Flatten and sort results by original index to maintain order
+    const allResults = spreadsheetResults
+      .flat()
+      .sort((a, b) => a.index - b.index)
+      .map(item => item.result);
+
+    return allResults;
   }
 
   // ============================================================
@@ -532,7 +632,7 @@ export class BatchCompiler {
             valueRenderOption: 'UNFORMATTED_VALUE',
           });
           const values = valuesResponse.data.values ?? [];
-          const actualChecksum = CryptoJS.MD5(JSON.stringify(values)).toString();
+          const actualChecksum = createHash('md5').update(JSON.stringify(values)).digest('hex');
           
           if (actualChecksum !== expected.checksum) {
             return {
@@ -599,12 +699,15 @@ export class BatchCompiler {
       
       // Rate limit
       if (message.includes('429') || message.includes('rate limit')) {
+        // Dynamically throttle rate limiter for 60 seconds
+        this.rateLimiter.throttle(60000);
+
         return {
           code: 'RATE_LIMITED',
-          message: 'API rate limit exceeded',
+          message: 'API rate limit exceeded. Rate limiter automatically throttled for 60 seconds.',
           retryable: true,
           retryAfterMs: 60000,
-          suggestedFix: 'Wait a minute and try again',
+          suggestedFix: 'Wait a minute and try again. Rate limits have been temporarily reduced.',
         };
       }
       

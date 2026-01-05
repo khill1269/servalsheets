@@ -46,7 +46,7 @@ describe('SheetHandler', () => {
   });
 
   describe('add action', () => {
-    it('should add sheet and return flat output', async () => {
+    it('should add sheet and return response envelope', async () => {
       mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
         data: {
           replies: [{
@@ -63,19 +63,21 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'add',
-        spreadsheetId: 'test-id',
-        title: 'New Sheet',
+        request: {
+          action: 'add',
+          spreadsheetId: 'test-id',
+          title: 'New Sheet',
+        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.action).toBe('add');
-        expect(result.sheet?.sheetId).toBe(123);
-        expect(result.sheet?.title).toBe('New Sheet');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.action).toBe('add');
+        expect(result.response.sheet?.sheetId).toBe(123);
+        expect(result.response.sheet?.title).toBe('New Sheet');
       }
     });
 
@@ -96,14 +98,16 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'add',
-        spreadsheetId: 'test-id',
-        title: 'Custom',
-        rowCount: 500,
-        columnCount: 10,
+        request: {
+          action: 'add',
+          spreadsheetId: 'test-id',
+          title: 'Custom',
+          rowCount: 500,
+          columnCount: 10,
+        },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: {
@@ -130,15 +134,17 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'delete',
-        spreadsheetId: 'test-id',
-        sheetId: 123,
+        request: {
+          action: 'delete',
+          spreadsheetId: 'test-id',
+          sheetId: 123,
+        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: {
@@ -154,15 +160,17 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'delete',
-        spreadsheetId: 'test-id',
-        sheetId: 123,
-        allowMissing: true,
+        request: {
+          action: 'delete',
+          spreadsheetId: 'test-id',
+          sheetId: 123,
+          allowMissing: true,
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.alreadyDeleted).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.alreadyDeleted).toBe(true);
       }
       // Should not call batchUpdate since sheet doesn't exist
       expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
@@ -174,16 +182,18 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'delete',
-        spreadsheetId: 'test-id',
-        sheetId: 123,
-        allowMissing: true,
-        safety: { dryRun: true },
+        request: {
+          action: 'delete',
+          spreadsheetId: 'test-id',
+          sheetId: 123,
+          allowMissing: true,
+          safety: { dryRun: true },
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.dryRun).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.dryRun).toBe(true);
       }
       expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
     });
@@ -207,19 +217,21 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'duplicate',
-        spreadsheetId: 'test-id',
-        sheetId: 0,
-        newTitle: 'Sheet1 (Copy)',
+        request: {
+          action: 'duplicate',
+          spreadsheetId: 'test-id',
+          sheetId: 0,
+          newTitle: 'Sheet1 (Copy)',
+        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.sheet?.sheetId).toBe(789);
-        expect(result.sheet?.title).toBe('Sheet1 (Copy)');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.sheet?.sheetId).toBe(789);
+        expect(result.response.sheet?.title).toBe('Sheet1 (Copy)');
       }
     });
   });
@@ -242,14 +254,16 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'update',
-        spreadsheetId: 'test-id',
-        sheetId: 0,
-        title: 'Renamed',
-        hidden: true,
+        request: {
+          action: 'update',
+          spreadsheetId: 'test-id',
+          sheetId: 0,
+          title: 'Renamed',
+          hidden: true,
+        },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: {
@@ -266,14 +280,16 @@ describe('SheetHandler', () => {
 
     it('should error when no properties provided', async () => {
       const result = await handler.handle({
-        action: 'update',
-        spreadsheetId: 'test-id',
-        sheetId: 0,
+        request: {
+          action: 'update',
+          spreadsheetId: 'test-id',
+          sheetId: 0,
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
       }
     });
   });
@@ -290,19 +306,21 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'copy_to',
-        spreadsheetId: 'source-id',
-        sheetId: 0,
-        destinationSpreadsheetId: 'dest-id',
+        request: {
+          action: 'copy_to',
+          spreadsheetId: 'source-id',
+          sheetId: 0,
+          destinationSpreadsheetId: 'dest-id',
+        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.copiedSheetId).toBe(999);
-        expect(result.sheet?.title).toBe('Copied Sheet');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.copiedSheetId).toBe(999);
+        expect(result.response.sheet?.title).toBe('Copied Sheet');
       }
     });
   });
@@ -319,18 +337,20 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'list',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'list',
+          spreadsheetId: 'test-id',
+        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.sheets).toHaveLength(2);
-        expect(result.sheets?.[0].title).toBe('Sheet1');
-        expect(result.sheets?.[1].hidden).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.sheets).toHaveLength(2);
+        expect(result.response.sheets?.[0].title).toBe('Sheet1');
+        expect(result.response.sheets?.[1].hidden).toBe(true);
       }
     });
   });
@@ -347,16 +367,18 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
-        sheetId: 123,
+        request: {
+          action: 'get',
+          spreadsheetId: 'test-id',
+          sheetId: 123,
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.sheet?.sheetId).toBe(123);
-        expect(result.sheet?.title).toBe('Target');
-        expect(result.sheet?.rowCount).toBe(2000);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.sheet?.sheetId).toBe(123);
+        expect(result.response.sheet?.title).toBe('Target');
+        expect(result.response.sheet?.rowCount).toBe(2000);
       }
     });
 
@@ -366,14 +388,16 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
-        sheetId: 999,
+        request: {
+          action: 'get',
+          spreadsheetId: 'test-id',
+          sheetId: 999,
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('SHEET_NOT_FOUND');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('SHEET_NOT_FOUND');
       }
     });
   });
@@ -385,14 +409,16 @@ describe('SheetHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'add',
-        spreadsheetId: 'nonexistent',
-        title: 'Test',
+        request: {
+          action: 'add',
+          spreadsheetId: 'nonexistent',
+          title: 'Test',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('SPREADSHEET_NOT_FOUND');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('SPREADSHEET_NOT_FOUND');
       }
     });
 
@@ -402,14 +428,16 @@ describe('SheetHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'list',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'list',
+          spreadsheetId: 'test-id',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('RATE_LIMITED');
-        expect(result.error.retryable).toBe(true);
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('RATE_LIMITED');
+        expect(result.response.error.retryable).toBe(true);
       }
     });
   });

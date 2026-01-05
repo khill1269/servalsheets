@@ -15,6 +15,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -36,7 +37,7 @@ const SortSpecSchema = z.object({
   backgroundColor: ColorSchema.optional(),
 });
 
-export const SheetsFilterSortInputSchema = z.discriminatedUnion('action', [
+const FilterSortActionSchema = z.discriminatedUnion('action', [
   // SET_BASIC_FILTER
   BaseSchema.extend({
     action: z.literal('set_basic_filter'),
@@ -153,7 +154,11 @@ export const SheetsFilterSortInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsFilterSortOutputSchema = z.discriminatedUnion('success', [
+export const SheetsFilterSortInputSchema = z.object({
+  request: FilterSortActionSchema,
+});
+
+const FilterSortResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -175,12 +180,17 @@ export const SheetsFilterSortOutputSchema = z.discriminatedUnion('success', [
     slicerId: z.number().int().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsFilterSortOutputSchema = z.object({
+  response: FilterSortResponseSchema,
+});
 
 export const SHEETS_FILTER_SORT_ANNOTATIONS: ToolAnnotations = {
   title: 'Filter & Sort',
@@ -192,3 +202,5 @@ export const SHEETS_FILTER_SORT_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsFilterSortInput = z.infer<typeof SheetsFilterSortInputSchema>;
 export type SheetsFilterSortOutput = z.infer<typeof SheetsFilterSortOutputSchema>;
+export type FilterSortAction = z.infer<typeof FilterSortActionSchema>;
+export type FilterSortResponse = z.infer<typeof FilterSortResponseSchema>;

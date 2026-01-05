@@ -10,7 +10,8 @@ export * from './shared.js';
 // Tool annotations
 export * from './annotations.js';
 
-// Tool schemas (15 tools, 158 actions)
+// Tool schemas (16 tools, 160 actions)
+export * from './auth.js';
 export * from './spreadsheet.js';
 export * from './sheet.js';
 export * from './values.js';
@@ -30,6 +31,15 @@ export * from './prompts.js';
 
 // Tool metadata for registration
 export const TOOL_REGISTRY = {
+  sheets_auth: {
+    name: 'sheets_auth',
+    title: 'Authentication',
+    description: 'Authentication management: status, login, callback, logout',
+    schema: 'SheetsAuthInputSchema',
+    output: 'SheetsAuthOutputSchema',
+    annotations: 'SHEETS_AUTH_ANNOTATIONS',
+    actions: ['status', 'login', 'callback', 'logout'],
+  },
   sheets_spreadsheet: {
     name: 'sheets_spreadsheet',
     title: 'Spreadsheet',
@@ -105,11 +115,11 @@ export const TOOL_REGISTRY = {
   sheets_pivot: {
     name: 'sheets_pivot',
     title: 'Pivot Tables',
-    description: 'Pivot table operations: create, update, delete, list, refresh, calculated fields',
+    description: 'Pivot table operations: create, update, delete, list, get, refresh',
     schema: 'SheetsPivotInputSchema',
     output: 'SheetsPivotOutputSchema',
     annotations: 'SHEETS_PIVOT_ANNOTATIONS',
-    actions: ['create', 'update', 'delete', 'list', 'get', 'refresh', 'add_calculated_field', 'remove_calculated_field'],
+    actions: ['create', 'update', 'delete', 'list', 'get', 'refresh'],
   },
   sheets_filter_sort: {
     name: 'sheets_filter_sort',
@@ -150,11 +160,11 @@ export const TOOL_REGISTRY = {
   sheets_analysis: {
     name: 'sheets_analysis',
     title: 'Data Analysis',
-    description: 'Analysis operations: data quality, formula audit, statistics, correlations',
+    description: 'Analysis operations: data quality, formula audit, statistics, correlations, AI-powered suggestions',
     schema: 'SheetsAnalysisInputSchema',
     output: 'SheetsAnalysisOutputSchema',
     annotations: 'SHEETS_ANALYSIS_ANNOTATIONS',
-    actions: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges'],
+    actions: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges', 'detect_patterns', 'column_analysis', 'suggest_templates', 'generate_formula', 'suggest_chart'],
   },
   sheets_advanced: {
     name: 'sheets_advanced',

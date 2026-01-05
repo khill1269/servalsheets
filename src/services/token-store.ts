@@ -7,6 +7,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { ConfigError, DataError } from '../core/errors.js';
 
 export interface StoredTokens {
   access_token?: string;
@@ -37,7 +38,14 @@ export class EncryptedFileTokenStore implements TokenStore {
 
   constructor(filePath: string, secretKeyHex: string) {
     if (!secretKeyHex || secretKeyHex.length !== 64) {
-      throw new Error('TOKEN_STORE_KEY must be a 64-character hex string (32 bytes)');
+      throw new ConfigError(
+        'TOKEN_STORE_KEY must be a 64-character hex string (32 bytes)',
+        'TOKEN_STORE_KEY',
+        {
+          received: secretKeyHex ? `${secretKeyHex.length} characters` : 'undefined',
+          expected: '64 characters (hex)',
+        }
+      );
     }
     this.filePath = filePath;
     this.key = Buffer.from(secretKeyHex, 'hex');
@@ -48,7 +56,15 @@ export class EncryptedFileTokenStore implements TokenStore {
       const data = await fs.readFile(this.filePath, 'utf8');
       const record = JSON.parse(data) as EncryptedRecord;
       if (record.version !== 1) {
-        throw new Error(`Unsupported token store version: ${record.version}`);
+        throw new DataError(
+          `Unsupported token store version: ${record.version}`,
+          'VERSION_MISMATCH',
+          false,
+          {
+            receivedVersion: record.version,
+            supportedVersions: [1],
+          }
+        );
       }
       const iv = Buffer.from(record.iv, 'base64');
       const tag = Buffer.from(record.tag, 'base64');

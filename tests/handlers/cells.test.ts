@@ -35,15 +35,17 @@ describe('CellsHandler', () => {
 
   it('rejects non-http hyperlinks', async () => {
     const result = await handler.handle({
-      action: 'set_hyperlink',
-      spreadsheetId: 'sheet-id',
-      cell: 'Sheet1!A1',
-      url: 'javascript:alert(1)',
+      request: {
+        action: 'set_hyperlink',
+        spreadsheetId: 'sheet-id',
+        cell: 'Sheet1!A1',
+        url: 'javascript:alert(1)',
+      },
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe('INVALID_PARAMS');
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('INVALID_PARAMS');
     }
     expect(mockSheetsApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
   });
@@ -55,14 +57,16 @@ describe('CellsHandler', () => {
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
 
     const result = await handler.handle({
-      action: 'set_hyperlink',
-      spreadsheetId: 'sheet-id',
-      cell: 'Sheet1!A1',
-      url: 'https://example.com?q="x"',
-      label: 'He said "hi"',
+      request: {
+        action: 'set_hyperlink',
+        spreadsheetId: 'sheet-id',
+        cell: 'Sheet1!A1',
+        url: 'https://example.com?q="x"',
+        label: 'He said "hi"',
+      },
     });
 
-    expect(result.success).toBe(true);
+    expect(result.response.success).toBe(true);
     const call = mockSheetsApi.spreadsheets.batchUpdate.mock.calls[0]?.[0];
     const formula = call?.requestBody?.requests?.[0]?.updateCells?.rows?.[0]?.values?.[0]?.userEnteredValue?.formulaValue;
     expect(formula).toContain('He said ""hi""');

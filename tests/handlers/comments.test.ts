@@ -48,31 +48,35 @@ describe('CommentsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'add',
-      spreadsheetId: 'sheet-id',
-      content: 'Hi',
+      request: {
+        action: 'add',
+        spreadsheetId: 'sheet-id',
+        content: 'Hi',
+      },
     });
 
     const parsed = SheetsCommentsOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.comment?.id).toBe('c1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.comment?.id).toBe('c1');
     }
   });
 
   it('deletes a reply with dryRun', async () => {
     const result = await handler.handle({
-      action: 'delete_reply',
-      spreadsheetId: 'sheet-id',
-      commentId: 'c1',
-      replyId: 'r1',
-      safety: { dryRun: true },
+      request: {
+        action: 'delete_reply',
+        spreadsheetId: 'sheet-id',
+        commentId: 'c1',
+        replyId: 'r1',
+        safety: { dryRun: true },
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.dryRun).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.dryRun).toBe(true);
     }
     expect(mockDriveApi.replies.delete).not.toHaveBeenCalled();
   });

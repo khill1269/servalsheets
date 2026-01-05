@@ -8,8 +8,18 @@
 import type { Intent } from '../core/intent.js';
 import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
 import type { RangeResolver } from '../core/range-resolver.js';
-import type { SafetyOptions, ErrorDetail, MutationSummary, RangeInput } from '../schemas/shared.js';
+import type { SafetyOptions, ErrorDetail, MutationSummary, RangeInput, ResponseMeta } from '../schemas/shared.js';
 import { getRequestLogger } from '../utils/request-context.js';
+import {
+  createPermissionError,
+  createRateLimitError,
+  createNotFoundError,
+  createValidationError,
+  parseGoogleApiError,
+} from '../utils/error-factory.js';
+import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
+import type { SamplingServer } from '../mcp/sampling.js';
+import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -17,6 +27,14 @@ export interface HandlerContext {
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];
+  };
+  samplingServer?: SamplingServer;
+  requestDeduplicator?: RequestDeduplicator;
+  elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+  logger?: {
+    info: (message: string, ...args: unknown[]) => void;
+    warn: (message: string, ...args: unknown[]) => void;
+    error: (message: string, ...args: unknown[]) => void;
   };
 }
 
@@ -29,6 +47,7 @@ export type HandlerResult<T extends Record<string, unknown>> = T & {
   action: string;
   mutation?: MutationSummary;
   dryRun?: boolean;
+  _meta?: ResponseMeta;
 };
 
 /**
@@ -91,19 +110,21 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Create a success response - FLAT structure matching outputSchema
    * Data fields are spread directly into the result (not nested under 'data')
+   * Automatically generates response metadata if not provided
    */
   protected success<T extends Record<string, unknown>>(
-    action: string, 
-    data: T, 
-    mutation?: MutationSummary, 
-    dryRun?: boolean
-  ): T & { success: true; action: string; mutation?: MutationSummary; dryRun?: boolean } {
-    const result: T & { success: true; action: string; mutation?: MutationSummary; dryRun?: boolean } = {
+    action: string,
+    data: T,
+    mutation?: MutationSummary,
+    dryRun?: boolean,
+    meta?: ResponseMeta
+  ): T & { success: true; action: string; mutation?: MutationSummary; dryRun?: boolean; _meta?: ResponseMeta } {
+    const result: T & { success: true; action: string; mutation?: MutationSummary; dryRun?: boolean; _meta?: ResponseMeta } = {
       success: true as const,
       action,
       ...data,
     };
-    
+
     // Only include optional fields if they have values
     if (mutation !== undefined) {
       result.mutation = mutation;
@@ -111,8 +132,64 @@ export abstract class BaseHandler<TInput, TOutput> {
     if (dryRun !== undefined) {
       result.dryRun = dryRun;
     }
-    
+
+    // Auto-generate metadata if not provided
+    // Handlers can still override by passing explicit meta
+    if (meta !== undefined) {
+      result._meta = meta;
+    } else {
+      // Generate metadata with context from the result
+      const cellsAffected = this.extractCellsAffected(data);
+      result._meta = this.generateMeta(action, data, data, { cellsAffected });
+    }
+
     return result;
+  }
+
+  /**
+   * Extract cells affected count from result data
+   */
+  private extractCellsAffected(data: Record<string, unknown>): number | undefined {
+    // Try common field names
+    if (typeof data['updatedCells'] === 'number') return data['updatedCells'];
+    if (typeof data['cellsAffected'] === 'number') return data['cellsAffected'];
+    if (typeof data['cellsFormatted'] === 'number') return data['cellsFormatted'];
+
+    // Try to infer from values array
+    const values = data['values'];
+    if (Array.isArray(values)) {
+      return values.reduce((sum: number, row: unknown) => {
+        return sum + (Array.isArray(row) ? row.length : 0);
+      }, 0);
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Generate response metadata with suggestions and cost estimates
+   */
+  protected generateMeta(
+    action: string,
+    input: Record<string, unknown>,
+    result?: Record<string, unknown>,
+    options?: {
+      cellsAffected?: number;
+      apiCallsMade?: number;
+      duration?: number;
+    }
+  ): ResponseMeta {
+    const context: EnhancementContext = {
+      tool: this.toolName,
+      action,
+      input,
+      result,
+      cellsAffected: options?.cellsAffected,
+      apiCallsMade: options?.apiCallsMade || 1,
+      duration: options?.duration,
+    };
+
+    return enhanceResponse(context);
   }
 
   /**
@@ -160,78 +237,84 @@ export abstract class BaseHandler<TInput, TOutput> {
   }
 
   /**
-   * Map Google API error to ErrorDetail
+   * Map Google API error to ErrorDetail with agent-actionable information
    */
   private mapGoogleApiError(error: Error): ErrorDetail {
     const message = error.message.toLowerCase();
-    
-    // Rate limit (429)
-    if (message.includes('429') || message.includes('rate limit') || message.includes('quota exceeded')) {
-      return {
-        code: 'RATE_LIMITED',
-        message: 'API rate limit exceeded',
-        retryable: true,
-        retryAfterMs: 60000,
-        suggestedFix: 'Wait a minute and try again',
-      };
+
+    // Try to extract structured error info from Google API error
+    const errorAny = error as unknown as Record<string, unknown>;
+    if ('code' in errorAny && typeof errorAny['code'] === 'number') {
+      // Use error factory for structured Google API errors
+      const googleError = errorAny as { code: number; message: string; errors?: Array<{ domain?: string; reason?: string; message?: string }> };
+      const parsed = parseGoogleApiError(googleError);
+      return parsed as ErrorDetail;
     }
-    
+
+    // Fallback: Parse from message string
+
+    // Rate limit (429)
+    if (message.includes('429') || message.includes('rate limit')) {
+      return createRateLimitError({ quotaType: 'requests', retryAfterMs: 60000 });
+    }
+
+    // Quota exceeded
+    if (message.includes('quota exceeded') || message.includes('quota')) {
+      return createRateLimitError({ quotaType: 'requests', retryAfterMs: 3600000 });
+    }
+
     // Permission denied (403)
     if (message.includes('403') || message.includes('permission') || message.includes('forbidden')) {
-      return {
-        code: 'PERMISSION_DENIED',
-        message: 'Permission denied',
-        retryable: false,
-        suggestedFix: 'Check that you have edit access to the spreadsheet',
-      };
+      return createPermissionError({
+        operation: 'perform this operation',
+        resourceType: 'spreadsheet',
+        currentPermission: 'view',
+        requiredPermission: 'edit',
+      });
     }
-    
+
     // Not found (404)
     if (message.includes('404') || message.includes('not found') || message.includes('requested entity was not found')) {
-      return {
-        code: 'SPREADSHEET_NOT_FOUND',
-        message: 'Spreadsheet or sheet not found',
-        retryable: false,
-        suggestedFix: 'Check the spreadsheet ID and sheet name',
-      };
+      return createNotFoundError({
+        resourceType: 'spreadsheet',
+        resourceId: 'unknown (check spreadsheet ID)',
+        searchSuggestion: 'Verify the spreadsheet URL and your access permissions',
+      });
     }
-    
-    // Quota exceeded
-    if (message.includes('quota')) {
-      return {
-        code: 'QUOTA_EXCEEDED',
-        message: 'API quota exceeded',
-        retryable: true,
-        retryAfterMs: 3600000,
-        suggestedFix: 'Wait an hour or request quota increase',
-      };
-    }
-    
+
     // Invalid range
     if (message.includes('unable to parse range') || message.includes('invalid range')) {
-      return {
-        code: 'INVALID_RANGE',
-        message: 'Invalid range specification',
-        retryable: false,
-        suggestedFix: 'Check the range format (e.g., "Sheet1!A1:C10")',
-      };
+      return createValidationError({
+        field: 'range',
+        value: 'invalid',
+        expectedFormat: 'A1 notation (e.g., "Sheet1!A1:C10")',
+        reason: 'Range specification could not be parsed',
+      });
     }
-    
+
     // Circular reference
     if (message.includes('circular')) {
-      return {
-        code: 'CIRCULAR_REFERENCE',
-        message: 'Circular reference detected in formula',
-        retryable: false,
-        suggestedFix: 'Check formula references for circular dependencies',
-      };
+      return createValidationError({
+        field: 'formula',
+        value: 'contains circular reference',
+        reason: 'Formula creates a circular dependency',
+      });
     }
 
     // Default: internal error
     return {
       code: 'INTERNAL_ERROR',
       message: error.message,
+      category: 'server',
+      severity: 'high',
       retryable: false,
+      retryStrategy: 'none',
+      resolution: 'This is an internal error. Check the error message for details or contact support.',
+      resolutionSteps: [
+        '1. Check the error message for specific details',
+        '2. Verify your request parameters are correct',
+        '3. If the error persists, report it with the full error message',
+      ],
     };
   }
 

@@ -9,13 +9,21 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsCellsInput, SheetsCellsOutput } from '../schemas/index.js';
+import type {
+  SheetsCellsInput,
+  SheetsCellsOutput,
+  CellsAction,
+  CellsResponse,
+} from '../schemas/index.js';
 import {
   parseA1Notation,
   parseCellReference,
   toGridRange,
   type GridRangeInput,
-} from '../utils/google-api.js';
+} from '../utils/google-sheets-helpers.js';
+import { RangeResolutionError } from '../core/range-resolver.js';
+import { createRequestKey } from '../utils/request-deduplication.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
 
 export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -27,55 +35,71 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
 
   async handle(input: SheetsCellsInput): Promise<SheetsCellsOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: CellsResponse;
+      switch (req.action) {
         case 'add_note':
-          return await this.handleAddNote(input);
+          response = await this.handleAddNote(req);
+          break;
         case 'get_note':
-          return await this.handleGetNote(input);
+          response = await this.handleGetNote(req);
+          break;
         case 'clear_note':
-          return await this.handleClearNote(input);
+          response = await this.handleClearNote(req);
+          break;
         case 'set_validation':
-          return await this.handleSetValidation(input);
+          response = await this.handleSetValidation(req);
+          break;
         case 'clear_validation':
-          return await this.handleClearValidation(input);
+          response = await this.handleClearValidation(req);
+          break;
         case 'set_hyperlink':
-          return await this.handleSetHyperlink(input);
+          response = await this.handleSetHyperlink(req);
+          break;
         case 'clear_hyperlink':
-          return await this.handleClearHyperlink(input);
+          response = await this.handleClearHyperlink(req);
+          break;
         case 'merge':
-          return await this.handleMerge(input);
+          response = await this.handleMerge(req);
+          break;
         case 'unmerge':
-          return await this.handleUnmerge(input);
+          response = await this.handleUnmerge(req);
+          break;
         case 'get_merges':
-          return await this.handleGetMerges(input);
+          response = await this.handleGetMerges(req);
+          break;
         case 'cut':
-          return await this.handleCut(input);
+          response = await this.handleCut(req);
+          break;
         case 'copy':
-          return await this.handleCopy(input);
+          response = await this.handleCopy(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsCellsInput): Intent[] {
+    const req = input.request;
     const baseMetadata = {
       sourceTool: this.toolName,
-      sourceAction: input.action,
+      sourceAction: req.action,
       priority: 1,
-      destructive: ['clear_note', 'clear_validation', 'clear_hyperlink', 'cut'].includes(input.action),
+      destructive: ['clear_note', 'clear_validation', 'clear_hyperlink', 'cut'].includes(req.action),
     };
 
-    if ('spreadsheetId' in input) {
+    if ('spreadsheetId' in req) {
       return [{
         type: 'UPDATE_CELLS',
-        target: { spreadsheetId: input.spreadsheetId },
+        target: { spreadsheetId: req.spreadsheetId },
         payload: {},
         metadata: baseMetadata,
       }];
@@ -88,8 +112,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   // ============================================================
 
   private async handleAddNote(
-    input: Extract<SheetsCellsInput, { action: 'add_note' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'add_note' }>
+  ): Promise<CellsResponse> {
     const gridRange = await this.cellToGridRange(input.spreadsheetId, input.cell);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -109,22 +133,34 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleGetNote(
-    input: Extract<SheetsCellsInput, { action: 'get_note' }>
-  ): Promise<SheetsCellsOutput> {
-    const response = await this.sheetsApi.spreadsheets.get({
+    input: Extract<CellsAction, { action: 'get_note' }>
+  ): Promise<CellsResponse> {
+    // Create deduplication key
+    const requestKey = createRequestKey('spreadsheets.get', {
+      spreadsheetId: input.spreadsheetId,
+      ranges: [input.cell],
+      action: 'get_note',
+    });
+
+    // Deduplicate the API call
+    const fetchFn = async () => this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: [input.cell],
       includeGridData: true,
       fields: 'sheets.data.rowData.values.note',
     });
 
+    const response = this.context.requestDeduplicator
+      ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
+      : await fetchFn();
+
     const note = response.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values?.[0]?.note ?? '';
     return this.success('get_note', { note });
   }
 
   private async handleClearNote(
-    input: Extract<SheetsCellsInput, { action: 'clear_note' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'clear_note' }>
+  ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success('clear_note', {}, undefined, true);
     }
@@ -152,8 +188,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   // ============================================================
 
   private async handleSetValidation(
-    input: Extract<SheetsCellsInput, { action: 'set_validation' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'set_validation' }>
+  ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success('set_validation', {}, undefined, true);
     }
@@ -192,8 +228,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleClearValidation(
-    input: Extract<SheetsCellsInput, { action: 'clear_validation' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'clear_validation' }>
+  ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success('clear_validation', {}, undefined, true);
     }
@@ -221,8 +257,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   // ============================================================
 
   private async handleSetHyperlink(
-    input: Extract<SheetsCellsInput, { action: 'set_hyperlink' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'set_hyperlink' }>
+  ): Promise<CellsResponse> {
     const validation = validateHyperlinkUrl(input.url);
     if (!validation.ok) {
       return this.error({
@@ -265,8 +301,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleClearHyperlink(
-    input: Extract<SheetsCellsInput, { action: 'clear_hyperlink' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'clear_hyperlink' }>
+  ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success('clear_hyperlink', {}, undefined, true);
     }
@@ -307,8 +343,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   // ============================================================
 
   private async handleMerge(
-    input: Extract<SheetsCellsInput, { action: 'merge' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'merge' }>
+  ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
@@ -328,8 +364,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleUnmerge(
-    input: Extract<SheetsCellsInput, { action: 'unmerge' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'unmerge' }>
+  ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
@@ -348,12 +384,24 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleGetMerges(
-    input: Extract<SheetsCellsInput, { action: 'get_merges' }>
-  ): Promise<SheetsCellsOutput> {
-    const response = await this.sheetsApi.spreadsheets.get({
+    input: Extract<CellsAction, { action: 'get_merges' }>
+  ): Promise<CellsResponse> {
+    // Create deduplication key
+    const requestKey = createRequestKey('spreadsheets.get', {
+      spreadsheetId: input.spreadsheetId,
+      sheetId: input.sheetId,
+      action: 'get_merges',
+    });
+
+    // Deduplicate the API call
+    const fetchFn = async () => this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.merges,sheets.properties.sheetId',
     });
+
+    const response = this.context.requestDeduplicator
+      ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
+      : await fetchFn();
 
     const sheet = response.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
     const merges = (sheet?.merges ?? []).map(m => ({
@@ -371,14 +419,40 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   // ============================================================
 
   private async handleCut(
-    input: Extract<SheetsCellsInput, { action: 'cut' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'cut' }>
+  ): Promise<CellsResponse> {
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
+    const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
+    const sourceRows = (sourceRange.endRowIndex ?? 0) - (sourceRange.startRowIndex ?? 0);
+    const sourceCols = (sourceRange.endColumnIndex ?? 0) - (sourceRange.startColumnIndex ?? 0);
+    const estimatedCells = sourceRows * sourceCols;
+
+    // Request confirmation for destructive operation if elicitation is supported
+    if (this.context.elicitationServer && estimatedCells > 100) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.elicitationServer,
+          'Cut Cells',
+          `You are about to cut approximately ${estimatedCells.toLocaleString()} cells from ${rangeA1} to ${input.destination}.\n\nThe source range will be cleared and all content will be moved to the destination.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'PRECONDITION_FAILED',
+            message: 'Cut operation cancelled by user',
+            retryable: false,
+          });
+        }
+      } catch (err) {
+        // If elicitation fails, proceed (backward compatibility)
+        this.context.logger?.warn('Elicitation failed for cut, proceeding with operation', { error: err });
+      }
+    }
+
     if (input.safety?.dryRun) {
       return this.success('cut', {}, undefined, true);
     }
 
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
-    const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const destParsed = parseCellReference(input.destination);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -402,8 +476,8 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
   }
 
   private async handleCopy(
-    input: Extract<SheetsCellsInput, { action: 'copy' }>
-  ): Promise<SheetsCellsOutput> {
+    input: Extract<CellsAction, { action: 'copy' }>
+  ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const destParsed = parseCellReference(input.destination);
@@ -477,7 +551,12 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
 
     const sheet = sheets.find(s => s.properties?.title === sheetName);
     if (!sheet) {
-      throw new Error(`Sheet not found: ${sheetName}`);
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        'SHEET_NOT_FOUND',
+        { sheetName, spreadsheetId },
+        false
+      );
     }
 
     return sheet.properties?.sheetId ?? 0;

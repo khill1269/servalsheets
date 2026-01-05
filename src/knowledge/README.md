@@ -18,6 +18,16 @@ The knowledge base serves three primary functions:
 knowledge/
 ├── README.md                    # This file
 ├── DELIVERABLES.md              # Completion status
+├── api/                         # Google Sheets API references
+│   ├── charts.md                # Complete chart types guide
+│   ├── pivot-tables.md          # Pivot table operations
+│   ├── conditional-formatting.md # Conditional formatting patterns
+│   ├── data-validation.md       # Data validation rules
+│   ├── batch-operations.md      # Batch optimization guide
+│   ├── named-ranges.md          # Named ranges & protection
+│   └── limits/                  # API quotas & limits
+├── formulas/                    # Formula knowledge base
+│   └── functions-reference.md   # 100+ formula functions
 ├── templates/                   # Pre-built spreadsheet templates
 │   ├── finance/
 │   ├── project-management/
@@ -25,13 +35,37 @@ knowledge/
 │   ├── operations/
 │   ├── hr/
 │   └── marketing/
-├── formulas/                    # Formula knowledge base
 ├── schemas/                     # Data structure definitions
 ├── brain/                       # Context-awareness patterns
 ├── orchestration/               # Workflow policies
 ├── audit/                       # Audit metadata
 └── workflows/                   # Workflow summaries
 ```
+
+## API References
+
+### Google Sheets API Documentation
+
+Comprehensive references for advanced Google Sheets API operations:
+
+| File | Description | Size |
+|------|-------------|------|
+| `api/charts.md` | Complete chart types, styling, axes configuration | 29KB |
+| `api/pivot-tables.md` | Pivot table creation, grouping, aggregations | 20KB |
+| `api/conditional-formatting.md` | Boolean conditions, gradients, custom formulas | 24KB |
+| `api/data-validation.md` | 25+ validation types, form patterns, dropdowns | 21KB |
+| `api/batch-operations.md` | Request batching, optimization, error handling | 21KB |
+| `api/named-ranges.md` | Named ranges, protection, permissions | 17KB |
+
+### Formula Functions Reference
+
+| File | Description | Size |
+|------|-------------|------|
+| `formulas/functions-reference.md` | 100+ formula functions with examples | 15KB |
+
+Categories covered: Lookup & Reference, Text, Math & Statistics, Date & Time, Logical, Array, Financial, Data Manipulation, Error Handling.
+
+---
 
 ## Templates
 

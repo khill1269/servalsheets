@@ -1,7 +1,7 @@
 /**
  * ServalSheets v4 - Values Handler Tests
  * 
- * Verifies handler output matches outputSchema (flat structure)
+ * Verifies handler output matches outputSchema (response envelope)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -76,7 +76,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('read action', () => {
-    it('should return FLAT output matching schema', async () => {
+  it('should return response envelope matching schema', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
         data: {
           values: [['A', 'B'], ['1', '2']],
@@ -86,20 +86,23 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1:B2' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1:B2' },
+        },
       });
 
-      // Verify flat structure (NOT nested in 'data')
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'read');
-      expect(result).toHaveProperty('values');
-      expect(result).toHaveProperty('range');
-      expect(result).not.toHaveProperty('data'); // Should NOT have nested data
+      // Verify response envelope (NOT nested in 'data')
+      expect(result).toHaveProperty('response');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'read');
+      expect(result.response).toHaveProperty('values');
+      expect(result.response).toHaveProperty('range');
+      expect(result.response).not.toHaveProperty('data'); // Should NOT have nested data
 
-      // Verify values are at top level
-      expect((result as any).values).toEqual([['A', 'B'], ['1', '2']]);
+      // Verify values are at response top level
+      expect(result.response.values).toEqual([['A', 'B'], ['1', '2']]);
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -121,19 +124,21 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1:CV200' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1:CV200' },
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect((result as any).truncated).toBe(true);
-      expect((result as any).values.length).toBeLessThanOrEqual(100);
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response.truncated).toBe(true);
+      expect(result.response.values?.length).toBeLessThanOrEqual(100);
     });
   });
 
   describe('write action', () => {
-    it('should return FLAT output matching schema', async () => {
+    it('should return response envelope matching schema', async () => {
       mockApi.spreadsheets.values.update.mockResolvedValue({
         data: {
           updatedCells: 4,
@@ -144,19 +149,22 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1:B2' },
-        values: [['A', 'B'], ['1', '2']],
+        request: {
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1:B2' },
+          values: [['A', 'B'], ['1', '2']],
+        },
       });
 
-      // Verify flat structure
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'write');
-      expect(result).toHaveProperty('updatedCells', 4);
-      expect(result).toHaveProperty('updatedRows', 2);
-      expect(result).toHaveProperty('updatedRange', 'Sheet1!A1:B2');
-      expect(result).not.toHaveProperty('data');
+      // Verify response envelope
+      expect(result).toHaveProperty('response');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'write');
+      expect(result.response).toHaveProperty('updatedCells', 4);
+      expect(result.response).toHaveProperty('updatedRows', 2);
+      expect(result.response).toHaveProperty('updatedRange', 'Sheet1!A1:B2');
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -165,15 +173,17 @@ describe('ValuesHandler Output Schema Compliance', () => {
 
     it('should return dryRun at top level', async () => {
       const result = await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Test']],
-        safety: { dryRun: true },
+        request: {
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Test']],
+          safety: { dryRun: true },
+        },
       });
 
-      expect(result).toHaveProperty('dryRun', true);
-      expect(result).toHaveProperty('updatedCells');
+      expect(result.response).toHaveProperty('dryRun', true);
+      expect(result.response).toHaveProperty('updatedCells');
       
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -182,7 +192,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('append action', () => {
-    it('should return FLAT output matching schema', async () => {
+    it('should return response envelope matching schema', async () => {
       mockApi.spreadsheets.values.append.mockResolvedValue({
         data: {
           updates: {
@@ -195,16 +205,18 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'append',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Row1'], ['Row2'], ['Row3']],
+        request: {
+          action: 'append',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Row1'], ['Row2'], ['Row3']],
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'append');
-      expect(result).toHaveProperty('updatedCells', 3);
-      expect(result).not.toHaveProperty('data');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'append');
+      expect(result.response).toHaveProperty('updatedCells', 3);
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -213,7 +225,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('clear action', () => {
-    it('should return FLAT output matching schema', async () => {
+    it('should return response envelope matching schema', async () => {
       mockApi.spreadsheets.values.clear.mockResolvedValue({
         data: {
           clearedRange: 'Sheet1!A1:Z100',
@@ -221,15 +233,17 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1:Z100' },
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1:Z100' },
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'clear');
-      expect(result).toHaveProperty('updatedRange');
-      expect(result).not.toHaveProperty('data');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'clear');
+      expect(result.response).toHaveProperty('updatedRange');
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -238,7 +252,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('batch_read action', () => {
-    it('should return FLAT output with valueRanges', async () => {
+    it('should return response envelope with valueRanges', async () => {
       mockApi.spreadsheets.values.batchGet.mockResolvedValue({
         data: {
           valueRanges: [
@@ -249,19 +263,21 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'batch_read',
-        spreadsheetId: 'test-id',
-        ranges: [
-          { a1: 'Sheet1!A1:A10' },
-          { a1: 'Sheet1!B1:B10' },
-        ],
+        request: {
+          action: 'batch_read',
+          spreadsheetId: 'test-id',
+          ranges: [
+            { a1: 'Sheet1!A1:A10' },
+            { a1: 'Sheet1!B1:B10' },
+          ],
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'batch_read');
-      expect(result).toHaveProperty('valueRanges');
-      expect((result as any).valueRanges).toHaveLength(2);
-      expect(result).not.toHaveProperty('data');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'batch_read');
+      expect(result.response).toHaveProperty('valueRanges');
+      expect(result.response.valueRanges).toHaveLength(2);
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -270,7 +286,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('find action', () => {
-    it('should return FLAT output with matches array', async () => {
+    it('should return response envelope with matches array', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
         data: {
           values: [['foo', 'bar'], ['baz', 'foo']],
@@ -279,16 +295,18 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'find',
-        spreadsheetId: 'test-id',
-        query: 'foo',
+        request: {
+          action: 'find',
+          spreadsheetId: 'test-id',
+          query: 'foo',
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'find');
-      expect(result).toHaveProperty('matches');
-      expect((result as any).matches).toHaveLength(2);
-      expect(result).not.toHaveProperty('data');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'find');
+      expect(result.response).toHaveProperty('matches');
+      expect(result.response.matches).toHaveLength(2);
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -297,7 +315,7 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('replace action', () => {
-    it('should return FLAT output with replacementsCount', async () => {
+    it('should return response envelope with replacementsCount', async () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({
         data: {
           replies: [{ findReplace: { occurrencesChanged: 5 } }],
@@ -305,16 +323,18 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        action: 'replace',
-        spreadsheetId: 'test-id',
-        find: 'old',
-        replacement: 'new',
+        request: {
+          action: 'replace',
+          spreadsheetId: 'test-id',
+          find: 'old',
+          replacement: 'new',
+        },
       });
 
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'replace');
-      expect(result).toHaveProperty('replacementsCount', 5);
-      expect(result).not.toHaveProperty('data');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'replace');
+      expect(result.response).toHaveProperty('replacementsCount', 5);
+      expect(result.response).not.toHaveProperty('data');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -323,22 +343,24 @@ describe('ValuesHandler Output Schema Compliance', () => {
   });
 
   describe('Error responses', () => {
-    it('should return error in flat structure for API errors', async () => {
+    it('should return error in response envelope for API errors', async () => {
       // Mock the API call to reject
       mockApi.spreadsheets.values.get.mockRejectedValue(
         new Error('Requested entity was not found.')
       );
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'invalid-id',
-        range: { a1: 'Sheet1!A1' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'invalid-id',
+          range: { a1: 'Sheet1!A1' },
+        },
       });
 
-      expect(result).toHaveProperty('success', false);
-      expect(result).toHaveProperty('error');
-      expect((result as any).error).toHaveProperty('code');
-      expect((result as any).error).toHaveProperty('message');
+      expect(result.response).toHaveProperty('success', false);
+      expect(result.response).toHaveProperty('error');
+      expect(result.response.error).toHaveProperty('code');
+      expect(result.response.error).toHaveProperty('message');
 
       // Validate against Zod schema
       const parseResult = SheetsValuesOutputSchema.safeParse(result);
@@ -351,14 +373,16 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'invalid-id',
-        range: { a1: 'Sheet1!A1' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'invalid-id',
+          range: { a1: 'Sheet1!A1' },
+        },
       });
 
-      expect(result).toHaveProperty('success', false);
-      expect((result as any).error.code).toBe('SPREADSHEET_NOT_FOUND');
-      expect((result as any).error.retryable).toBe(false);
+      expect(result.response).toHaveProperty('success', false);
+      expect(result.response.error.code).toBe('SPREADSHEET_NOT_FOUND');
+      expect(result.response.error.retryable).toBe(false);
     });
 
     it('should map Google 429 to RATE_LIMITED with retryAfterMs', async () => {
@@ -367,15 +391,17 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1' },
+        },
       });
 
-      expect(result).toHaveProperty('success', false);
-      expect((result as any).error.code).toBe('RATE_LIMITED');
-      expect((result as any).error.retryable).toBe(true);
-      expect((result as any).error.retryAfterMs).toBeDefined();
+      expect(result.response).toHaveProperty('success', false);
+      expect(result.response.error.code).toBe('RATE_LIMITED');
+      expect(result.response.error.retryable).toBe(true);
+      expect(result.response.error.retryAfterMs).toBeDefined();
     });
 
     it('should map Google 403 to PERMISSION_DENIED', async () => {
@@ -384,14 +410,16 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1' },
+        },
       });
 
-      expect(result).toHaveProperty('success', false);
-      expect((result as any).error.code).toBe('PERMISSION_DENIED');
-      expect((result as any).error.retryable).toBe(false);
+      expect(result.response).toHaveProperty('success', false);
+      expect(result.response.error.code).toBe('PERMISSION_DENIED');
+      expect(result.response.error.retryable).toBe(false);
     });
 
     it('should handle unknown errors gracefully', async () => {
@@ -400,13 +428,15 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1' },
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1' },
+        },
       });
 
-      expect(result).toHaveProperty('success', false);
-      expect((result as any).error.code).toBe('INTERNAL_ERROR');
+      expect(result.response).toHaveProperty('success', false);
+      expect(result.response.error.code).toBe('INTERNAL_ERROR');
     });
   });
 });

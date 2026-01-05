@@ -10,6 +10,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import { randomUUID } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -18,20 +19,37 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createGoogleApiClient } from './services/google-api.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/annotations.js';
 import { logger } from './utils/logger.js';
+import { metricsHandler } from './observability/metrics.js';
 import {
   BatchCompiler,
   RateLimiter,
   DiffEngine,
   PolicyEnforcer,
   RangeResolver,
+  TaskStoreAdapter,
 } from './core/index.js';
 import { SnapshotService } from './services/snapshot.js';
 import { createHandlers, type HandlerContext } from './handlers/index.js';
+import { registerKnowledgeResources } from './resources/knowledge.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
   registerServalSheetsTools,
 } from './mcp/registration.js';
+import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
+import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
+import {
+  startBackgroundTasks,
+  registerSignalHandlers,
+  onShutdown,
+  logEnvironmentConfig,
+  getCacheStats,
+  getDeduplicationStats,
+  getConnectionStats,
+  getTracingStats,
+} from './startup/lifecycle.js';
+import { requestDeduplicator } from './utils/request-deduplication.js';
+import { sessionLimiter } from './utils/session-limiter.js';
 
 export interface HttpServerOptions {
   port?: number;
@@ -43,21 +61,39 @@ export interface HttpServerOptions {
 }
 
 const DEFAULT_PORT = 3000;
-const DEFAULT_HOST = '0.0.0.0';
+// HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
+// Override with HOST=0.0.0.0 in production if external access needed
+const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000;
 const DEFAULT_RATE_LIMIT_MAX = 100;
 
-async function createMcpServerInstance(googleToken?: string) {
-  const mcpServer = new McpServer({
-    name: 'servalsheets',
-    version: '4.0.0',
-  });
+patchMcpServerRequestHandler();
+
+async function createMcpServerInstance(googleToken?: string, googleRefreshToken?: string): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
+  // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
+  const { createTaskStore } = await import('./core/task-store-factory.js');
+  const taskStore = await createTaskStore();
+
+  const mcpServer = new McpServer(
+    {
+      name: 'servalsheets',
+      version: '1.2.0',
+    },
+    {
+      capabilities: createServerCapabilities(),
+      instructions: SERVER_INSTRUCTIONS,
+      taskStore,
+    }
+  );
 
   let handlers = null;
   let googleClient = null;
 
   if (googleToken) {
-    googleClient = await createGoogleApiClient({ accessToken: googleToken });
+    googleClient = await createGoogleApiClient({
+      accessToken: googleToken,
+      refreshToken: googleRefreshToken,
+    });
     const context: HandlerContext = {
       batchCompiler: new BatchCompiler({
         rateLimiter: new RateLimiter(),
@@ -82,6 +118,8 @@ async function createMcpServerInstance(googleToken?: string) {
         hasElevatedAccess: googleClient.hasElevatedAccess,
         scopes: googleClient.scopes,
       },
+      samplingServer: mcpServer.server, // Pass underlying Server instance for sampling
+      requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
     };
 
     handlers = createHandlers({
@@ -94,8 +132,9 @@ async function createMcpServerInstance(googleToken?: string) {
   registerServalSheetsTools(mcpServer, handlers);
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
+  registerKnowledgeResources(mcpServer);
 
-  return mcpServer;
+  return { mcpServer, taskStore };
 }
 
 /**
@@ -114,7 +153,55 @@ export function createHttpServer(options: HttpServerOptions = {}) {
   // Security middleware
   app.use(helmet({
     contentSecurityPolicy: false, // Allow SSE
+    strictTransportSecurity: process.env['NODE_ENV'] === 'production'
+      ? {
+          maxAge: 31536000, // 1 year
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false, // Disable in development (localhost issues)
   }));
+
+  // Compression middleware (gzip)
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+    threshold: 1024, // Only compress responses larger than 1KB
+  }));
+
+  // HTTPS Enforcement (Production Only)
+  if (process.env['NODE_ENV'] === 'production') {
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      // Check if request is HTTPS (direct or behind proxy)
+      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+
+      if (!isHttps) {
+        logger.warn('Rejected non-HTTPS request in production', {
+          method: req.method,
+          path: req.path,
+          ip: req.ip,
+          protocol: req.protocol,
+          forwardedProto: req.headers['x-forwarded-proto'],
+        });
+
+        res.status(426).json({
+          error: 'UPGRADE_REQUIRED',
+          message: 'HTTPS is required for all requests in production mode',
+          details: {
+            reason: 'Security: OAuth tokens and sensitive data must be transmitted over encrypted connections',
+            action: 'Use https:// instead of http:// in your request URL',
+          },
+        });
+        return;
+      }
+
+      next();
+    });
+  }
 
   // Trust proxy for rate limiting behind load balancer
   if (trustProxy) {
@@ -128,6 +215,44 @@ export function createHttpServer(options: HttpServerOptions = {}) {
     methods: ['GET', 'POST', 'OPTIONS', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Session-ID'],
   }));
+
+  // Origin Validation for Authenticated Endpoints
+  // CORS handles browser preflight, but this adds explicit validation for all authenticated requests
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.get('origin');
+    const referer = req.get('referer');
+
+    // Skip validation for requests without origin (same-origin, curl, etc.)
+    if (!origin && !referer) {
+      next();
+      return;
+    }
+
+    // Extract origin from referer if origin header is missing (some clients)
+    const requestOrigin = origin || (referer ? new URL(referer).origin : null);
+
+    if (requestOrigin && !corsOrigins.includes(requestOrigin)) {
+      logger.warn('Rejected request with invalid Origin', {
+        origin: requestOrigin,
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+        allowedOrigins: corsOrigins,
+      });
+
+      res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Invalid Origin header',
+        details: {
+          received: requestOrigin,
+          allowed: corsOrigins,
+        },
+      });
+      return;
+    }
+
+    next();
+  });
 
   // Rate limiting with explicit values
   const limiter = rateLimit({
@@ -150,12 +275,33 @@ export function createHttpServer(options: HttpServerOptions = {}) {
     next();
   });
 
-  // Health check
+  // Health check with detailed metrics
   app.get('/health', (_req: Request, res: Response) => {
-    res.json({ 
+    const cacheStats = getCacheStats();
+    const dedupStats = getDeduplicationStats();
+    const connStats = getConnectionStats();
+    const memUsage = process.memoryUsage();
+
+    res.json({
       status: 'healthy',
-      version: '4.0.0',
+      version: '1.1.1',
       protocol: 'MCP 2025-11-25',
+      uptime: Math.floor(process.uptime()),
+      cache: cacheStats ? {
+        hitRate: parseFloat(cacheStats.hitRate.toFixed(1)),
+        entries: cacheStats.totalEntries,
+        sizeMB: parseFloat((cacheStats.totalSize / 1024 / 1024).toFixed(2)),
+      } : null,
+      deduplication: dedupStats ? {
+        savedRequests: dedupStats.savedRequests,
+        deduplicationRate: parseFloat(dedupStats.deduplicationRate.toFixed(1)),
+      } : null,
+      connection: connStats ? connStats.status : null,
+      memory: {
+        heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
+        heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
+        rssMB: parseFloat((memUsage.rss / 1024 / 1024).toFixed(2)),
+      },
     });
   });
 
@@ -163,7 +309,7 @@ export function createHttpServer(options: HttpServerOptions = {}) {
   app.get('/info', (_req: Request, res: Response) => {
     res.json({
       name: 'servalsheets',
-      version: '4.0.0',
+      version: '1.1.1',
       description: 'Production-grade Google Sheets MCP server',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
@@ -172,37 +318,163 @@ export function createHttpServer(options: HttpServerOptions = {}) {
     });
   });
 
-  // Store active transports
-  const transports = new Map<string, SSEServerTransport | StreamableHTTPServerTransport>();
+  // Prometheus metrics endpoint
+  app.get('/metrics', metricsHandler);
+
+  // Statistics dashboard endpoint
+  app.get('/stats', (_req: Request, res: Response) => {
+    const cacheStats = getCacheStats();
+    const dedupStats = getDeduplicationStats();
+    const connStats = getConnectionStats();
+    const tracingStats = getTracingStats();
+    const memUsage = process.memoryUsage();
+
+    res.json({
+      uptime: {
+        seconds: Math.floor(process.uptime()),
+        formatted: formatUptime(process.uptime()),
+      },
+      cache: cacheStats ? {
+        enabled: true,
+        totalEntries: cacheStats.totalEntries,
+        totalSizeMB: parseFloat((cacheStats.totalSize / 1024 / 1024).toFixed(2)),
+        hits: cacheStats.hits,
+        misses: cacheStats.misses,
+        hitRate: parseFloat(cacheStats.hitRate.toFixed(2)),
+        byNamespace: cacheStats.byNamespace,
+        oldestEntry: cacheStats.oldestEntry ? new Date(cacheStats.oldestEntry).toISOString() : null,
+        newestEntry: cacheStats.newestEntry ? new Date(cacheStats.newestEntry).toISOString() : null,
+      } : { enabled: false },
+      deduplication: dedupStats ? {
+        enabled: true,
+        totalRequests: dedupStats.totalRequests,
+        deduplicatedRequests: dedupStats.deduplicatedRequests,
+        savedRequests: dedupStats.savedRequests,
+        deduplicationRate: parseFloat(dedupStats.deduplicationRate.toFixed(2)),
+        pendingCount: dedupStats.pendingCount,
+        oldestRequestAgeMs: dedupStats.oldestRequestAge,
+      } : { enabled: false },
+      connection: connStats ? {
+        status: connStats.status,
+        uptimeSeconds: connStats.uptimeSeconds,
+        totalHeartbeats: connStats.totalHeartbeats,
+        disconnectWarnings: connStats.disconnectWarnings,
+        timeSinceLastActivityMs: connStats.timeSinceLastActivity,
+        lastActivity: new Date(connStats.lastActivity).toISOString(),
+      } : null,
+      tracing: tracingStats ? {
+        totalSpans: tracingStats.totalSpans,
+        averageDurationMs: parseFloat(tracingStats.averageDuration.toFixed(2)),
+        spansByKind: tracingStats.spansByKind,
+        spansByStatus: tracingStats.spansByStatus,
+      } : null,
+      memory: {
+        heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
+        heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
+        rssMB: parseFloat((memUsage.rss / 1024 / 1024).toFixed(2)),
+        externalMB: parseFloat((memUsage.external / 1024 / 1024).toFixed(2)),
+        arrayBuffersMB: parseFloat((memUsage.arrayBuffers / 1024 / 1024).toFixed(2)),
+      },
+      performance: {
+        apiCallReduction: dedupStats && cacheStats ? {
+          deduplicationSavings: `${dedupStats.deduplicationRate.toFixed(1)}%`,
+          cacheSavings: `${cacheStats.hitRate.toFixed(1)}%`,
+          estimatedTotalSavings: calculateTotalSavings(dedupStats, cacheStats),
+        } : null,
+      },
+      sessions: {
+        active: sessions.size,
+      },
+    });
+  });
+
+  // Helper function to format uptime
+  function formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    parts.push(`${secs}s`);
+
+    return parts.join(' ');
+  }
+
+  // Helper function to calculate total savings
+  function calculateTotalSavings(
+    dedupStats: NonNullable<ReturnType<typeof getDeduplicationStats>>,
+    cacheStats: NonNullable<ReturnType<typeof getCacheStats>>
+  ): string {
+    // Estimate combined savings (not perfect but reasonable approximation)
+    // Deduplication happens first, cache applies to non-deduplicated requests
+    const dedupRate = dedupStats.deduplicationRate / 100;
+    const cacheRate = cacheStats.hitRate / 100;
+    const combinedSavings = (dedupRate + (1 - dedupRate) * cacheRate) * 100;
+    return `~${combinedSavings.toFixed(1)}%`;
+  }
+
+  // Store active sessions
+  const sessions = new Map<string, {
+    transport: SSEServerTransport | StreamableHTTPServerTransport;
+    mcpServer: McpServer;
+    taskStore: TaskStoreAdapter;
+  }>();
 
   // SSE endpoint for Server-Sent Events transport
   app.get('/sse', async (req: Request, res: Response) => {
+    // Extract Google token from Authorization header
+    const authHeader = req.headers.authorization;
+    const googleToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : undefined;
+
+    // Extract user ID (use token hash as user ID)
+    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+
+    // Check session limits before creating new session
+    const limitCheck = sessionLimiter.canCreateSession(userId);
+    if (!limitCheck.allowed) {
+      res.status(429).json({
+        error: {
+          code: 'TOO_MANY_SESSIONS',
+          message: limitCheck.reason,
+          retryable: true,
+        }
+      });
+      return;
+    }
+
     const sessionId = randomUUID();
-    
+
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Session-ID', sessionId);
 
-    // Extract Google token from Authorization header
-    const authHeader = req.headers.authorization;
-    const googleToken = authHeader?.startsWith('Bearer ') 
-      ? authHeader.slice(7) 
-      : undefined;
-
     try {
       // Create SSE transport
       const transport = new SSEServerTransport('/sse/message', res);
-      transports.set(sessionId, transport);
 
-      // Create and connect MCP server
-      const mcpServer = await createMcpServerInstance(googleToken);
+      // Register session in limiter
+      sessionLimiter.registerSession(sessionId, userId);
+
+      // Create and connect MCP server with task store
+      const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
       await mcpServer.connect(transport);
+      sessions.set(sessionId, { transport, mcpServer, taskStore });
 
       // Cleanup on disconnect
       req.on('close', () => {
-        transports.delete(sessionId);
+        const session = sessions.get(sessionId);
+        if (session) {
+        }
+        sessions.delete(sessionId);
+        sessionLimiter.unregisterSession(sessionId);
         if (typeof transport.close === 'function') {
           transport.close();
         }
@@ -233,7 +505,8 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       return;
     }
 
-    const transport = transports.get(sessionId);
+    const session = sessions.get(sessionId);
+    const transport = session?.transport;
 
     if (!transport) {
       res.status(404).json({
@@ -270,26 +543,46 @@ export function createHttpServer(options: HttpServerOptions = {}) {
 
   // Streamable HTTP endpoint
   app.post('/mcp', async (req: Request, res: Response) => {
-    const sessionId = (req.headers['x-session-id'] as string | undefined) ?? randomUUID();
-    
     // Extract Google token
     const authHeader = req.headers.authorization;
-    const googleToken = authHeader?.startsWith('Bearer ') 
-      ? authHeader.slice(7) 
+    const googleToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice(7)
       : undefined;
+
+    // Extract user ID (use token hash as user ID)
+    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+
+    const sessionId = (req.headers['x-session-id'] as string | undefined) ?? randomUUID();
 
     try {
       // Create transport if new session
-      let transport = transports.get(sessionId);
-      
+      let session = sessions.get(sessionId);
+      let transport = session?.transport;
+
       if (!transport || !(transport instanceof StreamableHTTPServerTransport)) {
+        // Check session limits before creating new session
+        const limitCheck = sessionLimiter.canCreateSession(userId);
+        if (!limitCheck.allowed) {
+          res.status(429).json({
+            error: {
+              code: 'TOO_MANY_SESSIONS',
+              message: limitCheck.reason,
+              retryable: true,
+            }
+          });
+          return;
+        }
+
         const newTransport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => sessionId,
         });
-        transports.set(sessionId, newTransport);
         transport = newTransport;
 
-        const mcpServer = await createMcpServerInstance(googleToken);
+        // Register session in limiter
+        sessionLimiter.registerSession(sessionId, userId);
+
+        const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
+        sessions.set(sessionId, { transport: newTransport, mcpServer, taskStore });
 
         // Connect with transport - use type assertion for SDK compatibility
         await mcpServer.connect(newTransport as unknown as Parameters<typeof mcpServer.connect>[0]);
@@ -325,13 +618,14 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       return;
     }
 
-    const transport = transports.get(sessionId);
+    const session = sessions.get(sessionId);
 
-    if (transport) {
-      if (typeof transport.close === 'function') {
-        transport.close();
+    if (session) {
+      if (typeof session.transport.close === 'function') {
+        session.transport.close();
       }
-      transports.delete(sessionId);
+      sessions.delete(sessionId);
+      sessionLimiter.unregisterSession(sessionId);
       res.json({ success: true, message: 'Session terminated' });
     } else {
       res.status(404).json({
@@ -355,27 +649,107 @@ export function createHttpServer(options: HttpServerOptions = {}) {
     });
   });
 
+  let httpServer: ReturnType<typeof app.listen> | null = null;
+
+  // Register shutdown callback to close HTTP server
+  onShutdown(async () => {
+    if (httpServer) {
+      logger.info('Closing HTTP server...');
+      return new Promise<void>((resolve, reject) => {
+        httpServer!.close((err) => {
+          if (err) {
+            logger.error('Error closing HTTP server', { error: err });
+            reject(err);
+          } else {
+            logger.info('HTTP server closed');
+            resolve();
+          }
+        });
+      });
+    }
+  });
+
+  // Register shutdown callback to close all sessions
+  onShutdown(async () => {
+    logger.info(`Closing ${sessions.size} active sessions...`);
+    for (const [sessionId, session] of sessions.entries()) {
+      try {
+        // Dispose task store resources
+        session.taskStore.dispose();
+
+        if (typeof session.transport.close === 'function') {
+          session.transport.close();
+        }
+        sessions.delete(sessionId);
+      } catch (error) {
+        logger.error('Error closing transport', { sessionId, error });
+      }
+    }
+    logger.info('All sessions closed');
+  });
+
   return {
     app,
     start: () => {
       return new Promise<void>((resolve) => {
-        app.listen(port, host, () => {
+        httpServer = app.listen(port, host, () => {
           logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
           logger.info(`SSE endpoint: http://${host}:${port}/sse`);
           logger.info(`HTTP endpoint: http://${host}:${port}/mcp`);
+          logger.info(`Health check: http://${host}:${port}/health`);
+          logger.info(`Metrics: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions`);
           resolve();
         });
       });
     },
-    transports,
+    stop: async () => {
+      if (httpServer) {
+        return new Promise<void>((resolve, reject) => {
+          httpServer!.close((err) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      }
+    },
+    sessions,
   };
+}
+
+/**
+ * Start HTTP server - convenience function for CLI
+ */
+export async function startHttpServer(options: HttpServerOptions = {}): Promise<void> {
+  const port = options.port ?? parseInt(process.env['PORT'] ?? '3000', 10);
+  const server = createHttpServer({ ...options, port });
+  await server.start();
 }
 
 // CLI entry point
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = parseInt(process.env['PORT'] ?? '3000', 10);
-  const server = createHttpServer({ port });
-  server.start().catch((error: unknown) => {
-    logger.error('Failed to start HTTP server', { error });
-  });
+  (async () => {
+    try {
+      // Log environment configuration
+      logEnvironmentConfig();
+
+      // Start background tasks and validate configuration
+      await startBackgroundTasks();
+
+      // Register signal handlers for graceful shutdown
+      registerSignalHandlers();
+
+      // Start HTTP server
+      const port = parseInt(process.env['PORT'] ?? '3000', 10);
+      const server = createHttpServer({ port });
+      await server.start();
+
+      logger.info('ServalSheets HTTP server started successfully');
+    } catch (error) {
+      logger.error('Failed to start HTTP server', { error });
+      process.exit(1);
+    }
+  })();
 }

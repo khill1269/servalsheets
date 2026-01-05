@@ -8,14 +8,20 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsChartsInput, SheetsChartsOutput } from '../schemas/charts.js';
+import type {
+  SheetsChartsInput,
+  SheetsChartsOutput,
+  ChartsAction,
+  ChartsResponse,
+} from '../schemas/charts.js';
 import type { RangeInput } from '../schemas/shared.js';
 import {
   parseA1Notation,
   parseCellReference,
   toGridRange,
   type GridRangeInput,
-} from '../utils/google-api.js';
+} from '../utils/google-sheets-helpers.js';
+import { RangeResolutionError } from '../core/range-resolver.js';
 
 export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -27,53 +33,66 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
 
   async handle(input: SheetsChartsInput): Promise<SheetsChartsOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: ChartsResponse;
+      switch (req.action) {
         case 'create':
-          return await this.handleCreate(input);
+          response = await this.handleCreate(req);
+          break;
         case 'update':
-          return await this.handleUpdate(input);
+          response = await this.handleUpdate(req);
+          break;
         case 'delete':
-          return await this.handleDelete(input);
+          response = await this.handleDelete(req);
+          break;
         case 'list':
-          return await this.handleList(input);
+          response = await this.handleList(req);
+          break;
         case 'get':
-          return await this.handleGet(input);
+          response = await this.handleGet(req);
+          break;
         case 'move':
-          return await this.handleMove(input);
+          response = await this.handleMove(req);
+          break;
         case 'resize':
-          return await this.handleResize(input);
+          response = await this.handleResize(req);
+          break;
         case 'update_data_range':
-          return await this.handleUpdateDataRange(input);
+          response = await this.handleUpdateDataRange(req);
+          break;
         case 'export':
-          return await this.handleExport(input);
+          response = await this.handleExport(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsChartsInput): Intent[] {
-    if ('spreadsheetId' in input) {
-      const destructive = input.action === 'delete';
-      const type = input.action === 'create'
+    const req = input.request;
+    if ('spreadsheetId' in req) {
+      const destructive = req.action === 'delete';
+      const type = req.action === 'create'
         ? 'ADD_CHART'
-        : input.action === 'delete'
+        : req.action === 'delete'
         ? 'DELETE_CHART'
         : 'UPDATE_CHART';
 
       return [{
         type,
-        target: { spreadsheetId: input.spreadsheetId },
+        target: { spreadsheetId: req.spreadsheetId },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
-          sourceAction: input.action,
+          sourceAction: req.action,
           priority: 1,
           destructive,
         },
@@ -87,8 +106,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   // ============================================================
 
   private async handleCreate(
-    input: Extract<SheetsChartsInput, { action: 'create' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'create' }>
+  ): Promise<ChartsResponse> {
     const dataRange = await this.toGridRange(input.spreadsheetId, input.data.sourceRange);
     const position = await this.toOverlayPosition(input.spreadsheetId, input.position.anchorCell, input.position);
 
@@ -113,8 +132,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleUpdate(
-    input: Extract<SheetsChartsInput, { action: 'update' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'update' }>
+  ): Promise<ChartsResponse> {
     const requests: sheets_v4.Schema$Request[] = [];
     const specUpdates: sheets_v4.Schema$ChartSpec = {};
 
@@ -162,8 +181,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleDelete(
-    input: Extract<SheetsChartsInput, { action: 'delete' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'delete' }>
+  ): Promise<ChartsResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete', {}, undefined, true);
     }
@@ -183,8 +202,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleList(
-    input: Extract<SheetsChartsInput, { action: 'list' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'list' }>
+  ): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.charts,sheets.properties.sheetId',
@@ -232,8 +251,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleGet(
-    input: Extract<SheetsChartsInput, { action: 'get' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'get' }>
+  ): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.charts',
@@ -272,8 +291,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleMove(
-    input: Extract<SheetsChartsInput, { action: 'move' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'move' }>
+  ): Promise<ChartsResponse> {
     const position = await this.toOverlayPosition(input.spreadsheetId, input.position.anchorCell, input.position);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -293,8 +312,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleResize(
-    input: Extract<SheetsChartsInput, { action: 'resize' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'resize' }>
+  ): Promise<ChartsResponse> {
     const currentPosition = await this.fetchChartPosition(input.spreadsheetId, input.chartId);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -322,8 +341,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleUpdateDataRange(
-    input: Extract<SheetsChartsInput, { action: 'update_data_range' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'update_data_range' }>
+  ): Promise<ChartsResponse> {
     const dataRange = await this.toGridRange(input.spreadsheetId, input.data.sourceRange);
     const spec = this.buildBasicChartSpec(dataRange, undefined, input.data, undefined);
 
@@ -347,8 +366,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleExport(
-    input: Extract<SheetsChartsInput, { action: 'export' }>
-  ): Promise<SheetsChartsOutput> {
+    input: Extract<ChartsAction, { action: 'export' }>
+  ): Promise<ChartsResponse> {
     // Exporting charts requires Drive export endpoints which are not wired here.
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
@@ -392,7 +411,12 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
 
     const match = sheets.find(s => s.properties?.title === sheetName);
     if (!match) {
-      throw new Error(`Sheet not found: ${sheetName}`);
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        'SHEET_NOT_FOUND',
+        { sheetName, spreadsheetId },
+        false
+      );
     }
     return match.properties?.sheetId ?? 0;
   }
@@ -400,8 +424,8 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   private buildBasicChartSpec(
     dataRange: GridRangeInput,
     chartType: sheets_v4.Schema$BasicChartSpec['chartType'] | undefined,
-    data: Extract<SheetsChartsInput, { action: 'create' | 'update_data_range' }>['data'],
-    options?: Extract<SheetsChartsInput, { action: 'create' | 'update' }>['options']
+    data: Extract<ChartsAction, { action: 'create' | 'update_data_range' }>['data'],
+    options?: Extract<ChartsAction, { action: 'create' | 'update' }>['options']
   ): sheets_v4.Schema$ChartSpec {
     const domainColumn = data.categories ?? 0;
     const domainRange: sheets_v4.Schema$GridRange = {

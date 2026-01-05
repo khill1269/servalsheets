@@ -50,30 +50,34 @@ describe('AdvancedHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'add_named_range',
-      spreadsheetId: 'sheet-id',
-      name: 'Range1',
-      range: { a1: 'Sheet1!A1:B2' },
+      request: {
+        action: 'add_named_range',
+        spreadsheetId: 'sheet-id',
+        name: 'Range1',
+        range: { a1: 'Sheet1!A1:B2' },
+      },
     });
 
     const parsed = SheetsAdvancedOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.namedRange?.name).toBe('Range1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.namedRange?.name).toBe('Range1');
     }
   });
 
   it('returns feature unavailable for create_table', async () => {
     const result = await handler.handle({
-      action: 'create_table',
-      spreadsheetId: 'sheet-id',
-      range: { a1: 'Sheet1!A1:B2' },
+      request: {
+        action: 'create_table',
+        spreadsheetId: 'sheet-id',
+        range: { a1: 'Sheet1!A1:B2' },
+      },
     } as any);
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe('FEATURE_UNAVAILABLE');
+    expect(result.response.success).toBe(false);
+    if (!result.response.success) {
+      expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
     }
   });
 });

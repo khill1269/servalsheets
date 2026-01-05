@@ -13,6 +13,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -46,7 +47,7 @@ const BandingPropertiesSchema = z.object({
   footerColor: ColorSchema.optional(),
 });
 
-export const SheetsAdvancedInputSchema = z.discriminatedUnion('action', [
+const AdvancedActionSchema = z.discriminatedUnion('action', [
   // === NAMED RANGES ===
   
   // ADD_NAMED_RANGE
@@ -212,7 +213,11 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsAdvancedOutputSchema = z.discriminatedUnion('success', [
+export const SheetsAdvancedInputSchema = z.object({
+  request: AdvancedActionSchema,
+});
+
+const AdvancedResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -266,12 +271,17 @@ export const SheetsAdvancedOutputSchema = z.discriminatedUnion('success', [
     
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsAdvancedOutputSchema = z.object({
+  response: AdvancedResponseSchema,
+});
 
 export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
   title: 'Advanced Features',
@@ -283,3 +293,5 @@ export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsAdvancedInput = z.infer<typeof SheetsAdvancedInputSchema>;
 export type SheetsAdvancedOutput = z.infer<typeof SheetsAdvancedOutputSchema>;
+export type AdvancedAction = z.infer<typeof AdvancedActionSchema>;
+export type AdvancedResponse = z.infer<typeof AdvancedResponseSchema>;

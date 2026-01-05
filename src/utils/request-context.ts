@@ -1,12 +1,13 @@
 /**
  * ServalSheets - Request Context
  *
- * Async-local storage for per-request metadata (requestId, logger, deadlines).
+ * Async-local storage for per-request metadata (requestId, logger, deadlines, progress notifications).
  */
 
 import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
+import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { logger as baseLogger } from './logger.js';
 
 export interface RequestContext {
@@ -14,6 +15,16 @@ export interface RequestContext {
   logger: Logger;
   timeoutMs: number;
   deadline: number;
+  /**
+   * MCP progress notification function
+   * Available when client requests progress updates via _meta.progressToken
+   */
+  sendNotification?: (notification: ServerNotification) => Promise<void>;
+  /**
+   * MCP progress token from request _meta
+   * Used to associate progress notifications with the original request
+   */
+  progressToken?: string | number;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -26,6 +37,8 @@ export function createRequestContext(options?: {
   requestId?: string;
   logger?: Logger;
   timeoutMs?: number;
+  sendNotification?: (notification: ServerNotification) => Promise<void>;
+  progressToken?: string | number;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -36,6 +49,8 @@ export function createRequestContext(options?: {
     logger,
     timeoutMs,
     deadline: Date.now() + timeoutMs,
+    sendNotification: options?.sendNotification,
+    progressToken: options?.progressToken,
   };
 }
 
@@ -52,4 +67,39 @@ export function getRequestContext(): RequestContext | undefined {
 
 export function getRequestLogger(): Logger {
   return storage.getStore()?.logger ?? baseLogger;
+}
+
+/**
+ * Send MCP progress notification if available in request context
+ * Used by BatchCompiler and other long-running operations
+ *
+ * @param progress Current progress (0-based)
+ * @param total Total steps
+ * @param message Progress message
+ */
+export async function sendProgress(
+  progress: number,
+  total?: number,
+  message?: string
+): Promise<void> {
+  const context = storage.getStore();
+  if (!context?.sendNotification || !context?.progressToken) {
+    // Progress notifications not requested by client or not in request context
+    return;
+  }
+
+  try {
+    await context.sendNotification({
+      method: 'notifications/progress',
+      params: {
+        progressToken: context.progressToken,
+        progress,
+        total,
+        message,
+      },
+    });
+  } catch (error) {
+    // Don't fail the operation if progress notification fails
+    context.logger.warn('Failed to send progress notification', { error, progress, total, message });
+  }
 }

@@ -66,8 +66,10 @@ describe('YourHandler', () => {
 
   it('should do something', async () => {
     // Mock returns realistic data automatically
-    const result = await handler.handle({ action: 'read', spreadsheetId: 'test-spreadsheet-id' });
-    expect(result.success).toBe(true);
+    const result = await handler.handle({
+      request: { action: 'read', spreadsheetId: 'test-spreadsheet-id' }
+    });
+    expect(result.response.success).toBe(true);
   });
 });
 ```

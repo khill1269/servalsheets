@@ -19,6 +19,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -26,7 +27,7 @@ const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
-export const SheetsFormatInputSchema = z.discriminatedUnion('action', [
+const FormatActionSchema = z.discriminatedUnion('action', [
   // SET_FORMAT
   BaseSchema.extend({
     action: z.literal('set_format'),
@@ -108,19 +109,28 @@ export const SheetsFormatInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsFormatOutputSchema = z.discriminatedUnion('success', [
+export const SheetsFormatInputSchema = z.object({
+  request: FormatActionSchema,
+});
+
+const FormatResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
     cellsFormatted: z.number().int().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsFormatOutputSchema = z.object({
+  response: FormatResponseSchema,
+});
 
 export const SHEETS_FORMAT_ANNOTATIONS: ToolAnnotations = {
   title: 'Cell Formatting',
@@ -132,3 +142,5 @@ export const SHEETS_FORMAT_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsFormatInput = z.infer<typeof SheetsFormatInputSchema>;
 export type SheetsFormatOutput = z.infer<typeof SheetsFormatOutputSchema>;
+export type FormatAction = z.infer<typeof FormatActionSchema>;
+export type FormatResponse = z.infer<typeof FormatResponseSchema>;

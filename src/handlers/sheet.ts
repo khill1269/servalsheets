@@ -8,11 +8,15 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { 
-  SheetsSheetInput, 
+import type {
+  SheetsSheetInput,
   SheetsSheetOutput,
   SheetInfo,
+  SheetAction,
+  SheetResponse,
 } from '../schemas/index.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { getRequestLogger } from '../utils/request-context.js';
 
 export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -24,40 +28,51 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
 
   async handle(input: SheetsSheetInput): Promise<SheetsSheetOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: SheetResponse;
+      switch (req.action) {
         case 'add':
-          return await this.handleAdd(input);
+          response = await this.handleAdd(req);
+          break;
         case 'delete':
-          return await this.handleDelete(input);
+          response = await this.handleDelete(req);
+          break;
         case 'duplicate':
-          return await this.handleDuplicate(input);
+          response = await this.handleDuplicate(req);
+          break;
         case 'update':
-          return await this.handleUpdate(input);
+          response = await this.handleUpdate(req);
+          break;
         case 'copy_to':
-          return await this.handleCopyTo(input);
+          response = await this.handleCopyTo(req);
+          break;
         case 'list':
-          return await this.handleList(input);
+          response = await this.handleList(req);
+          break;
         case 'get':
-          return await this.handleGet(input);
+          response = await this.handleGet(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsSheetInput): Intent[] {
-    switch (input.action) {
+    const req = input.request;
+    switch (req.action) {
       case 'add':
         return [{
           type: 'ADD_SHEET',
-          target: { spreadsheetId: input.spreadsheetId },
-          payload: { title: input.title },
+          target: { spreadsheetId: req.spreadsheetId },
+          payload: { title: req.title },
           metadata: {
             sourceTool: this.toolName,
             sourceAction: 'add',
@@ -68,7 +83,7 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       case 'delete':
         return [{
           type: 'DELETE_SHEET',
-          target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
           payload: {},
           metadata: {
             sourceTool: this.toolName,
@@ -80,8 +95,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       case 'duplicate':
         return [{
           type: 'DUPLICATE_SHEET',
-          target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
-          payload: { newTitle: input.newTitle },
+          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
+          payload: { newTitle: req.newTitle },
           metadata: {
             sourceTool: this.toolName,
             sourceAction: 'duplicate',
@@ -92,8 +107,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       case 'update':
         return [{
           type: 'UPDATE_SHEET_PROPERTIES',
-          target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
-          payload: { title: input.title, hidden: input.hidden },
+          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
+          payload: { title: req.title, hidden: req.hidden },
           metadata: {
             sourceTool: this.toolName,
             sourceAction: 'update',
@@ -107,8 +122,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleAdd(
-    input: Extract<SheetsSheetInput, { action: 'add' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'add' }>
+  ): Promise<SheetResponse> {
     const sheetProperties: sheets_v4.Schema$SheetProperties = {
       title: input.title,
       hidden: input.hidden ?? false,
@@ -155,13 +170,35 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleDelete(
-    input: Extract<SheetsSheetInput, { action: 'delete' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'delete' }>
+  ): Promise<SheetResponse> {
     // Check if sheet exists when allowMissing is true
     if (input.allowMissing) {
       const exists = await this.sheetExists(input.spreadsheetId, input.sheetId);
       if (!exists) {
         return this.success('delete', { alreadyDeleted: true });
+      }
+    }
+
+    // Request confirmation for destructive operation if elicitation is supported
+    if (this.context.samplingServer && !input.safety?.dryRun) {
+      try {
+        const confirmation = await confirmDestructiveAction(
+          this.context.samplingServer as any, // ElicitationServer is compatible
+          'Delete Sheet',
+          `This will permanently delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
+        );
+
+        if (!confirmation.confirmed) {
+          return this.error({
+            code: 'INVALID_REQUEST',
+            message: 'Operation cancelled by user',
+            retryable: false,
+          });
+        }
+      } catch (error) {
+        // If elicitation fails, proceed (backward compatibility)
+        getRequestLogger().warn('Elicitation failed for delete operation', { error });
       }
     }
 
@@ -181,8 +218,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleDuplicate(
-    input: Extract<SheetsSheetInput, { action: 'duplicate' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'duplicate' }>
+  ): Promise<SheetResponse> {
     const duplicateRequest: sheets_v4.Schema$DuplicateSheetRequest = {
       sourceSheetId: input.sheetId,
     };
@@ -215,8 +252,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleUpdate(
-    input: Extract<SheetsSheetInput, { action: 'update' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'update' }>
+  ): Promise<SheetResponse> {
     // Build properties and fields mask
     const properties: sheets_v4.Schema$SheetProperties = { sheetId: input.sheetId };
     const fields: string[] = [];
@@ -296,8 +333,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleCopyTo(
-    input: Extract<SheetsSheetInput, { action: 'copy_to' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'copy_to' }>
+  ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.sheets.copyTo({
       spreadsheetId: input.spreadsheetId,
       sheetId: input.sheetId,
@@ -322,8 +359,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleList(
-    input: Extract<SheetsSheetInput, { action: 'list' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'list' }>
+  ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties',
@@ -343,8 +380,8 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   private async handleGet(
-    input: Extract<SheetsSheetInput, { action: 'get' }>
-  ): Promise<SheetsSheetOutput> {
+    input: Extract<SheetAction, { action: 'get' }>
+  ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties',

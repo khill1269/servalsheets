@@ -13,6 +13,7 @@ import {
   SafetyOptionsSchema,
   MutationSummarySchema,
   ColorSchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -20,7 +21,7 @@ const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
-export const SheetsSheetInputSchema = z.discriminatedUnion('action', [
+const SheetActionSchema = z.discriminatedUnion('action', [
   // ADD
   BaseSchema.extend({
     action: z.literal('add'),
@@ -79,7 +80,11 @@ export const SheetsSheetInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsSheetOutputSchema = z.discriminatedUnion('success', [
+export const SheetsSheetInputSchema = z.object({
+  request: SheetActionSchema,
+});
+
+const SheetResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -90,12 +95,17 @@ export const SheetsSheetOutputSchema = z.discriminatedUnion('success', [
     alreadyDeleted: z.boolean().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsSheetOutputSchema = z.object({
+  response: SheetResponseSchema,
+});
 
 /**
  * Tool annotations for MCP protocol
@@ -116,3 +126,5 @@ export const SHEETS_SHEET_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsSheetInput = z.infer<typeof SheetsSheetInputSchema>;
 export type SheetsSheetOutput = z.infer<typeof SheetsSheetOutputSchema>;
+export type SheetAction = z.infer<typeof SheetActionSchema>;
+export type SheetResponse = z.infer<typeof SheetResponseSchema>;

@@ -13,8 +13,14 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsRulesInput, SheetsRulesOutput } from '../schemas/index.js';
-import { parseA1Notation, toGridRange, type GridRangeInput } from '../utils/google-api.js';
+import type {
+  SheetsRulesInput,
+  SheetsRulesOutput,
+  RulesAction,
+  RulesResponse,
+} from '../schemas/index.js';
+import { parseA1Notation, toGridRange, type GridRangeInput } from '../utils/google-sheets-helpers.js';
+import { RangeResolutionError } from '../core/range-resolver.js';
 
 // Valid condition types from schema
 type ConditionType = 
@@ -36,46 +42,58 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
 
   async handle(input: SheetsRulesInput): Promise<SheetsRulesOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: RulesResponse;
+      switch (req.action) {
         case 'add_conditional_format':
-          return await this.handleAddConditionalFormat(input);
+          response = await this.handleAddConditionalFormat(req);
+          break;
         case 'update_conditional_format':
-          return await this.handleUpdateConditionalFormat(input);
+          response = await this.handleUpdateConditionalFormat(req);
+          break;
         case 'delete_conditional_format':
-          return await this.handleDeleteConditionalFormat(input);
+          response = await this.handleDeleteConditionalFormat(req);
+          break;
         case 'list_conditional_formats':
-          return await this.handleListConditionalFormats(input);
+          response = await this.handleListConditionalFormats(req);
+          break;
         case 'add_data_validation':
-          return await this.handleAddDataValidation(input);
+          response = await this.handleAddDataValidation(req);
+          break;
         case 'clear_data_validation':
-          return await this.handleClearDataValidation(input);
+          response = await this.handleClearDataValidation(req);
+          break;
         case 'list_data_validations':
-          return await this.handleListDataValidations(input);
+          response = await this.handleListDataValidations(req);
+          break;
         case 'add_preset_rule':
-          return await this.handleAddPresetRule(input);
+          response = await this.handleAddPresetRule(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsRulesInput): Intent[] {
+    const req = input.request;
     const destructiveActions = ['update_conditional_format', 'delete_conditional_format', 'clear_data_validation'];
     return [{
       type: 'UPDATE_CONDITIONAL_FORMAT',
-      target: { spreadsheetId: input.spreadsheetId },
+      target: { spreadsheetId: req.spreadsheetId },
       payload: {},
       metadata: {
         sourceTool: this.toolName,
-        sourceAction: input.action,
+        sourceAction: req.action,
         priority: 1,
-        destructive: destructiveActions.includes(input.action),
+        destructive: destructiveActions.includes(req.action),
       },
     }];
   }
@@ -85,8 +103,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   // ============================================================
 
   private async handleAddConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: 'add_conditional_format' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'add_conditional_format' }>
+  ): Promise<RulesResponse> {
     const gridRange = await this.resolveGridRange(input.spreadsheetId, input.sheetId, input.range);
     
     let rule: sheets_v4.Schema$ConditionalFormatRule;
@@ -145,8 +163,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   private async handleUpdateConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: 'update_conditional_format' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'update_conditional_format' }>
+  ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_conditional_format', { ruleIndex: input.ruleIndex }, undefined, true);
     }
@@ -219,8 +237,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   private async handleDeleteConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: 'delete_conditional_format' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'delete_conditional_format' }>
+  ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete_conditional_format', {}, undefined, true);
     }
@@ -241,8 +259,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   private async handleListConditionalFormats(
-    input: Extract<SheetsRulesInput, { action: 'list_conditional_formats' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'list_conditional_formats' }>
+  ): Promise<RulesResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.conditionalFormats,sheets.properties.sheetId',
@@ -269,8 +287,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   // ============================================================
 
   private async handleAddDataValidation(
-    input: Extract<SheetsRulesInput, { action: 'add_data_validation' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'add_data_validation' }>
+  ): Promise<RulesResponse> {
     const gridRange = await this.resolveRangeInput(input.spreadsheetId, input.range);
 
     const condition: sheets_v4.Schema$BooleanCondition = {
@@ -302,8 +320,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   private async handleClearDataValidation(
-    input: Extract<SheetsRulesInput, { action: 'clear_data_validation' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'clear_data_validation' }>
+  ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success('clear_data_validation', {}, undefined, true);
     }
@@ -326,8 +344,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   private async handleListDataValidations(
-    input: Extract<SheetsRulesInput, { action: 'list_data_validations' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'list_data_validations' }>
+  ): Promise<RulesResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: [],
@@ -373,8 +391,8 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   // ============================================================
 
   private async handleAddPresetRule(
-    input: Extract<SheetsRulesInput, { action: 'add_preset_rule' }>
-  ): Promise<SheetsRulesOutput> {
+    input: Extract<RulesAction, { action: 'add_preset_rule' }>
+  ): Promise<RulesResponse> {
     const gridRange = await this.resolveGridRange(input.spreadsheetId, input.sheetId, input.range);
     const googleRange = toGridRange(gridRange);
     
@@ -597,7 +615,12 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
       }
     }
 
-    throw new Error('Could not resolve range');
+    throw new RangeResolutionError(
+      'Could not resolve range - ambiguous input',
+      'RANGE_RESOLUTION_FAILED',
+      { input: range, spreadsheetId, sheetId },
+      false
+    );
   }
 
   private async resolveRangeInput(
@@ -646,7 +669,12 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
       }
     }
 
-    throw new Error('Could not resolve range');
+    throw new RangeResolutionError(
+      'Could not resolve range - ambiguous input',
+      'RANGE_RESOLUTION_FAILED',
+      { input: range, spreadsheetId },
+      false
+    );
   }
 
   private async getSheetId(spreadsheetId: string, sheetName?: string): Promise<number> {
@@ -663,7 +691,12 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
 
     const sheet = sheets.find(s => s.properties?.title === sheetName);
     if (!sheet) {
-      throw new Error(`Sheet not found: ${sheetName}`);
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        'SHEET_NOT_FOUND',
+        { sheetName, spreadsheetId },
+        false
+      );
     }
 
     return sheet.properties?.sheetId ?? 0;

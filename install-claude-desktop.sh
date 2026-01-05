@@ -1,8 +1,15 @@
 #!/bin/bash
 #
-# ServalSheets Claude Desktop Installation Script
+# ServalSheets Claude Desktop Installation Script (Security Hardened)
 #
 # This script helps configure ServalSheets for Claude Desktop
+# Version: 1.1.1 (Security Fixed)
+#
+# Security improvements:
+# - Fixed shell injection vulnerability (CRITICAL-002)
+# - Added file permission checks (CRITICAL-009)
+# - Robust path expansion (CRITICAL-008)
+# - Validates credentials before use
 #
 
 set -e
@@ -10,10 +17,26 @@ set -e
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}ServalSheets Claude Desktop Setup${NC}"
-echo "=================================="
+# Respect NO_COLOR environment variable
+if [ -n "$NO_COLOR" ]; then
+  GREEN=''
+  YELLOW=''
+  RED=''
+  BLUE=''
+  NC=''
+fi
+
+echo -e "${GREEN}ServalSheets Claude Desktop Setup v1.1.1${NC}"
+echo "==========================================="
+echo ""
+echo -e "${BLUE}New in v1.1.1:${NC}"
+echo "  • HTTP compression (60-80% bandwidth reduction)"
+echo "  • Payload monitoring (2MB warnings, 10MB limits)"
+echo "  • Batch efficiency analysis"
+echo "  • Dynamic rate limiting (auto-throttle on 429 errors)"
 echo ""
 
 # Get the absolute path to this script's directory
@@ -27,7 +50,14 @@ if [ ! -f "$CLI_PATH" ]; then
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Found CLI at: $CLI_PATH"
+# Verify CLI is executable by node
+if ! node "$CLI_PATH" --version &>/dev/null; then
+    echo -e "${RED}Error: CLI exists but cannot be executed${NC}"
+    echo "Please verify the build completed successfully"
+    exit 1
+fi
+
+echo -e "${GREEN}✓${NC} Found and verified CLI at: $CLI_PATH"
 
 # Check for Claude Desktop config
 CLAUDE_CONFIG_DIR="$HOME/Library/Application Support/Claude"
@@ -42,6 +72,14 @@ if [ ! -d "$CLAUDE_CONFIG_DIR" ]; then
         exit 1
     fi
     mkdir -p "$CLAUDE_CONFIG_DIR"
+fi
+
+# Verify directory is writable (CRITICAL-009: File permission checks)
+if [ ! -w "$CLAUDE_CONFIG_DIR" ]; then
+    echo -e "${RED}Error: Cannot write to config directory${NC}"
+    echo "Directory: $CLAUDE_CONFIG_DIR"
+    echo "Check permissions and try again"
+    exit 1
 fi
 
 # Check for Google credentials
@@ -74,10 +112,33 @@ if [ -z "$CRED_PATH" ]; then
     read -r USER_CRED_PATH
 
     if [ -n "$USER_CRED_PATH" ]; then
+        # CRITICAL-008: Robust path expansion
         # Expand ~ to home directory
         USER_CRED_PATH="${USER_CRED_PATH/#\~/$HOME}"
 
+        # Convert to absolute path if relative
+        if [[ "$USER_CRED_PATH" != /* ]]; then
+            USER_CRED_PATH="$(cd "$(dirname "$USER_CRED_PATH")" 2>/dev/null && pwd)/$(basename "$USER_CRED_PATH")"
+        fi
+
         if [ -f "$USER_CRED_PATH" ]; then
+            # CRITICAL-009: Verify file is readable
+            if [ ! -r "$USER_CRED_PATH" ]; then
+                echo -e "${RED}Error: File exists but is not readable${NC}"
+                echo "Check file permissions: $USER_CRED_PATH"
+                exit 1
+            fi
+
+            # Validate JSON syntax
+            if command -v jq &> /dev/null; then
+                if ! jq empty "$USER_CRED_PATH" 2>/dev/null; then
+                    echo -e "${RED}Error: Invalid JSON in credentials file${NC}"
+                    echo "File: $USER_CRED_PATH"
+                    exit 1
+                fi
+                echo -e "${GREEN}✓${NC} Credentials file validated"
+            fi
+
             CRED_PATH="$USER_CRED_PATH"
             echo -e "${GREEN}✓${NC} Using credentials at: $CRED_PATH"
         else
@@ -91,10 +152,20 @@ fi
 echo ""
 echo "Configuring Claude Desktop..."
 
-# Backup existing config if it exists
+# Backup existing config if it exists (with verification)
 if [ -f "$CLAUDE_CONFIG" ]; then
     BACKUP="$CLAUDE_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
-    cp "$CLAUDE_CONFIG" "$BACKUP"
+    if ! cp "$CLAUDE_CONFIG" "$BACKUP"; then
+        echo -e "${RED}Error: Failed to create backup${NC}"
+        exit 1
+    fi
+
+    # Verify backup was created
+    if [ ! -f "$BACKUP" ]; then
+        echo -e "${RED}Error: Backup file not created${NC}"
+        exit 1
+    fi
+
     echo -e "${YELLOW}Backed up existing config to: $BACKUP${NC}"
 fi
 
@@ -105,59 +176,91 @@ else
     EXISTING_CONFIG='{"mcpServers":{}}'
 fi
 
-# Build new servalsheets entry
-if [ -n "$CRED_PATH" ]; then
-    SERVALSHEETS_ENTRY=$(cat <<EOF
-{
-  "command": "node",
-  "args": ["$CLI_PATH"],
-  "env": {
-    "GOOGLE_APPLICATION_CREDENTIALS": "$CRED_PATH"
-  }
-}
-EOF
-)
-else
-    SERVALSHEETS_ENTRY=$(cat <<EOF
-{
-  "command": "node",
-  "args": ["$CLI_PATH"],
-  "env": {
-    "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json"
-  }
-}
-EOF
-)
-fi
+# Ask about optional configuration
+echo ""
+echo -e "${YELLOW}Optional Configuration${NC}"
+echo "Would you like to enable optional features?"
+echo ""
 
-# Merge configs using jq if available, otherwise use simple approach
-if command -v jq &> /dev/null; then
-    echo "$EXISTING_CONFIG" | jq ".mcpServers.servalsheets = $SERVALSHEETS_ENTRY" > "$CLAUDE_CONFIG"
-else
-    # Simple approach without jq
-    if [ "$EXISTING_CONFIG" = '{"mcpServers":{}}' ]; then
-        cat > "$CLAUDE_CONFIG" <<EOF
-{
-  "mcpServers": {
-    "servalsheets": $SERVALSHEETS_ENTRY
-  }
-}
-EOF
-    else
-        echo -e "${YELLOW}jq not found - you'll need to manually add ServalSheets to config${NC}"
-        echo ""
-        echo "Add this to $CLAUDE_CONFIG:"
-        echo ""
-        echo '"servalsheets": '$SERVALSHEETS_ENTRY
-        echo ""
-        exit 1
+# Collect configuration options
+LOG_LEVEL=""
+ENABLE_TRACING="false"
+LOG_SPANS="false"
+READS_PER_MIN=""
+WRITES_PER_MIN=""
+
+# Ask about log level
+echo "1. Log Level (default: info)"
+echo "   Options: debug, info, warn, error"
+read -p "   Set log level? (press Enter to skip): " LOG_LEVEL
+
+# Ask about OpenTelemetry tracing
+echo ""
+echo "2. OpenTelemetry Tracing (default: disabled)"
+echo "   Enables distributed tracing for debugging"
+read -p "   Enable tracing? (y/n, default: n): " -n 1 -r ENABLE_TRACING_INPUT
+echo
+if [[ $ENABLE_TRACING_INPUT =~ ^[Yy]$ ]]; then
+    ENABLE_TRACING="true"
+    read -p "   Log spans to console? (y/n, default: n): " -n 1 -r LOG_SPANS_INPUT
+    echo
+    if [[ $LOG_SPANS_INPUT =~ ^[Yy]$ ]]; then
+        LOG_SPANS="true"
     fi
 fi
 
-echo -e "${GREEN}✓${NC} Updated Claude Desktop config"
+# Ask about rate limiting
+echo ""
+echo "3. Rate Limiting (default: 300 reads/min, 60 writes/min)"
+echo "   Adjust based on your Google Cloud project quotas"
+read -p "   Customize rate limits? (y/n, default: n): " -n 1 -r CUSTOM_RATES
+echo
+if [[ $CUSTOM_RATES =~ ^[Yy]$ ]]; then
+    read -p "   Reads per minute (default: 300): " READS_PER_MIN
+    read -p "   Writes per minute (default: 60): " WRITES_PER_MIN
+fi
+
+# CRITICAL-002 FIX: Build JSON safely using jq instead of echo -e
+if command -v jq &> /dev/null; then
+    # Use jq to build JSON safely - prevents injection
+    SERVALSHEETS_ENTRY=$(jq -n \
+        --arg cmd "node" \
+        --arg cli "$CLI_PATH" \
+        --arg cred "${CRED_PATH:-/path/to/your/service-account.json}" \
+        --arg log "$LOG_LEVEL" \
+        --arg otel "$ENABLE_TRACING" \
+        --arg spans "$LOG_SPANS" \
+        --arg reads "$READS_PER_MIN" \
+        --arg writes "$WRITES_PER_MIN" \
+        '{
+            command: $cmd,
+            args: [$cli],
+            env: {
+                GOOGLE_APPLICATION_CREDENTIALS: $cred
+            }
+        } |
+        if $log != "" then .env.LOG_LEVEL = $log else . end |
+        if $otel == "true" then .env.OTEL_ENABLED = "true" else . end |
+        if $spans == "true" then .env.OTEL_LOG_SPANS = "true" else . end |
+        if $reads != "" then .env.RATE_LIMIT_READS_PER_MINUTE = $reads else . end |
+        if $writes != "" then .env.RATE_LIMIT_WRITES_PER_MINUTE = $writes else . end'
+    )
+
+    # Merge configs using jq
+    echo "$EXISTING_CONFIG" | jq ".mcpServers.servalsheets = $SERVALSHEETS_ENTRY" > "$CLAUDE_CONFIG"
+    echo -e "${GREEN}✓${NC} Updated Claude Desktop config"
+else
+    echo -e "${RED}Error: jq is required but not installed${NC}"
+    echo "Please install jq:"
+    echo "  macOS: brew install jq"
+    echo "  Linux: apt-get install jq or yum install jq"
+    echo ""
+    echo "Or manually add ServalSheets to $CLAUDE_CONFIG"
+    exit 1
+fi
 
 # Extract service account email if available
-if [ -n "$CRED_PATH" ] && command -v jq &> /dev/null; then
+if [ -n "$CRED_PATH" ] && [ -f "$CRED_PATH" ] && command -v jq &> /dev/null; then
     SA_EMAIL=$(jq -r '.client_email' "$CRED_PATH" 2>/dev/null || echo "")
     if [ -n "$SA_EMAIL" ]; then
         echo ""
@@ -177,8 +280,20 @@ echo "3. Look for the 🔨 icon (bottom-right) indicating MCP servers loaded"
 echo "4. ${YELLOW}Share your Google Sheets${NC} with service account email"
 echo "5. Test with: 'List sheets in spreadsheet: <your-spreadsheet-id>'"
 echo ""
-echo "For troubleshooting, see:"
-echo "  $SCRIPT_DIR/CLAUDE_DESKTOP_SETUP.md"
+echo -e "${BLUE}v1.1.1 Features Active:${NC}"
+echo "  ✓ HTTP compression enabled automatically"
+echo "  ✓ Payload monitoring (warns at 2MB, errors at 10MB)"
+echo "  ✓ Batch efficiency analysis"
+echo "  ✓ Dynamic rate limiting (auto-throttles on 429 errors)"
+if [ "$ENABLE_TRACING" = "true" ]; then
+echo "  ✓ OpenTelemetry tracing enabled"
+fi
+echo ""
+echo "Documentation:"
+echo "  Setup Guide:     $SCRIPT_DIR/CLAUDE_DESKTOP_SETUP.md"
+echo "  Configuration:   $SCRIPT_DIR/.env.example"
+echo "  Performance:     $SCRIPT_DIR/PERFORMANCE.md"
+echo "  Troubleshooting: $SCRIPT_DIR/TROUBLESHOOTING.md"
 echo ""
 echo "Logs available at:"
 echo "  ~/Library/Logs/Claude/mcp-server-servalsheets.log"

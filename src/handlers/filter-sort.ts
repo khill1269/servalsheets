@@ -14,9 +14,15 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsFilterSortInput, SheetsFilterSortOutput } from '../schemas/filter-sort.js';
+import type {
+  SheetsFilterSortInput,
+  SheetsFilterSortOutput,
+  FilterSortAction,
+  FilterSortResponse,
+} from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
-import { parseA1Notation, parseCellReference, toGridRange, type GridRangeInput } from '../utils/google-api.js';
+import { parseA1Notation, parseCellReference, toGridRange, type GridRangeInput } from '../utils/google-sheets-helpers.js';
+import { RangeResolutionError } from '../core/range-resolver.js';
 
 type ApiFilterCriteria = sheets_v4.Schema$FilterCriteria;
 
@@ -30,44 +36,61 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
 
   async handle(input: SheetsFilterSortInput): Promise<SheetsFilterSortOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: FilterSortResponse;
+      switch (req.action) {
         case 'set_basic_filter':
-          return await this.handleSetBasicFilter(input);
+          response = await this.handleSetBasicFilter(req);
+          break;
         case 'clear_basic_filter':
-          return await this.handleClearBasicFilter(input);
+          response = await this.handleClearBasicFilter(req);
+          break;
         case 'get_basic_filter':
-          return await this.handleGetBasicFilter(input);
+          response = await this.handleGetBasicFilter(req);
+          break;
         case 'update_filter_criteria':
-          return await this.handleUpdateFilterCriteria(input);
+          response = await this.handleUpdateFilterCriteria(req);
+          break;
         case 'sort_range':
-          return await this.handleSortRange(input);
+          response = await this.handleSortRange(req);
+          break;
         case 'create_filter_view':
-          return await this.handleCreateFilterView(input);
+          response = await this.handleCreateFilterView(req);
+          break;
         case 'update_filter_view':
-          return await this.handleUpdateFilterView(input);
+          response = await this.handleUpdateFilterView(req);
+          break;
         case 'delete_filter_view':
-          return await this.handleDeleteFilterView(input);
+          response = await this.handleDeleteFilterView(req);
+          break;
         case 'list_filter_views':
-          return await this.handleListFilterViews(input);
+          response = await this.handleListFilterViews(req);
+          break;
         case 'get_filter_view':
-          return await this.handleGetFilterView(input);
+          response = await this.handleGetFilterView(req);
+          break;
         case 'create_slicer':
-          return await this.handleCreateSlicer(input);
+          response = await this.handleCreateSlicer(req);
+          break;
         case 'update_slicer':
-          return await this.handleUpdateSlicer(input);
+          response = await this.handleUpdateSlicer(req);
+          break;
         case 'delete_slicer':
-          return await this.handleDeleteSlicer(input);
+          response = await this.handleDeleteSlicer(req);
+          break;
         case 'list_slicers':
-          return await this.handleListSlicers(input);
+          response = await this.handleListSlicers(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
@@ -81,8 +104,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   // ============================================================
 
   private async handleSetBasicFilter(
-    input: Extract<SheetsFilterSortInput, { action: 'set_basic_filter' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'set_basic_filter' }>
+  ): Promise<FilterSortResponse> {
     const gridRange = input.range
       ? await this.toGridRange(input.spreadsheetId, input.range)
       : { sheetId: input.sheetId };
@@ -105,8 +128,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleClearBasicFilter(
-    input: Extract<SheetsFilterSortInput, { action: 'clear_basic_filter' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'clear_basic_filter' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('clear_basic_filter', {}, undefined, true);
     }
@@ -124,8 +147,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleGetBasicFilter(
-    input: Extract<SheetsFilterSortInput, { action: 'get_basic_filter' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'get_basic_filter' }>
+  ): Promise<FilterSortResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties.sheetId,sheets.basicFilter',
@@ -146,8 +169,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleUpdateFilterCriteria(
-    input: Extract<SheetsFilterSortInput, { action: 'update_filter_criteria' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'update_filter_criteria' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_filter_criteria', {}, undefined, true);
     }
@@ -176,8 +199,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   // ============================================================
 
   private async handleSortRange(
-    input: Extract<SheetsFilterSortInput, { action: 'sort_range' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'sort_range' }>
+  ): Promise<FilterSortResponse> {
     const gridRange = await this.toGridRange(input.spreadsheetId, input.range);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -205,8 +228,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   // ============================================================
 
   private async handleCreateFilterView(
-    input: Extract<SheetsFilterSortInput, { action: 'create_filter_view' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'create_filter_view' }>
+  ): Promise<FilterSortResponse> {
     const gridRange = input.range
       ? await this.toGridRange(input.spreadsheetId, input.range)
       : { sheetId: input.sheetId };
@@ -235,8 +258,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleUpdateFilterView(
-    input: Extract<SheetsFilterSortInput, { action: 'update_filter_view' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'update_filter_view' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_filter_view', {}, undefined, true);
     }
@@ -267,8 +290,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleDeleteFilterView(
-    input: Extract<SheetsFilterSortInput, { action: 'delete_filter_view' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'delete_filter_view' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete_filter_view', {}, undefined, true);
     }
@@ -286,8 +309,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleListFilterViews(
-    input: Extract<SheetsFilterSortInput, { action: 'list_filter_views' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'list_filter_views' }>
+  ): Promise<FilterSortResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.filterViews,sheets.properties.sheetId',
@@ -320,8 +343,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleGetFilterView(
-    input: Extract<SheetsFilterSortInput, { action: 'get_filter_view' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'get_filter_view' }>
+  ): Promise<FilterSortResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.filterViews',
@@ -353,8 +376,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   // ============================================================
 
   private async handleCreateSlicer(
-    input: Extract<SheetsFilterSortInput, { action: 'create_slicer' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'create_slicer' }>
+  ): Promise<FilterSortResponse> {
     const dataRange = await this.toGridRange(input.spreadsheetId, input.dataRange);
     const anchor = parseCellReference(input.position.anchorCell);
 
@@ -393,8 +416,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleUpdateSlicer(
-    input: Extract<SheetsFilterSortInput, { action: 'update_slicer' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'update_slicer' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_slicer', {}, undefined, true);
     }
@@ -421,8 +444,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleDeleteSlicer(
-    input: Extract<SheetsFilterSortInput, { action: 'delete_slicer' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'delete_slicer' }>
+  ): Promise<FilterSortResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete_slicer', {}, undefined, true);
     }
@@ -440,8 +463,8 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   private async handleListSlicers(
-    input: Extract<SheetsFilterSortInput, { action: 'list_slicers' }>
-  ): Promise<SheetsFilterSortOutput> {
+    input: Extract<FilterSortAction, { action: 'list_slicers' }>
+  ): Promise<FilterSortResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.slicers,sheets.properties.sheetId',
@@ -519,7 +542,12 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
 
     const match = sheets.find(s => s.properties?.title === sheetName);
     if (!match) {
-      throw new Error(`Sheet not found: ${sheetName}`);
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        'SHEET_NOT_FOUND',
+        { sheetName, spreadsheetId },
+        false
+      );
     }
     return match.properties?.sheetId ?? 0;
   }

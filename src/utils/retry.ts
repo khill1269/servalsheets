@@ -162,6 +162,7 @@ async function withTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number
 ): Promise<T> {
+  const logger = getRequestLogger();
   const controller = new AbortController();
   const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
   timeoutError.name = 'TimeoutError';
@@ -169,6 +170,10 @@ async function withTimeout<T>(
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
+      logger.warn('Request timeout triggered', {
+        timeoutMs,
+        message: 'Google API call exceeded timeout, aborting request',
+      });
       controller.abort();
       reject(timeoutError);
     }, timeoutMs);

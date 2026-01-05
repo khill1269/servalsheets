@@ -8,11 +8,15 @@
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { 
-  SheetsSpreadsheetInput, 
+import type {
+  SheetsSpreadsheetInput,
   SheetsSpreadsheetOutput,
   SheetInfo,
+  SpreadsheetAction,
+  SpreadsheetResponse,
 } from '../schemas/index.js';
+import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
+import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
 
 export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, SheetsSpreadsheetOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -30,43 +34,53 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
 
   async handle(input: SheetsSpreadsheetInput): Promise<SheetsSpreadsheetOutput> {
     try {
-      switch (input.action) {
+      const req = input.request;
+      let response: SpreadsheetResponse;
+      switch (req.action) {
         case 'get':
-          return await this.handleGet(input);
+          response = await this.handleGet(req);
+          break;
         case 'create':
-          return await this.handleCreate(input);
+          response = await this.handleCreate(req);
+          break;
         case 'copy':
-          return await this.handleCopy(input);
+          response = await this.handleCopy(req);
+          break;
         case 'update_properties':
-          return await this.handleUpdateProperties(input);
+          response = await this.handleUpdateProperties(req);
+          break;
         case 'get_url':
-          return await this.handleGetUrl(input);
+          response = await this.handleGetUrl(req);
+          break;
         case 'batch_get':
-          return await this.handleBatchGet(input);
+          response = await this.handleBatchGet(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
   protected createIntents(input: SheetsSpreadsheetInput): Intent[] {
+    const req = input.request;
     // Most spreadsheet operations don't go through batch compiler
     // Only update_properties uses batchUpdate
-    if (input.action === 'update_properties') {
+    if (req.action === 'update_properties') {
       return [{
         type: 'UPDATE_SHEET_PROPERTIES',
-        target: { spreadsheetId: input.spreadsheetId },
+        target: { spreadsheetId: req.spreadsheetId },
         payload: {
-          title: input.title,
-          locale: input.locale,
-          timeZone: input.timeZone,
-          autoRecalc: input.autoRecalc,
+          title: req.title,
+          locale: req.locale,
+          timeZone: req.timeZone,
+          autoRecalc: req.autoRecalc,
         },
         metadata: {
           sourceTool: this.toolName,
@@ -80,8 +94,8 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
   }
 
   private async handleGet(
-    input: Extract<SheetsSpreadsheetInput, { action: 'get' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'get' }>
+  ): Promise<SpreadsheetResponse> {
     const params: sheets_v4.Params$Resource$Spreadsheets$Get = {
       spreadsheetId: input.spreadsheetId,
       includeGridData: input.includeGridData ?? false,
@@ -90,8 +104,17 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
       params.ranges = input.ranges;
     }
 
-    const response = await this.sheetsApi.spreadsheets.get(params);
-    const data = response.data;
+    // Try cache first (5min TTL for spreadsheet metadata)
+    const cacheKey = createCacheKey('spreadsheet:get', params as unknown as Record<string, unknown>);
+    const cached = cacheManager.get<sheets_v4.Schema$Spreadsheet>(cacheKey, 'spreadsheet');
+
+    const data = cached ?? (await (async () => {
+      const response = await this.sheetsApi.spreadsheets.get(params);
+      const result = response.data;
+      // Cache the result
+      cacheManager.set(cacheKey, result, { ttl: CACHE_TTL_SPREADSHEET, namespace: 'spreadsheet' });
+      return result;
+    })());
     
     const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) => ({
       sheetId: s.properties?.sheetId ?? 0,
@@ -121,8 +144,8 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
   }
 
   private async handleCreate(
-    input: Extract<SheetsSpreadsheetInput, { action: 'create' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'create' }>
+  ): Promise<SpreadsheetResponse> {
     const sheetsConfig: sheets_v4.Schema$Sheet[] | undefined = input.sheets?.map(s => {
       const sheetProps: sheets_v4.Schema$SheetProperties = {
         title: s.title,
@@ -183,14 +206,24 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
   }
 
   private async handleCopy(
-    input: Extract<SheetsSpreadsheetInput, { action: 'copy' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'copy' }>
+  ): Promise<SpreadsheetResponse> {
     if (!this.driveApi) {
       return this.error({
         code: 'INTERNAL_ERROR',
-        message: 'Drive API not available for copy operation',
+        message: 'Drive API not available - required for spreadsheet copy operation',
+        details: {
+          spreadsheetId: input.spreadsheetId,
+          destinationFolder: input.destinationFolderId,
+          requiredScope: 'https://www.googleapis.com/auth/drive.file',
+        },
         retryable: false,
-        suggestedFix: 'Ensure the server has Drive API access enabled',
+        resolution: 'Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.',
+        resolutionSteps: [
+          '1. Verify GOOGLE_APPLICATION_CREDENTIALS or service account setup',
+          '2. Ensure drive.file scope is included in OAuth scopes',
+          '3. Restart the server after fixing credentials',
+        ],
       });
     }
 
@@ -226,8 +259,8 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
   }
 
   private async handleUpdateProperties(
-    input: Extract<SheetsSpreadsheetInput, { action: 'update_properties' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'update_properties' }>
+  ): Promise<SpreadsheetResponse> {
     // Build fields mask
     const fields: string[] = [];
     const properties: sheets_v4.Schema$SpreadsheetProperties = {};
@@ -287,24 +320,32 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
   }
 
   private async handleGetUrl(
-    input: Extract<SheetsSpreadsheetInput, { action: 'get_url' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'get_url' }>
+  ): Promise<SpreadsheetResponse> {
     const url = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     return this.success('get_url', { url });
   }
 
   private async handleBatchGet(
-    input: Extract<SheetsSpreadsheetInput, { action: 'batch_get' }>
-  ): Promise<SheetsSpreadsheetOutput> {
+    input: Extract<SpreadsheetAction, { action: 'batch_get' }>
+  ): Promise<SpreadsheetResponse> {
     const results = await Promise.all(
       input.spreadsheetIds.map(async (id) => {
         try {
-          const response = await this.sheetsApi.spreadsheets.get({
-            spreadsheetId: id,
-            fields: 'spreadsheetId,properties,spreadsheetUrl,sheets.properties',
-          });
-          
-          const data = response.data;
+          // Try cache first (5min TTL)
+          const cacheKey = createCacheKey('spreadsheet:batch_get', { spreadsheetId: id });
+          const cached = cacheManager.get<sheets_v4.Schema$Spreadsheet>(cacheKey, 'spreadsheet');
+
+          const data = cached ?? (await (async () => {
+            const response = await this.sheetsApi.spreadsheets.get({
+              spreadsheetId: id,
+              fields: 'spreadsheetId,properties,spreadsheetUrl,sheets.properties',
+            });
+            const result = response.data;
+            // Cache the result
+            cacheManager.set(cacheKey, result, { ttl: CACHE_TTL_SPREADSHEET, namespace: 'spreadsheet' });
+            return result;
+          })());
           const sheets: SheetInfo[] = (data.sheets ?? []).map((s: sheets_v4.Schema$Sheet) => ({
             sheetId: s.properties?.sheetId ?? 0,
             title: s.properties?.title ?? '',

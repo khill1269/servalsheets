@@ -48,15 +48,17 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'list_revisions',
-      spreadsheetId: 'sheet-id',
+      request: {
+        action: 'list_revisions',
+        spreadsheetId: 'sheet-id',
+      },
     });
 
     const parsed = SheetsVersionsOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.revisions?.[0].id).toBe('1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.revisions?.[0].id).toBe('1');
     }
   });
 
@@ -67,14 +69,16 @@ describe('VersionsHandler', () => {
     mockDriveApi.files.get.mockResolvedValue({ data: { name: 'Original' } });
 
     const result = await handler.handle({
-      action: 'restore_snapshot',
-      spreadsheetId: 'sheet-id',
-      snapshotId: 'snap',
+      request: {
+        action: 'restore_snapshot',
+        spreadsheetId: 'sheet-id',
+        snapshotId: 'snap',
+      },
     } as any);
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.snapshot?.copyId).toBe('copy-id');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.snapshot?.copyId).toBe('copy-id');
     }
   });
 
@@ -84,13 +88,15 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'list_snapshots',
-      spreadsheetId: 'sheet-id',
+      request: {
+        action: 'list_snapshots',
+        spreadsheetId: 'sheet-id',
+      },
     } as any);
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.snapshots?.[0].id).toBe('snap1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.snapshots?.[0].id).toBe('snap1');
     }
   });
 
@@ -100,30 +106,34 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'export_version',
-      spreadsheetId: 'sheet-id',
-      format: 'pdf',
+      request: {
+        action: 'export_version',
+        spreadsheetId: 'sheet-id',
+        format: 'pdf',
+      },
     } as any);
 
     const parsed = SheetsVersionsOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.exportData).toBeDefined();
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.exportData).toBeDefined();
     }
   });
 
   it('deletes snapshot with dryRun', async () => {
     const result = await handler.handle({
-      action: 'delete_snapshot',
-      spreadsheetId: 'sheet-id',
-      snapshotId: 'snap1',
-      safety: { dryRun: true },
+      request: {
+        action: 'delete_snapshot',
+        spreadsheetId: 'sheet-id',
+        snapshotId: 'snap1',
+        safety: { dryRun: true },
+      },
     } as any);
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.dryRun).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.dryRun).toBe(true);
     }
     expect(mockDriveApi.files.delete).not.toHaveBeenCalled();
   });

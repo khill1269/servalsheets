@@ -185,8 +185,23 @@ export const ErrorCodeSchema = z.enum([
   'EXPLICIT_RANGE_REQUIRED', 'AMBIGUOUS_RANGE',
   // Features
   'FEATURE_UNAVAILABLE', 'FEATURE_DEGRADED',
+  // Auth & configuration
+  'AUTHENTICATION_REQUIRED', 'AUTH_ERROR',
+  'CONFIG_ERROR', 'VALIDATION_ERROR',
+  // Resource/handler lifecycle
+  'NOT_FOUND', 'NOT_IMPLEMENTED', 'HANDLER_LOAD_ERROR',
+  // Session limits
+  'TOO_MANY_SESSIONS',
+  // Data integrity
+  'DATA_ERROR', 'VERSION_MISMATCH',
+  // Service lifecycle
+  'SERVICE_NOT_INITIALIZED', 'SNAPSHOT_CREATION_FAILED', 'SNAPSHOT_RESTORE_FAILED',
   // Transactions
   'TRANSACTION_CONFLICT', 'TRANSACTION_EXPIRED',
+  // HTTP Transport
+  'SESSION_NOT_FOUND',
+  // Batch/Payload
+  'PAYLOAD_TOO_LARGE',
   // Generic
   'UNKNOWN_ERROR',
 ]);
@@ -423,6 +438,13 @@ export const ErrorDetailSchema = z.object({
     action: z.string(),
     description: z.string(),
   })).optional(),
+  // Agent-actionable fields
+  resolution: z.string().optional(),
+  resolutionSteps: z.array(z.string()).optional(),
+  category: z.enum(['client', 'server', 'network', 'auth', 'quota', 'unknown']).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  retryStrategy: z.enum(['exponential_backoff', 'wait_for_reset', 'manual', 'none']).optional(),
+  suggestedTools: z.array(z.string()).optional(),
 });
 
 /** Mutation summary */
@@ -454,6 +476,41 @@ export const SpreadsheetInfoSchema = z.object({
   locale: z.string().optional(),
   timeZone: z.string().optional(),
   sheets: z.array(SheetInfoSchema).optional(),
+});
+
+// ============================================================================
+// RESPONSE METADATA (Quick Win: Enhanced tool responses)
+// ============================================================================
+
+/** Tool suggestion for follow-up or optimization */
+export const ToolSuggestionSchema = z.object({
+  type: z.enum(['optimization', 'alternative', 'follow_up', 'warning', 'related']),
+  message: z.string(),
+  tool: z.string().optional(),
+  action: z.string().optional(),
+  reason: z.string(),
+  priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+});
+
+/** Cost estimation for the operation */
+export const CostEstimateSchema = z.object({
+  apiCalls: z.number().int().min(0),
+  estimatedLatencyMs: z.number().min(0),
+  cellsAffected: z.number().int().min(0).optional(),
+  quotaImpact: z.object({
+    current: z.number().int().min(0),
+    limit: z.number().int().min(0),
+    remaining: z.number().int().min(0),
+  }).optional(),
+});
+
+/** Response metadata with suggestions and cost info */
+export const ResponseMetaSchema = z.object({
+  suggestions: z.array(ToolSuggestionSchema).optional(),
+  costEstimate: CostEstimateSchema.optional(),
+  relatedTools: z.array(z.string()).optional(),
+  documentation: z.string().url().optional(),
+  nextSteps: z.array(z.string()).optional(),
 });
 
 // ============================================================================
@@ -493,3 +550,6 @@ export type MutationSummary = z.infer<typeof MutationSummarySchema>;
 export type SheetInfo = z.infer<typeof SheetInfoSchema>;
 export type SpreadsheetInfo = z.infer<typeof SpreadsheetInfoSchema>;
 export type Condition = z.infer<typeof ConditionSchema>;
+export type ToolSuggestion = z.infer<typeof ToolSuggestionSchema>;
+export type CostEstimate = z.infer<typeof CostEstimateSchema>;
+export type ResponseMeta = z.infer<typeof ResponseMetaSchema>;

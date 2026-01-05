@@ -54,7 +54,7 @@ describe('SpreadsheetHandler', () => {
   });
 
   describe('get action', () => {
-    it('should return flat output structure matching schema', async () => {
+    it('should return response envelope matching schema', async () => {
       mockSheetsApi.spreadsheets.get.mockResolvedValue({
         data: {
           spreadsheetId: 'test-id',
@@ -78,23 +78,26 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'get',
+          spreadsheetId: 'test-id',
+        },
       });
 
       // Validate against schema
       const parsed = SheetsSpreadsheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
 
-      // Check flat structure
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('action', 'get');
-      expect(result).toHaveProperty('spreadsheet');
+      // Check response envelope
+      expect(result).toHaveProperty('response');
+      expect(result.response).toHaveProperty('success', true);
+      expect(result.response).toHaveProperty('action', 'get');
+      expect(result.response).toHaveProperty('spreadsheet');
       
-      if (result.success) {
-        expect(result.spreadsheet?.spreadsheetId).toBe('test-id');
-        expect(result.spreadsheet?.title).toBe('Test Spreadsheet');
-        expect(result.spreadsheet?.sheets).toHaveLength(1);
+      if (result.response.success) {
+        expect(result.response.spreadsheet?.spreadsheetId).toBe('test-id');
+        expect(result.response.spreadsheet?.title).toBe('Test Spreadsheet');
+        expect(result.response.spreadsheet?.sheets).toHaveLength(1);
       }
     });
 
@@ -108,18 +111,20 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'get',
+          spreadsheetId: 'test-id',
+        },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       const parsed = SheetsSpreadsheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
     });
   });
 
   describe('create action', () => {
-    it('should create spreadsheet and return flat output', async () => {
+    it('should create spreadsheet and return response envelope', async () => {
       mockSheetsApi.spreadsheets.create.mockResolvedValue({
         data: {
           spreadsheetId: 'new-id',
@@ -139,17 +144,19 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'create',
-        title: 'New Spreadsheet',
+        request: {
+          action: 'create',
+          title: 'New Spreadsheet',
+        },
       });
 
       const parsed = SheetsSpreadsheetOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
       
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.newSpreadsheetId).toBe('new-id');
-        expect(result.spreadsheet?.title).toBe('New Spreadsheet');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.newSpreadsheetId).toBe('new-id');
+        expect(result.response.spreadsheet?.title).toBe('New Spreadsheet');
       }
     });
 
@@ -166,15 +173,17 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'create',
-        title: 'Custom Sheets',
-        sheets: [
-          { title: 'Data', rowCount: 500, columnCount: 10 },
-          { title: 'Summary', rowCount: 100, columnCount: 5 },
-        ],
+        request: {
+          action: 'create',
+          title: 'Custom Sheets',
+          sheets: [
+            { title: 'Data', rowCount: 500, columnCount: 10 },
+            { title: 'Summary', rowCount: 100, columnCount: 5 },
+          ],
+        },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.create).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
@@ -197,14 +206,16 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'copy',
-        spreadsheetId: 'original-id',
+        request: {
+          action: 'copy',
+          spreadsheetId: 'original-id',
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.newSpreadsheetId).toBe('copied-id');
-        expect(result.spreadsheet?.url).toContain('copied-id');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.newSpreadsheetId).toBe('copied-id');
+        expect(result.response.spreadsheet?.url).toContain('copied-id');
       }
     });
 
@@ -216,14 +227,16 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handlerNoDrive.handle({
-        action: 'copy',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'copy',
+          spreadsheetId: 'test-id',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('INTERNAL_ERROR');
-        expect(result.error.message).toContain('Drive API');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INTERNAL_ERROR');
+        expect(result.response.error.message).toContain('Drive API');
       }
     });
   });
@@ -240,12 +253,14 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        action: 'update_properties',
-        spreadsheetId: 'test-id',
-        title: 'Updated Title',
+        request: {
+          action: 'update_properties',
+          spreadsheetId: 'test-id',
+          title: 'Updated Title',
+        },
       });
 
-      expect(result.success).toBe(true);
+      expect(result.response.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           spreadsheetId: 'test-id',
@@ -265,13 +280,15 @@ describe('SpreadsheetHandler', () => {
 
     it('should error when no properties provided', async () => {
       const result = await handler.handle({
-        action: 'update_properties',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'update_properties',
+          spreadsheetId: 'test-id',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('INVALID_PARAMS');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('INVALID_PARAMS');
       }
     });
   });
@@ -279,13 +296,15 @@ describe('SpreadsheetHandler', () => {
   describe('get_url action', () => {
     it('should return computed URL', async () => {
       const result = await handler.handle({
-        action: 'get_url',
-        spreadsheetId: 'test-id-123',
+        request: {
+          action: 'get_url',
+          spreadsheetId: 'test-id-123',
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.url).toBe('https://docs.google.com/spreadsheets/d/test-id-123');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.url).toBe('https://docs.google.com/spreadsheets/d/test-id-123');
       }
     });
   });
@@ -309,15 +328,17 @@ describe('SpreadsheetHandler', () => {
         });
 
       const result = await handler.handle({
-        action: 'batch_get',
-        spreadsheetIds: ['id-1', 'id-2'],
+        request: {
+          action: 'batch_get',
+          spreadsheetIds: ['id-1', 'id-2'],
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.spreadsheets).toHaveLength(2);
-        expect(result.spreadsheets?.[0].title).toBe('Spreadsheet 1');
-        expect(result.spreadsheets?.[1].title).toBe('Spreadsheet 2');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.spreadsheets).toHaveLength(2);
+        expect(result.response.spreadsheets?.[0].title).toBe('Spreadsheet 1');
+        expect(result.response.spreadsheets?.[1].title).toBe('Spreadsheet 2');
       }
     });
 
@@ -329,15 +350,17 @@ describe('SpreadsheetHandler', () => {
         .mockRejectedValueOnce(new Error('Not found'));
 
       const result = await handler.handle({
-        action: 'batch_get',
-        spreadsheetIds: ['id-1', 'id-2'],
+        request: {
+          action: 'batch_get',
+          spreadsheetIds: ['id-1', 'id-2'],
+        },
       });
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.spreadsheets).toHaveLength(2);
-        expect(result.spreadsheets?.[0].title).toBe('Good');
-        expect(result.spreadsheets?.[1].title).toBe('(error)');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.spreadsheets).toHaveLength(2);
+        expect(result.response.spreadsheets?.[0].title).toBe('Good');
+        expect(result.response.spreadsheets?.[1].title).toBe('(error)');
       }
     });
   });
@@ -349,13 +372,15 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'nonexistent',
+        request: {
+          action: 'get',
+          spreadsheetId: 'nonexistent',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('SPREADSHEET_NOT_FOUND');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('SPREADSHEET_NOT_FOUND');
       }
     });
 
@@ -365,13 +390,15 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'forbidden',
+        request: {
+          action: 'get',
+          spreadsheetId: 'forbidden',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('PERMISSION_DENIED');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('PERMISSION_DENIED');
       }
     });
 
@@ -381,14 +408,16 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
+        request: {
+          action: 'get',
+          spreadsheetId: 'test-id',
+        },
       });
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('RATE_LIMITED');
-        expect(result.error.retryable).toBe(true);
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('RATE_LIMITED');
+        expect(result.response.error.retryable).toBe(true);
       }
     });
   });

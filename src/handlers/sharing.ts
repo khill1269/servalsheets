@@ -8,9 +8,15 @@
 import type { drive_v3 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsSharingInput, SheetsSharingOutput } from '../schemas/sharing.js';
+import type {
+  SheetsSharingInput,
+  SheetsSharingOutput,
+  SharingAction,
+  SharingResponse,
+} from '../schemas/index.js';
+import { logger } from '../utils/logger.js';
 
-type SharingSuccess = Extract<SheetsSharingOutput, { success: true }>;
+type SharingSuccess = Extract<SharingResponse, { success: true }>;
 
 export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharingOutput> {
   private driveApi: drive_v3.Drive | undefined;
@@ -22,49 +28,82 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
 
   async handle(input: SheetsSharingInput): Promise<SheetsSharingOutput> {
     if (!this.driveApi) {
-      return this.error({
-        code: 'INTERNAL_ERROR',
-        message: 'Drive API not available',
-        retryable: false,
-        suggestedFix: 'Initialize Drive API client with drive.file scope.',
-      });
+      return {
+        response: this.error({
+          code: 'INTERNAL_ERROR',
+          message: 'Drive API not available - required for sharing operations',
+          details: {
+            action: input.request.action,
+            spreadsheetId: input.request.spreadsheetId,
+            requiredScope: 'https://www.googleapis.com/auth/drive.file',
+          },
+          retryable: false,
+          resolution: 'Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.',
+          resolutionSteps: [
+            '1. Verify GOOGLE_APPLICATION_CREDENTIALS or service account setup',
+            '2. Ensure drive.file scope is included in OAuth scopes',
+            '3. Re-authenticate if using OAuth',
+          ],
+        }),
+      };
     }
     if (!this.context.auth?.hasElevatedAccess) {
-      return this.error({
-        code: 'PERMISSION_DENIED',
-        message: 'Elevated Drive scope required for sharing operations',
-        retryable: false,
-        suggestedFix: 'Initialize Google API client with elevatedAccess or drive scope.',
-      });
+      return {
+        response: this.error({
+          code: 'PERMISSION_DENIED',
+          message: 'Elevated Drive scope required for sharing operations',
+          retryable: false,
+          suggestedFix: 'Initialize Google API client with elevatedAccess or drive scope.',
+        }),
+      };
     }
 
+    // Audit log: Elevated scope operation
+    const req = input.request;
+    logger.info('Elevated scope operation', {
+      operation: `sharing:${req.action}`,
+      resourceId: req.spreadsheetId,
+      scopes: this.context.auth?.scopes,
+      category: 'audit',
+    });
+
     try {
-      switch (input.action) {
+      let response: SharingResponse;
+      switch (req.action) {
         case 'share':
-          return await this.handleShare(input);
+          response = await this.handleShare(req);
+          break;
         case 'update_permission':
-          return await this.handleUpdatePermission(input);
+          response = await this.handleUpdatePermission(req);
+          break;
         case 'remove_permission':
-          return await this.handleRemovePermission(input);
+          response = await this.handleRemovePermission(req);
+          break;
         case 'list_permissions':
-          return await this.handleListPermissions(input);
+          response = await this.handleListPermissions(req);
+          break;
         case 'get_permission':
-          return await this.handleGetPermission(input);
+          response = await this.handleGetPermission(req);
+          break;
         case 'transfer_ownership':
-          return await this.handleTransferOwnership(input);
+          response = await this.handleTransferOwnership(req);
+          break;
         case 'set_link_sharing':
-          return await this.handleSetLinkSharing(input);
+          response = await this.handleSetLinkSharing(req);
+          break;
         case 'get_sharing_link':
-          return await this.handleGetSharingLink(input);
+          response = await this.handleGetSharingLink(req);
+          break;
         default:
-          return this.error({
+          response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
@@ -77,8 +116,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   // ============================================================
 
   private async handleShare(
-    input: Extract<SheetsSharingInput, { action: 'share' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'share' }>
+  ): Promise<SharingResponse> {
     const requestBody: drive_v3.Schema$Permission = {
       type: input.type,
       role: input.role,
@@ -99,8 +138,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleUpdatePermission(
-    input: Extract<SheetsSharingInput, { action: 'update_permission' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'update_permission' }>
+  ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success('update_permission', {}, undefined, true);
     }
@@ -120,8 +159,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleRemovePermission(
-    input: Extract<SheetsSharingInput, { action: 'remove_permission' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'remove_permission' }>
+  ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success('remove_permission', {}, undefined, true);
     }
@@ -136,8 +175,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleListPermissions(
-    input: Extract<SheetsSharingInput, { action: 'list_permissions' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'list_permissions' }>
+  ): Promise<SharingResponse> {
     const response = await this.driveApi!.permissions.list({
       fileId: input.spreadsheetId,
       supportsAllDrives: true,
@@ -149,8 +188,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleGetPermission(
-    input: Extract<SheetsSharingInput, { action: 'get_permission' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'get_permission' }>
+  ): Promise<SharingResponse> {
     const response = await this.driveApi!.permissions.get({
       fileId: input.spreadsheetId,
       permissionId: input.permissionId,
@@ -162,8 +201,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleTransferOwnership(
-    input: Extract<SheetsSharingInput, { action: 'transfer_ownership' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'transfer_ownership' }>
+  ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success('transfer_ownership', {}, undefined, true);
     }
@@ -184,8 +223,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleSetLinkSharing(
-    input: Extract<SheetsSharingInput, { action: 'set_link_sharing' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'set_link_sharing' }>
+  ): Promise<SharingResponse> {
     if (!input.enabled) {
       // Disable: delete existing anyone permission if present
       const list = await this.driveApi!.permissions.list({
@@ -217,8 +256,8 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
   }
 
   private async handleGetSharingLink(
-    input: Extract<SheetsSharingInput, { action: 'get_sharing_link' }>
-  ): Promise<SheetsSharingOutput> {
+    input: Extract<SharingAction, { action: 'get_sharing_link' }>
+  ): Promise<SharingResponse> {
     const baseUrl = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     const sharingLink = `${baseUrl}/edit?usp=sharing`;
     return this.success('get_sharing_link', { sharingLink });

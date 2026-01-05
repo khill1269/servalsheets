@@ -9,6 +9,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -37,7 +38,7 @@ const CommentSchema = z.object({
   })).optional(),
 });
 
-export const SheetsCommentsInputSchema = z.discriminatedUnion('action', [
+const CommentsActionSchema = z.discriminatedUnion('action', [
   // ADD
   BaseSchema.extend({
     action: z.literal('add'),
@@ -111,7 +112,11 @@ export const SheetsCommentsInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsCommentsOutputSchema = z.discriminatedUnion('success', [
+export const SheetsCommentsInputSchema = z.object({
+  request: CommentsActionSchema,
+});
+
+const CommentsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -120,12 +125,17 @@ export const SheetsCommentsOutputSchema = z.discriminatedUnion('success', [
     replyId: z.string().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsCommentsOutputSchema = z.object({
+  response: CommentsResponseSchema,
+});
 
 export const SHEETS_COMMENTS_ANNOTATIONS: ToolAnnotations = {
   title: 'Comments',
@@ -137,3 +147,5 @@ export const SHEETS_COMMENTS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsCommentsInput = z.infer<typeof SheetsCommentsInputSchema>;
 export type SheetsCommentsOutput = z.infer<typeof SheetsCommentsOutputSchema>;
+export type CommentsAction = z.infer<typeof CommentsActionSchema>;
+export type CommentsResponse = z.infer<typeof CommentsResponseSchema>;

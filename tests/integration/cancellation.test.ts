@@ -36,7 +36,7 @@ describe('Cancellation and Timeout Behavior', () => {
     it('should document why full cancellation is not feasible', () => {
       const limitations = {
         googleSheetsApi: 'No native cancellation - requests complete server-side once sent',
-        mcpProtocol: 'No standardized cancellation mechanism in MCP 2024-11-05',
+        mcpProtocol: 'No standardized cancellation mechanism in MCP 2025-11-25',
         httpTransport: 'Can close connection but cannot abort server-side processing',
         batchOperations: 'Google applies all requests in batch atomically',
       };

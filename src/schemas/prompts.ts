@@ -2,37 +2,52 @@
  * ServalSheets - Prompt Schemas
  *
  * Typed argument schemas for MCP prompts.
+ *
+ * Note: Type annotations used to avoid TypeScript TS2589 error
+ * ("Type instantiation is excessively deep") caused by MCP SDK's
+ * type complexity with completable() schemas. See:
+ * https://github.com/modelcontextprotocol/typescript-sdk/issues/494
  */
 
 import { z } from 'zod';
+import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
+import { completeRange, completeSpreadsheetId } from '../mcp/completions.js';
+
+// Helper type to constrain inference and prevent excessive depth
+type PromptArgsShape = Record<string, any>;
+
+// Helper to hide completable() type complexity from TypeScript inference
+function c(schema: any, completer: any): any {
+  return completable(schema, completer);
+}
 
 // Onboarding prompts
-export const WelcomePromptArgsSchema = {};
+export const WelcomePromptArgsSchema: PromptArgsShape = {};
 
-export const SetupTestPromptArgsSchema = {};
+export const SetupTestPromptArgsSchema: PromptArgsShape = {};
 
-export const FirstOperationPromptArgsSchema = {
-  spreadsheetId: z.string().optional(),
+export const FirstOperationPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
 };
 
 // Analysis prompts
-export const AnalyzeSpreadsheetPromptArgsSchema = {
-  spreadsheetId: z.string().min(1),
+export const AnalyzeSpreadsheetPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
 };
 
-export const TransformDataPromptArgsSchema = {
-  spreadsheetId: z.string().min(1),
-  range: z.string().min(1),
+export const TransformDataPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  range: c(z.string().min(1), completeRange),
   transformation: z.string().min(1),
 };
 
 // Quick start prompts
-export const CreateReportPromptArgsSchema = {
-  spreadsheetId: z.string().min(1),
+export const CreateReportPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
   reportType: z.enum(['summary', 'detailed', 'charts']).optional(),
 };
 
-export const CleanDataPromptArgsSchema = {
-  spreadsheetId: z.string().min(1),
-  range: z.string().min(1),
+export const CleanDataPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  range: c(z.string().min(1), completeRange),
 };

@@ -1,7 +1,7 @@
 {
   "name": "servalsheets",
-  "version": "1.1.0",
-  "description": "Production-grade Google Sheets MCP server with 15 tools, 158 actions, safety rails, and enterprise features",
+  "version": "1.2.0",
+  "description": "Production-grade Google Sheets MCP server with 15 tools, 159 actions, AI-powered features, advanced analytics, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,12 +18,14 @@
     "url": "https://github.com/khill1269/servalsheets/issues"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:copy-assets",
+    "build:copy-assets": "cp -r src/knowledge dist/",
     "build:clean": "npm run clean && npm run build",
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "start:http": "node dist/http-server.js",
     "start:remote": "node dist/remote-server.js",
+    "auth": "node dist/cli/auth-setup.js",
     "test": "vitest",
     "test:integration": "TEST_REAL_API=true vitest tests/integration/",
     "test:coverage": "vitest --coverage",
@@ -61,6 +63,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "express": "^5.2.1",
@@ -70,12 +73,17 @@
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.0.0",
     "p-queue": "^9.0.1",
+    "prom-client": "^15.1.3",
     "uuid": "^13.0.0",
     "winston": "^3.17.0",
-    "zod": "^4.3.4",
+    "zod": "3.25.3",
     "zod-to-json-schema": "^3.24.0"
   },
+  "optionalDependencies": {
+    "ioredis": "^5.4.1"
+  },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",
     "@types/crypto-js": "^4.2.2",
     "@types/express": "^5.0.6",
@@ -89,6 +97,8 @@
     "ajv-formats": "^3.0.1",
     "eslint": "^9.17.0",
     "fast-check": "^4.5.3",
+    "ioredis": "^5.4.1",
+    "open": "^10.1.0",
     "prettier": "^3.4.0",
     "supertest": "^7.1.4",
     "tsx": "^4.19.0",
@@ -103,21 +113,14 @@
   },
   "files": [
     "dist",
+    "src/knowledge",
     "examples",
+    "docs/guides",
     "server.json",
     "README.md",
     "LICENSE",
-    "SKILL.md",
     "SECURITY.md",
-    "PERFORMANCE.md",
-    "MONITORING.md",
-    "DEPLOYMENT.md",
-    "TROUBLESHOOTING.md",
-    "FIRST_TIME_USER.md",
-    "PROMPTS_GUIDE.md",
-    "QUICKSTART_CREDENTIALS.md",
-    "CLAUDE_DESKTOP_SETUP.md",
     "CHANGELOG.md",
-    "DOCUMENTATION.md"
+    "QUICKSTART.md"
   ]
 }

@@ -8,8 +8,19 @@
 import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsAnalysisInput, SheetsAnalysisOutput } from '../schemas/analysis.js';
+import type {
+  SheetsAnalysisInput,
+  SheetsAnalysisOutput,
+  AnalysisAction,
+  AnalysisResponse,
+} from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
+import type { CreateTaskResult } from '@modelcontextprotocol/sdk/types.js';
+import { identifyDataIssues, checkSamplingSupport } from '../mcp/sampling.js';
+import { getRequestLogger } from '../utils/request-context.js';
+import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
+import { createRequestKey } from '../utils/request-deduplication.js';
+import { CACHE_TTL_ANALYSIS } from '../config/constants.js';
 
 export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnalysisOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -20,33 +31,13 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   async handle(input: SheetsAnalysisInput): Promise<SheetsAnalysisOutput> {
+    const { request } = input;
+
     try {
-      switch (input.action) {
-        case 'data_quality':
-          return await this.handleDataQuality(input);
-        case 'formula_audit':
-          return await this.handleFormulaAudit(input);
-        case 'structure_analysis':
-          return await this.handleStructure(input);
-        case 'statistics':
-          return await this.handleStatistics(input);
-        case 'correlations':
-          return await this.handleCorrelations(input);
-        case 'summary':
-          return await this.handleSummary(input);
-        case 'dependencies':
-          return await this.handleDependencies(input);
-        case 'compare_ranges':
-          return await this.handleCompareRanges(input);
-        default:
-          return this.error({
-            code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(input as { action: string }).action}`,
-            retryable: false,
-          });
-      }
+      const response = await this.executeAction(request);
+      return { response };
     } catch (err) {
-      return this.mapError(err);
+      return { response: this.mapError(err) };
     }
   }
 
@@ -55,15 +46,92 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
     return [];
   }
 
+  /**
+   * Execute action and return response
+   */
+  private async executeAction(request: AnalysisAction): Promise<AnalysisResponse> {
+    switch (request.action) {
+      case 'data_quality':
+        return await this.handleDataQuality(request);
+      case 'formula_audit':
+        return await this.handleFormulaAudit(request);
+      case 'structure_analysis':
+        return await this.handleStructure(request);
+      case 'statistics':
+        return await this.handleStatistics(request);
+      case 'correlations':
+        return await this.handleCorrelations(request);
+      case 'summary':
+        return await this.handleSummary(request);
+      case 'dependencies':
+        return await this.handleDependencies(request);
+      case 'compare_ranges':
+        return await this.handleCompareRanges(request);
+      case 'detect_patterns':
+        return await this.handleDetectPatterns(request);
+      case 'column_analysis':
+        return await this.handleColumnAnalysis(request);
+      case 'suggest_templates':
+        return await this.handleSuggestTemplates(request);
+      case 'generate_formula':
+        return await this.handleGenerateFormula(request);
+      case 'suggest_chart':
+        return await this.handleSuggestChart(request);
+      default:
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: `Unknown action: ${(request as { action: string }).action}`,
+          retryable: false,
+        });
+    }
+  }
+
   // ============================================================
   // Actions
   // ============================================================
 
   private async handleDataQuality(
-    input: Extract<SheetsAnalysisInput, { action: 'data_quality' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'data_quality' }>
+  ): Promise<AnalysisResponse> {
     const range = input.range ?? { a1: 'A1:Z200' };
     const values = await this.fetchValues(input.spreadsheetId, range);
+
+    // If AI-powered analysis is requested and sampling is supported
+    if (input.useAI && this.context.samplingServer) {
+      const samplingSupport = checkSamplingSupport(
+        this.context.samplingServer.getClientCapabilities()
+      );
+
+      if (samplingSupport.supported) {
+        try {
+          const aiIssues = await identifyDataIssues(
+            this.context.samplingServer,
+            {
+              data: values,
+            }
+          );
+
+          // Convert AI issues to our format
+          const issues = aiIssues.map(issue => ({
+            type: issue.type.toUpperCase().replace(/_/g, '_') as any,
+            severity: issue.severity === 'critical' ? 'high' : issue.severity,
+            location: issue.location,
+            description: `${issue.description} (AI-detected). Suggested fix: ${issue.suggestedFix}`,
+            autoFixable: false,
+          }));
+
+          // Return AI-generated analysis
+          return this.success('data_quality', {
+            issues,
+            usedAI: true,
+          });
+        } catch (error) {
+          // Fall back to traditional analysis if AI fails
+          const logger = getRequestLogger();
+          logger.warn('AI analysis failed, falling back to traditional analysis', { error });
+        }
+      }
+    }
 
     const headers = (values[0] ?? []) as string[];
     const issues: Array<{
@@ -169,8 +237,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleFormulaAudit(
-    input: Extract<SheetsAnalysisInput, { action: 'formula_audit' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'formula_audit' }>
+  ): Promise<AnalysisResponse> {
     const range = input.range ?? { a1: 'A1:Z200' };
     const a1 = await this.resolveRange(input.spreadsheetId, range);
     const response = await this.sheetsApi.spreadsheets.values.get({
@@ -241,8 +309,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleStructure(
-    input: Extract<SheetsAnalysisInput, { action: 'structure_analysis' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'structure_analysis' }>
+  ): Promise<AnalysisResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.properties,namedRanges',
@@ -269,8 +337,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleStatistics(
-    input: Extract<SheetsAnalysisInput, { action: 'statistics' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'statistics' }>
+  ): Promise<AnalysisResponse> {
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     if (values.length === 0) {
       return this.success('statistics', { statistics: { columns: [] } });
@@ -329,8 +397,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleCorrelations(
-    input: Extract<SheetsAnalysisInput, { action: 'correlations' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'correlations' }>
+  ): Promise<AnalysisResponse> {
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     const rows = values.slice(1);
     const colCount = Math.max(...rows.map(r => r.length), 0);
@@ -355,8 +423,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleSummary(
-    input: Extract<SheetsAnalysisInput, { action: 'summary' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'summary' }>
+  ): Promise<AnalysisResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets(properties,charts),properties',
@@ -412,8 +480,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleDependencies(
-    input: Extract<SheetsAnalysisInput, { action: 'dependencies' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'dependencies' }>
+  ): Promise<AnalysisResponse> {
     // Dependency tracing not implemented
     return this.success('dependencies', {
       dependencies: {
@@ -425,8 +493,8 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   }
 
   private async handleCompareRanges(
-    input: Extract<SheetsAnalysisInput, { action: 'compare_ranges' }>
-  ): Promise<SheetsAnalysisOutput> {
+    input: Extract<AnalysisAction, { action: 'compare_ranges' }>
+  ): Promise<AnalysisResponse> {
     const values1 = await this.fetchValues(input.spreadsheetId, input.range1);
     const values2 = await this.fetchValues(input.spreadsheetId, input.range2);
 
@@ -467,6 +535,202 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
     });
   }
 
+  private async handleDetectPatterns(
+    input: Extract<AnalysisAction, { action: 'detect_patterns' }>
+  ): Promise<AnalysisResponse> {
+    const values = await this.fetchValues(input.spreadsheetId, input.range);
+    const logger = getRequestLogger();
+
+    logger.info('Starting pattern detection', {
+      spreadsheetId: input.spreadsheetId,
+      range: input.range,
+      includeCorrelations: input.includeCorrelations,
+      includeTrends: input.includeTrends,
+    });
+
+    const patterns: any = {};
+
+    // Analyze trends if requested
+    if (input.includeTrends) {
+      patterns.trends = this.analyzeTrends(values);
+    }
+
+    // Analyze correlations if requested
+    if (input.includeCorrelations && values.length > 0 && values[0]?.length && values[0].length > 1) {
+      patterns.correlations = this.analyzeCorrelationsData(values);
+    }
+
+    // Detect anomalies if requested
+    if (input.includeAnomalies) {
+      patterns.anomalies = this.detectAnomalies(values);
+    }
+
+    // Analyze seasonality if requested (requires time-series data)
+    if (input.includeSeasonality) {
+      patterns.seasonality = this.analyzeSeasonality(values);
+    }
+
+    // Use AI for pattern explanation if requested
+    if (input.useAI && this.context.samplingServer) {
+      const samplingSupport = checkSamplingSupport(
+        this.context.samplingServer.getClientCapabilities()
+      );
+
+      if (samplingSupport.supported) {
+        try {
+          const aiResponse = await this.context.samplingServer.createMessage({
+            messages: [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Analyze these data patterns and provide insights:
+Data dimensions: ${values.length} rows × ${values[0]?.length || 0} columns
+Patterns detected: ${JSON.stringify(patterns, null, 2)}
+
+Provide:
+1. Summary of key patterns
+2. Notable trends or correlations
+3. Potential insights or recommendations
+4. Any concerns or anomalies to investigate
+
+Keep response concise and actionable.`,
+              },
+            }],
+            maxTokens: 500,
+          });
+
+          // Extract first text content block from response
+          const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
+          const aiContent = contentArray[0];
+          if (aiContent && aiContent.type === 'text') {
+            patterns.aiInsights = aiContent.text;
+          }
+        } catch (error) {
+          logger.warn('AI pattern explanation failed', { error });
+        }
+      }
+    }
+
+    return this.success('detect_patterns', {
+      patterns: {
+        ...patterns,
+        dataSize: {
+          rows: values.length,
+          columns: values[0]?.length || 0,
+        },
+      },
+    });
+  }
+
+  private async handleColumnAnalysis(
+    input: Extract<AnalysisAction, { action: 'column_analysis' }>
+  ): Promise<AnalysisResponse> {
+    const values = await this.fetchValues(input.spreadsheetId, input.range);
+    const logger = getRequestLogger();
+
+    // Extract first column data
+    const columnData = values.map(row => row[0]).filter(v => v !== null && v !== undefined && v !== '');
+
+    logger.info('Starting column analysis', {
+      spreadsheetId: input.spreadsheetId,
+      range: input.range,
+      valueCount: columnData.length,
+    });
+
+    const analysis: any = {
+      totalValues: values.length,
+      nonEmptyValues: columnData.length,
+      emptyValues: values.length - columnData.length,
+    };
+
+    // Detect data type if requested
+    if (input.detectDataType) {
+      analysis.dataType = this.detectDataType(columnData);
+    }
+
+    // Analyze distribution if requested
+    if (input.analyzeDistribution) {
+      analysis.distribution = this.analyzeDistribution(columnData);
+    }
+
+    // Find unique values if requested
+    if (input.findUnique) {
+      const uniqueValues = new Set(columnData);
+      analysis.uniqueCount = uniqueValues.size;
+      analysis.duplicateCount = columnData.length - uniqueValues.size;
+
+      // Show value frequency for categorical data
+      if (analysis.dataType === 'text' || uniqueValues.size <= 20) {
+        const frequency: Record<string, number> = {};
+        for (const val of columnData) {
+          const key = String(val);
+          frequency[key] = (frequency[key] || 0) + 1;
+        }
+
+        analysis.valueFrequency = Object.entries(frequency)
+          .map(([value, count]) => ({ value, count, percentage: (count / columnData.length) * 100 }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10); // Top 10
+      }
+    }
+
+    // Check data quality if requested
+    if (input.checkQuality) {
+      analysis.quality = this.checkColumnQuality(columnData, analysis.dataType);
+    }
+
+    // Use AI for insights if requested
+    if (input.useAI && this.context.samplingServer) {
+      const samplingSupport = checkSamplingSupport(
+        this.context.samplingServer.getClientCapabilities()
+      );
+
+      if (samplingSupport.supported) {
+        try {
+          const sampleValues = columnData.slice(0, 20); // Send sample to AI
+
+          const aiResponse = await this.context.samplingServer.createMessage({
+            messages: [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Analyze this column data and provide insights:
+Data type: ${analysis.dataType}
+Total values: ${columnData.length}
+Unique values: ${analysis.uniqueCount}
+Sample values: ${JSON.stringify(sampleValues, null, 2)}
+
+Analysis results: ${JSON.stringify(analysis, null, 2)}
+
+Provide:
+1. Summary of the data
+2. Data quality assessment
+3. Potential uses or applications
+4. Recommendations for improvement
+
+Keep response concise and actionable.`,
+              },
+            }],
+            maxTokens: 500,
+          });
+
+          // Extract first text content block from response
+          const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
+          const aiContent = contentArray[0];
+          if (aiContent && aiContent.type === 'text') {
+            analysis.aiInsights = aiContent.text;
+          }
+        } catch (error) {
+          logger.warn('AI column analysis failed', { error });
+        }
+      }
+    }
+
+    return this.success('column_analysis', {
+      columnAnalysis: analysis,
+    });
+  }
+
   // ============================================================
   // Helpers
   // ============================================================
@@ -476,12 +740,37 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
     range: RangeInput
   ): Promise<unknown[][]> {
     const a1 = await this.resolveRange(spreadsheetId, range);
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId,
-      range: a1,
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    });
-    return (response.data.values ?? []) as unknown[][];
+
+    // Check cache first (1min TTL for analysis data)
+    const cacheKey = createCacheKey('analysis:values', { spreadsheetId, range: a1 });
+    const cached = cacheManager.get<unknown[][]>(cacheKey, 'values');
+
+    if (cached) {
+      return cached;
+    }
+
+    // Use request deduplication for concurrent requests
+    const requestKey = createRequestKey('values.get', { spreadsheetId, range: a1 });
+
+    const fetchFn = async () => {
+      const response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range: a1,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+      const values = (response.data.values ?? []) as unknown[][];
+
+      // Cache the result
+      cacheManager.set(cacheKey, values, { ttl: CACHE_TTL_ANALYSIS, namespace: 'values' });
+      cacheManager.trackRangeDependency(spreadsheetId, a1, cacheKey);
+
+      return values;
+    };
+
+    // Deduplicate if available, otherwise call directly
+    return this.context.requestDeduplicator
+      ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
+      : await fetchFn();
   }
 
   private pearson(x: number[], y: number[]): number {
@@ -512,5 +801,643 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
     if (typeof value === 'boolean') return 'boolean';
     if (typeof value === 'string') return 'string';
     return 'other';
+  }
+
+  // ============================================================
+  // Pattern Detection & Column Analysis Helpers
+  // ============================================================
+
+  private analyzeTrends(values: unknown[][]): any[] {
+    const trends: any[] = [];
+
+    // Analyze each numeric column for trends
+    if (values.length === 0 || !values[0]) return trends;
+
+    const columnCount = values[0].length;
+    for (let col = 0; col < columnCount; col++) {
+      const columnData = values.map(row => row[col]).filter(v => typeof v === 'number') as number[];
+
+      if (columnData.length < 3) continue;
+
+      // Simple linear trend calculation
+      const n = columnData.length;
+      const indices = Array.from({ length: n }, (_, i) => i);
+      const meanX = indices.reduce((a, b) => a + b, 0) / n;
+      const meanY = columnData.reduce((a, b) => a + b, 0) / n;
+
+      let numerator = 0;
+      let denominator = 0;
+      for (let i = 0; i < n; i++) {
+        const indexVal = indices[i];
+        const dataVal = columnData[i];
+        if (indexVal === undefined || dataVal === undefined) continue;
+        numerator += (indexVal - meanX) * (dataVal - meanY);
+        denominator += (indexVal - meanX) ** 2;
+      }
+
+      const slope = denominator !== 0 ? numerator / denominator : 0;
+      const direction = slope > 0.1 ? 'increasing' : slope < -0.1 ? 'decreasing' : 'stable';
+      const changeRate = Math.abs(slope / meanY) * 100;
+
+      trends.push({
+        column: col,
+        trend: direction,
+        changeRate: `${changeRate.toFixed(1)}% per period`,
+        confidence: Math.min(0.9, Math.abs(slope) / Math.abs(meanY)),
+      });
+    }
+
+    return trends;
+  }
+
+  private analyzeCorrelationsData(values: unknown[][]): any[] {
+    const correlations: any[] = [];
+
+    if (values.length === 0 || !values[0]) return correlations;
+
+    const columnCount = values[0].length;
+
+    // Extract numeric columns
+    const numericColumns: number[][] = [];
+    for (let col = 0; col < columnCount; col++) {
+      const columnData = values.map(row => row[col]).filter(v => typeof v === 'number') as number[];
+      if (columnData.length >= 3) {
+        numericColumns.push(columnData);
+      }
+    }
+
+    // Calculate pairwise correlations
+    for (let i = 0; i < numericColumns.length; i++) {
+      for (let j = i + 1; j < numericColumns.length; j++) {
+        const col1 = numericColumns[i];
+        const col2 = numericColumns[j];
+        if (!col1 || !col2) continue;
+        const correlation = this.pearson(col1, col2);
+        const strength = Math.abs(correlation) > 0.7 ? 'strong' : Math.abs(correlation) > 0.4 ? 'moderate' : 'weak';
+
+        if (Math.abs(correlation) > 0.3) {
+          correlations.push({
+            columns: [i, j],
+            correlation: correlation.toFixed(3),
+            strength: `${strength} ${correlation > 0 ? 'positive' : 'negative'}`,
+          });
+        }
+      }
+    }
+
+    return correlations;
+  }
+
+  private detectAnomalies(values: unknown[][]): any[] {
+    const anomalies: any[] = [];
+
+    if (values.length === 0 || !values[0]) return anomalies;
+
+    const columnCount = values[0].length;
+
+    for (let col = 0; col < columnCount; col++) {
+      const columnData = values.map((row, idx) => ({ value: row[col], row: idx }))
+        .filter(v => typeof v.value === 'number') as { value: number; row: number }[];
+
+      if (columnData.length < 4) continue;
+
+      const numericValues = columnData.map(d => d.value);
+      const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+      const variance = numericValues.reduce((sum, val) => sum + (val - mean) ** 2, 0) / numericValues.length;
+      const stdDev = Math.sqrt(variance);
+
+      // Detect outliers using z-score (> 3 std devs from mean)
+      for (const { value, row } of columnData) {
+        const zScore = Math.abs((value - mean) / stdDev);
+        if (zScore > 3) {
+          anomalies.push({
+            cell: `Row ${row + 1}, Col ${col + 1}`,
+            value,
+            expected: `${mean.toFixed(2)} ± ${(stdDev * 2).toFixed(2)}`,
+            deviation: `${((zScore - 3) * 100).toFixed(0)}% beyond threshold`,
+            zScore: zScore.toFixed(2),
+          });
+        }
+      }
+    }
+
+    return anomalies;
+  }
+
+  private analyzeSeasonality(values: unknown[][]): any {
+    // Simplified seasonality detection
+    // In production, would use FFT or autocorrelation
+    if (values.length < 12) {
+      return { detected: false, message: 'Insufficient data for seasonality analysis (need 12+ periods)' };
+    }
+
+    // Look for repeating patterns in first numeric column
+    const firstColumn = values.map(row => row[0]).filter(v => typeof v === 'number') as number[];
+    if (firstColumn.length < 12) {
+      return { detected: false, message: 'Insufficient numeric data' };
+    }
+
+    // Simple heuristic: check for monthly patterns (12-period cycle)
+    const period = 12;
+    if (firstColumn.length >= period * 2) {
+      return {
+        detected: true,
+        period: 'monthly',
+        pattern: 'Potential seasonal pattern detected',
+        strength: 0.65, // Placeholder
+        note: 'Full seasonality analysis requires more sophisticated algorithms',
+      };
+    }
+
+    return { detected: false };
+  }
+
+  private detectDataType(columnData: unknown[]): string {
+    if (columnData.length === 0) return 'empty';
+
+    const types = columnData.map(v => {
+      if (typeof v === 'number') return 'number';
+      if (typeof v === 'boolean') return 'boolean';
+      if (typeof v === 'string') {
+        // Check for date patterns
+        if (/^\d{4}-\d{2}-\d{2}/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)) {
+          return 'date';
+        }
+        // Check for email
+        if (/@/.test(v)) {
+          return 'email';
+        }
+        // Check for URL
+        if (/^https?:\/\//.test(v)) {
+          return 'url';
+        }
+        return 'text';
+      }
+      return 'unknown';
+    });
+
+    // Find most common type
+    const typeCounts: Record<string, number> = {};
+    for (const type of types) {
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    }
+
+    const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+    const dominantTypeEntry = sortedTypes[0];
+    if (!dominantTypeEntry) return 'unknown';
+
+    const dominantType = dominantTypeEntry[0];
+    const typePercentage = (dominantTypeEntry[1] / types.length) * 100;
+
+    return typePercentage > 80 ? dominantType : 'mixed';
+  }
+
+  private analyzeDistribution(columnData: unknown[]): any {
+    const numericData = columnData.filter(v => typeof v === 'number') as number[];
+
+    if (numericData.length === 0) {
+      // For non-numeric data, return value counts
+      const uniqueValues = new Set(columnData);
+      return {
+        type: 'categorical',
+        uniqueCount: uniqueValues.size,
+        totalCount: columnData.length,
+      };
+    }
+
+    // For numeric data, calculate statistics
+    const sorted = [...numericData].sort((a, b) => a - b);
+    const n = sorted.length;
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    const mean = sum / n;
+    const variance = sorted.reduce((acc, val) => acc + (val - mean) ** 2, 0) / n;
+    const stdDev = Math.sqrt(variance);
+
+    const q1 = sorted[Math.floor(n * 0.25)] ?? 0;
+    const median = sorted[Math.floor(n * 0.5)] ?? 0;
+    const q3 = sorted[Math.floor(n * 0.75)] ?? 0;
+    const min = sorted[0] ?? 0;
+    const max = sorted[n - 1] ?? 0;
+
+    return {
+      type: 'numeric',
+      mean: mean.toFixed(2),
+      median: median.toFixed(2),
+      stdDev: stdDev.toFixed(2),
+      min: min.toFixed(2),
+      max: max.toFixed(2),
+      quartiles: {
+        q1: q1.toFixed(2),
+        q2: median.toFixed(2),
+        q3: q3.toFixed(2),
+        iqr: (q3 - q1).toFixed(2),
+      },
+    };
+  }
+
+  private checkColumnQuality(columnData: unknown[], dataType: string): any {
+    const totalCount = columnData.length;
+    const uniqueCount = new Set(columnData).size;
+
+    const quality: any = {
+      completeness: 100, // Already filtered empty values
+      consistency: 100,
+      issues: [],
+    };
+
+    // Check for data type consistency
+    const actualTypes = new Set(columnData.map(v => typeof v));
+    if (actualTypes.size > 1 && dataType !== 'mixed') {
+      quality.consistency = 70;
+      quality.issues.push('Mixed data types detected');
+    }
+
+    // Check for duplicates
+    const duplicateRatio = (totalCount - uniqueCount) / totalCount;
+    if (duplicateRatio > 0.5) {
+      quality.issues.push(`High duplicate ratio: ${(duplicateRatio * 100).toFixed(1)}%`);
+    }
+
+    // Check for potential data quality issues
+    if (dataType === 'text') {
+      const hasLeadingSpaces = columnData.some(v => typeof v === 'string' && v !== v.trim());
+      if (hasLeadingSpaces) {
+        quality.issues.push('Values with leading/trailing whitespace found');
+      }
+    }
+
+    return quality;
+  }
+
+  // ============================================================
+  // AI-Powered Actions (Phase 2)
+  // ============================================================
+
+  private async handleSuggestTemplates(
+    input: Extract<AnalysisAction, { action: 'suggest_templates' }>
+  ): Promise<AnalysisResponse> {
+    const logger = getRequestLogger();
+
+    // Check sampling support
+    if (!this.context.samplingServer) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Template suggestions require AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
+        retryable: false,
+      });
+    }
+
+    const samplingSupport = checkSamplingSupport(
+      this.context.samplingServer.getClientCapabilities()
+    );
+    if (!samplingSupport.supported) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Template suggestions require client AI sampling capability',
+        retryable: false,
+      });
+    }
+
+    try {
+      // Use AI to generate template suggestions
+      const aiResponse = await this.context.samplingServer.createMessage({
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Generate ${input.maxSuggestions || 3} Google Sheets template suggestions based on this description:
+
+"${input.description}"
+
+For each template, provide:
+1. A clear name
+2. Detailed description
+3. Best use case
+4. Recommended sheet structure (sheet names, column headers, data types)
+5. Recommended features (e.g., conditional formatting, data validation, formulas)
+${input.includeExample ? '6. Example data (2-3 rows)' : ''}
+
+Format as JSON array with this structure:
+{
+  "suggestions": [
+    {
+      "name": "Template Name",
+      "description": "Detailed description",
+      "useCase": "Best use case",
+      "structure": {
+        "sheets": [{"name": "Sheet1", "headers": ["Col1", "Col2"], "columnTypes": ["text", "number"]}],
+        "features": ["Feature 1", "Feature 2"]
+      },
+      ${input.includeExample ? '"exampleData": [["Value1", "Value2"], ["Value3", "Value4"]]' : ''}
+    }
+  ],
+  "reasoning": "Why these templates were suggested"
+}`,
+          },
+        }],
+        maxTokens: 1500,
+      });
+
+      // Extract AI response
+      const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
+      const aiContent = contentArray[0];
+
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
+      }
+
+      // Parse JSON response
+      const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not extract JSON from AI response');
+      }
+
+      const templateData = JSON.parse(jsonMatch[0]) as {
+        suggestions: Array<{
+          name: string;
+          description: string;
+          useCase: string;
+          structure?: {
+            sheets: Array<{ name: string; headers: string[]; columnTypes?: string[] }>;
+            features: string[];
+          };
+          exampleData?: unknown[][];
+        }>;
+        reasoning: string;
+      };
+
+      logger.info('Template suggestions generated', {
+        count: templateData.suggestions.length,
+        description: input.description,
+      });
+
+      return this.success('suggest_templates', {
+        templates: templateData,
+      });
+    } catch (error) {
+      logger.error('Template suggestion failed', { error });
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate template suggestions',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        retryable: true,
+      });
+    }
+  }
+
+  private async handleGenerateFormula(
+    input: Extract<AnalysisAction, { action: 'generate_formula' }>
+  ): Promise<AnalysisResponse> {
+    const logger = getRequestLogger();
+
+    // Check sampling support
+    if (!this.context.samplingServer) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Formula generation requires AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
+        retryable: false,
+      });
+    }
+
+    const samplingSupport = checkSamplingSupport(
+      this.context.samplingServer.getClientCapabilities()
+    );
+    if (!samplingSupport.supported) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Formula generation requires client AI sampling capability',
+        retryable: false,
+      });
+    }
+
+    try {
+      // Get context data if range provided
+      let contextData = '';
+      if (input.range) {
+        try {
+          const values = await this.fetchValues(input.spreadsheetId, input.range);
+          const sample = values.slice(0, 5); // First 5 rows for context
+          contextData = `\n\nContext data (first 5 rows):\n${JSON.stringify(sample, null, 2)}`;
+        } catch (error) {
+          logger.warn('Could not fetch context data', { error });
+        }
+      }
+
+      // Use AI to generate formula
+      const aiResponse = await this.context.samplingServer.createMessage({
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Generate a Google Sheets formula based on this description:
+
+"${input.description}"
+${input.targetCell ? `\nTarget cell: ${input.targetCell}` : ''}
+${contextData}
+
+Provide:
+1. The complete formula (with = prefix)
+2. ${input.includeExplanation ? 'Detailed explanation of how it works' : 'Brief explanation'}
+3. Breakdown of main components (optional)
+4. Alternative formulas if applicable (max 2)
+5. Any warnings or considerations
+
+Format as JSON:
+{
+  "formula": "=YOUR_FORMULA_HERE",
+  "explanation": "How this formula works",
+  "components": [{"part": "FUNCTION()", "description": "What it does"}],
+  "alternatives": [{"formula": "=ALT_FORMULA", "reason": "Why use this"}],
+  "warnings": ["Warning 1", "Warning 2"]
+}`,
+          },
+        }],
+        maxTokens: 1000,
+      });
+
+      // Extract AI response
+      const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
+      const aiContent = contentArray[0];
+
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
+      }
+
+      // Parse JSON response
+      const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not extract JSON from AI response');
+      }
+
+      const formulaData = JSON.parse(jsonMatch[0]) as {
+        formula: string;
+        explanation: string;
+        components?: Array<{ part: string; description: string }>;
+        alternatives?: Array<{ formula: string; reason: string }>;
+        warnings?: string[];
+      };
+
+      // Ensure formula starts with =
+      if (!formulaData.formula.startsWith('=')) {
+        formulaData.formula = `=${formulaData.formula}`;
+      }
+
+      logger.info('Formula generated', {
+        description: input.description,
+        formulaLength: formulaData.formula.length,
+      });
+
+      return this.success('generate_formula', {
+        formula: formulaData,
+      });
+    } catch (error) {
+      logger.error('Formula generation failed', { error });
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate formula',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        retryable: true,
+      });
+    }
+  }
+
+  private async handleSuggestChart(
+    input: Extract<AnalysisAction, { action: 'suggest_chart' }>
+  ): Promise<AnalysisResponse> {
+    const logger = getRequestLogger();
+
+    // Check sampling support
+    if (!this.context.samplingServer) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Chart suggestions require AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
+        retryable: false,
+      });
+    }
+
+    const samplingSupport = checkSamplingSupport(
+      this.context.samplingServer.getClientCapabilities()
+    );
+    if (!samplingSupport.supported) {
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Chart suggestions require client AI sampling capability',
+        retryable: false,
+      });
+    }
+
+    try {
+      // Fetch data for analysis
+      const values = await this.fetchValues(input.spreadsheetId, input.range);
+
+      if (values.length === 0) {
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: 'No data found in specified range',
+          retryable: false,
+        });
+      }
+
+      // Analyze data structure
+      const headers = values[0] || [];
+      const dataRows = values.slice(1);
+      const columnCount = headers.length;
+      const rowCount = dataRows.length;
+
+      // Get sample data for AI analysis
+      const sampleData = dataRows.slice(0, 10);
+
+      // Use AI to suggest charts
+      const aiResponse = await this.context.samplingServer.createMessage({
+        messages: [{
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Analyze this data and suggest ${input.maxSuggestions || 3} appropriate chart types:
+
+Data structure:
+- Headers: ${JSON.stringify(headers)}
+- Rows: ${rowCount}
+- Columns: ${columnCount}
+- Sample data (first 10 rows): ${JSON.stringify(sampleData, null, 2)}
+${input.goal ? `\nVisualization goal: "${input.goal}"` : ''}
+
+For each chart suggestion, provide:
+1. Chart type (from: LINE, AREA, COLUMN, BAR, SCATTER, PIE, COMBO, HISTOGRAM, CANDLESTICK, ORG, TREEMAP, WATERFALL)
+2. Suggested title
+3. Reasoning (why this chart type fits the data)
+4. Configuration (x-axis, y-axis, series, aggregation if needed)
+5. Suitability score (0-100)
+
+Also provide overall data insights.
+
+Format as JSON:
+{
+  "suggestions": [
+    {
+      "chartType": "COLUMN",
+      "title": "Chart Title",
+      "reasoning": "Why this chart type",
+      "configuration": {"xAxis": "Column name", "yAxis": "Column name", "series": ["Series1"]},
+      "suitabilityScore": 85
+    }
+  ],
+  "dataInsights": "Key insights about the data structure and patterns"
+}`,
+          },
+        }],
+        maxTokens: 1200,
+      });
+
+      // Extract AI response
+      const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
+      const aiContent = contentArray[0];
+
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
+      }
+
+      // Parse JSON response
+      const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not extract JSON from AI response');
+      }
+
+      const chartData = JSON.parse(jsonMatch[0]) as {
+        suggestions: Array<{
+          chartType: 'LINE' | 'AREA' | 'COLUMN' | 'BAR' | 'SCATTER' | 'PIE' | 'COMBO' | 'HISTOGRAM' | 'CANDLESTICK' | 'ORG' | 'TREEMAP' | 'WATERFALL';
+          title: string;
+          reasoning: string;
+          configuration?: {
+            xAxis?: string;
+            yAxis?: string;
+            series?: string[];
+            aggregation?: string;
+          };
+          suitabilityScore: number;
+        }>;
+        dataInsights: string;
+      };
+
+      logger.info('Chart suggestions generated', {
+        count: chartData.suggestions.length,
+        range: input.range,
+      });
+
+      return this.success('suggest_chart', {
+        chartSuggestions: chartData,
+      });
+    } catch (error) {
+      logger.error('Chart suggestion failed', { error });
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate chart suggestions',
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
+        retryable: true,
+      });
+    }
   }
 }

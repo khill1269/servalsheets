@@ -10,6 +10,13 @@ import type { OAuth2Client } from 'google-auth-library';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import PQueue from 'p-queue';
+import { getRequestContext } from '../utils/request-context.js';
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
+import { ServiceError } from '../core/errors.js';
 
 export interface GoogleApiClientOptions {
   credentials?: {
@@ -34,6 +41,8 @@ export interface GoogleApiClientOptions {
   /** Custom token store implementation */
   tokenStore?: TokenStore;
 }
+
+export type GoogleAuthType = 'service_account' | 'oauth' | 'access_token' | 'application_default';
 
 /**
  * Default scopes - minimal permissions (drive.file only)
@@ -62,6 +71,29 @@ export const READONLY_SCOPES = [
 ];
 
 /**
+ * Create HTTP agents with connection pooling
+ * Optimizes performance by reusing TCP connections
+ */
+function createHttpAgents() {
+  const maxSockets = parseInt(process.env['GOOGLE_API_MAX_SOCKETS'] ?? '50');
+  const keepAliveTimeout = parseInt(process.env['GOOGLE_API_KEEPALIVE_TIMEOUT'] ?? '30000');
+
+  const agentOptions = {
+    keepAlive: true,
+    keepAliveMsecs: keepAliveTimeout,
+    maxSockets,
+    maxFreeSockets: Math.floor(maxSockets / 2),
+    timeout: 60000,
+    scheduling: 'lifo' as const, // Use most recent connection first
+  };
+
+  return {
+    http: new HttpAgent(agentOptions),
+    https: new HttpsAgent(agentOptions),
+  };
+}
+
+/**
  * Google API client wrapper
  */
 export class GoogleApiClient {
@@ -73,9 +105,21 @@ export class GoogleApiClient {
   private retryOptions?: RetryOptions;
   private timeoutMs?: number;
   private tokenStore?: TokenStore;
+  private circuit: CircuitBreaker;
+  private tokenRefreshQueue: PQueue;
+  private tokenListener?: (tokens: any) => void;
+  private httpAgents: { http: HttpAgent; https: HttpsAgent };
+  private _authType: GoogleAuthType;
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
+    this._authType = options.serviceAccountKeyPath
+      ? 'service_account'
+      : options.credentials
+      ? 'oauth'
+      : options.accessToken
+      ? 'access_token'
+      : 'application_default';
     // Determine scopes based on options
     this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : DEFAULT_SCOPES);
     this.retryOptions = options.retryOptions;
@@ -84,6 +128,19 @@ export class GoogleApiClient {
     if (!this.tokenStore && options.tokenStorePath && options.tokenStoreKey) {
       this.tokenStore = new EncryptedFileTokenStore(options.tokenStorePath, options.tokenStoreKey);
     }
+
+    // Initialize circuit breaker
+    const circuitConfig = getCircuitBreakerConfig();
+    this.circuit = new CircuitBreaker({
+      ...circuitConfig,
+      name: 'google-api',
+    });
+
+    // Initialize token refresh queue (prevents concurrent refreshes)
+    this.tokenRefreshQueue = new PQueue({ concurrency: 1 });
+
+    // Initialize HTTP agents with connection pooling
+    this.httpAgents = createHttpAgents();
   }
 
   /**
@@ -115,17 +172,37 @@ export class GoogleApiClient {
     await this.loadStoredTokens();
     this.attachTokenListener();
 
-    // Initialize API clients
-    const sheetsApi = google.sheets({ version: 'v4', auth: this.auth });
-    const driveApi = google.drive({ version: 'v3', auth: this.auth });
+    // Initialize API clients with connection pooling
+    const sheetsApi = google.sheets({
+      version: 'v4',
+      auth: this.auth,
+      // Configure HTTP agents for connection pooling
+      http2: false, // HTTP/1.1 with keep-alive for better connection reuse
+    });
+    const driveApi = google.drive({
+      version: 'v3',
+      auth: this.auth,
+      http2: false,
+    });
+
+    // Configure transport options for auth client
+    if (this.auth && 'transporter' in this.auth) {
+      const transporter = (this.auth as any).transporter;
+      if (transporter && transporter.defaults) {
+        transporter.defaults.agent = this.httpAgents.https;
+        transporter.defaults.httpAgent = this.httpAgents.http;
+      }
+    }
 
     this._sheets = wrapGoogleApi(sheetsApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
     });
   }
 
@@ -167,12 +244,29 @@ export class GoogleApiClient {
       return;
     }
 
-    this.auth.on('tokens', async (tokens) => {
-      const current = this.sanitizeTokens({ ...(this.auth?.credentials ?? {}) } as Record<string, unknown>);
-      const incoming = this.sanitizeTokens(tokens as Record<string, unknown>);
-      const merged = this.mergeTokens(current, incoming);
-      await this.safeSaveTokens(merged);
-    });
+    // Remove existing listener if any
+    if (this.tokenListener) {
+      this.auth.off('tokens', this.tokenListener);
+    }
+
+    // Create and store the listener
+    this.tokenListener = async (tokens: any) => {
+      // Wrap in queue to prevent concurrent token refreshes
+      await this.tokenRefreshQueue.add(async () => {
+        const current = this.sanitizeTokens({ ...(this.auth?.credentials ?? {}) } as Record<string, unknown>);
+        const incoming = this.sanitizeTokens(tokens as Record<string, unknown>);
+        const merged = this.mergeTokens(current, incoming);
+
+        logger.debug('Token refresh triggered', {
+          hasAccessToken: Boolean(merged.access_token),
+          hasRefreshToken: Boolean(merged.refresh_token),
+        });
+
+        await this.safeSaveTokens(merged);
+      });
+    };
+
+    this.auth.on('tokens', this.tokenListener);
   }
 
   private sanitizeTokens(tokens: Record<string, unknown>): StoredTokens {
@@ -221,7 +315,13 @@ export class GoogleApiClient {
    */
   get sheets(): sheets_v4.Sheets {
     if (!this._sheets) {
-      throw new Error('Google API client not initialized. Call initialize() first.');
+      throw new ServiceError(
+        'Google API client not initialized',
+        'SERVICE_NOT_INITIALIZED',
+        'GoogleAPI',
+        false,
+        { method: 'sheets', hint: 'Call initialize() first' }
+      );
     }
     return this._sheets;
   }
@@ -231,7 +331,13 @@ export class GoogleApiClient {
    */
   get drive(): drive_v3.Drive {
     if (!this._drive) {
-      throw new Error('Google API client not initialized. Call initialize() first.');
+      throw new ServiceError(
+        'Google API client not initialized',
+        'SERVICE_NOT_INITIALIZED',
+        'GoogleAPI',
+        false,
+        { method: 'drive', hint: 'Call initialize() first' }
+      );
     }
     return this._drive;
   }
@@ -241,7 +347,13 @@ export class GoogleApiClient {
    */
   get oauth2(): OAuth2Client {
     if (!this.auth) {
-      throw new Error('Google API client not initialized. Call initialize() first.');
+      throw new ServiceError(
+        'Google API client not initialized',
+        'SERVICE_NOT_INITIALIZED',
+        'GoogleAPI',
+        false,
+        { method: 'oauth2', hint: 'Call initialize() first' }
+      );
     }
     return this.auth;
   }
@@ -251,6 +363,38 @@ export class GoogleApiClient {
    */
   get scopes(): string[] {
     return [...this._scopes];
+  }
+
+  /**
+   * Get authentication type
+   */
+  get authType(): GoogleAuthType {
+    return this._authType;
+  }
+
+  /**
+   * Get token status for OAuth-based auth
+   */
+  getTokenStatus(): {
+    hasAccessToken: boolean;
+    hasRefreshToken: boolean;
+    expiryDate?: number;
+    scope?: string;
+  } {
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      return {
+        hasAccessToken: false,
+        hasRefreshToken: false,
+      };
+    }
+
+    const { access_token, refresh_token, expiry_date, scope } = this.auth.credentials;
+    return {
+      hasAccessToken: Boolean(access_token),
+      hasRefreshToken: Boolean(refresh_token),
+      expiryDate: typeof expiry_date === 'number' ? expiry_date : undefined,
+      scope,
+    };
   }
 
   /**
@@ -264,8 +408,14 @@ export class GoogleApiClient {
    * Generate OAuth2 authorization URL
    */
   getAuthUrl(additionalScopes?: string[]): string {
-    if (!this.auth) {
-      throw new Error('Google API client not initialized.');
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      throw new ServiceError(
+        'OAuth2 client not configured',
+        'AUTH_ERROR',
+        'GoogleAPI',
+        false,
+        { method: 'getAuthUrl', hint: 'Provide OAuth client credentials' }
+      );
     }
     const scopes = additionalScopes 
       ? [...new Set([...this._scopes, ...additionalScopes])]
@@ -282,8 +432,14 @@ export class GoogleApiClient {
    * Exchange authorization code for tokens
    */
   async getToken(code: string): Promise<{ accessToken: string; refreshToken?: string }> {
-    if (!this.auth) {
-      throw new Error('Google API client not initialized.');
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      throw new ServiceError(
+        'OAuth2 client not configured',
+        'AUTH_ERROR',
+        'GoogleAPI',
+        false,
+        { method: 'getToken', hint: 'Provide OAuth client credentials' }
+      );
     }
     const { tokens } = await this.auth.getToken(code);
     this.auth.setCredentials(tokens);
@@ -301,8 +457,14 @@ export class GoogleApiClient {
    * Update credentials
    */
   setCredentials(accessToken: string, refreshToken?: string): void {
-    if (!this.auth) {
-      throw new Error('Google API client not initialized.');
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      throw new ServiceError(
+        'OAuth2 client not configured',
+        'AUTH_ERROR',
+        'GoogleAPI',
+        false,
+        { method: 'setCredentials', hint: 'Provide OAuth client credentials' }
+      );
     }
     const tokens: StoredTokens = this.sanitizeTokens({
       access_token: accessToken,
@@ -320,16 +482,82 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get circuit breaker statistics
+   */
+  getCircuitStats() {
+    return this.circuit.getStats();
+  }
+
+  /**
+   * Log scope usage for audit trail
+   * Particularly important for elevated scope operations
+   */
+  logScopeUsage(operation: string, resourceId?: string): void {
+    if (this.hasElevatedAccess) {
+      logger.info('Elevated scope operation', {
+        operation,
+        resourceId,
+        scopes: this._scopes,
+        category: 'audit',
+      });
+    }
+  }
+
+  /**
    * Revoke access tokens
    */
   async revokeAccess(): Promise<void> {
     if (!this.auth) {
-      throw new Error('Google API client not initialized.');
+      throw new ServiceError(
+        'Google API client not initialized',
+        'SERVICE_NOT_INITIALIZED',
+        'GoogleAPI',
+        false,
+        { method: 'revokeAccess', hint: 'Call initialize() first' }
+      );
     }
     const credentials = this.auth.credentials;
     if (credentials.access_token) {
       await this.auth.revokeToken(credentials.access_token);
     }
+  }
+
+  /**
+   * Clear stored tokens and in-memory credentials
+   */
+  async clearStoredTokens(): Promise<void> {
+    if (this.tokenStore) {
+      try {
+        await this.tokenStore.clear();
+      } catch (error) {
+        logger.warn('Failed to clear token store', { error });
+      }
+    }
+
+    if (this.auth && this.auth instanceof google.auth.OAuth2) {
+      this.auth.setCredentials({});
+    }
+  }
+
+  /**
+   * Cleanup resources and remove event listeners
+   * Prevents memory leaks from accumulating listeners
+   */
+  destroy(): void {
+    // Remove token listener to prevent memory leak
+    if (this.auth && this.tokenListener && this.auth instanceof google.auth.OAuth2) {
+      this.auth.off('tokens', this.tokenListener);
+      this.tokenListener = undefined;
+    }
+
+    // Destroy HTTP agents to close persistent connections
+    this.httpAgents.http.destroy();
+    this.httpAgents.https.destroy();
+
+    // Clear auth and API clients
+    this.auth = null;
+    this._sheets = null;
+    this._drive = null;
   }
 }
 
@@ -344,8 +572,12 @@ export async function createGoogleApiClient(
   return client;
 }
 
-function wrapGoogleApi<T extends object>(api: T, options?: RetryOptions): T {
+function wrapGoogleApi<T extends object>(
+  api: T,
+  options?: RetryOptions & { circuit?: CircuitBreaker }
+): T {
   const cache = new WeakMap<object, unknown>();
+  const circuit = options?.circuit;
 
   const wrapObject = (obj: object): unknown => {
     if (cache.has(obj)) {
@@ -354,16 +586,37 @@ function wrapGoogleApi<T extends object>(api: T, options?: RetryOptions): T {
 
     const proxy = new Proxy(obj, {
       get(target, prop, receiver) {
+        // Get property descriptor to check invariants
+        const descriptor = Object.getOwnPropertyDescriptor(target, prop);
+        
+        // CRITICAL: For non-configurable, non-writable data properties,
+        // we MUST return the exact target value (proxy invariant requirement).
+        // We cannot wrap these - JavaScript enforces this strictly.
+        if (descriptor && !descriptor.configurable && !descriptor.writable && 'value' in descriptor) {
+          // Return exact value - do NOT wrap, even for objects
+          return descriptor.value;
+        }
+
         const value = Reflect.get(target, prop, receiver);
+        
         if (typeof value === 'function') {
           return (...args: unknown[]) => {
-            return executeWithRetry((signal) => {
-              const callArgs = injectSignal(args, signal);
-              return (value as (...params: unknown[]) => Promise<unknown>).apply(target, callArgs);
-            }, options);
+            const operation = () =>
+              executeWithRetry((signal) => {
+                const callArgs = injectSignal(args, signal);
+                return (value as (...params: unknown[]) => Promise<unknown>).apply(target, callArgs);
+              }, options);
+
+            // Wrap with circuit breaker if available
+            if (circuit) {
+              return circuit.execute(operation);
+            }
+
+            return operation();
           };
         }
 
+        // For configurable properties that are objects, we can wrap them
         if (value && typeof value === 'object') {
           return wrapObject(value as object);
         }
@@ -380,8 +633,18 @@ function wrapGoogleApi<T extends object>(api: T, options?: RetryOptions): T {
 }
 
 function injectSignal(args: unknown[], signal: AbortSignal): unknown[] {
+  // Get request context for trace propagation
+  const ctx = getRequestContext();
+  const requestId = ctx?.requestId;
+
+  // Build base options with signal and optional request ID header
+  const baseOptions: Record<string, unknown> = { signal };
+  if (requestId) {
+    baseOptions['headers'] = { 'x-request-id': requestId };
+  }
+
   if (args.length === 0) {
-    return [{ signal }];
+    return [baseOptions];
   }
 
   const last = args[args.length - 1];
@@ -390,8 +653,18 @@ function injectSignal(args: unknown[], signal: AbortSignal): unknown[] {
   }
 
   if (last && typeof last === 'object' && !Array.isArray(last)) {
-    return [...args.slice(0, -1), { ...(last as Record<string, unknown>), signal }];
+    const updated: Record<string, unknown> = { ...(last as Record<string, unknown>), signal };
+
+    // Merge headers if they exist
+    if (requestId) {
+      updated['headers'] = {
+        ...(updated['headers'] as Record<string, unknown> ?? {}),
+        'x-request-id': requestId,
+      };
+    }
+
+    return [...args.slice(0, -1), updated];
   }
 
-  return [...args, { signal }];
+  return [...args, baseOptions];
 }

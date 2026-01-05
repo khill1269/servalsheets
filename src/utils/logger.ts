@@ -87,6 +87,11 @@ const redactSensitive = winston.format((info) => {
 
 const level = process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug');
 
+// Detect if we're in STDIO mode for MCP (logs must go to stderr, not stdout)
+// Winston Console transport writes to stderr by default when level is 'error' or when stderrLevels is configured
+// In STDIO mode, ALL logs must go to stderr to avoid interfering with JSON-RPC on stdout
+const isStdioMode = process.env['MCP_TRANSPORT'] === 'stdio' || !process.env['MCP_TRANSPORT'];
+
 export const logger = winston.createLogger({
   level,
   format: winston.format.combine(
@@ -95,7 +100,13 @@ export const logger = winston.createLogger({
     redactSensitive(),
     winston.format.json()
   ),
-  transports: [new winston.transports.Console()],
+  transports: [
+    new winston.transports.Console({
+      // In STDIO mode, send ALL log levels to stderr (not just errors)
+      // This prevents any logs from interfering with JSON-RPC messages on stdout
+      stderrLevels: isStdioMode ? ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'] : ['error'],
+    })
+  ],
 });
 
 export function createChildLogger(meta: Record<string, unknown>): winston.Logger {

@@ -10,6 +10,7 @@ import {
   RangeInputSchema,
   ErrorDetailSchema,
   CellValueSchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -63,7 +64,7 @@ const FormulaIssueSchema = z.object({
   suggestion: z.string().optional(),
 });
 
-export const SheetsAnalysisInputSchema = z.discriminatedUnion('action', [
+const AnalysisActionSchema = z.discriminatedUnion('action', [
   // DATA_QUALITY
   BaseSchema.extend({
     action: z.literal('data_quality'),
@@ -75,6 +76,7 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion('action', [
     ])).optional(),
     outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
     outlierThreshold: z.number().optional().default(1.5),
+    useAI: z.boolean().optional().describe('Use AI-powered analysis via sampling (SEP-1577)'),
   }),
 
   // FORMULA_AUDIT
@@ -132,9 +134,60 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion('action', [
     range2: RangeInputSchema,
     compareType: z.enum(['values', 'structure', 'both']).optional().default('values'),
   }),
+
+  // DETECT_PATTERNS
+  BaseSchema.extend({
+    action: z.literal('detect_patterns'),
+    range: RangeInputSchema,
+    includeCorrelations: z.boolean().optional().default(true).describe('Include correlation analysis'),
+    includeTrends: z.boolean().optional().default(true).describe('Include trend detection'),
+    includeSeasonality: z.boolean().optional().default(false).describe('Include seasonality patterns'),
+    includeAnomalies: z.boolean().optional().default(true).describe('Include anomaly detection'),
+    useAI: z.boolean().optional().describe('Use AI for pattern explanation'),
+  }),
+
+  // COLUMN_ANALYSIS
+  BaseSchema.extend({
+    action: z.literal('column_analysis'),
+    range: RangeInputSchema.describe('Single column range (e.g., Sheet1!D2:D100)'),
+    analyzeDistribution: z.boolean().optional().default(true).describe('Analyze value distribution'),
+    detectDataType: z.boolean().optional().default(true).describe('Auto-detect data type'),
+    checkQuality: z.boolean().optional().default(true).describe('Check data quality'),
+    findUnique: z.boolean().optional().default(true).describe('Count unique values'),
+    useAI: z.boolean().optional().describe('Use AI for insights'),
+  }),
+
+  // SUGGEST_TEMPLATES (AI-powered - SEP-1577)
+  BaseSchema.extend({
+    action: z.literal('suggest_templates'),
+    description: z.string().describe('Natural language description of needed template (e.g., "project tracker", "budget planner")'),
+    includeExample: z.boolean().optional().default(true).describe('Include example data structure'),
+    maxSuggestions: z.number().int().min(1).max(5).optional().default(3).describe('Number of template suggestions'),
+  }),
+
+  // GENERATE_FORMULA (AI-powered - SEP-1577)
+  BaseSchema.extend({
+    action: z.literal('generate_formula'),
+    description: z.string().describe('Natural language description of formula logic (e.g., "sum all values in column A")'),
+    targetCell: z.string().optional().describe('Target cell for formula context (e.g., "Sheet1!C2")'),
+    range: RangeInputSchema.optional().describe('Optional range for context understanding'),
+    includeExplanation: z.boolean().optional().default(true).describe('Include formula explanation'),
+  }),
+
+  // SUGGEST_CHART (AI-powered - SEP-1577)
+  BaseSchema.extend({
+    action: z.literal('suggest_chart'),
+    range: RangeInputSchema.describe('Data range for chart analysis'),
+    goal: z.string().optional().describe('Optional visualization goal (e.g., "show trends", "compare categories")'),
+    maxSuggestions: z.number().int().min(1).max(5).optional().default(3).describe('Number of chart suggestions'),
+  }),
 ]);
 
-export const SheetsAnalysisOutputSchema = z.discriminatedUnion('success', [
+export const SheetsAnalysisInputSchema = z.object({
+  request: AnalysisActionSchema,
+});
+
+const AnalysisResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -226,12 +279,72 @@ export const SheetsAnalysisOutputSchema = z.discriminatedUnion('success', [
       })),
       diffCount: z.number().int(),
     }).optional(),
+
+    // Template suggestions (AI-powered)
+    templates: z.object({
+      suggestions: z.array(z.object({
+        name: z.string().describe('Template name'),
+        description: z.string().describe('Template description'),
+        useCase: z.string().describe('Best use case'),
+        structure: z.object({
+          sheets: z.array(z.object({
+            name: z.string(),
+            headers: z.array(z.string()),
+            columnTypes: z.array(z.string()).optional(),
+          })),
+          features: z.array(z.string()).describe('Recommended features (e.g., "conditional formatting", "data validation")'),
+        }).optional(),
+        exampleData: z.array(z.array(z.unknown())).optional(),
+      })),
+      reasoning: z.string().describe('AI explanation of suggestions'),
+    }).optional(),
+
+    // Formula generation (AI-powered)
+    formula: z.object({
+      formula: z.string().describe('Generated formula (with = prefix)'),
+      explanation: z.string().describe('Formula explanation'),
+      components: z.array(z.object({
+        part: z.string(),
+        description: z.string(),
+      })).optional(),
+      alternatives: z.array(z.object({
+        formula: z.string(),
+        reason: z.string(),
+      })).optional(),
+      warnings: z.array(z.string()).optional().describe('Potential issues or considerations'),
+    }).optional(),
+
+    // Chart suggestions (AI-powered)
+    chartSuggestions: z.object({
+      suggestions: z.array(z.object({
+        chartType: z.enum([
+          'LINE', 'AREA', 'COLUMN', 'BAR', 'SCATTER', 'PIE', 'COMBO',
+          'HISTOGRAM', 'CANDLESTICK', 'ORG', 'TREEMAP', 'WATERFALL',
+        ]).describe('Recommended chart type'),
+        title: z.string(),
+        reasoning: z.string().describe('Why this chart type is recommended'),
+        configuration: z.object({
+          xAxis: z.string().optional(),
+          yAxis: z.string().optional(),
+          series: z.array(z.string()).optional(),
+          aggregation: z.string().optional(),
+        }).optional(),
+        suitabilityScore: z.number().min(0).max(100).describe('How well this chart fits the data (0-100)'),
+      })),
+      dataInsights: z.string().describe('AI insights about the data'),
+    }).optional(),
+
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsAnalysisOutputSchema = z.object({
+  response: AnalysisResponseSchema,
+});
 
 export const SHEETS_ANALYSIS_ANNOTATIONS: ToolAnnotations = {
   title: 'Data Analysis',
@@ -243,3 +356,5 @@ export const SHEETS_ANALYSIS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsAnalysisInput = z.infer<typeof SheetsAnalysisInputSchema>;
 export type SheetsAnalysisOutput = z.infer<typeof SheetsAnalysisOutputSchema>;
+export type AnalysisAction = z.infer<typeof AnalysisActionSchema>;
+export type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;

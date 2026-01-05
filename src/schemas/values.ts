@@ -1,6 +1,9 @@
 /**
  * Tool 3: sheets_values
  * Cell value operations (read/write)
+ *
+ * SCHEMA PATTERN: Top-level z.object() with union inside 'request' property
+ * This pattern is durable across MCP SDK upgrades - no custom patching needed.
  */
 
 import { z } from 'zod';
@@ -15,6 +18,8 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
+  DiffOptionsSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -22,13 +27,16 @@ const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
-export const SheetsValuesInputSchema = z.discriminatedUnion('action', [
+// Action union (nested inside top-level object)
+const ValuesActionSchema = z.discriminatedUnion('action', [
   // READ
   BaseSchema.extend({
     action: z.literal('read'),
     range: RangeInputSchema,
     valueRenderOption: ValueRenderOptionSchema.optional(),
     majorDimension: MajorDimensionSchema.optional(),
+    streaming: z.boolean().optional().describe('Enable streaming mode for large reads (chunks data to respect deadlines)'),
+    chunkSize: z.number().int().positive().default(1000).optional().describe('Rows per chunk in streaming mode (default: 1000)'),
   }),
 
   // WRITE (idempotent - set exact values)
@@ -38,6 +46,8 @@ export const SheetsValuesInputSchema = z.discriminatedUnion('action', [
     values: ValuesArraySchema,
     valueInputOption: ValueInputOptionSchema.optional(),
     safety: SafetyOptionsSchema.optional(),
+    diffOptions: DiffOptionsSchema.optional(),
+    includeValuesInResponse: z.boolean().optional().default(false).describe('Return the written values for verification'),
   }),
 
   // APPEND (NOT idempotent - adds rows)
@@ -74,6 +84,8 @@ export const SheetsValuesInputSchema = z.discriminatedUnion('action', [
     })).min(1).max(100),
     valueInputOption: ValueInputOptionSchema.optional(),
     safety: SafetyOptionsSchema.optional(),
+    diffOptions: DiffOptionsSchema.optional(),
+    includeValuesInResponse: z.boolean().optional().default(false).describe('Return the written values for verification'),
   }),
 
   // BATCH_CLEAR
@@ -106,7 +118,14 @@ export const SheetsValuesInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsValuesOutputSchema = z.discriminatedUnion('success', [
+// TOP-LEVEL INPUT SCHEMA (z.object with union inside)
+// This pattern works natively with MCP SDK - no custom transformation needed
+export const SheetsValuesInputSchema = z.object({
+  request: ValuesActionSchema,
+});
+
+// Output response union
+const ValuesResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -139,12 +158,19 @@ export const SheetsValuesOutputSchema = z.discriminatedUnion('success', [
     // Safety
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    // Response metadata (suggestions, cost estimates, related tools)
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+// TOP-LEVEL OUTPUT SCHEMA (z.object with union inside)
+export const SheetsValuesOutputSchema = z.object({
+  response: ValuesResponseSchema,
+});
 
 export const SHEETS_VALUES_ANNOTATIONS: ToolAnnotations = {
   title: 'Cell Values',
@@ -156,3 +182,7 @@ export const SHEETS_VALUES_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsValuesInput = z.infer<typeof SheetsValuesInputSchema>;
 export type SheetsValuesOutput = z.infer<typeof SheetsValuesOutputSchema>;
+
+// Type alias for the action union (for handler use)
+export type ValuesAction = z.infer<typeof ValuesActionSchema>;
+export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;

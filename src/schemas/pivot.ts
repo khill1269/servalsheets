@@ -14,6 +14,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -61,7 +62,7 @@ const PivotFilterSchema = z.object({
   }),
 });
 
-export const SheetsPivotInputSchema = z.discriminatedUnion('action', [
+const PivotActionSchema = z.discriminatedUnion('action', [
   // CREATE
   BaseSchema.extend({
     action: z.literal('create'),
@@ -113,7 +114,11 @@ export const SheetsPivotInputSchema = z.discriminatedUnion('action', [
   // by Google Sheets API v4. These must be done through the Sheets UI or Apps Script.
 ]);
 
-export const SheetsPivotOutputSchema = z.discriminatedUnion('success', [
+export const SheetsPivotInputSchema = z.object({
+  request: PivotActionSchema,
+});
+
+const PivotResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -130,12 +135,17 @@ export const SheetsPivotOutputSchema = z.discriminatedUnion('success', [
     })).optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsPivotOutputSchema = z.object({
+  response: PivotResponseSchema,
+});
 
 export const SHEETS_PIVOT_ANNOTATIONS: ToolAnnotations = {
   title: 'Pivot Tables',
@@ -147,3 +157,5 @@ export const SHEETS_PIVOT_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsPivotInput = z.infer<typeof SheetsPivotInputSchema>;
 export type SheetsPivotOutput = z.infer<typeof SheetsPivotOutputSchema>;
+export type PivotAction = z.infer<typeof PivotActionSchema>;
+export type PivotResponse = z.infer<typeof PivotResponseSchema>;

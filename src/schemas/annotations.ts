@@ -11,6 +11,13 @@ import type { ToolAnnotations } from './shared.js';
  * All tool annotations with MCP compliance
  */
 export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
+  sheets_auth: {
+    title: 'Authentication',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
   sheets_spreadsheet: {
     title: 'Spreadsheet Operations',
     readOnlyHint: false,
@@ -22,7 +29,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     title: 'Sheet/Tab Operations',
     readOnlyHint: false,
     destructiveHint: true,  // Can delete sheets
-    idempotentHint: true,   // Same operation = same result
+    idempotentHint: false,  // delete without allowMissing fails on repeat; add/duplicate create new sheets
     openWorldHint: true,
   },
   sheets_values: {
@@ -122,6 +129,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
  * Tool descriptions for MCP registration
  */
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
+  sheets_auth: 'Authentication management: status, login, callback, logout for OAuth-based access.',
   sheets_spreadsheet: 'Manage Google Spreadsheets: create new spreadsheets, get metadata, copy entire spreadsheets, update properties like title and locale.',
   sheets_sheet: 'Manage individual sheets (tabs) within a spreadsheet: add, delete, duplicate, rename, copy to other spreadsheets, and list all sheets.',
   sheets_values: 'Read and write cell values: single reads, batch reads, writes, appends, clears, find text, and find-replace operations.',
@@ -143,6 +151,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
  * Action counts per tool
  */
 export const ACTION_COUNTS: Record<string, number> = {
+  sheets_auth: 4,
   sheets_spreadsheet: 6,
   sheets_sheet: 7,
   sheets_values: 9,
@@ -151,7 +160,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_dimensions: 21,
   sheets_rules: 8,
   sheets_charts: 9,
-  sheets_pivot: 8,
+  sheets_pivot: 6,  // Was 8, but add_calculated_field and remove_calculated_field are not implemented
   sheets_filter_sort: 14,
   sheets_sharing: 8,
   sheets_comments: 10,

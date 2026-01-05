@@ -7,6 +7,160 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-01-05
+
+**Advanced Analytics & AI Integration Release**
+
+This release adds powerful data analysis capabilities, AI-powered features using MCP sampling, performance optimizations through request deduplication, and enhanced safety with user confirmation dialogs for destructive operations.
+
+### Added
+
+- **Advanced Data Analysis** (sheets_analysis tool):
+  - `detect_patterns` action: Comprehensive pattern detection across datasets
+    - Trend analysis (increasing, decreasing, cyclical, volatile, stable)
+    - Correlation detection between columns with significance testing
+    - Anomaly detection using statistical thresholds (IQR method)
+    - Seasonality analysis with period detection
+    - Returns actionable insights with confidence scores
+  - `column_analysis` action: Deep column-level data profiling
+    - Automatic data type detection (number, text, date, boolean, mixed)
+    - Distribution analysis (min, max, mean, median, quartiles, std deviation)
+    - Data quality metrics (completeness, uniqueness, validity percentages)
+    - Summary statistics and recommendations for each column
+
+- **AI-Powered Features** (SEP-1577 - MCP Sampling):
+  - `suggest_templates` action: AI generates contextual spreadsheet templates
+    - Natural language description → structured template suggestions
+    - Includes column definitions, sample data, and formulas
+    - Multiple template variations with explanations
+  - `generate_formula` action: Natural language → Google Sheets formula
+    - Converts plain English descriptions to working formulas
+    - Context-aware formula generation based on target cell/range
+    - Includes detailed explanations of formula logic
+  - `suggest_chart` action: AI-powered chart recommendations
+    - Analyzes data ranges and suggests optimal visualizations
+    - Multiple chart type suggestions with rationale
+    - Customization recommendations for titles, axes, and styling
+
+- **Request Deduplication** (Performance optimization):
+  - Prevents duplicate Google API calls for concurrent identical requests
+  - In-flight request tracking with promise sharing
+  - Implemented in high-traffic handlers:
+    - `sheets_values`: read operations, batch_read operations
+    - `sheets_cells`: get_note, get_merges operations
+    - `sheets_format`: sheet metadata lookups (getSheetId helper)
+  - Reduces API quota usage and improves response times
+
+- **User Confirmation Dialogs** (SEP-1036 - MCP Elicitation):
+  - Safety confirmations for destructive bulk operations
+  - Smart thresholds trigger user prompts:
+    - `delete_rows`: Confirms when >5 rows (dimensions tool)
+    - `delete_columns`: Confirms when >3 columns (dimensions tool)
+    - `batch_clear`: Confirms when >5 ranges or >1000 cells (values tool)
+    - `clear_format`: Confirms when >500 cells (format tool)
+    - `cut`: Confirms when >100 cells (cells tool)
+  - Each confirmation shows:
+    - Operation details and affected ranges
+    - Cell/row/column counts
+    - Warning that action cannot be undone
+  - Graceful fallback for clients without elicitation support
+
+### Enhanced
+
+- **HandlerContext Interface**: Extended with optional properties
+  - `elicitationServer?: ElicitationServer` - User input collection support
+  - `logger?: Logger` - Structured logging for warnings and errors
+
+- **Error Handling**: New error code for cancelled operations
+  - Uses `PRECONDITION_FAILED` when user cancels destructive operations
+  - Clear error messages indicating user-initiated cancellation
+
+### Technical Details
+
+- **Pattern Detection Algorithm**:
+  - Linear regression for trend analysis (R² confidence scoring)
+  - Pearson correlation coefficients for multi-column relationships
+  - IQR (Interquartile Range) method for anomaly detection
+  - FFT-based seasonality detection with period extraction
+
+- **AI Integration**:
+  - All AI features check client sampling capability before execution
+  - JSON-structured prompts with examples for consistent results
+  - Error handling for AI parsing failures
+  - Feature gracefully degrades if sampling unavailable
+
+- **Deduplication Strategy**:
+  - Request keys based on operation + parameters hash
+  - Automatic cleanup of completed requests
+  - Works transparently with existing cache layer
+  - Optional feature - safe to disable if needed
+
+### Documentation
+
+- Updated handler documentation with new action descriptions
+- Added inline code examples for pattern detection algorithms
+- Documented AI feature requirements (client must support sampling)
+- Added elicitation thresholds and confirmation message templates
+
+---
+
+## [1.1.1] - 2026-01-04
+
+**Performance & Observability Release**
+
+This release adds bandwidth optimization, payload monitoring, batch efficiency tracking, and enhanced rate limiting based on Google Sheets API best practices.
+
+### Added
+
+- **HTTP Compression**: Added gzip compression middleware for HTTP/SSE transport
+  - Reduces bandwidth usage by 60-80% for JSON responses
+  - Configurable compression threshold (1KB minimum)
+  - Respects `x-no-compression` header
+
+- **Payload Size Monitoring**: Track Google API request/response sizes
+  - Monitors payloads against Google's 2MB recommended limit
+  - Automatic warnings for oversized requests (>2MB)
+  - Automatic errors for requests exceeding 10MB hard limit
+  - Per-operation metrics: `monitorPayload()` utility
+
+- **Batch Efficiency Analysis**: Track and optimize batch operation efficiency
+  - Monitors intents per spreadsheet ratio
+  - Warns about inefficient batch distribution (<3 intents/spreadsheet)
+  - Suggests optimizations for batch operations
+  - Historical metrics tracking via `getBatchEfficiencyStats()`
+
+- **Test Coverage Thresholds**: Vitest configuration with minimum coverage requirements
+  - Lines: 75%
+  - Functions: 75%
+  - Branches: 70%
+  - Statements: 75%
+
+### Enhanced
+
+- **Dynamic Rate Limiting**: Automatic rate limit adaptation on 429 errors
+  - Reduces API request rates by 50% for 60 seconds after rate limit hit
+  - Automatic restoration to normal limits after throttle period
+  - `throttle()` and `restoreNormalLimits()` methods on RateLimiter
+  - Real-time throttle status via `isThrottled()`
+
+- **Batch Compiler Monitoring**: Integrated payload and efficiency monitoring
+  - All `batchUpdate` operations tracked automatically
+  - Batch efficiency analyzed on every compile
+  - Statistics available via lifecycle stats methods
+
+### Dependencies
+
+- Added `compression@^1.7.4` - HTTP compression middleware
+- Added `@types/compression@^1.8.1` - TypeScript definitions
+
+### Documentation
+
+- Updated `.env.example` with observability configuration
+- Fixed environment variable naming inconsistencies
+- Added performance tuning notes to README
+
+---
+
 ## [1.1.0] - 2026-01-03
 
 **Production Hardening Release**
@@ -153,7 +307,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 **First Production Release**
 
 ### Added
-- **15 Unified Tools** (158 actions total) with comprehensive Google Sheets operations:
+- **15 Unified Tools** (156 actions total) with comprehensive Google Sheets operations:
   - `sheets_spreadsheet`: Create, get, update, delete, list, copy spreadsheets
   - `sheets_sheet`: Create, get, update, delete, list, copy, move sheets
   - `sheets_values`: Read, write, append, clear, batch operations
@@ -198,7 +352,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Expected State Preconditions**: Row count, sheet title, checksum validation
 - **Reduced Drive Permissions**: Minimum required scopes by default
 - **Dry-Run Support**: Test operations without side effects
-- **Input Validation**: Zod schemas for all 158 actions
+- **Input Validation**: Zod schemas for all 156 actions
 
 ### Infrastructure
 - **Test Coverage**: 144 tests passing across 19 test suites

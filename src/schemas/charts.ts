@@ -15,6 +15,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -47,7 +48,7 @@ const ChartOptionsSchema = z.object({
   }).optional(),
 });
 
-export const SheetsChartsInputSchema = z.discriminatedUnion('action', [
+const ChartsActionSchema = z.discriminatedUnion('action', [
   // CREATE
   BaseSchema.extend({
     action: z.literal('create'),
@@ -121,7 +122,11 @@ export const SheetsChartsInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsChartsOutputSchema = z.discriminatedUnion('success', [
+export const SheetsChartsInputSchema = z.object({
+  request: ChartsActionSchema,
+});
+
+const ChartsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -137,12 +142,17 @@ export const SheetsChartsOutputSchema = z.discriminatedUnion('success', [
     exportData: z.string().optional(), // base64
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsChartsOutputSchema = z.object({
+  response: ChartsResponseSchema,
+});
 
 export const SHEETS_CHARTS_ANNOTATIONS: ToolAnnotations = {
   title: 'Charts',
@@ -154,3 +164,5 @@ export const SHEETS_CHARTS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsChartsInput = z.infer<typeof SheetsChartsInputSchema>;
 export type SheetsChartsOutput = z.infer<typeof SheetsChartsOutputSchema>;
+export type ChartsAction = z.infer<typeof ChartsActionSchema>;
+export type ChartsResponse = z.infer<typeof ChartsResponseSchema>;

@@ -47,32 +47,36 @@ describe('SharingHandler', () => {
     });
 
     const result = await handler.handle({
-      action: 'share',
-      spreadsheetId: 'sheet-id',
-      type: 'user',
-      role: 'writer',
-      emailAddress: 'a@example.com',
+      request: {
+        action: 'share',
+        spreadsheetId: 'sheet-id',
+        type: 'user',
+        role: 'writer',
+        emailAddress: 'a@example.com',
+      },
     });
 
     const parsed = SheetsSharingOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.permission?.id).toBe('perm-1');
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.permission?.id).toBe('perm-1');
     }
   });
 
   it('supports dryRun for remove_permission', async () => {
     const result = await handler.handle({
-      action: 'remove_permission',
-      spreadsheetId: 'sheet-id',
-      permissionId: 'perm-2',
-      safety: { dryRun: true },
+      request: {
+        action: 'remove_permission',
+        spreadsheetId: 'sheet-id',
+        permissionId: 'perm-2',
+        safety: { dryRun: true },
+      },
     });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.dryRun).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.dryRun).toBe(true);
     }
     expect(mockDriveApi.permissions.delete).not.toHaveBeenCalled();
   });

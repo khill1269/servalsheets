@@ -77,18 +77,20 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - write action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Test Value']],
-        safety: { dryRun: true },
+        request: {
+          action: 'write',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Test Value']],
+          safety: { dryRun: true },
+        },
       });
 
       // API should NOT be called
       expect(mockApi.spreadsheets.values.update).not.toHaveBeenCalled();
       
       // Should return success with dryRun flag
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'write',
         dryRun: true,
@@ -108,22 +110,24 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Test Value']],
-        safety: { dryRun: false },
+        request: {
+          action: 'write',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Test Value']],
+          safety: { dryRun: false },
+        },
       });
 
       // API should be called
       expect(mockApi.spreadsheets.values.update).toHaveBeenCalledTimes(1);
       
       // Should return success without dryRun flag
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'write',
       });
-      expect(result).not.toHaveProperty('dryRun');
+      expect(result.response).not.toHaveProperty('dryRun');
     });
 
     it('should call API when safety is not provided', async () => {
@@ -137,10 +141,12 @@ describe('Dry Run Safety', () => {
       });
 
       await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Test Value']],
+        request: {
+          action: 'write',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Test Value']],
+        },
       });
 
       // API should be called when no safety options
@@ -151,18 +157,20 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - append action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        action: 'append',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1' },
-        values: [['Row 1'], ['Row 2'], ['Row 3']],
-        safety: { dryRun: true },
+        request: {
+          action: 'append',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Row 1'], ['Row 2'], ['Row 3']],
+          safety: { dryRun: true },
+        },
       });
 
       // API should NOT be called
       expect(mockApi.spreadsheets.values.append).not.toHaveBeenCalled();
       
       // Should return estimated counts
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'append',
         dryRun: true,
@@ -175,17 +183,19 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - clear action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        action: 'clear',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1:Z100' },
-        safety: { dryRun: true },
+        request: {
+          action: 'clear',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1:Z100' },
+          safety: { dryRun: true },
+        },
       });
 
       // API should NOT be called
       expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
       
       // Should return success with dryRun flag
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'clear',
         dryRun: true,
@@ -197,20 +207,22 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - batch_write action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        action: 'batch_write',
-        spreadsheetId: 'test-spreadsheet-id',
-        data: [
-          { range: { a1: 'Sheet1!A1' }, values: [['A']] },
-          { range: { a1: 'Sheet1!B1' }, values: [['B']] },
-        ],
-        safety: { dryRun: true },
+        request: {
+          action: 'batch_write',
+          spreadsheetId: 'test-spreadsheet-id',
+          data: [
+            { range: { a1: 'Sheet1!A1' }, values: [['A']] },
+            { range: { a1: 'Sheet1!B1' }, values: [['B']] },
+          ],
+          safety: { dryRun: true },
+        },
       });
 
       // API should NOT be called
       expect(mockApi.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
       
       // Should return estimated counts
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'batch_write',
         dryRun: true,
@@ -222,20 +234,22 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - batch_clear action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        action: 'batch_clear',
-        spreadsheetId: 'test-spreadsheet-id',
-        ranges: [
-          { a1: 'Sheet1!A1:A10' },
-          { a1: 'Sheet1!B1:B10' },
-        ],
-        safety: { dryRun: true },
+        request: {
+          action: 'batch_clear',
+          spreadsheetId: 'test-spreadsheet-id',
+          ranges: [
+            { a1: 'Sheet1!A1:A10' },
+            { a1: 'Sheet1!B1:B10' },
+          ],
+          safety: { dryRun: true },
+        },
       });
 
       // API should NOT be called
       expect(mockApi.spreadsheets.values.batchClear).not.toHaveBeenCalled();
       
       // Should return success with dryRun flag
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'batch_clear',
         dryRun: true,
@@ -254,18 +268,20 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        action: 'replace',
-        spreadsheetId: 'test-spreadsheet-id',
-        find: 'foo',
-        replacement: 'replaced',
-        safety: { dryRun: true },
+        request: {
+          action: 'replace',
+          spreadsheetId: 'test-spreadsheet-id',
+          find: 'foo',
+          replacement: 'replaced',
+          safety: { dryRun: true },
+        },
       });
 
       // batchUpdate (which does the replace) should NOT be called
       expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
       
       // Should return count of matches
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'replace',
         dryRun: true,
@@ -285,17 +301,19 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-spreadsheet-id',
-        range: { a1: 'Sheet1!A1:B2' },
-        // Note: read doesn't have safety options in schema
+        request: {
+          action: 'read',
+          spreadsheetId: 'test-spreadsheet-id',
+          range: { a1: 'Sheet1!A1:B2' },
+          // Note: read doesn't have safety options in schema
+        },
       });
 
       // API should be called
       expect(mockApi.spreadsheets.values.get).toHaveBeenCalledTimes(1);
       
       // Should return data
-      expect(result).toMatchObject({
+      expect(result.response).toMatchObject({
         success: true,
         action: 'read',
         values: [['A', 'B'], ['1', '2']],

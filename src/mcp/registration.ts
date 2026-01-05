@@ -1,17 +1,40 @@
 /**
  * ServalSheets - MCP Registration Helpers
+ * 
+ * PRODUCTION-GRADE | MCP 2025-11-25 COMPLIANT
  *
- * Shared tool/resource/prompt registration for multiple transports.
+ * Tool registration for multiple transports with SDK compatibility layer.
+ * 
+ * Architecture:
+ * - Schemas use z.discriminatedUnion() for action-based dispatch
+ * - SDK compatibility layer converts to JSON Schema for tools/list
+ * - Full type safety maintained throughout
+ * 
+ * @module mcp/registration
  */
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  ToolTaskHandler,
+  TaskToolExecution,
+} from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
+import type { ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../handlers/index.js';
+import { AuthHandler } from '../handlers/auth.js';
 import type { GoogleApiClient } from '../services/google-api.js';
 import { createRequestContext, runWithRequestContext } from '../utils/request-context.js';
+import { completeRange, completeSpreadsheetId, recordSpreadsheetId } from './completions.js';
+import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from './features-2025-11-25.js';
 import {
+  isDiscriminatedUnion,
+  zodToJsonSchemaCompat,
+  verifyJsonSchema,
+} from '../utils/schema-compat.js';
+import {
+  SheetsAuthInputSchema, SheetsAuthOutputSchema, SHEETS_AUTH_ANNOTATIONS,
   SheetSpreadsheetInputSchema, SheetsSpreadsheetOutputSchema, SHEETS_SPREADSHEET_ANNOTATIONS,
   SheetsSheetInputSchema, SheetsSheetOutputSchema, SHEETS_SHEET_ANNOTATIONS,
   SheetsValuesInputSchema, SheetsValuesOutputSchema, SHEETS_VALUES_ANNOTATIONS,
@@ -29,8 +52,6 @@ import {
   SheetsAdvancedInputSchema, SheetsAdvancedOutputSchema, SHEETS_ADVANCED_ANNOTATIONS,
 } from '../schemas/index.js';
 import {
-  WelcomePromptArgsSchema,
-  SetupTestPromptArgsSchema,
   FirstOperationPromptArgsSchema,
   AnalyzeSpreadsheetPromptArgsSchema,
   TransformDataPromptArgsSchema,
@@ -38,225 +59,512 @@ import {
   CleanDataPromptArgsSchema,
 } from '../schemas/prompts.js';
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/**
+ * Tool definition with Zod schemas
+ * 
+ * Schemas can be z.object(), z.discriminatedUnion(), or other Zod types.
+ * The SDK compatibility layer handles conversion to JSON Schema.
+ */
 export interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: AnySchema;
-  outputSchema: AnySchema;
-  annotations: ToolAnnotations;
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: ZodTypeAny;
+  readonly outputSchema: ZodTypeAny;
+  readonly annotations: ToolAnnotations;
 }
 
-export const TOOL_DEFINITIONS: ToolDefinition[] = [
+// ============================================================================
+// TOOL DEFINITIONS
+// ============================================================================
+
+/**
+ * Complete tool registry for ServalSheets
+ * 
+ * 16 tools, 160 actions
+ * 
+ * Schema Pattern: z.object({ request: z.discriminatedUnion('action', ...) })
+ * - Actions are discriminated by `action` within `request`
+ * - Responses are discriminated by `success` within `response`
+ */
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+  {
+    name: 'sheets_auth',
+    description: '🔐 MANDATORY FIRST STEP: Authentication management. ALWAYS call this with action:"status" before using any other sheets_* tool. Actions: status (check auth), login (get OAuth URL), callback (complete OAuth with code), logout (clear credentials)',
+    inputSchema: SheetsAuthInputSchema,
+    outputSchema: SheetsAuthOutputSchema,
+    annotations: SHEETS_AUTH_ANNOTATIONS,
+  },
   {
     name: 'sheets_spreadsheet',
+    description: 'Spreadsheet operations: create, get, copy, update properties',
     inputSchema: SheetSpreadsheetInputSchema,
     outputSchema: SheetsSpreadsheetOutputSchema,
     annotations: SHEETS_SPREADSHEET_ANNOTATIONS,
-    description: 'Spreadsheet operations: create, get, copy, update properties',
   },
   {
     name: 'sheets_sheet',
+    description: 'Sheet/tab operations: add, delete, duplicate, update, list',
     inputSchema: SheetsSheetInputSchema,
     outputSchema: SheetsSheetOutputSchema,
     annotations: SHEETS_SHEET_ANNOTATIONS,
-    description: 'Sheet/tab operations: add, delete, duplicate, update, list',
   },
   {
     name: 'sheets_values',
+    description: 'Cell values: read, write, append, clear, find, replace',
     inputSchema: SheetsValuesInputSchema,
     outputSchema: SheetsValuesOutputSchema,
     annotations: SHEETS_VALUES_ANNOTATIONS,
-    description: 'Cell values: read, write, append, clear, find, replace',
   },
   {
     name: 'sheets_cells',
+    description: 'Cell operations: notes, validation, hyperlinks, merge',
     inputSchema: SheetsCellsInputSchema,
     outputSchema: SheetsCellsOutputSchema,
     annotations: SHEETS_CELLS_ANNOTATIONS,
-    description: 'Cell operations: notes, validation, hyperlinks, merge',
   },
   {
     name: 'sheets_format',
+    description: 'Formatting: colors, fonts, borders, alignment, presets',
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
     annotations: SHEETS_FORMAT_ANNOTATIONS,
-    description: 'Formatting: colors, fonts, borders, alignment, presets',
   },
   {
     name: 'sheets_dimensions',
+    description: 'Rows/columns: insert, delete, move, resize, freeze, group',
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
     annotations: SHEETS_DIMENSIONS_ANNOTATIONS,
-    description: 'Rows/columns: insert, delete, move, resize, freeze, group',
   },
   {
     name: 'sheets_rules',
+    description: 'Rules: conditional formatting, data validation',
     inputSchema: SheetsRulesInputSchema,
     outputSchema: SheetsRulesOutputSchema,
     annotations: SHEETS_RULES_ANNOTATIONS,
-    description: 'Rules: conditional formatting, data validation',
   },
   {
     name: 'sheets_charts',
+    description: 'Charts: create, update, delete, move, export',
     inputSchema: SheetsChartsInputSchema,
     outputSchema: SheetsChartsOutputSchema,
     annotations: SHEETS_CHARTS_ANNOTATIONS,
-    description: 'Charts: create, update, delete, move, export',
   },
   {
     name: 'sheets_pivot',
+    description: 'Pivot tables: create, update, refresh, calculated fields',
     inputSchema: SheetsPivotInputSchema,
     outputSchema: SheetsPivotOutputSchema,
     annotations: SHEETS_PIVOT_ANNOTATIONS,
-    description: 'Pivot tables: create, update, refresh, calculated fields',
   },
   {
     name: 'sheets_filter_sort',
+    description: 'Filter/sort: basic filter, filter views, slicers, sort',
     inputSchema: SheetsFilterSortInputSchema,
     outputSchema: SheetsFilterSortOutputSchema,
     annotations: SHEETS_FILTER_SORT_ANNOTATIONS,
-    description: 'Filter/sort: basic filter, filter views, slicers, sort',
   },
   {
     name: 'sheets_sharing',
+    description: 'Sharing: permissions, transfer ownership, link sharing',
     inputSchema: SheetsSharingInputSchema,
     outputSchema: SheetsSharingOutputSchema,
     annotations: SHEETS_SHARING_ANNOTATIONS,
-    description: 'Sharing: permissions, transfer ownership, link sharing',
   },
   {
     name: 'sheets_comments',
+    description: 'Comments: add, reply, resolve, delete',
     inputSchema: SheetsCommentsInputSchema,
     outputSchema: SheetsCommentsOutputSchema,
     annotations: SHEETS_COMMENTS_ANNOTATIONS,
-    description: 'Comments: add, reply, resolve, delete',
   },
   {
     name: 'sheets_versions',
+    description: 'Versions: revisions, snapshots, restore, compare',
     inputSchema: SheetsVersionsInputSchema,
     outputSchema: SheetsVersionsOutputSchema,
     annotations: SHEETS_VERSIONS_ANNOTATIONS,
-    description: 'Versions: revisions, snapshots, restore, compare',
   },
   {
     name: 'sheets_analysis',
+    description: 'Analysis: data quality, formula audit, statistics (read-only)',
     inputSchema: SheetsAnalysisInputSchema,
     outputSchema: SheetsAnalysisOutputSchema,
     annotations: SHEETS_ANALYSIS_ANNOTATIONS,
-    description: 'Analysis: data quality, formula audit, statistics (read-only)',
   },
   {
     name: 'sheets_advanced',
+    description: 'Advanced: named ranges, protected ranges, metadata, banding',
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
     annotations: SHEETS_ADVANCED_ANNOTATIONS,
-    description: 'Advanced: named ranges, protected ranges, metadata, banding',
   },
-];
+] as const;
 
-export function createToolHandlerMap(handlers: Handlers): Record<string, (a: unknown) => Promise<unknown>> {
-  // Type assertion is safe here because:
-  // 1. MCP SDK validates args against inputSchema before calling the handler
-  // 2. Each handler's input type matches its corresponding schema
-  // 3. Handlers perform additional validation internally
-  return {
-    'sheets_values': (a) => handlers.values.handle(SheetsValuesInputSchema.parse(a)),
-    'sheets_spreadsheet': (a) => handlers.spreadsheet.handle(SheetSpreadsheetInputSchema.parse(a)),
-    'sheets_sheet': (a) => handlers.sheet.handle(SheetsSheetInputSchema.parse(a)),
-    'sheets_cells': (a) => handlers.cells.handle(SheetsCellsInputSchema.parse(a)),
-    'sheets_format': (a) => handlers.format.handle(SheetsFormatInputSchema.parse(a)),
-    'sheets_dimensions': (a) => handlers.dimensions.handle(SheetsDimensionsInputSchema.parse(a)),
-    'sheets_rules': (a) => handlers.rules.handle(SheetsRulesInputSchema.parse(a)),
-    'sheets_charts': (a) => handlers.charts.handle(SheetsChartsInputSchema.parse(a)),
-    'sheets_pivot': (a) => handlers.pivot.handle(SheetsPivotInputSchema.parse(a)),
-    'sheets_filter_sort': (a) => handlers.filterSort.handle(SheetsFilterSortInputSchema.parse(a)),
-    'sheets_sharing': (a) => handlers.sharing.handle(SheetsSharingInputSchema.parse(a)),
-    'sheets_comments': (a) => handlers.comments.handle(SheetsCommentsInputSchema.parse(a)),
-    'sheets_versions': (a) => handlers.versions.handle(SheetsVersionsInputSchema.parse(a)),
-    'sheets_analysis': (a) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(a)),
-    'sheets_advanced': (a) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(a)),
+// ============================================================================
+// HANDLER MAPPING
+// ============================================================================
+
+/**
+ * Creates a map of tool names to handler functions
+ * 
+ * Each handler receives validated input and returns structured output.
+ * The MCP SDK validates input against inputSchema before calling the handler.
+ */
+export function createToolHandlerMap(
+  handlers: Handlers,
+  authHandler?: AuthHandler
+): Record<string, (args: unknown) => Promise<unknown>> {
+  const map: Record<string, (args: unknown) => Promise<unknown>> = {
+    'sheets_spreadsheet': (args) => handlers.spreadsheet.handle(SheetSpreadsheetInputSchema.parse(args)),
+    'sheets_sheet': (args) => handlers.sheet.handle(SheetsSheetInputSchema.parse(args)),
+    'sheets_values': (args) => handlers.values.handle(SheetsValuesInputSchema.parse(args)),
+    'sheets_cells': (args) => handlers.cells.handle(SheetsCellsInputSchema.parse(args)),
+    'sheets_format': (args) => handlers.format.handle(SheetsFormatInputSchema.parse(args)),
+    'sheets_dimensions': (args) => handlers.dimensions.handle(SheetsDimensionsInputSchema.parse(args)),
+    'sheets_rules': (args) => handlers.rules.handle(SheetsRulesInputSchema.parse(args)),
+    'sheets_charts': (args) => handlers.charts.handle(SheetsChartsInputSchema.parse(args)),
+    'sheets_pivot': (args) => handlers.pivot.handle(SheetsPivotInputSchema.parse(args)),
+    'sheets_filter_sort': (args) => handlers.filterSort.handle(SheetsFilterSortInputSchema.parse(args)),
+    'sheets_sharing': (args) => handlers.sharing.handle(SheetsSharingInputSchema.parse(args)),
+    'sheets_comments': (args) => handlers.comments.handle(SheetsCommentsInputSchema.parse(args)),
+    'sheets_versions': (args) => handlers.versions.handle(SheetsVersionsInputSchema.parse(args)),
+    'sheets_analysis': (args) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
+    'sheets_advanced': (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
   };
+
+  if (authHandler) {
+    map['sheets_auth'] = (args) => authHandler.handle(SheetsAuthInputSchema.parse(args));
+  }
+
+  return map;
 }
 
-export function buildToolResponse(result: unknown): CallToolResult {
-  const structuredContent =
-    typeof result === 'object' && result !== null
-      ? (result as Record<string, unknown>)
-      : {
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Tool handler returned non-object result',
-            retryable: false,
-          },
-        };
+// ============================================================================
+// RESPONSE BUILDING
+// ============================================================================
 
-  const isError =
-    typeof structuredContent === 'object' &&
-    structuredContent !== null &&
-    'success' in structuredContent &&
-    structuredContent['success'] === false;
+/**
+ * Builds a compliant MCP tool response
+ * 
+ * MCP 2025-11-25 Response Requirements:
+ * - content: Array of content blocks (always present)
+ * - structuredContent: Typed object matching outputSchema
+ * - isError: true for tool errors (LLM can retry), undefined for success
+ * 
+ * @param result - The handler result (should match output schema)
+ * @returns CallToolResult with content, structuredContent, and optional isError
+ */
+export function buildToolResponse(result: unknown): CallToolResult {
+  let structuredContent: Record<string, unknown>;
+
+  if (typeof result !== 'object' || result === null) {
+    structuredContent = {
+      response: {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Tool handler returned non-object result',
+          retryable: false,
+        },
+      },
+    };
+  } else if ('response' in result) {
+    structuredContent = result as Record<string, unknown>;
+  } else if ('success' in result) {
+    structuredContent = { response: result as Record<string, unknown> };
+  } else {
+    structuredContent = {
+      response: {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Tool handler returned invalid response shape',
+          retryable: false,
+        },
+      },
+    };
+  }
+
+  const response = structuredContent['response'];
+  const responseSuccess = (response && typeof response === 'object')
+    ? (response as { success?: boolean }).success
+    : undefined;
+
+  // Detect errors from success: false in response (or legacy top-level success)
+  const isError = responseSuccess === false
+    || (structuredContent['success'] === false);
 
   return {
+    // Human-readable content for display
     content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }],
+    // Typed structured content for programmatic access
     structuredContent,
+    // Error flag - only set when true, undefined otherwise (MCP convention)
     isError: isError ? true : undefined,
   };
 }
 
-export function registerServalSheetsTools(server: McpServer, handlers: Handlers | null): void {
-  const handlerMap = handlers ? createToolHandlerMap(handlers) : null;
+// ============================================================================
+// SCHEMA PREPARATION
+// ============================================================================
+
+/**
+ * Prepares a schema for MCP SDK registration
+ * 
+ * The MCP SDK v1.25.x has a limitation where normalizeObjectSchema() only
+ * recognizes z.object() schemas. Discriminated unions and other Zod types
+ * result in empty JSON Schema in tools/list.
+ * 
+ * This function converts non-object schemas to JSON Schema format to ensure
+ * proper serialization in the tools/list response.
+ * 
+ * @param schema - Zod schema to prepare
+ * @returns Schema ready for registerTool() - either original or JSON Schema
+ */
+export function prepareSchemaForRegistration(schema: ZodTypeAny): AnySchema | Record<string, unknown> {
+  // Discriminated unions need conversion to JSON Schema
+  if (isDiscriminatedUnion(schema)) {
+    return zodToJsonSchemaCompat(schema) as Record<string, unknown>;
+  }
+
+  // z.object() and other schemas work natively
+  return schema as unknown as AnySchema;
+}
+
+function createToolCallHandler(
+  tool: ToolDefinition,
+  handlerMap: Record<string, (args: unknown) => Promise<unknown>> | null
+): (args: Record<string, unknown>, extra?: { requestId?: string | number }) => Promise<CallToolResult> {
+  return async (args: Record<string, unknown>, extra?: { requestId?: string | number }) => {
+    const requestId = extra?.requestId ? String(extra.requestId) : undefined;
+    const requestContext = createRequestContext({ requestId });
+
+    return runWithRequestContext(requestContext, async () => {
+      recordSpreadsheetId(args);
+
+      if (!handlerMap) {
+        return buildToolResponse({
+          response: {
+            success: false,
+            error: {
+              code: 'AUTHENTICATION_REQUIRED',
+              message: 'Google API client not initialized. Please provide credentials.',
+              retryable: false,
+              suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth',
+            },
+          },
+        });
+      }
+
+      const handler = handlerMap[tool.name];
+      if (!handler) {
+        return buildToolResponse({
+          response: {
+            success: false,
+            error: {
+              code: 'NOT_IMPLEMENTED',
+              message: `Handler for ${tool.name} not yet implemented`,
+              retryable: false,
+              suggestedFix: 'This tool is planned for a future release',
+            },
+          },
+        });
+      }
+
+      const result = await handler(args);
+      return buildToolResponse(result);
+    });
+  };
+}
+
+function createToolTaskHandler(
+  toolName: string,
+  runTool: (args: Record<string, unknown>, extra?: { requestId?: string | number }) => Promise<CallToolResult>
+): ToolTaskHandler<AnySchema> {
+  return {
+    createTask: async (args, extra) => {
+      if (!extra.taskStore) {
+        throw new Error(`[${toolName}] Task store not configured`);
+      }
+
+      const task = await extra.taskStore.createTask({
+        ttl: extra.taskRequestedTtl ?? undefined,
+      });
+
+      const taskStore = extra.taskStore;
+      void (async () => {
+        try {
+          const result = await runTool(args as Record<string, unknown>, extra);
+          await taskStore.storeTaskResult(task.taskId, 'completed', result);
+        } catch (error) {
+          const errorResult = buildToolResponse({
+            response: {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: error instanceof Error ? error.message : String(error),
+                retryable: false,
+              },
+            },
+          });
+          try {
+            await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
+          } catch (storeError) {
+            console.error(`[${toolName}] Failed to store task result`, storeError);
+          }
+        }
+      })();
+
+      return { task };
+    },
+    getTask: async (_args, extra) => {
+      if (!extra.taskStore) {
+        throw new Error(`[${toolName}] Task store not configured`);
+      }
+      return await extra.taskStore.getTask(extra.taskId);
+    },
+    getTaskResult: async (_args, extra) => {
+      if (!extra.taskStore) {
+        throw new Error(`[${toolName}] Task store not configured`);
+      }
+      return await extra.taskStore.getTaskResult(extra.taskId) as CallToolResult;
+    },
+  };
+}
+
+// ============================================================================
+// TOOL REGISTRATION
+// ============================================================================
+
+/**
+ * Registers all ServalSheets tools with the MCP server
+ * 
+ * Handles SDK compatibility for discriminated union schemas.
+ * 
+ * @param server - McpServer instance
+ * @param handlers - Tool handlers (null if not authenticated)
+ */
+export function registerServalSheetsTools(
+  server: McpServer,
+  handlers: Handlers | null,
+  options?: { googleClient?: GoogleApiClient | null }
+): void {
+  const authHandler = new AuthHandler({
+    googleClient: options?.googleClient ?? null,
+    elicitationServer: server.server,
+  });
+
+  const handlerMap = handlers
+    ? createToolHandlerMap(handlers, authHandler)
+    : { 'sheets_auth': (args: unknown) => authHandler.handle(SheetsAuthInputSchema.parse(args)) };
 
   for (const tool of TOOL_DEFINITIONS) {
-    server.registerTool(
+    // Prepare schemas for SDK registration
+    const inputSchemaForRegistration = prepareSchemaForRegistration(tool.inputSchema);
+    const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema);
+
+    // Development-only schema validation (only for JSON Schema objects)
+    if (process.env['NODE_ENV'] !== 'production') {
+      const isZodSchema = (schema: unknown): boolean =>
+        Boolean(schema && typeof schema === 'object' && '_def' in (schema as Record<string, unknown>));
+
+      if (!isZodSchema(inputSchemaForRegistration)) {
+        verifyJsonSchema(inputSchemaForRegistration);
+      }
+      if (!isZodSchema(outputSchemaForRegistration)) {
+        verifyJsonSchema(outputSchemaForRegistration);
+      }
+    }
+
+    // Register tool with prepared schemas
+    // Type assertion needed due to TypeScript's deep type instantiation limits
+    const execution = TOOL_EXECUTION_CONFIG[tool.name];
+    const supportsTasks = execution?.taskSupport && execution.taskSupport !== 'forbidden';
+    const runTool = createToolCallHandler(tool, handlerMap);
+
+    if (supportsTasks) {
+      const taskHandler = createToolTaskHandler(tool.name, runTool);
+      const taskSupport = execution?.taskSupport === 'required' ? 'required' : 'optional';
+      const taskExecution = {
+        ...(execution ?? {}),
+        taskSupport,
+      } as TaskToolExecution;
+
+      server.experimental.tasks.registerToolTask<AnySchema, AnySchema>(
+        tool.name,
+        {
+          title: tool.annotations.title,
+          description: tool.description,
+          inputSchema: tool.inputSchema as AnySchema,
+          outputSchema: tool.outputSchema as AnySchema,
+          annotations: tool.annotations,
+          execution: taskExecution,
+        },
+        taskHandler
+      );
+      continue;
+    }
+
+    (server.registerTool as (
+      name: string,
+      config: {
+        title?: string;
+        description?: string;
+        inputSchema?: unknown;
+        outputSchema?: unknown;
+        annotations?: ToolAnnotations;
+        icons?: import('@modelcontextprotocol/sdk/types.js').Icon[];
+        execution?: import('@modelcontextprotocol/sdk/types.js').ToolExecution;
+      },
+      cb: (args: Record<string, unknown>, extra?: { requestId?: string | number }) => Promise<CallToolResult>
+    ) => void)(
       tool.name,
       {
         title: tool.annotations.title,
         description: tool.description,
-        inputSchema: tool.inputSchema,
-        outputSchema: tool.outputSchema,
+        inputSchema: inputSchemaForRegistration,
+        outputSchema: outputSchemaForRegistration,
         annotations: tool.annotations,
+        icons: TOOL_ICONS[tool.name],
+        execution,
       },
-      async (args: Record<string, unknown>, extra?: { requestId?: string | number }) => {
-        const requestId = extra?.requestId ? String(extra.requestId) : undefined;
-        const requestContext = createRequestContext({ requestId });
-        return runWithRequestContext(requestContext, async () => {
-          if (!handlerMap) {
-            return buildToolResponse({
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Google API client not initialized. Please provide credentials.',
-                retryable: false,
-                suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or provide a Bearer token',
-              },
-            });
-          }
-
-          const handler = handlerMap[tool.name];
-          if (!handler) {
-            return buildToolResponse({
-              success: false,
-              error: {
-                code: 'METHOD_NOT_FOUND',
-                message: `Handler for ${tool.name} not yet implemented`,
-                retryable: false,
-                suggestedFix: 'This tool is planned for a future release',
-              },
-            });
-          }
-
-          const result = await handler(args);
-          return buildToolResponse(result);
-        });
-      }
+      runTool
     );
   }
 }
 
+
+// ============================================================================
+// RESOURCES REGISTRATION
+// ============================================================================
+
+/**
+ * Registers ServalSheets resources with the MCP server
+ * 
+ * Resources provide read-only access to spreadsheet metadata via URI templates.
+ * 
+ * @param server - McpServer instance
+ * @param googleClient - Google API client (null if not authenticated)
+ */
 export function registerServalSheetsResources(server: McpServer, googleClient: GoogleApiClient | null): void {
   const spreadsheetTemplate = new ResourceTemplate('sheets:///{spreadsheetId}', {
     list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
+    },
+  });
+
+  const rangeTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/{range}', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
+      range: async (value) => completeRange(value),
+    },
   });
 
   server.registerResource(
@@ -311,8 +619,77 @@ export function registerServalSheetsResources(server: McpServer, googleClient: G
       }
     }
   );
+
+  server.registerResource(
+    'spreadsheet_range',
+    rangeTemplate,
+    {
+      title: 'Spreadsheet Range',
+      description: 'Google Sheets range values (A1 notation)',
+      mimeType: 'application/json',
+    },
+    async (uri, variables) => {
+      const rawSpreadsheetId = variables['spreadsheetId'];
+      const rawRange = variables['range'];
+      const spreadsheetId = Array.isArray(rawSpreadsheetId) ? rawSpreadsheetId[0] : rawSpreadsheetId;
+      const encodedRange = Array.isArray(rawRange) ? rawRange[0] : rawRange;
+      const range = typeof encodedRange === 'string'
+        ? decodeURIComponent(encodedRange)
+        : undefined;
+
+      if (!spreadsheetId || typeof spreadsheetId !== 'string' || !range) {
+        return { contents: [] };
+      }
+
+      if (!googleClient) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify({ error: 'Not authenticated' }),
+          }],
+        };
+      }
+
+      try {
+        const valuesResponse = await googleClient.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        });
+
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(valuesResponse.data, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify({
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          }],
+        };
+      }
+    }
+  );
 }
 
+// ============================================================================
+// PROMPTS REGISTRATION
+// ============================================================================
+
+/**
+ * Registers ServalSheets prompts with the MCP server
+ * 
+ * Prompts provide guided workflows and templates for common operations.
+ * 
+ * @param server - McpServer instance
+ */
 export function registerServalSheetsPrompts(server: McpServer): void {
   // === ONBOARDING PROMPTS ===
 
@@ -330,62 +707,19 @@ export function registerServalSheetsPrompts(server: McpServer): void {
             type: 'text' as const,
             text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 15 powerful tools and 158 actions. Let me show you what I can do:
+I'm your Google Sheets assistant with 15 powerful tools and 156 actions.
 
 ## 🚀 Quick Start
+Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
 
-**Test your connection:**
-Use the test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
-
-Try asking me:
-• "List all sheets in spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-• "Read cells A1:D10 from the first sheet"
-
-## 📊 What I Can Do
-
-**Data Operations:**
-• Read and write cell values
-• Batch operations for efficiency
-• Semantic range queries (find columns by header name)
-
-**Analysis:**
-• Data quality checks
-• Statistics and correlations
-• Formula auditing
-• Duplicate detection
-
-**Formatting & Visualization:**
-• Cell formatting (colors, fonts, numbers)
-• Conditional formatting rules
-• Charts and pivot tables
-
-**Advanced Features:**
-• Version history and restore
-• Sharing and permissions
-• Comments and collaboration
-• Named ranges and protection
+## 📊 Capabilities
+• Data Operations: Read, write, batch operations
+• Analysis: Data quality, statistics, formula audit
+• Formatting: Colors, fonts, conditional formatting
+• Advanced: Charts, pivots, sharing, versions
 
 ## 🛡️ Safety Features
-
-I always prioritize safety:
-• **Dry-run mode**: Preview changes before executing
-• **Effect scope limits**: Prevent accidental large-scale changes
-• **Auto-snapshots**: Backup before destructive operations
-• **Expected state validation**: Ensure data hasn't changed
-
-## 💡 Tips for Best Results
-
-1. **Be specific**: Include spreadsheet IDs and ranges
-2. **Use safety features**: Ask for dry-run on destructive operations
-3. **Batch operations**: I can handle multiple ranges at once
-4. **Ask questions**: I'll guide you through complex tasks
-
-## 🎯 Ready to Start?
-
-Try one of these:
-• "Test my connection" (I'll verify your setup)
-• "Show me what you can do with spreadsheet: <your-id>"
-• "Help me analyze my data quality"
+• Dry-run mode, effect limits, auto-snapshots
 
 What would you like to do first?`,
           },
@@ -406,30 +740,16 @@ What would you like to do first?`,
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `🔍 Let's test your ServalSheets connection!
+            text: `🔍 Testing ServalSheets connection!
 
-I'll use a public test spreadsheet to verify everything is working.
+Test spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 
-Test spreadsheet ID: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
+Please run:
+1. sheets_spreadsheet action: "get"
+2. sheets_values action: "read", range: "Sheet1!A1:D10"
+3. sheets_analysis action: "structure_analysis"
 
-Please perform these tests:
-
-1. **List all sheets** - Get metadata about the spreadsheet
-   Tool: sheets_spreadsheet, action: "get"
-
-2. **Read sample data** - Get values from the first sheet
-   Tool: sheets_values, action: "read", range: "Sheet1!A1:D10"
-
-3. **Analyze structure** - Understand the data layout
-   Tool: sheets_analysis, action: "structure_analysis"
-
-If all tests pass, you're ready to use ServalSheets with your own spreadsheets!
-
-**For your own spreadsheets:**
-• Service accounts: Share your sheet with the service account email
-• OAuth: You automatically have access to your own sheets
-
-Let's start the test!`,
+If tests pass, you're ready!`,
           },
         }],
       };
@@ -442,52 +762,24 @@ Let's start the test!`,
       description: '👶 Your first ServalSheets operation - a guided walkthrough',
       argsSchema: FirstOperationPromptArgsSchema,
     },
-    async (args) => {
-      const spreadsheetId = args.spreadsheetId || '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
+    async (args: any) => {
+      const spreadsheetId = args['spreadsheetId'] || '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
       return {
         messages: [{
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `👶 Let's do your first ServalSheets operation!
+            text: `👶 First ServalSheets operation!
 
-**Spreadsheet ID:** ${spreadsheetId}
+Spreadsheet: ${spreadsheetId}
 
-I'll guide you through a complete workflow:
+Steps:
+1. Read data: sheets_spreadsheet action "get"
+2. Analyze quality: sheets_analysis action "data_quality"
+3. Get statistics: sheets_analysis action "statistics"
+4. Format headers: sheets_format (use dryRun first!)
 
-## Step 1: Read the Data 📖
-
-First, let's see what's in the spreadsheet:
-• Use \`sheets_spreadsheet\` with action \`"get"\`
-• Get the list of sheets and their properties
-
-## Step 2: Analyze Quality 🔍
-
-Check if the data is clean:
-• Use \`sheets_analysis\` with action \`"data_quality"\`
-• Look for duplicates, empty cells, type mismatches
-
-## Step 3: Get Statistics 📊
-
-Understand the data distribution:
-• Use \`sheets_analysis\` with action \`"statistics"\`
-• Get mean, median, min, max for numeric columns
-
-## Step 4: Format Headers ✨
-
-Make the headers stand out:
-• Use \`sheets_format\` with action \`"set_text_format"\`
-• Make row 1 bold and centered
-• **Use dry_run first!** to preview changes
-
-## Safety Tips 🛡️
-
-• Always read data before modifying
-• Use \`safety: { dryRun: true }\` for destructive operations
-• Check \`cellsAffected\` in dry-run results
-• For write operations, use \`effectScope: { maxCellsAffected: 100 }\`
-
-Ready? Let's start with Step 1!`,
+Safety tips: Always read before modify, use dryRun for destructive ops.`,
           },
         }],
       };
@@ -502,48 +794,21 @@ Ready? Let's start with Step 1!`,
       description: '🔬 Comprehensive analysis of spreadsheet data quality and structure',
       argsSchema: AnalyzeSpreadsheetPromptArgsSchema,
     },
-    async (args) => {
+    async (args: any) => {
       return {
         messages: [{
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `🔬 Analyzing spreadsheet: ${args.spreadsheetId}
+            text: `🔬 Analyzing: ${args['spreadsheetId']}
 
-Please perform a comprehensive analysis:
+Run comprehensive analysis:
+1. Metadata: sheets_spreadsheet action "get"
+2. Data Quality: sheets_analysis action "data_quality"
+3. Structure: sheets_analysis action "structure_analysis"
+4. Formula Audit: sheets_analysis action "formula_audit"
 
-## 1. Metadata & Structure
-Tool: sheets_spreadsheet, action: "get"
-• Get sheet names, row/column counts
-• Identify data ranges
-
-## 2. Data Quality Check
-Tool: sheets_analysis, action: "data_quality"
-• Completeness (empty cells)
-• Duplicates (entire rows or key columns)
-• Type consistency (mixed types in columns)
-• Outliers and anomalies
-
-## 3. Structure Analysis
-Tool: sheets_analysis, action: "structure_analysis"
-• Header row detection
-• Data types per column
-• Recommended data validation rules
-
-## 4. Formula Audit (if applicable)
-Tool: sheets_analysis, action: "formula_audit"
-• Broken references
-• Volatile functions
-• Circular dependencies
-
-## 5. Summary Report
-Provide:
-• Overall data quality score
-• List of issues found
-• Recommended fixes
-• Suggested improvements
-
-Begin the analysis now.`,
+Provide: quality score, issues found, recommended fixes.`,
           },
         }],
       };
@@ -556,59 +821,30 @@ Begin the analysis now.`,
       description: '🔄 Transform data in a spreadsheet range with safety checks',
       argsSchema: TransformDataPromptArgsSchema,
     },
-    async (args) => {
+    async (args: any) => {
       return {
         messages: [{
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `🔄 Data transformation requested
+            text: `🔄 Transform data
 
-**Spreadsheet:** ${args.spreadsheetId}
-**Range:** ${args.range}
-**Transformation:** ${args.transformation}
+Spreadsheet: ${args['spreadsheetId']}
+Range: ${args['range']}
+Transform: ${args['transformation']}
 
-## Safe Transformation Workflow:
-
-### Step 1: Read Current Data
-Tool: sheets_values, action: "read"
-• Get current values
-• Store for comparison
-
-### Step 2: Plan Transformation
-• Understand the transformation requirements
-• Identify which tools to use
-• Estimate cells affected
-
-### Step 3: Preview Changes (DRY RUN)
-• Apply transformation with \`safety: { dryRun: true }\`
-• Review \`cellsAffected\` and \`diff\`
-• Check for unintended effects
-
-### Step 4: User Confirmation
-• Show preview to user
-• Explain what will change
-• Wait for explicit approval
-
-### Step 5: Execute Transformation
-• Use appropriate safety options:
-  - \`effectScope: { maxCellsAffected: <reasonable-limit> }\`
-  - \`expectedState: { rowCount: <current-count> }\`
-  - \`autoSnapshot: true\` (creates backup)
-
-### Step 6: Verify Results
-• Read transformed data
-• Compare with expected outcome
-• Report success or issues
-
-Begin the transformation workflow now.`,
+Workflow:
+1. Read current data
+2. Plan transformation
+3. Preview (dryRun: true)
+4. Get confirmation
+5. Execute with safety limits
+6. Verify results`,
           },
         }],
       };
     }
   );
-
-  // === QUICK START PROMPTS ===
 
   server.registerPrompt(
     'create_report',
@@ -616,43 +852,22 @@ Begin the transformation workflow now.`,
       description: '📈 Generate a formatted report from spreadsheet data',
       argsSchema: CreateReportPromptArgsSchema,
     },
-    async (args) => {
-      const reportType = args.reportType || 'summary';
+    async (args: any) => {
+      const reportType = args['reportType'] || 'summary';
       return {
         messages: [{
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `📈 Creating ${reportType} report from ${args.spreadsheetId}
+            text: `📈 Creating ${reportType} report from ${args['spreadsheetId']}
 
-I'll create a professional report with:
-
-1. **Read Source Data**
-   • Identify data range
-   • Get headers and values
-
-2. **Create Report Sheet**
-   • Add new sheet called "Report"
-   • Set up structure
-
-3. **Add Summary Statistics**
-   • Calculate totals, averages
-   • Add formulas for key metrics
-
-4. **Apply Formatting**
-   • Header row: Bold, colored background
-   • Number formatting for values
-   • Borders and alignment
-
-5. **Add Visualizations** ${reportType === 'charts' ? '(Charts Included)' : ''}
-   ${reportType === 'charts' ? '• Create relevant charts\n   • Position charts appropriately' : ''}
-
-6. **Final Polish**
-   • Auto-resize columns
-   • Freeze header row
-   • Add timestamp
-
-Starting report creation...`,
+Steps:
+1. Read source data
+2. Create "Report" sheet
+3. Add summary statistics
+4. Apply formatting
+${reportType === 'charts' ? '5. Add charts\n' : ''}
+Final: Auto-resize, freeze header, add timestamp`,
           },
         }],
       };
@@ -665,44 +880,20 @@ Starting report creation...`,
       description: '🧹 Clean and standardize data in a spreadsheet range',
       argsSchema: CleanDataPromptArgsSchema,
     },
-    async (args) => {
+    async (args: any) => {
       return {
         messages: [{
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `🧹 Data cleaning workflow for ${args.spreadsheetId}, range ${args.range}
+            text: `🧹 Cleaning data: ${args['spreadsheetId']}, range ${args['range']}
 
-I'll clean your data systematically:
-
-## Phase 1: Analysis
-• Run data quality check
-• Identify issues (duplicates, empty cells, formatting)
-• Report findings to user
-
-## Phase 2: Cleaning Plan
-Based on issues found:
-• Remove duplicate rows
-• Fill or remove empty cells
-• Standardize formats
-• Fix data types
-
-## Phase 3: Preview (DRY RUN)
-• Show what will be cleaned
-• Estimate impact
-• Get user confirmation
-
-## Phase 4: Execute Cleaning
-• Apply changes with safety limits
-• Create backup (auto-snapshot)
-• Verify results
-
-## Phase 5: Validation
-• Re-run quality check
-• Compare before/after
-• Report improvements
-
-Starting data cleaning analysis...`,
+Phases:
+1. Analysis: Run data quality check
+2. Plan: Identify duplicates, empty cells, format issues
+3. Preview: Show changes with dryRun
+4. Execute: Apply with auto-snapshot
+5. Validate: Compare before/after`,
           },
         }],
       };

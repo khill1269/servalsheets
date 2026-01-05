@@ -38,11 +38,25 @@ npm-debug.log*
 # Test coverage
 coverage/
 .nyc_output/
+.vitest/
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+*.bak
+*.old
+*~
+*.backup
+*.orig
+
+# Session/cleanup documents in root (temporary analysis)
+/*SESSION*.md
+/*CLEANUP*.md
+/*ANALYSIS*.md
+/*SUMMARY*.md
+/*REPORT*.md
+/*PLAN*.md
 
 # Documentation
 docs/api/

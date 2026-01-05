@@ -15,6 +15,7 @@ import {
   ErrorDetailSchema,
   SafetyOptionsSchema,
   MutationSummarySchema,
+  ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -55,7 +56,7 @@ const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
   GradientRuleSchema,
 ]);
 
-export const SheetsRulesInputSchema = z.discriminatedUnion('action', [
+const RulesActionSchema = z.discriminatedUnion('action', [
   // ADD_CONDITIONAL_FORMAT
   BaseSchema.extend({
     action: z.literal('add_conditional_format'),
@@ -132,7 +133,11 @@ export const SheetsRulesInputSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-export const SheetsRulesOutputSchema = z.discriminatedUnion('success', [
+export const SheetsRulesInputSchema = z.object({
+  request: RulesActionSchema,
+});
+
+const RulesResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -148,12 +153,17 @@ export const SheetsRulesOutputSchema = z.discriminatedUnion('success', [
     })).optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
     success: z.literal(false),
     error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsRulesOutputSchema = z.object({
+  response: RulesResponseSchema,
+});
 
 export const SHEETS_RULES_ANNOTATIONS: ToolAnnotations = {
   title: 'Rules & Validation',
@@ -165,3 +175,5 @@ export const SHEETS_RULES_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsRulesInput = z.infer<typeof SheetsRulesInputSchema>;
 export type SheetsRulesOutput = z.infer<typeof SheetsRulesOutputSchema>;
+export type RulesAction = z.infer<typeof RulesActionSchema>;
+export type RulesResponse = z.infer<typeof RulesResponseSchema>;

@@ -1,0 +1,171 @@
+/**
+ * Prometheus Metrics
+ *
+ * Exposes key operational metrics for monitoring and alerting.
+ * Access via GET /metrics endpoint.
+ */
+
+import { register, Counter, Histogram, Gauge } from 'prom-client';
+
+// Tool call metrics
+export const toolCallsTotal = new Counter({
+  name: 'servalsheets_tool_calls_total',
+  help: 'Total number of tool calls',
+  labelNames: ['tool', 'action', 'status'],
+});
+
+export const toolCallDuration = new Histogram({
+  name: 'servalsheets_tool_call_duration_seconds',
+  help: 'Tool call duration in seconds',
+  labelNames: ['tool', 'action'],
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+});
+
+// Google API metrics
+export const googleApiCallsTotal = new Counter({
+  name: 'servalsheets_google_api_calls_total',
+  help: 'Total Google API calls',
+  labelNames: ['method', 'status'],
+});
+
+export const googleApiDuration = new Histogram({
+  name: 'servalsheets_google_api_duration_seconds',
+  help: 'Google API call duration',
+  labelNames: ['method'],
+  buckets: [0.1, 0.5, 1, 2, 5],
+});
+
+// Circuit breaker metrics
+export const circuitBreakerState = new Gauge({
+  name: 'servalsheets_circuit_breaker_state',
+  help: 'Circuit breaker state (0=closed, 1=half_open, 2=open)',
+  labelNames: ['circuit'],
+});
+
+// Cache metrics
+export const cacheHitsTotal = new Counter({
+  name: 'servalsheets_cache_hits_total',
+  help: 'Total cache hits',
+  labelNames: ['namespace'],
+});
+
+export const cacheMissesTotal = new Counter({
+  name: 'servalsheets_cache_misses_total',
+  help: 'Total cache misses',
+  labelNames: ['namespace'],
+});
+
+export const cacheSize = new Gauge({
+  name: 'servalsheets_cache_size_bytes',
+  help: 'Current cache size in bytes',
+  labelNames: ['namespace'],
+});
+
+// Queue metrics
+export const queueSize = new Gauge({
+  name: 'servalsheets_queue_size',
+  help: 'Current request queue size',
+});
+
+export const queuePending = new Gauge({
+  name: 'servalsheets_queue_pending',
+  help: 'Current pending requests in queue',
+});
+
+// Session store metrics
+export const sessionsTotal = new Gauge({
+  name: 'servalsheets_sessions_total',
+  help: 'Total active OAuth sessions',
+});
+
+// Batch efficiency metrics
+export const batchRequestsTotal = new Counter({
+  name: 'servalsheets_batch_requests_total',
+  help: 'Total batch requests',
+  labelNames: ['operation'],
+});
+
+export const batchSizeHistogram = new Histogram({
+  name: 'servalsheets_batch_size',
+  help: 'Batch size distribution',
+  labelNames: ['operation'],
+  buckets: [1, 5, 10, 25, 50, 100, 250, 500],
+});
+
+/**
+ * Export metrics handler for Express
+ */
+export async function metricsHandler(_req: any, res: any) {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (error) {
+    res.status(500).end(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/**
+ * Update circuit breaker state metric
+ */
+export function updateCircuitBreakerMetric(
+  circuit: string,
+  state: 'closed' | 'open' | 'half_open'
+) {
+  const stateValue = state === 'closed' ? 0 : state === 'half_open' ? 1 : 2;
+  circuitBreakerState.set({ circuit }, stateValue);
+}
+
+/**
+ * Record tool call metrics
+ */
+export function recordToolCall(
+  tool: string,
+  action: string,
+  status: 'success' | 'error',
+  durationSeconds: number
+) {
+  toolCallsTotal.inc({ tool, action, status });
+  toolCallDuration.observe({ tool, action }, durationSeconds);
+}
+
+/**
+ * Record Google API call metrics
+ */
+export function recordGoogleApiCall(
+  method: string,
+  status: 'success' | 'error',
+  durationSeconds: number
+) {
+  googleApiCallsTotal.inc({ method, status });
+  googleApiDuration.observe({ method }, durationSeconds);
+}
+
+/**
+ * Update queue metrics
+ */
+export function updateQueueMetrics(size: number, pending: number) {
+  queueSize.set(size);
+  queuePending.set(pending);
+}
+
+/**
+ * Update cache metrics
+ */
+export function updateCacheMetrics(
+  namespace: string,
+  hits: number,
+  misses: number,
+  sizeBytes: number
+) {
+  cacheHitsTotal.inc({ namespace }, hits);
+  cacheMissesTotal.inc({ namespace }, misses);
+  cacheSize.set({ namespace }, sizeBytes);
+}
+
+/**
+ * Record batch operation
+ */
+export function recordBatchOperation(operation: string, size: number) {
+  batchRequestsTotal.inc({ operation });
+  batchSizeHistogram.observe({ operation }, size);
+}
