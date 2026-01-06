@@ -123,6 +123,57 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
+  // Enterprise Tools
+  sheets_transaction: {
+    title: 'Transaction Support',
+    readOnlyHint: false,
+    destructiveHint: true,  // Commit can modify data
+    idempotentHint: false,
+    openWorldHint: true,
+  },
+  sheets_validation: {
+    title: 'Data Validation',
+    readOnlyHint: true,     // Local validation only
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,   // Local processing
+  },
+  sheets_conflict: {
+    title: 'Conflict Detection',
+    readOnlyHint: true,     // Detection is read-only
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  sheets_impact: {
+    title: 'Impact Analysis',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  sheets_history: {
+    title: 'Operation History',
+    readOnlyHint: true,     // Read history only
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,   // Local history
+  },
+  // MCP-Native Tools
+  sheets_confirm: {
+    title: 'Plan Confirmation',
+    readOnlyHint: true,     // Just asks user
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,   // MCP Elicitation
+  },
+  sheets_analyze: {
+    title: 'AI-Powered Analysis',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: false,  // AI output varies
+    openWorldHint: true,    // MCP Sampling
+  },
 };
 
 /**
@@ -145,6 +196,15 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   sheets_versions: 'Version control: list revision history, view specific revisions, restore previous versions, create named snapshots, compare versions.',
   sheets_analysis: 'Data analysis (read-only): check data quality, audit formulas, analyze structure, compute statistics, find correlations.',
   sheets_advanced: 'Advanced features: named ranges, protected ranges, developer metadata, banded ranges (alternating row colors).',
+  // Enterprise Tools
+  sheets_transaction: 'Transaction support: begin, queue operations, commit/rollback atomically with auto-snapshot.',
+  sheets_validation: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.).',
+  sheets_conflict: 'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
+  sheets_impact: 'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables).',
+  sheets_history: 'Operation history: track last 100 operations for debugging and undo foundation.',
+  // MCP-Native Tools
+  sheets_confirm: 'Plan confirmation: uses MCP Elicitation (SEP-1036) for user confirmation before execution.',
+  sheets_analyze: 'AI-powered analysis: uses MCP Sampling (SEP-1577) for pattern detection, anomalies, trends.',
 };
 
 /**
@@ -160,13 +220,22 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_dimensions: 21,
   sheets_rules: 8,
   sheets_charts: 9,
-  sheets_pivot: 6,  // Was 8, but add_calculated_field and remove_calculated_field are not implemented
+  sheets_pivot: 6,
   sheets_filter_sort: 14,
   sheets_sharing: 8,
   sheets_comments: 10,
   sheets_versions: 10,
-  sheets_analysis: 13,  // data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
+  sheets_analysis: 13,
   sheets_advanced: 19,
+  // Enterprise Tools
+  sheets_transaction: 6,  // begin, queue, commit, rollback, status, list
+  sheets_validation: 1,   // validate
+  sheets_conflict: 2,     // detect, resolve
+  sheets_impact: 1,       // analyze
+  sheets_history: 7,      // list, get, stats, undo, redo, revert_to, clear
+  // MCP-Native Tools
+  sheets_confirm: 1,      // confirm (via Elicitation)
+  sheets_analyze: 1,      // analyze (via Sampling)
 };
 
 /**

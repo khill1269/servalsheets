@@ -1,5 +1,13 @@
 /**
  * ServalSheets - Services Index
+ *
+ * Services follow the correct MCP architectural pattern:
+ * - Claude (LLM) does planning and orchestration
+ * - Services provide infrastructure and utilities
+ * - Elicitation (SEP-1036) for user confirmation
+ * - Sampling (SEP-1577) for AI-powered analysis
+ * 
+ * Note: Types are exported from schemas (not duplicated here) to avoid conflicts.
  */
 
 // Core Services
@@ -20,11 +28,23 @@ export * from './batching-system.js';
 export * from './access-pattern-tracker.js';
 export * from './batch-aggregator.js';
 
-// Phase 3: Intelligence
-export * from './workflow-engine.js';
-export * from './planning-agent.js';
-export * from './insights-service.js';
-export * from './tool-orchestrator.js';
+// Phase 3: MCP-Native Intelligence
+// Export only functions, not types (types come from schemas)
+export {
+  getConfirmationService,
+  resetConfirmationService,
+} from './confirm-service.js';
+
+export {
+  buildAnalysisSamplingRequest,
+  buildFormulaSamplingRequest,
+  buildChartSamplingRequest,
+  parseAnalysisResponse,
+  getSamplingAnalysisService,
+  resetSamplingAnalysisService,
+} from './sampling-analysis.js';
+
+// Removed: workflow-engine.js (Claude orchestrates natively via MCP)
 
 // Phase 4: Safety & Reliability
 export * from './transaction-manager.js';

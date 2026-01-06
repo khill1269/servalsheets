@@ -10,6 +10,7 @@
 
 import { type ServalSheetsServerOptions } from './server.js';
 import { logger } from './utils/logger.js';
+import { VERSION } from './version.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,
@@ -57,7 +58,7 @@ for (let i = 0; i < args.length; i++) {
       })
       .catch(() => {
         // eslint-disable-next-line no-console
-        console.log('servalsheets v1.2.0');
+        console.log(`servalsheets v${VERSION}`);
         process.exit(0);
       });
     // Prevent further execution while waiting for import

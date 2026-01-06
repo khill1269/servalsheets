@@ -17,6 +17,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { OAuthProvider } from './oauth-provider.js';
 import { createGoogleApiClient } from './services/google-api.js';
 import { validateEnv } from './config/env.js';
+import { VERSION, SERVER_INFO } from './version.js';
 import {
   TOOL_COUNT,
   ACTION_COUNT,
@@ -235,7 +236,7 @@ async function main(): Promise<void> {
         type: process.env['SESSION_STORE_TYPE'] || 'memory',
         ready: true, // TODO: Add Redis ping check
       },
-      version: '1.2.0',
+      version: VERSION,
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
     };
@@ -255,10 +256,10 @@ async function main(): Promise<void> {
   // Server info
   app.get('/info', (_req, res) => {
     res.json({
-      name: 'servalsheets',
-      version: '1.2.0',
+      name: SERVER_INFO.name,
+      version: VERSION,
       description: 'Production-grade Google Sheets MCP server',
-      protocol: 'MCP 2025-11-25',
+      protocol: `MCP ${SERVER_INFO.protocolVersion}`,
       tools: getToolMetadata(),
     });
   });
@@ -310,8 +311,8 @@ async function main(): Promise<void> {
       // Create MCP server
       const mcpServer = new McpServer(
         {
-          name: 'servalsheets',
-          version: '1.2.0',
+          name: SERVER_INFO.name,
+          version: SERVER_INFO.version,
         },
         {
           capabilities: createServerCapabilities(),

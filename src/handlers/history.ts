@@ -1,10 +1,11 @@
 /**
  * ServalSheets - History Handler
  *
- * Handles operation history tracking for debugging and undo foundation.
+ * Handles operation history tracking, undo/redo functionality, and debugging.
  */
 
 import { getHistoryService } from '../services/history-service.js';
+import { SnapshotService } from '../services/snapshot.js';
 import type {
   SheetsHistoryInput,
   SheetsHistoryOutput,
@@ -12,12 +13,14 @@ import type {
 } from '../schemas/history.js';
 
 export interface HistoryHandlerOptions {
-  // Options can be added as needed
+  snapshotService?: SnapshotService;
 }
 
 export class HistoryHandler {
-  constructor(_options: HistoryHandlerOptions = {}) {
-    // Constructor logic if needed
+  private snapshotService?: SnapshotService;
+
+  constructor(options: HistoryHandlerOptions = {}) {
+    this.snapshotService = options.snapshotService;
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
@@ -109,6 +112,203 @@ export class HistoryHandler {
               recentFailures: stats.failedOperations,
             },
             message: `${stats.totalOperations} operation(s) tracked, ${stats.successRate.toFixed(1)}% success rate`,
+          };
+          break;
+        }
+
+        case 'undo': {
+          const operation = historyService.getLastUndoable(request.spreadsheetId);
+
+          if (!operation) {
+            response = {
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `No undoable operations for spreadsheet ${request.spreadsheetId}`,
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          if (!operation.snapshotId) {
+            response = {
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `Operation ${operation.id} has no snapshot for undo`,
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          if (!this.snapshotService) {
+            response = {
+              success: false,
+              error: {
+                code: 'SERVICE_NOT_INITIALIZED',
+                message: 'Snapshot service not available',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          try {
+            // Restore from snapshot
+            const restoredId = await this.snapshotService.restore(operation.snapshotId);
+
+            // Mark as undone in history
+            historyService.markAsUndone(operation.id, request.spreadsheetId);
+
+            response = {
+              success: true,
+              action: 'undo',
+              restoredSpreadsheetId: restoredId,
+              operationRestored: {
+                id: operation.id,
+                tool: operation.tool,
+                action: operation.action,
+                timestamp: new Date(operation.timestamp).getTime(),
+              },
+              message: `Undid ${operation.tool}.${operation.action} operation`,
+            };
+          } catch (error) {
+            response = {
+              success: false,
+              error: {
+                code: 'SNAPSHOT_RESTORE_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'redo': {
+          const operation = historyService.getLastRedoable(request.spreadsheetId);
+
+          if (!operation) {
+            response = {
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `No redoable operations for spreadsheet ${request.spreadsheetId}`,
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          /**
+           * Redo functionality is not yet implemented.
+           *
+           * Implementation would require:
+           * 1. Re-executing the original operation with stored parameters
+           * 2. Validating that the spreadsheet state allows re-execution
+           * 3. Managing the redo stack properly after execution
+           *
+           * For now, we return a clear error instead of attempting partial functionality.
+           */
+          response = {
+            success: false,
+            error: {
+              code: 'FEATURE_UNAVAILABLE',
+              message: 'Redo functionality is not yet implemented. Only undo operations are currently supported.',
+              details: { reason: 'Redo requires re-execution of operations which is not yet implemented' },
+              retryable: false,
+            },
+          };
+          break;
+        }
+
+        case 'revert_to': {
+          const operation = historyService.getById(request.operationId);
+
+          if (!operation) {
+            response = {
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `Operation ${request.operationId} not found`,
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          if (!operation.snapshotId) {
+            response = {
+              success: false,
+              error: {
+                code: 'NOT_FOUND',
+                message: `Operation ${operation.id} has no snapshot for revert`,
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          if (!this.snapshotService) {
+            response = {
+              success: false,
+              error: {
+                code: 'SERVICE_NOT_INITIALIZED',
+                message: 'Snapshot service not available',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          try {
+            // Restore from snapshot (state before this operation)
+            const restoredId = await this.snapshotService.restore(operation.snapshotId);
+
+            response = {
+              success: true,
+              action: 'revert_to',
+              restoredSpreadsheetId: restoredId,
+              operationRestored: {
+                id: operation.id,
+                tool: operation.tool,
+                action: operation.action,
+                timestamp: new Date(operation.timestamp).getTime(),
+              },
+              message: `Reverted to state before ${operation.tool}.${operation.action} operation`,
+            };
+          } catch (error) {
+            response = {
+              success: false,
+              error: {
+                code: 'SNAPSHOT_RESTORE_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'clear': {
+          let cleared: number;
+
+          if (request.spreadsheetId) {
+            cleared = historyService.clearForSpreadsheet(request.spreadsheetId);
+          } else {
+            historyService.clear();
+            cleared = historyService.size();
+          }
+
+          response = {
+            success: true,
+            action: 'clear',
+            operationsCleared: cleared,
+            message: request.spreadsheetId
+              ? `Cleared ${cleared} operation(s) for spreadsheet ${request.spreadsheetId}`
+              : `Cleared all ${cleared} operation(s)`,
           };
           break;
         }

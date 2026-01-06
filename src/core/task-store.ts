@@ -21,7 +21,7 @@ export interface Task {
 
 export interface TaskResult {
   result: CallToolResult;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'cancelled';
 }
 
 /**
@@ -36,11 +36,32 @@ export interface TaskStore {
   createTask(options: { ttl?: number }): Promise<Task>;
   getTask(taskId: string): Promise<Task | null>;
   updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void>;
-  storeTaskResult(taskId: string, status: 'completed' | 'failed', result: CallToolResult): Promise<void>;
+  storeTaskResult(taskId: string, status: 'completed' | 'failed' | 'cancelled', result: CallToolResult): Promise<void>;
   getTaskResult(taskId: string): Promise<TaskResult | null>;
   deleteTask(taskId: string): Promise<void>;
   cleanupExpiredTasks(): Promise<number>;
   getAllTasks(): Promise<Task[]>;
+
+  /**
+   * Cancel a running task
+   * @param taskId - Task identifier
+   * @param reason - Optional reason for cancellation
+   */
+  cancelTask(taskId: string, reason?: string): Promise<void>;
+
+  /**
+   * Check if task was cancelled
+   * @param taskId - Task identifier
+   * @returns true if task was cancelled
+   */
+  isTaskCancelled(taskId: string): Promise<boolean>;
+
+  /**
+   * Get cancellation reason if any
+   * @param taskId - Task identifier
+   * @returns Cancellation reason or null
+   */
+  getCancellationReason(taskId: string): Promise<string | null>;
 }
 
 /**
@@ -58,6 +79,7 @@ export interface TaskStore {
 export class InMemoryTaskStore implements TaskStore {
   private tasks = new Map<string, Task>();
   private results = new Map<string, TaskResult>();
+  private cancelledTasks = new Map<string, string>(); // taskId -> reason
   private cleanupInterval: NodeJS.Timeout;
 
   constructor(cleanupIntervalMs: number = 60000) {
@@ -139,12 +161,12 @@ export class InMemoryTaskStore implements TaskStore {
    * Store task result (terminal state)
    *
    * @param taskId - Task identifier
-   * @param status - 'completed' or 'failed'
+   * @param status - 'completed', 'failed', or 'cancelled'
    * @param result - Tool result to return to client
    */
   async storeTaskResult(
     taskId: string,
-    status: 'completed' | 'failed',
+    status: 'completed' | 'failed' | 'cancelled',
     result: CallToolResult
   ): Promise<void> {
     // Update task status to terminal state
@@ -257,6 +279,52 @@ export class InMemoryTaskStore implements TaskStore {
     }
 
     return stats;
+  }
+
+  /**
+   * Cancel a running task
+   *
+   * @param taskId - Task identifier
+   * @param reason - Optional reason for cancellation
+   */
+  async cancelTask(taskId: string, reason?: string): Promise<void> {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      throw new Error(`Task ${taskId} not found`);
+    }
+
+    if (task.status === 'completed' || task.status === 'failed') {
+      // Already finished, can't cancel
+      return;
+    }
+
+    // Mark as cancelled
+    this.cancelledTasks.set(taskId, reason || 'Cancelled by client');
+
+    // Update task status
+    await this.updateTaskStatus(taskId, 'cancelled');
+
+    console.error(`[TaskStore] Task ${taskId} cancelled: ${reason || 'no reason'}`);
+  }
+
+  /**
+   * Check if task was cancelled
+   *
+   * @param taskId - Task identifier
+   * @returns true if task was cancelled
+   */
+  async isTaskCancelled(taskId: string): Promise<boolean> {
+    return this.cancelledTasks.has(taskId);
+  }
+
+  /**
+   * Get cancellation reason if any
+   *
+   * @param taskId - Task identifier
+   * @returns Cancellation reason or null
+   */
+  async getCancellationReason(taskId: string): Promise<string | null> {
+    return this.cancelledTasks.get(taskId) || null;
   }
 }
 
@@ -429,7 +497,7 @@ export class RedisTaskStore implements TaskStore {
    */
   async storeTaskResult(
     taskId: string,
-    status: 'completed' | 'failed',
+    status: 'completed' | 'failed' | 'cancelled',
     result: CallToolResult
   ): Promise<void> {
     await this.ensureConnected();
@@ -598,5 +666,66 @@ export class RedisTaskStore implements TaskStore {
     }
 
     return stats;
+  }
+
+  /**
+   * Cancel a running task
+   *
+   * @param taskId - Task identifier
+   * @param reason - Optional reason for cancellation
+   */
+  async cancelTask(taskId: string, reason?: string): Promise<void> {
+    await this.ensureConnected();
+
+    const taskKey = this.getTaskKey(taskId);
+    const task = await this.client.hGetAll(taskKey);
+
+    if (!task || Object.keys(task).length === 0) {
+      throw new Error(`Task ${taskId} not found`);
+    }
+
+    const status = task['status'];
+    if (status === 'completed' || status === 'failed') {
+      return;
+    }
+
+    // Store cancellation reason
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
+    const ttlSeconds = Math.ceil(parseInt(task['ttl'], 10) / 1000);
+    await this.client.set(cancelKey, reason || 'Cancelled by client', {
+      EX: ttlSeconds,
+    });
+
+    // Update task status
+    await this.updateTaskStatus(taskId, 'cancelled');
+
+    console.error(`[TaskStore] Task ${taskId} cancelled: ${reason || 'no reason'}`);
+  }
+
+  /**
+   * Check if task was cancelled
+   *
+   * @param taskId - Task identifier
+   * @returns true if task was cancelled
+   */
+  async isTaskCancelled(taskId: string): Promise<boolean> {
+    await this.ensureConnected();
+
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
+    const reason = await this.client.get(cancelKey);
+    return reason !== null;
+  }
+
+  /**
+   * Get cancellation reason if any
+   *
+   * @param taskId - Task identifier
+   * @returns Cancellation reason or null
+   */
+  async getCancellationReason(taskId: string): Promise<string | null> {
+    await this.ensureConnected();
+
+    const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
+    return await this.client.get(cancelKey);
   }
 }

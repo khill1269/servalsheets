@@ -246,6 +246,11 @@ export interface PlanModification {
 }
 
 /**
+ * Tool executor function type for executing plan steps
+ */
+export type ToolExecutor = (action: string, params: Record<string, unknown>) => Promise<unknown>;
+
+/**
  * Planning agent configuration
  */
 export interface PlanningAgentOptions {
@@ -269,6 +274,9 @@ export interface PlanningAgentOptions {
 
   /** Verbose logging (default: false) */
   verboseLogging?: boolean;
+
+  /** Tool executor for real tool execution (optional) */
+  toolExecutor?: ToolExecutor;
 }
 
 /**

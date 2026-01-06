@@ -15,6 +15,12 @@ import type {
   SharingResponse,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+import {
+  ScopeValidator,
+  ScopeCategory,
+  IncrementalScopeRequiredError,
+  isIncrementalScopeError,
+} from '../security/incremental-scope.js';
 
 type SharingSuccess = Extract<SharingResponse, { success: true }>;
 
@@ -48,14 +54,30 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
       };
     }
     if (!this.context.auth?.hasElevatedAccess) {
-      return {
-        response: this.error({
-          code: 'PERMISSION_DENIED',
-          message: 'Elevated Drive scope required for sharing operations',
-          retryable: false,
-          suggestedFix: 'Initialize Google API client with elevatedAccess or drive scope.',
-        }),
-      };
+      // Use incremental scope consent system
+      const validator = new ScopeValidator({
+        scopes: this.context.auth?.scopes ?? [],
+      });
+      
+      const operation = `sheets_sharing.${input.request.action}`;
+      const requirements = validator.getOperationRequirements(operation);
+      
+      // Generate authorization URL for incremental consent
+      const authUrl = validator.generateIncrementalAuthUrl(
+        requirements?.missing ?? ['https://www.googleapis.com/auth/drive']
+      );
+      
+      // Return structured incremental scope error
+      const error = new IncrementalScopeRequiredError({
+        operation,
+        requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
+        currentScopes: this.context.auth?.scopes ?? [],
+        authorizationUrl: authUrl,
+        category: requirements?.category ?? ScopeCategory.DRIVE_FULL,
+        description: requirements?.description ?? 'Sharing operations require full Drive access',
+      });
+      
+      return { response: error.toToolResponse() as unknown as SharingResponse };
     }
 
     // Audit log: Elevated scope operation

@@ -6,14 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
-
 ## [1.3.0] - 2026-01-06
 
-**MCP Protocol Native Refactor**
+**MCP Protocol Native Refactor + Full Protocol Compliance**
 
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
+This release refactors AI and planning capabilities to use MCP protocol-native features and implements all optional MCP enhancements for full protocol compliance with 2025-11-25 specification.
 
 ### Added
+
+- **MCP logging/setLevel handler** - Dynamic log level control
+  - Allows clients to adjust server verbosity at runtime
+  - Maps MCP log levels to Winston levels (debug/info/warning/error)
+  - Full protocol compliance for logging capability
+
+- **Expanded Resource Coverage** - Enhanced discoverability
+  - `sheets:///{spreadsheetId}/charts` - All charts in spreadsheet with specifications
+  - `sheets:///{spreadsheetId}/charts/{chartId}` - Specific chart details and styling
+  - `sheets:///{spreadsheetId}/pivots` - Pivot table configurations and source ranges
+  - `sheets:///{spreadsheetId}/quality` - Data quality analysis report with issue detection
+
+- **Task Cancellation Support** - Full AbortController integration (SEP-1686)
+  - Tasks can be cancelled mid-execution via tasks/cancel API
+  - AbortSignal propagated through entire handler chain
+  - TaskStore interface extended with cancellation methods
+  - Implemented in both InMemoryTaskStore and RedisTaskStore
+  - Automatic cleanup of AbortController instances
+  - Proper handling of AbortError exceptions
+
+- **Request ID Propagation** - Enhanced request tracing
+  - Request IDs consistently logged across all handlers
+  - HandlerContext includes requestId for full tracing
+  - Error responses include request ID in metadata
+  - Improved debugging and observability
 
 - **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
   - `request` action: Present operation plans for user approval
@@ -38,61 +62,11 @@ This release refactors the AI and planning capabilities to use MCP protocol-nati
   - Old: Custom ML-like insights → New: Real LLM via Sampling
   - Old: Custom orchestration → New: MCP handles natively
 
-### Removed
+- **HandlerContext interface**: Extended with `abortSignal` and `requestId` fields
 
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
+- **TaskStore interface**: Added `cancelTask`, `isTaskCancelled`, `getCancellationReason` methods
 
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
+- **TaskResult interface**: Added 'cancelled' status alongside 'completed' and 'failed'
 
 ### Removed
 
@@ -104,397 +78,24 @@ This release refactors the AI and planning capabilities to use MCP protocol-nati
 
 ### Technical Details
 
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
-
-- **Elicitation Integration** (SEP-1036):
-  - Form-based user confirmation
-  - Structured approval/decline/cancel responses
-  - Graceful degradation when unavailable
-
-- **Sampling Integration** (SEP-1577):
-  - JSON-structured prompts for consistent LLM responses
-  - Automatic data sampling for large datasets
-  - Error handling with retry support
-  - Statistics tracking for analysis operations
-
-- **Tool Count**: 23 tools with 152 actions
-
----
-
-## [1.3.0] - 2026-01-06
-
-**MCP Protocol Native Refactor**
-
-This release refactors the AI and planning capabilities to use MCP protocol-native features instead of custom implementations. This follows the correct architectural pattern where Claude handles planning/intelligence and ServalSheets provides confirmation and data access.
-
-### Added
-
-- **sheets_confirm tool** - User confirmation via MCP Elicitation (SEP-1036)
-  - `request` action: Present operation plans for user approval
-  - `get_stats` action: Get confirmation statistics
-  - Risk level assessment (low/medium/high/critical)
-  - Formatted plan display with warnings
-  - Supports modifications before approval
-
-- **sheets_analyze tool** - AI analysis via MCP Sampling (SEP-1577)
-  - `analyze` action: Comprehensive data analysis using LLM intelligence
-    - Pattern detection, anomaly detection, trend analysis
-    - Data quality assessment, correlation analysis
-    - Returns structured insights with confidence scores
-  - `generate_formula` action: Natural language → Google Sheets formula
-  - `suggest_chart` action: AI-powered chart recommendations
-  - `get_stats` action: Get analysis statistics
-
-### Changed
-
-- **Architecture**: Replaced custom planning/insights with MCP-native patterns
-  - Old: Custom rule-based planning → New: Claude plans naturally
-  - Old: Custom ML-like insights → New: Real LLM via Sampling
-  - Old: Custom orchestration → New: MCP handles natively
-
-### Removed
-
-- **planning-agent.ts** - Replaced by Claude's native planning + sheets_confirm
-- **tool-orchestrator.ts** - Redundant; MCP handles orchestration
-- **insights-service.ts** - Replaced by sheets_analyze using Sampling
-- **sheets_plan tool** - Replaced by sheets_confirm
-- **sheets_insights tool** - Replaced by sheets_analyze
-
-### Technical Details
+- **Logging Handler**:
+  - Registered at server initialization
+  - Winston level mapping: emergency/alert/critical→error, warning→warn, notice/info→info, debug→debug
+  - Level changes logged for audit trail
+
+- **Resource Discovery**:
+  - Chart resources fetch full chart specifications from sheets.spreadsheets.get
+  - Pivot resources extract configuration and source range details
+  - Quality resources analyze first 200 rows for data issues
+  - All resources use request deduplication for performance
+
+- **Task Cancellation Flow**:
+  1. Client calls tasks/cancel with taskId
+  2. Server marks task as cancelled in TaskStore
+  3. AbortController.abort() triggered for running task
+  4. Handler checks abortSignal and throws AbortError
+  5. Task result stored with 'cancelled' status
+  6. Resources cleaned up automatically
 
 - **Elicitation Integration** (SEP-1036):
   - Form-based user confirmation

@@ -6,6 +6,8 @@
  * Phase 4, Task 4.3
  */
 
+import type { GoogleApiClient } from '../services/google-api.js';
+
 /**
  * Impact severity
  */
@@ -261,6 +263,9 @@ export interface ImpactAnalyzerConfig {
 
   /** Verbose logging */
   verboseLogging?: boolean;
+
+  /** Google API client for fetching spreadsheet metadata */
+  googleClient?: GoogleApiClient;
 }
 
 /**

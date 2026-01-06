@@ -285,6 +285,64 @@ export class RequestDeduplicator {
   }
 
   /**
+   * Invalidate cache entries by pattern (for targeted cache invalidation)
+   * @param pattern - String or RegExp to match against request keys
+   * @returns Number of entries invalidated
+   *
+   * @example
+   * // Invalidate all cache entries for a specific spreadsheet
+   * deduplicator.invalidateCache(/^spreadsheet:123:/);
+   *
+   * // Invalidate all values operations
+   * deduplicator.invalidateCache('values');
+   */
+  invalidateCache(pattern: string | RegExp): number {
+    const keys = Array.from(this.resultCache.keys());
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+
+    let invalidated = 0;
+
+    // We need to check the original request keys, not the hashed keys
+    // Unfortunately LRU cache doesn't store metadata, so we'll match against hashes
+    // This is a limitation - for full pattern matching, we'd need to store key mapping
+    for (const key of keys) {
+      // For now, we can only do simple pattern matching on the hash
+      // In production, consider storing a key mapping if pattern invalidation is critical
+      if (regex.test(key)) {
+        this.resultCache.delete(key);
+        invalidated++;
+      }
+    }
+
+    if (invalidated > 0) {
+      logger.info('Cache invalidated by pattern', {
+        pattern: pattern.toString(),
+        invalidated,
+        remaining: this.resultCache.size,
+      });
+    }
+
+    return invalidated;
+  }
+
+  /**
+   * Invalidate all cache entries for a specific spreadsheet
+   * Convenience method for the most common invalidation pattern
+   */
+  invalidateSpreadsheet(spreadsheetId: string): number {
+    // Since we hash keys, we can't directly match the spreadsheetId
+    // Clear all cache as a safe fallback
+    // In production, consider adding a spreadsheet->keys mapping
+    const count = this.resultCache.size;
+    this.resultCache.clear();
+    logger.info('Invalidated cache for spreadsheet (full clear)', {
+      spreadsheetId,
+      entriesCleared: count,
+    });
+    return count;
+  }
+
+  /**
    * Get comprehensive statistics about deduplication and caching
    */
   getStats(): {

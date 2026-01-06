@@ -20,6 +20,7 @@ import {
 import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
+import type { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getContextManager } from '../services/context-manager.js';
 
 export interface HandlerContext {
@@ -31,12 +32,15 @@ export interface HandlerContext {
   };
   samplingServer?: SamplingServer;
   requestDeduplicator?: RequestDeduplicator;
+  circuitBreaker?: CircuitBreaker;
   elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;
     error: (message: string, ...args: unknown[]) => void;
   };
+  abortSignal?: AbortSignal;
+  requestId?: string;
 }
 
 /**

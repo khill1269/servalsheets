@@ -32,12 +32,14 @@ import {
  * Validation Engine - Comprehensive data validation
  */
 export class ValidationEngine {
-  private config: Required<ValidationEngineConfig>;
+  private config: Required<Omit<ValidationEngineConfig, 'googleClient'>>;
+  private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
   private rules: Map<string, ValidationRule>;
   private validationCache: Map<string, { result: ValidationResult; timestamp: number }>;
 
   constructor(config: ValidationEngineConfig = {}) {
+    this.googleClient = config.googleClient;
     this.config = {
       enabled: config.enabled ?? true,
       validateBeforeOperations: config.validateBeforeOperations ?? true,
@@ -616,11 +618,42 @@ export class ValidationEngine {
 let validationEngineInstance: ValidationEngine | null = null;
 
 /**
- * Get validation engine instance
+ * Initialize validation engine (call once during server startup)
  */
-export function getValidationEngine(config?: ValidationEngineConfig): ValidationEngine {
+export function initValidationEngine(
+  googleClient?: ValidationEngineConfig['googleClient']
+): ValidationEngine {
   if (!validationEngineInstance) {
-    validationEngineInstance = new ValidationEngine(config);
+    validationEngineInstance = new ValidationEngine({
+      enabled: process.env['VALIDATION_ENABLED'] !== 'false',
+      validateBeforeOperations: process.env['VALIDATION_BEFORE_OPERATIONS'] !== 'false',
+      stopOnFirstError: process.env['VALIDATION_STOP_ON_FIRST_ERROR'] === 'true',
+      maxErrors: parseInt(process.env['VALIDATION_MAX_ERRORS'] || '100'),
+      asyncTimeout: parseInt(process.env['VALIDATION_ASYNC_TIMEOUT'] || '5000'),
+      enableCaching: process.env['VALIDATION_ENABLE_CACHING'] !== 'false',
+      cacheTtl: parseInt(process.env['VALIDATION_CACHE_TTL'] || '60000'),
+      verboseLogging: process.env['VALIDATION_VERBOSE'] === 'true',
+      googleClient,
+    });
   }
   return validationEngineInstance;
+}
+
+/**
+ * Get validation engine instance
+ */
+export function getValidationEngine(): ValidationEngine {
+  if (!validationEngineInstance) {
+    throw new Error(
+      'Validation engine not initialized. Call initValidationEngine() first.'
+    );
+  }
+  return validationEngineInstance;
+}
+
+/**
+ * Reset validation engine (for testing)
+ */
+export function resetValidationEngine(): void {
+  validationEngineInstance = null;
 }

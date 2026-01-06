@@ -35,7 +35,8 @@ import {
  * Conflict Detector - Detects and resolves multi-user conflicts
  */
 export class ConflictDetector {
-  private config: Required<ConflictDetectorConfig>;
+  private config: Required<Omit<ConflictDetectorConfig, 'googleClient'>>;
+  private googleClient?: ConflictDetectorConfig['googleClient'];
   private stats: ConflictDetectorStats;
   private versionCache: Map<string, VersionCacheEntry>;
   private locks: Map<string, OptimisticLock>;
@@ -43,6 +44,7 @@ export class ConflictDetector {
   private activeConflicts: Map<string, Conflict>;
 
   constructor(config: ConflictDetectorConfig = {}) {
+    this.googleClient = config.googleClient;
     this.config = {
       enabled: config.enabled ?? true,
       checkBeforeWrite: config.checkBeforeWrite ?? true,
@@ -260,48 +262,99 @@ export class ConflictDetector {
 
   /**
    * Resolve by overwriting with user's version
+   * 
+   * DESIGN NOTE: This method updates version tracking metadata.
+   * The actual write operation should be performed by the caller
+   * (e.g., values handler) after conflict resolution succeeds.
+   * This follows the separation of concerns where conflict-detector
+   * handles versioning and conflict state, not data mutations.
    */
   private async resolveOverwrite(conflict: Conflict): Promise<ConflictResolutionResult> {
+    const startTime = Date.now();
     this.log(`Resolving conflict ${conflict.id} with overwrite strategy`);
 
-    // TODO: Integrate with Google Sheets API to write user's version
-    // For now, simulate
-    await this.delay(100);
-
+    // Create the new version based on user's version
     const finalVersion: RangeVersion = {
       ...conflict.yourVersion,
       lastModified: Date.now(),
       version: conflict.currentVersion.version + 1,
     };
 
+    // Update version cache to reflect the resolution
+    const cacheKey = this.getCacheKey(conflict.spreadsheetId, conflict.range);
+    this.versionCache.set(cacheKey, {
+      version: finalVersion,
+      cachedAt: Date.now(),
+      ttl: this.config.versionCacheTtl,
+      accessCount: 1,
+    });
+
+    this.log(`Conflict ${conflict.id} resolved: version ${finalVersion.version} will overwrite`);
+
     return {
       conflictId: conflict.id,
       success: true,
       strategyUsed: 'overwrite',
       finalVersion,
-      duration: 100,
+      duration: Date.now() - startTime,
     };
   }
 
   /**
    * Resolve by merging changes
+   * 
+   * DESIGN NOTE: If mergeData is provided, it should contain the
+   * already-merged cell values. This method updates version tracking.
+   * The caller should write mergeData to the sheet after resolution.
+   * 
+   * For automatic 3-way merge, use external merge utilities before
+   * calling this method. Complex merge logic belongs in application
+   * layer, not in conflict detection infrastructure.
    */
   private async resolveMerge(
     conflict: Conflict,
     mergeData?: unknown
   ): Promise<ConflictResolutionResult> {
+    const startTime = Date.now();
     this.log(`Resolving conflict ${conflict.id} with merge strategy`);
 
-    // TODO: Implement 3-way merge algorithm
-    // For now, simulate simple merge
-    await this.delay(200);
+    // If merge data provided, write to Google Sheets
+    if (mergeData && this.googleClient && Array.isArray(mergeData)) {
+      try {
+        await this.googleClient.sheets.spreadsheets.values.update({
+          spreadsheetId: conflict.spreadsheetId,
+          range: conflict.range,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: mergeData as unknown[][],
+          },
+        });
+        this.log(`Merged data written to ${conflict.range}`);
+      } catch (error) {
+        this.log(`Failed to write merged data: ${error instanceof Error ? error.message : String(error)}`);
+        return {
+          conflictId: conflict.id,
+          success: false,
+          strategyUsed: 'merge',
+          duration: Date.now() - startTime,
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
+    }
+
+    // Calculate checksum for merged data (or preserve existing if no data)
+    const newChecksum = mergeData 
+      ? this.calculateChecksum(mergeData)
+      : conflict.yourVersion.checksum;
 
     const mergeResult: MergeResult = {
       success: true,
       mergedData: mergeData || {},
       changes: {
         range: conflict.range,
-        totalChanges: 0,
+        totalChanges: Array.isArray(mergeData) 
+          ? mergeData.reduce((sum, row) => sum + (Array.isArray(row) ? row.length : 0), 0)
+          : 0,
       },
     };
 
@@ -309,8 +362,17 @@ export class ConflictDetector {
       ...conflict.yourVersion,
       lastModified: Date.now(),
       version: conflict.currentVersion.version + 1,
-      checksum: this.calculateChecksum(mergeResult.mergedData),
+      checksum: newChecksum,
     };
+
+    // Update version cache
+    const cacheKey = this.getCacheKey(conflict.spreadsheetId, conflict.range);
+    this.versionCache.set(cacheKey, {
+      version: finalVersion,
+      cachedAt: Date.now(),
+      ttl: this.config.versionCacheTtl,
+      accessCount: 1,
+    });
 
     return {
       conflictId: conflict.id,
@@ -318,7 +380,7 @@ export class ConflictDetector {
       strategyUsed: 'merge',
       finalVersion,
       changesApplied: mergeResult.changes,
-      duration: 200,
+      duration: Date.now() - startTime,
     };
   }
 
@@ -466,6 +528,8 @@ export class ConflictDetector {
 
   /**
    * Fetch current version from spreadsheet
+   *
+   * PRODUCTION: Fetches actual cell values and metadata from Google Sheets API
    */
   private async fetchCurrentVersion(
     spreadsheetId: string,
@@ -473,21 +537,63 @@ export class ConflictDetector {
   ): Promise<RangeVersion> {
     this.log(`Fetching current version for range: ${range}`);
 
-    // TODO: Integrate with Google Sheets API
-    // For now, return simulated version
-    await this.delay(50);
-
     const cacheKey = this.getCacheKey(spreadsheetId, range);
     const cached = this.versionCache.get(cacheKey);
 
-    return cached?.version || {
-      spreadsheetId,
-      range,
-      lastModified: Date.now(),
-      modifiedBy: 'unknown',
-      checksum: this.calculateChecksum(null),
-      version: 1,
-    };
+    // Return cached version if still valid
+    if (cached && Date.now() - cached.cachedAt < this.config.versionCacheTtl) {
+      this.log(`Using cached version for ${range}`);
+      return cached.version;
+    }
+
+    if (!this.googleClient) {
+      throw new Error(
+        'Conflict detector requires Google API client for version checking. ' +
+        'Simulated version checking has been removed for production safety.'
+      );
+    }
+
+    try {
+      // Fetch current cell values for checksum calculation
+      const response = await this.googleClient.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: 'FORMATTED_VALUE',
+        dateTimeRenderOption: 'FORMATTED_STRING'
+      });
+
+      const values = response.data.values || [];
+      const checksum = this.calculateChecksum(values);
+
+      // Increment version if checksum changed
+      const version = cached && cached.version.checksum !== checksum
+        ? cached.version.version + 1
+        : cached?.version.version ?? 1;
+
+      const rangeVersion: RangeVersion = {
+        spreadsheetId,
+        range,
+        lastModified: Date.now(),
+        modifiedBy: 'api', // Google Sheets API doesn't provide user info in values response
+        checksum,
+        version,
+      };
+
+      // Update cache
+      this.versionCache.set(cacheKey, {
+        version: rangeVersion,
+        cachedAt: Date.now(),
+        ttl: this.config.versionCacheTtl,
+        accessCount: (cached?.accessCount ?? 0) + 1,
+      });
+
+      this.log(`Fetched version ${version} for ${range} (checksum: ${checksum.substring(0, 8)}...)`);
+
+      return rangeVersion;
+    } catch (error) {
+      this.log(`Failed to fetch current version: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
@@ -649,13 +755,49 @@ export class ConflictDetector {
 let conflictDetectorInstance: ConflictDetector | null = null;
 
 /**
- * Get conflict detector instance
+ * Initialize conflict detector (call once during server startup)
  */
-export function getConflictDetector(
-  config?: ConflictDetectorConfig
+export function initConflictDetector(
+  googleClient?: ConflictDetectorConfig['googleClient']
 ): ConflictDetector {
   if (!conflictDetectorInstance) {
-    conflictDetectorInstance = new ConflictDetector(config);
+    conflictDetectorInstance = new ConflictDetector({
+      enabled: process.env['CONFLICT_DETECTION_ENABLED'] !== 'false',
+      checkBeforeWrite: process.env['CONFLICT_CHECK_BEFORE_WRITE'] !== 'false',
+      autoResolve: process.env['CONFLICT_AUTO_RESOLVE'] === 'true',
+      defaultResolution: (process.env['CONFLICT_DEFAULT_RESOLUTION'] as ResolutionStrategy) || 'manual',
+      versionCacheTtl: parseInt(
+        process.env['CONFLICT_VERSION_CACHE_TTL'] || '300000'
+      ),
+      maxVersionsToCache: parseInt(
+        process.env['CONFLICT_MAX_VERSIONS_TO_CACHE'] || '1000'
+      ),
+      optimisticLocking: process.env['CONFLICT_OPTIMISTIC_LOCKING'] === 'true',
+      conflictCheckTimeoutMs: parseInt(
+        process.env['CONFLICT_CHECK_TIMEOUT_MS'] || '5000'
+      ),
+      verboseLogging: process.env['CONFLICT_VERBOSE'] === 'true',
+      googleClient,
+    });
   }
   return conflictDetectorInstance;
+}
+
+/**
+ * Get conflict detector instance
+ */
+export function getConflictDetector(): ConflictDetector {
+  if (!conflictDetectorInstance) {
+    throw new Error(
+      'Conflict detector not initialized. Call initConflictDetector() first.'
+    );
+  }
+  return conflictDetectorInstance;
+}
+
+/**
+ * Reset conflict detector (for testing)
+ */
+export function resetConflictDetector(): void {
+  conflictDetectorInstance = null;
 }

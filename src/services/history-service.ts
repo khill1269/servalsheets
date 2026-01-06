@@ -39,6 +39,10 @@ export class HistoryService {
   private maxSize: number;
   private verboseLogging: boolean;
 
+  // Undo/Redo stacks per spreadsheet
+  private undoStacks: Map<string, string[]> = new Map(); // spreadsheetId -> [operationIds]
+  private redoStacks: Map<string, string[]> = new Map(); // spreadsheetId -> [operationIds]
+
   constructor(options: HistoryServiceOptions = {}) {
     this.maxSize = options.maxSize ?? 100;
     this.verboseLogging = options.verboseLogging ?? false;
@@ -59,6 +63,16 @@ export class HistoryService {
     // Add to map for fast lookup
     this.operationsMap.set(operation.id, operation);
 
+    // Add to undo stack if it has a snapshot (only successful write operations)
+    if (operation.result === 'success' && operation.snapshotId && operation.spreadsheetId) {
+      const stack = this.undoStacks.get(operation.spreadsheetId) || [];
+      stack.push(operation.id);
+      this.undoStacks.set(operation.spreadsheetId, stack);
+
+      // Clear redo stack when new operation is performed
+      this.redoStacks.set(operation.spreadsheetId, []);
+    }
+
     // Maintain circular buffer
     if (this.operations.length > this.maxSize) {
       const removed = this.operations.shift();
@@ -74,6 +88,7 @@ export class HistoryService {
         action: operation.action,
         result: operation.result,
         duration: operation.duration,
+        hasSnapshot: !!operation.snapshotId,
       });
     }
   }
@@ -232,6 +247,107 @@ export class HistoryService {
    */
   isFull(): boolean {
     return this.operations.length >= this.maxSize;
+  }
+
+  /**
+   * Get the last undoable operation for a spreadsheet
+   */
+  getLastUndoable(spreadsheetId: string): OperationHistory | undefined {
+    const stack = this.undoStacks.get(spreadsheetId);
+    if (!stack || stack.length === 0) {
+      return undefined;
+    }
+
+    const operationId = stack[stack.length - 1];
+    return this.operationsMap.get(operationId!);
+  }
+
+  /**
+   * Get the last redoable operation for a spreadsheet
+   */
+  getLastRedoable(spreadsheetId: string): OperationHistory | undefined {
+    const stack = this.redoStacks.get(spreadsheetId);
+    if (!stack || stack.length === 0) {
+      return undefined;
+    }
+
+    const operationId = stack[stack.length - 1];
+    return this.operationsMap.get(operationId!);
+  }
+
+  /**
+   * Mark operation as undone (moves from undo stack to redo stack)
+   */
+  markAsUndone(operationId: string, spreadsheetId: string): void {
+    const undoStack = this.undoStacks.get(spreadsheetId) || [];
+    const redoStack = this.redoStacks.get(spreadsheetId) || [];
+
+    // Remove from undo stack
+    const index = undoStack.indexOf(operationId);
+    if (index !== -1) {
+      undoStack.splice(index, 1);
+      this.undoStacks.set(spreadsheetId, undoStack);
+
+      // Add to redo stack
+      redoStack.push(operationId);
+      this.redoStacks.set(spreadsheetId, redoStack);
+    }
+  }
+
+  /**
+   * Mark operation as redone (moves from redo stack to undo stack)
+   */
+  markAsRedone(operationId: string, spreadsheetId: string): void {
+    const undoStack = this.undoStacks.get(spreadsheetId) || [];
+    const redoStack = this.redoStacks.get(spreadsheetId) || [];
+
+    // Remove from redo stack
+    const index = redoStack.indexOf(operationId);
+    if (index !== -1) {
+      redoStack.splice(index, 1);
+      this.redoStacks.set(spreadsheetId, redoStack);
+
+      // Add to undo stack
+      undoStack.push(operationId);
+      this.undoStacks.set(spreadsheetId, undoStack);
+    }
+  }
+
+  /**
+   * Clear operations for a specific spreadsheet
+   */
+  clearForSpreadsheet(spreadsheetId: string): number {
+    // Remove operations
+    const before = this.operations.length;
+    this.operations = this.operations.filter((op) => op.spreadsheetId !== spreadsheetId);
+    const removed = before - this.operations.length;
+
+    // Rebuild map
+    this.operationsMap.clear();
+    this.operations.forEach((op) => {
+      this.operationsMap.set(op.id, op);
+    });
+
+    // Clear undo/redo stacks
+    this.undoStacks.delete(spreadsheetId);
+    this.redoStacks.delete(spreadsheetId);
+
+    logger.info(`Cleared ${removed} operations for spreadsheet ${spreadsheetId}`);
+    return removed;
+  }
+
+  /**
+   * Get undo stack size for a spreadsheet
+   */
+  getUndoStackSize(spreadsheetId: string): number {
+    return this.undoStacks.get(spreadsheetId)?.length || 0;
+  }
+
+  /**
+   * Get redo stack size for a spreadsheet
+   */
+  getRedoStackSize(spreadsheetId: string): number {
+    return this.redoStacks.get(spreadsheetId)?.length || 0;
   }
 }
 

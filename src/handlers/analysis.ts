@@ -494,13 +494,21 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   private async handleDependencies(
     input: Extract<AnalysisAction, { action: 'dependencies' }>
   ): Promise<AnalysisResponse> {
-    // Dependency tracing not implemented
-    return this.success('dependencies', {
-      dependencies: {
-        cell: input.cell ?? '',
-        precedents: [],
-        dependents: [],
-      },
+    /**
+     * Dependency tracing is not yet implemented.
+     *
+     * Implementation would require:
+     * 1. Formula parsing to extract cell references (precedents)
+     * 2. Spreadsheet-wide scan to find formulas referencing the target cell (dependents)
+     * 3. Building and traversing a dependency graph
+     *
+     * This is a complex feature that requires significant development effort.
+     * For now, we return a clear error instead of fake empty data.
+     */
+    return this.error({
+      code: 'FEATURE_UNAVAILABLE',
+      message: 'Cell dependency tracing is not yet implemented. This feature requires complex formula parsing and graph traversal.',
+      retryable: false,
     });
   }
 

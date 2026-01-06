@@ -37,6 +37,9 @@ import { completeRange, completeSpreadsheetId, recordSpreadsheetId } from './com
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from './features-2025-11-25.js';
 import { getHistoryService } from '../services/history-service.js';
 import type { OperationHistory } from '../types/history.js';
+import { registerChartResources } from '../resources/charts.js';
+import { registerPivotResources } from '../resources/pivots.js';
+import { registerQualityResources } from '../resources/quality.js';
 import {
   isDiscriminatedUnion,
   zodToJsonSchemaCompat,
@@ -1006,6 +1009,11 @@ export function registerServalSheetsResources(server: McpServer, googleClient: G
       }
     }
   );
+
+  // Register additional data exploration resources
+  registerChartResources(server, googleClient?.sheets ?? null);
+  registerPivotResources(server, googleClient?.sheets ?? null);
+  registerQualityResources(server, googleClient?.sheets ?? null);
 }
 
 // ============================================================================

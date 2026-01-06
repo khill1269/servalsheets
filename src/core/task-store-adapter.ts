@@ -69,7 +69,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
    */
   async storeTaskResult(
     taskId: string,
-    status: 'completed' | 'failed',
+    status: 'completed' | 'failed' | 'cancelled',
     result: Result,
     _sessionId?: string
   ): Promise<void> {
@@ -139,6 +139,27 @@ export class TaskStoreAdapter implements SDKTaskStore {
       tasks: tasks as unknown as Task[],
       nextCursor,
     };
+  }
+
+  /**
+   * Cancel a running task
+   */
+  async cancelTask(taskId: string, reason?: string): Promise<void> {
+    return this.store.cancelTask(taskId, reason);
+  }
+
+  /**
+   * Check if task was cancelled
+   */
+  async isTaskCancelled(taskId: string): Promise<boolean> {
+    return this.store.isTaskCancelled(taskId);
+  }
+
+  /**
+   * Get cancellation reason if any
+   */
+  async getCancellationReason(taskId: string): Promise<string | null> {
+    return this.store.getCancellationReason(taskId);
   }
 
   /**

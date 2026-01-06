@@ -326,6 +326,35 @@ export class CacheManager {
   }
 
   /**
+   * Get cache entries that are expiring soon
+   * @param thresholdMs Time threshold in milliseconds (entries expiring within this time)
+   * @param namespace Optional namespace filter
+   * @returns Array of cache keys that are expiring soon
+   */
+  getExpiringEntries(thresholdMs: number, namespace?: string): Array<{ key: string; expiresIn: number }> {
+    const now = Date.now();
+    const expiringThreshold = now + thresholdMs;
+    const expiring: Array<{ key: string; expiresIn: number }> = [];
+
+    for (const [key, entry] of this.cache) {
+      // Skip if namespace filter provided and doesn't match
+      if (namespace && entry.namespace !== namespace) {
+        continue;
+      }
+
+      // Check if entry is expiring soon (but not already expired)
+      if (entry.expires > now && entry.expires <= expiringThreshold) {
+        expiring.push({
+          key,
+          expiresIn: entry.expires - now,
+        });
+      }
+    }
+
+    return expiring;
+  }
+
+  /**
    * Evict oldest entries to free up space
    */
   private evictOldest(): void {

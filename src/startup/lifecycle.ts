@@ -18,6 +18,7 @@ import {
   getTracer,
   type TracerOptions,
 } from '../utils/tracing.js';
+import { shutdownOtlpExporter } from '../observability/otel-export.js';
 import {
   startConnectionHealthMonitoring,
   stopConnectionHealthMonitoring,
@@ -282,6 +283,12 @@ export async function startBackgroundTasks(options?: {
     logger.debug('Shutting down tracer...');
     await shutdownTracer();
     logger.debug('Tracer shutdown complete');
+  });
+
+  onShutdown(async () => {
+    logger.debug('Shutting down OTLP exporter...');
+    await shutdownOtlpExporter();
+    logger.debug('OTLP exporter shutdown complete');
   });
 
   onShutdown(async () => {

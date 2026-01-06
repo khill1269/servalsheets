@@ -1,10 +1,33 @@
 /**
  * ServalSheets - MCP 2025-11-25 Feature Enhancement
- * 
+ *
  * This file documents and implements all MCP 2025-11-25 features
  * including SEP-1686 (Tasks), SEP-973 (Icons), and proper capability wiring.
- * 
+ *
  * AUDIT: January 2026
+ *
+ * ============================================================================
+ * MCP SERVER CAPABILITIES DECLARATION
+ * ============================================================================
+ *
+ * DECLARED CAPABILITIES (via createServerCapabilities):
+ * - tools: 23 tools with 179 actions (discriminated unions)
+ * - resources: 2 URI templates + 7 knowledge resources
+ * - prompts: 6 guided workflows for common operations
+ * - completions: Argument autocompletion for prompts/resources
+ * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
+ * - logging: Dynamic log level control via logging/setLevel handler
+ *
+ * IMPLEMENTED BUT NOT DECLARED (SDK v1.25.1 limitations):
+ * - elicitation (SEP-1036): sheets_confirm uses extra.elicit for plan confirmation
+ * - sampling (SEP-1577): sheets_analyze uses extra.sample for AI-powered analysis
+ * Note: These features work correctly but cannot be declared in ServerCapabilities
+ * until the SDK adds support for these capability fields.
+ *
+ * NOT APPLICABLE:
+ * - roots: Not applicable for Google Sheets (cloud-based, no filesystem)
+ *
+ * ============================================================================
  */
 
 import type { ServerCapabilities, Icon, ToolExecution } from '@modelcontextprotocol/sdk/types.js';
@@ -181,11 +204,11 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
  * - resources: Auto-registered by McpServer.registerResource()
  * - tools: Auto-registered by McpServer.registerTool()
  * - tasks: Task-augmented execution (SEP-1686)
+ * - logging: Dynamic log level control via logging/setLevel handler
  *
  * NOT DECLARED (but used):
  * - elicitation (SEP-1036): Sheets_confirm uses it, but SDK doesn't expose capability declaration
  * - sampling (SEP-1577): Sheets_analyze uses it, but SDK doesn't expose capability declaration
- * - logging: Not implemented (no logging/setLevel handler)
  *
  * ARCHITECTURAL NOTE:
  * This server USES elicitation and sampling in handlers, but cannot DECLARE them
@@ -210,6 +233,10 @@ export function createServerCapabilities(): ServerCapabilities {
         },
       },
     },
+
+    // Logging support - Dynamic log level control
+    // Clients can use logging/setLevel to adjust server verbosity
+    logging: {},
 
     // Note: tools, prompts, resources capabilities are auto-registered by McpServer
     // when using registerTool(), registerPrompt(), registerResource()

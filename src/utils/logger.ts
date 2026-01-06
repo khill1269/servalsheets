@@ -1,10 +1,11 @@
 /**
  * ServalSheets - Logger
  *
- * Structured logging with sensitive field redaction.
+ * Structured logging with sensitive field redaction and service context.
  */
 
 import winston from 'winston';
+import { getServiceContextFlat } from './logger-context.js';
 
 const REDACTED = '[REDACTED]';
 const SENSITIVE_KEYS = [
@@ -85,6 +86,12 @@ const redactSensitive = winston.format((info) => {
   return redacted;
 });
 
+const addServiceContext = winston.format((info) => {
+  const serviceContext = getServiceContextFlat();
+  Object.assign(info, serviceContext);
+  return info;
+});
+
 const level = process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug');
 
 // Detect if we're in STDIO mode for MCP (logs must go to stderr, not stdout)
@@ -97,6 +104,7 @@ export const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
+    addServiceContext(),
     redactSensitive(),
     winston.format.json()
   ),
@@ -107,6 +115,7 @@ export const logger = winston.createLogger({
       stderrLevels: isStdioMode ? ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'] : ['error'],
     })
   ],
+  defaultMeta: getServiceContextFlat(),
 });
 
 export function createChildLogger(meta: Record<string, unknown>): winston.Logger {

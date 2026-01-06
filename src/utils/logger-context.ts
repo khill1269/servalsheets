@@ -6,6 +6,7 @@
 
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { VERSION } from '../version.js';
 
 /**
  * Service metadata for logging context
@@ -36,19 +37,9 @@ let serviceContext: ServiceContext | null = null;
  */
 export function getServiceContext(): ServiceContext {
   if (!serviceContext) {
-    // Read version from package.json
-    let version = '1.2.0';
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pkg = require('../../package.json');
-      version = pkg.version;
-    } catch {
-      // Fallback to hardcoded version
-    }
-
     serviceContext = {
       service: 'servalsheets',
-      version,
+      version: VERSION,
       environment: process.env['NODE_ENV'] || 'development',
       hostname: os.hostname(),
       nodeVersion: process.version,

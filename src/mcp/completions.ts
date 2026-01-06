@@ -14,7 +14,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  * 
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 160 actions across 16 tools
+ * Total: 185+ actions across 23 tools
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   // sheets_auth: 4 actions (src/schemas/auth.ts)
@@ -64,6 +64,31 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
   
   // sheets_advanced: 19 actions (src/schemas/advanced.ts)
   sheets_advanced: ['add_named_range', 'update_named_range', 'delete_named_range', 'list_named_ranges', 'get_named_range', 'add_protected_range', 'update_protected_range', 'delete_protected_range', 'list_protected_ranges', 'set_metadata', 'get_metadata', 'delete_metadata', 'add_banding', 'update_banding', 'delete_banding', 'list_banding', 'create_table', 'delete_table', 'list_tables'],
+
+  // === Enterprise Tools ===
+
+  // sheets_transaction: 6 actions (src/schemas/transaction.ts)
+  sheets_transaction: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
+
+  // sheets_validation: 1 action (src/schemas/validation.ts)
+  sheets_validation: ['validate'],
+
+  // sheets_conflict: 2 actions (src/schemas/conflict.ts)
+  sheets_conflict: ['detect', 'resolve'],
+
+  // sheets_impact: 1 action (src/schemas/impact.ts)
+  sheets_impact: ['analyze'],
+
+  // sheets_history: 3 actions (src/schemas/history.ts)
+  sheets_history: ['list', 'get', 'stats'],
+
+  // === MCP-Native Tools ===
+
+  // sheets_confirm: 3 actions (src/schemas/confirm.ts) - MCP Elicitation SEP-1036
+  sheets_confirm: ['request', 'check', 'cancel'],
+
+  // sheets_analyze: 1 action (src/schemas/analyze.ts) - MCP Sampling SEP-1577
+  sheets_analyze: ['analyze'],
 };
 
 /**

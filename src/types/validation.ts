@@ -6,6 +6,8 @@
  * Phase 4, Task 4.4
  */
 
+import type { GoogleApiClient } from '../services/google-api.js';
+
 /**
  * Validation rule type
  */
@@ -325,6 +327,9 @@ export interface ValidationEngineConfig {
 
   /** Verbose logging */
   verboseLogging?: boolean;
+
+  /** Google API client for real-time validation */
+  googleClient?: GoogleApiClient;
 }
 
 /**

@@ -10,6 +10,8 @@
  * Phase 4, Task 4.1
  */
 
+import type { GoogleApiClient } from '../services/google-api.js';
+
 /**
  * Transaction status
  */
@@ -480,6 +482,9 @@ export interface TransactionConfig {
 
   /** Default isolation level */
   defaultIsolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
+
+  /** Google API client for batch operations */
+  googleClient?: GoogleApiClient;
 }
 
 /**

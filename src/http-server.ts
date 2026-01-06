@@ -18,7 +18,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 
 import { createGoogleApiClient } from './services/google-api.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/annotations.js';
+import { VERSION, SERVER_INFO } from './version.js';
 import { logger } from './utils/logger.js';
+import { HealthService } from './server/health.js';
 import { metricsHandler } from './observability/metrics.js';
 import {
   BatchCompiler,
@@ -50,6 +52,11 @@ import {
 } from './startup/lifecycle.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { sessionLimiter } from './utils/session-limiter.js';
+import { registerWellKnownHandlers } from './server/well-known.js';
+import {
+  optionalResourceIndicatorMiddleware,
+  createResourceIndicatorValidator,
+} from './security/index.js';
 
 export interface HttpServerOptions {
   port?: number;
@@ -76,8 +83,8 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
 
   const mcpServer = new McpServer(
     {
-      name: 'servalsheets',
-      version: '1.2.0',
+      name: SERVER_INFO.name,
+      version: SERVER_INFO.version,
     },
     {
       capabilities: createServerCapabilities(),
@@ -149,6 +156,9 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   const trustProxy = options.trustProxy ?? true;
 
   const app = express();
+
+  // Health service for liveness/readiness probes
+  const healthService = new HealthService(null); // Will be updated with googleClient per session
 
   // Security middleware
   app.use(helmet({
@@ -275,46 +285,57 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
     next();
   });
 
-  // Health check with detailed metrics
-  app.get('/health', (_req: Request, res: Response) => {
-    const cacheStats = getCacheStats() as Record<string, unknown> | null;
-    const dedupStats = getDeduplicationStats() as Record<string, unknown> | null;
-    const connStats = getConnectionStats() as Record<string, unknown> | null;
-    const memUsage = process.memoryUsage();
+  // Well-known discovery endpoints (RFC 8615)
+  // These must be registered before rate limiting exemption or after with explicit allow
+  registerWellKnownHandlers(app);
 
-    res.json({
-      status: 'healthy',
-      version: '1.2.0',
-      protocol: 'MCP 2025-11-25',
-      uptime: Math.floor(process.uptime()),
-      cache: cacheStats ? {
-        hitRate: parseFloat((cacheStats['hitRate'] as number).toFixed(1)),
-        entries: cacheStats['totalEntries'] as number,
-        sizeMB: parseFloat(((cacheStats['totalSize'] as number) / 1024 / 1024).toFixed(2)),
-      } : null,
-      deduplication: dedupStats ? {
-        savedRequests: dedupStats['savedRequests'] as number,
-        deduplicationRate: parseFloat((dedupStats['deduplicationRate'] as number).toFixed(1)),
-      } : null,
-      connection: connStats ? connStats['status'] as string : null,
-      memory: {
-        heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
-        heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
-        rssMB: parseFloat((memUsage.rss / 1024 / 1024).toFixed(2)),
-      },
-    });
+  // Liveness probe - Is the server running?
+  app.get('/health/live', async (_req: Request, res: Response) => {
+    const health = await healthService.checkLiveness();
+    res.status(200).json(health);
+  });
+
+  // Readiness probe - Is the server ready to handle requests?
+  app.get('/health/ready', async (_req: Request, res: Response) => {
+    const health = await healthService.checkReadiness();
+    // Return 200 for healthy/degraded, 503 for unhealthy
+    const statusCode = health.status === 'unhealthy' ? 503 : 200;
+    res.status(statusCode).json(health);
+  });
+
+  // Legacy /health endpoint (redirects to /health/ready for compatibility)
+  app.get('/health', async (_req: Request, res: Response) => {
+    const health = await healthService.checkReadiness();
+    const statusCode = health.status === 'unhealthy' ? 503 : 200;
+    res.status(statusCode).json(health);
   });
 
   // MCP server info
-  app.get('/info', (_req: Request, res: Response) => {
+  app.get('/info', (req: Request, res: Response) => {
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || `${host}:${port}`;
+    const baseUrl = `${protocol}://${hostHeader}`;
+    
     res.json({
-      name: 'servalsheets',
-      version: '1.2.0',
+      name: SERVER_INFO.name,
+      version: VERSION,
       description: 'Production-grade Google Sheets MCP server',
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
-      protocol: 'MCP 2025-11-25',
-      transports: ['stdio', 'sse', 'http'],
+      protocol: `MCP ${SERVER_INFO.protocolVersion}`,
+      transports: ['stdio', 'sse', 'streamable-http'],
+      discovery: {
+        mcp_configuration: `${baseUrl}/.well-known/mcp-configuration`,
+        oauth_authorization_server: `${baseUrl}/.well-known/oauth-authorization-server`,
+        oauth_protected_resource: `${baseUrl}/.well-known/oauth-protected-resource`,
+      },
+      endpoints: {
+        sse: `${baseUrl}/sse`,
+        mcp: `${baseUrl}/mcp`,
+        health: `${baseUrl}/health`,
+        metrics: `${baseUrl}/metrics`,
+        stats: `${baseUrl}/stats`,
+      },
     });
   });
 
@@ -424,8 +445,13 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
     taskStore: TaskStoreAdapter;
   }>();
 
+  // Resource Indicator validation (RFC 8707) - validates tokens if present
+  const serverUrl = process.env['SERVER_URL'] || `http://${host}:${port}`;
+  const resourceValidator = createResourceIndicatorValidator(serverUrl);
+  const validateResourceIndicator = optionalResourceIndicatorMiddleware(resourceValidator);
+
   // SSE endpoint for Server-Sent Events transport
-  app.get('/sse', async (req: Request, res: Response) => {
+  app.get('/sse', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
     // Extract Google token from Authorization header
     const authHeader = req.headers.authorization;
     const googleToken = authHeader?.startsWith('Bearer ')
@@ -493,7 +519,7 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   });
 
   // SSE message endpoint
-  app.post('/sse/message', async (req: Request, res: Response) => {
+  app.post('/sse/message', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
     const sessionId = req.headers['x-session-id'] as string | undefined;
 
     if (!sessionId) {
@@ -543,7 +569,7 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   });
 
   // Streamable HTTP endpoint
-  app.post('/mcp', async (req: Request, res: Response) => {
+  app.post('/mcp', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
     // Extract Google token
     const authHeader = req.headers.authorization;
     const googleToken = authHeader?.startsWith('Bearer ')

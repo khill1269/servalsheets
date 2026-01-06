@@ -22,5 +22,10 @@ export { registerMetricsResources } from './metrics.js';
 export { registerConfirmResources } from './confirm.js';
 export { registerAnalyzeResources } from './analyze.js';
 
+// Data exploration resources
+export { registerChartResources } from './charts.js';
+export { registerPivotResources } from './pivots.js';
+export { registerQualityResources } from './quality.js';
+
 // Static reference resources
 export { registerReferenceResources, readReferenceResource } from './reference.js';

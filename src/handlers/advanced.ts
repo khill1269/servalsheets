@@ -632,12 +632,25 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     };
   }
 
+  /**
+   * Return error for unavailable features
+   *
+   * Currently unavailable:
+   * - create_table, delete_table, list_tables: Requires Google Sheets Tables API
+   *   (not yet generally available in Sheets API v4)
+   */
   private featureUnavailable(action: AdvancedAction['action']): AdvancedResponse {
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
-      message: `${action} is not implemented in this server build`,
+      message: `${action} is not implemented in this server build. This feature requires API support that is not yet available.`,
+      details: {
+        action,
+        reason: action.includes('table')
+          ? 'Google Sheets Tables API is not yet generally available'
+          : 'Feature not implemented',
+      },
       retryable: false,
-      suggestedFix: 'Use Google Sheets UI or extend the handler.',
+      suggestedFix: 'Use Google Sheets UI or extend the handler when API support becomes available.',
     });
   }
 }

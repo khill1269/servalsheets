@@ -52,11 +52,11 @@ const OperationPlanSchema = z.object({
  */
 const ConfirmActionSchema = z.discriminatedUnion('action', [
   z.object({
-    action: z.literal('request'),
+    action: z.literal('request').describe('Request confirmation for an operation plan'),
     plan: OperationPlanSchema.describe('The plan to confirm with the user'),
   }),
   z.object({
-    action: z.literal('get_stats'),
+    action: z.literal('get_stats').describe('Get confirmation request statistics'),
   }),
 ]);
 

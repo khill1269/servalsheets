@@ -7,26 +7,28 @@ Production-grade Google Sheets MCP Server with 23 tools, 152 actions, safety rai
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-144%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
 
-## What's New in v1.2.0 (2026-01-05)
+## What's New in v1.3.0 (2026-01-06)
 
-🤖 **Advanced Analytics & AI Integration Release**
+🎯 **MCP Protocol Native Refactor + Full Protocol Compliance**
 
-- ✅ **Pattern Detection**: Trend analysis, correlations, anomalies, seasonality detection
-- ✅ **Column Analysis**: Deep data profiling with quality metrics and distributions
-- ✅ **AI-Powered Tools**: Template suggestions, formula generation, chart recommendations
-- ✅ **Request Deduplication**: Prevents duplicate API calls, reduces quota usage
-- ✅ **User Confirmations**: Safety dialogs for destructive bulk operations
-- ✅ **MCP Sampling**: AI features using SEP-1577 (server-to-client LLM requests)
-- ✅ **MCP Elicitation**: User input collection using SEP-1036 (confirmation dialogs)
+- ✅ **MCP Logging**: Dynamic log level control via logging/setLevel handler
+- ✅ **Expanded Resources**: 6 URI templates (charts, pivots, quality analysis)
+- ✅ **Task Cancellation**: Full AbortController support (SEP-1686)
+- ✅ **Request Tracing**: Request ID propagation through handler chain
+- ✅ **MCP Confirm**: User confirmations via sheets_confirm (SEP-1036)
+- ✅ **MCP Analyze**: AI analysis via sheets_analyze (SEP-1577)
+- ✅ **Architecture**: Replaced custom planning/insights with MCP-native patterns
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
-### Previous Release: v1.1.1 (2026-01-04)
+### Previous Release: v1.2.0 (2026-01-05)
 
-🚀 **Performance & Observability Release**
+🤖 **Advanced Analytics & AI Integration Release**
 
-- HTTP Compression, Payload Monitoring, Batch Efficiency Analysis
-- Dynamic Rate Limiting, Test Coverage Thresholds
+- Pattern Detection: Trend analysis, correlations, anomalies, seasonality
+- Column Analysis: Deep data profiling with quality metrics
+- AI-Powered Tools: Template suggestions, formula generation, chart recommendations
+- Request Deduplication, User Confirmations
 
 ### Earlier Release: v1.1.0 (2026-01-03)
 
@@ -43,11 +45,37 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 ## Features
 
 ### Core Capabilities
-- **24 Tools, 192 Actions**: Comprehensive Google Sheets API v4 coverage
+- **23 Tools, 152 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
 - **OAuth 2.1 Support**: For Claude Connectors Directory integration
+
+### MCP Protocol Support
+
+Full compliance with Model Context Protocol 2025-11-25:
+
+- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
+- ✅ **Tools**: 23 tools with 152 actions using discriminated unions
+- ✅ **Resources**: 6 URI templates + 7 knowledge resources
+  - `sheets:///{spreadsheetId}` - Spreadsheet metadata
+  - `sheets:///{spreadsheetId}/{range}` - Range values
+  - `sheets:///{spreadsheetId}/charts` - Chart specifications
+  - `sheets:///{spreadsheetId}/charts/{chartId}` - Individual chart details
+  - `sheets:///{spreadsheetId}/pivots` - Pivot table configurations
+  - `sheets:///{spreadsheetId}/quality` - Data quality analysis
+  - Knowledge resources for formulas, colors, formats
+- ✅ **Prompts**: 6 guided workflows for common operations
+- ✅ **Completions**: Argument autocompletion for prompts/resources
+- ✅ **Tasks**: Background execution with full cancellation support (SEP-1686)
+- ✅ **Elicitation**: Plan confirmation via sheets_confirm (SEP-1036)
+- ✅ **Sampling**: AI-powered analysis via sheets_analyze (SEP-1577)
+- ✅ **Logging**: Dynamic log level control via logging/setLevel handler
+
+#### Transport Support
+- ✅ **STDIO** - For Claude Desktop and local CLI usage
+- ✅ **HTTP/SSE** - For web clients and remote access
+- ✅ **OAuth 2.1** - Authentication for hosted deployments
 
 ### Advanced Analytics 🔬
 - **Pattern Detection**: Trend analysis, correlations, anomalies, seasonality

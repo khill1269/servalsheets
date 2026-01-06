@@ -272,11 +272,45 @@ export class PrefetchingSystem {
 
   /**
    * Refresh cache entries that are expiring soon
+   *
+   * Note: This currently only monitors expiring entries. Full automatic refresh
+   * requires parsing cache keys to reconstruct the original prefetch tasks,
+   * which is complex. Consider storing prefetch metadata separately for full refresh.
    */
   private refreshExpiringSoon(): void {
-    // This would integrate with cache manager to find expiring entries
-    // For now, this is a placeholder for the architecture
-    logger.debug('Background refresh check');
+    try {
+      // Get entries from prefetch namespace that are expiring within the threshold
+      const expiringEntries = cacheManager.getExpiringEntries(
+        this.refreshThreshold,
+        'prefetch'
+      );
+
+      if (expiringEntries.length > 0) {
+        logger.debug('Background refresh: expiring entries detected', {
+          count: expiringEntries.length,
+          threshold: this.refreshThreshold,
+        });
+
+        // Log details for monitoring
+        for (const entry of expiringEntries) {
+          logger.debug('Expiring cache entry', {
+            key: entry.key,
+            expiresIn: `${Math.round(entry.expiresIn / 1000)}s`,
+          });
+        }
+
+        // TODO: Implement automatic refresh by parsing cache keys
+        // Current limitation: Cache keys are opaque strings that would need
+        // complex parsing to reconstruct original spreadsheetId/range parameters
+        // Alternative: Store prefetch task metadata alongside cache entries
+      } else {
+        logger.debug('Background refresh: no expiring entries');
+      }
+    } catch (error) {
+      logger.warn('Background refresh check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

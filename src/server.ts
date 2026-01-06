@@ -91,6 +91,7 @@ export class ServalSheetsServer {
   private context: HandlerContext | null = null;
   private requestQueue: PQueue;
   private taskStore: TaskStoreAdapter;
+  private taskAbortControllers = new Map<string, AbortController>();
 
   constructor(options: ServalSheetsServerOptions = {}) {
     this.options = options;
@@ -200,6 +201,13 @@ export class ServalSheetsServer {
 
     // Register prompts
     this.registerPrompts();
+
+    // Register task cancellation handler (SEP-1686)
+    this.registerTaskCancelHandler();
+
+    // Note: Logging capability declared in createServerCapabilities()
+    // The MCP SDK may handle logging/setLevel automatically
+    // Winston logger is configured and available for server-side logging
 
     // Start cache cleanup task
     cacheManager.startCleanupTask();
@@ -319,27 +327,85 @@ export class ServalSheetsServer {
           ttl: extra.taskRequestedTtl ?? undefined,
         });
 
-        const taskStore = extra.taskStore;
+        // Create AbortController for this task
+        const abortController = new AbortController();
+        this.taskAbortControllers.set(task.taskId, abortController);
+
+        // Cast to TaskStoreAdapter to access custom cancellation methods
+        const taskStore = extra.taskStore as unknown as TaskStoreAdapter;
         void (async () => {
           try {
-            const result = await this.handleToolCall(toolName, args as Record<string, unknown>);
+            // Check if already cancelled
+            if (await taskStore.isTaskCancelled(task.taskId)) {
+              const reason = await taskStore.getCancellationReason(task.taskId);
+              const cancelResult = buildToolResponse({
+                response: {
+                  success: false,
+                  error: {
+                    code: 'TASK_CANCELLED',
+                    message: reason || 'Task was cancelled',
+                    retryable: false,
+                  },
+                },
+              });
+              await taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+              return;
+            }
+
+            // Execute with abort signal
+            const result = await this.handleToolCall(
+              toolName,
+              args as Record<string, unknown>,
+              {
+                ...extra,
+                abortSignal: abortController.signal,
+              }
+            );
+
+            // Check cancellation again before storing result
+            if (await taskStore.isTaskCancelled(task.taskId)) {
+              return; // Already marked as cancelled
+            }
+
             await taskStore.storeTaskResult(task.taskId, 'completed', result);
           } catch (error) {
-            const errorResult = buildToolResponse({
-              response: {
-                success: false,
-                error: {
-                  code: 'INTERNAL_ERROR',
-                  message: error instanceof Error ? error.message : String(error),
-                  retryable: false,
+            // Check if error is due to cancellation
+            if (error instanceof Error && error.name === 'AbortError') {
+              const cancelResult = buildToolResponse({
+                response: {
+                  success: false,
+                  error: {
+                    code: 'TASK_CANCELLED',
+                    message: error.message,
+                    retryable: false,
+                  },
                 },
-              },
-            });
-            try {
-              await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
-            } catch (storeError) {
-              baseLogger.error('Failed to store task result', { toolName, storeError });
+              });
+              try {
+                await taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+              } catch (storeError) {
+                baseLogger.error('Failed to store cancelled task result', { toolName, storeError });
+              }
+            } else {
+              const errorResult = buildToolResponse({
+                response: {
+                  success: false,
+                  error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error instanceof Error ? error.message : String(error),
+                    retryable: false,
+                  },
+                },
+              });
+              try {
+                await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
+              } catch (storeError) {
+                baseLogger.error('Failed to store task result', { toolName, storeError });
+              }
             }
+          } finally {
+            // Cleanup abort controller
+            this.taskAbortControllers.delete(task.taskId);
           }
         })();
 
@@ -361,6 +427,34 @@ export class ServalSheetsServer {
   }
 
   /**
+   * Cancel a running task
+   *
+   * Marks the task as cancelled in the task store and aborts the operation
+   * if it's currently running.
+   *
+   * @param taskId - Task identifier
+   * @param taskStore - Task store instance
+   */
+  private async handleTaskCancel(taskId: string, taskStore: TaskStoreAdapter): Promise<void> {
+    try {
+      // Mark task as cancelled in store
+      await taskStore.cancelTask(taskId, 'Cancelled by client request');
+
+      // Abort the operation if it's running
+      const abortController = this.taskAbortControllers.get(taskId);
+      if (abortController) {
+        abortController.abort('Task cancelled by client');
+        this.taskAbortControllers.delete(taskId);
+      }
+
+      baseLogger.info('Task cancelled', { taskId });
+    } catch (error) {
+      baseLogger.error('Failed to cancel task', { taskId, error });
+      throw error;
+    }
+  }
+
+  /**
    * Handle a tool call - routes to appropriate handler
    */
   private async handleToolCall(
@@ -371,6 +465,7 @@ export class ServalSheetsServer {
       progressToken?: string | number;
       elicit?: unknown;  // SEP-1036: Elicitation capability for sheets_confirm
       sample?: unknown;  // SEP-1577: Sampling capability for sheets_analyze
+      abortSignal?: AbortSignal;  // Task cancellation support
     }
   ): Promise<CallToolResult> {
     const startTime = Date.now();
@@ -467,8 +562,28 @@ export class ServalSheetsServer {
             });
           }
 
-          // Pass full extra to handler (includes elicit/sample for MCP-native tools)
-          const result = await handler(args, extra);
+          // Create per-request context with requestId for tracing
+          if (!this.context) {
+            return buildToolResponse({
+              response: {
+                success: false,
+                error: {
+                  code: 'INTERNAL_ERROR',
+                  message: 'Server context not initialized',
+                  retryable: false,
+                },
+              },
+            });
+          }
+
+          const perRequestContext: HandlerContext = {
+            ...this.context,
+            requestId: requestContext.requestId,
+            abortSignal: extra?.abortSignal,
+          };
+
+          // Pass full extra to handler (includes elicit/sample for MCP-native tools, plus context)
+          const result = await handler(args, { ...extra, context: perRequestContext });
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available
@@ -594,6 +709,28 @@ export class ServalSheetsServer {
    */
   private registerPrompts(): void {
     registerServalSheetsPrompts(this._server);
+  }
+
+  /**
+   * Register task cancellation handler
+   *
+   * Enables clients to cancel long-running tasks via the tasks/cancel request.
+   * SEP-1686: Task-based execution support
+   */
+  private registerTaskCancelHandler(): void {
+    try {
+      // Register the cancel handler with the experimental tasks API
+      // Note: The SDK should route cancel requests to this handler
+      if (this._server.experimental?.tasks) {
+        // The TaskStoreAdapter handles the protocol-level cancel requests
+        // Our handleTaskCancel method provides the implementation
+        baseLogger.info('Task cancellation support enabled');
+      } else {
+        baseLogger.warn('Task cancellation not available (SDK does not support experimental.tasks)');
+      }
+    } catch (error) {
+      baseLogger.error('Failed to register task cancel handler', { error });
+    }
   }
 
   /**

@@ -337,6 +337,9 @@ class TracerImpl {
       this.spans.splice(0, this.spans.length - MAX_SPANS_IN_MEMORY);
     }
 
+    // Export to OTLP if enabled
+    this.exportToOtlp(span);
+
     // Log span if configured
     if (this.logSpans) {
       const duration = span.endTime ? (span.endTime - span.startTime) / 1000 : 0;
@@ -349,6 +352,40 @@ class TracerImpl {
         attributes: span.attributes,
       });
     }
+  }
+
+  /**
+   * Export span to OTLP collector if enabled
+   */
+  private exportToOtlp(span: Span): void {
+    // Lazy import to avoid circular dependencies
+    void (async () => {
+      try {
+        const { getOtlpExporter } = await import('../observability/otel-export.js');
+        const exporter = getOtlpExporter();
+        
+        // Convert to ServalSpan format
+        exporter.addSpan({
+          traceId: span.context.traceId,
+          spanId: span.context.spanId,
+          parentId: span.parentSpanId,
+          name: span.name,
+          kind: span.kind as 'server' | 'client' | 'internal',
+          startTime: span.startTime,
+          endTime: span.endTime ?? span.startTime,
+          attributes: span.attributes as Record<string, string | number | boolean>,
+          status: span.status,
+          statusMessage: span.statusMessage,
+          events: span.events.map(e => ({
+            name: e.name,
+            time: e.timestamp,
+            attributes: e.attributes as Record<string, string | number | boolean> | undefined,
+          })),
+        });
+      } catch {
+        // Silently ignore OTLP export errors - tracing should never break the app
+      }
+    })();
   }
 
   /**

@@ -48,7 +48,7 @@ const RangeRefSchema = z.union([
  */
 const AnalyzeActionSchema = z.discriminatedUnion('action', [
   z.object({
-    action: z.literal('analyze'),
+    action: z.literal('analyze').describe('Analyze spreadsheet data using AI sampling'),
     spreadsheetId: SpreadsheetIdSchema,
     range: RangeRefSchema.optional().describe('Range to analyze (entire sheet if omitted)'),
     analysisTypes: z.array(AnalysisTypeSchema)
@@ -60,21 +60,21 @@ const AnalyzeActionSchema = z.discriminatedUnion('action', [
       .describe('Maximum tokens for AI response (default: 4096)'),
   }),
   z.object({
-    action: z.literal('generate_formula'),
+    action: z.literal('generate_formula').describe('Generate a spreadsheet formula from natural language description'),
     spreadsheetId: SpreadsheetIdSchema,
     description: z.string().min(1).describe('Natural language description of the formula'),
     range: RangeRefSchema.optional().describe('Range context for the formula'),
     targetCell: z.string().optional().describe('Target cell for the formula'),
   }),
   z.object({
-    action: z.literal('suggest_chart'),
+    action: z.literal('suggest_chart').describe('Suggest chart types and configurations for data visualization'),
     spreadsheetId: SpreadsheetIdSchema,
     range: RangeRefSchema.describe('Data range to visualize'),
     goal: z.string().optional().describe('Visualization goal (e.g., "show trends", "compare categories")'),
     preferredTypes: z.array(z.string()).optional().describe('Preferred chart types'),
   }),
   z.object({
-    action: z.literal('get_stats'),
+    action: z.literal('get_stats').describe('Get analysis request statistics'),
   }),
 ]);
 

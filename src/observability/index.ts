@@ -3,3 +3,4 @@
  */
 
 export * from './metrics.js';
+export * from './otel-export.js';

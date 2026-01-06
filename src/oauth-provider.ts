@@ -18,6 +18,7 @@ import { SessionStore, createSessionStore } from './storage/session-store.js';
 import { getSessionStoreConfig } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { CircuitBreaker } from './utils/circuit-breaker.js';
+import { VERSION } from './version.js';
 
 export interface OAuthConfig {
   issuer: string;
@@ -384,7 +385,7 @@ export class OAuthProvider {
     router.get('/.well-known/mcp.json', (_req, res) => {
       res.json({
         name: 'servalsheets',
-        version: '1.2.0',
+        version: VERSION,
         description: 'Production-grade Google Sheets MCP server',
         oauth: {
           authorization_endpoint: `${this.config.issuer}/oauth/authorize`,

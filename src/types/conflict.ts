@@ -10,6 +10,8 @@
  * Phase 4, Task 4.2
  */
 
+import type { GoogleApiClient } from '../services/google-api.js';
+
 /**
  * Conflict severity
  */
@@ -284,6 +286,9 @@ export interface ConflictDetectorConfig {
 
   /** Verbose logging */
   verboseLogging?: boolean;
+
+  /** Google API client for fetching current versions */
+  googleClient?: GoogleApiClient;
 }
 
 /**

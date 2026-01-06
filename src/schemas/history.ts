@@ -24,6 +24,22 @@ const HistoryActionSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('stats'),
   }),
+  z.object({
+    action: z.literal('undo'),
+    spreadsheetId: z.string().min(1).describe('Spreadsheet ID to undo last operation on'),
+  }),
+  z.object({
+    action: z.literal('redo'),
+    spreadsheetId: z.string().min(1).describe('Spreadsheet ID to redo previously undone operation on'),
+  }),
+  z.object({
+    action: z.literal('revert_to'),
+    operationId: z.string().min(1).describe('Operation ID to revert to (restores state before this operation)'),
+  }),
+  z.object({
+    action: z.literal('clear'),
+    spreadsheetId: z.string().optional().describe('Clear history for specific spreadsheet (or all if omitted)'),
+  }),
 ]);
 
 export const SheetsHistoryInputSchema = z.object({
@@ -45,6 +61,7 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       duration: z.number(),
       timestamp: z.number(),
       error: z.string().optional(),
+      snapshotId: z.string().optional(),
     })).optional(),
     // get response
     operation: z.object({
@@ -59,6 +76,7 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       duration: z.number(),
       timestamp: z.number(),
       error: z.string().optional(),
+      snapshotId: z.string().optional(),
     }).optional(),
     // stats response
     stats: z.object({
@@ -70,6 +88,16 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
       operationsByTool: z.record(z.number()),
       recentFailures: z.number(),
     }).optional(),
+    // undo/redo/revert response
+    restoredSpreadsheetId: z.string().optional().describe('ID of restored spreadsheet (for undo/redo/revert)'),
+    operationRestored: z.object({
+      id: z.string(),
+      tool: z.string(),
+      action: z.string(),
+      timestamp: z.number(),
+    }).optional().describe('Details of operation that was undone/redone'),
+    // clear response
+    operationsCleared: z.number().optional().describe('Number of operations cleared'),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),
@@ -84,10 +112,10 @@ export const SheetsHistoryOutputSchema = z.object({
 });
 
 export const SHEETS_HISTORY_ANNOTATIONS: ToolAnnotations = {
-  title: 'Operation History',
-  readOnlyHint: true,
+  title: 'Operation History & Undo',
+  readOnlyHint: false, // undo/redo are write operations
   destructiveHint: false,
-  idempotentHint: true,
+  idempotentHint: false, // undo/redo change state
   openWorldHint: false,
 };
 

@@ -310,12 +310,25 @@ export class VersionsHandler extends BaseHandler<SheetsVersionsInput, SheetsVers
     keepForever: rev?.keepForever ?? false,
   });
 
+  /**
+   * Return error for unavailable features
+   *
+   * Currently unavailable:
+   * - compare: Requires complex diff algorithm for revision comparison
+   *   Implementation would need semantic diff of spreadsheet state
+   */
   private featureUnavailable(action: VersionsAction['action']): VersionsResponse {
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
-      message: `${action} is not implemented in this server build`,
+      message: `${action} is not implemented in this server build. This feature requires complex implementation.`,
+      details: {
+        action,
+        reason: action === 'compare'
+          ? 'Revision comparison requires semantic diff algorithm for spreadsheet state'
+          : 'Feature not implemented',
+      },
       retryable: false,
-      suggestedFix: 'Perform this action via Google Drive UI or extend the handler.',
+      suggestedFix: 'Perform this action via Google Drive UI or extend the handler with custom implementation.',
     });
   }
 }

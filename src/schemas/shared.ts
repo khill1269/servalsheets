@@ -193,7 +193,7 @@ export const ErrorCodeSchema = z.enum([
   // Session limits
   'TOO_MANY_SESSIONS',
   // Data integrity
-  'DATA_ERROR', 'VERSION_MISMATCH',
+  'DATA_ERROR', 'VERSION_MISMATCH', 'NO_DATA',
   // Service lifecycle
   'SERVICE_NOT_INITIALIZED', 'SNAPSHOT_CREATION_FAILED', 'SNAPSHOT_RESTORE_FAILED',
   // Transactions
@@ -202,6 +202,8 @@ export const ErrorCodeSchema = z.enum([
   'SESSION_NOT_FOUND',
   // Batch/Payload
   'PAYLOAD_TOO_LARGE',
+  // MCP-native features (SEP-1036, SEP-1577)
+  'ELICITATION_UNAVAILABLE', 'SAMPLING_UNAVAILABLE',
   // Generic
   'UNKNOWN_ERROR',
 ]);

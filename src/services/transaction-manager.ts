@@ -11,6 +11,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import type { sheets_v4 } from 'googleapis';
 import {
   Transaction,
   TransactionStatus as _TransactionStatus,
@@ -32,7 +33,8 @@ import {
  * Transaction Manager - Handles multi-operation transactions with atomicity
  */
 export class TransactionManager {
-  private config: Required<TransactionConfig>;
+  private config: Required<Omit<TransactionConfig, 'googleClient'>>;
+  private googleClient?: TransactionConfig['googleClient'];
   private stats: TransactionStats;
   private activeTransactions: Map<string, Transaction>;
   private snapshots: Map<string, TransactionSnapshot>;
@@ -40,6 +42,7 @@ export class TransactionManager {
   private operationIdCounter: number;
 
   constructor(config: TransactionConfig = {}) {
+    this.googleClient = config.googleClient;
     this.config = {
       enabled: config.enabled ?? true,
       autoSnapshot: config.autoSnapshot ?? true,
@@ -204,7 +207,7 @@ export class TransactionManager {
       // Merge operations into batch request
       const batchRequest = this.mergeToBatchRequest(transaction.operations);
 
-      // Execute batch request (simulated for now)
+      // Execute batch request via Google Sheets API
       const batchResponse = await this.executeBatchRequest(
         transaction.spreadsheetId,
         batchRequest
@@ -374,42 +377,85 @@ export class TransactionManager {
 
   /**
    * Create a snapshot of spreadsheet state
+   *
+   * PRODUCTION: Fetches actual spreadsheet state from Google Sheets API
    */
   private async createSnapshot(
     spreadsheetId: string
   ): Promise<TransactionSnapshot> {
     this.log(`Creating snapshot for spreadsheet: ${spreadsheetId}`);
 
-    // TODO: Integrate with Google Sheets API to fetch actual state
-    // For now, return simulated snapshot
-    const snapshot: TransactionSnapshot = {
-      id: uuidv4(),
-      spreadsheetId,
-      state: {
-        properties: {},
-        sheets: [],
-      },
-      timestamp: Date.now(),
-      size: 0,
-    };
+    if (!this.googleClient) {
+      throw new Error(
+        'Transaction manager requires Google API client for snapshots. ' +
+        'Simulated snapshots have been removed for production safety.'
+      );
+    }
 
-    this.snapshots.set(snapshot.id, snapshot);
-    this.stats.snapshotsCreated++;
+    try {
+      // Fetch complete spreadsheet state
+      const response = await this.googleClient.sheets.spreadsheets.get({
+        spreadsheetId,
+        includeGridData: false, // Exclude cell data for performance
+        fields: 'spreadsheetId,properties,sheets(properties,data)'
+      });
 
-    return snapshot;
+      const state = response.data;
+
+      // Calculate snapshot size (estimate based on sheets)
+      const size = JSON.stringify(state).length;
+
+      const snapshot: TransactionSnapshot = {
+        id: uuidv4(),
+        spreadsheetId,
+        state: state as any, // Type conversion: Google API Schema$Spreadsheet to internal SpreadsheetState
+        timestamp: Date.now(),
+        size,
+      };
+
+      this.snapshots.set(snapshot.id, snapshot);
+      this.stats.snapshotsCreated++;
+
+      this.log(`Snapshot created: ${snapshot.id} (${size} bytes)`);
+
+      return snapshot;
+    } catch (error) {
+      this.log(`Snapshot creation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
    * Restore snapshot
+   *
+   * PRODUCTION LIMITATION: True snapshot restoration requires complex Google Sheets API operations
+   * that are not yet implemented. Current implementation only logs the restoration attempt.
+   *
+   * Full implementation would require:
+   * 1. Comparing current state with snapshot state
+   * 2. Generating compensating batchUpdate requests to revert changes
+   * 3. Handling cases where sheets were added/deleted
+   * 4. Managing potential conflicts if spreadsheet was modified externally
+   *
+   * Alternative approaches:
+   * - Use Drive API to revert to previous file revision (affects entire file)
+   * - Implement compensating transactions (reverse each operation individually)
+   * - Use version control at the Drive level
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
-    this.log(`Restoring snapshot: ${snapshot.id}`);
+    this.log(`WARNING: Snapshot restoration not fully implemented. Snapshot ${snapshot.id} was created but cannot be restored automatically.`);
 
-    // TODO: Integrate with Google Sheets API to restore state
-    // For now, simulate restoration
-    await this.delay(100);
+    /**
+     * CRITICAL: This is a known limitation in the current implementation.
+     * Rollback will fail to restore the actual spreadsheet state.
+     * Consider using the history/undo functionality instead, or implementing
+     * compensating transactions for production use.
+     */
 
-    this.log(`Snapshot restored: ${snapshot.id}`);
+    throw new Error(
+      'Snapshot restoration not implemented. Transaction rollback requires manual recovery. ' +
+      'Use sheets_history tool to undo operations, or implement compensating transactions.'
+    );
   }
 
   /**
@@ -474,11 +520,12 @@ export class TransactionManager {
 
   /**
    * Convert operation to batch request entry
+   *
+   * Converts queued operations into Google Sheets API batchUpdate request entries.
+   * Currently supports: values_write, format_apply, sheet_create, sheet_delete.
+   * Returns null for unsupported operation types.
    */
   private operationToBatchEntry(op: QueuedOperation): BatchRequestEntry | null {
-    // TODO: Implement actual conversion logic for each operation type
-    // For now, return placeholder
-
     switch (op.type) {
       case 'values_write':
         return {
@@ -518,45 +565,64 @@ export class TransactionManager {
   }
 
   /**
-   * Execute batch request (simulated for now)
+   * Execute batch request against Google Sheets API
+   *
+   * PRODUCTION: Requires Google API client for real execution
    */
   private async executeBatchRequest(
     spreadsheetId: string,
     batchRequest: BatchRequest
-  ): Promise<unknown> {
+  ): Promise<sheets_v4.Schema$BatchUpdateSpreadsheetResponse> {
     this.log(
       `Executing batch request for spreadsheet ${spreadsheetId} with ${batchRequest.requests.length} requests`
     );
 
-    // TODO: Integrate with Google Sheets API
-    // For now, simulate execution
-    await this.delay(200);
+    if (!this.googleClient) {
+      throw new Error(
+        'Transaction manager requires Google API client for execution. ' +
+        'Simulated execution has been removed for production safety.'
+      );
+    }
 
-    return {
-      spreadsheetId,
-      replies: batchRequest.requests.map(() => ({})),
-    };
+    try {
+      const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
+      });
+
+      this.log(`Batch request succeeded with ${response.data.replies?.length ?? 0} replies`);
+      return response.data;
+    } catch (error) {
+      this.log(`Batch request failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
    * Process operation results from batch response
+   *
+   * PRODUCTION: Parses actual Google Sheets API batch response
    */
   private processOperationResults(
     operations: QueuedOperation[],
-    _batchResponse: unknown
+    batchResponse: sheets_v4.Schema$BatchUpdateSpreadsheetResponse
   ): OperationResult[] {
     const results: OperationResult[] = [];
+    const replies = batchResponse.replies || [];
 
     for (let i = 0; i < operations.length; i++) {
       const op = operations[i]!;
+      const reply = replies[i];
 
-      // TODO: Parse actual batch response
-      // For now, simulate success
+      // Check if reply indicates success (presence of reply without error)
+      const success = reply !== undefined && reply !== null;
+
       results.push({
         operationId: op.id,
-        success: true,
-        data: {},
+        success,
+        data: reply || {},
         duration: op.estimatedDuration ?? 100,
+        error: success ? undefined : new Error('No reply received from batch request')
       });
     }
 
@@ -702,13 +768,54 @@ export class TransactionManager {
 let transactionManagerInstance: TransactionManager | null = null;
 
 /**
- * Get transaction manager instance
+ * Initialize transaction manager (call once during server startup)
  */
-export function getTransactionManager(
-  config?: TransactionConfig
+export function initTransactionManager(
+  googleClient?: TransactionConfig['googleClient']
 ): TransactionManager {
   if (!transactionManagerInstance) {
-    transactionManagerInstance = new TransactionManager(config);
+    transactionManagerInstance = new TransactionManager({
+      enabled: process.env['TRANSACTIONS_ENABLED'] !== 'false',
+      autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
+      autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
+      maxOperationsPerTransaction: parseInt(
+        process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'
+      ),
+      transactionTimeoutMs: parseInt(
+        process.env['TRANSACTIONS_TIMEOUT_MS'] || '300000'
+      ),
+      snapshotRetentionMs: parseInt(
+        process.env['TRANSACTIONS_SNAPSHOT_RETENTION_MS'] || '3600000'
+      ),
+      maxConcurrentTransactions: parseInt(
+        process.env['TRANSACTIONS_MAX_CONCURRENT'] || '10'
+      ),
+      verboseLogging: process.env['TRANSACTIONS_VERBOSE'] === 'true',
+      defaultIsolationLevel: (process.env['TRANSACTIONS_DEFAULT_ISOLATION'] as
+        | 'read_uncommitted'
+        | 'read_committed'
+        | 'serializable') || 'read_committed',
+      googleClient,
+    });
   }
   return transactionManagerInstance;
+}
+
+/**
+ * Get transaction manager instance
+ */
+export function getTransactionManager(): TransactionManager {
+  if (!transactionManagerInstance) {
+    throw new Error(
+      'Transaction manager not initialized. Call initTransactionManager() first.'
+    );
+  }
+  return transactionManagerInstance;
+}
+
+/**
+ * Reset transaction manager (for testing)
+ */
+export function resetTransactionManager(): void {
+  transactionManagerInstance = null;
 }

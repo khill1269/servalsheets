@@ -1,7 +1,13 @@
 /**
  * ServalSheets - Handler Index
  *
- * Lazy-loading handler factory for faster initialization
+ * Lazy-loading handler factory for faster initialization.
+ *
+ * Architectural Notes (MCP 2025-11-25):
+ * - Claude (LLM) does planning and orchestration
+ * - sheets_confirm uses Elicitation (SEP-1036) for user confirmation
+ * - sheets_analyze uses Sampling (SEP-1577) for AI analysis
+ * - Removed: planning, insights (anti-patterns that duplicated LLM capabilities)
  */
 
 // Re-export base types
@@ -24,13 +30,13 @@ export type { VersionsHandler } from './versions.js';
 export type { AnalysisHandler } from './analysis.js';
 export type { AdvancedHandler } from './advanced.js';
 export type { TransactionHandler } from './transaction.js';
-export type { WorkflowHandler } from './workflow.js';
-export type { InsightsHandler } from './insights.js';
 export type { ValidationHandler } from './validation.js';
-export type { PlanningHandler } from './planning.js';
 export type { ConflictHandler } from './conflict.js';
 export type { ImpactHandler } from './impact.js';
 export type { HistoryHandler } from './history.js';
+// New MCP-native handlers
+export type { ConfirmHandler } from './confirm.js';
+export type { AnalyzeHandler } from './analyze.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { HandlerContext } from './base.js';
@@ -60,13 +66,13 @@ export interface Handlers {
   analysis: import('./analysis.js').AnalysisHandler;
   advanced: import('./advanced.js').AdvancedHandler;
   transaction: import('./transaction.js').TransactionHandler;
-  workflow: import('./workflow.js').WorkflowHandler;
-  insights: import('./insights.js').InsightsHandler;
   validation: import('./validation.js').ValidationHandler;
-  planning: import('./planning.js').PlanningHandler;
   conflict: import('./conflict.js').ConflictHandler;
   impact: import('./impact.js').ImpactHandler;
   history: import('./history.js').HistoryHandler;
+  // New MCP-native handlers
+  confirm: import('./confirm.js').ConfirmHandler;
+  analyze: import('./analyze.js').AnalyzeHandler;
 }
 
 /**
@@ -142,21 +148,9 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       const { TransactionHandler } = await import('./transaction.js');
       return new TransactionHandler();
     },
-    async workflow() {
-      const { WorkflowHandler } = await import('./workflow.js');
-      return new WorkflowHandler();
-    },
-    async insights() {
-      const { InsightsHandler } = await import('./insights.js');
-      return new InsightsHandler();
-    },
     async validation() {
       const { ValidationHandler } = await import('./validation.js');
       return new ValidationHandler();
-    },
-    async planning() {
-      const { PlanningHandler } = await import('./planning.js');
-      return new PlanningHandler();
     },
     async conflict() {
       const { ConflictHandler } = await import('./conflict.js');
@@ -169,6 +163,15 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async history() {
       const { HistoryHandler } = await import('./history.js');
       return new HistoryHandler();
+    },
+    // New MCP-native handlers
+    async confirm() {
+      const { ConfirmHandler } = await import('./confirm.js');
+      return new ConfirmHandler();
+    },
+    async analyze() {
+      const { AnalyzeHandler } = await import('./analyze.js');
+      return new AnalyzeHandler(options.context, options.sheetsApi);
     },
   };
 

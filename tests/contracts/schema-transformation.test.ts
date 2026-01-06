@@ -33,7 +33,10 @@ describe('Schema Transformation', () => {
         expect(isZodObject(tool.inputSchema)).toBe(true);
         const shape = getZodShape(tool.inputSchema);
         expect(shape?.request).toBeDefined();
-        expect(isDiscriminatedUnion(shape?.request)).toBe(true);
+        // Tools with single actions (like sheets_impact) may use simple objects instead of discriminated unions
+        const isUnion = isDiscriminatedUnion(shape?.request);
+        const isSingleAction = isZodObject(shape?.request) && getZodShape(shape?.request)?.action;
+        expect(isUnion || isSingleAction).toBe(true);
       });
 
       it(`${tool.name}: output schema should be a Zod object with response union`, () => {
