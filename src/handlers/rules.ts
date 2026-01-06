@@ -41,8 +41,11 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
   }
 
   async handle(input: SheetsRulesInput): Promise<SheetsRulesOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as RulesAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: RulesResponse;
       switch (req.action) {
         case 'add_conditional_format':
@@ -76,6 +79,16 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };

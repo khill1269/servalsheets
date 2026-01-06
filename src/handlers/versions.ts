@@ -14,8 +14,6 @@ import type {
   VersionsAction,
   VersionsResponse,
 } from '../schemas/index.js';
-import type { CreateTaskResult } from '@modelcontextprotocol/sdk/types.js';
-import { getRequestLogger } from '../utils/request-context.js';
 
 type VersionsSuccess = Extract<VersionsResponse, { success: true }>;
 
@@ -59,7 +57,7 @@ export class VersionsHandler extends BaseHandler<SheetsVersionsInput, SheetsVers
     }
   }
 
-  protected createIntents(input: SheetsVersionsInput): Intent[] {
+  protected createIntents(_input: SheetsVersionsInput): Intent[] {
     return [];
   }
 

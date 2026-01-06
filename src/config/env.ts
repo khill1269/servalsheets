@@ -146,7 +146,7 @@ export function hasGoogleCredentials(): boolean {
 /**
  * Get cache configuration
  */
-export function getCacheConfig() {
+export function getCacheConfig(): { enabled: boolean; maxSizeMB: number; ttlMs: number } {
   const current = ensureEnv();
   return {
     enabled: current.CACHE_ENABLED,
@@ -158,7 +158,7 @@ export function getCacheConfig() {
 /**
  * Get deduplication configuration
  */
-export function getDedupConfig() {
+export function getDedupConfig(): { enabled: boolean; windowMs: number } {
   const current = ensureEnv();
   return {
     enabled: current.DEDUP_ENABLED,
@@ -169,7 +169,7 @@ export function getDedupConfig() {
 /**
  * Get tracing configuration
  */
-export function getTracingConfig() {
+export function getTracingConfig(): { enabled: boolean; sampleRate: number } {
   const current = ensureEnv();
   return {
     enabled: current.TRACING_ENABLED,
@@ -180,7 +180,7 @@ export function getTracingConfig() {
 /**
  * Get safety limits configuration
  */
-export function getSafetyLimits() {
+export function getSafetyLimits(): { maxConcurrentRequests: number; requestTimeoutMs: number; gracefulShutdownTimeoutMs: number } {
   const current = ensureEnv();
   return {
     maxConcurrentRequests: current.MAX_CONCURRENT_REQUESTS,
@@ -215,7 +215,7 @@ export function getSessionStoreConfig(): {
 /**
  * Get circuit breaker configuration
  */
-export function getCircuitBreakerConfig() {
+export function getCircuitBreakerConfig(): { failureThreshold: number; successThreshold: number; timeout: number } {
   const current = ensureEnv();
   return {
     failureThreshold: current.CIRCUIT_BREAKER_FAILURE_THRESHOLD,

@@ -35,8 +35,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   }
 
   async handle(input: SheetsDimensionsInput): Promise<SheetsDimensionsOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as DimensionsAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: DimensionsResponse;
       switch (req.action) {
         case 'insert_rows':
@@ -109,6 +112,15 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };

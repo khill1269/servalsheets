@@ -165,7 +165,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_sharing: 8,
   sheets_comments: 10,
   sheets_versions: 10,
-  sheets_analysis: 8,
+  sheets_analysis: 13,  // data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
   sheets_advanced: 19,
 };
 

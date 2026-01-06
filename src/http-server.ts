@@ -140,7 +140,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
 /**
  * Create HTTP server with MCP transport
  */
-export function createHttpServer(options: HttpServerOptions = {}) {
+export function createHttpServer(options: HttpServerOptions = {}): { app: unknown; start: () => Promise<void>; stop: () => Promise<void> | undefined; sessions: unknown } {
   const port = options.port ?? DEFAULT_PORT;
   const host = options.host ?? DEFAULT_HOST;
   const corsOrigins = options.corsOrigins ?? ['https://claude.ai', 'https://claude.com'];
@@ -277,9 +277,9 @@ export function createHttpServer(options: HttpServerOptions = {}) {
 
   // Health check with detailed metrics
   app.get('/health', (_req: Request, res: Response) => {
-    const cacheStats = getCacheStats();
-    const dedupStats = getDeduplicationStats();
-    const connStats = getConnectionStats();
+    const cacheStats = getCacheStats() as Record<string, unknown> | null;
+    const dedupStats = getDeduplicationStats() as Record<string, unknown> | null;
+    const connStats = getConnectionStats() as Record<string, unknown> | null;
     const memUsage = process.memoryUsage();
 
     res.json({
@@ -288,15 +288,15 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       protocol: 'MCP 2025-11-25',
       uptime: Math.floor(process.uptime()),
       cache: cacheStats ? {
-        hitRate: parseFloat(cacheStats.hitRate.toFixed(1)),
-        entries: cacheStats.totalEntries,
-        sizeMB: parseFloat((cacheStats.totalSize / 1024 / 1024).toFixed(2)),
+        hitRate: parseFloat((cacheStats['hitRate'] as number).toFixed(1)),
+        entries: cacheStats['totalEntries'] as number,
+        sizeMB: parseFloat(((cacheStats['totalSize'] as number) / 1024 / 1024).toFixed(2)),
       } : null,
       deduplication: dedupStats ? {
-        savedRequests: dedupStats.savedRequests,
-        deduplicationRate: parseFloat(dedupStats.deduplicationRate.toFixed(1)),
+        savedRequests: dedupStats['savedRequests'] as number,
+        deduplicationRate: parseFloat((dedupStats['deduplicationRate'] as number).toFixed(1)),
       } : null,
-      connection: connStats ? connStats.status : null,
+      connection: connStats ? connStats['status'] as string : null,
       memory: {
         heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
         heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
@@ -323,10 +323,10 @@ export function createHttpServer(options: HttpServerOptions = {}) {
 
   // Statistics dashboard endpoint
   app.get('/stats', (_req: Request, res: Response) => {
-    const cacheStats = getCacheStats();
-    const dedupStats = getDeduplicationStats();
-    const connStats = getConnectionStats();
-    const tracingStats = getTracingStats();
+    const cacheStats = getCacheStats() as Record<string, unknown> | null;
+    const dedupStats = getDeduplicationStats() as Record<string, unknown> | null;
+    const connStats = getConnectionStats() as Record<string, unknown> | null;
+    const tracingStats = getTracingStats() as Record<string, unknown> | null;
     const memUsage = process.memoryUsage();
 
     res.json({
@@ -336,37 +336,37 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       },
       cache: cacheStats ? {
         enabled: true,
-        totalEntries: cacheStats.totalEntries,
-        totalSizeMB: parseFloat((cacheStats.totalSize / 1024 / 1024).toFixed(2)),
-        hits: cacheStats.hits,
-        misses: cacheStats.misses,
-        hitRate: parseFloat(cacheStats.hitRate.toFixed(2)),
-        byNamespace: cacheStats.byNamespace,
-        oldestEntry: cacheStats.oldestEntry ? new Date(cacheStats.oldestEntry).toISOString() : null,
-        newestEntry: cacheStats.newestEntry ? new Date(cacheStats.newestEntry).toISOString() : null,
+        totalEntries: cacheStats['totalEntries'] as number,
+        totalSizeMB: parseFloat(((cacheStats['totalSize'] as number) / 1024 / 1024).toFixed(2)),
+        hits: cacheStats['hits'] as number,
+        misses: cacheStats['misses'] as number,
+        hitRate: parseFloat((cacheStats['hitRate'] as number).toFixed(2)),
+        byNamespace: cacheStats['byNamespace'] as Record<string, unknown>,
+        oldestEntry: cacheStats['oldestEntry'] ? new Date(cacheStats['oldestEntry'] as number).toISOString() : null,
+        newestEntry: cacheStats['newestEntry'] ? new Date(cacheStats['newestEntry'] as number).toISOString() : null,
       } : { enabled: false },
       deduplication: dedupStats ? {
         enabled: true,
-        totalRequests: dedupStats.totalRequests,
-        deduplicatedRequests: dedupStats.deduplicatedRequests,
-        savedRequests: dedupStats.savedRequests,
-        deduplicationRate: parseFloat(dedupStats.deduplicationRate.toFixed(2)),
-        pendingCount: dedupStats.pendingCount,
-        oldestRequestAgeMs: dedupStats.oldestRequestAge,
+        totalRequests: dedupStats['totalRequests'] as number,
+        deduplicatedRequests: dedupStats['deduplicatedRequests'] as number,
+        savedRequests: dedupStats['savedRequests'] as number,
+        deduplicationRate: parseFloat((dedupStats['deduplicationRate'] as number).toFixed(2)),
+        pendingCount: dedupStats['pendingCount'] as number,
+        oldestRequestAgeMs: dedupStats['oldestRequestAge'] as number,
       } : { enabled: false },
       connection: connStats ? {
-        status: connStats.status,
-        uptimeSeconds: connStats.uptimeSeconds,
-        totalHeartbeats: connStats.totalHeartbeats,
-        disconnectWarnings: connStats.disconnectWarnings,
-        timeSinceLastActivityMs: connStats.timeSinceLastActivity,
-        lastActivity: new Date(connStats.lastActivity).toISOString(),
+        status: connStats['status'] as string,
+        uptimeSeconds: connStats['uptimeSeconds'] as number,
+        totalHeartbeats: connStats['totalHeartbeats'] as number,
+        disconnectWarnings: connStats['disconnectWarnings'] as number,
+        timeSinceLastActivityMs: connStats['timeSinceLastActivity'] as number,
+        lastActivity: new Date(connStats['lastActivity'] as number).toISOString(),
       } : null,
       tracing: tracingStats ? {
-        totalSpans: tracingStats.totalSpans,
-        averageDurationMs: parseFloat(tracingStats.averageDuration.toFixed(2)),
-        spansByKind: tracingStats.spansByKind,
-        spansByStatus: tracingStats.spansByStatus,
+        totalSpans: tracingStats['totalSpans'] as number,
+        averageDurationMs: parseFloat((tracingStats['averageDuration'] as number).toFixed(2)),
+        spansByKind: tracingStats['spansByKind'] as Record<string, unknown>,
+        spansByStatus: tracingStats['spansByStatus'] as Record<string, unknown>,
       } : null,
       memory: {
         heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
@@ -377,8 +377,8 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       },
       performance: {
         apiCallReduction: dedupStats && cacheStats ? {
-          deduplicationSavings: `${dedupStats.deduplicationRate.toFixed(1)}%`,
-          cacheSavings: `${cacheStats.hitRate.toFixed(1)}%`,
+          deduplicationSavings: `${(dedupStats['deduplicationRate'] as number).toFixed(1)}%`,
+          cacheSavings: `${(cacheStats['hitRate'] as number).toFixed(1)}%`,
           estimatedTotalSavings: calculateTotalSavings(dedupStats, cacheStats),
         } : null,
       },
@@ -406,13 +406,13 @@ export function createHttpServer(options: HttpServerOptions = {}) {
 
   // Helper function to calculate total savings
   function calculateTotalSavings(
-    dedupStats: NonNullable<ReturnType<typeof getDeduplicationStats>>,
-    cacheStats: NonNullable<ReturnType<typeof getCacheStats>>
+    dedupStats: Record<string, unknown>,
+    cacheStats: Record<string, unknown>
   ): string {
     // Estimate combined savings (not perfect but reasonable approximation)
     // Deduplication happens first, cache applies to non-deduplicated requests
-    const dedupRate = dedupStats.deduplicationRate / 100;
-    const cacheRate = cacheStats.hitRate / 100;
+    const dedupRate = (dedupStats['deduplicationRate'] as number) / 100;
+    const cacheRate = (cacheStats['hitRate'] as number) / 100;
     const combinedSavings = (dedupRate + (1 - dedupRate) * cacheRate) * 100;
     return `~${combinedSavings.toFixed(1)}%`;
   }
@@ -472,6 +472,7 @@ export function createHttpServer(options: HttpServerOptions = {}) {
       req.on('close', () => {
         const session = sessions.get(sessionId);
         if (session) {
+          // Session cleanup logic can be added here if needed
         }
         sessions.delete(sessionId);
         sessionLimiter.unregisterSession(sessionId);

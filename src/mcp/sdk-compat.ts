@@ -19,7 +19,8 @@ export function patchMcpServerRequestHandler(): void {
     requestSchema: unknown,
     handler: unknown
   ) {
-    const shape = getObjectShape(requestSchema as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shape = getObjectShape(requestSchema as any); // getObjectShape expects zod schema internals
     const methodSchema = shape?.['method'] as Record<string, unknown> | undefined;
 
     if (methodSchema && methodSchema['value'] === undefined) {

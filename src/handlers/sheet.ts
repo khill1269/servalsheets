@@ -28,7 +28,9 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
 
   async handle(input: SheetsSheetInput): Promise<SheetsSheetOutput> {
     try {
-      const req = input.request;
+      // Phase 1, Task 1.4: Infer missing parameters from context
+      const req = this.inferRequestParameters(input.request) as SheetAction;
+
       let response: SheetResponse;
       switch (req.action) {
         case 'add':
@@ -59,6 +61,16 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
             retryable: false,
           });
       }
+
+      // Phase 1, Task 1.4: Track context after successful operation
+      if (response.success && 'spreadsheetId' in req) {
+        this.trackContextFromRequest({
+          spreadsheetId: req.spreadsheetId,
+          sheetId: 'sheetId' in req ? (typeof req.sheetId === 'number' ? req.sheetId : undefined) : undefined,
+          sheetName: response.success && 'sheetName' in response ? (typeof response.sheetName === 'string' ? response.sheetName : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -184,7 +196,7 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
     if (this.context.samplingServer && !input.safety?.dryRun) {
       try {
         const confirmation = await confirmDestructiveAction(
-          this.context.samplingServer as any, // ElicitationServer is compatible
+          this.context.samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer,
           'Delete Sheet',
           `This will permanently delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
         );

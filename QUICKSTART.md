@@ -35,7 +35,7 @@ Get up and running with ServalSheets in Claude Desktop in **5 minutes**.
 **Best for**: Production, sharing with team
 
 ```bash
-./install-claude-desktop.sh
+./scripts/install-claude-desktop.sh
 ```
 
 **What you'll need**:

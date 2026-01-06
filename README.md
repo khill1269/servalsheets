@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 15 tools, 159 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 24 tools, 192 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -43,7 +43,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 ## Features
 
 ### Core Capabilities
-- **15 Tools, 159 Actions**: Comprehensive Google Sheets API v4 coverage
+- **24 Tools, 192 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -146,8 +146,10 @@ ServalSheets has comprehensive documentation organized by use case:
 
 ## Tools Reference
 
+### Core Operations (16 tools, 156 actions)
 | Tool | Actions | Description | Read-Only | Destructive |
 |------|---------|-------------|-----------|-------------|
+| `sheets_auth` | 4 | Authentication & OAuth | **Yes** | No |
 | `sheets_spreadsheet` | 6 | Create, get, copy spreadsheets | No | No |
 | `sheets_sheet` | 7 | Manage sheets/tabs | No | Yes |
 | `sheets_values` | 9 | Read/write cell values | No | Yes |
@@ -161,8 +163,20 @@ ServalSheets has comprehensive documentation organized by use case:
 | `sheets_sharing` | 8 | Permissions | No | Yes |
 | `sheets_comments` | 10 | Comments | No | Yes |
 | `sheets_versions` | 10 | Version history | No | Yes |
-| `sheets_analysis` | 8 | Data analysis | **Yes** | No |
+| `sheets_analysis` | 13 | Data analysis, AI insights | **Yes** | No |
 | `sheets_advanced` | 19 | Named ranges, protection | No | Yes |
+
+### Advanced Operations (8 tools, 36 actions)
+| Tool | Actions | Description | Read-Only | Destructive |
+|------|---------|-------------|-----------|-------------|
+| `sheets_transaction` | 6 | Transaction management | No | Yes |
+| `sheets_workflow` | 5 | Multi-step automation | No | Yes |
+| `sheets_insights` | 3 | AI-powered insights | **Yes** | No |
+| `sheets_validation` | 4 | Data validation checking | **Yes** | No |
+| `sheets_plan` | 3 | Natural language planning | **Yes** | No |
+| `sheets_conflict` | 2 | Conflict detection | **Yes** | No |
+| `sheets_impact` | 1 | Pre-execution analysis | **Yes** | No |
+| `sheets_history` | 3 | Operation history | **Yes** | No |
 
 ## Examples
 

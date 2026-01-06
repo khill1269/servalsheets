@@ -107,7 +107,7 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
     }
   }
 
-  protected createIntents(input: SheetsSharingInput): Intent[] {
+  protected createIntents(_input: SheetsSharingInput): Intent[] {
     return [];
   }
 

@@ -35,7 +35,9 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
 
   async handle(input: SheetsCellsInput): Promise<SheetsCellsOutput> {
     try {
-      const req = input.request;
+      // Phase 1, Task 1.4: Infer missing parameters from context
+      const req = this.inferRequestParameters(input.request) as CellsAction;
+
       let response: CellsResponse;
       switch (req.action) {
         case 'add_note':
@@ -81,6 +83,16 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
             retryable: false,
           });
       }
+
+      // Phase 1, Task 1.4: Track context after successful operation
+      if (response.success && 'spreadsheetId' in req) {
+        this.trackContextFromRequest({
+          spreadsheetId: req.spreadsheetId,
+          sheetId: 'sheetId' in req ? (typeof req.sheetId === 'number' ? req.sheetId : undefined) : undefined,
+          range: 'range' in req ? (typeof req.range === 'string' ? req.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -143,16 +155,16 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
     });
 
     // Deduplicate the API call
-    const fetchFn = async () => this.sheetsApi.spreadsheets.get({
+    const fetchFn = async (): Promise<unknown> => this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: [input.cell],
       includeGridData: true,
       fields: 'sheets.data.rowData.values.note',
     });
 
-    const response = this.context.requestDeduplicator
+    const response = (this.context.requestDeduplicator
       ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-      : await fetchFn();
+      : await fetchFn()) as { data: { sheets?: Array<{ data?: Array<{ rowData?: Array<{ values?: Array<{ note?: string }> }> }> }> } };
 
     const note = response.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values?.[0]?.note ?? '';
     return this.success('get_note', { note });
@@ -394,17 +406,17 @@ export class CellsHandler extends BaseHandler<SheetsCellsInput, SheetsCellsOutpu
     });
 
     // Deduplicate the API call
-    const fetchFn = async () => this.sheetsApi.spreadsheets.get({
+    const fetchFn = async (): Promise<unknown> => this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: 'sheets.merges,sheets.properties.sheetId',
     });
 
-    const response = this.context.requestDeduplicator
+    const response = (this.context.requestDeduplicator
       ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-      : await fetchFn();
+      : await fetchFn()) as { data: { sheets?: Array<{ properties?: { sheetId?: number }; merges?: Array<{ startRowIndex?: number; endRowIndex?: number; startColumnIndex?: number; endColumnIndex?: number }> }> } };
 
-    const sheet = response.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
-    const merges = (sheet?.merges ?? []).map(m => ({
+    const sheet = response.data.sheets?.find((s: { properties?: { sheetId?: number } }) => s.properties?.sheetId === input.sheetId);
+    const merges = (sheet?.merges ?? []).map((m: { startRowIndex?: number; endRowIndex?: number; startColumnIndex?: number; endColumnIndex?: number }) => ({
       startRow: m.startRowIndex ?? 0,
       endRow: m.endRowIndex ?? 0,
       startColumn: m.startColumnIndex ?? 0,

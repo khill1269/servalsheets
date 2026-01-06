@@ -5,3 +5,5 @@
  */
 
 export { registerKnowledgeResources, listKnowledgeResources } from './knowledge.js';
+export { registerHistoryResources } from './history.js';
+export { registerCacheResources } from './cache.js';

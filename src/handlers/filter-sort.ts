@@ -35,8 +35,11 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
   }
 
   async handle(input: SheetsFilterSortInput): Promise<SheetsFilterSortOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as FilterSortAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: FilterSortResponse;
       switch (req.action) {
         case 'set_basic_filter':
@@ -88,6 +91,15 @@ export class FilterSortHandler extends BaseHandler<SheetsFilterSortInput, Sheets
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };

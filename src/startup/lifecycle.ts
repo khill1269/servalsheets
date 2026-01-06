@@ -440,7 +440,7 @@ export function recordActivity(source?: string): void {
 /**
  * Get connection health statistics
  */
-export function getConnectionStats() {
+export function getConnectionStats(): unknown | null {
   try {
     const monitor = getConnectionHealthMonitor();
     return monitor.getStats();
@@ -452,7 +452,7 @@ export function getConnectionStats() {
 /**
  * Get tracing statistics
  */
-export function getTracingStats() {
+export function getTracingStats(): unknown | null {
   try {
     const tracer = getTracer();
     return tracer.getStats();
@@ -464,7 +464,7 @@ export function getTracingStats() {
 /**
  * Get cache statistics
  */
-export function getCacheStats() {
+export function getCacheStats(): unknown | null {
   try {
     return cacheManager.getStats();
   } catch {
@@ -475,7 +475,7 @@ export function getCacheStats() {
 /**
  * Get request deduplication statistics
  */
-export function getDeduplicationStats() {
+export function getDeduplicationStats(): unknown | null {
   try {
     return requestDeduplicator.getStats();
   } catch {
@@ -486,7 +486,7 @@ export function getDeduplicationStats() {
 /**
  * Get batch efficiency statistics
  */
-export function getBatchEfficiencyStats_() {
+export function getBatchEfficiencyStats_(): unknown | null {
   try {
     return getBatchEfficiencyStats();
   } catch {

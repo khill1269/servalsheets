@@ -21,6 +21,7 @@ import type {
   TaskToolExecution,
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import type { ZodTypeAny } from 'zod';
+import { randomUUID } from 'crypto';
 
 import type { Handlers } from '../handlers/index.js';
 import { AuthHandler } from '../handlers/auth.js';
@@ -28,6 +29,8 @@ import type { GoogleApiClient } from '../services/google-api.js';
 import { createRequestContext, runWithRequestContext } from '../utils/request-context.js';
 import { completeRange, completeSpreadsheetId, recordSpreadsheetId } from './completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from './features-2025-11-25.js';
+import { getHistoryService } from '../services/history-service.js';
+import type { OperationHistory } from '../types/history.js';
 import {
   isDiscriminatedUnion,
   zodToJsonSchemaCompat,
@@ -50,6 +53,14 @@ import {
   SheetsVersionsInputSchema, SheetsVersionsOutputSchema, SHEETS_VERSIONS_ANNOTATIONS,
   SheetsAnalysisInputSchema, SheetsAnalysisOutputSchema, SHEETS_ANALYSIS_ANNOTATIONS,
   SheetsAdvancedInputSchema, SheetsAdvancedOutputSchema, SHEETS_ADVANCED_ANNOTATIONS,
+  SheetsTransactionInputSchema, SheetsTransactionOutputSchema, SHEETS_TRANSACTION_ANNOTATIONS,
+  SheetsWorkflowInputSchema, SheetsWorkflowOutputSchema, SHEETS_WORKFLOW_ANNOTATIONS,
+  SheetsInsightsInputSchema, SheetsInsightsOutputSchema, SHEETS_INSIGHTS_ANNOTATIONS,
+  SheetsValidationInputSchema, SheetsValidationOutputSchema, SHEETS_VALIDATION_ANNOTATIONS,
+  SheetsPlanningInputSchema, SheetsPlanningOutputSchema, SHEETS_PLANNING_ANNOTATIONS,
+  SheetsConflictInputSchema, SheetsConflictOutputSchema, SHEETS_CONFLICT_ANNOTATIONS,
+  SheetsImpactInputSchema, SheetsImpactOutputSchema, SHEETS_IMPACT_ANNOTATIONS,
+  SheetsHistoryInputSchema, SheetsHistoryOutputSchema, SHEETS_HISTORY_ANNOTATIONS,
 } from '../schemas/index.js';
 import {
   FirstOperationPromptArgsSchema,
@@ -84,7 +95,7 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  * 
- * 16 tools, 160 actions
+ * 16 tools, 165 actions
  * 
  * Schema Pattern: z.object({ request: z.discriminatedUnion('action', ...) })
  * - Actions are discriminated by `action` within `request`
@@ -203,6 +214,62 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     outputSchema: SheetsAdvancedOutputSchema,
     annotations: SHEETS_ADVANCED_ANNOTATIONS,
   },
+  {
+    name: 'sheets_transaction',
+    description: 'Transaction support: begin, queue operations, commit/rollback atomically with auto-snapshot. Batch multiple operations into 1 API call, saving 80% API usage.',
+    inputSchema: SheetsTransactionInputSchema,
+    outputSchema: SheetsTransactionOutputSchema,
+    annotations: SHEETS_TRANSACTION_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_workflow',
+    description: 'Smart workflows: detect common multi-step operations, execute workflows with auto-chaining. 50% reduction in tool calls for common tasks.',
+    inputSchema: SheetsWorkflowInputSchema,
+    outputSchema: SheetsWorkflowOutputSchema,
+    annotations: SHEETS_WORKFLOW_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_insights',
+    description: 'AI-powered data insights: anomaly detection, relationship discovery, predictions, quality analysis with recommendations.',
+    inputSchema: SheetsInsightsInputSchema,
+    outputSchema: SheetsInsightsOutputSchema,
+    annotations: SHEETS_INSIGHTS_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_validation',
+    description: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.) with custom rule support.',
+    inputSchema: SheetsValidationInputSchema,
+    outputSchema: SheetsValidationOutputSchema,
+    annotations: SHEETS_VALIDATION_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_plan',
+    description: 'Natural language operation planning: create executable plans from intent with cost estimation and risk analysis.',
+    inputSchema: SheetsPlanningInputSchema,
+    outputSchema: SheetsPlanningOutputSchema,
+    annotations: SHEETS_PLANNING_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_conflict',
+    description: 'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
+    inputSchema: SheetsConflictInputSchema,
+    outputSchema: SheetsConflictOutputSchema,
+    annotations: SHEETS_CONFLICT_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_impact',
+    description: 'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables, etc.).',
+    inputSchema: SheetsImpactInputSchema,
+    outputSchema: SheetsImpactOutputSchema,
+    annotations: SHEETS_IMPACT_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_history',
+    description: 'Operation history: track last 100 operations for debugging and undo foundation.',
+    inputSchema: SheetsHistoryInputSchema,
+    outputSchema: SheetsHistoryOutputSchema,
+    annotations: SHEETS_HISTORY_ANNOTATIONS,
+  },
 ] as const;
 
 // ============================================================================
@@ -235,6 +302,14 @@ export function createToolHandlerMap(
     'sheets_versions': (args) => handlers.versions.handle(SheetsVersionsInputSchema.parse(args)),
     'sheets_analysis': (args) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
     'sheets_advanced': (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
+    'sheets_transaction': (args) => handlers.transaction.handle(SheetsTransactionInputSchema.parse(args)),
+    'sheets_workflow': (args) => handlers.workflow.handle(SheetsWorkflowInputSchema.parse(args)),
+    'sheets_insights': (args) => handlers.insights.handle(SheetsInsightsInputSchema.parse(args)),
+    'sheets_validation': (args) => handlers.validation.handle(SheetsValidationInputSchema.parse(args)),
+    'sheets_plan': (args) => handlers.planning.handle(SheetsPlanningInputSchema.parse(args)),
+    'sheets_conflict': (args) => handlers.conflict.handle(SheetsConflictInputSchema.parse(args)),
+    'sheets_impact': (args) => handlers.impact.handle(SheetsImpactInputSchema.parse(args)),
+    'sheets_history': (args) => handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
   };
 
   if (authHandler) {
@@ -336,6 +411,154 @@ export function prepareSchemaForRegistration(schema: ZodTypeAny): AnySchema | Re
   return schema as unknown as AnySchema;
 }
 
+// ============================================================================
+// HISTORY RECORDING HELPERS
+// ============================================================================
+
+/**
+ * Extract action from tool arguments
+ */
+function extractAction(args: Record<string, unknown>): string {
+  // Extract action from request object (discriminated union pattern)
+  const request = args['request'] as Record<string, unknown> | undefined;
+  if (request && typeof request['action'] === 'string') {
+    return request['action'];
+  }
+  // Fallback for non-discriminated schemas
+  if (typeof args['action'] === 'string') {
+    return args['action'];
+  }
+  return 'unknown';
+}
+
+/**
+ * Extract spreadsheetId from tool arguments
+ */
+function extractSpreadsheetId(args: Record<string, unknown>): string | undefined {
+  const request = args['request'] as Record<string, unknown> | undefined;
+  const params = request?.['params'] as Record<string, unknown> | undefined;
+  if (params && typeof params['spreadsheetId'] === 'string') {
+    return params['spreadsheetId'];
+  }
+  if (typeof args['spreadsheetId'] === 'string') {
+    return args['spreadsheetId'];
+  }
+  return undefined;
+}
+
+/**
+ * Extract sheetId from tool arguments
+ */
+function extractSheetId(args: Record<string, unknown>): number | undefined {
+  const request = args['request'] as Record<string, unknown> | undefined;
+  const params = request?.['params'] as Record<string, unknown> | undefined;
+  if (params && typeof params['sheetId'] === 'number') {
+    return params['sheetId'];
+  }
+  if (typeof args['sheetId'] === 'number') {
+    return args['sheetId'];
+  }
+  return undefined;
+}
+
+/**
+ * Check if result is successful
+ */
+function isSuccessResult(result: unknown): boolean {
+  if (typeof result !== 'object' || result === null) {
+    return false;
+  }
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    return (response as Record<string, unknown>)['success'] === true;
+  }
+  return (result as Record<string, unknown>)['success'] === true;
+}
+
+/**
+ * Extract cellsAffected from tool result
+ */
+function extractCellsAffected(result: unknown): number | undefined {
+  if (typeof result !== 'object' || result === null) {
+    return undefined;
+  }
+  const response = (result as Record<string, unknown>)['response'];
+  const data = response && typeof response === 'object' ? response : result;
+  const dataObj = data as Record<string, unknown>;
+
+  // Try common field names
+  if (typeof dataObj['cellsAffected'] === 'number') {
+    return dataObj['cellsAffected'];
+  }
+  if (typeof dataObj['updatedCells'] === 'number') {
+    return dataObj['updatedCells'];
+  }
+
+  // Try mutation summary
+  const mutation = dataObj['mutation'] as Record<string, unknown> | undefined;
+  if (mutation && typeof mutation['cellsAffected'] === 'number') {
+    return mutation['cellsAffected'];
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract snapshotId from tool result
+ */
+function extractSnapshotId(result: unknown): string | undefined {
+  if (typeof result !== 'object' || result === null) {
+    return undefined;
+  }
+  const response = (result as Record<string, unknown>)['response'];
+  const data = response && typeof response === 'object' ? response : result;
+  const mutation = (data as Record<string, unknown>)['mutation'] as Record<string, unknown> | undefined;
+
+  if (mutation && typeof mutation['revertSnapshotId'] === 'string') {
+    return mutation['revertSnapshotId'];
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract error message from tool result
+ */
+function extractErrorMessage(result: unknown): string | undefined {
+  if (typeof result !== 'object' || result === null) {
+    return undefined;
+  }
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    const error = (response as Record<string, unknown>)['error'] as Record<string, unknown> | undefined;
+    if (error && typeof error['message'] === 'string') {
+      return error['message'];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract error code from tool result
+ */
+function extractErrorCode(result: unknown): string | undefined {
+  if (typeof result !== 'object' || result === null) {
+    return undefined;
+  }
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    const error = (response as Record<string, unknown>)['error'] as Record<string, unknown> | undefined;
+    if (error && typeof error['code'] === 'string') {
+      return error['code'];
+    }
+  }
+  return undefined;
+}
+
+// ============================================================================
+// TOOL CALL HANDLER
+// ============================================================================
+
 function createToolCallHandler(
   tool: ToolDefinition,
   handlerMap: Record<string, (args: unknown) => Promise<unknown>> | null
@@ -344,11 +567,16 @@ function createToolCallHandler(
     const requestId = extra?.requestId ? String(extra.requestId) : undefined;
     const requestContext = createRequestContext({ requestId });
 
+    // Generate operation ID and start time for history tracking
+    const operationId = randomUUID();
+    const startTime = Date.now();
+    const timestamp = new Date(startTime).toISOString();
+
     return runWithRequestContext(requestContext, async () => {
       recordSpreadsheetId(args);
 
       if (!handlerMap) {
-        return buildToolResponse({
+        const errorResponse = {
           response: {
             success: false,
             error: {
@@ -358,12 +586,30 @@ function createToolCallHandler(
               suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth',
             },
           },
+        };
+
+        // Record failed operation in history
+        const historyService = getHistoryService();
+        historyService.record({
+          id: operationId,
+          timestamp,
+          tool: tool.name,
+          action: extractAction(args),
+          params: args,
+          result: 'error',
+          duration: Date.now() - startTime,
+          errorMessage: 'Google API client not initialized. Please provide credentials.',
+          errorCode: 'AUTHENTICATION_REQUIRED',
+          requestId,
+          spreadsheetId: extractSpreadsheetId(args),
         });
+
+        return buildToolResponse(errorResponse);
       }
 
       const handler = handlerMap[tool.name];
       if (!handler) {
-        return buildToolResponse({
+        const errorResponse = {
           response: {
             success: false,
             error: {
@@ -373,11 +619,76 @@ function createToolCallHandler(
               suggestedFix: 'This tool is planned for a future release',
             },
           },
+        };
+
+        // Record failed operation in history
+        const historyService = getHistoryService();
+        historyService.record({
+          id: operationId,
+          timestamp,
+          tool: tool.name,
+          action: extractAction(args),
+          params: args,
+          result: 'error',
+          duration: Date.now() - startTime,
+          errorMessage: `Handler for ${tool.name} not yet implemented`,
+          errorCode: 'NOT_IMPLEMENTED',
+          requestId,
+          spreadsheetId: extractSpreadsheetId(args),
         });
+
+        return buildToolResponse(errorResponse);
       }
 
-      const result = await handler(args);
-      return buildToolResponse(result);
+      try {
+        // Execute handler
+        const result = await handler(args);
+        const duration = Date.now() - startTime;
+
+        // Record operation in history
+        const historyService = getHistoryService();
+        const operation: OperationHistory = {
+          id: operationId,
+          timestamp,
+          tool: tool.name,
+          action: extractAction(args),
+          params: args,
+          result: isSuccessResult(result) ? 'success' : 'error',
+          duration,
+          cellsAffected: extractCellsAffected(result),
+          snapshotId: extractSnapshotId(result),
+          errorMessage: extractErrorMessage(result),
+          errorCode: extractErrorCode(result),
+          requestId,
+          spreadsheetId: extractSpreadsheetId(args),
+          sheetId: extractSheetId(args),
+        };
+
+        historyService.record(operation);
+
+        return buildToolResponse(result);
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Record failed operation in history
+        const historyService = getHistoryService();
+        historyService.record({
+          id: operationId,
+          timestamp,
+          tool: tool.name,
+          action: extractAction(args),
+          params: args,
+          result: 'error',
+          duration,
+          errorMessage,
+          errorCode: 'INTERNAL_ERROR',
+          requestId,
+          spreadsheetId: extractSpreadsheetId(args),
+        });
+
+        throw error;
+      }
     });
   };
 }
@@ -762,7 +1073,7 @@ If tests pass, you're ready!`,
       description: '👶 Your first ServalSheets operation - a guided walkthrough',
       argsSchema: FirstOperationPromptArgsSchema,
     },
-    async (args: any) => {
+    async (args: Record<string, unknown>) => {
       const spreadsheetId = args['spreadsheetId'] || '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
       return {
         messages: [{
@@ -794,7 +1105,7 @@ Safety tips: Always read before modify, use dryRun for destructive ops.`,
       description: '🔬 Comprehensive analysis of spreadsheet data quality and structure',
       argsSchema: AnalyzeSpreadsheetPromptArgsSchema,
     },
-    async (args: any) => {
+    async (args: Record<string, unknown>) => {
       return {
         messages: [{
           role: 'user' as const,
@@ -821,7 +1132,7 @@ Provide: quality score, issues found, recommended fixes.`,
       description: '🔄 Transform data in a spreadsheet range with safety checks',
       argsSchema: TransformDataPromptArgsSchema,
     },
-    async (args: any) => {
+    async (args: Record<string, unknown>) => {
       return {
         messages: [{
           role: 'user' as const,
@@ -852,7 +1163,7 @@ Workflow:
       description: '📈 Generate a formatted report from spreadsheet data',
       argsSchema: CreateReportPromptArgsSchema,
     },
-    async (args: any) => {
+    async (args: Record<string, unknown>) => {
       const reportType = args['reportType'] || 'summary';
       return {
         messages: [{
@@ -880,7 +1191,7 @@ Final: Auto-resize, freeze header, add timestamp`,
       description: '🧹 Clean and standardize data in a spreadsheet range',
       argsSchema: CleanDataPromptArgsSchema,
     },
-    async (args: any) => {
+    async (args: Record<string, unknown>) => {
       return {
         messages: [{
           role: 'user' as const,

@@ -29,8 +29,11 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   }
 
   async handle(input: SheetsAdvancedInput): Promise<SheetsAdvancedOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as AdvancedAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: AdvancedResponse;
       switch (req.action) {
         case 'add_named_range':
@@ -93,6 +96,16 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };

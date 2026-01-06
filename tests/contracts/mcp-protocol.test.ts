@@ -51,7 +51,7 @@ describe('MCP Protocol Compliance', () => {
   });
 
   describe('Tool Registration', () => {
-    it('should register exactly 15 tools', () => {
+    it('should register exactly 16 tools', () => {
       // Access private _registeredTools field (it's an object, not a Map)
       const serverAny = server as any;
       const tools = serverAny._registeredTools;
@@ -59,7 +59,7 @@ describe('MCP Protocol Compliance', () => {
       expect(tools).toBeDefined();
       const toolNames = Object.keys(tools);
       expect(toolNames.length).toBe(TOOL_COUNT);
-      expect(toolNames.length).toBe(15);
+      expect(toolNames.length).toBe(16);
     });
 
     it('all tools should have required fields', () => {

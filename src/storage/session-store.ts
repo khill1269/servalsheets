@@ -171,7 +171,8 @@ export class InMemorySessionStore implements SessionStore {
  * Requires Redis to be installed and running
  */
 export class RedisSessionStore implements SessionStore {
-  private client: any; // Redis client (dynamic import)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private client: any; // Redis client (dynamic import, type not available at compile time)
   private connected: boolean = false;
 
   constructor(private redisUrl: string) {

@@ -34,7 +34,7 @@
  */
 
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import type { z, ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from 'zod';
 
 /**
  * Detects if a Zod schema is a discriminated union
@@ -122,7 +122,8 @@ export function zodSchemaToJsonSchema(
   
   try {
     // Use type assertion to avoid deep type instantiation
-    const jsonSchema = zodToJsonSchema(schema as any, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jsonSchema = zodToJsonSchema(schema as any, { // zod-to-json-schema accepts any zod schema type
       $refStrategy: refStrategy,
       target,
       // Use strict unions for discriminated unions
@@ -131,7 +132,7 @@ export function zodSchemaToJsonSchema(
     
     if (typeof jsonSchema === 'object' && jsonSchema !== null) {
       // Remove $schema property (MCP doesn't need it)
-      const { $schema, ...rest } = jsonSchema;
+      const { $schema: _$schema, ...rest } = jsonSchema;
       return rest;
     }
   } catch (error) {

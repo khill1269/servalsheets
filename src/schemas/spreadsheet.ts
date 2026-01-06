@@ -6,10 +6,10 @@
 import { z } from 'zod';
 import {
   SpreadsheetIdSchema,
-  SheetInfoSchema,
+  SheetInfoSchema as _SheetInfoSchema,
   SpreadsheetInfoSchema,
   ErrorDetailSchema,
-  SafetyOptionsSchema,
+  SafetyOptionsSchema as _SafetyOptionsSchema,
   MutationSummarySchema,
   ColorSchema,
   ResponseMetaSchema,

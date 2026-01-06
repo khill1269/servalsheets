@@ -29,8 +29,11 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
   }
 
   async handle(input: SheetsPivotInput): Promise<SheetsPivotOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as PivotAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: PivotResponse;
       switch (req.action) {
         case 'create':
@@ -58,6 +61,15 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -117,7 +129,7 @@ export class PivotHandler extends BaseHandler<SheetsPivotInput, SheetsPivotOutpu
       filterSpecs: input.filters?.map(this.mapPivotFilter),
     };
 
-    const response = await this.sheetsApi.spreadsheets.batchUpdate({
+    const _response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
         requests: [{

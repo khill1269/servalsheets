@@ -14,7 +14,6 @@ import type {
   FormatAction,
   FormatResponse,
 } from '../schemas/index.js';
-import type { CreateTaskResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   parseA1Notation,
   toGridRange,
@@ -22,7 +21,6 @@ import {
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
-import { getRequestLogger } from '../utils/request-context.js';
 import { createRequestKey } from '../utils/request-deduplication.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 
@@ -37,8 +35,21 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   async handle(input: SheetsFormatInput): Promise<SheetsFormatOutput> {
     const { request } = input;
 
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(request) as FormatAction;
+
     try {
-      const response = await this.executeAction(request);
+      const response = await this.executeAction(inferredRequest);
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -569,14 +580,14 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     });
 
     // Deduplicate the API call
-    const fetchFn = async () => this.sheetsApi.spreadsheets.get({
+    const fetchFn = async (): Promise<unknown> => this.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields: 'sheets.properties',
     });
 
-    const response = this.context.requestDeduplicator
+    const response = (this.context.requestDeduplicator
       ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-      : await fetchFn();
+      : await fetchFn()) as { data: { sheets?: Array<{ properties?: { sheetId?: number; title?: string } }> } };
 
     const sheets = response.data.sheets ?? [];
 
@@ -584,7 +595,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       return sheets[0]?.properties?.sheetId ?? 0;
     }
 
-    const sheet = sheets.find(s => s.properties?.title === sheetName);
+    const sheet = sheets.find((s: { properties?: { title?: string } }) => s.properties?.title === sheetName);
     if (!sheet) {
       throw new RangeResolutionError(
         `Sheet "${sheetName}" not found`,

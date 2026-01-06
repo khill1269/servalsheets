@@ -20,6 +20,7 @@ import {
 import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
+import { getContextManager } from '../services/context-manager.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -362,5 +363,36 @@ export abstract class BaseHandler<TInput, TOutput> {
       index = index * 26 + (letter.charCodeAt(i) - 64);
     }
     return index - 1;
+  }
+
+  /**
+   * Infer missing parameters from conversational context
+   *
+   * Phase 1, Task 1.4 - Parameter Inference
+   *
+   * Automatically fills in spreadsheetId, sheetId, and range from recent operations
+   * when they're missing from the current request.
+   */
+  protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
+    const contextManager = getContextManager();
+    return contextManager.inferParameters(request);
+  }
+
+  /**
+   * Update conversational context from successful operation
+   *
+   * Phase 1, Task 1.4 - Parameter Inference
+   *
+   * Tracks spreadsheetId, sheetId, and range for future parameter inference.
+   * Call this after successful operations to maintain context.
+   */
+  protected trackContextFromRequest(params: {
+    spreadsheetId?: string;
+    sheetId?: number;
+    range?: string;
+    sheetName?: string;
+  }): void {
+    const contextManager = getContextManager();
+    contextManager.updateContext(params);
   }
 }

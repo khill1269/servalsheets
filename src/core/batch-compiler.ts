@@ -7,7 +7,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { createHash } from 'crypto';
-import type { Intent, IntentType } from './intent.js';
+import type { Intent } from './intent.js';
 import { INTENT_TO_REQUEST_TYPE, DESTRUCTIVE_INTENTS, HIGH_RISK_INTENTS } from './intent.js';
 import type { RateLimiter } from './rate-limiter.js';
 import type { DiffEngine } from './diff-engine.js';

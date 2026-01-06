@@ -14,9 +14,11 @@ import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
 import { completeRange, completeSpreadsheetId } from '../mcp/completions.js';
 
 // Helper type to constrain inference and prevent excessive depth
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PromptArgsShape = Record<string, any>;
 
 // Helper to hide completable() type complexity from TypeScript inference
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function c(schema: any, completer: any): any {
   return completable(schema, completer);
 }

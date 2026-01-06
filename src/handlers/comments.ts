@@ -94,7 +94,7 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
     }
   }
 
-  protected createIntents(input: SheetsCommentsInput): Intent[] {
+  protected createIntents(_input: SheetsCommentsInput): Intent[] {
     return [];
   }
 

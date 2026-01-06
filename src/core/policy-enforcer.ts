@@ -6,7 +6,7 @@
  */
 
 import type { Intent } from './intent.js';
-import { DESTRUCTIVE_INTENTS, HIGH_RISK_INTENTS } from './intent.js';
+import { DESTRUCTIVE_INTENTS } from './intent.js';
 import type { ErrorDetail } from '../schemas/shared.js';
 
 export interface PolicyConfig {

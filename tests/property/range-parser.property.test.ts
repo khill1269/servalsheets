@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 
 // Import the range parsing utilities
-import { parseA1Notation, indexToColumnLetter, columnLetterToIndex } from '../../src/utils/google-api.js';
+import { parseA1Notation, indexToColumnLetter, columnLetterToIndex } from '../../src/utils/google-sheets-helpers.js';
 
 describe('Range Parser Property Tests', () => {
   describe('Column Letter Conversion', () => {

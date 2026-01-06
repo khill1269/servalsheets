@@ -95,7 +95,7 @@ export const batchSizeHistogram = new Histogram({
 /**
  * Export metrics handler for Express
  */
-export async function metricsHandler(_req: any, res: any) {
+export async function metricsHandler(_req: unknown, res: { set: (key: string, value: string) => void; send: (body: string) => void; end: (body?: string) => void; status: (code: number) => { send: (body: string) => void; end: (body?: string) => void } }): Promise<void> {
   try {
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
@@ -110,7 +110,7 @@ export async function metricsHandler(_req: any, res: any) {
 export function updateCircuitBreakerMetric(
   circuit: string,
   state: 'closed' | 'open' | 'half_open'
-) {
+): void {
   const stateValue = state === 'closed' ? 0 : state === 'half_open' ? 1 : 2;
   circuitBreakerState.set({ circuit }, stateValue);
 }
@@ -123,7 +123,7 @@ export function recordToolCall(
   action: string,
   status: 'success' | 'error',
   durationSeconds: number
-) {
+): void {
   toolCallsTotal.inc({ tool, action, status });
   toolCallDuration.observe({ tool, action }, durationSeconds);
 }
@@ -135,7 +135,7 @@ export function recordGoogleApiCall(
   method: string,
   status: 'success' | 'error',
   durationSeconds: number
-) {
+): void {
   googleApiCallsTotal.inc({ method, status });
   googleApiDuration.observe({ method }, durationSeconds);
 }
@@ -143,7 +143,7 @@ export function recordGoogleApiCall(
 /**
  * Update queue metrics
  */
-export function updateQueueMetrics(size: number, pending: number) {
+export function updateQueueMetrics(size: number, pending: number): void {
   queueSize.set(size);
   queuePending.set(pending);
 }
@@ -156,7 +156,7 @@ export function updateCacheMetrics(
   hits: number,
   misses: number,
   sizeBytes: number
-) {
+): void {
   cacheHitsTotal.inc({ namespace }, hits);
   cacheMissesTotal.inc({ namespace }, misses);
   cacheSize.set({ namespace }, sizeBytes);
@@ -165,7 +165,7 @@ export function updateCacheMetrics(
 /**
  * Record batch operation
  */
-export function recordBatchOperation(operation: string, size: number) {
+export function recordBatchOperation(operation: string, size: number): void {
   batchRequestsTotal.inc({ operation });
   batchSizeHistogram.observe({ operation }, size);
 }

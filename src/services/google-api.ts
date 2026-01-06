@@ -17,6 +17,7 @@ import { getRequestContext } from '../utils/request-context.js';
 import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { ServiceError } from '../core/errors.js';
+import { TokenManager } from './token-manager.js';
 
 export interface GoogleApiClientOptions {
   credentials?: {
@@ -74,7 +75,7 @@ export const READONLY_SCOPES = [
  * Create HTTP agents with connection pooling
  * Optimizes performance by reusing TCP connections
  */
-function createHttpAgents() {
+function createHttpAgents(): { http: HttpAgent; https: HttpsAgent } {
   const maxSockets = parseInt(process.env['GOOGLE_API_MAX_SOCKETS'] ?? '50');
   const keepAliveTimeout = parseInt(process.env['GOOGLE_API_KEEPALIVE_TIMEOUT'] ?? '30000');
 
@@ -107,9 +108,10 @@ export class GoogleApiClient {
   private tokenStore?: TokenStore;
   private circuit: CircuitBreaker;
   private tokenRefreshQueue: PQueue;
-  private tokenListener?: (tokens: any) => void;
+  private tokenListener?: (tokens: import('google-auth-library').Credentials) => void;
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
   private _authType: GoogleAuthType;
+  private tokenManager?: TokenManager;
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -171,6 +173,7 @@ export class GoogleApiClient {
 
     await this.loadStoredTokens();
     this.attachTokenListener();
+    this.initializeTokenManager();
 
     // Initialize API clients with connection pooling
     const sheetsApi = google.sheets({
@@ -187,10 +190,11 @@ export class GoogleApiClient {
 
     // Configure transport options for auth client
     if (this.auth && 'transporter' in this.auth) {
-      const transporter = (this.auth as any).transporter;
-      if (transporter && transporter.defaults) {
-        transporter.defaults.agent = this.httpAgents.https;
-        transporter.defaults.httpAgent = this.httpAgents.http;
+      const transporter = (this.auth as unknown as Record<string, unknown>)['transporter'] as Record<string, unknown> | undefined;
+      if (transporter && transporter['defaults']) {
+        const defaults = transporter['defaults'] as Record<string, unknown>;
+        defaults['agent'] = this.httpAgents.https;
+        defaults['httpAgent'] = this.httpAgents.http;
       }
     }
 
@@ -250,7 +254,7 @@ export class GoogleApiClient {
     }
 
     // Create and store the listener
-    this.tokenListener = async (tokens: any) => {
+    this.tokenListener = async (tokens: import('google-auth-library').Credentials) => {
       // Wrap in queue to prevent concurrent token refreshes
       await this.tokenRefreshQueue.add(async () => {
         const current = this.sanitizeTokens({ ...(this.auth?.credentials ?? {}) } as Record<string, unknown>);
@@ -308,6 +312,41 @@ export class GoogleApiClient {
     } catch (error) {
       logger.warn('Failed to save tokens', { error });
     }
+  }
+
+  /**
+   * Initialize proactive token refresh manager
+   */
+  private initializeTokenManager(): void {
+    // Only enable for OAuth2 clients with refresh tokens
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      return;
+    }
+
+    const credentials = this.auth.credentials;
+    if (!credentials.refresh_token) {
+      logger.debug('No refresh token available, skipping token manager initialization');
+      return;
+    }
+
+    logger.info('Initializing proactive token manager');
+
+    this.tokenManager = new TokenManager({
+      oauthClient: this.auth,
+      refreshThreshold: 0.8, // Refresh at 80% of token lifetime
+      checkIntervalMs: 300000, // Check every 5 minutes
+      onTokenRefreshed: async (_tokens) => {
+        logger.info('Token proactively refreshed by TokenManager');
+        // Tokens are automatically saved by the 'tokens' event listener
+      },
+      onRefreshError: (error) => {
+        logger.error('Token refresh failed in TokenManager', {
+          error: error.message,
+        });
+      },
+    });
+
+    this.tokenManager.start();
   }
 
   /**
@@ -484,7 +523,7 @@ export class GoogleApiClient {
   /**
    * Get circuit breaker statistics
    */
-  getCircuitStats() {
+  getCircuitStats(): unknown {
     return this.circuit.getStats();
   }
 
@@ -544,6 +583,12 @@ export class GoogleApiClient {
    * Prevents memory leaks from accumulating listeners
    */
   destroy(): void {
+    // Stop token manager
+    if (this.tokenManager) {
+      this.tokenManager.stop();
+      this.tokenManager = undefined;
+    }
+
     // Remove token listener to prevent memory leak
     if (this.auth && this.tokenListener && this.auth instanceof google.auth.OAuth2) {
       this.auth.off('tokens', this.tokenListener);
@@ -601,7 +646,7 @@ function wrapGoogleApi<T extends object>(
         
         if (typeof value === 'function') {
           return (...args: unknown[]) => {
-            const operation = () =>
+            const operation = (): Promise<unknown> =>
               executeWithRetry((signal) => {
                 const callArgs = injectSignal(args, signal);
                 return (value as (...params: unknown[]) => Promise<unknown>).apply(target, callArgs);

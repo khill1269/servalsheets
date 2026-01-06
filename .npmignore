@@ -31,8 +31,9 @@ coverage/
 
 # Scripts
 scripts/
-configure-claude.sh
-install-claude-desktop.sh
+
+# Deployment configs (not needed in npm package)
+deployment/
 
 # Lock files
 package-lock.json

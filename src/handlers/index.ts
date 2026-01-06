@@ -23,6 +23,14 @@ export type { CommentsHandler } from './comments.js';
 export type { VersionsHandler } from './versions.js';
 export type { AnalysisHandler } from './analysis.js';
 export type { AdvancedHandler } from './advanced.js';
+export type { TransactionHandler } from './transaction.js';
+export type { WorkflowHandler } from './workflow.js';
+export type { InsightsHandler } from './insights.js';
+export type { ValidationHandler } from './validation.js';
+export type { PlanningHandler } from './planning.js';
+export type { ConflictHandler } from './conflict.js';
+export type { ImpactHandler } from './impact.js';
+export type { HistoryHandler } from './history.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { HandlerContext } from './base.js';
@@ -36,21 +44,29 @@ export interface HandlerFactoryOptions {
 
 // Define handler types for TypeScript
 export interface Handlers {
-  values: any;
-  spreadsheet: any;
-  sheet: any;
-  cells: any;
-  format: any;
-  dimensions: any;
-  rules: any;
-  charts: any;
-  pivot: any;
-  filterSort: any;
-  sharing: any;
-  comments: any;
-  versions: any;
-  analysis: any;
-  advanced: any;
+  values: import('./values.js').ValuesHandler;
+  spreadsheet: import('./spreadsheet.js').SpreadsheetHandler;
+  sheet: import('./sheet.js').SheetHandler;
+  cells: import('./cells.js').CellsHandler;
+  format: import('./format.js').FormatHandler;
+  dimensions: import('./dimensions.js').DimensionsHandler;
+  rules: import('./rules.js').RulesHandler;
+  charts: import('./charts.js').ChartsHandler;
+  pivot: import('./pivot.js').PivotHandler;
+  filterSort: import('./filter-sort.js').FilterSortHandler;
+  sharing: import('./sharing.js').SharingHandler;
+  comments: import('./comments.js').CommentsHandler;
+  versions: import('./versions.js').VersionsHandler;
+  analysis: import('./analysis.js').AnalysisHandler;
+  advanced: import('./advanced.js').AdvancedHandler;
+  transaction: import('./transaction.js').TransactionHandler;
+  workflow: import('./workflow.js').WorkflowHandler;
+  insights: import('./insights.js').InsightsHandler;
+  validation: import('./validation.js').ValidationHandler;
+  planning: import('./planning.js').PlanningHandler;
+  conflict: import('./conflict.js').ConflictHandler;
+  impact: import('./impact.js').ImpactHandler;
+  history: import('./history.js').HistoryHandler;
 }
 
 /**
@@ -59,7 +75,7 @@ export interface Handlers {
  * Provides ~30% faster initialization for typical usage
  */
 export function createHandlers(options: HandlerFactoryOptions): Handlers {
-  const cache: Partial<Handlers> = {};
+  const cache = {} as Partial<Handlers>;
 
   const loaders = {
     async values() {
@@ -122,6 +138,38 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       const { AdvancedHandler } = await import('./advanced.js');
       return new AdvancedHandler(options.context, options.sheetsApi);
     },
+    async transaction() {
+      const { TransactionHandler } = await import('./transaction.js');
+      return new TransactionHandler();
+    },
+    async workflow() {
+      const { WorkflowHandler } = await import('./workflow.js');
+      return new WorkflowHandler();
+    },
+    async insights() {
+      const { InsightsHandler } = await import('./insights.js');
+      return new InsightsHandler();
+    },
+    async validation() {
+      const { ValidationHandler } = await import('./validation.js');
+      return new ValidationHandler();
+    },
+    async planning() {
+      const { PlanningHandler } = await import('./planning.js');
+      return new PlanningHandler();
+    },
+    async conflict() {
+      const { ConflictHandler } = await import('./conflict.js');
+      return new ConflictHandler();
+    },
+    async impact() {
+      const { ImpactHandler } = await import('./impact.js');
+      return new ImpactHandler();
+    },
+    async history() {
+      const { HistoryHandler } = await import('./history.js');
+      return new HistoryHandler();
+    },
   };
 
   return new Proxy({} as Handlers, {
@@ -147,10 +195,10 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
           return async (...args: unknown[]) => {
             // Lazy load and cache the handler
             if (!cache[prop as keyof Handlers]) {
-              cache[prop as keyof Handlers] = await loader();
+              (cache as Record<string, unknown>)[prop as string] = await loader();
             }
-            const handler = cache[prop as keyof Handlers];
-            const method = (handler as any)[methodProp];
+            const handler = cache[prop as keyof Handlers]!;
+            const method = (handler as unknown as Record<string, unknown>)[methodProp];
             if (typeof method !== 'function') {
               throw new HandlerLoadError(
                 `Method ${methodProp} not found on handler ${prop}`,

@@ -9,7 +9,7 @@
 
 import type { Task, RequestId, Result, Request } from '@modelcontextprotocol/sdk/types.js';
 import type { TaskStore as SDKTaskStore, CreateTaskOptions } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
-import type { TaskStore as CustomTaskStore, Task as CustomTask, TaskResult } from './task-store.js';
+import type { TaskStore as CustomTaskStore } from './task-store.js';
 import { InMemoryTaskStore } from './task-store.js';
 
 /**
@@ -76,7 +76,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
     // Result and CallToolResult are structurally compatible
     // Both have: content: Content[], isError?: boolean
     // Use type assertion since structures are compatible
-    await this.store.storeTaskResult(taskId, status, result as any);
+    await this.store.storeTaskResult(taskId, status, result as unknown as Parameters<CustomTaskStore['storeTaskResult']>[2]);
   }
 
   /**

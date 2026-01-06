@@ -276,7 +276,8 @@ export class InMemoryTaskStore implements TaskStore {
  * - Redis SCAN for efficient task listing
  */
 export class RedisTaskStore implements TaskStore {
-  private client: any; // Redis client (dynamic import)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private client: any; // Redis client (dynamic import, type not available at compile time)
   private connected: boolean = false;
   private keyPrefix: string;
 

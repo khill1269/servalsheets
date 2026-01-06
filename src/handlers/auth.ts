@@ -14,6 +14,10 @@ import { getOAuthEnvConfig } from '../utils/oauth-config.js';
 import type { SheetsAuthInput, SheetsAuthOutput, AuthAction, AuthResponse } from '../schemas/auth.js';
 import { initiateOAuthFlow } from '../mcp/elicitation.js';
 import type { ElicitationServer } from '../mcp/elicitation.js';
+import { startCallbackServer, extractPortFromRedirectUri } from '../utils/oauth-callback-server.js';
+import { TokenManager } from '../services/token-manager.js';
+import { logger } from '../utils/logger.js';
+import open from 'open';
 
 export interface AuthHandlerOptions {
   googleClient?: GoogleApiClient | null;
@@ -33,6 +37,7 @@ export class AuthHandler {
   private tokenStorePath?: string;
   private tokenStoreKey?: string;
   private elicitationServer?: ElicitationServer;
+  private tokenManager?: TokenManager;
 
   constructor(options: AuthHandlerOptions = {}) {
     const envConfig = getOAuthEnvConfig();
@@ -167,6 +172,117 @@ export class AuthHandler {
       prompt: 'consent',
     });
 
+    // Check if we should use automatic callback server
+    const useCallbackServer = process.env['OAUTH_USE_CALLBACK_SERVER'] !== 'false';
+    const autoOpenBrowser = process.env['OAUTH_AUTO_OPEN_BROWSER'] !== 'false';
+
+    if (useCallbackServer && this.redirectUri && this.redirectUri.includes('localhost')) {
+      // Automatic callback flow with local server
+      try {
+        const port = extractPortFromRedirectUri(this.redirectUri);
+
+        // Start callback server
+        logger.info(`Starting OAuth callback server on port ${port}...`);
+        const callbackPromise = startCallbackServer({ port, timeout: 120000 });
+
+        // Use elicitation API if available
+        if (this.elicitationServer) {
+          try {
+            await initiateOAuthFlow(this.elicitationServer, {
+              authUrl,
+              provider: 'Google',
+              scopes: requestedScopes,
+            });
+          } catch {
+            // Elicitation is optional; continue
+          }
+        }
+
+        // Open browser
+        if (autoOpenBrowser) {
+          try {
+            await open(authUrl);
+          } catch (error) {
+            console.error('Failed to open browser:', error instanceof Error ? error.message : String(error));
+          }
+        }
+
+        // Wait for callback
+        logger.info('Waiting for OAuth callback...');
+        const result = await callbackPromise;
+
+        if (result.error) {
+          return {
+            success: false,
+            error: {
+              code: 'AUTH_ERROR',
+              message: `OAuth authentication failed: ${result.error}`,
+              retryable: true,
+            },
+          };
+        }
+
+        if (!result.code) {
+          return {
+            success: false,
+            error: {
+              code: 'AUTH_ERROR',
+              message: 'No authorization code received',
+              retryable: true,
+            },
+          };
+        }
+
+        // Exchange code for tokens automatically
+        logger.info('Received authorization code, exchanging for tokens...');
+        const { tokens } = await oauthClient.getToken(result.code);
+        oauthClient.setCredentials(tokens);
+
+        // Save tokens
+        if (this.tokenStoreKey) {
+          const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
+          await tokenStore.save({
+            access_token: tokens.access_token ?? undefined,
+            refresh_token: tokens.refresh_token ?? undefined,
+            expiry_date: tokens.expiry_date ?? undefined,
+            token_type: tokens.token_type ?? undefined,
+            scope: tokens.scope ?? undefined,
+            id_token: tokens.id_token ?? undefined,
+          });
+        }
+
+        // Update Google client
+        if (this.googleClient && tokens.access_token) {
+          this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
+        }
+
+        // Start token manager for proactive refresh (Phase 1, Task 1.1)
+        if (tokens.refresh_token) {
+          this.startTokenManager(oauthClient);
+        }
+
+        const hasRefreshToken = Boolean(tokens.refresh_token);
+        const warning = this.tokenStoreKey
+          ? undefined
+          : 'ENCRYPTION_KEY not set; tokens will not persist across restarts.';
+
+        return {
+          success: true,
+          action: 'login',
+          authenticated: true,
+          hasRefreshToken,
+          message: warning
+            ? `Authentication successful! ${warning}`
+            : 'Authentication successful! You can now use sheets_* tools.',
+        };
+
+      } catch (error) {
+        console.error('Callback server error:', error);
+        // Fall back to manual flow
+      }
+    }
+
+    // Manual flow (fallback or if callback server disabled)
     if (this.elicitationServer) {
       try {
         await initiateOAuthFlow(this.elicitationServer, {
@@ -175,7 +291,17 @@ export class AuthHandler {
           scopes: requestedScopes,
         });
       } catch {
-        // Elicitation is optional; continue with normal response.
+        // Elicitation is optional; continue
+      }
+    }
+
+    let browserOpened = false;
+    if (autoOpenBrowser) {
+      try {
+        await open(authUrl);
+        browserOpened = true;
+      } catch (error) {
+        console.error('Failed to open browser:', error instanceof Error ? error.message : String(error));
       }
     }
 
@@ -185,13 +311,22 @@ export class AuthHandler {
       authenticated: false,
       authUrl,
       scopes: requestedScopes,
-      message: 'Visit the authorization URL to sign in, then provide the code.',
-      instructions: [
-        '1. Open the authorization URL and sign in to Google',
-        '2. Approve the requested permissions',
-        '3. Copy the authorization code from the redirect URL',
-        '4. Call sheets_auth with action "callback" and the code',
-      ],
+      message: browserOpened
+        ? 'Browser opened for authentication. Sign in to Google, then paste the authorization code here.'
+        : 'Visit the authorization URL to sign in, then provide the code.',
+      instructions: browserOpened
+        ? [
+            '1. Complete the authentication in the browser window that just opened',
+            '2. Approve the requested permissions',
+            '3. Copy the authorization code from the redirect URL',
+            '4. Paste the code here (Claude will call sheets_auth with action "callback")',
+          ]
+        : [
+            '1. Open the authorization URL and sign in to Google',
+            '2. Approve the requested permissions',
+            '3. Copy the authorization code from the redirect URL',
+            '4. Call sheets_auth with action "callback" and the code',
+          ],
     };
   }
 
@@ -230,6 +365,11 @@ export class AuthHandler {
       this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
     }
 
+    // Start token manager for proactive refresh (Phase 1, Task 1.1)
+    if (tokens.refresh_token) {
+      this.startTokenManager(oauthClient);
+    }
+
     const hasRefreshToken = Boolean(tokens.refresh_token);
     const warning = this.tokenStoreKey
       ? undefined
@@ -247,6 +387,12 @@ export class AuthHandler {
   }
 
   private async handleLogout(): Promise<AuthResponse> {
+    // Stop token manager (Phase 1, Task 1.1)
+    if (this.tokenManager) {
+      this.tokenManager.stop();
+      this.tokenManager = undefined;
+    }
+
     if (this.googleClient) {
       try {
         await this.googleClient.revokeAccess();
@@ -265,6 +411,60 @@ export class AuthHandler {
       authenticated: false,
       message: 'Authentication cleared.',
     };
+  }
+
+  /**
+   * Initialize and start token manager for proactive refresh
+   * Phase 1, Task 1.1: Proactive OAuth Token Refresh
+   */
+  private startTokenManager(oauthClient: OAuth2Client): void {
+    // Stop existing manager if present
+    if (this.tokenManager) {
+      this.tokenManager.stop();
+    }
+
+    // Create new token manager with refresh callback
+    this.tokenManager = new TokenManager({
+      oauthClient,
+      refreshThreshold: 0.8, // Refresh at 80% of token lifetime
+      checkIntervalMs: 300000, // Check every 5 minutes
+      onTokenRefreshed: async (tokens) => {
+        // Save refreshed tokens to encrypted store
+        if (this.tokenStoreKey && this.tokenStorePath) {
+          try {
+            const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath, this.tokenStoreKey);
+            await tokenStore.save({
+              access_token: tokens.access_token ?? undefined,
+              refresh_token: tokens.refresh_token ?? undefined,
+              expiry_date: tokens.expiry_date ?? undefined,
+              token_type: tokens.token_type ?? undefined,
+              scope: tokens.scope ?? undefined,
+              id_token: tokens.id_token ?? undefined,
+            });
+            logger.info('Refreshed tokens saved to encrypted store');
+          } catch (error) {
+            logger.error('Failed to save refreshed tokens', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        // Update Google client credentials
+        if (this.googleClient && tokens.access_token) {
+          this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
+        }
+      },
+      onRefreshError: async (error) => {
+        logger.error('Token refresh failed', {
+          error: error.message,
+          recommendation: 'User may need to re-authenticate',
+        });
+      },
+    });
+
+    // Start background monitoring
+    this.tokenManager.start();
+    logger.info('Token manager started for proactive refresh');
   }
 
   private createOAuthClient(): OAuth2Client | null {

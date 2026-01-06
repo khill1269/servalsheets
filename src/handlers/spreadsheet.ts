@@ -34,7 +34,9 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
 
   async handle(input: SheetsSpreadsheetInput): Promise<SheetsSpreadsheetOutput> {
     try {
-      const req = input.request;
+      // Phase 1, Task 1.4: Infer missing parameters from context
+      const req = this.inferRequestParameters(input.request) as SpreadsheetAction;
+
       let response: SpreadsheetResponse;
       switch (req.action) {
         case 'get':
@@ -62,6 +64,14 @@ export class SpreadsheetHandler extends BaseHandler<SheetsSpreadsheetInput, Shee
             retryable: false,
           });
       }
+
+      // Phase 1, Task 1.4: Track context after successful operation
+      if (response.success && 'spreadsheetId' in req) {
+        this.trackContextFromRequest({
+          spreadsheetId: req.spreadsheetId,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };

@@ -185,7 +185,7 @@ export class AuthRequiredError extends Error {
     this.nextTool = error.nextTool;
   }
 
-  toResponse() {
+  toResponse(): unknown {
     return buildAuthErrorResponse({
       code: this.code as AuthGuardError['code'],
       message: this.message,

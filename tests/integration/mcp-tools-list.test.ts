@@ -2,7 +2,7 @@
  * MCP Protocol tools/list Runtime Test
  *
  * Tests the actual MCP server's tools/list response to verify that:
- * 1. All 15 tools are returned
+ * 1. All 16 tools are returned
  * 2. Each tool has non-empty input schemas
  * 3. Schemas are valid JSON Schema (not Zod objects)
  * 4. No Zod artifacts (parse, safeParseAsync, etc.) are present
@@ -141,7 +141,7 @@ describe('MCP Protocol tools/list', () => {
     return { request, notify, cleanup };
   };
 
-  it('should return all 15 tools with non-empty schemas', async () => {
+  it('should return all 16 tools with non-empty schemas', async () => {
     // Spawn the MCP server as a child process
     const child = spawn('node', ['dist/cli.js']);
 
@@ -175,7 +175,7 @@ describe('MCP Protocol tools/list', () => {
 
     // Verify tool count
     expect(parsed.result.tools).toHaveLength(TOOL_COUNT);
-    expect(parsed.result.tools).toHaveLength(15);
+    expect(parsed.result.tools).toHaveLength(16);
 
     // Verify each tool
     for (const tool of parsed.result.tools) {

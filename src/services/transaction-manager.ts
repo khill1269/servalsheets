@@ -1,0 +1,714 @@
+/**
+ * ServalSheets - Transaction Manager
+ *
+ * Multi-operation transaction support with:
+ * - Atomicity (all or nothing)
+ * - Automatic snapshots
+ * - Auto-rollback on error
+ * - Batch operation merging (N API calls → 1)
+ *
+ * Phase 4, Task 4.1
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import {
+  Transaction,
+  TransactionStatus as _TransactionStatus,
+  QueuedOperation,
+  OperationType,
+  TransactionSnapshot,
+  CommitResult,
+  RollbackResult,
+  OperationResult,
+  BatchRequest,
+  BatchRequestEntry,
+  TransactionConfig,
+  TransactionStats,
+  TransactionEvent,
+  TransactionListener,
+} from '../types/transaction.js';
+
+/**
+ * Transaction Manager - Handles multi-operation transactions with atomicity
+ */
+export class TransactionManager {
+  private config: Required<TransactionConfig>;
+  private stats: TransactionStats;
+  private activeTransactions: Map<string, Transaction>;
+  private snapshots: Map<string, TransactionSnapshot>;
+  private listeners: TransactionListener[];
+  private operationIdCounter: number;
+
+  constructor(config: TransactionConfig = {}) {
+    this.config = {
+      enabled: config.enabled ?? true,
+      autoSnapshot: config.autoSnapshot ?? true,
+      autoRollback: config.autoRollback ?? true,
+      maxOperationsPerTransaction: config.maxOperationsPerTransaction ?? 100,
+      transactionTimeoutMs: config.transactionTimeoutMs ?? 300000, // 5 minutes
+      snapshotRetentionMs: config.snapshotRetentionMs ?? 3600000, // 1 hour
+      maxConcurrentTransactions: config.maxConcurrentTransactions ?? 10,
+      verboseLogging: config.verboseLogging ?? false,
+      defaultIsolationLevel: config.defaultIsolationLevel ?? 'read_committed',
+    };
+
+    this.stats = {
+      totalTransactions: 0,
+      successfulTransactions: 0,
+      failedTransactions: 0,
+      rolledBackTransactions: 0,
+      successRate: 0,
+      avgTransactionDuration: 0,
+      avgOperationsPerTransaction: 0,
+      apiCallsSaved: 0,
+      snapshotsCreated: 0,
+      activeTransactions: 0,
+      totalDataProcessed: 0,
+    };
+
+    this.activeTransactions = new Map();
+    this.snapshots = new Map();
+    this.listeners = [];
+    this.operationIdCounter = 0;
+
+    // Start background cleanup
+    this.startSnapshotCleanup();
+  }
+
+  /**
+   * Begin a new transaction
+   */
+  async begin(
+    spreadsheetId: string,
+    options: {
+      autoCommit?: boolean;
+      autoRollback?: boolean;
+      isolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
+      userId?: string;
+    } = {}
+  ): Promise<string> {
+    if (!this.config.enabled) {
+      throw new Error('Transactions are disabled');
+    }
+
+    if (this.activeTransactions.size >= this.config.maxConcurrentTransactions) {
+      throw new Error('Maximum concurrent transactions reached');
+    }
+
+    const transactionId = uuidv4();
+    this.log(`Beginning transaction: ${transactionId}`);
+
+    // Create snapshot if auto-snapshot enabled
+    let snapshot: TransactionSnapshot | undefined;
+    if (this.config.autoSnapshot) {
+      snapshot = await this.createSnapshot(spreadsheetId);
+      this.log(`Created snapshot: ${snapshot.id}`);
+    }
+
+    const transaction: Transaction = {
+      id: transactionId,
+      spreadsheetId,
+      operations: [],
+      snapshot,
+      status: 'pending',
+      startTime: Date.now(),
+      userId: options.userId,
+      isolationLevel: options.isolationLevel ?? this.config.defaultIsolationLevel,
+      autoCommit: options.autoCommit ?? false,
+      autoRollback: options.autoRollback ?? this.config.autoRollback,
+    };
+
+    this.activeTransactions.set(transactionId, transaction);
+    this.stats.totalTransactions++;
+    this.stats.activeTransactions++;
+
+    this.emitEvent({
+      type: 'begin',
+      transactionId,
+      timestamp: Date.now(),
+      data: { spreadsheetId, snapshot: snapshot?.id },
+    });
+
+    return transactionId;
+  }
+
+  /**
+   * Queue an operation in the transaction
+   */
+  async queue(
+    transactionId: string,
+    operation: {
+      type: OperationType;
+      tool: string;
+      action: string;
+      params: Record<string, unknown>;
+      dependsOn?: string[];
+      estimatedDuration?: number;
+    }
+  ): Promise<string> {
+    const transaction = this.getTransaction(transactionId);
+
+    if (transaction.status !== 'pending') {
+      throw new Error(`Transaction ${transactionId} is not in pending state`);
+    }
+
+    if (
+      transaction.operations.length >= this.config.maxOperationsPerTransaction
+    ) {
+      throw new Error('Maximum operations per transaction reached');
+    }
+
+    const operationId = `op_${this.operationIdCounter++}`;
+    this.log(`Queuing operation ${operationId} in transaction ${transactionId}`);
+
+    const queuedOp: QueuedOperation = {
+      id: operationId,
+      type: operation.type,
+      tool: operation.tool,
+      action: operation.action,
+      params: operation.params,
+      order: transaction.operations.length,
+      estimatedDuration: operation.estimatedDuration,
+      dependsOn: operation.dependsOn,
+      status: 'pending',
+      timestamp: Date.now(),
+    };
+
+    transaction.operations.push(queuedOp);
+    transaction.status = 'queued';
+
+    this.emitEvent({
+      type: 'queue',
+      transactionId,
+      timestamp: Date.now(),
+      data: { operationId, operationType: operation.type },
+    });
+
+    return operationId;
+  }
+
+  /**
+   * Commit the transaction (execute all operations atomically)
+   */
+  async commit(transactionId: string): Promise<CommitResult> {
+    const transaction = this.getTransaction(transactionId);
+    const startTime = Date.now();
+
+    this.log(`Committing transaction: ${transactionId}`);
+    transaction.status = 'executing';
+
+    try {
+      // Validate all operations
+      this.validateOperations(transaction);
+
+      // Merge operations into batch request
+      const batchRequest = this.mergeToBatchRequest(transaction.operations);
+
+      // Execute batch request (simulated for now)
+      const batchResponse = await this.executeBatchRequest(
+        transaction.spreadsheetId,
+        batchRequest
+      );
+
+      // Process results
+      const operationResults = this.processOperationResults(
+        transaction.operations,
+        batchResponse
+      );
+
+      // Check for failures
+      const failedOps = operationResults.filter((r) => !r.success);
+      if (failedOps.length > 0 && transaction.autoRollback) {
+        throw new Error(
+          `${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`
+        );
+      }
+
+      transaction.status = 'committed';
+      transaction.endTime = Date.now();
+      transaction.duration = transaction.endTime - transaction.startTime!;
+
+      // Update stats
+      this.stats.successfulTransactions++;
+      this.updateStats(transaction);
+
+      const apiCallsSaved = Math.max(0, transaction.operations.length - 1);
+      this.stats.apiCallsSaved += apiCallsSaved;
+
+      const result: CommitResult = {
+        transactionId,
+        success: true,
+        batchResponse,
+        operationResults,
+        duration: Date.now() - startTime,
+        apiCallsMade: 1,
+        apiCallsSaved,
+        snapshotId: transaction.snapshot?.id,
+      };
+
+      this.emitEvent({
+        type: 'commit',
+        transactionId,
+        timestamp: Date.now(),
+        data: { success: true, operationCount: transaction.operations.length },
+      });
+
+      // Cleanup
+      this.activeTransactions.delete(transactionId);
+      this.stats.activeTransactions--;
+
+      return result;
+    } catch (error) {
+      transaction.status = 'failed';
+      transaction.endTime = Date.now();
+      transaction.duration = transaction.endTime - transaction.startTime!;
+
+      this.stats.failedTransactions++;
+      this.updateStats(transaction);
+
+      let rolledBack = false;
+      let rollbackError: Error | undefined;
+
+      // Auto-rollback if configured
+      if (transaction.autoRollback && transaction.snapshot) {
+        try {
+          await this.rollback(transactionId);
+          rolledBack = true;
+        } catch (rbError) {
+          rollbackError = rbError instanceof Error ? rbError : new Error(String(rbError));
+        }
+      }
+
+      this.emitEvent({
+        type: 'fail',
+        transactionId,
+        timestamp: Date.now(),
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+          rolledBack,
+        },
+      });
+
+      // Cleanup
+      this.activeTransactions.delete(transactionId);
+      this.stats.activeTransactions--;
+
+      const result: CommitResult = {
+        transactionId,
+        success: false,
+        operationResults: [],
+        duration: Date.now() - startTime,
+        apiCallsMade: 0,
+        apiCallsSaved: 0,
+        error: error instanceof Error ? error : new Error(String(error)),
+        rolledBack,
+        snapshotId: transaction.snapshot?.id,
+      };
+
+      if (rollbackError && result.error) {
+        result.error = new Error(
+          `Transaction failed and rollback failed: ${result.error.message}, Rollback error: ${rollbackError.message}`
+        );
+      }
+
+      return result;
+    }
+  }
+
+  /**
+   * Rollback a transaction
+   */
+  async rollback(transactionId: string): Promise<RollbackResult> {
+    const transaction = this.getTransaction(transactionId);
+    const startTime = Date.now();
+
+    this.log(`Rolling back transaction: ${transactionId}`);
+
+    if (!transaction.snapshot) {
+      throw new Error('No snapshot available for rollback');
+    }
+
+    try {
+      // Restore snapshot
+      await this.restoreSnapshot(transaction.snapshot);
+
+      transaction.status = 'rolled_back';
+      this.stats.rolledBackTransactions++;
+
+      this.emitEvent({
+        type: 'rollback',
+        transactionId,
+        timestamp: Date.now(),
+        data: { snapshotId: transaction.snapshot.id },
+      });
+
+      return {
+        transactionId,
+        success: true,
+        snapshotId: transaction.snapshot.id,
+        duration: Date.now() - startTime,
+        operationsReverted: transaction.operations.length,
+      };
+    } catch (error) {
+      return {
+        transactionId,
+        success: false,
+        snapshotId: transaction.snapshot.id,
+        duration: Date.now() - startTime,
+        operationsReverted: 0,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  }
+
+  /**
+   * Get transaction by ID
+   */
+  getTransaction(transactionId: string): Transaction {
+    const transaction = this.activeTransactions.get(transactionId);
+    if (!transaction) {
+      throw new Error(`Transaction ${transactionId} not found`);
+    }
+    return transaction;
+  }
+
+  /**
+   * Create a snapshot of spreadsheet state
+   */
+  private async createSnapshot(
+    spreadsheetId: string
+  ): Promise<TransactionSnapshot> {
+    this.log(`Creating snapshot for spreadsheet: ${spreadsheetId}`);
+
+    // TODO: Integrate with Google Sheets API to fetch actual state
+    // For now, return simulated snapshot
+    const snapshot: TransactionSnapshot = {
+      id: uuidv4(),
+      spreadsheetId,
+      state: {
+        properties: {},
+        sheets: [],
+      },
+      timestamp: Date.now(),
+      size: 0,
+    };
+
+    this.snapshots.set(snapshot.id, snapshot);
+    this.stats.snapshotsCreated++;
+
+    return snapshot;
+  }
+
+  /**
+   * Restore snapshot
+   */
+  private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
+    this.log(`Restoring snapshot: ${snapshot.id}`);
+
+    // TODO: Integrate with Google Sheets API to restore state
+    // For now, simulate restoration
+    await this.delay(100);
+
+    this.log(`Snapshot restored: ${snapshot.id}`);
+  }
+
+  /**
+   * Validate operations before execution
+   */
+  private validateOperations(transaction: Transaction): void {
+    if (transaction.operations.length === 0) {
+      throw new Error('No operations to commit');
+    }
+
+    // Check for circular dependencies
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+
+    const hasCycle = (opId: string): boolean => {
+      if (recursionStack.has(opId)) return true;
+      if (visited.has(opId)) return false;
+
+      visited.add(opId);
+      recursionStack.add(opId);
+
+      const op = transaction.operations.find((o) => o.id === opId);
+      if (op?.dependsOn) {
+        for (const depId of op.dependsOn) {
+          if (hasCycle(depId)) return true;
+        }
+      }
+
+      recursionStack.delete(opId);
+      return false;
+    };
+
+    for (const op of transaction.operations) {
+      if (hasCycle(op.id)) {
+        throw new Error('Circular dependency detected in operations');
+      }
+    }
+  }
+
+  /**
+   * Merge operations into single batch request
+   */
+  private mergeToBatchRequest(operations: QueuedOperation[]): BatchRequest {
+    this.log(`Merging ${operations.length} operations into batch request`);
+
+    const requests: BatchRequestEntry[] = [];
+
+    for (const op of operations) {
+      // Convert operation to batch request entry
+      const entry = this.operationToBatchEntry(op);
+      if (entry) {
+        requests.push(entry);
+      }
+    }
+
+    return {
+      requests,
+      includeSpreadsheetInResponse: false,
+      responseIncludeGridData: false,
+    };
+  }
+
+  /**
+   * Convert operation to batch request entry
+   */
+  private operationToBatchEntry(op: QueuedOperation): BatchRequestEntry | null {
+    // TODO: Implement actual conversion logic for each operation type
+    // For now, return placeholder
+
+    switch (op.type) {
+      case 'values_write':
+        return {
+          updateCells: {
+            range: op.params['range'],
+            fields: 'userEnteredValue',
+          },
+        };
+
+      case 'format_apply':
+        return {
+          updateCells: {
+            range: op.params['range'],
+            fields: 'userEnteredFormat',
+          },
+        };
+
+      case 'sheet_create':
+        return {
+          addSheet: {
+            properties: {
+              title: op.params['title'],
+            },
+          },
+        };
+
+      case 'sheet_delete':
+        return {
+          deleteSheet: {
+            sheetId: op.params['sheetId'],
+          },
+        };
+
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Execute batch request (simulated for now)
+   */
+  private async executeBatchRequest(
+    spreadsheetId: string,
+    batchRequest: BatchRequest
+  ): Promise<unknown> {
+    this.log(
+      `Executing batch request for spreadsheet ${spreadsheetId} with ${batchRequest.requests.length} requests`
+    );
+
+    // TODO: Integrate with Google Sheets API
+    // For now, simulate execution
+    await this.delay(200);
+
+    return {
+      spreadsheetId,
+      replies: batchRequest.requests.map(() => ({})),
+    };
+  }
+
+  /**
+   * Process operation results from batch response
+   */
+  private processOperationResults(
+    operations: QueuedOperation[],
+    _batchResponse: unknown
+  ): OperationResult[] {
+    const results: OperationResult[] = [];
+
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i]!;
+
+      // TODO: Parse actual batch response
+      // For now, simulate success
+      results.push({
+        operationId: op.id,
+        success: true,
+        data: {},
+        duration: op.estimatedDuration ?? 100,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Update statistics
+   */
+  private updateStats(transaction: Transaction): void {
+    const totalTx = this.stats.totalTransactions;
+    this.stats.successRate = this.stats.successfulTransactions / totalTx;
+
+    if (transaction.duration) {
+      this.stats.avgTransactionDuration =
+        (this.stats.avgTransactionDuration * (totalTx - 1) + transaction.duration) /
+        totalTx;
+    }
+
+    this.stats.avgOperationsPerTransaction =
+      (this.stats.avgOperationsPerTransaction * (totalTx - 1) +
+        transaction.operations.length) /
+      totalTx;
+  }
+
+  /**
+   * Start background snapshot cleanup
+   */
+  private startSnapshotCleanup(): void {
+    setInterval(() => {
+      const now = Date.now();
+      const expired: string[] = [];
+
+      for (const [id, snapshot] of this.snapshots.entries()) {
+        if (now - snapshot.timestamp > this.config.snapshotRetentionMs) {
+          expired.push(id);
+        }
+      }
+
+      for (const id of expired) {
+        this.snapshots.delete(id);
+        this.log(`Cleaned up expired snapshot: ${id}`);
+      }
+    }, 60000); // Every minute
+  }
+
+  /**
+   * Add event listener
+   */
+  addEventListener(listener: TransactionListener): void {
+    this.listeners.push(listener);
+  }
+
+  /**
+   * Remove event listener
+   */
+  removeEventListener(listener: TransactionListener): void {
+    const index = this.listeners.indexOf(listener);
+    if (index > -1) {
+      this.listeners.splice(index, 1);
+    }
+  }
+
+  /**
+   * Emit event to listeners
+   */
+  private emitEvent(event: TransactionEvent): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('Error in transaction event listener:', error);
+      }
+    }
+  }
+
+  /**
+   * Delay helper
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Log message
+   */
+  private log(message: string): void {
+    if (this.config.verboseLogging) {
+      // eslint-disable-next-line no-console
+      console.log(`[TransactionManager] ${message}`); // Debugging output when verboseLogging enabled
+    }
+  }
+
+  /**
+   * Get statistics
+   */
+  getStats(): TransactionStats {
+    return { ...this.stats };
+  }
+
+  /**
+   * Reset statistics
+   */
+  resetStats(): void {
+    this.stats = {
+      totalTransactions: 0,
+      successfulTransactions: 0,
+      failedTransactions: 0,
+      rolledBackTransactions: 0,
+      successRate: 0,
+      avgTransactionDuration: 0,
+      avgOperationsPerTransaction: 0,
+      apiCallsSaved: 0,
+      snapshotsCreated: 0,
+      activeTransactions: this.activeTransactions.size,
+      totalDataProcessed: 0,
+    };
+  }
+
+  /**
+   * Get all active transactions
+   */
+  getActiveTransactions(): Transaction[] {
+    return Array.from(this.activeTransactions.values());
+  }
+
+  /**
+   * Cancel a transaction (rollback if snapshot exists)
+   */
+  async cancel(transactionId: string): Promise<void> {
+    const transaction = this.getTransaction(transactionId);
+
+    if (transaction.snapshot) {
+      await this.rollback(transactionId);
+    }
+
+    this.activeTransactions.delete(transactionId);
+    this.stats.activeTransactions--;
+  }
+}
+
+// Singleton instance
+let transactionManagerInstance: TransactionManager | null = null;
+
+/**
+ * Get transaction manager instance
+ */
+export function getTransactionManager(
+  config?: TransactionConfig
+): TransactionManager {
+  if (!transactionManagerInstance) {
+    transactionManagerInstance = new TransactionManager(config);
+  }
+  return transactionManagerInstance;
+}

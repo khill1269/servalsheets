@@ -27,6 +27,14 @@ export * from './comments.js';
 export * from './versions.js';
 export * from './analysis.js';
 export * from './advanced.js';
+export * from './transaction.js';
+export * from './workflow.js';
+export * from './insights.js';
+export * from './validation.js';
+export * from './planning.js';
+export * from './conflict.js';
+export * from './impact.js';
+export * from './history.js';
 export * from './prompts.js';
 
 // Tool metadata for registration
@@ -174,6 +182,78 @@ export const TOOL_REGISTRY = {
     output: 'SheetsAdvancedOutputSchema',
     annotations: 'SHEETS_ADVANCED_ANNOTATIONS',
     actions: ['add_named_range', 'update_named_range', 'delete_named_range', 'list_named_ranges', 'get_named_range', 'add_protected_range', 'update_protected_range', 'delete_protected_range', 'list_protected_ranges', 'set_metadata', 'get_metadata', 'delete_metadata', 'add_banding', 'update_banding', 'delete_banding', 'list_banding', 'create_table', 'delete_table', 'list_tables'],
+  },
+  sheets_transaction: {
+    name: 'sheets_transaction',
+    title: 'Transactions',
+    description: 'Transaction management: begin, commit, rollback, savepoints',
+    schema: 'SheetsTransactionInputSchema',
+    output: 'SheetsTransactionOutputSchema',
+    annotations: 'SHEETS_TRANSACTION_ANNOTATIONS',
+    actions: ['begin', 'commit', 'rollback', 'savepoint', 'rollback_to_savepoint', 'status'],
+  },
+  sheets_workflow: {
+    name: 'sheets_workflow',
+    title: 'Workflows',
+    description: 'Multi-step workflow automation with dependencies and rollback',
+    schema: 'SheetsWorkflowInputSchema',
+    output: 'SheetsWorkflowOutputSchema',
+    annotations: 'SHEETS_WORKFLOW_ANNOTATIONS',
+    actions: ['create', 'execute', 'status', 'cancel', 'list'],
+  },
+  sheets_insights: {
+    name: 'sheets_insights',
+    title: 'AI Insights',
+    description: 'AI-powered data insights, anomaly detection, and recommendations',
+    schema: 'SheetsInsightsInputSchema',
+    output: 'SheetsInsightsOutputSchema',
+    annotations: 'SHEETS_INSIGHTS_ANNOTATIONS',
+    actions: ['analyze', 'detect_anomalies', 'recommend'],
+  },
+  sheets_validation: {
+    name: 'sheets_validation',
+    title: 'Validation',
+    description: 'Data validation and constraint checking',
+    schema: 'SheetsValidationInputSchema',
+    output: 'SheetsValidationOutputSchema',
+    annotations: 'SHEETS_VALIDATION_ANNOTATIONS',
+    actions: ['validate_data', 'validate_formulas', 'validate_references', 'check_constraints'],
+  },
+  sheets_plan: {
+    name: 'sheets_plan',
+    title: 'Planning',
+    description: 'Natural language operation planning with cost estimation and risk analysis',
+    schema: 'SheetsPlanningInputSchema',
+    output: 'SheetsPlanningOutputSchema',
+    annotations: 'SHEETS_PLANNING_ANNOTATIONS',
+    actions: ['create', 'execute', 'validate'],
+  },
+  sheets_conflict: {
+    name: 'sheets_conflict',
+    title: 'Conflict Detection',
+    description: 'Conflict detection and resolution for concurrent modifications',
+    schema: 'SheetsConflictInputSchema',
+    output: 'SheetsConflictOutputSchema',
+    annotations: 'SHEETS_CONFLICT_ANNOTATIONS',
+    actions: ['detect', 'resolve'],
+  },
+  sheets_impact: {
+    name: 'sheets_impact',
+    title: 'Impact Analysis',
+    description: 'Pre-execution impact analysis with dependency tracking',
+    schema: 'SheetsImpactInputSchema',
+    output: 'SheetsImpactOutputSchema',
+    annotations: 'SHEETS_IMPACT_ANNOTATIONS',
+    actions: ['analyze'],
+  },
+  sheets_history: {
+    name: 'sheets_history',
+    title: 'Operation History',
+    description: 'Operation history tracking for debugging and undo foundation',
+    schema: 'SheetsHistoryInputSchema',
+    output: 'SheetsHistoryOutputSchema',
+    annotations: 'SHEETS_HISTORY_ANNOTATIONS',
+    actions: ['list', 'get', 'stats'],
   },
 } as const;
 

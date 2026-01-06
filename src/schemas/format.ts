@@ -12,7 +12,7 @@ import {
   TextFormatSchema,
   NumberFormatSchema,
   BorderSchema,
-  BorderStyleSchema,
+  BorderStyleSchema as _BorderStyleSchema,
   HorizontalAlignSchema,
   VerticalAlignSchema,
   WrapStrategySchema,

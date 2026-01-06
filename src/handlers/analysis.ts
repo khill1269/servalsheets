@@ -15,7 +15,6 @@ import type {
   AnalysisResponse,
 } from '../schemas/index.js';
 import type { RangeInput } from '../schemas/shared.js';
-import type { CreateTaskResult } from '@modelcontextprotocol/sdk/types.js';
 import { identifyDataIssues, checkSamplingSupport } from '../mcp/sampling.js';
 import { getRequestLogger } from '../utils/request-context.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
@@ -33,8 +32,21 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   async handle(input: SheetsAnalysisInput): Promise<SheetsAnalysisOutput> {
     const { request } = input;
 
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(request) as AnalysisAction;
+
     try {
-      const response = await this.executeAction(request);
+      const response = await this.executeAction(inferredRequest);
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -113,7 +125,7 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
 
           // Convert AI issues to our format
           const issues = aiIssues.map(issue => ({
-            type: issue.type.toUpperCase().replace(/_/g, '_') as any,
+            type: issue.type.toUpperCase().replace(/_/g, '_') as 'EMPTY_HEADER' | 'DUPLICATE_HEADER' | 'MIXED_DATA_TYPES' | 'EMPTY_ROW' | 'EMPTY_COLUMN' | 'TRAILING_WHITESPACE' | 'LEADING_WHITESPACE' | 'INCONSISTENT_FORMAT' | 'STATISTICAL_OUTLIER' | 'MISSING_VALUE' | 'DUPLICATE_ROW' | 'INVALID_EMAIL' | 'INVALID_URL' | 'INVALID_DATE' | 'FORMULA_ERROR',
             severity: issue.severity === 'critical' ? 'high' : issue.severity,
             location: issue.location,
             description: `${issue.description} (AI-detected). Suggested fix: ${issue.suggestedFix}`,
@@ -548,26 +560,26 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
       includeTrends: input.includeTrends,
     });
 
-    const patterns: any = {};
+    const patterns: Record<string, unknown> = {};
 
     // Analyze trends if requested
     if (input.includeTrends) {
-      patterns.trends = this.analyzeTrends(values);
+      patterns['trends'] = this.analyzeTrends(values);
     }
 
     // Analyze correlations if requested
     if (input.includeCorrelations && values.length > 0 && values[0]?.length && values[0].length > 1) {
-      patterns.correlations = this.analyzeCorrelationsData(values);
+      patterns['correlations'] = this.analyzeCorrelationsData(values);
     }
 
     // Detect anomalies if requested
     if (input.includeAnomalies) {
-      patterns.anomalies = this.detectAnomalies(values);
+      patterns['anomalies'] = this.detectAnomalies(values);
     }
 
     // Analyze seasonality if requested (requires time-series data)
     if (input.includeSeasonality) {
-      patterns.seasonality = this.analyzeSeasonality(values);
+      patterns['seasonality'] = this.analyzeSeasonality(values);
     }
 
     // Use AI for pattern explanation if requested
@@ -603,7 +615,7 @@ Keep response concise and actionable.`,
           const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
           const aiContent = contentArray[0];
           if (aiContent && aiContent.type === 'text') {
-            patterns.aiInsights = aiContent.text;
+            patterns['aiInsights'] = aiContent.text;
           }
         } catch (error) {
           logger.warn('AI pattern explanation failed', { error });
@@ -637,7 +649,7 @@ Keep response concise and actionable.`,
       valueCount: columnData.length,
     });
 
-    const analysis: any = {
+    const analysis: Record<string, unknown> = {
       totalValues: values.length,
       nonEmptyValues: columnData.length,
       emptyValues: values.length - columnData.length,
@@ -645,29 +657,29 @@ Keep response concise and actionable.`,
 
     // Detect data type if requested
     if (input.detectDataType) {
-      analysis.dataType = this.detectDataType(columnData);
+      analysis['dataType'] = this.detectDataType(columnData);
     }
 
     // Analyze distribution if requested
     if (input.analyzeDistribution) {
-      analysis.distribution = this.analyzeDistribution(columnData);
+      analysis['distribution'] = this.analyzeDistribution(columnData);
     }
 
     // Find unique values if requested
     if (input.findUnique) {
       const uniqueValues = new Set(columnData);
-      analysis.uniqueCount = uniqueValues.size;
-      analysis.duplicateCount = columnData.length - uniqueValues.size;
+      analysis['uniqueCount'] = uniqueValues.size;
+      analysis['duplicateCount'] = columnData.length - uniqueValues.size;
 
       // Show value frequency for categorical data
-      if (analysis.dataType === 'text' || uniqueValues.size <= 20) {
+      if (analysis['dataType'] === 'text' || uniqueValues.size <= 20) {
         const frequency: Record<string, number> = {};
         for (const val of columnData) {
           const key = String(val);
           frequency[key] = (frequency[key] || 0) + 1;
         }
 
-        analysis.valueFrequency = Object.entries(frequency)
+        analysis['valueFrequency'] = Object.entries(frequency)
           .map(([value, count]) => ({ value, count, percentage: (count / columnData.length) * 100 }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 10); // Top 10
@@ -676,7 +688,7 @@ Keep response concise and actionable.`,
 
     // Check data quality if requested
     if (input.checkQuality) {
-      analysis.quality = this.checkColumnQuality(columnData, analysis.dataType);
+      analysis['quality'] = this.checkColumnQuality(columnData, analysis['dataType'] as string);
     }
 
     // Use AI for insights if requested
@@ -695,9 +707,9 @@ Keep response concise and actionable.`,
               content: {
                 type: 'text',
                 text: `Analyze this column data and provide insights:
-Data type: ${analysis.dataType}
+Data type: ${analysis['dataType']}
 Total values: ${columnData.length}
-Unique values: ${analysis.uniqueCount}
+Unique values: ${analysis['uniqueCount']}
 Sample values: ${JSON.stringify(sampleValues, null, 2)}
 
 Analysis results: ${JSON.stringify(analysis, null, 2)}
@@ -718,7 +730,7 @@ Keep response concise and actionable.`,
           const contentArray = Array.isArray(aiResponse.content) ? aiResponse.content : [aiResponse.content];
           const aiContent = contentArray[0];
           if (aiContent && aiContent.type === 'text') {
-            analysis.aiInsights = aiContent.text;
+            analysis['aiInsights'] = aiContent.text;
           }
         } catch (error) {
           logger.warn('AI column analysis failed', { error });
@@ -752,7 +764,7 @@ Keep response concise and actionable.`,
     // Use request deduplication for concurrent requests
     const requestKey = createRequestKey('values.get', { spreadsheetId, range: a1 });
 
-    const fetchFn = async () => {
+    const fetchFn = async (): Promise<unknown[][]> => {
       const response = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId,
         range: a1,
@@ -807,8 +819,8 @@ Keep response concise and actionable.`,
   // Pattern Detection & Column Analysis Helpers
   // ============================================================
 
-  private analyzeTrends(values: unknown[][]): any[] {
-    const trends: any[] = [];
+  private analyzeTrends(values: unknown[][]): Array<Record<string, unknown>> {
+    const trends: Array<Record<string, unknown>> = [];
 
     // Analyze each numeric column for trends
     if (values.length === 0 || !values[0]) return trends;
@@ -850,8 +862,8 @@ Keep response concise and actionable.`,
     return trends;
   }
 
-  private analyzeCorrelationsData(values: unknown[][]): any[] {
-    const correlations: any[] = [];
+  private analyzeCorrelationsData(values: unknown[][]): Array<Record<string, unknown>> {
+    const correlations: Array<Record<string, unknown>> = [];
 
     if (values.length === 0 || !values[0]) return correlations;
 
@@ -888,8 +900,8 @@ Keep response concise and actionable.`,
     return correlations;
   }
 
-  private detectAnomalies(values: unknown[][]): any[] {
-    const anomalies: any[] = [];
+  private detectAnomalies(values: unknown[][]): Array<Record<string, unknown>> {
+    const anomalies: Array<Record<string, unknown>> = [];
 
     if (values.length === 0 || !values[0]) return anomalies;
 
@@ -924,7 +936,7 @@ Keep response concise and actionable.`,
     return anomalies;
   }
 
-  private analyzeSeasonality(values: unknown[][]): any {
+  private analyzeSeasonality(values: unknown[][]): Record<string, unknown> {
     // Simplified seasonality detection
     // In production, would use FFT or autocorrelation
     if (values.length < 12) {
@@ -992,7 +1004,7 @@ Keep response concise and actionable.`,
     return typePercentage > 80 ? dominantType : 'mixed';
   }
 
-  private analyzeDistribution(columnData: unknown[]): any {
+  private analyzeDistribution(columnData: unknown[]): Record<string, unknown> {
     const numericData = columnData.filter(v => typeof v === 'number') as number[];
 
     if (numericData.length === 0) {
@@ -1035,11 +1047,11 @@ Keep response concise and actionable.`,
     };
   }
 
-  private checkColumnQuality(columnData: unknown[], dataType: string): any {
+  private checkColumnQuality(columnData: unknown[], dataType: string): { completeness: number; consistency: number; issues: string[]; uniqueRatio?: number } {
     const totalCount = columnData.length;
     const uniqueCount = new Set(columnData).size;
 
-    const quality: any = {
+    const quality: { completeness: number; consistency: number; issues: string[]; uniqueRatio?: number } = {
       completeness: 100, // Already filtered empty values
       consistency: 100,
       issues: [],

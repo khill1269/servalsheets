@@ -32,9 +32,11 @@ import {
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
+import { SheetsAuthInputSchema } from '../../src/schemas/auth.js';
 
 // Sample valid inputs for each tool (using first action from each schema)
 const VALID_INPUTS: Record<string, unknown> = {
+  sheets_auth: { request: { action: 'status' } },
   sheets_spreadsheet: { request: { action: 'get', spreadsheetId: 'test123' } },
   sheets_sheet: { request: { action: 'add', spreadsheetId: 'test123', title: 'New Sheet' } },
   sheets_values: { request: { action: 'read', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:B10' } } },
@@ -85,6 +87,7 @@ const VALID_INPUTS: Record<string, unknown> = {
 
 // All tool input schemas
 const TOOL_SCHEMAS = [
+  { name: 'sheets_auth', schema: SheetsAuthInputSchema },
   { name: 'sheets_spreadsheet', schema: SheetSpreadsheetInputSchema },
   { name: 'sheets_sheet', schema: SheetsSheetInputSchema },
   { name: 'sheets_values', schema: SheetsValuesInputSchema },
@@ -104,9 +107,9 @@ const TOOL_SCHEMAS = [
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 15 tools', () => {
-      expect(TOOL_COUNT).toBe(15);
-      expect(TOOL_SCHEMAS).toHaveLength(15);
+    it('should have exactly 16 tools', () => {
+      expect(TOOL_COUNT).toBe(16);
+      expect(TOOL_SCHEMAS).toHaveLength(16);
     });
 
     it('should have 94+ total actions across all tools', () => {

@@ -11,6 +11,9 @@
  * Usage: npm run auth
  */
 
+/* eslint-disable no-console */
+// Console output is required for CLI interaction in this file
+
 import { logger } from '../utils/logger.js';
 import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
@@ -18,11 +21,8 @@ import { EncryptedFileTokenStore } from '../services/token-store.js';
 import { DEFAULT_SCOPES } from '../services/google-api.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import * as http from 'http';
 import { randomBytes } from 'crypto';
-
-const __filename = fileURLToPath(import.meta.url);
 
 // Color codes for terminal output
 const colors = {
@@ -117,7 +117,7 @@ function extractCredentialsFromJson(jsonPath: string): { clientId: string; clien
       clientSecret: creds.client_secret,
       redirectUri
     };
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -237,7 +237,7 @@ async function openBrowser(url: string): Promise<void> {
   try {
     const open = (await import('open')).default;
     await open(url);
-  } catch (error) {
+  } catch (_error) {
     // If open package not available, try platform-specific commands
     const { exec } = await import('child_process');
     const platform = process.platform;
@@ -389,7 +389,7 @@ async function main(): Promise<void> {
     try {
       await openBrowser(authUrl);
       console.log(`${colors.green}✓ Browser opened${colors.reset}`);
-    } catch (error) {
+    } catch (_error) {
       console.log(`${colors.yellow}⚠ Could not open browser automatically${colors.reset}`);
       console.log('Please copy and paste the URL above into your browser.');
     }

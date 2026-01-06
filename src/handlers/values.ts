@@ -15,13 +15,13 @@ import type {
   ValuesResponse,
   ValuesArray,
 } from '../schemas/index.js';
-import type { CreateTaskResult } from '@modelcontextprotocol/sdk/types.js';
 import { getRequestContext, getRequestLogger } from '../utils/request-context.js';
 import { logger } from '../utils/logger.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { createRequestKey } from '../utils/request-deduplication.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { CACHE_TTL_VALUES } from '../config/constants.js';
+import { getParallelExecutor } from '../services/parallel-executor.js';
 
 export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -34,8 +34,21 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
   async handle(input: SheetsValuesInput): Promise<SheetsValuesOutput> {
     const { request } = input;
 
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(request) as ValuesAction;
+
     try {
-      const response = await this.executeAction(request);
+      const response = await this.executeAction(inferredRequest);
+
+      // Phase 1, Task 1.4: Track context after successful operation
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -147,7 +160,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     const cacheKey = createCacheKey('values:read', params as unknown as Record<string, unknown>);
     const cached = cacheManager.get<sheets_v4.Schema$ValueRange>(cacheKey, 'values');
 
-    const response = cached ? { data: cached } : await (async () => {
+    const response = (cached ? { data: cached } : await (async () => {
       // Create deduplication key
       const requestKey = createRequestKey('values.get', {
         spreadsheetId: input.spreadsheetId,
@@ -157,7 +170,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       });
 
       // Deduplicate the API call
-      const fetchFn = async () => {
+      const fetchFn = async (): Promise<unknown> => {
         const result = await this.sheetsApi.spreadsheets.values.get(params);
         // Cache the result
         cacheManager.set(cacheKey, result.data, { ttl: CACHE_TTL_VALUES, namespace: 'values' });
@@ -169,7 +182,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       return this.context.requestDeduplicator
         ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
         : await fetchFn();
-    })();
+    })()) as { data: sheets_v4.Schema$ValueRange };
 
     const values = (response.data.values ?? []) as ValuesArray;
 
@@ -432,7 +445,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     if (this.context.samplingServer) {
       try {
         const confirmation = await confirmDestructiveAction(
-          this.context.samplingServer as any, // ElicitationServer is compatible
+          this.context.samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer,
           'Clear Cell Values',
           `This will permanently clear all values in range ${range} (approximately ${estimatedCells} cells) in spreadsheet ${input.spreadsheetId}.`
         );
@@ -517,10 +530,10 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     // Deduplicate the API call
-    const fetchFn = async () => this.sheetsApi.spreadsheets.values.batchGet(params);
-    const response = this.context.requestDeduplicator
+    const fetchFn = async (): Promise<unknown> => this.sheetsApi.spreadsheets.values.batchGet(params);
+    const response = (this.context.requestDeduplicator
       ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-      : await fetchFn();
+      : await fetchFn()) as { data: { valueRanges?: sheets_v4.Schema$ValueRange[] } };
 
     return this.success('batch_read', {
       valueRanges: (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
@@ -812,6 +825,99 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     return this.success('replace', {
       replacementsCount,
     }, mutation);
+  }
+
+  /**
+   * Read large range in parallel chunks for improved performance
+   * Phase 2, Task 2.1
+   *
+   * Splits the range into smaller chunks and reads them concurrently,
+   * significantly improving performance for large datasets.
+   */
+  private async handleParallelChunkedRead(
+    spreadsheetId: string,
+    range: string,
+    chunkSize: number,
+    options?: {
+      valueRenderOption?: string;
+      majorDimension?: string;
+    }
+  ): Promise<ValuesArray> {
+    const parallelExecutor = getParallelExecutor();
+
+    // Parse range to extract sheet name and bounds
+    const rangeMatch = range.match(/^([^!]+)!([A-Z]+)(\d+):([A-Z]+)(\d+)?$/);
+    if (!rangeMatch) {
+      // Fall back to non-chunked read for non-standard ranges
+      const response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: options?.valueRenderOption,
+        majorDimension: options?.majorDimension,
+      });
+      return (response.data.values ?? []) as ValuesArray;
+    }
+
+    const [, sheetName, startCol, startRow, endCol, endRow] = rangeMatch;
+    const finalRow = endRow ? parseInt(endRow) : parseInt(startRow!) + 10000;
+    const startRowNum = parseInt(startRow!);
+
+    // Calculate chunks
+    const chunks: Array<{ start: number; end: number; range: string }> = [];
+    for (let row = startRowNum; row <= finalRow; row += chunkSize) {
+      const chunkEnd = Math.min(row + chunkSize - 1, finalRow);
+      const chunkRange = `${sheetName}!${startCol}${row}:${endCol}${chunkEnd}`;
+      chunks.push({ start: row, end: chunkEnd, range: chunkRange });
+    }
+
+    logger.info('Reading range in parallel chunks', {
+      spreadsheetId,
+      totalRows: finalRow - startRowNum + 1,
+      chunkCount: chunks.length,
+      chunkSize,
+    });
+
+    // Create parallel tasks
+    const tasks = chunks.map((chunk, index) => ({
+      id: `chunk-${index}`,
+      fn: async () => {
+        const response = await this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId,
+          range: chunk.range,
+          valueRenderOption: options?.valueRenderOption,
+          majorDimension: options?.majorDimension,
+        });
+        return response.data.values ?? [];
+      },
+      priority: index, // Read in order for better cache locality
+    }));
+
+    // Execute chunks in parallel
+    const chunkResults = await parallelExecutor.executeAllSuccessful(tasks, (progress) => {
+      if (this.context.batchCompiler['onProgress']) {
+        this.context.batchCompiler['onProgress']({
+          phase: 'executing',
+          current: progress.completed,
+          total: progress.total,
+          message: `Reading chunks: ${progress.completed}/${progress.total}`,
+          spreadsheetId,
+        });
+      }
+    });
+
+    // Merge chunks into single array
+    const allValues: ValuesArray = [];
+    for (const chunkData of chunkResults) {
+      allValues.push(...chunkData);
+    }
+
+    logger.info('Parallel chunked read completed', {
+      spreadsheetId,
+      chunksRead: chunkResults.length,
+      totalRows: allValues.length,
+    });
+
+    return allValues;
   }
 
   private estimateCellsFromGridRange(range: {

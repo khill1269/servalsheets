@@ -8,7 +8,7 @@
  * - HTTP: For web-based integrations
  */
 
-import { ServalSheetsServer, type ServalSheetsServerOptions } from './server.js';
+import { type ServalSheetsServerOptions } from './server.js';
 import { logger } from './utils/logger.js';
 import {
   startBackgroundTasks,
@@ -51,16 +51,19 @@ for (let i = 0; i < args.length; i++) {
     // Dynamic import to get version from package.json
     import('../package.json', { assert: { type: 'json' } })
       .then((pkg) => {
+        // eslint-disable-next-line no-console
         console.log(`servalsheets v${pkg.default.version}`);
         process.exit(0);
       })
       .catch(() => {
+        // eslint-disable-next-line no-console
         console.log('servalsheets v1.2.0');
         process.exit(0);
       });
     // Prevent further execution while waiting for import
     await new Promise(() => {});
   } else if (arg === '--help' || arg === '-h') {
+    // eslint-disable-next-line no-console
     console.log(`
 ServalSheets - Google Sheets MCP Server
 

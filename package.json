@@ -1,14 +1,38 @@
 {
   "name": "servalsheets",
   "version": "1.2.0",
-  "description": "Production-grade Google Sheets MCP server with 15 tools, 159 actions, AI-powered features, advanced analytics, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server with 24 tools, 192 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "servalsheets": "./dist/cli.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./http-server": {
+      "types": "./dist/http-server.d.ts",
+      "import": "./dist/http-server.js"
+    },
+    "./oauth-provider": {
+      "types": "./dist/oauth-provider.d.ts",
+      "import": "./dist/oauth-provider.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "mcpName": "io.github.khill1269.servalsheets",
+  "packageManager": "npm@10.9.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/khill1269/servalsheets"
@@ -18,39 +42,56 @@
     "url": "https://github.com/khill1269/servalsheets/issues"
   },
   "scripts": {
-    "build": "tsc && npm run build:copy-assets",
+    "build": "tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:copy-assets": "cp -r src/knowledge dist/",
     "build:clean": "npm run clean && npm run build",
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "start:http": "node dist/http-server.js",
+    "start:http:prod": "NODE_ENV=production node dist/http-server.js",
     "start:remote": "node dist/remote-server.js",
     "auth": "node dist/cli/auth-setup.js",
     "test": "vitest",
     "test:integration": "TEST_REAL_API=true vitest tests/integration/",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check src/**/*.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:watch": "tsc -p tsconfig.json --noEmit --watch",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "check": "npm run verify",
+    "ci": "npm run clean && npm run build && npm run verify && npm run validate:server-json && npm run smoke",
+    "security:audit": "npm audit --audit-level=high",
     "validate:server-json": "node scripts/validate-server-json.mjs",
-    "verify:build": "npm run build && node dist/cli.js --version && echo 'Build OK'",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build",
-    "docker:build": "docker build -t servalsheets .",
+    "smoke": "node dist/cli.js --version",
+    "verify:build": "npm run build && npm run validate:server-json && npm run smoke && echo 'Build OK'",
+    "clean": "rm -rf dist .tsbuildinfo .tsbuildinfo.build",
+    "prepack": "npm run build && npm run validate:server-json",
+    "docker:build": "docker build -f deployment/docker/Dockerfile -t servalsheets .",
     "docker:run": "docker run -p 3000:3000 --env-file .env servalsheets",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch"
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
+    "anthropic-mcp",
+    "claude",
+    "claude-desktop",
     "google-sheets",
+    "gsheets",
+    "google-workspace",
     "spreadsheet",
     "anthropic",
-    "claude",
     "ai-tools",
     "oauth",
-    "connector"
+    "oauth2",
+    "connector",
+    "enterprise",
+    "production-ready"
   ],
   "author": {
     "name": "Thomas Lee Cahill",
@@ -58,7 +99,7 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=20.0.0",
     "npm": ">=10.0.0"
   },
   "dependencies": {
@@ -72,6 +113,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.0.0",
+    "open": "^10.1.0",
     "p-queue": "^9.0.1",
     "prom-client": "^15.1.3",
     "uuid": "^13.0.0",
@@ -97,8 +139,6 @@
     "ajv-formats": "^3.0.1",
     "eslint": "^9.17.0",
     "fast-check": "^4.5.3",
-    "ioredis": "^5.4.1",
-    "open": "^10.1.0",
     "prettier": "^3.4.0",
     "supertest": "^7.1.4",
     "tsx": "^4.19.0",
@@ -109,11 +149,11 @@
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "dist",
-    "src/knowledge",
     "examples",
     "docs/guides",
     "server.json",

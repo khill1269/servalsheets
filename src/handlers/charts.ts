@@ -32,8 +32,11 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   async handle(input: SheetsChartsInput): Promise<SheetsChartsOutput> {
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(input.request) as ChartsAction;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: ChartsResponse;
       switch (req.action) {
         case 'create':
@@ -70,6 +73,15 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
             retryable: false,
           });
       }
+
+      // Track context on success
+      if (response.success) {
+        this.trackContextFromRequest({
+          spreadsheetId: inferredRequest.spreadsheetId,
+          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
+        });
+      }
+
       return { response };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -366,7 +378,7 @@ export class ChartsHandler extends BaseHandler<SheetsChartsInput, SheetsChartsOu
   }
 
   private async handleExport(
-    input: Extract<ChartsAction, { action: 'export' }>
+    _input: Extract<ChartsAction, { action: 'export' }>
   ): Promise<ChartsResponse> {
     // Exporting charts requires Drive export endpoints which are not wired here.
     return this.error({

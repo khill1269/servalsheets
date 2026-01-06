@@ -103,7 +103,7 @@ export class RedisCacheStore implements CacheStore {
 
   constructor(redisUrl: string) {
     // Dynamic import to avoid loading ioredis unless Redis is actually used
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const Redis = require('ioredis');
 
     this.redis = new Redis(redisUrl, {

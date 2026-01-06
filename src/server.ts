@@ -1,6 +1,6 @@
 /**
  * ServalSheets - MCP Server
- * 
+ *
  * Main server class that registers all tools and resources
  * MCP Protocol: 2025-11-25
  */
@@ -14,6 +14,15 @@ import type {
   TaskToolExecution,
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { TOOL_COUNT, ACTION_COUNT } from './schemas/index.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Import version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8')) as { version: string };
+const PACKAGE_VERSION = packageJson.version;
 import PQueue from 'p-queue';
 import {
   createServerCapabilities,
@@ -39,7 +48,7 @@ import { AuthHandler } from './handlers/auth.js';
 import { checkAuth, buildAuthErrorResponse, isGoogleAuthError, convertGoogleAuthError } from './utils/auth-guard.js';
 import { logger as baseLogger } from './utils/logger.js';
 import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
-import { zodToJsonSchemaCompat, isDiscriminatedUnion, verifyJsonSchema } from './utils/schema-compat.js';
+import { verifyJsonSchema } from './utils/schema-compat.js';
 import {
   TOOL_DEFINITIONS,
   createToolHandlerMap,
@@ -49,7 +58,7 @@ import {
   prepareSchemaForRegistration,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { registerKnowledgeResources } from './resources/knowledge.js';
+import { registerKnowledgeResources, registerHistoryResources, registerCacheResources } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
@@ -88,7 +97,7 @@ export class ServalSheetsServer {
     this._server = new McpServer(
       {
         name: options.name ?? 'servalsheets',
-        version: options.version ?? '1.2.0',
+        version: options.version ?? PACKAGE_VERSION,
       },
       {
         // Server capabilities (logging, tasks, etc. - tools/prompts/resources auto-registered)
@@ -181,7 +190,7 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 15 tools with proper annotations
+   * Register all 16 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
@@ -519,9 +528,15 @@ export class ServalSheetsServer {
    */
   private registerResources(): void {
     registerServalSheetsResources(this._server, this.googleClient);
-    
+
     // Register embedded knowledge resources
     registerKnowledgeResources(this._server);
+
+    // Register operation history resources (Phase 1, Task 1.3)
+    registerHistoryResources(this._server);
+
+    // Register cache statistics resources (Phase 1, Task 1.5)
+    registerCacheResources(this._server);
   }
 
   /**
@@ -588,7 +603,7 @@ export class ServalSheetsServer {
     const transport = new StdioServerTransport();
     
     // Handle process signals for graceful shutdown
-    const handleShutdown = async (signal: string) => {
+    const handleShutdown = async (signal: string): Promise<void> => {
       baseLogger.warn(`ServalSheets: Received ${signal}, shutting down...`);
       await this.shutdown();
       process.exit(0);
@@ -621,7 +636,7 @@ export class ServalSheetsServer {
   getInfo(): { name: string; version: string; tools: number; actions: number } {
     return {
       name: this.options.name ?? 'servalsheets',
-      version: this.options.version ?? '1.2.0',
+      version: this.options.version ?? PACKAGE_VERSION,
       tools: TOOL_COUNT,
       actions: ACTION_COUNT,
     };

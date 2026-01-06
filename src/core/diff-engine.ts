@@ -77,7 +77,9 @@ export class DiffEngine {
   }
 
   /**
-   * Capture current spreadsheet state
+   * Capture current spreadsheet state by fetching from API
+   *
+   * NOTE: For update operations, prefer `captureStateFromResponse()` to avoid redundant API calls
    */
   async captureState(
     spreadsheetId: string,
@@ -149,12 +151,20 @@ export class DiffEngine {
           })(),
         ]);
 
+        // Compute sheet checksum from dimensions and title
+        const sheetMetadata = `${props.sheetId}-${props.title}-${rowCount}-${columnCount}`;
+        const sheetChecksum = createHash('md5').update(sheetMetadata).digest('hex');
+
+        // Compute block checksums if we have values (for faster diff)
+        const blockChecksums = values ? this.computeBlockChecksums(values) : undefined;
+
         const sheetState: SheetState = {
           sheetId: props.sheetId ?? 0,
           title: props.title ?? '',
           rowCount,
           columnCount,
-          checksum: '', // Will be computed if needed
+          checksum: sheetChecksum,
+          blockChecksums,
           sampleData: sampleData.firstRows.length || sampleData.lastRows.length ? sampleData : undefined,
           values,
         };
@@ -180,7 +190,9 @@ export class DiffEngine {
   }
 
   /**
-   * Capture detailed state for a specific range
+   * Capture detailed state for a specific range by fetching from API
+   *
+   * NOTE: For update operations, prefer `captureRangeStateFromResponse()` to avoid redundant API calls
    */
   async captureRangeState(
     spreadsheetId: string,
@@ -199,6 +211,155 @@ export class DiffEngine {
       checksum: createHash('md5').update(valuesString).digest('hex'),
       rowCount: values.length,
       values: values as CellValue[][],
+    };
+  }
+
+  /**
+   * OPTIMIZATION: Capture state from API response without additional fetches
+   *
+   * Use this after update operations to avoid redundant API calls.
+   * The Google Sheets API returns updated data in responses, eliminating the need
+   * to fetch the "after" state separately.
+   *
+   * @param spreadsheetId - The spreadsheet ID
+   * @param sheetsResponse - The response from spreadsheets.get() or spreadsheets.batchUpdate()
+   * @param options - Capture options (tier, sample size, etc.)
+   * @returns SpreadsheetState constructed from response data
+   *
+   * @example
+   * ```typescript
+   * // Before (2 API calls):
+   * const before = await diffEngine.captureState(id);
+   * const response = await sheetsApi.spreadsheets.batchUpdate(...);
+   * const after = await diffEngine.captureState(id);  // ❌ Redundant fetch!
+   *
+   * // After (1 API call):
+   * const before = await diffEngine.captureState(id);
+   * const response = await sheetsApi.spreadsheets.batchUpdate(...);
+   * const after = diffEngine.captureStateFromResponse(id, response.data);  // ✅ No fetch!
+   * ```
+   */
+  captureStateFromResponse(
+    spreadsheetId: string,
+    sheetsResponse: sheets_v4.Schema$Spreadsheet,
+    options?: CaptureStateOptions
+  ): SpreadsheetState {
+    const targetTier = options?.tier ?? this.defaultTier;
+    const sampleSize = options?.sampleSize ?? this.sampleSize;
+
+    const sheets: SheetState[] = (sheetsResponse.sheets ?? [])
+      .filter((sheet) => sheet.properties)
+      .map((sheet) => {
+        const props = sheet.properties!;
+        const rowCount = props.gridProperties?.rowCount ?? 0;
+        const columnCount = props.gridProperties?.columnCount ?? 0;
+
+        // Extract values from gridData if available (FULL tier)
+        let values: CellValue[][] | undefined;
+        let sampleData: SheetSamples | undefined;
+
+        if (sheet.data && sheet.data.length > 0 && sheet.data[0] && targetTier === 'FULL') {
+          // Extract cell values from RowData
+          values = (sheet.data[0].rowData ?? []).map((rowData) =>
+            (rowData.values ?? []).map((cellData) =>
+              cellData.effectiveValue?.numberValue ??
+              cellData.effectiveValue?.stringValue ??
+              cellData.effectiveValue?.boolValue ??
+              cellData.formattedValue ??
+              null
+            )
+          );
+        } else if (sheet.data && sheet.data.length > 0 && sheet.data[0] && targetTier === 'SAMPLE') {
+          // Extract sample rows from gridData
+          const allRows = (sheet.data[0].rowData ?? []).map((rowData) =>
+            (rowData.values ?? []).map((cellData) =>
+              cellData.effectiveValue?.numberValue ??
+              cellData.effectiveValue?.stringValue ??
+              cellData.effectiveValue?.boolValue ??
+              cellData.formattedValue ??
+              null
+            )
+          );
+
+          const firstRows = allRows.slice(0, sampleSize);
+          const lastRows = rowCount > sampleSize * 2
+            ? allRows.slice(Math.max(0, rowCount - sampleSize))
+            : [];
+
+          sampleData = { firstRows, lastRows };
+        }
+
+        // Compute checksums
+        const sheetMetadata = `${props.sheetId}-${props.title}-${rowCount}-${columnCount}`;
+        const sheetChecksum = createHash('md5').update(sheetMetadata).digest('hex');
+        const blockChecksums = values ? this.computeBlockChecksums(values) : undefined;
+
+        return {
+          sheetId: props.sheetId ?? 0,
+          title: props.title ?? '',
+          rowCount,
+          columnCount,
+          checksum: sheetChecksum,
+          blockChecksums,
+          sampleData,
+          values,
+        };
+      });
+
+    // Compute overall checksum
+    const stateString = JSON.stringify(
+      sheets.map((s) => ({
+        id: s.sheetId,
+        title: s.title,
+        rows: s.rowCount,
+        cols: s.columnCount,
+      }))
+    );
+
+    return {
+      timestamp: new Date().toISOString(),
+      spreadsheetId,
+      sheets,
+      checksum: createHash('md5').update(stateString).digest('hex'),
+    };
+  }
+
+  /**
+   * OPTIMIZATION: Capture range state from update response without additional fetches
+   *
+   * Use this after values.update() or values.batchUpdate() operations.
+   *
+   * @param range - The range that was updated
+   * @param updateResponse - The UpdateValuesResponse or updatedData from the API
+   * @returns Range state constructed from response data
+   *
+   * @example
+   * ```typescript
+   * // Before (2 API calls):
+   * const before = await diffEngine.captureRangeState(id, range);
+   * const response = await sheetsApi.spreadsheets.values.update(...);
+   * const after = await diffEngine.captureRangeState(id, range);  // ❌ Redundant fetch!
+   *
+   * // After (1 API call):
+   * const before = await diffEngine.captureRangeState(id, range);
+   * const response = await sheetsApi.spreadsheets.values.update(...);
+   * const after = diffEngine.captureRangeStateFromResponse(
+   *   range,
+   *   response.data.updatedData
+   * );  // ✅ No fetch!
+   * ```
+   */
+  captureRangeStateFromResponse(
+    range: string,
+    updatedData?: sheets_v4.Schema$ValueRange
+  ): { checksum: string; rowCount: number; values?: CellValue[][] } {
+    const values = (updatedData?.values ?? []) as CellValue[][];
+    const valuesString = JSON.stringify(values);
+
+    return {
+      checksum: createHash('md5').update(valuesString).digest('hex'),
+      rowCount: values.length,
+      values,
     };
   }
 
@@ -323,6 +484,7 @@ export class DiffEngine {
 
   /**
    * Full cell-by-cell diff (Tier 3) - Compares cells up to limit
+   * OPTIMIZED: Uses block checksums for early termination and parallel processing
    */
   private async fullDiff(
     before: SpreadsheetState,
@@ -335,47 +497,55 @@ export class DiffEngine {
     let cellsRemoved = 0;
     const maxCells = this.maxFullDiffCells;
 
-    for (const afterSheet of after.sheets) {
-      if (cellsCompared >= maxCells) break;
-      const beforeSheet = before.sheets.find(s => s.sheetId === afterSheet.sheetId);
-      const afterValues = await this.ensureValues(
-        afterSheet,
-        after.spreadsheetId,
-        maxCells - cellsCompared
-      );
-      const beforeValues = beforeSheet
-        ? await this.ensureValues(beforeSheet, before.spreadsheetId, maxCells - cellsCompared)
-        : [];
+    // Create queue for parallel block processing
+    const concurrency = parseInt(process.env['DIFF_ENGINE_CONCURRENCY'] ?? '10');
+    const queue = new PQueue({ concurrency });
 
-      const maxRows = Math.max(afterValues.length, beforeValues.length);
-
-      for (let row = 0; row < maxRows && cellsCompared < maxCells; row++) {
-        const afterRow = afterValues[row] ?? [];
-        const beforeRow = beforeValues[row] ?? [];
-        const maxCols = Math.max(afterRow.length, beforeRow.length);
-
-        for (let col = 0; col < maxCols && cellsCompared < maxCells; col++) {
-          const afterVal = afterRow[col];
-          const beforeVal = beforeRow[col];
-
-          if (beforeVal !== afterVal) {
-            changes.push({
-              cell: this.formatCell(afterSheet.title, col, row),
-              before: beforeVal,
-              after: afterVal,
-              type: 'value',
-            });
-          }
-
-          if (beforeVal === undefined && afterVal !== undefined) {
-            cellsAdded++;
-          }
-          if (beforeVal !== undefined && afterVal === undefined) {
-            cellsRemoved++;
-          }
-          cellsCompared++;
+    // Process sheets in parallel
+    const sheetResults = await Promise.all(
+      after.sheets.map(afterSheet => queue.add(async () => {
+        if (cellsCompared >= maxCells) {
+          return { changes: [], cellsAdded: 0, cellsRemoved: 0, cellsCompared: 0 };
         }
-      }
+
+        const beforeSheet = before.sheets.find(s => s.sheetId === afterSheet.sheetId);
+
+        // OPTIMIZATION: Early termination if sheet checksums match
+        if (beforeSheet && afterSheet.checksum === beforeSheet.checksum) {
+          return { changes: [], cellsAdded: 0, cellsRemoved: 0, cellsCompared: 0 };
+        }
+
+        const afterValues = await this.ensureValues(
+          afterSheet,
+          after.spreadsheetId,
+          maxCells - cellsCompared
+        );
+        const beforeValues = beforeSheet
+          ? await this.ensureValues(beforeSheet, before.spreadsheetId, maxCells - cellsCompared)
+          : [];
+
+        // OPTIMIZATION: Use block checksums to identify changed regions
+        const changedBlocks = this.identifyChangedBlocks(
+          beforeSheet?.blockChecksums,
+          afterSheet.blockChecksums
+        );
+
+        return this.diffSheetValues(
+          afterSheet.title,
+          afterValues,
+          beforeValues,
+          changedBlocks,
+          maxCells - cellsCompared
+        );
+      }))
+    );
+
+    // Aggregate results from parallel processing
+    for (const result of sheetResults) {
+      changes.push(...result.changes);
+      cellsAdded += result.cellsAdded;
+      cellsRemoved += result.cellsRemoved;
+      cellsCompared += result.cellsCompared;
     }
 
     // Check for removed sheets
@@ -554,5 +724,120 @@ export class DiffEngine {
     const values = await this.getRangeValues(spreadsheetId, range);
     sheet.values = values;
     return values;
+  }
+
+  /**
+   * OPTIMIZATION: Compute block checksums for faster diff
+   * Divides data into blocks and computes checksum for each
+   */
+  private computeBlockChecksums(values: CellValue[][]): string[] {
+    const checksums: string[] = [];
+    const blockSize = this.blockSize;
+
+    for (let i = 0; i < values.length; i += blockSize) {
+      const blockEnd = Math.min(i + blockSize, values.length);
+      const block = values.slice(i, blockEnd);
+      const blockString = JSON.stringify(block);
+      const checksum = createHash('md5').update(blockString).digest('hex');
+      checksums.push(checksum);
+    }
+
+    return checksums;
+  }
+
+  /**
+   * OPTIMIZATION: Identify which blocks have changed
+   * Returns set of block indices that differ between before/after
+   */
+  private identifyChangedBlocks(
+    beforeChecksums?: string[],
+    afterChecksums?: string[]
+  ): Set<number> | null {
+    // If either is missing, assume all blocks changed
+    if (!beforeChecksums || !afterChecksums) {
+      return null;
+    }
+
+    const changedBlocks = new Set<number>();
+    const maxBlocks = Math.max(beforeChecksums.length, afterChecksums.length);
+
+    for (let i = 0; i < maxBlocks; i++) {
+      const beforeChecksum = beforeChecksums[i];
+      const afterChecksum = afterChecksums[i];
+
+      // Block changed if checksums differ or one is missing
+      if (beforeChecksum !== afterChecksum) {
+        changedBlocks.add(i);
+      }
+    }
+
+    return changedBlocks;
+  }
+
+  /**
+   * OPTIMIZATION: Diff sheet values with focus on changed blocks
+   * Only processes blocks that have actually changed
+   */
+  private diffSheetValues(
+    sheetTitle: string,
+    afterValues: CellValue[][],
+    beforeValues: CellValue[][],
+    changedBlocks: Set<number> | null,
+    maxCells: number
+  ): {
+    changes: CellChangeRecord[];
+    cellsAdded: number;
+    cellsRemoved: number;
+    cellsCompared: number;
+  } {
+    const changes: CellChangeRecord[] = [];
+    let cellsCompared = 0;
+    let cellsAdded = 0;
+    let cellsRemoved = 0;
+
+    const maxRows = Math.max(afterValues.length, beforeValues.length);
+
+    for (let row = 0; row < maxRows && cellsCompared < maxCells; row++) {
+      // OPTIMIZATION: Skip blocks that haven't changed
+      if (changedBlocks !== null) {
+        const blockIndex = Math.floor(row / this.blockSize);
+        if (!changedBlocks.has(blockIndex)) {
+          // Skip this row, but still count the cells
+          const afterRow = afterValues[row] ?? [];
+          const beforeRow = beforeValues[row] ?? [];
+          const maxCols = Math.max(afterRow.length, beforeRow.length);
+          cellsCompared += maxCols;
+          continue;
+        }
+      }
+
+      const afterRow = afterValues[row] ?? [];
+      const beforeRow = beforeValues[row] ?? [];
+      const maxCols = Math.max(afterRow.length, beforeRow.length);
+
+      for (let col = 0; col < maxCols && cellsCompared < maxCells; col++) {
+        const afterVal = afterRow[col];
+        const beforeVal = beforeRow[col];
+
+        if (beforeVal !== afterVal) {
+          changes.push({
+            cell: this.formatCell(sheetTitle, col, row),
+            before: beforeVal,
+            after: afterVal,
+            type: 'value',
+          });
+        }
+
+        if (beforeVal === undefined && afterVal !== undefined) {
+          cellsAdded++;
+        }
+        if (beforeVal !== undefined && afterVal === undefined) {
+          cellsRemoved++;
+        }
+        cellsCompared++;
+      }
+    }
+
+    return { changes, cellsAdded, cellsRemoved, cellsCompared };
   }
 }
