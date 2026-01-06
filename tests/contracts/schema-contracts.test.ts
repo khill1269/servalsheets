@@ -29,6 +29,13 @@ import {
   SheetsVersionsInputSchema,
   SheetsAnalysisInputSchema,
   SheetsAdvancedInputSchema,
+  SheetsTransactionInputSchema,
+  SheetsValidationInputSchema,
+  SheetsConflictInputSchema,
+  SheetsImpactInputSchema,
+  SheetsHistoryInputSchema,
+  SheetsConfirmInputSchema,
+  SheetsAnalyzeInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
@@ -83,6 +90,13 @@ const VALID_INPUTS: Record<string, unknown> = {
       range: { a1: 'Sheet1!A1:C10' },
     },
   },
+  sheets_transaction: { request: { action: 'begin', spreadsheetId: 'test123' } },
+  sheets_validation: { request: { action: 'validate', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:A10' }, rule: 'type', options: { type: 'NUMBER' } } },
+  sheets_conflict: { request: { action: 'detect', spreadsheetId: 'test123' } },
+  sheets_impact: { request: { action: 'analyze', spreadsheetId: 'test123', operation: { type: 'values_write', tool: 'sheets_values', action: 'write', params: { range: 'A1:B10', values: [[1, 2]] } } } },
+  sheets_history: { request: { action: 'list' } },
+  sheets_confirm: { request: { action: 'request', plan: { title: 'Test Plan', description: 'Test', steps: [{ stepNumber: 1, description: 'Test step', tool: 'sheets_values', action: 'read', risk: 'low', estimatedApiCalls: 1, isDestructive: false, canUndo: false }] } } },
+  sheets_analyze: { request: { action: 'generate_formula', spreadsheetId: 'test123', description: 'Sum column A' } },
 };
 
 // All tool input schemas
@@ -103,17 +117,24 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_versions', schema: SheetsVersionsInputSchema },
   { name: 'sheets_analysis', schema: SheetsAnalysisInputSchema },
   { name: 'sheets_advanced', schema: SheetsAdvancedInputSchema },
+  { name: 'sheets_transaction', schema: SheetsTransactionInputSchema },
+  { name: 'sheets_validation', schema: SheetsValidationInputSchema },
+  { name: 'sheets_conflict', schema: SheetsConflictInputSchema },
+  { name: 'sheets_impact', schema: SheetsImpactInputSchema },
+  { name: 'sheets_history', schema: SheetsHistoryInputSchema },
+  { name: 'sheets_confirm', schema: SheetsConfirmInputSchema },
+  { name: 'sheets_analyze', schema: SheetsAnalyzeInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 16 tools', () => {
-      expect(TOOL_COUNT).toBe(16);
-      expect(TOOL_SCHEMAS).toHaveLength(16);
+    it('should have exactly 23 tools', () => {
+      expect(TOOL_COUNT).toBe(23);
+      expect(TOOL_SCHEMAS).toHaveLength(23);
     });
 
-    it('should have 94+ total actions across all tools', () => {
-      expect(ACTION_COUNT).toBeGreaterThanOrEqual(94);
+    it('should have 152+ total actions across all tools', () => {
+      expect(ACTION_COUNT).toBeGreaterThanOrEqual(152);
     });
 
     it('should not have duplicate tool names', () => {

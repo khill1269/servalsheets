@@ -59,7 +59,6 @@ describe('MCP Protocol Compliance', () => {
       expect(tools).toBeDefined();
       const toolNames = Object.keys(tools);
       expect(toolNames.length).toBe(TOOL_COUNT);
-      expect(toolNames.length).toBe(16);
     });
 
     it('all tools should have required fields', () => {

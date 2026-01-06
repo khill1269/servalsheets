@@ -15,12 +15,12 @@ import {
 
 describe('ServalSheets v4', () => {
   describe('Tool Registry', () => {
-    it('should have 16 tools', () => {
-      expect(TOOL_COUNT).toBe(16);
+    it('should have 23 tools', () => {
+      expect(TOOL_COUNT).toBe(23);
     });
 
-    it('should have 94+ actions', () => {
-      expect(ACTION_COUNT).toBeGreaterThanOrEqual(94);
+    it('should have 152+ actions', () => {
+      expect(ACTION_COUNT).toBeGreaterThanOrEqual(152);
     });
   });
 

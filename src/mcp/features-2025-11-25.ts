@@ -174,34 +174,33 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
 
 /**
  * Full server capabilities for ServalSheets
- * 
- * MCP 2025-11-25 ServerCapabilities:
- * - logging: Enables logging/setLevel request handling
- * - completions: Enables completion/complete for argument hints
- * - prompts: Enables prompts/list and prompts/get
- * - resources: Enables resources/list, read, subscribe
- * - tools: Enables tools/list and tools/call
- * - tasks: Enables task-augmented requests (SEP-1686)
- * 
- * NOTE: McpServer auto-registers some capabilities when you use registerTool/etc.
- * This function provides additional capabilities not auto-registered.
+ *
+ * MCP 2025-11-25 ServerCapabilities (Honest Declaration):
+ * - completions: Argument autocompletion for prompts/resources (NOT tool args)
+ * - prompts: Auto-registered by McpServer.registerPrompt()
+ * - resources: Auto-registered by McpServer.registerResource()
+ * - tools: Auto-registered by McpServer.registerTool()
+ * - tasks: Task-augmented execution (SEP-1686)
+ *
+ * NOT DECLARED (but used):
+ * - elicitation (SEP-1036): Sheets_confirm uses it, but SDK doesn't expose capability declaration
+ * - sampling (SEP-1577): Sheets_analyze uses it, but SDK doesn't expose capability declaration
+ * - logging: Not implemented (no logging/setLevel handler)
+ *
+ * ARCHITECTURAL NOTE:
+ * This server USES elicitation and sampling in handlers, but cannot DECLARE them
+ * as capabilities because the SDK v1.25.x doesn't expose the capability types yet.
+ * When the SDK adds these capability types, we should declare them here.
  */
 export function createServerCapabilities(): ServerCapabilities {
   return {
-    // Logging support - allows clients to set log level
-    logging: {},
-
-    // Completions support - enables argument autocompletion
+    // Completions support - enables argument autocompletion for prompts/resources
+    // NOTE: MCP SDK v1.25.x only supports completions for prompts/resources, NOT tool arguments
+    // Tool argument completions will be added when SDK supports them
     completions: {},
 
-    // Note: Sampling (SEP-1577) and Elicitation (SEP-1036) are not yet in SDK types
-    // These will be enabled when the SDK is updated to support them
-
-    // Note: tools, prompts, resources capabilities are auto-registered by McpServer
-    // when using registerTool(), registerPrompt(), registerResource()
-
-    // Task support (SEP-1686) - EXPERIMENTAL
-    // Enables task-augmented execution for long-running operations
+    // Task support (SEP-1686) - Enables task-augmented execution
+    // Tools with taskSupport: 'optional' can be invoked with task mode
     tasks: {
       list: {},
       cancel: {},
@@ -211,6 +210,9 @@ export function createServerCapabilities(): ServerCapabilities {
         },
       },
     },
+
+    // Note: tools, prompts, resources capabilities are auto-registered by McpServer
+    // when using registerTool(), registerPrompt(), registerResource()
   };
 }
 
@@ -225,7 +227,7 @@ export function createServerCapabilities(): ServerCapabilities {
  * They are sent during initialization and can be added to system prompts.
  */
 export const SERVER_INSTRUCTIONS = `
-ServalSheets is a comprehensive Google Sheets MCP server with 16 tools and 160+ actions.
+ServalSheets is a comprehensive Google Sheets MCP server with 23 tools and 152 actions.
 
 ## 🔐 MANDATORY FIRST STEP: Authentication
 
@@ -245,11 +247,13 @@ ServalSheets is a comprehensive Google Sheets MCP server with 16 tools and 160+ 
 Use sheets_spreadsheet action:"get" to explore any spreadsheet.
 Use sheets_analysis action:"structure_analysis" for quick overview.
 Use sheets_analysis action:"data_quality" for data quality assessment.
+Use sheets_analyze for AI-powered pattern detection (via MCP Sampling).
 
 ## Safety Features
 - Always use dryRun:true for destructive operations first
 - Use effectScope.maxCellsAffected to limit blast radius
 - Auto-snapshots are enabled by default for undo capability
+- Use sheets_confirm for multi-step operations (via MCP Elicitation)
 
 ## Best Practices
 1. AUTH first: Always verify authentication before any operation
@@ -257,6 +261,7 @@ Use sheets_analysis action:"data_quality" for data quality assessment.
 3. Use batch operations: Combine multiple changes in one call
 4. Respect quotas: 60 req/min/user, 300 req/min/project
 5. Use semantic ranges: Reference columns by header names when possible
+6. Use transactions for atomic multi-operation updates
 
 ## Tool Categories
 - Auth: sheets_auth (ALWAYS check this first!)
@@ -264,9 +269,13 @@ Use sheets_analysis action:"data_quality" for data quality assessment.
 - Structure: sheets_spreadsheet, sheets_sheet, sheets_dimensions
 - Formatting: sheets_format, sheets_rules
 - Analysis: sheets_analysis (read-only, safe to run anytime)
+- AI Analysis: sheets_analyze (MCP Sampling for patterns/anomalies)
 - Visualization: sheets_charts, sheets_pivot
+- Filtering: sheets_filter_sort
 - Collaboration: sheets_sharing, sheets_comments
 - Management: sheets_versions, sheets_advanced
+- Enterprise: sheets_transaction, sheets_validation, sheets_conflict, sheets_impact, sheets_history
+- MCP Native: sheets_confirm (user confirmation), sheets_analyze (AI analysis)
 
 ## Color Format
 All colors use 0-1 scale: { red: 0.2, green: 0.6, blue: 0.8 }

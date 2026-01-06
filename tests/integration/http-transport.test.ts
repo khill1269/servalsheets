@@ -56,7 +56,7 @@ describe('HTTP Transport Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         status: 'healthy',
-        version: '1.2.0',
+        version: '1.3.0',
         protocol: 'MCP 2025-11-25',
       });
     });
@@ -69,7 +69,7 @@ describe('HTTP Transport Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '1.2.0',
+        version: '1.3.0',
         description: 'Production-grade Google Sheets MCP server',
         protocol: 'MCP 2025-11-25',
       });

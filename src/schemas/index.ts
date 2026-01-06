@@ -1,7 +1,12 @@
 /**
  * ServalSheets - Schema Index
- * 
- * Re-exports all schemas for easy importing
+ *
+ * Re-exports all schemas for easy importing.
+ *
+ * Architectural Notes (MCP 2025-11-25):
+ * - sheets_confirm: Uses Elicitation (SEP-1036) for user confirmation
+ * - sheets_analyze: Uses Sampling (SEP-1577) for AI analysis
+ * - Removed: sheets_plan, sheets_insights (replaced by MCP-native patterns)
  */
 
 // Shared types
@@ -10,7 +15,7 @@ export * from './shared.js';
 // Tool annotations
 export * from './annotations.js';
 
-// Tool schemas (16 tools, 160 actions)
+// Core tool schemas
 export * from './auth.js';
 export * from './spreadsheet.js';
 export * from './sheet.js';
@@ -28,21 +33,22 @@ export * from './versions.js';
 export * from './analysis.js';
 export * from './advanced.js';
 export * from './transaction.js';
-export * from './workflow.js';
-export * from './insights.js';
 export * from './validation.js';
-export * from './planning.js';
 export * from './conflict.js';
 export * from './impact.js';
 export * from './history.js';
 export * from './prompts.js';
+
+// MCP-native tool schemas (Elicitation & Sampling)
+export * from './confirm.js';   // Uses Elicitation (SEP-1036)
+export * from './analyze.js';   // Uses Sampling (SEP-1577)
 
 // Tool metadata for registration
 export const TOOL_REGISTRY = {
   sheets_auth: {
     name: 'sheets_auth',
     title: 'Authentication',
-    description: 'Authentication management: status, login, callback, logout',
+    description: '🔐 MANDATORY FIRST STEP: Authentication management. ALWAYS call this with action:"status" before using any other sheets_* tool. Actions: status (check auth), login (get OAuth URL), callback (complete OAuth with code), logout (clear credentials)',
     schema: 'SheetsAuthInputSchema',
     output: 'SheetsAuthOutputSchema',
     annotations: 'SHEETS_AUTH_ANNOTATIONS',
@@ -51,7 +57,7 @@ export const TOOL_REGISTRY = {
   sheets_spreadsheet: {
     name: 'sheets_spreadsheet',
     title: 'Spreadsheet',
-    description: 'Spreadsheet-level operations: create, get, copy, update properties',
+    description: 'Spreadsheet operations: create, get, copy, update properties',
     schema: 'SheetSpreadsheetInputSchema',
     output: 'SheetsSpreadsheetOutputSchema',
     annotations: 'SHEETS_SPREADSHEET_ANNOTATIONS',
@@ -60,7 +66,7 @@ export const TOOL_REGISTRY = {
   sheets_sheet: {
     name: 'sheets_sheet',
     title: 'Sheet Management',
-    description: 'Sheet/tab operations: add, delete, duplicate, update, copy_to, list, get',
+    description: 'Sheet/tab operations: add, delete, duplicate, update, list',
     schema: 'SheetsSheetInputSchema',
     output: 'SheetsSheetOutputSchema',
     annotations: 'SHEETS_SHEET_ANNOTATIONS',
@@ -69,7 +75,7 @@ export const TOOL_REGISTRY = {
   sheets_values: {
     name: 'sheets_values',
     title: 'Cell Values',
-    description: 'Cell value operations: read, write, append, clear, find, replace',
+    description: 'Cell values: read, write, append, clear, find, replace',
     schema: 'SheetsValuesInputSchema',
     output: 'SheetsValuesOutputSchema',
     annotations: 'SHEETS_VALUES_ANNOTATIONS',
@@ -78,7 +84,7 @@ export const TOOL_REGISTRY = {
   sheets_cells: {
     name: 'sheets_cells',
     title: 'Cell Operations',
-    description: 'Cell-level operations: notes, validation, hyperlinks, merge, cut, copy',
+    description: 'Cell operations: notes, validation, hyperlinks, merge',
     schema: 'SheetsCellsInputSchema',
     output: 'SheetsCellsOutputSchema',
     annotations: 'SHEETS_CELLS_ANNOTATIONS',
@@ -86,8 +92,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_format: {
     name: 'sheets_format',
-    title: 'Cell Formatting',
-    description: 'Formatting operations: set_format, background, text, number, alignment, borders, presets',
+    title: 'Formatting',
+    description: 'Formatting: colors, fonts, borders, alignment, presets',
     schema: 'SheetsFormatInputSchema',
     output: 'SheetsFormatOutputSchema',
     annotations: 'SHEETS_FORMAT_ANNOTATIONS',
@@ -96,7 +102,7 @@ export const TOOL_REGISTRY = {
   sheets_dimensions: {
     name: 'sheets_dimensions',
     title: 'Rows & Columns',
-    description: 'Row/column operations: insert, delete, move, resize, hide, freeze, group',
+    description: 'Rows/columns: insert, delete, move, resize, freeze, group',
     schema: 'SheetsDimensionsInputSchema',
     output: 'SheetsDimensionsOutputSchema',
     annotations: 'SHEETS_DIMENSIONS_ANNOTATIONS',
@@ -104,8 +110,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_rules: {
     name: 'sheets_rules',
-    title: 'Rules & Validation',
-    description: 'Conditional formatting and data validation rules',
+    title: 'Rules',
+    description: 'Rules: conditional formatting, data validation',
     schema: 'SheetsRulesInputSchema',
     output: 'SheetsRulesOutputSchema',
     annotations: 'SHEETS_RULES_ANNOTATIONS',
@@ -114,7 +120,7 @@ export const TOOL_REGISTRY = {
   sheets_charts: {
     name: 'sheets_charts',
     title: 'Charts',
-    description: 'Chart operations: create, update, delete, list, move, resize, export',
+    description: 'Charts: create, update, delete, move, export',
     schema: 'SheetsChartsInputSchema',
     output: 'SheetsChartsOutputSchema',
     annotations: 'SHEETS_CHARTS_ANNOTATIONS',
@@ -123,7 +129,7 @@ export const TOOL_REGISTRY = {
   sheets_pivot: {
     name: 'sheets_pivot',
     title: 'Pivot Tables',
-    description: 'Pivot table operations: create, update, delete, list, get, refresh',
+    description: 'Pivot tables: create, update, refresh, calculated fields',
     schema: 'SheetsPivotInputSchema',
     output: 'SheetsPivotOutputSchema',
     annotations: 'SHEETS_PIVOT_ANNOTATIONS',
@@ -132,7 +138,7 @@ export const TOOL_REGISTRY = {
   sheets_filter_sort: {
     name: 'sheets_filter_sort',
     title: 'Filter & Sort',
-    description: 'Filtering and sorting: basic filter, filter views, slicers, sort range',
+    description: 'Filter/sort: basic filter, filter views, slicers, sort',
     schema: 'SheetsFilterSortInputSchema',
     output: 'SheetsFilterSortOutputSchema',
     annotations: 'SHEETS_FILTER_SORT_ANNOTATIONS',
@@ -140,8 +146,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_sharing: {
     name: 'sheets_sharing',
-    title: 'Sharing & Permissions',
-    description: 'Permission operations: share, update, remove, transfer ownership, link sharing',
+    title: 'Sharing',
+    description: 'Sharing: permissions, transfer ownership, link sharing',
     schema: 'SheetsSharingInputSchema',
     output: 'SheetsSharingOutputSchema',
     annotations: 'SHEETS_SHARING_ANNOTATIONS',
@@ -150,7 +156,7 @@ export const TOOL_REGISTRY = {
   sheets_comments: {
     name: 'sheets_comments',
     title: 'Comments',
-    description: 'Comment operations: add, update, delete, list, resolve, reopen, replies',
+    description: 'Comments: add, reply, resolve, delete',
     schema: 'SheetsCommentsInputSchema',
     output: 'SheetsCommentsOutputSchema',
     annotations: 'SHEETS_COMMENTS_ANNOTATIONS',
@@ -158,8 +164,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_versions: {
     name: 'sheets_versions',
-    title: 'Version Control',
-    description: 'Version history: revisions, snapshots, restore, compare, export',
+    title: 'Versions',
+    description: 'Versions: revisions, snapshots, restore, compare',
     schema: 'SheetsVersionsInputSchema',
     output: 'SheetsVersionsOutputSchema',
     annotations: 'SHEETS_VERSIONS_ANNOTATIONS',
@@ -167,8 +173,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_analysis: {
     name: 'sheets_analysis',
-    title: 'Data Analysis',
-    description: 'Analysis operations: data quality, formula audit, statistics, correlations, AI-powered suggestions',
+    title: 'Analysis',
+    description: 'Analysis: data quality, formula audit, statistics (read-only)',
     schema: 'SheetsAnalysisInputSchema',
     output: 'SheetsAnalysisOutputSchema',
     annotations: 'SHEETS_ANALYSIS_ANNOTATIONS',
@@ -176,8 +182,8 @@ export const TOOL_REGISTRY = {
   },
   sheets_advanced: {
     name: 'sheets_advanced',
-    title: 'Advanced Features',
-    description: 'Advanced features: named ranges, protected ranges, metadata, banding, tables',
+    title: 'Advanced',
+    description: 'Advanced: named ranges, protected ranges, metadata, banding',
     schema: 'SheetsAdvancedInputSchema',
     output: 'SheetsAdvancedOutputSchema',
     annotations: 'SHEETS_ADVANCED_ANNOTATIONS',
@@ -186,52 +192,25 @@ export const TOOL_REGISTRY = {
   sheets_transaction: {
     name: 'sheets_transaction',
     title: 'Transactions',
-    description: 'Transaction management: begin, commit, rollback, savepoints',
+    description: 'Transaction support: begin, queue operations, commit/rollback atomically with auto-snapshot. Batch multiple operations into 1 API call, saving 80% API usage.',
     schema: 'SheetsTransactionInputSchema',
     output: 'SheetsTransactionOutputSchema',
     annotations: 'SHEETS_TRANSACTION_ANNOTATIONS',
-    actions: ['begin', 'commit', 'rollback', 'savepoint', 'rollback_to_savepoint', 'status'],
-  },
-  sheets_workflow: {
-    name: 'sheets_workflow',
-    title: 'Workflows',
-    description: 'Multi-step workflow automation with dependencies and rollback',
-    schema: 'SheetsWorkflowInputSchema',
-    output: 'SheetsWorkflowOutputSchema',
-    annotations: 'SHEETS_WORKFLOW_ANNOTATIONS',
-    actions: ['create', 'execute', 'status', 'cancel', 'list'],
-  },
-  sheets_insights: {
-    name: 'sheets_insights',
-    title: 'AI Insights',
-    description: 'AI-powered data insights, anomaly detection, and recommendations',
-    schema: 'SheetsInsightsInputSchema',
-    output: 'SheetsInsightsOutputSchema',
-    annotations: 'SHEETS_INSIGHTS_ANNOTATIONS',
-    actions: ['analyze', 'detect_anomalies', 'recommend'],
+    actions: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
   },
   sheets_validation: {
     name: 'sheets_validation',
     title: 'Validation',
-    description: 'Data validation and constraint checking',
+    description: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.) with custom rule support.',
     schema: 'SheetsValidationInputSchema',
     output: 'SheetsValidationOutputSchema',
     annotations: 'SHEETS_VALIDATION_ANNOTATIONS',
-    actions: ['validate_data', 'validate_formulas', 'validate_references', 'check_constraints'],
-  },
-  sheets_plan: {
-    name: 'sheets_plan',
-    title: 'Planning',
-    description: 'Natural language operation planning with cost estimation and risk analysis',
-    schema: 'SheetsPlanningInputSchema',
-    output: 'SheetsPlanningOutputSchema',
-    annotations: 'SHEETS_PLANNING_ANNOTATIONS',
-    actions: ['create', 'execute', 'validate'],
+    actions: ['validate'],
   },
   sheets_conflict: {
     name: 'sheets_conflict',
     title: 'Conflict Detection',
-    description: 'Conflict detection and resolution for concurrent modifications',
+    description: 'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
     schema: 'SheetsConflictInputSchema',
     output: 'SheetsConflictOutputSchema',
     annotations: 'SHEETS_CONFLICT_ANNOTATIONS',
@@ -240,7 +219,7 @@ export const TOOL_REGISTRY = {
   sheets_impact: {
     name: 'sheets_impact',
     title: 'Impact Analysis',
-    description: 'Pre-execution impact analysis with dependency tracking',
+    description: 'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables, etc.).',
     schema: 'SheetsImpactInputSchema',
     output: 'SheetsImpactOutputSchema',
     annotations: 'SHEETS_IMPACT_ANNOTATIONS',
@@ -249,11 +228,30 @@ export const TOOL_REGISTRY = {
   sheets_history: {
     name: 'sheets_history',
     title: 'Operation History',
-    description: 'Operation history tracking for debugging and undo foundation',
+    description: 'Operation history: track last 100 operations for debugging and undo foundation.',
     schema: 'SheetsHistoryInputSchema',
     output: 'SheetsHistoryOutputSchema',
     annotations: 'SHEETS_HISTORY_ANNOTATIONS',
     actions: ['list', 'get', 'stats'],
+  },
+  // MCP-native tools using Elicitation and Sampling
+  sheets_confirm: {
+    name: 'sheets_confirm',
+    title: 'Plan Confirmation',
+    description: 'Confirm multi-step operations with the user before execution. Uses MCP Elicitation (SEP-1036). Claude plans, user confirms, Claude executes.',
+    schema: 'SheetsConfirmInputSchema',
+    output: 'SheetsConfirmOutputSchema',
+    annotations: 'SHEETS_CONFIRM_ANNOTATIONS',
+    actions: ['request', 'get_stats'],
+  },
+  sheets_analyze: {
+    name: 'sheets_analyze',
+    title: 'AI Analysis',
+    description: 'AI-powered data analysis using MCP Sampling (SEP-1577). Analyze patterns, anomalies, trends, generate formulas, suggest charts.',
+    schema: 'SheetsAnalyzeInputSchema',
+    output: 'SheetsAnalyzeOutputSchema',
+    annotations: 'SHEETS_ANALYZE_ANNOTATIONS',
+    actions: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats'],
   },
 } as const;
 

@@ -43,6 +43,12 @@ import {
 
 import { SnapshotService, GoogleApiClient, createGoogleApiClient } from './services/index.js';
 import type { GoogleApiClientOptions } from './services/google-api.js';
+// Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
+// Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
+import { initTransactionManager } from './services/transaction-manager.js';
+import { initConflictDetector } from './services/conflict-detector.js';
+import { initImpactAnalyzer } from './services/impact-analyzer.js';
+import { initValidationEngine } from './services/validation-engine.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import { checkAuth, buildAuthErrorResponse, isGoogleAuthError, convertGoogleAuthError } from './utils/auth-guard.js';
@@ -58,7 +64,7 @@ import {
   prepareSchemaForRegistration,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { registerKnowledgeResources, registerHistoryResources, registerCacheResources } from './resources/index.js';
+import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
@@ -164,11 +170,21 @@ export class ServalSheetsServer {
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
       };
 
-      this.handlers = createHandlers({
+      const handlers = createHandlers({
         context: this.context,
         sheetsApi: this.googleClient.sheets,
         driveApi: this.googleClient.drive,
       });
+      this.handlers = handlers;
+
+      // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
+      // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
+
+      // Initialize Phase 4 advanced features
+      initTransactionManager(this.googleClient);           // Phase 4, Task 4.1
+      initConflictDetector(this.googleClient);             // Phase 4, Task 4.2
+      initImpactAnalyzer(this.googleClient);               // Phase 4, Task 4.3
+      initValidationEngine(this.googleClient);             // Phase 4, Task 4.4
     }
 
     // Register all tools
@@ -190,7 +206,7 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 16 tools with proper annotations
+   * Register all 23 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
@@ -258,7 +274,12 @@ export class ServalSheetsServer {
         },
         cb: (
           args: Record<string, unknown>,
-          extra: { sendNotification: (n: unknown) => Promise<void>; requestInfo?: { _meta?: { progressToken?: string | number } } }
+          extra: {
+            sendNotification: (n: unknown) => Promise<void>;
+            requestInfo?: { _meta?: { progressToken?: string | number } };
+            elicit?: unknown;  // SEP-1036: Elicitation capability for sheets_confirm
+            sample?: unknown;  // SEP-1577: Sampling capability for sheets_analyze
+          }
         ) => Promise<CallToolResult>
       ) => void)(
         tool.name,
@@ -279,6 +300,8 @@ export class ServalSheetsServer {
           return this.handleToolCall(tool.name, args, {
             sendNotification: extra.sendNotification as (n: import('@modelcontextprotocol/sdk/types.js').ServerNotification) => Promise<void>,
             progressToken,
+            elicit: extra.elicit,  // Forward elicitation capability (SEP-1036)
+            sample: extra.sample,  // Forward sampling capability (SEP-1577)
           });
         }
       );
@@ -346,6 +369,8 @@ export class ServalSheetsServer {
     extra?: {
       sendNotification?: (notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification) => Promise<void>;
       progressToken?: string | number;
+      elicit?: unknown;  // SEP-1036: Elicitation capability for sheets_confirm
+      sample?: unknown;  // SEP-1577: Sampling capability for sheets_analyze
     }
   ): Promise<CallToolResult> {
     const startTime = Date.now();
@@ -442,7 +467,8 @@ export class ServalSheetsServer {
             });
           }
 
-          const result = await handler(args);
+          // Pass full extra to handler (includes elicit/sample for MCP-native tools)
+          const result = await handler(args, extra);
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available
@@ -537,6 +563,27 @@ export class ServalSheetsServer {
 
     // Register cache statistics resources (Phase 1, Task 1.5)
     registerCacheResources(this._server);
+
+    // Removed: registerWorkflowResources (Claude orchestrates natively via MCP)
+
+    // Register transaction resources (Phase 4, Task 4.1)
+    registerTransactionResources(this._server);
+
+    // Register conflict resources (Phase 4, Task 4.2)
+    registerConflictResources(this._server);
+
+    // Register impact resources (Phase 4, Task 4.3)
+    registerImpactResources(this._server);
+
+    // Register validation resources (Phase 4, Task 4.4)
+    registerValidationResources(this._server);
+
+    // Register metrics resources (Phase 6, Task 6.1)
+    registerMetricsResources(this._server);
+
+    // Register MCP-native resources (Elicitation & Sampling)
+    registerConfirmResources(this._server);  // Confirmation via Elicitation (SEP-1036)
+    registerAnalyzeResources(this._server);  // AI analysis via Sampling (SEP-1577)
   }
 
   /**
