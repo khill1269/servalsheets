@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+## [1.3.0-hotfix.1] - 2026-01-06
+
+### Fixed
+- **CRITICAL**: Fixed runtime error "taskStore.isTaskCancelled is not a function" affecting all tool calls
+  - Issue: Task cancellation code was calling methods on SDK's `extra.taskStore` which doesn't support cancellation
+  - Fix: Use `this.taskStore` (TaskStoreAdapter) for cancellation checks and storing cancelled status
+  - Affected: All 23 tools (sheets_values, sheets_analysis, etc.)
+  - Commit: 9e2ce8b
+
 ## [1.3.0] - 2026-01-06
 
 **MCP Protocol Native Refactor + Full Protocol Compliance**
