@@ -331,13 +331,12 @@ export class ServalSheetsServer {
         const abortController = new AbortController();
         this.taskAbortControllers.set(task.taskId, abortController);
 
-        // Cast to TaskStoreAdapter to access custom cancellation methods
-        const taskStore = extra.taskStore as unknown as TaskStoreAdapter;
+        // Use this.taskStore for cancellation methods (not extra.taskStore)
         void (async () => {
           try {
             // Check if already cancelled
-            if (await taskStore.isTaskCancelled(task.taskId)) {
-              const reason = await taskStore.getCancellationReason(task.taskId);
+            if (await this.taskStore.isTaskCancelled(task.taskId)) {
+              const reason = await this.taskStore.getCancellationReason(task.taskId);
               const cancelResult = buildToolResponse({
                 response: {
                   success: false,
@@ -348,7 +347,7 @@ export class ServalSheetsServer {
                   },
                 },
               });
-              await taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+              await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
               return;
             }
 
@@ -363,11 +362,11 @@ export class ServalSheetsServer {
             );
 
             // Check cancellation again before storing result
-            if (await taskStore.isTaskCancelled(task.taskId)) {
+            if (await this.taskStore.isTaskCancelled(task.taskId)) {
               return; // Already marked as cancelled
             }
 
-            await taskStore.storeTaskResult(task.taskId, 'completed', result);
+            await extra.taskStore.storeTaskResult(task.taskId, 'completed', result);
           } catch (error) {
             // Check if error is due to cancellation
             if (error instanceof Error && error.name === 'AbortError') {
@@ -382,7 +381,7 @@ export class ServalSheetsServer {
                 },
               });
               try {
-                await taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
+                await this.taskStore.storeTaskResult(task.taskId, 'cancelled', cancelResult);
               } catch (storeError) {
                 baseLogger.error('Failed to store cancelled task result', { toolName, storeError });
               }
@@ -398,7 +397,7 @@ export class ServalSheetsServer {
                 },
               });
               try {
-                await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
+                await extra.taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
               } catch (storeError) {
                 baseLogger.error('Failed to store task result', { toolName, storeError });
               }
