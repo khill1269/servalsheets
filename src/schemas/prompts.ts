@@ -53,3 +53,33 @@ export const CleanDataPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
   range: c(z.string().min(1), completeRange),
 };
+
+// New workflow prompts
+export const MigrateDataPromptArgsSchema: PromptArgsShape = {
+  sourceSpreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  targetSpreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  sourceRange: c(z.string().min(1), completeRange),
+  targetRange: c(z.string().optional(), completeRange),
+};
+
+export const SetupBudgetPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().optional(), completeSpreadsheetId),
+  budgetType: z.enum(['personal', 'business', 'project']).optional(),
+};
+
+export const ImportDataPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  dataSource: z.string().min(1), // Description of data source
+  targetSheet: z.string().optional(),
+};
+
+export const SetupCollaborationPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  collaborators: z.array(z.string()).min(1), // Email addresses
+  role: z.enum(['reader', 'commenter', 'writer', 'owner']).optional(),
+};
+
+export const DiagnoseErrorsPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  errorDescription: z.string().optional(),
+};

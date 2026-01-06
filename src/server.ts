@@ -64,7 +64,7 @@ import {
   prepareSchemaForRegistration,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources } from './resources/index.js';
+import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources, registerReferenceResources, readReferenceResource } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
@@ -584,6 +584,9 @@ export class ServalSheetsServer {
     // Register MCP-native resources (Elicitation & Sampling)
     registerConfirmResources(this._server);  // Confirmation via Elicitation (SEP-1036)
     registerAnalyzeResources(this._server);  // AI analysis via Sampling (SEP-1577)
+
+    // Register static reference resources (LLM reference documentation)
+    registerReferenceResources(this._server);  // Colors, formulas, formats, API limits
   }
 
   /**

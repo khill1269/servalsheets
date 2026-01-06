@@ -10,6 +10,11 @@
  * - SDK compatibility layer converts to JSON Schema for tools/list
  * - Full type safety maintained throughout
  * 
+ * Architectural Notes (MCP 2025-11-25):
+ * - sheets_confirm: Uses Elicitation (SEP-1036) for user confirmation
+ * - sheets_analyze: Uses Sampling (SEP-1577) for AI analysis
+ * - Removed: sheets_plan, sheets_insights (replaced by MCP-native patterns)
+ * 
  * @module mcp/registration
  */
 
@@ -22,6 +27,7 @@ import type {
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import type { ZodTypeAny } from 'zod';
 import { randomUUID } from 'crypto';
+import { recordToolCall } from '../observability/metrics.js';
 
 import type { Handlers } from '../handlers/index.js';
 import { AuthHandler } from '../handlers/auth.js';
@@ -54,13 +60,13 @@ import {
   SheetsAnalysisInputSchema, SheetsAnalysisOutputSchema, SHEETS_ANALYSIS_ANNOTATIONS,
   SheetsAdvancedInputSchema, SheetsAdvancedOutputSchema, SHEETS_ADVANCED_ANNOTATIONS,
   SheetsTransactionInputSchema, SheetsTransactionOutputSchema, SHEETS_TRANSACTION_ANNOTATIONS,
-  SheetsWorkflowInputSchema, SheetsWorkflowOutputSchema, SHEETS_WORKFLOW_ANNOTATIONS,
-  SheetsInsightsInputSchema, SheetsInsightsOutputSchema, SHEETS_INSIGHTS_ANNOTATIONS,
   SheetsValidationInputSchema, SheetsValidationOutputSchema, SHEETS_VALIDATION_ANNOTATIONS,
-  SheetsPlanningInputSchema, SheetsPlanningOutputSchema, SHEETS_PLANNING_ANNOTATIONS,
   SheetsConflictInputSchema, SheetsConflictOutputSchema, SHEETS_CONFLICT_ANNOTATIONS,
   SheetsImpactInputSchema, SheetsImpactOutputSchema, SHEETS_IMPACT_ANNOTATIONS,
   SheetsHistoryInputSchema, SheetsHistoryOutputSchema, SHEETS_HISTORY_ANNOTATIONS,
+  // New MCP-native tools
+  SheetsConfirmInputSchema, SheetsConfirmOutputSchema, SHEETS_CONFIRM_ANNOTATIONS,
+  SheetsAnalyzeInputSchema, SheetsAnalyzeOutputSchema, SHEETS_ANALYZE_ANNOTATIONS,
 } from '../schemas/index.js';
 import {
   FirstOperationPromptArgsSchema,
@@ -68,6 +74,11 @@ import {
   TransformDataPromptArgsSchema,
   CreateReportPromptArgsSchema,
   CleanDataPromptArgsSchema,
+  MigrateDataPromptArgsSchema,
+  SetupBudgetPromptArgsSchema,
+  ImportDataPromptArgsSchema,
+  SetupCollaborationPromptArgsSchema,
+  DiagnoseErrorsPromptArgsSchema,
 } from '../schemas/prompts.js';
 
 // ============================================================================
@@ -95,11 +106,14 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  * 
- * 16 tools, 165 actions
+ * 16 core tools + 5 enterprise tools + 2 MCP-native tools = 23 tools
  * 
  * Schema Pattern: z.object({ request: z.discriminatedUnion('action', ...) })
  * - Actions are discriminated by `action` within `request`
  * - Responses are discriminated by `success` within `response`
+ * 
+ * Note: Removed sheets_plan and sheets_insights (anti-patterns).
+ * Replaced with sheets_confirm (Elicitation) and sheets_analyze (Sampling).
  */
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
@@ -111,105 +125,105 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_spreadsheet',
-    description: 'Spreadsheet operations: create, get, copy, update properties',
+    description: 'Create, retrieve, copy, and manage spreadsheet properties. Actions: create (new spreadsheet), get (retrieve metadata), copy (duplicate), update_properties (title, locale, timezone).',
     inputSchema: SheetSpreadsheetInputSchema,
     outputSchema: SheetsSpreadsheetOutputSchema,
     annotations: SHEETS_SPREADSHEET_ANNOTATIONS,
   },
   {
     name: 'sheets_sheet',
-    description: 'Sheet/tab operations: add, delete, duplicate, update, list',
+    description: 'Manage individual sheets (tabs) within a spreadsheet. Actions: add (create new sheet), delete (remove sheet), duplicate (copy sheet), update (rename, reorder, change colors), list (enumerate all sheets).',
     inputSchema: SheetsSheetInputSchema,
     outputSchema: SheetsSheetOutputSchema,
     annotations: SHEETS_SHEET_ANNOTATIONS,
   },
   {
     name: 'sheets_values',
-    description: 'Cell values: read, write, append, clear, find, replace',
+    description: 'Read, write, append, and manipulate cell values in Google Sheets ranges. Actions: read (fetch values), write (update cells), append (add rows), clear (delete values), find (search), replace (find & replace), batch operations supported.',
     inputSchema: SheetsValuesInputSchema,
     outputSchema: SheetsValuesOutputSchema,
     annotations: SHEETS_VALUES_ANNOTATIONS,
   },
   {
     name: 'sheets_cells',
-    description: 'Cell operations: notes, validation, hyperlinks, merge',
+    description: 'Manage individual cell properties and metadata. Actions: add_note (cell comments), set_validation (data validation rules), add_hyperlink (URLs), merge_cells (combine), unmerge_cells (split), get_cell_properties (metadata).',
     inputSchema: SheetsCellsInputSchema,
     outputSchema: SheetsCellsOutputSchema,
     annotations: SHEETS_CELLS_ANNOTATIONS,
   },
   {
     name: 'sheets_format',
-    description: 'Formatting: colors, fonts, borders, alignment, presets',
+    description: 'Apply visual formatting to cells including colors, fonts, borders, alignment, number formats, and conditional formatting. Actions: set_colors (background/text), set_font (family, size, bold, italic), set_borders, set_alignment, set_number_format, apply_preset (predefined styles).',
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
     annotations: SHEETS_FORMAT_ANNOTATIONS,
   },
   {
     name: 'sheets_dimensions',
-    description: 'Rows/columns: insert, delete, move, resize, freeze, group',
+    description: 'Manage rows and columns: insert new rows/columns, delete, move, resize dimensions, freeze panes for scrolling, and create groupings. Actions: insert_rows, insert_columns, delete_rows, delete_columns, move_dimension, resize, freeze_rows, freeze_columns, group, ungroup.',
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
     annotations: SHEETS_DIMENSIONS_ANNOTATIONS,
   },
   {
     name: 'sheets_rules',
-    description: 'Rules: conditional formatting, data validation',
+    description: 'Create and manage conditional formatting rules and data validation. Actions: add_conditional_format (color scales, rules), remove_conditional_format, list_conditional_formats, add_data_validation (dropdowns, ranges), remove_validation.',
     inputSchema: SheetsRulesInputSchema,
     outputSchema: SheetsRulesOutputSchema,
     annotations: SHEETS_RULES_ANNOTATIONS,
   },
   {
     name: 'sheets_charts',
-    description: 'Charts: create, update, delete, move, export',
+    description: 'Create, update, and manage charts and visualizations in spreadsheets. Actions: create (line, bar, pie, scatter, etc.), update (data, styling), delete, move (position), export (image), list (enumerate charts).',
     inputSchema: SheetsChartsInputSchema,
     outputSchema: SheetsChartsOutputSchema,
     annotations: SHEETS_CHARTS_ANNOTATIONS,
   },
   {
     name: 'sheets_pivot',
-    description: 'Pivot tables: create, update, refresh, calculated fields',
+    description: 'Create and manage pivot tables for data aggregation and analysis. Actions: create (define rows, columns, values), update (modify configuration), refresh (recalculate), add_calculated_field (custom formulas), delete.',
     inputSchema: SheetsPivotInputSchema,
     outputSchema: SheetsPivotOutputSchema,
     annotations: SHEETS_PIVOT_ANNOTATIONS,
   },
   {
     name: 'sheets_filter_sort',
-    description: 'Filter/sort: basic filter, filter views, slicers, sort',
+    description: 'Apply filters, create filter views, add slicers, and sort data ranges. Actions: set_basic_filter (quick filter), create_filter_view (saved views), update_filter_view, delete_filter_view, add_slicer (interactive filter), sort_range (ascending/descending).',
     inputSchema: SheetsFilterSortInputSchema,
     outputSchema: SheetsFilterSortOutputSchema,
     annotations: SHEETS_FILTER_SORT_ANNOTATIONS,
   },
   {
     name: 'sheets_sharing',
-    description: 'Sharing: permissions, transfer ownership, link sharing',
+    description: 'Manage spreadsheet sharing permissions and access control. Actions: share (grant user/group access), revoke (remove access), transfer_ownership (change owner), get_link (shareable URL), update_link_settings (public/private).',
     inputSchema: SheetsSharingInputSchema,
     outputSchema: SheetsSharingOutputSchema,
     annotations: SHEETS_SHARING_ANNOTATIONS,
   },
   {
     name: 'sheets_comments',
-    description: 'Comments: add, reply, resolve, delete',
+    description: 'Manage threaded comments and discussions on cells. Actions: add (create comment), reply (respond to comment), resolve (mark as done), delete (remove comment), list (enumerate all comments), get (retrieve specific comment).',
     inputSchema: SheetsCommentsInputSchema,
     outputSchema: SheetsCommentsOutputSchema,
     annotations: SHEETS_COMMENTS_ANNOTATIONS,
   },
   {
     name: 'sheets_versions',
-    description: 'Versions: revisions, snapshots, restore, compare',
+    description: 'Access and manage spreadsheet version history and snapshots. Actions: list_revisions (view history), get_revision (specific version), create_snapshot (manual save point), restore_snapshot (revert), compare_revisions (diff), export_revision (download version).',
     inputSchema: SheetsVersionsInputSchema,
     outputSchema: SheetsVersionsOutputSchema,
     annotations: SHEETS_VERSIONS_ANNOTATIONS,
   },
   {
     name: 'sheets_analysis',
-    description: 'Analysis: data quality, formula audit, statistics (read-only)',
+    description: 'Analyze spreadsheet structure, data quality, formulas, and statistics (read-only, no modifications). Actions: data_quality (detect issues), formula_audit (check formulas), statistics (compute stats), detect_patterns (find trends), column_analysis (profile columns), suggest_chart (recommend visualizations).',
     inputSchema: SheetsAnalysisInputSchema,
     outputSchema: SheetsAnalysisOutputSchema,
     annotations: SHEETS_ANALYSIS_ANNOTATIONS,
   },
   {
     name: 'sheets_advanced',
-    description: 'Advanced: named ranges, protected ranges, metadata, banding',
+    description: 'Advanced spreadsheet features including named ranges, protected ranges, developer metadata, and banding. Actions: add_named_range (define names), delete_named_range, list_named_ranges, add_protected_range (lock cells), set_metadata (custom properties), apply_banding (alternating row colors).',
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
     annotations: SHEETS_ADVANCED_ANNOTATIONS,
@@ -222,32 +236,11 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     annotations: SHEETS_TRANSACTION_ANNOTATIONS,
   },
   {
-    name: 'sheets_workflow',
-    description: 'Smart workflows: detect common multi-step operations, execute workflows with auto-chaining. 50% reduction in tool calls for common tasks.',
-    inputSchema: SheetsWorkflowInputSchema,
-    outputSchema: SheetsWorkflowOutputSchema,
-    annotations: SHEETS_WORKFLOW_ANNOTATIONS,
-  },
-  {
-    name: 'sheets_insights',
-    description: 'AI-powered data insights: anomaly detection, relationship discovery, predictions, quality analysis with recommendations.',
-    inputSchema: SheetsInsightsInputSchema,
-    outputSchema: SheetsInsightsOutputSchema,
-    annotations: SHEETS_INSIGHTS_ANNOTATIONS,
-  },
-  {
     name: 'sheets_validation',
     description: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.) with custom rule support.',
     inputSchema: SheetsValidationInputSchema,
     outputSchema: SheetsValidationOutputSchema,
     annotations: SHEETS_VALIDATION_ANNOTATIONS,
-  },
-  {
-    name: 'sheets_plan',
-    description: 'Natural language operation planning: create executable plans from intent with cost estimation and risk analysis.',
-    inputSchema: SheetsPlanningInputSchema,
-    outputSchema: SheetsPlanningOutputSchema,
-    annotations: SHEETS_PLANNING_ANNOTATIONS,
   },
   {
     name: 'sheets_conflict',
@@ -270,6 +263,23 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     outputSchema: SheetsHistoryOutputSchema,
     annotations: SHEETS_HISTORY_ANNOTATIONS,
   },
+  // ============================================================================
+  // MCP-NATIVE TOOLS (Elicitation & Sampling)
+  // ============================================================================
+  {
+    name: 'sheets_confirm',
+    description: 'Confirm multi-step operations with the user before execution. Uses MCP Elicitation (SEP-1036). Claude plans, user confirms, Claude executes.',
+    inputSchema: SheetsConfirmInputSchema,
+    outputSchema: SheetsConfirmOutputSchema,
+    annotations: SHEETS_CONFIRM_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_analyze',
+    description: 'AI-powered data analysis using MCP Sampling (SEP-1577). Analyze patterns, anomalies, trends, generate formulas, suggest charts.',
+    inputSchema: SheetsAnalyzeInputSchema,
+    outputSchema: SheetsAnalyzeOutputSchema,
+    annotations: SHEETS_ANALYZE_ANNOTATIONS,
+  },
 ] as const;
 
 // ============================================================================
@@ -285,8 +295,8 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
 export function createToolHandlerMap(
   handlers: Handlers,
   authHandler?: AuthHandler
-): Record<string, (args: unknown) => Promise<unknown>> {
-  const map: Record<string, (args: unknown) => Promise<unknown>> = {
+): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
+  const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
     'sheets_spreadsheet': (args) => handlers.spreadsheet.handle(SheetSpreadsheetInputSchema.parse(args)),
     'sheets_sheet': (args) => handlers.sheet.handle(SheetsSheetInputSchema.parse(args)),
     'sheets_values': (args) => handlers.values.handle(SheetsValuesInputSchema.parse(args)),
@@ -303,13 +313,13 @@ export function createToolHandlerMap(
     'sheets_analysis': (args) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
     'sheets_advanced': (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
     'sheets_transaction': (args) => handlers.transaction.handle(SheetsTransactionInputSchema.parse(args)),
-    'sheets_workflow': (args) => handlers.workflow.handle(SheetsWorkflowInputSchema.parse(args)),
-    'sheets_insights': (args) => handlers.insights.handle(SheetsInsightsInputSchema.parse(args)),
     'sheets_validation': (args) => handlers.validation.handle(SheetsValidationInputSchema.parse(args)),
-    'sheets_plan': (args) => handlers.planning.handle(SheetsPlanningInputSchema.parse(args)),
     'sheets_conflict': (args) => handlers.conflict.handle(SheetsConflictInputSchema.parse(args)),
     'sheets_impact': (args) => handlers.impact.handle(SheetsImpactInputSchema.parse(args)),
     'sheets_history': (args) => handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
+    // MCP-native tools with extra context for Elicitation/Sampling
+    'sheets_confirm': (args, extra) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args), extra as Record<string, unknown> | undefined),
+    'sheets_analyze': (args, extra) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args), extra as Record<string, unknown> | undefined),
   };
 
   if (authHandler) {
@@ -561,9 +571,9 @@ function extractErrorCode(result: unknown): string | undefined {
 
 function createToolCallHandler(
   tool: ToolDefinition,
-  handlerMap: Record<string, (args: unknown) => Promise<unknown>> | null
-): (args: Record<string, unknown>, extra?: { requestId?: string | number }) => Promise<CallToolResult> {
-  return async (args: Record<string, unknown>, extra?: { requestId?: string | number }) => {
+  handlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null
+): (args: Record<string, unknown>, extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }) => Promise<CallToolResult> {
+  return async (args: Record<string, unknown>, extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }) => {
     const requestId = extra?.requestId ? String(extra.requestId) : undefined;
     const requestContext = createRequestContext({ requestId });
 
@@ -641,8 +651,8 @@ function createToolCallHandler(
       }
 
       try {
-        // Execute handler
-        const result = await handler(args);
+        // Execute handler - pass extra context for MCP-native tools
+        const result = await handler(args, extra);
         const duration = Date.now() - startTime;
 
         // Record operation in history
@@ -666,6 +676,11 @@ function createToolCallHandler(
 
         historyService.record(operation);
 
+        // Record metrics for observability
+        const action = extractAction(args);
+        const status = isSuccessResult(result) ? 'success' : 'error';
+        recordToolCall(tool.name, action, status, duration / 1000);
+
         return buildToolResponse(result);
       } catch (error) {
         const duration = Date.now() - startTime;
@@ -686,6 +701,9 @@ function createToolCallHandler(
           requestId,
           spreadsheetId: extractSpreadsheetId(args),
         });
+
+        // Record error metrics
+        recordToolCall(tool.name, extractAction(args), 'error', duration / 1000);
 
         throw error;
       }
@@ -832,7 +850,7 @@ export function registerServalSheetsTools(
         icons?: import('@modelcontextprotocol/sdk/types.js').Icon[];
         execution?: import('@modelcontextprotocol/sdk/types.js').ToolExecution;
       },
-      cb: (args: Record<string, unknown>, extra?: { requestId?: string | number }) => Promise<CallToolResult>
+      cb: (args: Record<string, unknown>, extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }) => Promise<CallToolResult>
     ) => void)(
       tool.name,
       {
@@ -1018,7 +1036,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
             type: 'text' as const,
             text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 15 powerful tools and 156 actions.
+I'm your Google Sheets assistant with 23 powerful tools and 180 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
@@ -1026,11 +1044,13 @@ Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
 ## 📊 Capabilities
 • Data Operations: Read, write, batch operations
 • Analysis: Data quality, statistics, formula audit
+• AI Analysis: Pattern detection, anomalies, formula generation (via MCP Sampling)
 • Formatting: Colors, fonts, conditional formatting
 • Advanced: Charts, pivots, sharing, versions
 
 ## 🛡️ Safety Features
 • Dry-run mode, effect limits, auto-snapshots
+• User confirmation for multi-step operations (via MCP Elicitation)
 
 What would you like to do first?`,
           },
@@ -1118,6 +1138,7 @@ Run comprehensive analysis:
 2. Data Quality: sheets_analysis action "data_quality"
 3. Structure: sheets_analysis action "structure_analysis"
 4. Formula Audit: sheets_analysis action "formula_audit"
+5. AI Insights: sheets_analyze action "analyze" (uses MCP Sampling)
 
 Provide: quality score, issues found, recommended fixes.`,
           },
@@ -1147,10 +1168,9 @@ Transform: ${args['transformation']}
 Workflow:
 1. Read current data
 2. Plan transformation
-3. Preview (dryRun: true)
-4. Get confirmation
-5. Execute with safety limits
-6. Verify results`,
+3. Confirm with user (sheets_confirm via Elicitation)
+4. Execute with safety limits
+5. Verify results`,
           },
         }],
       };
@@ -1177,7 +1197,7 @@ Steps:
 2. Create "Report" sheet
 3. Add summary statistics
 4. Apply formatting
-${reportType === 'charts' ? '5. Add charts\n' : ''}
+${reportType === 'charts' ? '5. Add charts (use sheets_analyze to suggest best chart types)\n' : ''}
 Final: Auto-resize, freeze header, add timestamp`,
           },
         }],
@@ -1200,11 +1220,257 @@ Final: Auto-resize, freeze header, add timestamp`,
             text: `🧹 Cleaning data: ${args['spreadsheetId']}, range ${args['range']}
 
 Phases:
-1. Analysis: Run data quality check
+1. Analysis: Run data quality check + AI analysis (sheets_analyze)
 2. Plan: Identify duplicates, empty cells, format issues
-3. Preview: Show changes with dryRun
+3. Confirm: Present plan to user (sheets_confirm via Elicitation)
 4. Execute: Apply with auto-snapshot
 5. Validate: Compare before/after`,
+          },
+        }],
+      };
+    }
+  );
+
+  // === NEW WORKFLOW PROMPTS ===
+
+  server.registerPrompt(
+    'migrate_data',
+    {
+      description: '📦 Migrate data between spreadsheets with validation',
+      argsSchema: MigrateDataPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `📦 Data Migration
+
+Source: ${args['sourceSpreadsheetId']} (${args['sourceRange']})
+Target: ${args['targetSpreadsheetId']} (${args['targetRange'] || 'auto-detect'})
+
+Migration Workflow:
+1. Read source data: sheets_values action "read"
+2. Validate data: Check schema, detect issues
+3. Check target: Ensure compatibility
+4. Plan operation: Present migration plan
+5. Confirm: Use sheets_confirm for user approval
+6. Execute: Copy data with transaction safety
+7. Validate: Compare row counts, checksums
+
+Safety: Creates snapshots of both sheets before migration.`,
+          },
+        }],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'setup_budget',
+    {
+      description: '💰 Create a budget tracking spreadsheet with formulas and formatting',
+      argsSchema: SetupBudgetPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const budgetType = args['budgetType'] || 'personal';
+      const spreadsheetId = args['spreadsheetId'];
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `💰 Setting up ${budgetType} budget tracker
+${spreadsheetId ? `Spreadsheet: ${spreadsheetId}` : 'Creating new spreadsheet'}
+
+Budget Setup:
+1. Create structure:
+   - Income sheet: Categories, amounts, dates
+   - Expenses sheet: Categories, amounts, dates
+   - Summary sheet: Totals, remaining, charts
+
+2. Add formulas:
+   - SUMIF for category totals
+   - Date filters for monthly/yearly views
+   - Remaining budget calculations
+
+3. Format cells:
+   - Currency format for amounts
+   - Conditional formatting: red for overspent
+   - Freeze headers
+
+4. Add charts:
+   - Pie chart: Expense breakdown
+   - Line chart: Monthly trends
+   - Use sheets_analyze to suggest optimal chart types
+
+5. Setup validation:
+   - Dropdowns for categories
+   - Date validation
+   - Positive number validation for income
+
+Final: Apply professional formatting, add instructions sheet.`,
+          },
+        }],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'import_data',
+    {
+      description: '📥 Import external data into Google Sheets with transformation',
+      argsSchema: ImportDataPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `📥 Data Import Workflow
+
+Spreadsheet: ${args['spreadsheetId']}
+Data source: ${args['dataSource']}
+Target: ${args['targetSheet'] || 'new sheet'}
+
+Import Steps:
+1. Prepare data:
+   - Parse source format (CSV, JSON, API response)
+   - Validate structure
+   - Clean special characters
+
+2. Create target sheet:
+   - sheets_sheet action "add"
+   - Name appropriately
+
+3. Import data:
+   - Use sheets_values action "write" or "append"
+   - Handle large datasets (batch if > 10k rows)
+
+4. Post-import:
+   - Auto-format headers
+   - Freeze top row
+   - Auto-resize columns
+   - Add data validation
+
+5. Quality check:
+   - Run sheets_analysis "data_quality"
+   - Verify row counts
+   - Check for import errors
+
+Pro tip: Use sheets_transaction to batch all operations into 1 API call.`,
+          },
+        }],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'setup_collaboration',
+    {
+      description: '👥 Configure sharing and permissions for team collaboration',
+      argsSchema: SetupCollaborationPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const role = args['role'] || 'writer';
+      const collaborators = args['collaborators'] as string[];
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `👥 Setting up collaboration
+
+Spreadsheet: ${args['spreadsheetId']}
+Adding ${collaborators.length} collaborator(s) as "${role}"
+
+Collaboration Setup:
+1. Share spreadsheet:
+   ${collaborators.map((email, i) => `   ${i + 1}. sheets_sharing action "share", email: "${email}", role: "${role}"`).join('\n')}
+
+2. Setup protected ranges:
+   - Lock critical formulas/headers
+   - sheets_advanced action "add_protected_range"
+   - Allow editors to only edit data cells
+
+3. Add version control:
+   - Create initial snapshot
+   - sheets_versions action "create_snapshot"
+
+4. Setup comments:
+   - Add collaboration guidelines comment
+   - sheets_comments action "add"
+
+5. Configure notifications:
+   - Enable edit notifications
+   - Setup comment alerts
+
+Best practices:
+- Use "commenter" role for stakeholders
+- Use "writer" role for team members
+- Reserve "owner" role transfers for handoffs`,
+          },
+        }],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'diagnose_errors',
+    {
+      description: '🔧 Troubleshoot and diagnose spreadsheet issues',
+      argsSchema: DiagnoseErrorsPromptArgsSchema,
+    },
+    async (args: Record<string, unknown>) => {
+      const errorDesc = args['errorDescription'] || 'general diagnostics';
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `🔧 Diagnosing: ${errorDesc}
+
+Spreadsheet: ${args['spreadsheetId']}
+
+Diagnostic Workflow:
+1. Basic checks:
+   - sheets_spreadsheet "get": Verify access
+   - Check sheet count, total cells
+
+2. Data quality:
+   - sheets_analysis "data_quality": Find data issues
+   - sheets_analysis "formula_audit": Check formula errors
+
+3. AI analysis:
+   - sheets_analyze "analyze": Deep pattern analysis
+   - Detect anomalies, inconsistencies
+
+4. Performance check:
+   - Check formula complexity
+   - Identify slow formulas (nested VLOOKUPs)
+   - Recommend ARRAYFORMULA or INDEX/MATCH
+
+5. Structure analysis:
+   - sheets_analysis "structure_analysis"
+   - Check for duplicate headers
+   - Verify data types per column
+
+Common Issues:
+- #REF! errors: Deleted referenced cells
+- #DIV/0!: Division by zero
+- #N/A: VLOOKUP not found
+- Circular references: Formula refers to itself
+- Performance: Too many volatile functions (NOW, RAND)
+
+Report:
+- Issue summary
+- Affected ranges
+- Recommended fixes
+- Preventive measures`,
           },
         }],
       };
