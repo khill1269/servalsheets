@@ -92,7 +92,7 @@ function visitNode(node: ts.Node, actions: string[]): void {
  */
 function analyzeSchemaFile(filePath: string): SchemaAnalysis {
   const fileName = filePath.split('/').pop() || '';
-  const toolName = fileName.replace('.ts', '');
+  const toolName = fileName.replace('.ts', '').replace(/-/g, '_');
 
   // Check for special cases first
   if (SPECIAL_CASE_TOOLS[toolName]) {

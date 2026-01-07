@@ -6,6 +6,7 @@
  */
 
 import type { ToolAnnotations } from './shared.js';
+import { TOOL_DESCRIPTIONS } from './descriptions.js';
 
 /**
  * All tool annotations with MCP compliance
@@ -229,13 +230,13 @@ export interface ToolMetadata {
 }
 
 /**
- * Get all tool metadata
- * Note: This function is not currently used. Descriptions are accessed directly from descriptions.ts
+ * Get all tool metadata for /info endpoint
+ * Returns tool names, descriptions, annotations, and action counts
  */
 export function getToolMetadata(): Record<string, unknown>[] {
   return Object.keys(TOOL_ANNOTATIONS).map(name => ({
     name,
-    description: '', // Descriptions should be imported from descriptions.ts instead
+    description: TOOL_DESCRIPTIONS[name] ?? `${name} operations`,
     annotations: TOOL_ANNOTATIONS[name]!,
     actionCount: ACTION_COUNTS[name] ?? 0,
   }));

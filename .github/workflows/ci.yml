@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check metadata drift
+        run: npm run check:drift
+
       - name: Check package can be packed
         run: npm pack --dry-run
 

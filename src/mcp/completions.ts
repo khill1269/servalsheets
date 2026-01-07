@@ -27,7 +27,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_confirm: ['request', 'get_stats'],
   sheets_conflict: ['detect', 'resolve'],
   sheets_dimensions: ['insert_rows', 'insert_columns', 'delete_rows', 'delete_columns', 'move_rows', 'move_columns', 'resize_rows', 'resize_columns', 'auto_resize', 'hide_rows', 'hide_columns', 'show_rows', 'show_columns', 'freeze_rows', 'freeze_columns', 'group_rows', 'group_columns', 'ungroup_rows', 'ungroup_columns', 'append_rows', 'append_columns'],
-  sheets_filter-sort: ['set_basic_filter', 'clear_basic_filter', 'get_basic_filter', 'update_filter_criteria', 'sort_range', 'create_filter_view', 'update_filter_view', 'delete_filter_view', 'list_filter_views', 'get_filter_view', 'create_slicer', 'update_slicer', 'delete_slicer', 'list_slicers'],
+  sheets_filter_sort: ['set_basic_filter', 'clear_basic_filter', 'get_basic_filter', 'update_filter_criteria', 'sort_range', 'create_filter_view', 'update_filter_view', 'delete_filter_view', 'list_filter_views', 'get_filter_view', 'create_slicer', 'update_slicer', 'delete_slicer', 'list_slicers'],
   sheets_format: ['set_format', 'set_background', 'set_text_format', 'set_number_format', 'set_alignment', 'set_borders', 'clear_format', 'apply_preset', 'auto_fit'],
   sheets_history: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
   sheets_impact: ['analyze'],
