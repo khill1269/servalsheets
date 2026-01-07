@@ -6,6 +6,7 @@
  */
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { logger } from '../utils/logger.js';
 
 export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
 
@@ -304,7 +305,7 @@ export class InMemoryTaskStore implements TaskStore {
     // Update task status
     await this.updateTaskStatus(taskId, 'cancelled');
 
-    console.error(`[TaskStore] Task ${taskId} cancelled: ${reason || 'no reason'}`);
+    logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }
 
   /**
@@ -374,12 +375,12 @@ export class RedisTaskStore implements TaskStore {
       });
 
       this.client.on('error', (err: Error) => {
-        console.error('[RedisTaskStore] Redis error:', err);
+        logger.error('Redis task store error', { error: err });
       });
 
       await this.client.connect();
       this.connected = true;
-      console.error('[RedisTaskStore] Connected to Redis');
+      logger.info('Redis task store connected');
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
@@ -534,7 +535,7 @@ export class RedisTaskStore implements TaskStore {
     try {
       return JSON.parse(resultData) as TaskResult;
     } catch (error) {
-      console.error('[RedisTaskStore] Failed to parse task result:', error);
+      logger.error('Failed to parse Redis task result', { error });
       return null;
     }
   }
@@ -699,7 +700,7 @@ export class RedisTaskStore implements TaskStore {
     // Update task status
     await this.updateTaskStatus(taskId, 'cancelled');
 
-    console.error(`[TaskStore] Task ${taskId} cancelled: ${reason || 'no reason'}`);
+    logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }
 
   /**
