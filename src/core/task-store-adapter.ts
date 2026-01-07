@@ -94,7 +94,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
   }
 
   /**
-   * SDK TaskStore.updateTaskStatus - Direct delegation
+   * SDK TaskStore.updateTaskStatus - Detects cancellation and triggers cancelTask
    */
   async updateTaskStatus(
     taskId: string,
@@ -104,7 +104,14 @@ export class TaskStoreAdapter implements SDKTaskStore {
   ): Promise<void> {
     // SDK Task['status'] includes same values as custom TaskStatus
     // 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled'
-    await this.store.updateTaskStatus(taskId, status, statusMessage);
+
+    // When status is 'cancelled', call cancelTask to properly set cancellation flags
+    // This ensures isTaskCancelled() returns true and abort signals can be triggered
+    if (status === 'cancelled') {
+      await this.cancelTask(taskId, statusMessage || 'Task cancelled');
+    } else {
+      await this.store.updateTaskStatus(taskId, status, statusMessage);
+    }
   }
 
   /**
