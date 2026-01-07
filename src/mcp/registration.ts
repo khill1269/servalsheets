@@ -1116,12 +1116,14 @@ What would you like to do first?`,
 
 Test spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 
-Please run:
-1. sheets_spreadsheet action: "get"
-2. sheets_values action: "read", range: "Sheet1!A1:D10"
-3. sheets_analysis action: "structure_analysis"
+Please run these tests in order:
+1. sheets_auth action: "status" → Verify authentication
+2. sheets_spreadsheet action: "get", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Get metadata
+3. sheets_values action: "read", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", range: "Sheet1!A1:D10" → Read sample data
+4. sheets_analysis action: "structure_analysis", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Analyze structure
 
-If tests pass, you're ready!`,
+If all tests pass, you're ready to use ServalSheets!
+If auth fails, follow the authentication flow first.`,
           },
         }],
       };

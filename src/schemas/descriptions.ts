@@ -21,19 +21,21 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // AUTHENTICATION
   //=============================================================================
   
-  sheets_auth: `🔐 OAuth 2.1 authentication management with PKCE. ALWAYS check status before other operations. Actions: status, login, logout, refresh.
+  sheets_auth: `🔐 OAuth 2.1 authentication management with PKCE. ALWAYS check status before other operations. Actions: status, login, callback, logout.
 
 **Quick Examples:**
 • Check status: {"action":"status"} → See if authenticated
 • Start login: {"action":"login"} → Opens browser for OAuth flow
+• Complete auth: {"action":"callback","code":"4/0Adeu5B..."} → Submit authorization code
 • Logout: {"action":"logout"} → Clears all tokens
-• Refresh: {"action":"refresh"} → Renews expired token
 
 **First-Time Setup:**
 1. {"action":"status"} → Check if already authenticated
-2. If not authenticated → {"action":"login"}
-3. Complete OAuth in browser (automatic popup)
-4. Tokens stored encrypted in GOOGLE_TOKEN_STORE_PATH
+2. If not authenticated → {"action":"login"} → Get authUrl
+3. Open authUrl in browser to complete OAuth flow
+4. Copy authorization code from redirect URL
+5. {"action":"callback","code":"..."} → Complete authentication
+6. Tokens stored encrypted in GOOGLE_TOKEN_STORE_PATH
 
 **Performance Tips:**
 • Check status once at start, not before every operation
@@ -42,14 +44,14 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
 **Common Workflows:**
 1. Session start → {"action":"status"} once
-2. If unauthenticated → {"action":"login"}
-3. On PERMISSION_DENIED → {"action":"refresh"}
+2. If unauthenticated → {"action":"login"} → Get authUrl → {"action":"callback"}
+3. On PERMISSION_DENIED → Re-authenticate with {"action":"login"}
 4. Switch accounts → {"action":"logout"} then {"action":"login"}
 
 **Error Recovery:**
-• TOKEN_NOT_FOUND → First time: {"action":"login"}
-• AUTH_EXPIRED → Auto-refreshes, or manual: {"action":"refresh"}
-• PERMISSION_DENIED → Call {"action":"login"} to re-auth
+• TOKEN_NOT_FOUND → First time: {"action":"login"} then {"action":"callback"}
+• AUTH_EXPIRED → Tokens auto-refresh automatically
+• PERMISSION_DENIED → Call {"action":"login"} to re-authenticate
 
 **Commonly Used With:**
 → sheets_spreadsheet (list spreadsheets after login)
