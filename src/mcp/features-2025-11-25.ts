@@ -165,18 +165,22 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
  * clients to request task-based execution for progress tracking.
  */
 export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
-  // Analysis tools - potentially long-running, task support optional
-  sheets_analysis: { taskSupport: 'optional' },
-  
-  // Value operations - can be slow with large ranges
-  sheets_values: { taskSupport: 'optional' },
-  
-  // Formatting - can be slow with large ranges  
-  sheets_format: { taskSupport: 'optional' },
-  
-  // Version operations - snapshot creation can be slow
-  sheets_versions: { taskSupport: 'optional' },
-  
+  // TEMPORARILY DISABLED: Task support causes "No task store provided" error
+  // because taskStore is commented out in server.ts line 118 to prevent hanging
+  // TODO: Re-enable task support after fixing taskStore initialization
+
+  // Analysis tools - potentially long-running, task support disabled
+  sheets_analysis: { taskSupport: 'forbidden' },
+
+  // Value operations - can be slow with large ranges, task support disabled
+  sheets_values: { taskSupport: 'forbidden' },
+
+  // Formatting - can be slow with large ranges, task support disabled
+  sheets_format: { taskSupport: 'forbidden' },
+
+  // Version operations - snapshot creation can be slow, task support disabled
+  sheets_versions: { taskSupport: 'forbidden' },
+
   // Standard operations - typically fast, no task support needed
   sheets_spreadsheet: { taskSupport: 'forbidden' },
   sheets_sheet: { taskSupport: 'forbidden' },
