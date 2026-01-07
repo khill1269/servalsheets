@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 import { OAuthProvider } from './oauth-provider.js';
 import { createGoogleApiClient } from './services/google-api.js';
@@ -39,6 +40,7 @@ import {
 } from './core/index.js';
 import { SnapshotService } from './services/snapshot.js';
 import { createHandlers, type HandlerContext } from './handlers/index.js';
+import { handleLoggingSetLevel } from './handlers/logging.js';
 import { logger } from './utils/logger.js';
 import { registerKnowledgeResources } from './resources/knowledge.js';
 import {
@@ -380,6 +382,19 @@ async function main(): Promise<void> {
       registerServalSheetsResources(mcpServer, googleClient ?? null);
       registerServalSheetsPrompts(mcpServer);
       registerKnowledgeResources(mcpServer);
+
+      // Register logging handler
+      // Note: Using 'as any' to bypass TypeScript's deep type inference issues
+      mcpServer.server.setRequestHandler(SetLevelRequestSchema as any, async (request: any) => {
+        const level = request.params.level;
+        const response = await handleLoggingSetLevel({ level });
+        logger.info('Log level changed via logging/setLevel', {
+          previousLevel: response.previousLevel,
+          newLevel: response.newLevel,
+        });
+        return {};
+      });
+      logger.info('Remote Server: Logging handler registered (logging/setLevel)');
 
       // Connect
       await mcpServer.connect(transport);

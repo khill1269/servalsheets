@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ToolTaskHandler,
@@ -51,6 +52,7 @@ import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { AuthHandler } from './handlers/auth.js';
+import { handleLoggingSetLevel } from './handlers/logging.js';
 import { checkAuth, buildAuthErrorResponse, isGoogleAuthError, convertGoogleAuthError } from './utils/auth-guard.js';
 import { logger as baseLogger } from './utils/logger.js';
 import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
@@ -211,9 +213,8 @@ export class ServalSheetsServer {
     // Register task cancellation handler (SEP-1686)
     this.registerTaskCancelHandler();
 
-    // Note: Logging capability declared in createServerCapabilities()
-    // The MCP SDK may handle logging/setLevel automatically
-    // Winston logger is configured and available for server-side logging
+    // Register logging handler for dynamic log level control
+    this.registerLogging();
 
     // Start cache cleanup task
     cacheManager.startCleanupTask();
@@ -735,6 +736,38 @@ export class ServalSheetsServer {
       }
     } catch (error) {
       baseLogger.error('Failed to register task cancel handler', { error });
+    }
+  }
+
+  /**
+   * Register logging handler for dynamic log level control
+   *
+   * Enables clients to adjust server log verbosity via logging/setLevel request.
+   */
+  private registerLogging(): void {
+    try {
+      // Note: Using 'as any' to bypass TypeScript's deep type inference issues with SetLevelRequestSchema
+      this._server.server.setRequestHandler(
+        SetLevelRequestSchema as any,
+        async (request: any) => {
+          // Extract level from request params
+          const level = request.params.level;
+
+          // Call the handler
+          const response = await handleLoggingSetLevel({ level });
+
+          baseLogger.info('Log level changed via logging/setLevel', {
+            previousLevel: response.previousLevel,
+            newLevel: response.newLevel,
+          });
+
+          return {};
+        }
+      );
+
+      baseLogger.info('Logging handler registered (logging/setLevel)');
+    } catch (error) {
+      baseLogger.error('Failed to register logging handler', { error });
     }
   }
 

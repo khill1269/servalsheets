@@ -15,6 +15,7 @@ import { randomUUID } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 import { createGoogleApiClient } from './services/google-api.js';
 import { initTransactionManager } from './services/transaction-manager.js';
@@ -36,6 +37,7 @@ import {
 } from './core/index.js';
 import { SnapshotService } from './services/snapshot.js';
 import { createHandlers, type HandlerContext } from './handlers/index.js';
+import { handleLoggingSetLevel } from './handlers/logging.js';
 import { registerKnowledgeResources } from './resources/knowledge.js';
 import {
   registerServalSheetsPrompts,
@@ -155,6 +157,19 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
   registerKnowledgeResources(mcpServer);
+
+  // Register logging handler
+  // Note: Using 'as any' to bypass TypeScript's deep type inference issues
+  mcpServer.server.setRequestHandler(SetLevelRequestSchema as any, async (request: any) => {
+    const level = request.params.level;
+    const response = await handleLoggingSetLevel({ level });
+    logger.info('Log level changed via logging/setLevel', {
+      previousLevel: response.previousLevel,
+      newLevel: response.newLevel,
+    });
+    return {};
+  });
+  logger.info('HTTP Server: Logging handler registered (logging/setLevel)');
 
   return { mcpServer, taskStore };
 }
