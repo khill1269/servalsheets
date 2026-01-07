@@ -284,12 +284,7 @@ export class ServalSheetsServer {
         },
         cb: (
           args: Record<string, unknown>,
-          extra: {
-            sendNotification: (n: unknown) => Promise<void>;
-            requestInfo?: { _meta?: { progressToken?: string | number } };
-            elicit?: unknown;  // SEP-1036: Elicitation capability for sheets_confirm
-            sample?: unknown;  // SEP-1577: Sampling capability for sheets_analyze
-          }
+          extra: any  // Use 'any' to accept full RequestHandlerExtra from SDK with all fields
         ) => Promise<CallToolResult>
       ) => void)(
         tool.name,
@@ -306,12 +301,13 @@ export class ServalSheetsServer {
         },
         async (args: Record<string, unknown>, extra) => {
           // Extract progress token from request metadata
-          const progressToken = extra.requestInfo?._meta?.progressToken;
+          const progressToken = extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
+          // Forward complete MCP context (Task 1.1)
           return this.handleToolCall(tool.name, args, {
+            ...extra,  // Forward all fields: signal, requestId, sendRequest, sendNotification, etc.
             sendNotification: extra.sendNotification as (n: import('@modelcontextprotocol/sdk/types.js').ServerNotification) => Promise<void>,
             progressToken,
-            elicit: extra.elicit,  // Forward elicitation capability (SEP-1036)
-            sample: extra.sample,  // Forward sampling capability (SEP-1577)
+            abortSignal: extra.signal,  // Make signal available as abortSignal for clarity
           });
         }
       );
