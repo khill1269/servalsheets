@@ -3,14 +3,20 @@
  *
  * Base error classes for consistent error handling across the codebase.
  * All errors implement toErrorDetail() for conversion to ErrorDetail schema.
+ *
+ * Security: All error messages and details are automatically redacted to
+ * prevent sensitive data (tokens, API keys) from leaking into logs.
  */
 
 import type { ErrorDetail } from '../schemas/shared.js';
+import { redactString, redactObject } from '../utils/redact.js';
 
 type ErrorCode = ErrorDetail['code'];
 
 /**
  * Base class for all ServalSheets errors
+ *
+ * Security: Automatically redacts sensitive data from message and details
  */
 export abstract class ServalSheetsError extends Error {
   abstract code: ErrorCode;
@@ -18,9 +24,10 @@ export abstract class ServalSheetsError extends Error {
   details?: Record<string, unknown>;
 
   constructor(message: string, details?: Record<string, unknown>) {
-    super(message);
+    // Redact sensitive data from message and details
+    super(redactString(message));
     this.name = this.constructor.name;
-    this.details = details;
+    this.details = details ? redactObject(details) : undefined;
     Error.captureStackTrace(this, this.constructor);
   }
 

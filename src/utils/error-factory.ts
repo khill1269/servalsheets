@@ -6,6 +6,7 @@
  */
 
 import { type ErrorDetail } from '../schemas/shared.js';
+import { redactObject } from './redact.js';
 
 /**
  * Create a permission denied error with actionable resolution
@@ -300,6 +301,8 @@ export function createValidationError(params: {
 
 /**
  * Parse Google API error and create agent-actionable error
+ *
+ * Security: Redacts sensitive data (tokens, API keys) from error messages
  */
 export function parseGoogleApiError(error: {
   code?: number;
@@ -307,7 +310,9 @@ export function parseGoogleApiError(error: {
   status?: string;
   errors?: Array<{ domain?: string; reason?: string; message?: string }>;
 }): Partial<ErrorDetail> {
-  const { code, message = 'Unknown error', errors } = error;
+  // Redact sensitive data from the entire error object
+  const redactedError = redactObject(error);
+  const { code, message = 'Unknown error', errors } = redactedError;
 
   // Extract domain and reason from Google error
   const firstError = errors?.[0];
