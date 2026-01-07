@@ -18,8 +18,6 @@ import { logger } from '../utils/logger.js';
 import {
   ScopeValidator,
   ScopeCategory,
-  IncrementalScopeRequiredError,
-  isIncrementalScopeError,
 } from '../security/incremental-scope.js';
 
 type SharingSuccess = Extract<SharingResponse, { success: true }>;
@@ -58,26 +56,40 @@ export class SharingHandler extends BaseHandler<SheetsSharingInput, SheetsSharin
       const validator = new ScopeValidator({
         scopes: this.context.auth?.scopes ?? [],
       });
-      
+
       const operation = `sheets_sharing.${input.request.action}`;
       const requirements = validator.getOperationRequirements(operation);
-      
+
       // Generate authorization URL for incremental consent
       const authUrl = validator.generateIncrementalAuthUrl(
         requirements?.missing ?? ['https://www.googleapis.com/auth/drive']
       );
-      
-      // Return structured incremental scope error
-      const error = new IncrementalScopeRequiredError({
-        operation,
-        requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
-        currentScopes: this.context.auth?.scopes ?? [],
-        authorizationUrl: authUrl,
-        category: requirements?.category ?? ScopeCategory.DRIVE_FULL,
-        description: requirements?.description ?? 'Sharing operations require full Drive access',
-      });
-      
-      return { response: error.toToolResponse() as unknown as SharingResponse };
+
+      // Return properly formatted error response matching SharingResponseSchema
+      return {
+        response: this.error({
+          code: 'PERMISSION_DENIED',
+          message: requirements?.description ?? 'Sharing operations require full Drive access',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+          retryStrategy: 'manual',
+          details: {
+            operation,
+            requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
+            currentScopes: this.context.auth?.scopes ?? [],
+            missingScopes: requirements?.missing ?? ['https://www.googleapis.com/auth/drive'],
+            authorizationUrl: authUrl,
+            scopeCategory: requirements?.category ?? ScopeCategory.DRIVE_FULL,
+          },
+          resolution: 'Grant additional permissions to complete this operation.',
+          resolutionSteps: [
+            '1. Visit the authorization URL to approve required scopes',
+            `2. Authorization URL: ${authUrl}`,
+            '3. After approving, retry the operation',
+          ],
+        }),
+      };
     }
 
     // Audit log: Elevated scope operation
