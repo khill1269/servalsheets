@@ -26,6 +26,7 @@ import { getContextManager } from '../services/context-manager.js';
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
+  snapshotService?: import('../services/snapshot.js').SnapshotService; // For undo/revert operations
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];

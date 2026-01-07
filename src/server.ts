@@ -143,14 +143,17 @@ export class ServalSheetsServer {
       this.authHandler = new AuthHandler({
         googleClient: this.googleClient,
       });
-      
+
+      // Create SnapshotService for undo/revert operations
+      const snapshotService = new SnapshotService({ driveApi: this.googleClient.drive });
+
       // Create reusable context and handlers
       this.context = {
         batchCompiler: new BatchCompiler({
           rateLimiter: new RateLimiter(),
           diffEngine: new DiffEngine({ sheetsApi: this.googleClient.sheets }),
           policyEnforcer: new PolicyEnforcer(),
-          snapshotService: new SnapshotService({ driveApi: this.googleClient.drive }),
+          snapshotService,
           sheetsApi: this.googleClient.sheets,
           onProgress: (event) => {
             // Send MCP progress notification
@@ -164,6 +167,7 @@ export class ServalSheetsServer {
           },
         }),
         rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),
+        snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {
           hasElevatedAccess: this.googleClient.hasElevatedAccess,
           scopes: this.googleClient.scopes,

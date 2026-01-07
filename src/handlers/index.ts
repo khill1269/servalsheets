@@ -163,7 +163,9 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async history() {
       const { HistoryHandler } = await import('./history.js');
-      return new HistoryHandler();
+      return new HistoryHandler({
+        snapshotService: options.context.snapshotService
+      });
     },
     // New MCP-native handlers
     async confirm() {

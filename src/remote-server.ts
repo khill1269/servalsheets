@@ -339,12 +339,15 @@ async function main(): Promise<void> {
       let handlers: ReturnType<typeof createHandlers> | null = null;
 
       if (googleClient) {
+        // Create SnapshotService for undo/revert operations
+        const snapshotService = new SnapshotService({ driveApi: googleClient.drive });
+
         const context: HandlerContext = {
           batchCompiler: new BatchCompiler({
             rateLimiter: new RateLimiter(),
             diffEngine: new DiffEngine({ sheetsApi: googleClient.sheets }),
             policyEnforcer: new PolicyEnforcer(),
-            snapshotService: new SnapshotService({ driveApi: googleClient.drive }),
+            snapshotService,
             sheetsApi: googleClient.sheets,
             onProgress: async (event) => {
               // Send MCP progress notification over SSE transport
@@ -357,6 +360,7 @@ async function main(): Promise<void> {
             },
           }),
           rangeResolver: new RangeResolver({ sheetsApi: googleClient.sheets }),
+          snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
           auth: {
             hasElevatedAccess: googleClient.hasElevatedAccess,
             scopes: googleClient.scopes,

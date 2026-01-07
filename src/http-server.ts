@@ -112,12 +112,15 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
     initImpactAnalyzer(googleClient);
     initValidationEngine(googleClient);
 
+    // Create SnapshotService for undo/revert operations
+    const snapshotService = new SnapshotService({ driveApi: googleClient.drive });
+
     const context: HandlerContext = {
       batchCompiler: new BatchCompiler({
         rateLimiter: new RateLimiter(),
         diffEngine: new DiffEngine({ sheetsApi: googleClient.sheets }),
         policyEnforcer: new PolicyEnforcer(),
-        snapshotService: new SnapshotService({ driveApi: googleClient.drive }),
+        snapshotService,
         sheetsApi: googleClient.sheets,
         onProgress: async (event) => {
           // Send MCP progress notification over HTTP transport
@@ -132,6 +135,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
         },
       }),
       rangeResolver: new RangeResolver({ sheetsApi: googleClient.sheets }),
+      snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
       auth: {
         hasElevatedAccess: googleClient.hasElevatedAccess,
         scopes: googleClient.scopes,
