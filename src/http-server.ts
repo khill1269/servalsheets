@@ -17,6 +17,10 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
 import { createGoogleApiClient } from './services/google-api.js';
+import { initTransactionManager } from './services/transaction-manager.js';
+import { initConflictDetector } from './services/conflict-detector.js';
+import { initImpactAnalyzer } from './services/impact-analyzer.js';
+import { initValidationEngine } from './services/validation-engine.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/annotations.js';
 import { VERSION, SERVER_INFO } from './version.js';
 import { logger } from './utils/logger.js';
@@ -101,6 +105,13 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
       accessToken: googleToken,
       refreshToken: googleRefreshToken,
     });
+
+    // Initialize Phase 4 advanced features (required for sheets_transaction, etc.)
+    initTransactionManager(googleClient);
+    initConflictDetector(googleClient);
+    initImpactAnalyzer(googleClient);
+    initValidationEngine(googleClient);
+
     const context: HandlerContext = {
       batchCompiler: new BatchCompiler({
         rateLimiter: new RateLimiter(),

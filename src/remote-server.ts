@@ -16,6 +16,10 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { OAuthProvider } from './oauth-provider.js';
 import { createGoogleApiClient } from './services/google-api.js';
+import { initTransactionManager } from './services/transaction-manager.js';
+import { initConflictDetector } from './services/conflict-detector.js';
+import { initImpactAnalyzer } from './services/impact-analyzer.js';
+import { initValidationEngine } from './services/validation-engine.js';
 import { validateEnv } from './config/env.js';
 import { VERSION, SERVER_INFO } from './version.js';
 import {
@@ -303,6 +307,14 @@ async function main(): Promise<void> {
             refreshToken: googleRefreshToken,
           })
         : undefined;
+
+      // Initialize Phase 4 advanced features (required for sheets_transaction, etc.)
+      if (googleClient) {
+        initTransactionManager(googleClient);
+        initConflictDetector(googleClient);
+        initImpactAnalyzer(googleClient);
+        initValidationEngine(googleClient);
+      }
 
       // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
       const { createTaskStore } = await import('./core/task-store-factory.js');
