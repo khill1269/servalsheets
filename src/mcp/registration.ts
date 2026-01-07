@@ -714,7 +714,20 @@ function createToolCallHandler(
         // Record error metrics
         recordToolCall(tool.name, extractAction(args), 'error', duration / 1000);
 
-        throw error;
+        // Return structured error instead of throwing (Task 1.2)
+        // This ensures MCP clients receive tool errors (isError: true) not protocol errors
+        const errorResponse = {
+          response: {
+            success: false,
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: errorMessage,
+              retryable: false,
+            },
+          },
+        };
+
+        return buildToolResponse(errorResponse);
       }
     });
   };
@@ -753,7 +766,12 @@ function createToolTaskHandler(
           try {
             await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
           } catch (storeError) {
-            console.error(`[${toolName}] Failed to store task result`, storeError);
+            // Use logger instead of console.error to avoid corrupting stdio transport
+            import('../utils/logger.js').then(({ logger }) => {
+              logger.error('Failed to store task result', { toolName, error: storeError });
+            }).catch(() => {
+              // Fallback if logger import fails
+            });
           }
         }
       })();
