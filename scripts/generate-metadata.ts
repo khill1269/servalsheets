@@ -170,10 +170,12 @@ writeFileSync(schemasIndexPath, schemasIndex);
 // ============================================================================
 
 const serverJson = {
-  name: "servalsheets",
+  name: pkg.mcpName || pkg.name,
   version: pkg.version,
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
   mcpProtocol: "2025-11-25",
+  packages: [],
+  tools: [],
   capabilities: [
     "tools",
     "resources",
@@ -201,7 +203,8 @@ const serverJson = {
   },
   repository: {
     type: "git",
-    url: "https://github.com/khill1269/servalsheets"
+    url: "https://github.com/khill1269/servalsheets",
+    source: "https://github.com/khill1269/servalsheets"
   },
   homepage: "https://github.com/khill1269/servalsheets#readme"
 };

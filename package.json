@@ -31,7 +31,7 @@
     },
     "./package.json": "./package.json"
   },
-  "mcpName": "io.github.khill1269.servalsheets",
+  "mcpName": "khill1269/servalsheets",
   "packageManager": "npm@10.9.0",
   "repository": {
     "type": "git",
