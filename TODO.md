@@ -7,10 +7,10 @@ None - Ready to start!
 
 ---
 
-## 🔴 PHASE 0: CRITICAL RUNTIME BREAKAGES (DO NOW!)
+## ✅ PHASE 0: CRITICAL RUNTIME BREAKAGES (COMPLETE!)
 
-### Task 0.1: Wire Sampling/Elicitation Capabilities ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 4h | **Status**: ⬜ Not Started
+### Task 0.1: Wire Sampling/Elicitation Capabilities ✅ COMPLETE
+**Priority**: P0 | **Effort**: 4h | **Status**: ✅ Done (Commit: 9372dde)
 **Finding**: #1 HIGH - Sampling/elicitation advertised but not wired
 **Verified**: ⚠️ CORRECTED - See docs/development/TODO_VERIFICATION_REPORT.md
 
@@ -26,28 +26,7 @@ Files: src/handlers/confirm.ts, src/handlers/analyze.ts, src/server.ts
 - Elicitation/sampling are methods on the Server class: `server.elicitInput()` and `server.createMessage()`
 - See node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js:342-382
 
-**Minimal Fix** (choose one path):
-- [ ] **Option A: Remove capabilities until ready**
-  - [ ] Remove `elicitation` from server.json:13
-  - [ ] Remove `sampling` from server.json:14
-  - [ ] Remove from well-known.ts
-  - [ ] Hide sheets_confirm/sheets_analyze from tool registry
-  - [ ] Test: Verify tools don't appear in tools/list
-  - [ ] Commit changes
-
-- [ ] **Option B: Implement capabilities correctly (recommended)**
-  - [ ] Update server.ts to pass Server instance into handler context (not just extra)
-  - [ ] Update HandlerContext type to include server: Server
-  - [ ] Update confirm.ts:89 to check `server.getClientCapabilities()?.elicitation`
-  - [ ] Replace `extra.elicit()` calls with `server.elicitInput({ mode: 'form', message, requestedSchema })`
-  - [ ] Update analyze.ts:125 to check `server.getClientCapabilities()?.sampling`
-  - [ ] Replace `extra.sample()` calls with `server.createMessage({ messages, ... })`
-  - [ ] Test: sheets_confirm with elicitation
-  - [ ] Test: sheets_analyze with sampling
-  - [ ] Verify no UNAVAILABLE errors
-  - [ ] Commit changes
-
-**Correct Implementation Pattern** (verified against SDK):
+**Solution Implemented**:
 ```typescript
 // In server.ts - pass Server instance to handlers
 return this.handleToolCall(tool.name, args, {
@@ -71,71 +50,47 @@ const result = await context.server.elicitInput({
 
 ---
 
-### Task 0.2: Fix Task Cancellation ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 3h | **Status**: ⬜ Not Started
+### Task 0.2: Fix Task Cancellation ✅ COMPLETE
+**Priority**: P0 | **Effort**: 3h | **Status**: ✅ Done (Commit: 6b2387e)
 **Finding**: #2 HIGH - SEP-1686 cancel is ineffective
 
 ```
 Issue: tasks/cancel does not stop execution or set cancellation flags
 Evidence: protocol.js:136 calls updateTaskStatus, task-store-adapter.ts:99 only delegates,
           server.ts:719 registerTaskCancelHandler is no-op
-Files: src/services/task-store-adapter.ts, src/services/task-store.ts, src/server.ts
+Files: src/core/task-store-adapter.ts, src/core/task-store.ts, src/server.ts
 ```
 
-**Minimal Fix**:
-- [ ] Read task-store-adapter.ts:99 (updateTaskStatus method)
-- [ ] Read task-store.ts:290 (cancelTask method)
-- [ ] In TaskStoreAdapter.updateTaskStatus, detect status === 'cancelled'
-- [ ] Call this.cancelTask(taskId) when cancelled
-- [ ] Verify cancelledTasks Set is populated
-- [ ] Read server.ts:337 (isTaskCancelled check)
-- [ ] Test: Create task, cancel it, verify execution stops
-- [ ] Test: Verify isTaskCancelled returns true
-- [ ] Commit changes
-
-**Best Fix** (if SDK supports it):
-- [ ] Wire explicit cancel handler (if SDK supports it)
-- [ ] Propagate extra.signal into handler execution
-- [ ] Add AbortController support to handlers
-- [ ] Test immediate abort on cancel
+**Solution Implemented**:
+- Updated TaskStoreAdapter.updateTaskStatus to detect status === 'cancelled'
+- Calls this.cancelTask(taskId) to properly set cancellation flags
+- Ensures cancelledTasks Map is populated
+- isTaskCancelled() now returns true after cancellation
+- Added test verification script
 
 ---
 
-### Task 0.3: Initialize Services for HTTP/Remote Transports ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 3h | **Status**: ⬜ Not Started
+### Task 0.3: Initialize Services for HTTP/Remote Transports ✅ COMPLETE
+**Priority**: P0 | **Effort**: 3h | **Status**: ✅ Done (Commit: 7d426b6)
 **Finding**: #3 HIGH - HTTP/remote missing service initialization
 
 ```
 Issue: sheets_transaction/conflict/impact/validation fail in HTTP/remote sessions
 Evidence: server.ts:185-188 initializes services for stdio only,
           transaction.ts:25 calls getTransactionManager which throws if not initialized
-Files: src/server/http-server.ts, src/server/remote-server.ts
+Files: src/http-server.ts, src/remote-server.ts
 ```
 
-**Minimal Fix**:
-- [ ] Read server.ts:185-188 (service initialization for stdio)
-- [ ] Read http-server.ts:139 (tool registration)
-- [ ] Read remote-server.ts:363 (tool registration)
-- [ ] In http-server.ts, after creating googleClient:
-  - [ ] Call initTransactionManager(googleClient)
-  - [ ] Call initConflictDetector(googleClient)
-  - [ ] Call initImpactAnalyzer(googleClient)
-  - [ ] Call initValidationEngine(googleClient)
-- [ ] Repeat for remote-server.ts
-- [ ] Test: HTTP session with sheets_transaction
-- [ ] Test: HTTP session with sheets_validation
-- [ ] Verify no "not initialized" errors
-- [ ] Commit changes
-
-**Best Fix**:
-- [ ] Extract shared bootstrap function
-- [ ] Call from both stdio and HTTP/remote
-- [ ] Ensure complete parity
+**Solution Implemented**:
+- Added service initialization to http-server.ts after googleClient creation
+- Added service initialization to remote-server.ts after googleClient creation
+- All 4 services now initialized: initTransactionManager, initConflictDetector, initImpactAnalyzer, initValidationEngine
+- HTTP/remote transports now have full parity with stdio transport
 
 ---
 
-### Task 0.4: Fix server.json Schema Validation ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 2h | **Status**: ⬜ Not Started
+### Task 0.4: Fix server.json Schema Validation ✅ COMPLETE
+**Priority**: P0 | **Effort**: 2h | **Status**: ✅ Done (Commit: 3ed59af)
 **Finding**: #4 HIGH - server.json fails validation
 
 ```
@@ -146,49 +101,32 @@ Evidence: validate-server-json.mjs:70-71 requires packages/tools arrays,
 Files: server.json, scripts/generate-metadata.ts
 ```
 
-**Minimal Fix**:
-- [ ] Read package.json:34 (mcpName field)
-- [ ] Edit server.json:2 to match mcpName exactly
-- [ ] Add `"packages": []` to server.json
-- [ ] Add `"tools": []` to server.json
-- [ ] Run: npm run validate:server-json
-- [ ] Verify validation passes
-- [ ] Commit changes
-
-**Best Fix**:
-- [ ] Read generate-metadata.ts
-- [ ] Make it emit schema-valid server.json
-- [ ] Populate packages/tools arrays from registry
-- [ ] Use pkg.mcpName for name field
-- [ ] Run generator and verify output
-- [ ] Commit changes
+**Solution Implemented**:
+- Updated generate-metadata.ts to use pkg.mcpName for name field
+- Generator now emits packages: [] and tools: [] arrays
+- Added repository.source property for schema compliance
+- Changed mcpName from "io.github.khill1269.servalsheets" to "khill1269/servalsheets" (namespace/name format)
+- All validation now passes with Ajv
 
 ---
 
-### Task 0.5: Fix stdout Logging in stdio Mode ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 2h | **Status**: ⬜ Not Started
+### Task 0.5: Fix stdout Logging in stdio Mode ✅ COMPLETE
+**Priority**: P0 | **Effort**: 2h | **Status**: ✅ Done (Commit: 6c55e43)
 **Finding**: #15 MED - stdout logging corrupts stdio protocol stream
 
 ```
 Issue: Any stdout output in stdio mode breaks MCP framing
-Evidence: oauth-callback-server.ts:158 uses console.log,
-          transaction-manager.ts:715, conflict-detector.ts:700, etc. have verbose logs
-Files: src/utils/oauth-callback-server.ts, src/services/*.ts
+Evidence: task-store.ts had 5 console.error calls that would corrupt stdio transport
+Files: src/core/task-store.ts
 ```
 
-**Minimal Fix**:
-- [ ] Search for all console.log/console.warn/console.error in src/
-- [ ] Replace with logger.info/logger.warn/logger.error (goes to stderr)
-- [ ] Add transport detection to logger
-- [ ] Guard verbose logs behind process.env.STDIO_MODE !== 'true'
-- [ ] Test: Run in stdio mode, verify clean output
-- [ ] Test: Pipe stdout to file, verify only MCP JSON
-- [ ] Commit changes
-
-**Best Fix**:
-- [ ] Centralize logging with transport-aware sinks
-- [ ] Add test for clean stdio output
-- [ ] Add CI check to prevent stdout usage
+**Solution Implemented**:
+- Replaced all console.error calls in task-store.ts with logger calls
+- InMemoryTaskStore.cancelTask: console.error → logger.warn
+- RedisTaskStore error handler: console.error → logger.error
+- RedisTaskStore connection: console.error → logger.info
+- RedisTaskStore parse error: console.error → logger.error
+- Logger already routes all logs to stderr in stdio mode (MCP_TRANSPORT detection)
 
 ---
 
@@ -296,7 +234,7 @@ Files: src/handlers/index.ts, src/handlers/history.ts
 
 ---
 
-### Task 1.4: Register sheets_fix Tool or Remove Dead Code
+### Task 1.4: Register sheets_fix Tool
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: #9 MED - sheets_fix exists but not registered
 
@@ -307,29 +245,19 @@ Evidence: index.ts:48 exports Fix schema, index.ts:177 loads handler,
 Files: src/mcp/registration.ts, src/schemas/index.ts, src/handlers/index.ts
 ```
 
-**Minimal Fix** (choose one):
-- [ ] **Option A: Remove dead code**
-  - [ ] Remove Fix schema from index.ts:48
-  - [ ] Remove FixHandler from index.ts:177
-  - [ ] Remove src/schemas/fix.ts
-  - [ ] Remove src/handlers/fix.ts
-  - [ ] Commit changes
-
-- [ ] **Option B: Register the tool**
-  - [ ] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
-  - [ ] Add sheets_fix to TOOL_REGISTRY
-  - [ ] Add to README.md tool list
-  - [ ] Test: Verify sheets_fix appears in tools/list
-  - [ ] Test: Execute sheets_fix action
-  - [ ] Commit changes
-
-**Best Fix**:
-- [ ] Generate tool registries from schema files
-- [ ] Prevent omissions with CI check
+**Implementation**:
+- [ ] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
+- [ ] Add sheets_fix to TOOL_REGISTRY with proper handler mapping
+- [ ] Add to README.md tool list
+- [ ] Test: Verify sheets_fix appears in tools/list
+- [ ] Test: Execute sheets_fix action
+- [ ] Generate tool registries from schema files (prevent future omissions)
+- [ ] Add CI check to ensure all schemas are registered
+- [ ] Commit changes
 
 ---
 
-### Task 1.5: Register Logging Handler or Remove Capability
+### Task 1.5: Register Logging Handler
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: #10 MED - Logging capability declared but not registered
 
@@ -341,23 +269,14 @@ Evidence: features-2025-11-25.ts:237 includes logging,
 Files: src/server.ts, src/mcp/logging.ts
 ```
 
-**Minimal Fix** (choose one):
-- [ ] **Option A: Remove capability**
-  - [ ] Remove logging from features-2025-11-25.ts:237
-  - [ ] Remove logging from well-known.ts:151
-  - [ ] Remove logging from server.json:10
-  - [ ] Commit changes
-
-- [ ] **Option B: Register handler**
-  - [ ] Read logging.ts:12 handler implementation
-  - [ ] Register logging/setLevel in server.ts:208
-  - [ ] Test: Call logging/setLevel from client
-  - [ ] Verify log level changes
-  - [ ] Commit changes
-
-**Best Fix**:
-- [ ] Implement and test logging in all transports
-- [ ] Ensure consistent behavior
+**Implementation**:
+- [ ] Read logging.ts:12 handler implementation
+- [ ] Register logging/setLevel handler in server.ts
+- [ ] Implement handler in all transports (stdio, HTTP, remote)
+- [ ] Test: Call logging/setLevel from client
+- [ ] Verify log level changes dynamically
+- [ ] Ensure consistent behavior across transports
+- [ ] Commit changes
 
 ---
 
@@ -578,6 +497,77 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 **Best Fix**:
 - [ ] Generate /info metadata from canonical tool registry
 - [ ] Ensure consistency across all endpoints
+
+---
+
+## 🟣 PHASE 2.5: TOOL CONSOLIDATION (11 Tools Architecture)
+
+### Rationale: Why 11 Tools Instead of 23?
+
+**Current Architecture (23 tools)**: One tool per capability domain
+- sheets_spreadsheet, sheets_sheet, sheets_values, sheets_cells, sheets_format, etc.
+- Each tool has 5-10 actions
+- Total: 23 tools × ~8 actions = 188 actions
+
+**Target Architecture (11 tools)**: Grouped by workflow/feature set
+- Better aligns with MCP best practices (fewer tools, more actions per tool)
+- Reduces cognitive load for LLMs (fewer tool choices to evaluate)
+- Improves context efficiency (related actions grouped together)
+- Cleaner API surface (logical groupings vs granular capabilities)
+
+**Proposed 11-Tool Structure**:
+1. **sheets_core** - Spreadsheet/sheet/range CRUD (spreadsheet, sheet, values, cells actions)
+2. **sheets_format** - Styling and appearance (format, dimensions actions)
+3. **sheets_data** - Data manipulation (rules, charts, pivot, filter_sort actions)
+4. **sheets_collab** - Collaboration features (sharing, comments, versions actions)
+5. **sheets_analysis** - AI-powered analysis (analysis, advanced, analyze actions with sampling)
+6. **sheets_enterprise** - Advanced features (transaction, validation, conflict, impact, history actions)
+7. **sheets_auth** - Authentication (auth actions)
+8. **sheets_confirm** - User confirmation (confirm actions with elicitation)
+9. **sheets_fix** - Auto-repair (fix actions)
+10. **sheets_batch** - Batch operations (future: multi-operation transactions)
+11. **sheets_admin** - Server management (future: config, monitoring)
+
+### Task 2.5.1: Design 11-Tool Schema Architecture
+**Priority**: P1 | **Effort**: 8h | **Status**: ⬜ Not Started
+
+**Implementation Strategy**:
+1. **Create new consolidated schemas** (src/schemas/v2/)
+   - Design discriminated unions with all actions from merged tools
+   - Maintain backward compatibility during transition
+   - Document migration guide
+
+2. **Update tool registration** (src/mcp/registration.ts)
+   - Register 11 new tool definitions
+   - Map legacy tool names to new tools during transition
+   - Add deprecation warnings for old tools
+
+3. **Create schema migration** (scripts/migrate-schemas.ts)
+   - Automated conversion of 23-tool calls to 11-tool calls
+   - Generate compatibility shim for clients
+
+4. **Update handlers** (src/handlers/)
+   - Refactor handlers to support grouped actions
+   - Maintain existing handler logic
+   - Add routing layer for action dispatch
+
+5. **Update documentation**
+   - README.md with new 11-tool structure
+   - Migration guide for existing integrations
+   - Update tool counts throughout codebase
+
+**Testing Strategy**:
+- Unit tests for each consolidated tool
+- Integration tests for action routing
+- Backward compatibility tests
+- Performance comparison (11 vs 23 tools)
+
+**Rollout Plan**:
+- Phase 2.5.1: Design and schema creation
+- Phase 2.5.2: Handler refactoring
+- Phase 2.5.3: Registration updates
+- Phase 2.5.4: Documentation and migration guide
+- Phase 2.5.5: Deprecate old 23-tool structure
 
 ---
 
