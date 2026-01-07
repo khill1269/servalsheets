@@ -165,7 +165,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
     });
   }
 
-  registerServalSheetsTools(mcpServer, handlers);
+  registerServalSheetsTools(mcpServer, handlers, { googleClient });
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
   registerKnowledgeResources(mcpServer);

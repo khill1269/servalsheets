@@ -390,7 +390,7 @@ async function main(): Promise<void> {
         });
       }
 
-      registerServalSheetsTools(mcpServer, handlers);
+      registerServalSheetsTools(mcpServer, handlers, { googleClient: googleClient ?? null });
       registerServalSheetsResources(mcpServer, googleClient ?? null);
       registerServalSheetsPrompts(mcpServer);
       registerKnowledgeResources(mcpServer);
