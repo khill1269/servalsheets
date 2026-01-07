@@ -513,74 +513,76 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 
 ---
 
-## 🟣 PHASE 2.5: TOOL CONSOLIDATION (11 Tools Architecture)
+## 🟣 PHASE 2.5: TOOL CONSOLIDATION (11 Tools Architecture) - DEFERRED
 
-### Rationale: Why 11 Tools Instead of 23?
+**Status**: ⏸️ **DEFERRED** - To be reconsidered after Phases 1-5 complete
+**Priority**: P3 (Future Enhancement)
+**Decision Date**: 2026-01-07
 
-**Current Architecture (23 tools)**: One tool per capability domain
-- sheets_spreadsheet, sheets_sheet, sheets_values, sheets_cells, sheets_format, etc.
-- Each tool has 5-10 actions
-- Total: 23 tools × ~8 actions = 188 actions
+### Strategic Decision
 
-**Target Architecture (11 tools)**: Grouped by workflow/feature set
+**Deferred until after Phase 5 completion** to prioritize:
+1. ✅ Fixing broken functionality (Phase 1)
+2. ✅ Establishing single source of truth (Phase 2)
+3. ✅ Documentation accuracy (Phase 3)
+4. ✅ Security hardening (Phase 4)
+5. ✅ Production readiness (Phase 5)
+
+### Rationale for Deferral
+
+**Why 11 tools might be better** (theoretical benefits):
 - Better aligns with MCP best practices (fewer tools, more actions per tool)
 - Reduces cognitive load for LLMs (fewer tool choices to evaluate)
 - Improves context efficiency (related actions grouped together)
 - Cleaner API surface (logical groupings vs granular capabilities)
 
-**Proposed 11-Tool Structure**:
-1. **sheets_core** - Spreadsheet/sheet/range CRUD (spreadsheet, sheet, values, cells actions)
-2. **sheets_format** - Styling and appearance (format, dimensions actions)
-3. **sheets_data** - Data manipulation (rules, charts, pivot, filter_sort actions)
-4. **sheets_collab** - Collaboration features (sharing, comments, versions actions)
-5. **sheets_analysis** - AI-powered analysis (analysis, advanced, analyze actions with sampling)
-6. **sheets_enterprise** - Advanced features (transaction, validation, conflict, impact, history actions)
-7. **sheets_auth** - Authentication (auth actions)
-8. **sheets_confirm** - User confirmation (confirm actions with elicitation)
-9. **sheets_fix** - Auto-repair (fix actions)
-10. **sheets_batch** - Batch operations (future: multi-operation transactions)
-11. **sheets_admin** - Server management (future: config, monitoring)
+**Why we're deferring**:
+- ⚠️ Major breaking change requiring client migration
+- ⚠️ Needs real-world usage feedback on current 24-tool architecture
+- ⚠️ Requires backward compatibility layer
+- ⚠️ Extensive documentation and migration guide needed
+- ⚠️ Current architecture is MCP-compliant and functional
+- ⚠️ Focus needed on fixing existing issues first
+
+### Proposed 11-Tool Structure (for future reference)
+
+**Current Architecture (24 tools)**: One tool per capability domain
+- sheets_auth, sheets_spreadsheet, sheets_sheet, sheets_values, sheets_cells, sheets_format, sheets_dimensions, sheets_rules, sheets_charts, sheets_pivot, sheets_filter_sort, sheets_sharing, sheets_comments, sheets_versions, sheets_analysis, sheets_advanced, sheets_transaction, sheets_validation, sheets_conflict, sheets_impact, sheets_history, sheets_confirm, sheets_analyze, sheets_fix
+- Total: 24 tools with 188 actions
+
+**Potential Target Architecture (11 tools)**: Grouped by workflow/feature set
+1. **sheets_core** - Spreadsheet/sheet/range CRUD (combines: spreadsheet, sheet, values, cells)
+2. **sheets_format** - Styling and appearance (combines: format, dimensions)
+3. **sheets_data** - Data manipulation (combines: rules, charts, pivot, filter_sort)
+4. **sheets_collab** - Collaboration features (combines: sharing, comments, versions)
+5. **sheets_analysis** - AI-powered analysis (combines: analysis, advanced, analyze)
+6. **sheets_enterprise** - Advanced features (combines: transaction, validation, conflict, impact, history)
+7. **sheets_auth** - Authentication (keeps as-is)
+8. **sheets_confirm** - User confirmation (keeps as-is)
+9. **sheets_fix** - Auto-repair (keeps as-is)
+10. **sheets_batch** - Batch operations (future enhancement)
+11. **sheets_admin** - Server management (future enhancement)
+
+### When to Revisit
+
+**Reconsider after**:
+- ✅ All Phases 1-5 tasks completed
+- ✅ System stable in production
+- ✅ User feedback collected on current architecture
+- ✅ Performance metrics gathered
+- ✅ LLM usage patterns analyzed
+
+**Required before implementation**:
+- [ ] User/stakeholder approval of consolidation strategy
+- [ ] Backward compatibility plan
+- [ ] Migration guide drafted
+- [ ] Deprecation timeline established
+- [ ] Feature flag strategy for gradual rollout
 
 ### Task 2.5.1: Design 11-Tool Schema Architecture
-**Priority**: P1 | **Effort**: 8h | **Status**: ⬜ Not Started
+**Priority**: P3 | **Effort**: 8h+ | **Status**: ⏸️ Deferred
 
-**Implementation Strategy**:
-1. **Create new consolidated schemas** (src/schemas/v2/)
-   - Design discriminated unions with all actions from merged tools
-   - Maintain backward compatibility during transition
-   - Document migration guide
-
-2. **Update tool registration** (src/mcp/registration.ts)
-   - Register 11 new tool definitions
-   - Map legacy tool names to new tools during transition
-   - Add deprecation warnings for old tools
-
-3. **Create schema migration** (scripts/migrate-schemas.ts)
-   - Automated conversion of 23-tool calls to 11-tool calls
-   - Generate compatibility shim for clients
-
-4. **Update handlers** (src/handlers/)
-   - Refactor handlers to support grouped actions
-   - Maintain existing handler logic
-   - Add routing layer for action dispatch
-
-5. **Update documentation**
-   - README.md with new 11-tool structure
-   - Migration guide for existing integrations
-   - Update tool counts throughout codebase
-
-**Testing Strategy**:
-- Unit tests for each consolidated tool
-- Integration tests for action routing
-- Backward compatibility tests
-- Performance comparison (11 vs 23 tools)
-
-**Rollout Plan**:
-- Phase 2.5.1: Design and schema creation
-- Phase 2.5.2: Handler refactoring
-- Phase 2.5.3: Registration updates
-- Phase 2.5.4: Documentation and migration guide
-- Phase 2.5.5: Deprecate old 23-tool structure
+**NOTE**: This task is ON HOLD pending completion of Phases 1-5 and strategic review.
 
 ---
 
@@ -822,62 +824,85 @@ Final validation before release
 
 ## 📊 PHASE SUMMARY
 
-### Phase 0: Critical Runtime Breakages
+### Phase 0: Critical Runtime Breakages ✅ COMPLETE
 **Duration**: 2-3 days
 **Tasks**: 5 tasks (0.1-0.5)
 **Severity**: All P0 (blocking)
 **Goal**: System stable, no runtime errors, clean stdio output
+**Status**: ✅ All tasks completed
 
 ### Phase 1: MCP Protocol Compliance
 **Duration**: 1 week
 **Tasks**: 8 tasks (1.1-1.8)
 **Severity**: P1 (high priority)
 **Goal**: Full MCP protocol compliance across all transports
+**Status**: ⬜ Ready to start
 
 ### Phase 2: Single Source of Truth
 **Duration**: 1 week
 **Tasks**: 3 tasks (2.1-2.3)
 **Severity**: P1-P2
 **Goal**: Metadata generated from schemas, zero drift
+**Status**: 📋 Strategic plan complete, ready for execution
+
+### Phase 2.5: Tool Consolidation (11 Tools) ⏸️ DEFERRED
+**Duration**: 8+ hours
+**Tasks**: 1 task (2.5.1)
+**Severity**: P3 (future enhancement)
+**Goal**: Consolidate 24 tools into 11 logical groups
+**Status**: ⏸️ Deferred until after Phases 1-5 complete
 
 ### Phase 3: Documentation & Consistency
 **Duration**: 3 days
 **Tasks**: 3 tasks (3.1-3.3)
 **Severity**: P1
 **Goal**: Docs accurate, counts correct, capabilities honest
+**Status**: ⬜ Not started
 
 ### Phase 4: Auth & API Hardening
 **Duration**: 1 week
 **Tasks**: 3 tasks (4.1-4.3)
 **Severity**: P2
 **Goal**: Security verified, scopes correct, errors safe
+**Status**: ⬜ Not started
 
 ### Phase 5: Release Cleanup
 **Duration**: 2-3 days
 **Tasks**: 4 tasks (5.1-5.4)
 **Severity**: P1
 **Goal**: Clean release, validated build, automated checks
+**Status**: ⬜ Not started
 
 ---
 
-## 🎯 CURRENT SPRINT: PHASE 0
+## 🎯 CURRENT SPRINT: PHASE 1 (MCP Protocol Compliance)
 
-**Sprint Goal**: Resolve all P0 blocking issues
-**Sprint Duration**: 2-3 days (14-17 hours total)
+**Previous Sprint**: Phase 0 ✅ COMPLETE - All P0 blocking issues resolved
 
-**Must Complete**:
-1. Task 0.1: Wire sampling/elicitation (4h)
-2. Task 0.2: Fix task cancellation (3h)
-3. Task 0.3: Initialize HTTP/remote services (3h)
-4. Task 0.4: Fix server.json validation (2h)
-5. Task 0.5: Fix stdout logging (2h)
+**Sprint Goal**: Achieve full MCP protocol compliance across all transports
+**Sprint Duration**: 1 week (18 hours total, can run 8 tasks in parallel)
+
+**Ready to Start**:
+1. Task 1.1: Forward Complete MCP Context (3h)
+2. Task 1.2: Return MCP Tool Errors (2h)
+3. Task 1.3: Fix History Undo/Revert (2h)
+4. Task 1.4: Register sheets_fix Tool (1h)
+5. Task 1.5: Register Logging Handler (1h)
+6. Task 1.6: Wire Completions (3h)
+7. Task 1.7: Add Resource Parity (2h)
+8. Task 1.8: Wire sheets_auth (2h)
 
 **Success Criteria**:
-- [ ] All HIGH severity findings resolved
-- [ ] System starts without errors
-- [ ] All transports functional (stdio, HTTP, remote)
-- [ ] Clean stdio output (no protocol corruption)
-- [ ] CI validation passes
+- [ ] All MCP context forwarded correctly (requestId, signal, notifications)
+- [ ] Tool errors returned as MCP errors, not protocol errors
+- [ ] History undo/redo operations functional
+- [ ] sheets_fix appears in tools/list
+- [ ] logging/setLevel handler works
+- [ ] Completions wired and accurate
+- [ ] All resources available in HTTP/remote
+- [ ] sheets_auth works in HTTP/remote
+- [ ] All transports have feature parity
+- [ ] Integration tests pass
 
 ---
 
@@ -916,8 +941,10 @@ Final validation before release
 ---
 
 **Last Updated**: 2026-01-07
-**Total Tasks**: 21 (5 P0, 11 P1, 5 P2)
-**Estimated Duration**: 5-6 weeks for all phases
-**Current Sprint**: Phase 0 (Critical Fixes)
+**Total Tasks**: 21 (5 P0 ✅, 11 P1, 5 P2)
+**Estimated Duration**: 4-5 weeks for Phases 1-5 (Phase 2.5 deferred)
+**Current Sprint**: Phase 1 (MCP Protocol Compliance)
 
-**Let's fix the foundation first!** 🔧
+**Strategic Decision**: Phase 2.5 (Tool Consolidation) deferred until after Phases 1-5 complete and system is production-stable. Focus is on fixing functionality and establishing reliable metadata generation first.
+
+**Let's achieve MCP compliance and production readiness!** 🔧✨
