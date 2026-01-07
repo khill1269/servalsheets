@@ -73,6 +73,7 @@ export interface Handlers {
   // New MCP-native handlers
   confirm: import('./confirm.js').ConfirmHandler;
   analyze: import('./analyze.js').AnalyzeHandler;
+  fix: import('./fix.js').FixHandler;
 }
 
 /**
@@ -167,11 +168,15 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     // New MCP-native handlers
     async confirm() {
       const { ConfirmHandler } = await import('./confirm.js');
-      return new ConfirmHandler();
+      return new ConfirmHandler({ context: options.context });
     },
     async analyze() {
       const { AnalyzeHandler } = await import('./analyze.js');
       return new AnalyzeHandler(options.context, options.sheetsApi);
+    },
+    async fix() {
+      const { FixHandler } = await import('./fix.js');
+      return new FixHandler(options.context, options.sheetsApi);
     },
   };
 

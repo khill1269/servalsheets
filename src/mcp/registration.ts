@@ -25,6 +25,7 @@ import type {
   ToolTaskHandler,
   TaskToolExecution,
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
+import { z } from 'zod';
 import type { ZodTypeAny } from 'zod';
 import { randomUUID } from 'crypto';
 import { recordToolCall } from '../observability/metrics.js';
@@ -70,6 +71,8 @@ import {
   // New MCP-native tools
   SheetsConfirmInputSchema, SheetsConfirmOutputSchema, SHEETS_CONFIRM_ANNOTATIONS,
   SheetsAnalyzeInputSchema, SheetsAnalyzeOutputSchema, SHEETS_ANALYZE_ANNOTATIONS,
+  // LLM-optimized descriptions
+  TOOL_DESCRIPTIONS,
 } from '../schemas/index.js';
 import {
   FirstOperationPromptArgsSchema,
@@ -108,160 +111,163 @@ export interface ToolDefinition {
 
 /**
  * Complete tool registry for ServalSheets
- * 
+ *
  * 16 core tools + 5 enterprise tools + 2 MCP-native tools = 23 tools
- * 
+ *
  * Schema Pattern: z.object({ request: z.discriminatedUnion('action', ...) })
  * - Actions are discriminated by `action` within `request`
  * - Responses are discriminated by `success` within `response`
- * 
+ *
  * Note: Removed sheets_plan and sheets_insights (anti-patterns).
  * Replaced with sheets_confirm (Elicitation) and sheets_analyze (Sampling).
+ *
+ * Descriptions: All tool descriptions are imported from descriptions.ts to maintain
+ * a single source of truth for LLM-optimized tool descriptions.
  */
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: 'sheets_auth',
-    description: '🔐 MANDATORY FIRST STEP: Authentication management. ALWAYS call this with action:"status" before using any other sheets_* tool. Actions: status (check auth), login (get OAuth URL), callback (complete OAuth with code), logout (clear credentials)',
+    description: TOOL_DESCRIPTIONS['sheets_auth']!,
     inputSchema: SheetsAuthInputSchema,
     outputSchema: SheetsAuthOutputSchema,
     annotations: SHEETS_AUTH_ANNOTATIONS,
   },
   {
     name: 'sheets_spreadsheet',
-    description: 'Create, retrieve, copy, and manage spreadsheet properties. Actions: create (new spreadsheet), get (retrieve metadata), copy (duplicate), update_properties (title, locale, timezone).',
+    description: TOOL_DESCRIPTIONS['sheets_spreadsheet']!,
     inputSchema: SheetSpreadsheetInputSchema,
     outputSchema: SheetsSpreadsheetOutputSchema,
     annotations: SHEETS_SPREADSHEET_ANNOTATIONS,
   },
   {
     name: 'sheets_sheet',
-    description: 'Manage individual sheets (tabs) within a spreadsheet. Actions: add (create new sheet), delete (remove sheet), duplicate (copy sheet), update (rename, reorder, change colors), list (enumerate all sheets).',
+    description: TOOL_DESCRIPTIONS['sheets_sheet']!,
     inputSchema: SheetsSheetInputSchema,
     outputSchema: SheetsSheetOutputSchema,
     annotations: SHEETS_SHEET_ANNOTATIONS,
   },
   {
     name: 'sheets_values',
-    description: 'Read, write, append, and manipulate cell values in Google Sheets ranges. Actions: read (fetch values), write (update cells), append (add rows), clear (delete values), find (search), replace (find & replace), batch operations supported.',
+    description: TOOL_DESCRIPTIONS['sheets_values']!,
     inputSchema: SheetsValuesInputSchema,
     outputSchema: SheetsValuesOutputSchema,
     annotations: SHEETS_VALUES_ANNOTATIONS,
   },
   {
     name: 'sheets_cells',
-    description: 'Manage individual cell properties and metadata. Actions: add_note (cell comments), set_validation (data validation rules), add_hyperlink (URLs), merge_cells (combine), unmerge_cells (split), get_cell_properties (metadata).',
+    description: TOOL_DESCRIPTIONS['sheets_cells']!,
     inputSchema: SheetsCellsInputSchema,
     outputSchema: SheetsCellsOutputSchema,
     annotations: SHEETS_CELLS_ANNOTATIONS,
   },
   {
     name: 'sheets_format',
-    description: 'Apply visual formatting to cells including colors, fonts, borders, alignment, number formats, and conditional formatting. Actions: set_colors (background/text), set_font (family, size, bold, italic), set_borders, set_alignment, set_number_format, apply_preset (predefined styles).',
+    description: TOOL_DESCRIPTIONS['sheets_format']!,
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
     annotations: SHEETS_FORMAT_ANNOTATIONS,
   },
   {
     name: 'sheets_dimensions',
-    description: 'Manage rows and columns: insert new rows/columns, delete, move, resize dimensions, freeze panes for scrolling, and create groupings. Actions: insert_rows, insert_columns, delete_rows, delete_columns, move_dimension, resize, freeze_rows, freeze_columns, group, ungroup.',
+    description: TOOL_DESCRIPTIONS['sheets_dimensions']!,
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
     annotations: SHEETS_DIMENSIONS_ANNOTATIONS,
   },
   {
     name: 'sheets_rules',
-    description: 'Create and manage conditional formatting rules and data validation. Actions: add_conditional_format (color scales, rules), remove_conditional_format, list_conditional_formats, add_data_validation (dropdowns, ranges), remove_validation.',
+    description: TOOL_DESCRIPTIONS['sheets_rules']!,
     inputSchema: SheetsRulesInputSchema,
     outputSchema: SheetsRulesOutputSchema,
     annotations: SHEETS_RULES_ANNOTATIONS,
   },
   {
     name: 'sheets_charts',
-    description: 'Create, update, and manage charts and visualizations in spreadsheets. Actions: create (line, bar, pie, scatter, etc.), update (data, styling), delete, move (position), export (image), list (enumerate charts).',
+    description: TOOL_DESCRIPTIONS['sheets_charts']!,
     inputSchema: SheetsChartsInputSchema,
     outputSchema: SheetsChartsOutputSchema,
     annotations: SHEETS_CHARTS_ANNOTATIONS,
   },
   {
     name: 'sheets_pivot',
-    description: 'Create and manage pivot tables for data aggregation and analysis. Actions: create (define rows, columns, values), update (modify configuration), refresh (recalculate), add_calculated_field (custom formulas), delete.',
+    description: TOOL_DESCRIPTIONS['sheets_pivot']!,
     inputSchema: SheetsPivotInputSchema,
     outputSchema: SheetsPivotOutputSchema,
     annotations: SHEETS_PIVOT_ANNOTATIONS,
   },
   {
     name: 'sheets_filter_sort',
-    description: 'Apply filters, create filter views, add slicers, and sort data ranges. Actions: set_basic_filter (quick filter), create_filter_view (saved views), update_filter_view, delete_filter_view, add_slicer (interactive filter), sort_range (ascending/descending).',
+    description: TOOL_DESCRIPTIONS['sheets_filter_sort']!,
     inputSchema: SheetsFilterSortInputSchema,
     outputSchema: SheetsFilterSortOutputSchema,
     annotations: SHEETS_FILTER_SORT_ANNOTATIONS,
   },
   {
     name: 'sheets_sharing',
-    description: 'Manage spreadsheet sharing permissions and access control. Actions: share (grant user/group access), revoke (remove access), transfer_ownership (change owner), get_link (shareable URL), update_link_settings (public/private).',
+    description: TOOL_DESCRIPTIONS['sheets_sharing']!,
     inputSchema: SheetsSharingInputSchema,
     outputSchema: SheetsSharingOutputSchema,
     annotations: SHEETS_SHARING_ANNOTATIONS,
   },
   {
     name: 'sheets_comments',
-    description: 'Manage threaded comments and discussions on cells. Actions: add (create comment), reply (respond to comment), resolve (mark as done), delete (remove comment), list (enumerate all comments), get (retrieve specific comment).',
+    description: TOOL_DESCRIPTIONS['sheets_comments']!,
     inputSchema: SheetsCommentsInputSchema,
     outputSchema: SheetsCommentsOutputSchema,
     annotations: SHEETS_COMMENTS_ANNOTATIONS,
   },
   {
     name: 'sheets_versions',
-    description: 'Access and manage spreadsheet version history and snapshots. Actions: list_revisions (view history), get_revision (specific version), create_snapshot (manual save point), restore_snapshot (revert), compare_revisions (diff), export_revision (download version).',
+    description: TOOL_DESCRIPTIONS['sheets_versions']!,
     inputSchema: SheetsVersionsInputSchema,
     outputSchema: SheetsVersionsOutputSchema,
     annotations: SHEETS_VERSIONS_ANNOTATIONS,
   },
   {
     name: 'sheets_analysis',
-    description: 'Analyze spreadsheet structure, data quality, formulas, and statistics (read-only, no modifications). Actions: data_quality (detect issues), formula_audit (check formulas), statistics (compute stats), detect_patterns (find trends), column_analysis (profile columns), suggest_chart (recommend visualizations).',
+    description: TOOL_DESCRIPTIONS['sheets_analysis']!,
     inputSchema: SheetsAnalysisInputSchema,
     outputSchema: SheetsAnalysisOutputSchema,
     annotations: SHEETS_ANALYSIS_ANNOTATIONS,
   },
   {
     name: 'sheets_advanced',
-    description: 'Advanced spreadsheet features including named ranges, protected ranges, developer metadata, and banding. Actions: add_named_range (define names), delete_named_range, list_named_ranges, add_protected_range (lock cells), set_metadata (custom properties), apply_banding (alternating row colors).',
+    description: TOOL_DESCRIPTIONS['sheets_advanced']!,
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
     annotations: SHEETS_ADVANCED_ANNOTATIONS,
   },
   {
     name: 'sheets_transaction',
-    description: 'Transaction support: begin, queue operations, commit/rollback atomically with auto-snapshot. Batch multiple operations into 1 API call, saving 80% API usage.',
+    description: TOOL_DESCRIPTIONS['sheets_transaction']!,
     inputSchema: SheetsTransactionInputSchema,
     outputSchema: SheetsTransactionOutputSchema,
     annotations: SHEETS_TRANSACTION_ANNOTATIONS,
   },
   {
     name: 'sheets_validation',
-    description: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.) with custom rule support.',
+    description: TOOL_DESCRIPTIONS['sheets_validation']!,
     inputSchema: SheetsValidationInputSchema,
     outputSchema: SheetsValidationOutputSchema,
     annotations: SHEETS_VALIDATION_ANNOTATIONS,
   },
   {
     name: 'sheets_conflict',
-    description: 'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
+    description: TOOL_DESCRIPTIONS['sheets_conflict']!,
     inputSchema: SheetsConflictInputSchema,
     outputSchema: SheetsConflictOutputSchema,
     annotations: SHEETS_CONFLICT_ANNOTATIONS,
   },
   {
     name: 'sheets_impact',
-    description: 'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables, etc.).',
+    description: TOOL_DESCRIPTIONS['sheets_impact']!,
     inputSchema: SheetsImpactInputSchema,
     outputSchema: SheetsImpactOutputSchema,
     annotations: SHEETS_IMPACT_ANNOTATIONS,
   },
   {
     name: 'sheets_history',
-    description: 'Operation history: track last 100 operations for debugging and undo foundation.',
+    description: TOOL_DESCRIPTIONS['sheets_history']!,
     inputSchema: SheetsHistoryInputSchema,
     outputSchema: SheetsHistoryOutputSchema,
     annotations: SHEETS_HISTORY_ANNOTATIONS,
@@ -271,14 +277,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_confirm',
-    description: 'Confirm multi-step operations with the user before execution. Uses MCP Elicitation (SEP-1036). Claude plans, user confirms, Claude executes.',
+    description: TOOL_DESCRIPTIONS['sheets_confirm']!,
     inputSchema: SheetsConfirmInputSchema,
     outputSchema: SheetsConfirmOutputSchema,
     annotations: SHEETS_CONFIRM_ANNOTATIONS,
   },
   {
     name: 'sheets_analyze',
-    description: 'AI-powered data analysis using MCP Sampling (SEP-1577). Analyze patterns, anomalies, trends, generate formulas, suggest charts.',
+    description: TOOL_DESCRIPTIONS['sheets_analyze']!,
     inputSchema: SheetsAnalyzeInputSchema,
     outputSchema: SheetsAnalyzeOutputSchema,
     annotations: SHEETS_ANALYZE_ANNOTATIONS,
@@ -320,9 +326,9 @@ export function createToolHandlerMap(
     'sheets_conflict': (args) => handlers.conflict.handle(SheetsConflictInputSchema.parse(args)),
     'sheets_impact': (args) => handlers.impact.handle(SheetsImpactInputSchema.parse(args)),
     'sheets_history': (args) => handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
-    // MCP-native tools with extra context for Elicitation/Sampling
-    'sheets_confirm': (args, extra) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args), extra as Record<string, unknown> | undefined),
-    'sheets_analyze': (args, extra) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args), extra as Record<string, unknown> | undefined),
+    // MCP-native tools (use Server instance from context for Elicitation/Sampling)
+    'sheets_confirm': (args) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args)),
+    'sheets_analyze': (args) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args)),
   };
 
   if (authHandler) {
@@ -1479,6 +1485,592 @@ Report:
 - Affected ranges
 - Recommended fixes
 - Preventive measures`,
+          },
+        }],
+      };
+    }
+  );
+
+  // Error Recovery Prompt - AI-powered troubleshooting
+  server.registerPrompt(
+    'recover_from_error',
+    {
+      description: '🔧 Recover from ServalSheets errors - AI-powered troubleshooting and self-healing',
+      argsSchema: {
+        errorCode: z.string().describe('The error code from the failed operation'),
+        errorMessage: z.string().optional().describe('The full error message'),
+        toolName: z.string().optional().describe('The tool that failed (e.g., sheets_values)'),
+        context: z.string().optional().describe('What you were trying to do'),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      const errorCode = args['errorCode'] as string || 'UNKNOWN_ERROR';
+      const errorMessage = args['errorMessage'] as string || '';
+      const toolName = args['toolName'] as string || '';
+      const context = args['context'] as string || '';
+
+      const recoveryGuide: Record<string, string> = {
+        'INTERNAL_ERROR': `🔴 INTERNAL_ERROR - Likely Fixed in v1.3.0-hotfix.1
+
+This was the "taskStore.isTaskCancelled is not a function" bug.
+
+✅ Fix Applied:
+- Task cancellation bug fixed
+- Rebuild: npm run build
+- Restart Claude Desktop completely (Cmd+Q then relaunch)
+
+Verification:
+1. node dist/cli.js --version (should show v1.3.0)
+2. Check if error persists after restart
+3. Logs: ~/Library/Logs/Claude/mcp*.log
+
+If still occurring after restart:
+• Verify dist/server.js contains "this.taskStore.isTaskCancelled"
+• Check Claude Desktop config path is correct
+• Try: rm -rf dist && npm run build`,
+
+        'QUOTA_EXCEEDED': `⚠️ QUOTA_EXCEEDED - Google API Rate Limit
+
+Immediate Actions:
+1. Wait 60 seconds before retry
+2. Switch to batch operations (saves 80% quota):
+   sheets_values action="batch_read" ranges=["A1:B2","D1:E2"]
+   Instead of: Multiple individual "read" calls
+
+Prevention:
+• Check quota: sheets_auth action="status"
+• Use semantic ranges: {"semantic":{"column":"Revenue"}}
+• Batch operations: batch_read, batch_write, batch_update
+
+Recovery Time: 60 seconds per 100 requests`,
+
+        'RANGE_NOT_FOUND': `❌ RANGE_NOT_FOUND - Sheet or Range Doesn't Exist
+
+Diagnosis:
+1. List all sheets: sheets_spreadsheet action="get"
+2. Check exact spelling (case-sensitive!)
+3. Verify format: "SheetName!A1:D10"
+
+Common Fixes:
+• "Sheet1" not "sheet1" (case matters!)
+• Include sheet name: "Data!A1:D10" not just "A1:D10"
+• Check sheet wasn't deleted/renamed
+
+Try semantic ranges: {"semantic":{"sheet":"Sales","column":"Total"}}`,
+
+        'PERMISSION_DENIED': `🔒 PERMISSION_DENIED - Authentication or Access Issue
+
+Recovery Steps:
+1. Check auth: sheets_auth action="status"
+2. Re-authenticate: sheets_auth action="login"
+3. Complete OAuth in browser
+4. Retry operation
+
+Access Check:
+• Verify spreadsheet is shared with your account
+• sheets_sharing action="list_permissions" to see current access
+• Request owner to share if needed
+
+OAuth Scopes Needed:
+https://www.googleapis.com/auth/spreadsheets`,
+
+        'INVALID_RANGE': `📏 INVALID_RANGE - Range Format Incorrect
+
+Valid Formats:
+✅ "A1:D10"
+✅ "Sheet1!A1:D10"
+✅ "Sheet1!A:A" (entire column)
+✅ "Sheet1!1:1" (entire row)
+
+Invalid Formats:
+❌ "A1-D10" (use : not -)
+❌ "A1..D10"
+❌ "SheetName A1:D10" (missing !)
+
+Alternative: Use semantic ranges
+{"semantic":{"sheet":"Data","column":"Revenue","includeHeader":false}}`,
+
+        'RATE_LIMIT_EXCEEDED': `🚦 RATE_LIMIT_EXCEEDED - Too Many Requests
+
+Built-in Circuit Breaker Active:
+• Automatic exponential backoff
+• Request spacing (1-2 seconds)
+• Auto-retry with delays
+
+Your Action:
+• Wait 10 seconds
+• Use batch operations next time
+• Let circuit breaker handle retries
+
+Prevention: Batch operations reduce rate limit usage by 80%`,
+
+        'AUTH_EXPIRED': `🔑 AUTH_EXPIRED - Token Expired
+
+Auto-Recovery (Usually Works):
+• Server auto-refreshes tokens
+• Just retry your operation
+• Token refresh happens automatically
+
+Manual Recovery:
+1. sheets_auth action="logout"
+2. sheets_auth action="login"
+3. Complete OAuth flow
+4. Retry operation
+
+Token Details:
+• Expire after 1 hour
+• Auto-refresh when possible
+• Encrypted storage: GOOGLE_TOKEN_STORE_PATH`,
+
+        'NOT_FOUND': `🔍 NOT_FOUND - Spreadsheet Doesn't Exist
+
+Verify ID:
+• Format: 44 chars, alphanumeric plus - and _
+• Get from URL: docs.google.com/spreadsheets/d/{ID}/...
+• Check for typos
+
+Find Spreadsheets:
+1. List all: sheets_spreadsheet action="list"
+2. Create new: sheets_spreadsheet action="create" name="My Sheet"
+
+Common Issues:
+• Spreadsheet deleted
+• Wrong ID copied
+• No access permission`,
+      };
+
+      const recovery = recoveryGuide[errorCode] || `🔧 ${errorCode} Recovery
+
+Tool: ${toolName || 'unknown'}
+Message: ${errorMessage || 'No message provided'}
+Context: ${context || 'No context provided'}
+
+General Recovery:
+1. Check tool description for correct format (see Quick Examples)
+2. Verify spreadsheet ID and permissions
+3. Check auth: sheets_auth action="status"
+4. Review history: sheets_history
+5. Try dry-run: {"safety":{"dryRun":true}}
+
+Common Fixes:
+• Auth: sheets_auth action="login"
+• Quota: Wait 60s, use batch_read/batch_write
+• Range: Verify with sheets_spreadsheet action="get"
+• Format: See tool description Quick Examples
+
+Still Stuck?
+• Logs: ~/Library/Logs/Claude/mcp*.log
+• Version: node dist/cli.js --version
+• Restart: Quit Claude Desktop (Cmd+Q), wait 5s, relaunch`;
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: recovery,
+          },
+        }],
+      };
+    }
+  );
+
+  // Performance Troubleshooting Prompt
+  server.registerPrompt(
+    'troubleshoot_performance',
+    {
+      description: '⚡ Diagnose and fix slow spreadsheet operations',
+      argsSchema: {
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        operation: z.string().optional().describe('What operation was slow'),
+        responseTime: z.number().optional().describe('How long it took (ms)'),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const operation = args['operation'] as string || 'unknown';
+      const responseTime = args['responseTime'] as number || 0;
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `⚡ Performance Troubleshooting for ${spreadsheetId}
+
+Operation: ${operation}
+${responseTime > 0 ? `Response Time: ${responseTime}ms` : ''}
+
+Common Performance Issues:
+
+1. **Large Range Reads** (>10K cells)
+   • Problem: Reading entire sheets instead of specific ranges
+   • Fix: Use precise ranges like "A1:D100" instead of "A:Z"
+   • Tool: sheets_values with exact range
+   • Improvement: 80-90% faster
+
+2. **Multiple Individual Operations**
+   • Problem: 50 separate read calls instead of 1 batch
+   • Fix: Use batch_read with multiple ranges
+   • Tool: sheets_values action="batch_read" ranges=["A1:B10","D1:E10"]
+   • Improvement: Saves 80% API quota, 3-5x faster
+
+3. **Formula Recalculation**
+   • Problem: Complex formulas with circular references
+   • Fix: Use optimize_formulas prompt
+   • Check: sheets_analysis action="formula_audit"
+   • Improvement: 50-70% faster calculations
+
+4. **Network Latency**
+   • Problem: Too many round trips to Google API
+   • Fix: Bundle operations in sheets_transaction
+   • Improvement: Single API call instead of N calls
+
+5. **Unoptimized Queries**
+   • Problem: Reading full sheet to find one value
+   • Fix: Use sheets_values action="find" with criteria
+   • Improvement: 95% faster than scanning
+
+Diagnostic Steps:
+
+1. Check range size:
+   • sheets_spreadsheet action="get" → See total rows/columns
+   • If >10K cells, reduce range
+
+2. Enable profiling:
+   • Add timing: const start = Date.now()
+   • Measure each operation
+   • Identify slowest step
+
+3. Review recent operations:
+   • sheets_history action="list" limit=10
+   • Look for repeated calls
+
+4. Analyze data structure:
+   • sheets_analysis action="performance"
+   • Get optimization suggestions
+
+Quick Fixes by Operation Type:
+
+• sheets_values read → Use batch_read, exact ranges
+• sheets_format → Batch in sheets_transaction
+• sheets_analysis → Limit to <10K cells
+• sheets_pivot → Reduce source range size
+• sheets_charts → Limit data points to <1000
+
+Apply fixes and retest!`,
+          },
+        }],
+      };
+    }
+  );
+
+  // Data Quality Fix Prompt
+  server.registerPrompt(
+    'fix_data_quality',
+    {
+      description: '🔍 Identify and fix data quality issues',
+      argsSchema: {
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        range: z.string().describe('Range to analyze'),
+        issues: z.string().optional().describe('Known issues'),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const range = args['range'] as string;
+      const issues = args['issues'] as string || 'auto-detect';
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `🔍 Data Quality Analysis for ${spreadsheetId}
+Range: ${range}
+${issues !== 'auto-detect' ? `Known Issues: ${issues}` : ''}
+
+Step 1: Detect Issues
+Run: sheets_analysis action="analyze" spreadsheetId="${spreadsheetId}" range="${range}"
+
+Common Data Quality Problems:
+
+1. **Empty Cells in Required Columns**
+   • Detection: Check for null/empty values
+   • Fix: sheets_values action="find" find="" → Fill or remove rows
+   • Prevention: Add validation rules
+
+2. **Duplicate Headers**
+   • Detection: Count unique values in row 1
+   • Fix: sheets_sheet action="update" → Rename duplicates
+   • Prevention: Validate on import
+
+3. **Inconsistent Formats**
+   • Detection: Mixed date formats, number formats
+   • Fix: sheets_format action="set_number_format" format="YYYY-MM-DD"
+   • Prevention: Apply format before data entry
+
+4. **Invalid Values**
+   • Detection: Negative ages, future dates, out-of-range numbers
+   • Fix: sheets_values action="replace" with valid values
+   • Prevention: sheets_rules action="add_validation"
+
+5. **Extra Whitespace**
+   • Detection: Leading/trailing spaces
+   • Fix: Use TRIM formula or sheets_advanced find_replace
+   • Prevention: Input validation
+
+Cleanup Workflow:
+
+1. Analyze:
+   sheets_analysis action="analyze" range="${range}"
+
+2. Fix empty cells:
+   • Delete: sheets_dimensions action="delete_rows"
+   • Fill: sheets_values action="write" with default values
+
+3. Standardize formats:
+   • Dates: sheets_format format="yyyy-mm-dd"
+   • Currency: sheets_format format="$#,##0.00"
+   • Percentages: sheets_format format="0.00%"
+
+4. Remove duplicates:
+   • Find: sheets_values action="find"
+   • Mark or delete duplicates
+
+5. Add validation:
+   • sheets_rules action="add_validation" type="LIST"
+   • Prevent future bad data
+
+6. Verify:
+   • Re-run sheets_analysis
+   • Check quality score improved
+
+After cleanup, consider:
+• Create snapshot: sheets_versions action="create_snapshot"
+• Document changes: sheets_comments action="add"`,
+          },
+        }],
+      };
+    }
+  );
+
+  // Formula Optimization Prompt
+  server.registerPrompt(
+    'optimize_formulas',
+    {
+      description: '📊 Optimize slow or inefficient formulas',
+      argsSchema: {
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        range: z.string().optional().describe('Range with slow formulas'),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const range = args['range'] as string || 'entire sheet';
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `📊 Formula Optimization for ${spreadsheetId}
+${range !== 'entire sheet' ? `Range: ${range}` : ''}
+
+Step 1: Audit Formulas
+Run: sheets_analysis action="formula_audit" spreadsheetId="${spreadsheetId}"
+
+Common Formula Performance Issues:
+
+1. **VLOOKUP** (Slow for large datasets)
+   • Problem: O(n) lookup, scans entire column
+   • Fix: Replace with INDEX/MATCH
+   • Before: =VLOOKUP(A2,Data!A:D,3,FALSE)
+   • After: =INDEX(Data!C:C,MATCH(A2,Data!A:A,0))
+   • Improvement: 60% faster
+
+2. **Array Formulas** (Resource intensive)
+   • Problem: Recalculates entire array on every change
+   • Fix: Split into individual cell formulas
+   • Or: Use FILTER() with specific criteria
+   • Improvement: 70% faster
+
+3. **Volatile Functions** (Recalculate constantly)
+   • Problem: NOW(), RAND(), INDIRECT() recalc on every edit
+   • Fix: Replace with static values or manual triggers
+   • NOW() → Use timestamp in cell, update manually
+   • INDIRECT() → Use direct cell references
+   • Improvement: 80% less recalculation
+
+4. **Circular References**
+   • Problem: Formulas referencing themselves
+   • Detection: sheets_analysis shows circular_refs
+   • Fix: Break cycle by moving calculation to different cell
+   • Improvement: Prevents infinite loops
+
+5. **Nested IFs** (Hard to read and slow)
+   • Problem: =IF(A1>10,IF(A1>20,"High","Medium"),"Low")
+   • Fix: Use IFS() or lookup table
+   • After: =IFS(A1>20,"High",A1>10,"Medium",TRUE,"Low")
+   • Improvement: More readable, 30% faster
+
+Optimization Workflow:
+
+1. Find slow formulas:
+   • sheets_analysis action="formula_audit"
+   • Look for: VLOOKUP, array formulas, volatile functions
+
+2. Test performance:
+   • Time recalculation (Ctrl+Alt+Shift+F9 in Sheets)
+   • Identify slowest formulas
+
+3. Replace VLOOKUP:
+   • Find all: sheets_advanced action="find_replace" find="VLOOKUP"
+   • Replace manually with INDEX/MATCH pattern
+
+4. Simplify array formulas:
+   • Convert to individual formulas
+   • Or use more efficient array operations
+
+5. Remove volatile functions:
+   • Replace NOW() with manual timestamp
+   • Replace INDIRECT() with direct references
+
+6. Verify improvements:
+   • Re-run formula audit
+   • Test recalculation speed
+
+Formula Best Practices:
+
+• Use named ranges (easier to read and maintain)
+• Avoid full column references (A:A) when possible
+• Cache lookup results instead of repeated calculations
+• Use FILTER() instead of complex IF arrays
+• Break complex formulas into intermediate cells
+
+After optimization:
+• Document changes in comments
+• Create version snapshot
+• Monitor performance over time`,
+          },
+        }],
+      };
+    }
+  );
+
+  // Bulk Import Workflow Prompt
+  server.registerPrompt(
+    'bulk_import_data',
+    {
+      description: '📥 Efficiently import large datasets',
+      argsSchema: {
+        spreadsheetId: z.string().describe('Target spreadsheet ID'),
+        dataSize: z.number().optional().describe('Approximate row count'),
+        dataSource: z.string().optional().describe('Source description'),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const dataSize = args['dataSize'] as number || 0;
+      const dataSource = args['dataSource'] as string || 'external source';
+
+      return {
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `📥 Bulk Data Import Workflow for ${spreadsheetId}
+Source: ${dataSource}
+${dataSize > 0 ? `Estimated Rows: ${dataSize}` : ''}
+
+Optimal Import Strategy:
+
+${dataSize > 10000 ? `⚠️ LARGE DATASET (${dataSize} rows)
+Use chunked imports with transactions` : ''}
+
+Step 1: Prepare Target Sheet
+1. Create or clear target sheet:
+   sheets_sheet action="add" title="Import_${new Date().toISOString().split('T')[0]}"
+
+2. Setup structure:
+   • Headers: sheets_values action="write" range="A1:Z1" values=[["Col1","Col2",...]]
+   • Format headers: sheets_format range="A1:Z1" bold=true backgroundColor="#4285F4"
+   • Freeze: sheets_dimensions action="freeze_rows" count=1
+
+Step 2: Validate Source Data
+1. Check data quality before import
+2. Remove: Empty rows, invalid characters, duplicates
+3. Standardize: Date formats, number formats, text encoding
+
+Step 3: Import Data (Choose Strategy)
+
+**Strategy A: Small Dataset (<1000 rows)**
+• Single batch write:
+  sheets_values action="batch_write" ranges=["A2:Z1001"] values=[...]
+
+**Strategy B: Medium Dataset (1K-10K rows)**
+• Transaction with chunks:
+  sheets_transaction action="begin"
+  For each chunk of 1000 rows:
+    sheets_transaction action="add_operation" operation=write
+  sheets_transaction action="commit"
+
+**Strategy C: Large Dataset (>10K rows)**
+• Multiple transactions:
+  For every 5000 rows:
+    Begin transaction → Write 5 chunks of 1000 → Commit
+    Wait 2 seconds between transactions
+
+Step 4: Post-Import Processing
+
+1. Auto-resize columns:
+   sheets_dimensions action="auto_resize" dimension="COLUMNS"
+
+2. Apply formatting:
+   • Currency columns: sheets_format format="$#,##0.00"
+   • Date columns: sheets_format format="yyyy-mm-dd"
+   • Conditional formatting: sheets_rules for visual cues
+
+3. Add validation rules:
+   • Dropdowns: sheets_rules action="add_validation" type="LIST"
+   • Range validation: For numeric columns
+
+4. Create summary:
+   • Row count, column count
+   • Add to first sheet or separate "Summary" sheet
+
+Step 5: Verification
+
+1. Data quality check:
+   sheets_analysis action="analyze" range="A1:Z${dataSize || 10000}"
+
+2. Spot check:
+   • First 10 rows: sheets_values range="A2:Z11"
+   • Last 10 rows: Check end of data
+   • Random sample: Middle rows
+
+3. Create checkpoint:
+   sheets_versions action="create_snapshot" description="After ${dataSource} import"
+
+Performance Tips:
+
+• Batch size: 1000 rows optimal for balance of speed/reliability
+• Use batch_write not individual writes (80% faster)
+• Wait 2s between large transactions (avoid rate limits)
+• Format after data import (faster than formatting during)
+• Create indexes with named ranges for quick access
+
+Error Recovery:
+
+• If import fails mid-way:
+  1. sheets_history action="list" - Find last successful operation
+  2. sheets_transaction action="rollback" - Undo partial import
+  3. Resume from last checkpoint
+
+• If data quality issues found:
+  Use fix_data_quality prompt for cleanup
+
+Import complete! ✅`,
           },
         }],
       };

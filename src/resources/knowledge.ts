@@ -7,7 +7,6 @@
  * - Formula recipes and best practices
  * - Template structures
  * - Data schemas
- * - Orchestration workflows
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -80,16 +79,22 @@ function discoverKnowledgeFiles(baseDir: string): KnowledgeResource[] {
  * Generates a description based on category and file name.
  */
 function getResourceDescription(category: string, baseName: string): string {
+  // Special descriptions for specific files
+  if (baseName === 'workflow-patterns') {
+    return 'Common multi-tool workflows and best practices for efficient Google Sheets automation';
+  }
+  if (baseName === 'user-intent-examples') {
+    return 'Natural language examples mapping user intents to tool sequences';
+  }
+  if (baseName === 'natural-language-guide') {
+    return 'Guide for understanding user requests and selecting appropriate tools';
+  }
+
   const categoryDescriptions: Record<string, string> = {
     api: 'Google Sheets API reference and patterns',
-    audit: 'Audit rules and severity scoring',
-    brain: 'AI context and learning patterns',
     formulas: 'Formula recipes and examples',
-    orchestration: 'Multi-step workflow policies',
-    patterns: 'Common implementation patterns',
     schemas: 'Data structure definitions',
     templates: 'Pre-built spreadsheet templates',
-    workflows: 'Workflow documentation and guides',
     general: 'ServalSheets knowledge base',
   };
 

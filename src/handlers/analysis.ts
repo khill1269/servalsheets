@@ -268,21 +268,37 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
       description: string;
       suggestion?: string;
     }> = [];
+
+    // Enhanced detection: count pattern occurrences
+    let todayCount = 0;
+    let vlookupCount = 0;
+    let fullColumnRefs = 0;
+    let nestedIferror = 0;
+    let arrayFormulaCount = 0;
+
     for (const row of response.data.values ?? []) {
       for (const cell of row ?? []) {
         if (typeof cell === 'string' && cell.startsWith('=')) {
           formulas.push(cell);
+
+          // Existing checks
           if (cell.includes('#REF!') || cell.includes('#ERROR')) {
             issues.push({
               type: 'BROKEN_REFERENCE',
               severity: 'high',
-              cell: '', // cell addresses not returned by values.get; omit
+              cell: '',
               formula: cell,
               description: 'Formula contains a broken reference',
               suggestion: 'Repoint the reference to a valid range.',
             });
           }
-          if (/(NOW\(|TODAY\(|RAND\(|RANDBETWEEN\()/.test(cell)) {
+
+          // Enhanced volatile function detection with counting
+          const volatileMatches = cell.match(/TODAY\(\)/g);
+          if (volatileMatches) {
+            todayCount += volatileMatches.length;
+          }
+          if (/(NOW\(|RAND\(|RANDBETWEEN\()/.test(cell)) {
             issues.push({
               type: 'VOLATILE_FUNCTION',
               severity: 'medium',
@@ -292,6 +308,77 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
               suggestion: 'Consider static values or less volatile functions.',
             });
           }
+
+          // NEW: Full column reference detection (A:A, E:E)
+          if (/(SUMIF|COUNTIF|SUMIFS|COUNTIFS|VLOOKUP|MATCH)\([^)]*[A-Z]:[A-Z]/.test(cell)) {
+            fullColumnRefs++;
+            issues.push({
+              type: 'PERFORMANCE_ISSUE',
+              severity: 'high',
+              cell: '',
+              formula: cell,
+              description: 'Full column reference (A:A) scans 1M+ rows unnecessarily',
+              suggestion: 'Replace A:A with bounded range like A2:A500. Example: SUMIF(A:A,...) → SUMIF(A2:A500,...)',
+            });
+          }
+
+          // NEW: VLOOKUP detection
+          if (/VLOOKUP\(/.test(cell)) {
+            vlookupCount++;
+            issues.push({
+              type: 'PERFORMANCE_ISSUE',
+              severity: 'medium',
+              cell: '',
+              formula: cell,
+              description: 'VLOOKUP is 60% slower than INDEX/MATCH on large datasets',
+              suggestion: 'Replace with INDEX/MATCH. Example: =VLOOKUP(A2,Data!A:D,3,0) → =INDEX(Data!C:C,MATCH(A2,Data!A:A,0))',
+            });
+          }
+
+          // NEW: Nested IFERROR detection
+          if (/IFERROR\(IFERROR\(/.test(cell)) {
+            nestedIferror++;
+            issues.push({
+              type: 'COMPLEX_FORMULA',
+              severity: 'low',
+              cell: '',
+              formula: cell,
+              description: 'Redundant nested IFERROR reduces readability',
+              suggestion: 'Simplify to single IFERROR with appropriate default value',
+            });
+          }
+
+          // NEW: ARRAYFORMULA counting
+          if (/ARRAYFORMULA\(/.test(cell)) {
+            arrayFormulaCount++;
+          }
+
+          // NEW: Deep nested IF detection (3+ levels)
+          const nestedIfCount = (cell.match(/IF\(/g) || []).length;
+          if (nestedIfCount >= 3) {
+            issues.push({
+              type: 'COMPLEX_FORMULA',
+              severity: 'medium',
+              cell: '',
+              formula: cell,
+              description: `${nestedIfCount} nested IF statements make formula hard to maintain`,
+              suggestion: 'Replace with IFS() function or lookup table. Example: IFS(A1>100,"A", A1>80,"B", TRUE,"F")',
+            });
+          }
+
+          // NEW: Hardcoded threshold detection
+          if (/IF\([^,]+[<>=]\d+/.test(cell)) {
+            issues.push({
+              type: 'HARDCODED_VALUE',
+              severity: 'medium',
+              cell: '',
+              formula: cell,
+              description: 'Hardcoded threshold value makes updates difficult',
+              suggestion: 'Move threshold to _System or Config sheet and reference as named range',
+            });
+          }
+
+          // Existing complexity check
           const complexity = (cell.match(/[,;]/g)?.length ?? 0) + (cell.match(/\(/g)?.length ?? 0);
           if (complexity > (input.complexityThreshold ?? 10)) {
             issues.push({
@@ -307,8 +394,32 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
       }
     }
 
+    // NEW: Global pattern detection
+    if (todayCount > 3) {
+      issues.push({
+        type: 'PERFORMANCE_ISSUE',
+        severity: 'high',
+        cell: 'Multiple cells',
+        formula: '',
+        description: `Found ${todayCount} TODAY() calls across spreadsheet`,
+        suggestion: 'Create _System!B1 = TODAY(), name it "TodayDate", and reference everywhere. Saves 90% recalculation time.',
+      });
+    }
+
+    if (arrayFormulaCount > 10) {
+      issues.push({
+        type: 'PERFORMANCE_ISSUE',
+        severity: 'medium',
+        cell: 'Multiple cells',
+        formula: '',
+        description: `Found ${arrayFormulaCount} ARRAYFORMULA instances`,
+        suggestion: 'Excessive ARRAYFORMULA usage slows editing. Consider using regular formulas for datasets <100 rows.',
+      });
+    }
+
     const uniqueFormulas = new Set(formulas);
     const score = Math.max(0, 100 - issues.length * 5);
+
     return this.success('formula_audit', {
       formulaAudit: {
         score,
@@ -316,6 +427,13 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
         uniqueFormulas: uniqueFormulas.size,
         issues,
         summary: issues.length === 0 ? 'No formula issues detected.' : `${issues.length} formula issue(s) detected.`,
+        statistics: {
+          todayCount,
+          vlookupCount,
+          fullColumnRefs,
+          nestedIferror,
+          arrayFormulaCount,
+        },
       },
     });
   }
@@ -325,7 +443,7 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
   ): Promise<AnalysisResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties,namedRanges',
+      fields: 'sheets(properties,conditionalFormats,protectedRanges),namedRanges',
     });
 
     const sheets = response.data.sheets ?? [];
@@ -337,6 +455,99 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
       range: `${n.range?.sheetId ?? 0}:${n.range?.startRowIndex ?? 0}-${n.range?.endRowIndex ?? 0}`,
     }));
 
+    // Enhanced analysis: detect issues
+    const issues: Array<{
+      type: string;
+      severity: 'low' | 'medium' | 'high';
+      sheet?: string;
+      description: string;
+      suggestion: string;
+    }> = [];
+
+    // Check each sheet for issues
+    for (const sheet of sheets) {
+      const sheetName = sheet.properties?.title ?? 'Unnamed';
+      const sheetId = sheet.properties?.sheetId ?? 0;
+      const gridProps = sheet.properties?.gridProperties;
+      const isHidden = sheet.properties?.hidden ?? false;
+
+      // UI/UX: Check frozen headers
+      if (!isHidden && (gridProps?.frozenRowCount ?? 0) === 0 && (gridProps?.rowCount ?? 0) > 20) {
+        issues.push({
+          type: 'UI_UX',
+          severity: 'medium',
+          sheet: sheetName,
+          description: 'No frozen header rows - headers scroll out of view',
+          suggestion: 'Freeze row 1: sheets_dimensions action="freeze_rows" count=1',
+        });
+      }
+
+      // UI/UX: Check frozen ID column for wide sheets
+      if (!isHidden && (gridProps?.frozenColumnCount ?? 0) === 0 && (gridProps?.columnCount ?? 0) > 10) {
+        issues.push({
+          type: 'UI_UX',
+          severity: 'low',
+          sheet: sheetName,
+          description: 'No frozen ID column for wide sheet - row identifiers scroll away',
+          suggestion: 'Freeze column A: sheets_dimensions action="freeze_columns" count=1',
+        });
+      }
+
+      // Conditional Formatting: Check for redundancy
+      const cfRules = sheet.conditionalFormats ?? [];
+      if (cfRules.length > 20) {
+        issues.push({
+          type: 'CONDITIONAL_FORMATTING',
+          severity: 'medium',
+          sheet: sheetName,
+          description: `${cfRules.length} conditional format rules detected - likely redundant`,
+          suggestion: 'Consolidate rules to 8-10. Remove duplicates, merge similar conditions.',
+        });
+      }
+
+      // Protection: Check if formulas are protected
+      const protectedRanges = sheet.protectedRanges ?? [];
+      if (protectedRanges.length === 0 && (gridProps?.rowCount ?? 0) > 10) {
+        issues.push({
+          type: 'PROTECTION',
+          severity: 'high',
+          sheet: sheetName,
+          description: 'No protected ranges - formulas can be accidentally overwritten',
+          suggestion: 'Protect formula cells: sheets_advanced action="add_protected_range"',
+        });
+      }
+
+      // Hidden sheets without underscore prefix
+      if (isHidden && !sheetName.startsWith('_')) {
+        issues.push({
+          type: 'STRUCTURE',
+          severity: 'low',
+          sheet: sheetName,
+          description: 'Hidden sheet not prefixed with _ - unclear purpose',
+          suggestion: 'Rename to _' + sheetName + ' for clarity',
+        });
+      }
+    }
+
+    // Named range analysis
+    const namedRangesByPrefix: Record<string, number> = {};
+    for (const nr of response.data.namedRanges ?? []) {
+      const prefix = nr.name?.split(/[_A-Z]/)[0] ?? '';
+      namedRangesByPrefix[prefix] = (namedRangesByPrefix[prefix] || 0) + 1;
+    }
+
+    // Check for naming inconsistency
+    if (Object.keys(namedRangesByPrefix).length > 2) {
+      issues.push({
+        type: 'STRUCTURE',
+        severity: 'low',
+        description: 'Inconsistent named range naming conventions detected',
+        suggestion: 'Standardize to PascalCase (InvestorNames) or snake_case (investor_names)',
+      });
+    }
+
+    const hiddenSheets = sheets.filter(s => s.properties?.hidden).length;
+
     return this.success('structure_analysis', {
       structure: {
         sheets: sheets.length,
@@ -344,6 +555,9 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
         totalColumns,
         tables: [],
         namedRanges,
+        hiddenSheets,
+        issues,
+        summary: issues.length === 0 ? 'No structural issues detected.' : `${issues.length} structural issue(s) detected.`,
       },
     });
   }

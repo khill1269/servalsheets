@@ -111,8 +111,9 @@ export class ServalSheetsServer {
         capabilities: createServerCapabilities(),
         // Instructions for LLM context
         instructions: SERVER_INSTRUCTIONS,
-        // Task store for SEP-1686 task support
-        taskStore: this.taskStore,
+        // FIX: Removed taskStore from McpServer options - was causing server.connect() to hang
+        // Task support still works via our TaskStoreAdapter and manual task handling
+        // taskStore: this.taskStore,
       }
     );
 
@@ -168,6 +169,7 @@ export class ServalSheetsServer {
           scopes: this.googleClient.scopes,
         },
         samplingServer: this._server.server, // Pass underlying Server instance for sampling
+        server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
       };
 
@@ -680,20 +682,24 @@ export class ServalSheetsServer {
 
     // Removed: registerWorkflowResources (Claude orchestrates natively via MCP)
 
-    // Register transaction resources (Phase 4, Task 4.1)
-    registerTransactionResources(this._server);
+    // Only register Phase 4 resources if Google client was initialized
+    // These features require an active Google API connection
+    if (this.googleClient) {
+      // Register transaction resources (Phase 4, Task 4.1)
+      registerTransactionResources(this._server);
 
-    // Register conflict resources (Phase 4, Task 4.2)
-    registerConflictResources(this._server);
+      // Register conflict resources (Phase 4, Task 4.2)
+      registerConflictResources(this._server);
 
-    // Register impact resources (Phase 4, Task 4.3)
-    registerImpactResources(this._server);
+      // Register impact resources (Phase 4, Task 4.3)
+      registerImpactResources(this._server);
 
-    // Register validation resources (Phase 4, Task 4.4)
-    registerValidationResources(this._server);
+      // Register validation resources (Phase 4, Task 4.4)
+      registerValidationResources(this._server);
 
-    // Register metrics resources (Phase 6, Task 6.1)
-    registerMetricsResources(this._server);
+      // Register metrics resources (Phase 6, Task 6.1)
+      registerMetricsResources(this._server);
+    }
 
     // Register MCP-native resources (Elicitation & Sampling)
     registerConfirmResources(this._server);  // Confirmation via Elicitation (SEP-1036)
@@ -785,33 +791,35 @@ export class ServalSheetsServer {
    * Start the server with signal handling
    */
   async start(): Promise<void> {
+    // Initialize first (register handlers), then connect
     await this.initialize();
     const transport = new StdioServerTransport();
-    
+
     // Handle process signals for graceful shutdown
     const handleShutdown = async (signal: string): Promise<void> => {
       baseLogger.warn(`ServalSheets: Received ${signal}, shutting down...`);
       await this.shutdown();
       process.exit(0);
     };
-    
+
     process.on('SIGINT', () => handleShutdown('SIGINT'));
     process.on('SIGTERM', () => handleShutdown('SIGTERM'));
     process.on('SIGHUP', () => handleShutdown('SIGHUP'));
-    
+
     // Handle uncaught errors
     process.on('uncaughtException', async (error) => {
       baseLogger.error('ServalSheets: Uncaught exception', { error });
       await this.shutdown();
       process.exit(1);
     });
-    
+
     process.on('unhandledRejection', async (reason) => {
       baseLogger.error('ServalSheets: Unhandled rejection', { reason });
       await this.shutdown();
       process.exit(1);
     });
-    
+
+    // Connect after initialization (handlers are registered)
     await this._server.connect(transport);
     baseLogger.info(`ServalSheets MCP Server started (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`);
   }

@@ -15,6 +15,9 @@ export * from './shared.js';
 // Tool annotations
 export * from './annotations.js';
 
+// LLM-optimized tool descriptions
+export * from './descriptions.js';
+
 // Core tool schemas
 export * from './auth.js';
 export * from './spreadsheet.js';
@@ -42,6 +45,7 @@ export * from './prompts.js';
 // MCP-native tool schemas (Elicitation & Sampling)
 export * from './confirm.js';   // Uses Elicitation (SEP-1036)
 export * from './analyze.js';   // Uses Sampling (SEP-1577)
+export * from './fix.js';        // Automated issue resolution
 
 // Tool metadata for registration
 export const TOOL_REGISTRY = {

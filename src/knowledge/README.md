@@ -29,17 +29,17 @@ knowledge/
 ├── formulas/                    # Formula knowledge base
 │   └── functions-reference.md   # 100+ formula functions
 ├── templates/                   # Pre-built spreadsheet templates
-│   ├── finance/
-│   ├── project-management/
-│   ├── sales/
-│   ├── operations/
-│   ├── hr/
-│   └── marketing/
-├── schemas/                     # Data structure definitions
-├── brain/                       # Context-awareness patterns
-├── orchestration/               # Workflow policies
-├── audit/                       # Audit metadata
-└── workflows/                   # Workflow summaries
+│   ├── common-templates.json    # Template descriptions
+│   ├── finance.json             # Financial/budget tracking
+│   ├── project.json             # Project management
+│   ├── sales.json               # Sales CRM
+│   ├── inventory.json           # Inventory management
+│   ├── crm.json                 # Customer relationship management
+│   └── marketing.json           # Marketing campaigns
+└── schemas/                     # Data structure definitions
+    ├── crm.json                 # CRM data schema
+    ├── inventory.json           # Inventory data schema
+    └── project.json             # Project data schema
 ```
 
 ## API References
@@ -82,13 +82,13 @@ Templates are complete, production-ready spreadsheet structures. Each template i
 
 ### Available Templates
 
-1. **Financial Model** (`finance/financial-model.json`) - Complete financial model for startups
-2. **Budget Tracker** (`finance/budget-tracker.json`) - Operational budgeting template
-3. **Project Tracker** (`project-management/project-tracker.json`) - Comprehensive project management
-4. **Sales Pipeline** (`sales/sales-pipeline.json`) - Full-featured CRM and sales tracker
-5. **Inventory Management** (`operations/inventory-management.json`) - Inventory dashboard
-6. **Employee Directory** (`hr/employee-directory.json`) - HR ops workspace
-7. **Campaign Tracker** (`marketing/campaign-tracker.json`) - Marketing planning
+1. **Finance Template** (`finance.json`) - Budget tracking with 4 sheets (Summary, Monthly, Projections, Transactions)
+2. **Project Template** (`project.json`) - Project management with 6 sheets (Summary, Tasks, Timeline, Resources, Budget, Risks)
+3. **Sales Template** (`sales.json`) - Sales CRM with 5 sheets (Dashboard, Pipeline, Contacts, Activities, Deals)
+4. **Inventory Template** (`inventory.json`) - Inventory management with 4 sheets (Products, Transactions, Suppliers, Dashboard)
+5. **CRM Template** (`crm.json`) - Customer relationship management with 4 sheets (Contacts, Opportunities, Activities, Dashboard)
+6. **Marketing Template** (`marketing.json`) - Marketing campaign tracker with 4 sheets (Campaigns, Content Calendar, Metrics, Dashboard)
+7. **Common Templates** (`common-templates.json`) - Template descriptions for quick reference
 
 ## Formulas
 
@@ -110,9 +110,9 @@ Each formula includes:
 
 ### Available Schemas
 
-1. **CRM Schema** (`schemas/crm-schema.json`) - 4 tables for customer relationship management
-2. **Inventory Schema** (`schemas/inventory-schema.json`) - 5 tables for inventory management
-3. **Project Schema** (`schemas/project-schema.json`) - 5 tables for project management
+1. **CRM Schema** (`schemas/crm.json`) - 4 tables (Contacts, Opportunities, Activities, Pipeline) with 40+ columns
+2. **Inventory Schema** (`schemas/inventory.json`) - 6 tables (Products, Suppliers, Warehouses, StockLevels, Transactions, PurchaseOrders)
+3. **Project Schema** (`schemas/project.json`) - 6 tables (Projects, Tasks, Milestones, Resources, TimeTracking, Risks)
 
 ## AI Integration
 

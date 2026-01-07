@@ -280,9 +280,9 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
     });
 
     const sheet = response.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
-    const rules = (sheet?.conditionalFormats ?? []).map((rule, index) => ({
+    const allRules = (sheet?.conditionalFormats ?? []).map((rule, index) => ({
       index,
-      type: rule.booleanRule ? 'boolean' : 'gradient',
+      type: rule.booleanRule ? 'boolean' as const : 'gradient' as const,
       ranges: (rule.ranges ?? []).map(r => ({
         sheetId: r.sheetId ?? 0,
         startRowIndex: r.startRowIndex ?? undefined,
@@ -292,7 +292,20 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
       })),
     }));
 
-    return this.success('list_conditional_formats', { rules });
+    // Pagination to prevent >1MB responses
+    const limit = 50; // Max 50 rules per response
+    const totalCount = allRules.length;
+    const rules = allRules.slice(0, limit);
+    const truncated = totalCount > limit;
+
+    return this.success('list_conditional_formats', {
+      rules,
+      totalCount,
+      truncated,
+      ...(truncated && {
+        suggestion: `Found ${totalCount} rules. Showing first ${limit}. Use sheets_spreadsheet to get full rule data if needed.`
+      })
+    });
   }
 
   // ============================================================
@@ -367,7 +380,7 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
     });
 
     const sheet = response.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
-    const validations: Array<{
+    const allValidations: Array<{
       range: { sheetId: number; startRowIndex?: number; endRowIndex?: number; startColumnIndex?: number; endColumnIndex?: number };
       condition: { type: ConditionType; values?: string[] };
     }> = [];
@@ -378,7 +391,7 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
         row.values?.forEach((cell, colIdx) => {
           if (cell.dataValidation?.condition) {
             const condType = cell.dataValidation.condition.type as ConditionType;
-            validations.push({
+            allValidations.push({
               range: {
                 sheetId: input.sheetId,
                 startRowIndex: rowIdx,
@@ -396,7 +409,20 @@ export class RulesHandler extends BaseHandler<SheetsRulesInput, SheetsRulesOutpu
       });
     });
 
-    return this.success('list_data_validations', { validations });
+    // Pagination to prevent >1MB responses (data validation can be per-cell!)
+    const limit = 100; // Max 100 validation rules per response
+    const totalCount = allValidations.length;
+    const validations = allValidations.slice(0, limit);
+    const truncated = totalCount > limit;
+
+    return this.success('list_data_validations', {
+      validations,
+      totalCount,
+      truncated,
+      ...(truncated && {
+        suggestion: `Found ${totalCount} validation rules. Showing first ${limit}. Consider using a specific range instead of entire sheet.`
+      })
+    });
   }
 
   // ============================================================

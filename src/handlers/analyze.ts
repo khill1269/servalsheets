@@ -25,50 +25,8 @@ import type {
   AnalyzeResponse,
 } from '../schemas/analyze.js';
 
-/**
- * MCP Sampling message
- */
-interface SamplingMessage {
-  role: 'user' | 'assistant';
-  content: {
-    type: 'text';
-    text: string;
-  };
-}
-
-/**
- * MCP Sampling request
- */
-interface SamplingRequest {
-  messages: SamplingMessage[];
-  systemPrompt?: string;
-  modelPreferences?: {
-    hints?: Array<{ name: string }>;
-    intelligencePriority?: number;
-    speedPriority?: number;
-  };
-  maxTokens: number;
-  includeContext?: 'none' | 'thisServer' | 'allServers';
-}
-
-/**
- * MCP Extra context with sampling capability
- */
-interface McpExtra {
-  sample?: (request: SamplingRequest) => Promise<{
-    role: 'assistant';
-    content: {
-      type: 'text';
-      text: string;
-    };
-    model: string;
-    stopReason: string;
-  }>;
-  [key: string]: unknown;
-}
-
 export interface AnalyzeHandlerOptions {
-  // Options can be added as needed
+  context: HandlerContext;
 }
 
 /**
@@ -80,8 +38,9 @@ export class AnalyzeHandler {
   private context: HandlerContext;
   private sheetsApi: sheets_v4.Sheets;
 
-  constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets, _options: AnalyzeHandlerOptions = {}) {
-    this.context = context;
+  constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets, _options?: AnalyzeHandlerOptions) {
+    // If options.context is provided, use it; otherwise use the passed context
+    this.context = _options?.context ?? context;
     this.sheetsApi = sheetsApi;
   }
 
@@ -112,7 +71,7 @@ export class AnalyzeHandler {
   /**
    * Handle analysis requests
    */
-  async handle(input: SheetsAnalyzeInput, extra?: McpExtra): Promise<SheetsAnalyzeOutput> {
+  async handle(input: SheetsAnalyzeInput): Promise<SheetsAnalyzeOutput> {
     const { request } = input;
     const analysisService = getSamplingAnalysisService();
 
@@ -121,8 +80,22 @@ export class AnalyzeHandler {
 
       switch (request.action) {
         case 'analyze': {
-          // Check if sampling is available
-          if (!extra?.sample) {
+          // Check if server is available
+          if (!this.context.server) {
+            response = {
+              success: false,
+              error: {
+                code: 'SAMPLING_UNAVAILABLE',
+                message: 'MCP Server instance not available. Cannot perform sampling.',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          // Check if client supports sampling
+          const clientCapabilities = this.context.server.getClientCapabilities();
+          if (!clientCapabilities?.sampling) {
             response = {
               success: false,
               error: {
@@ -163,11 +136,16 @@ export class AnalyzeHandler {
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult = await extra.sample(samplingRequest);
+          const samplingResult = await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
-          // Parse the response
-          const parsed = parseAnalysisResponse(samplingResult.content.text);
+          // Parse the response (extract text from content)
+          const contentText = typeof samplingResult.content === 'string'
+            ? samplingResult.content
+            : samplingResult.content.type === 'text'
+            ? samplingResult.content.text
+            : '';
+          const parsed = parseAnalysisResponse(contentText);
 
           if (!parsed.success || !parsed.result) {
             analysisService.recordFailure(request.analysisTypes as AnalysisType[]);
@@ -205,8 +183,21 @@ export class AnalyzeHandler {
         }
 
         case 'generate_formula': {
-          // Check if sampling is available
-          if (!extra?.sample) {
+          // Check if server is available
+          if (!this.context.server) {
+            response = {
+              success: false,
+              error: {
+                code: 'SAMPLING_UNAVAILABLE',
+                message: 'MCP Server instance not available. Cannot perform sampling.',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          // Check if client supports sampling
+          if (!this.context.server.getClientCapabilities()?.sampling) {
             response = {
               success: false,
               error: {
@@ -242,12 +233,18 @@ export class AnalyzeHandler {
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult = await extra.sample(samplingRequest);
+          const samplingResult = await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
-          // Parse the response
+          // Parse the response (extract text from content)
+          const contentText = typeof samplingResult.content === 'string'
+            ? samplingResult.content
+            : samplingResult.content.type === 'text'
+            ? samplingResult.content.text
+            : '';
+
           try {
-            const jsonMatch = samplingResult.content.text.match(/\{[\s\S]*\}/);
+            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error('No JSON in response');
             const parsed = JSON.parse(jsonMatch[0]);
 
@@ -278,8 +275,21 @@ export class AnalyzeHandler {
         }
 
         case 'suggest_chart': {
-          // Check if sampling is available
-          if (!extra?.sample) {
+          // Check if server is available
+          if (!this.context.server) {
+            response = {
+              success: false,
+              error: {
+                code: 'SAMPLING_UNAVAILABLE',
+                message: 'MCP Server instance not available. Cannot perform sampling.',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          // Check if client supports sampling
+          if (!this.context.server.getClientCapabilities()?.sampling) {
             response = {
               success: false,
               error: {
@@ -316,12 +326,18 @@ export class AnalyzeHandler {
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult = await extra.sample(samplingRequest);
+          const samplingResult = await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
-          // Parse the response
+          // Parse the response (extract text from content)
+          const contentText = typeof samplingResult.content === 'string'
+            ? samplingResult.content
+            : samplingResult.content.type === 'text'
+            ? samplingResult.content.text
+            : '';
+
           try {
-            const jsonMatch = samplingResult.content.text.match(/\{[\s\S]*\}/);
+            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error('No JSON in response');
             const parsed = JSON.parse(jsonMatch[0]);
 

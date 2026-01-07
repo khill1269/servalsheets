@@ -176,36 +176,8 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
 };
 
-/**
- * Tool descriptions for MCP registration
- */
-export const TOOL_DESCRIPTIONS: Record<string, string> = {
-  sheets_auth: 'Authentication management: status, login, callback, logout for OAuth-based access.',
-  sheets_spreadsheet: 'Manage Google Spreadsheets: create new spreadsheets, get metadata, copy entire spreadsheets, update properties like title and locale.',
-  sheets_sheet: 'Manage individual sheets (tabs) within a spreadsheet: add, delete, duplicate, rename, copy to other spreadsheets, and list all sheets.',
-  sheets_values: 'Read and write cell values: single reads, batch reads, writes, appends, clears, find text, and find-replace operations.',
-  sheets_cells: 'Cell-level operations: add/remove notes, set data validation, add hyperlinks, merge/unmerge cells, cut/copy operations.',
-  sheets_format: 'Format cells: set background colors, text formatting (bold, italic, font), number formats, alignment, borders, and apply preset styles.',
-  sheets_dimensions: 'Row and column operations: insert, delete, move, resize, auto-fit, hide/show, freeze panes, and group rows/columns.',
-  sheets_rules: 'Manage rules: add conditional formatting rules, data validation rules, color scales, and preset rule types.',
-  sheets_charts: 'Chart operations: create charts (bar, line, pie, etc.), update chart properties, delete, move, resize, and export as images.',
-  sheets_pivot: 'Pivot table management: create pivot tables, update configuration, add calculated fields, refresh data.',
-  sheets_filter_sort: 'Filtering and sorting: set basic filters, create filter views, add slicers, sort ranges by column values.',
-  sheets_sharing: 'Sharing and permissions: share with users/groups, update permissions, remove access, transfer ownership, configure link sharing.',
-  sheets_comments: 'Comment management: add comments to cells, reply to comments, resolve/reopen discussions, delete comments.',
-  sheets_versions: 'Version control: list revision history, view specific revisions, restore previous versions, create named snapshots, compare versions.',
-  sheets_analysis: 'Data analysis (read-only): check data quality, audit formulas, analyze structure, compute statistics, find correlations.',
-  sheets_advanced: 'Advanced features: named ranges, protected ranges, developer metadata, banded ranges (alternating row colors).',
-  // Enterprise Tools
-  sheets_transaction: 'Transaction support: begin, queue operations, commit/rollback atomically with auto-snapshot.',
-  sheets_validation: 'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.).',
-  sheets_conflict: 'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
-  sheets_impact: 'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables).',
-  sheets_history: 'Operation history: track last 100 operations for debugging and undo foundation.',
-  // MCP-Native Tools
-  sheets_confirm: 'Plan confirmation: uses MCP Elicitation (SEP-1036) for user confirmation before execution.',
-  sheets_analyze: 'AI-powered analysis: uses MCP Sampling (SEP-1577) for pattern detection, anomalies, trends.',
-};
+// NOTE: Tool descriptions are now in descriptions.ts
+// This file contains only TOOL_ANNOTATIONS and ACTION_COUNTS
 
 /**
  * Action counts per tool
@@ -250,11 +222,12 @@ export interface ToolMetadata {
 
 /**
  * Get all tool metadata
+ * Note: This function is not currently used. Descriptions are accessed directly from descriptions.ts
  */
-export function getToolMetadata(): ToolMetadata[] {
+export function getToolMetadata(): Record<string, unknown>[] {
   return Object.keys(TOOL_ANNOTATIONS).map(name => ({
     name,
-    description: TOOL_DESCRIPTIONS[name] ?? '',
+    description: '', // Descriptions should be imported from descriptions.ts instead
     annotations: TOOL_ANNOTATIONS[name]!,
     actionCount: ACTION_COUNTS[name] ?? 0,
   }));

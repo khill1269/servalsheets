@@ -11,6 +11,7 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
+import type { HandlerContext } from './base.js';
 import {
   getConfirmationService,
   type OperationPlan as ServicePlan,
@@ -24,27 +25,8 @@ import type {
   OperationPlan,
 } from '../schemas/confirm.js';
 
-/**
- * MCP Extra context with elicitation capability
- */
-interface McpExtra {
-  elicit?: (request: {
-    mode: 'form';
-    message: string;
-    requestedSchema: {
-      type: 'object';
-      properties: Record<string, unknown>;
-      required?: string[];
-    };
-  }) => Promise<{
-    action: 'accept' | 'decline' | 'cancel';
-    content?: Record<string, unknown>;
-  }>;
-  [key: string]: unknown;
-}
-
 export interface ConfirmHandlerOptions {
-  // Options can be added as needed
+  context: HandlerContext;
 }
 
 /**
@@ -53,8 +35,10 @@ export interface ConfirmHandlerOptions {
  * Handles user confirmation via MCP Elicitation before multi-step operations.
  */
 export class ConfirmHandler {
-  constructor(_options: ConfirmHandlerOptions = {}) {
-    // Constructor logic if needed
+  private context: HandlerContext;
+
+  constructor(options: ConfirmHandlerOptions) {
+    this.context = options.context;
   }
 
   /**
@@ -76,7 +60,7 @@ export class ConfirmHandler {
   /**
    * Handle confirmation requests
    */
-  async handle(input: SheetsConfirmInput, extra?: McpExtra): Promise<SheetsConfirmOutput> {
+  async handle(input: SheetsConfirmInput): Promise<SheetsConfirmOutput> {
     const { request } = input;
     const confirmService = getConfirmationService();
 
@@ -85,8 +69,22 @@ export class ConfirmHandler {
 
       switch (request.action) {
         case 'request': {
-          // Check if elicitation is available
-          if (!extra?.elicit) {
+          // Check if server is available
+          if (!this.context.server) {
+            response = {
+              success: false,
+              error: {
+                code: 'ELICITATION_UNAVAILABLE',
+                message: 'MCP Server instance not available. Cannot perform elicitation.',
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          // Check if client supports elicitation
+          const clientCapabilities = this.context.server.getClientCapabilities();
+          if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
               error: {
@@ -114,11 +112,18 @@ export class ConfirmHandler {
 
           // Request user confirmation via MCP Elicitation
           const startTime = Date.now();
-          const elicitResult = await extra.elicit(elicitRequest);
+          const elicitResult = await this.context.server.elicitInput({
+            mode: 'form',
+            message: elicitRequest.message,
+            requestedSchema: elicitRequest.requestedSchema as any, // Type assertion needed due to strict SDK schema types
+          });
 
-          // Process result
+          // Process result (convert ElicitResult to the format expected by service)
           const confirmation = confirmService.processElicitationResult(
-            elicitResult,
+            {
+              action: elicitResult.action,
+              content: elicitResult.content,
+            },
             startTime
           );
 

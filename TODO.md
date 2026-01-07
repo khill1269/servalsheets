@@ -1,933 +1,920 @@
 # ServalSheets TODO List
-*Generated: 2026-01-05*
+*Generated: 2026-01-07 (Updated with comprehensive audit findings)*
 
 ## 🔥 IN PROGRESS
 
-**Phase 0: COMPLETE!** ✅ (All issues already resolved)
-**Phase 1: COMPLETE!** ✅ (All Quick Wins tasks completed)
-
-Ready to begin Phase 2 (Performance Optimizations)
+None - Ready to start!
 
 ---
 
-## 🔴 PHASE 0: CRITICAL FIXES (DO NOW!)
+## 🔴 PHASE 0: CRITICAL RUNTIME BREAKAGES (DO NOW!)
 
-### Task 0.1: Fix Authentication Client Errors ⚠️ BLOCKING
-**Priority**: P0 | **Effort**: 4h | **Status**: ✅ **COMPLETE** (Already fixed in previous commits)
+### Task 0.1: Wire Sampling/Elicitation Capabilities ⚠️ BLOCKING
+**Priority**: P0 | **Effort**: 4h | **Status**: ⬜ Not Started
+**Finding**: #1 HIGH - Sampling/elicitation advertised but not wired
+**Verified**: ⚠️ CORRECTED - See docs/development/TODO_VERIFICATION_REPORT.md
 
 ```
-Issue: authClient.request is not a function (20 occurrences)
-Files: src/handlers/auth.ts, src/utils/oauth-callback-server.ts
+Issue: sheets_confirm/sheets_analyze return ELICITATION_UNAVAILABLE/SAMPLING_UNAVAILABLE
+Evidence: server.json:13-14 advertises, confirm.ts:89 checks extra.elicit (doesn't exist!),
+          SDK provides server.elicitInput() and server.createMessage() on Server class, NOT in extra
+Files: src/handlers/confirm.ts, src/handlers/analyze.ts, src/server.ts
 ```
 
-**Checklist**:
-- [ ] Read `src/handlers/auth.ts`
-- [ ] Read `src/utils/oauth-callback-server.ts`
-- [ ] Identify where `authClient.request()` is called
-- [ ] Check googleapis version in package.json
-- [ ] Review OAuth2Client API documentation
-- [ ] Fix method name/usage (likely `.request()` → `.getRequestHeaders()` or similar)
-- [ ] Update error handling
-- [ ] Test: Login flow
-- [ ] Test: Callback flow
-- [ ] Test: Token refresh
-- [ ] Test: Status check
-- [ ] Run logs and verify zero errors
+**⚠️ IMPORTANT**: MCP SDK 1.25.1 does NOT provide `extra.elicit` or `extra.sample` methods.
+- RequestHandlerExtra only includes: signal, requestId, sendRequest, sendNotification
+- Elicitation/sampling are methods on the Server class: `server.elicitInput()` and `server.createMessage()`
+- See node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js:342-382
+
+**Minimal Fix** (choose one path):
+- [ ] **Option A: Remove capabilities until ready**
+  - [ ] Remove `elicitation` from server.json:13
+  - [ ] Remove `sampling` from server.json:14
+  - [ ] Remove from well-known.ts
+  - [ ] Hide sheets_confirm/sheets_analyze from tool registry
+  - [ ] Test: Verify tools don't appear in tools/list
+  - [ ] Commit changes
+
+- [ ] **Option B: Implement capabilities correctly (recommended)**
+  - [ ] Update server.ts to pass Server instance into handler context (not just extra)
+  - [ ] Update HandlerContext type to include server: Server
+  - [ ] Update confirm.ts:89 to check `server.getClientCapabilities()?.elicitation`
+  - [ ] Replace `extra.elicit()` calls with `server.elicitInput({ mode: 'form', message, requestedSchema })`
+  - [ ] Update analyze.ts:125 to check `server.getClientCapabilities()?.sampling`
+  - [ ] Replace `extra.sample()` calls with `server.createMessage({ messages, ... })`
+  - [ ] Test: sheets_confirm with elicitation
+  - [ ] Test: sheets_analyze with sampling
+  - [ ] Verify no UNAVAILABLE errors
+  - [ ] Commit changes
+
+**Correct Implementation Pattern** (verified against SDK):
+```typescript
+// In server.ts - pass Server instance to handlers
+return this.handleToolCall(tool.name, args, {
+  ...extra,
+  server: this.server  // Add this!
+});
+
+// In handlers - use Server methods directly
+if (!context.server) {
+  return { error: 'SERVER_NOT_AVAILABLE' };
+}
+if (!context.server.getClientCapabilities()?.elicitation) {
+  return { error: 'ELICITATION_UNAVAILABLE' };
+}
+const result = await context.server.elicitInput({
+  mode: 'form',
+  message: 'Confirm changes?',
+  requestedSchema: confirmSchema
+});
+```
+
+---
+
+### Task 0.2: Fix Task Cancellation ⚠️ BLOCKING
+**Priority**: P0 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: #2 HIGH - SEP-1686 cancel is ineffective
+
+```
+Issue: tasks/cancel does not stop execution or set cancellation flags
+Evidence: protocol.js:136 calls updateTaskStatus, task-store-adapter.ts:99 only delegates,
+          server.ts:719 registerTaskCancelHandler is no-op
+Files: src/services/task-store-adapter.ts, src/services/task-store.ts, src/server.ts
+```
+
+**Minimal Fix**:
+- [ ] Read task-store-adapter.ts:99 (updateTaskStatus method)
+- [ ] Read task-store.ts:290 (cancelTask method)
+- [ ] In TaskStoreAdapter.updateTaskStatus, detect status === 'cancelled'
+- [ ] Call this.cancelTask(taskId) when cancelled
+- [ ] Verify cancelledTasks Set is populated
+- [ ] Read server.ts:337 (isTaskCancelled check)
+- [ ] Test: Create task, cancel it, verify execution stops
+- [ ] Test: Verify isTaskCancelled returns true
+- [ ] Commit changes
+
+**Best Fix** (if SDK supports it):
+- [ ] Wire explicit cancel handler (if SDK supports it)
+- [ ] Propagate extra.signal into handler execution
+- [ ] Add AbortController support to handlers
+- [ ] Test immediate abort on cancel
+
+---
+
+### Task 0.3: Initialize Services for HTTP/Remote Transports ⚠️ BLOCKING
+**Priority**: P0 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: #3 HIGH - HTTP/remote missing service initialization
+
+```
+Issue: sheets_transaction/conflict/impact/validation fail in HTTP/remote sessions
+Evidence: server.ts:185-188 initializes services for stdio only,
+          transaction.ts:25 calls getTransactionManager which throws if not initialized
+Files: src/server/http-server.ts, src/server/remote-server.ts
+```
+
+**Minimal Fix**:
+- [ ] Read server.ts:185-188 (service initialization for stdio)
+- [ ] Read http-server.ts:139 (tool registration)
+- [ ] Read remote-server.ts:363 (tool registration)
+- [ ] In http-server.ts, after creating googleClient:
+  - [ ] Call initTransactionManager(googleClient)
+  - [ ] Call initConflictDetector(googleClient)
+  - [ ] Call initImpactAnalyzer(googleClient)
+  - [ ] Call initValidationEngine(googleClient)
+- [ ] Repeat for remote-server.ts
+- [ ] Test: HTTP session with sheets_transaction
+- [ ] Test: HTTP session with sheets_validation
+- [ ] Verify no "not initialized" errors
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Extract shared bootstrap function
+- [ ] Call from both stdio and HTTP/remote
+- [ ] Ensure complete parity
+
+---
+
+### Task 0.4: Fix server.json Schema Validation ⚠️ BLOCKING
+**Priority**: P0 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #4 HIGH - server.json fails validation
+
+```
+Issue: npm run validate:server-json fails, package metadata not registry-compliant
+Evidence: validate-server-json.mjs:70-71 requires packages/tools arrays,
+          validate-server-json.mjs:73 requires name match package.json.mcpName,
+          server.json:2 uses "servalsheets", missing arrays
+Files: server.json, scripts/generate-metadata.ts
+```
+
+**Minimal Fix**:
+- [ ] Read package.json:34 (mcpName field)
+- [ ] Edit server.json:2 to match mcpName exactly
+- [ ] Add `"packages": []` to server.json
+- [ ] Add `"tools": []` to server.json
+- [ ] Run: npm run validate:server-json
+- [ ] Verify validation passes
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Read generate-metadata.ts
+- [ ] Make it emit schema-valid server.json
+- [ ] Populate packages/tools arrays from registry
+- [ ] Use pkg.mcpName for name field
+- [ ] Run generator and verify output
 - [ ] Commit changes
 
 ---
 
-### Task 0.2: Set Production Encryption Key 🔐 SECURITY
-**Priority**: P0 | **Effort**: 1h | **Status**: ✅ **COMPLETE** (ENCRYPTION_KEY already set in .env)
+### Task 0.5: Fix stdout Logging in stdio Mode ⚠️ BLOCKING
+**Priority**: P0 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #15 MED - stdout logging corrupts stdio protocol stream
 
 ```
-Issue: ENCRYPTION_KEY not set (14 warnings)
-Files: .env, .env.example, README.md
+Issue: Any stdout output in stdio mode breaks MCP framing
+Evidence: oauth-callback-server.ts:158 uses console.log,
+          transaction-manager.ts:715, conflict-detector.ts:700, etc. have verbose logs
+Files: src/utils/oauth-callback-server.ts, src/services/*.ts
 ```
 
-**Checklist**:
-- [ ] Run: `openssl rand -hex 32`
-- [ ] Copy generated key
-- [ ] Create/edit `.env` file
-- [ ] Add: `ENCRYPTION_KEY=<generated_key>`
-- [ ] Edit `.env.example`
-- [ ] Add: `ENCRYPTION_KEY=your_key_here # Generate with: openssl rand -hex 32`
-- [ ] Update README.md with setup instructions
-- [ ] Test: Restart server
-- [ ] Test: Verify token encryption
-- [ ] Check logs for warnings (should be zero)
-- [ ] Commit changes (but not .env with real key!)
-
-**Generated Key**: `[Run: openssl rand -hex 32]`
-
----
-
-### Task 0.3: Fix Knowledge Base JSON Syntax 📄 STARTUP ERROR
-**Priority**: P0 | **Effort**: 2h | **Status**: ✅ **COMPLETE** (All JSON files validated - no errors found)
-
-```
-Issue: JSON syntax error in parallel.json (line 34, col 44)
-Files: src/knowledge/orchestration/patterns/parallel.json (or dist equivalent)
-```
-
-**Checklist**:
-- [ ] Find file: `find . -name "parallel.json"`
-- [ ] Read the file
-- [ ] Go to line 34, column 44
-- [ ] Identify JSON syntax error (likely missing comma, quote, or brace)
-- [ ] Fix syntax error
-- [ ] Validate JSON: `jq . parallel.json` or online validator
-- [ ] Check all other JSON files in knowledge base
-- [ ] Create validation script: `scripts/validate-knowledge-base.js`
-- [ ] Add to package.json: `"validate:kb": "node scripts/validate-knowledge-base.js"`
-- [ ] Add to pre-commit hook (optional)
-- [ ] Run build: `npm run build`
-- [ ] Test: Start server
-- [ ] Check logs: Should load 40/40 files (not 39/40)
+**Minimal Fix**:
+- [ ] Search for all console.log/console.warn/console.error in src/
+- [ ] Replace with logger.info/logger.warn/logger.error (goes to stderr)
+- [ ] Add transport detection to logger
+- [ ] Guard verbose logs behind process.env.STDIO_MODE !== 'true'
+- [ ] Test: Run in stdio mode, verify clean output
+- [ ] Test: Pipe stdout to file, verify only MCP JSON
 - [ ] Commit changes
 
----
-
-## ⭐ PHASE 1: QUICK WINS (Week 1, Days 3-5)
-
-### Task 1.1: Proactive OAuth Token Refresh + Security Monitoring ⚡ ENHANCED
-**Priority**: P1 | **Effort**: 5h | **Status**: ✅ **COMPLETE**
-**Depends**: Task 0.1
-
-**Checklist**:
-- [x] Create `src/services/token-manager.ts` ✅ (Already implemented!)
-- [x] Implement TokenManager class ✅ (Already implemented!)
-- [x] Track token expiry times
-- [x] Calculate 80% lifetime threshold
-- [x] Implement `checkAndRefresh()` method
-- [x] Create background worker (5 min interval)
-- [x] Add metrics for refresh operations
-- [x] **NEW: Add token rotation monitoring for anomaly detection**
-- [x] **NEW: Track refresh patterns (alert if >10 refreshes/hour)**
-- [x] **NEW: Log unusual refresh patterns for security**
-- [x] Integrate with auth handler
-- [x] Test: Manual expiry simulation
-- [x] Test: Background refresh
-- [x] Monitor logs for "Token expires soon" (verified in tests)
-- [x] Commit changes (pending)
-
-**New Features from Optimization Analysis**:
-- Token rotation monitoring to detect compromised tokens
-- Anomaly detection for unusual refresh patterns
-- Security alerting integration
+**Best Fix**:
+- [ ] Centralize logging with transport-aware sinks
+- [ ] Add test for clean stdio output
+- [ ] Add CI check to prevent stdout usage
 
 ---
 
-### Task 1.2: Optimize Connection Health Monitoring
+## 🟡 PHASE 1: MCP PROTOCOL COMPLIANCE (Week 1)
+
+### Task 1.1: Forward Complete MCP Context
 **Priority**: P1 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: #6 MED - MCP call context forwarding incomplete
+
+```
+Issue: requestId/signal/sendNotification don't flow correctly
+Evidence: server.ts:283 limits extra to sendNotification/progressToken/elicit/sample,
+          protocol.d.ts:173 includes signal/requestId/sendRequest
+Files: src/server.ts, src/mcp/registration.ts
+```
 
 **Checklist**:
-- [ ] Read `src/mcp/registration.ts`
-- [ ] Find connection config constants
-- [ ] Change `disconnectThresholdMs`: 60000 → 120000
-- [ ] Change `warnThresholdMs`: 30000 → 60000
-- [ ] Change `checkIntervalMs`: 10000 → 15000
-- [ ] Add exponential backoff for reconnects
-- [ ] Reduce log level for routine disconnects (info → debug)
-- [ ] Test: Idle connection for 2+ minutes
-- [ ] Test: Reconnection after disconnect
-- [ ] Monitor disconnection frequency (<10/hour)
+- [ ] Read server.ts:283 (stdio tool registration)
+- [ ] Read registration.ts:862 (HTTP/remote registration)
+- [ ] Update server.ts:283 to forward full `extra` object
+- [ ] Add requestId from extra.requestId || extra.requestInfo?._meta?.requestId
+- [ ] Add abortSignal from extra.signal
+- [ ] Preserve sendNotification, progressToken, elicit, sample
+- [ ] Update registration.ts:586 to build full request context
+- [ ] Test: Verify requestId flows through
+- [ ] Test: Verify signal propagates for cancellation
+- [ ] Test: Verify progress notifications work
 - [ ] Commit changes
+
+**Diff Snippet**:
+```typescript
+// server.ts
+-        async (args: Record<string, unknown>, extra) => {
+-          const progressToken = extra.requestInfo?._meta?.progressToken;
+-          return this.handleToolCall(tool.name, args, {
+-            sendNotification: extra.sendNotification,
+-            progressToken,
+-            elicit: extra.elicit,
+-            sample: extra.sample,
+-          });
+-        }
++        async (args: Record<string, unknown>, extra) => {
++          const progressToken = extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
++          return this.handleToolCall(tool.name, args, {
++            ...extra,
++            sendNotification: extra.sendNotification,
++            progressToken,
++            abortSignal: extra.signal ?? undefined,
++          });
++        }
+```
 
 ---
 
-### Task 1.3: Add Operation History Resource
-**Priority**: P1 | **Effort**: 4h | **Status**: ⬜ Not Started
+### Task 1.2: Return MCP Tool Errors, Not Protocol Errors
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #7 MED - HTTP/remote tools throw protocol errors
+
+```
+Issue: MCP clients receive protocol-level errors instead of structured tool failures
+Evidence: registration.ts:717 throws error instead of returning CallToolResult with isError
+Files: src/mcp/registration.ts
+```
 
 **Checklist**:
-- [ ] Create `src/types/history.ts`
-- [ ] Define `OperationHistory` interface
-- [ ] Create `src/services/history-service.ts`
-- [ ] Implement HistoryService class
-- [ ] Add operation recording on each tool call
-- [ ] Store last 100 operations (circular buffer)
-- [ ] Include: id, timestamp, tool, action, params, result, duration, cellsAffected, snapshotId
-- [ ] Update `src/mcp/resources.ts`
-- [ ] Add `history://operations` resource
-- [ ] Implement resource read handler
-- [ ] Test: Execute operations and read history
-- [ ] Test: History limit (>100 operations)
+- [ ] Read registration.ts:717 (createToolCallHandler error handling)
+- [ ] Read server.ts (stdio error handling for comparison)
+- [ ] Update createToolCallHandler to catch errors
+- [ ] Convert errors to buildToolResponse({ success: false, error: ... })
+- [ ] Return CallToolResult with isError: true
+- [ ] Test: Trigger tool error in HTTP/remote
+- [ ] Verify client receives structured error, not protocol error
 - [ ] Commit changes
+
+**Best Fix**:
+- [ ] Extract shared error-mapping utility
+- [ ] Use in both stdio and HTTP/remote
 
 ---
 
-### Task 1.4: Add Parameter Inference System
+### Task 1.3: Fix History Undo/Revert by Injecting SnapshotService
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #8 MED - History undo/revert broken
+
+```
+Issue: sheets_history undo/revert operations fail even when snapshots exist
+Evidence: index.ts:164 creates HistoryHandler with no options,
+          history.ts:146 returns SERVICE_NOT_INITIALIZED when snapshotService missing
+Files: src/handlers/index.ts, src/handlers/history.ts
+```
+
+**Checklist**:
+- [ ] Read index.ts:164 (HistoryHandler construction)
+- [ ] Read history.ts constructor (check for snapshotService parameter)
+- [ ] Update index.ts:164 to pass snapshotService into HistoryHandler
+- [ ] Verify SnapshotService is available in createHandlers context
+- [ ] Test: sheets_history undo operation
+- [ ] Test: sheets_history revert operation
+- [ ] Verify no SERVICE_NOT_INITIALIZED errors
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Include snapshot service in shared handler context
+- [ ] Add undo/revert integration tests
+
+---
+
+### Task 1.4: Register sheets_fix Tool or Remove Dead Code
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: #9 MED - sheets_fix exists but not registered
+
+```
+Issue: sheets_fix is unreachable via MCP tools/list despite schema/handler present
+Evidence: index.ts:48 exports Fix schema, index.ts:177 loads handler,
+          registration.ts:286 ends at sheets_analyze (no sheets_fix entry)
+Files: src/mcp/registration.ts, src/schemas/index.ts, src/handlers/index.ts
+```
+
+**Minimal Fix** (choose one):
+- [ ] **Option A: Remove dead code**
+  - [ ] Remove Fix schema from index.ts:48
+  - [ ] Remove FixHandler from index.ts:177
+  - [ ] Remove src/schemas/fix.ts
+  - [ ] Remove src/handlers/fix.ts
+  - [ ] Commit changes
+
+- [ ] **Option B: Register the tool**
+  - [ ] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
+  - [ ] Add sheets_fix to TOOL_REGISTRY
+  - [ ] Add to README.md tool list
+  - [ ] Test: Verify sheets_fix appears in tools/list
+  - [ ] Test: Execute sheets_fix action
+  - [ ] Commit changes
+
+**Best Fix**:
+- [ ] Generate tool registries from schema files
+- [ ] Prevent omissions with CI check
+
+---
+
+### Task 1.5: Register Logging Handler or Remove Capability
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: #10 MED - Logging capability declared but not registered
+
+```
+Issue: Clients attempt logging/setLevel and receive unhandled request errors
+Evidence: features-2025-11-25.ts:237 includes logging,
+          well-known.ts:151 advertises logging,
+          logging.ts:12 has handler, server.ts:208 never registers it
+Files: src/server.ts, src/mcp/logging.ts
+```
+
+**Minimal Fix** (choose one):
+- [ ] **Option A: Remove capability**
+  - [ ] Remove logging from features-2025-11-25.ts:237
+  - [ ] Remove logging from well-known.ts:151
+  - [ ] Remove logging from server.json:10
+  - [ ] Commit changes
+
+- [ ] **Option B: Register handler**
+  - [ ] Read logging.ts:12 handler implementation
+  - [ ] Register logging/setLevel in server.ts:208
+  - [ ] Test: Call logging/setLevel from client
+  - [ ] Verify log level changes
+  - [ ] Commit changes
+
+**Best Fix**:
+- [ ] Implement and test logging in all transports
+- [ ] Ensure consistent behavior
+
+---
+
+### Task 1.6: Wire Completions and Update TOOL_ACTIONS
 **Priority**: P1 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: #11 MED - Completions not wired and stale
+
+```
+Issue: completions capability partially false, provides wrong action suggestions
+Evidence: server.ts:197 comments out completions registration,
+          completions.ts:15 claims source of truth but is incorrect for multiple tools
+Files: src/server.ts, src/mcp/completions.ts
+```
 
 **Checklist**:
-- [ ] Create `src/services/context-manager.ts`
-- [ ] Implement ContextManager singleton
-- [ ] Track `lastUsed.spreadsheetId`
-- [ ] Track `lastUsed.sheetId`
-- [ ] Track `lastUsed.range`
-- [ ] Implement `inferParameters()` method
-- [ ] Add `updateContext()` on each operation
-- [ ] Integrate into all handler files
-- [ ] Add `reset()` method
-- [ ] Test: Operations with missing params
-- [ ] Test: Context updates
-- [ ] Test: Multiple spreadsheets
+- [ ] Read completions.ts:87 (sheets_confirm actions)
+- [ ] Compare with confirm.ts:53 (actual actions)
+- [ ] Update TOOL_ACTIONS for sheets_confirm: [request, get_stats]
+- [ ] Read completions.ts:90 (sheets_analyze actions)
+- [ ] Compare with analyze.ts:49 (actual actions)
+- [ ] Update TOOL_ACTIONS for sheets_analyze
+- [ ] Repeat for all tools with drift
+- [ ] Read completions.ts:17 (total count claim)
+- [ ] Update to match actual count (188 actions)
+- [ ] Uncomment completions registration in server.ts:197
+- [ ] Test: Request completions from client
+- [ ] Verify correct action suggestions
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Generate TOOL_ACTIONS from schemas
+- [ ] Add CI check to detect drift
+
+---
+
+### Task 1.7: Add Resource Parity Across Transports
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #12 MED - Resource registration lacks transport parity
+
+```
+Issue: Resource availability differs by transport
+Evidence: server.ts:669 registers history/cache/transaction/conflict/impact/validation/metrics/confirm/analyze/reference,
+          http-server.ts:140 only registers core resources/knowledge,
+          remote-server.ts:364 same as HTTP
+Files: src/server/http-server.ts, src/server/remote-server.ts
+```
+
+**Checklist**:
+- [ ] Read server.ts:669-680 (full resource registration list)
+- [ ] Read http-server.ts:140 (current HTTP resources)
+- [ ] Read remote-server.ts:364 (current remote resources)
+- [ ] Add missing resources to HTTP/remote:
+  - [ ] history://operations
+  - [ ] cache://stats
+  - [ ] transaction://active
+  - [ ] conflict://recent
+  - [ ] impact://analysis
+  - [ ] validation://summary
+  - [ ] metrics://performance
+  - [ ] confirm://pending
+  - [ ] analyze://cache
+- [ ] Test: Request each resource via HTTP/remote
+- [ ] Verify parity with stdio
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Centralize resource registration in shared function
+- [ ] Call from all transports
+
+---
+
+### Task 1.8: Wire sheets_auth to googleClient in HTTP/Remote
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #13 MED - HTTP/remote sheets_auth not wired
+
+```
+Issue: sheets_auth status reports unauthenticated even when tokens exist
+Evidence: registration.ts:795 uses options?.googleClient,
+          http-server.ts:139 and remote-server.ts:363 call without options,
+          auth.ts:101 relies on googleClient for status
+Files: src/server/http-server.ts, src/server/remote-server.ts, src/mcp/registration.ts
+```
+
+**Checklist**:
+- [ ] Read registration.ts:795 (registerServalSheetsTools signature)
+- [ ] Read http-server.ts:139 (current call site)
+- [ ] Read remote-server.ts:363 (current call site)
+- [ ] Update http-server.ts:139 to pass `{ googleClient }`
+- [ ] Update remote-server.ts:363 to pass `{ googleClient }`
+- [ ] Test: HTTP session, call sheets_auth status
+- [ ] Verify correct auth state reported
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Provide remote-specific auth handler
+- [ ] Or hide sheets_auth for OAuth-managed transports
+
+---
+
+## 🟢 PHASE 2: SINGLE SOURCE OF TRUTH (Week 2)
+
+### Task 2.1: Generate Counts and Action Lists from Schemas
+**Priority**: P1 | **Effort**: 6h | **Status**: ⬜ Not Started
+**Finding**: #5 HIGH - Metadata/action list drift
+
+```
+Issue: Counts conflict: package.json:4 (152), server.json:18 (152), features-2025-11-25.ts:14 (179),
+       registration.ts:1053 (180), completions.ts:17 (185+), actual: 188
+Evidence: history.ts:13 includes undo/redo/revert/clear but index.ts:239 only lists list/get/stats
+Files: scripts/generate-metadata.ts, src/schemas/index.ts, src/schemas/annotations.ts
+```
+
+**Checklist**:
+- [ ] Read generate-metadata.ts (current implementation)
+- [ ] Update generator to:
+  - [ ] Scan all schema files in src/schemas/
+  - [ ] Extract actions from discriminated unions
+  - [ ] Count total actions per tool
+  - [ ] Count total actions across all tools
+  - [ ] Generate ACTION_COUNTS map for annotations.ts
+  - [ ] Generate TOOL_ACTIONS list for completions.ts
+  - [ ] Update TOOL_COUNT and ACTION_COUNT in index.ts
+  - [ ] Update server.json with correct counts
+  - [ ] Use pkg.mcpName for server.json.name
+  - [ ] Add packages/tools arrays to server.json
+- [ ] Run: npm run generate:metadata
+- [ ] Verify generated counts match truth (23 tools, 188 actions)
+- [ ] Update package.json:4 description with correct count
+- [ ] Test: npm run build
+- [ ] Test: npm run validate:server-json
+- [ ] Commit generated files
+
+**Expected Result**:
+```
+TOOL_COUNT = 23
+ACTION_COUNT = 188
+```
+
+**Diff Snippet**:
+```typescript
+// generate-metadata.ts
+-  schemasIndex = schemasIndex.replace(
+-    /export const ACTION_COUNT = \d+;/,
+-    `export const ACTION_COUNT = ${ACTION_COUNT};`
+-  );
++  schemasIndex = schemasIndex.replace(
++    /export const ACTION_COUNT = .*?;/,
++    `export const ACTION_COUNT = ${ACTION_COUNT};`
++  );
+
+-const serverJson = {
+-  name: "servalsheets",
++const serverJson = {
++  name: pkg.mcpName ?? pkg.name,
+   version: pkg.version,
++  packages: [],
++  tools: []
+ };
+```
+
+---
+
+### Task 2.2: Add CI Guard for Metadata Drift
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #5 HIGH - Metadata drift prevention
+
+```
+Issue: Drift propagates to docs and discovery endpoints
+Files: scripts/check-metadata-drift.sh
+```
+
+**Checklist**:
+- [ ] Read check-metadata-drift.sh (current implementation)
+- [ ] Update to track additional files:
+  - [ ] src/schemas/annotations.ts
+  - [ ] src/mcp/completions.ts
+  - [ ] README.md
+  - [ ] src/server/well-known.ts
+- [ ] Update git diff check to include all tracked files
+- [ ] Test: Modify action count manually
+- [ ] Test: Run CI, verify it fails
+- [ ] Test: Run generator, verify CI passes
+- [ ] Add to package.json:75 (prepack script)
+- [ ] Commit changes
+
+**Diff Snippet**:
+```bash
+# check-metadata-drift.sh
+-git add package.json src/schemas/index.ts server.json 2>/dev/null || true
++git add package.json src/schemas/index.ts src/schemas/annotations.ts src/mcp/completions.ts server.json README.md src/server/well-known.ts 2>/dev/null || true
+
+-if ! git diff --exit-code package.json src/schemas/index.ts server.json >/dev/null 2>&1; then
++if ! git diff --exit-code package.json src/schemas/index.ts src/schemas/annotations.ts src/mcp/completions.ts server.json README.md src/server/well-known.ts >/dev/null 2>&1; then
+```
+
+---
+
+### Task 2.3: Generate Tool Descriptions for /info Endpoint
+**Priority**: P2 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: #16 LOW - /info tool descriptions blank
+
+```
+Issue: /info endpoint returns tools without descriptions
+Evidence: annotations.ts:227 sets description: '',
+          remote-server.ts:263 uses it for /info
+Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
+```
+
+**Checklist**:
+- [ ] Read descriptions.ts (already exists!)
+- [ ] Read annotations.ts:227 (getToolMetadata function)
+- [ ] Update getToolMetadata to populate description from descriptions.ts
+- [ ] Map TOOL_DESCRIPTIONS[toolName] to description field
+- [ ] Test: GET /info endpoint
+- [ ] Verify descriptions are populated
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Generate /info metadata from canonical tool registry
+- [ ] Ensure consistency across all endpoints
+
+---
+
+## 🔵 PHASE 3: DOCUMENTATION & CONSISTENCY (Week 3)
+
+### Task 3.1: Remove References to Deleted Tools
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: #17 LOW - Docs reference removed tools
+
+```
+Issue: Documentation misleads users and downstream registries
+Evidence: README.md:201-204 lists sheets_workflow/sheets_insights/sheets_plan,
+          TOOLS_INTEGRATION_COMPLETE.md:36,58 describe them
+Files: README.md, TOOLS_INTEGRATION_COMPLETE.md
+```
+
+**Checklist**:
+- [ ] Search for "sheets_workflow" in all docs
+- [ ] Search for "sheets_insights" in all docs
+- [ ] Search for "sheets_plan" in all docs
+- [ ] Remove all references to deleted tools
+- [ ] Update tool counts in README.md (23 tools, 188 actions)
+- [ ] Update action counts in TOOLS_INTEGRATION_COMPLETE.md
+- [ ] Verify no other removed tools referenced
+- [ ] Test: Build docs, verify no broken links
 - [ ] Commit changes
 
 ---
 
-### Task 1.5: Add Cache Statistics Resource + Smart Invalidation ⚡ ENHANCED
+### Task 3.2: Update Prompt Copy with Correct Counts
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: #5 HIGH - Count drift in prompts
+
+```
+Issue: Prompt descriptions claim incorrect tool/action counts
+Evidence: features-2025-11-25.ts:14 claims 179 actions,
+          registration.ts:1053 claims 180 actions,
+          actual: 188 actions
+Files: src/mcp/features-2025-11-25.ts, src/mcp/registration.ts
+```
+
+**Checklist**:
+- [ ] Read features-2025-11-25.ts:14 (prompt description)
+- [ ] Update to "23 tools with 188 actions"
+- [ ] Read registration.ts:1053 (prompt copy)
+- [ ] Update to "188 actions across 23 tools"
+- [ ] Search for other hardcoded counts
+- [ ] Update all instances
+- [ ] Test: Verify prompts display correct counts
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Import counts from generated constants
+- [ ] Use `${TOOL_COUNT}` and `${ACTION_COUNT}` in strings
+
+---
+
+### Task 3.3: Update well-known.ts Capabilities
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: #14 LOW - Well-known claims subscriptions without implementation
+
+```
+Issue: Discovery metadata advertises unsupported resource subscription behavior
+Evidence: well-known.ts:132 sets subscriptions: true,
+          only references are in that file (well-known.ts:44)
+Files: src/server/well-known.ts
+```
+
+**Checklist**:
+- [ ] Read well-known.ts:132 (subscriptions field)
+- [ ] Set `subscriptions: false` (not implemented)
+- [ ] Update prompt/resource counts to match reality
+- [ ] Test: GET /.well-known/mcp
+- [ ] Verify subscriptions: false in response
+- [ ] Commit changes
+
+**Best Fix**:
+- [ ] Implement resource subscription handlers if intended
+- [ ] Or keep false until ready
+
+---
+
+## 🟣 PHASE 4: AUTHENTICATION & API HARDENING (Week 4)
+
+### Task 4.1: Verify Scope Coverage for All Operations
 **Priority**: P2 | **Effort**: 4h | **Status**: ⬜ Not Started
+**Finding**: Unproven - scope checks may be missing in some handlers
 
-**Checklist**:
-- [ ] Read `src/utils/cache-manager.ts` (already exists!)
-- [ ] Add stats collection methods
-- [ ] Track: hit rate, miss rate
-- [ ] Track: total entries, memory usage
-- [ ] Track: top accessed keys
-- [ ] Track: eviction rate
-- [ ] **NEW: Implement cache tagging system**
-- [ ] **NEW: Add tag-based invalidation (invalidate all entries tagged with spreadsheet:ID)**
-- [ ] **NEW: Add cache warming for frequently accessed data**
-- [ ] **NEW: Implement `warmCache(spreadsheetId)` for common operations**
-- [ ] **NEW: Add cache metrics endpoint for monitoring**
-- [ ] Update `src/resources/index.ts`
-- [ ] Add `cache://stats` resource
-- [ ] Implement resource read handler
-- [ ] Test: Read cache stats
-- [ ] Test: Stats update in real-time
-- [ ] Test: Tag-based invalidation
-- [ ] Test: Cache warming on spreadsheet open
-- [ ] Commit changes
-
-**New Features from Optimization Analysis**:
-- Cache tagging for smart invalidation (invalidate related entries)
-- Cache warming to pre-populate frequently accessed data
-- Enhanced metrics with performance monitoring
-
----
-
-## ⚡ PHASE 2: PERFORMANCE (Weeks 2-3)
-
-### Task 2.1: Implement Parallel API Calls + Enhanced Batch Usage ⚡ ENHANCED
-**Priority**: P2 | **Effort**: 4d | **Status**: ⬜ Not Started
-
-**New Enhancement**: Leverage Google Sheets batch API endpoints more aggressively
-
-**Batch API Opportunities**:
-- [ ] **Use `spreadsheets.batchUpdate` for multiple formatting operations**
-- [ ] **Use `spreadsheets.values.batchGet` for reading multiple ranges**
-- [ ] **Use `spreadsheets.values.batchUpdate` for multiple value updates**
-- [ ] **Expected impact: 70-90% reduction in API calls for multi-range operations**
-
-**Handlers to Refactor** (0/15):
-- [ ] `src/handlers/spreadsheet.ts`
-- [ ] `src/handlers/sheet.ts`
-- [ ] `src/handlers/values.ts`
-- [ ] `src/handlers/cells.ts`
-- [ ] `src/handlers/dimensions.ts`
-- [ ] `src/handlers/format.ts`
-- [ ] `src/handlers/rules.ts`
-- [ ] `src/handlers/analysis.ts`
-- [ ] `src/handlers/charts.ts`
-- [ ] `src/handlers/pivot.ts`
-- [ ] `src/handlers/sharing.ts`
-- [ ] `src/handlers/comments.ts`
-- [ ] `src/handlers/versions.ts`
-- [ ] `src/handlers/advanced.ts`
-- [ ] `src/handlers/knowledge.ts`
-
-**For Each Handler**:
-- [ ] Identify sequential API calls
-- [ ] Group independent calls
-- [ ] Replace with `Promise.all([...])`
-- [ ] Test functionality
-- [ ] Measure latency improvement
-- [ ] Update tests
-
-**Final**:
-- [ ] Create `src/services/parallel-executor.ts` utility ✅ (Already exists!)
-- [ ] **NEW: Add execution time tracking to parallel executor**
-- [ ] **NEW: Track metrics: totalExecutions, avgDuration, p95Duration**
-- [ ] **NEW: Add performance monitoring for each parallel batch**
-- [ ] Add performance benchmarks
-- [ ] Commit all changes
-
-**New Features from Optimization Analysis**:
-- Aggressive batch API usage (90% call reduction potential)
-- Execution metrics for performance monitoring
-- P95 latency tracking for SLA compliance
-
----
-
-### Task 2.2: Build Predictive Prefetching System
-**Priority**: P2 | **Effort**: 4d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create `src/services/prefetching-system.ts`
-- [ ] Create `src/services/access-pattern-tracker.ts`
-- [ ] Design pattern tracking data structure
-- [ ] Implement `recordAccess()` method
-- [ ] Implement `prefetchOnOpen()` method
-- [ ] Prefetch first 100 rows on spreadsheet open
-- [ ] Prefetch spreadsheet structure (sheets, metadata)
-- [ ] Implement `prefetchAdjacent()` method
-- [ ] Predict next ranges (A1:B10 → likely B1:C10 or A11:B20)
-- [ ] Implement `startBackgroundRefresh()` worker
-- [ ] Refresh cache entries <1 min before expiry
-- [ ] Add configurable strategies
-- [ ] Integrate with cache service
-- [ ] Add metrics collection
-- [ ] Test with simulated access patterns
-- [ ] Tune prefetch algorithms
-- [ ] Measure cache hit rate increase
-- [ ] Commit changes
-
----
-
-### Task 2.3: Implement Batch Request Time Windows
-**Priority**: P2 | **Effort**: 3d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create `src/services/batching-system.ts`
-- [ ] Implement BatchingSystem class
-- [ ] Add operation queue by batch key
-- [ ] Implement 50-100ms collection window
-- [ ] Implement `getBatchKey()` method (spreadsheetId + type)
-- [ ] Implement `execute()` method (queues operation)
-- [ ] Implement `executeBatch()` method (after window)
-- [ ] Implement `mergeOperations()` method
-- [ ] Handle promise resolution for individual ops
-- [ ] Support cross-tool batching (format operations)
-- [ ] Integrate with all handlers
-- [ ] Add metrics for batch sizes
-- [ ] Test batching accuracy
-- [ ] Test promise resolution
-- [ ] Measure API call reduction
-- [ ] Commit changes
-
----
-
-### Task 2.4: Optimize Diff Engine
-**Priority**: P3 | **Effort**: 1d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Read `src/services/diff-service.ts`
-- [ ] Identify redundant API fetches
-- [ ] Use API response data for "after" state
-- [ ] Eliminate post-update fetch
-- [ ] Test diff accuracy
-- [ ] Measure overhead reduction
-- [ ] Commit changes
-
----
-
-### Task 2.5: Request Deduplication Enhancement 🆕 NEW
-**Priority**: P2 | **Effort**: 1d | **Status**: ⬜ Not Started
-
-**Impact**: Eliminate redundant API calls for identical requests within TTL window
-
-**Implementation**:
-- [ ] Read `src/utils/request-deduplication.ts` (already exists!)
-- [ ] Extend RequestDeduplicator with result caching
-- [ ] Add LRU cache for completed requests (max: 1000, ttl: 60s)
-- [ ] Check result cache before making new requests
-- [ ] Cache successful results after completion
-- [ ] Add cache hit/miss metrics
-- [ ] Test with identical concurrent requests
-- [ ] Test with sequential identical requests within TTL
-- [ ] Measure API call reduction
-- [ ] Commit changes
-
-**Expected Impact**:
-- 30-50% reduction in redundant API calls
-- 80-95% latency improvement for cached results
-- Near-zero additional complexity
-
-**Code Example**:
-```typescript
-class EnhancedDeduplicator extends RequestDeduplicator {
-  private resultCache = new LRUCache({ max: 1000, ttl: 60000 });
-
-  async deduplicate<T>(key: string, fn: () => Promise<T>): Promise<T> {
-    // Check result cache first
-    if (this.resultCache.has(key)) {
-      return this.resultCache.get(key);
-    }
-
-    const result = await super.deduplicate(key, fn);
-    this.resultCache.set(key, result);
-    return result;
-  }
-}
+```
+Issue: Need to verify all operations have appropriate scope requirements
+Files: src/handlers/*.ts, src/auth/scopes.ts
 ```
 
----
-
-## 🤖 PHASE 3: INTELLIGENCE (Weeks 4-5)
-
-### Task 3.1: Build Smart Workflow Engine
-**Priority**: P3 | **Effort**: 5d | **Status**: ⬜ Not Started
-
 **Checklist**:
-- [ ] Create `src/types/workflow.ts`
-- [ ] Define Workflow, WorkflowStep, WorkflowTrigger interfaces
-- [ ] Create `src/services/workflow-engine.ts`
-- [ ] Create `src/workflows/builtin-workflows.ts`
-- [ ] Define "analyze_and_fix" workflow
-- [ ] Define "import_and_clean" workflow
-- [ ] Define "create_dashboard" workflow
-- [ ] Implement WorkflowEngine class
-- [ ] Implement `detectAndSuggest()` method
-- [ ] Implement `matchesTrigger()` method
-- [ ] Implement `execute()` method
-- [ ] Implement step chaining with context
-- [ ] Add user confirmation prompts
-- [ ] Test each workflow
-- [ ] Add workflow metrics
-- [ ] Document workflow creation
+- [ ] Read src/auth/scopes.ts (scope definitions)
+- [ ] For each handler in src/handlers/:
+  - [ ] Identify operations requiring specific scopes
+  - [ ] Verify scope checks are present
+  - [ ] Add missing scope validations
+- [ ] Create scope requirement matrix
+- [ ] Test: Attempt operation without required scope
+- [ ] Verify proper error message
+- [ ] Document scope requirements
 - [ ] Commit changes
 
 ---
 
-### Task 3.2: Create Operation Planning Agent
-**Priority**: P3 | **Effort**: 5d | **Status**: ⬜ Not Started
+### Task 4.2: Add Token Redaction Assertions
+**Priority**: P2 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: Unproven - need to verify tokens are never logged
 
-**Checklist**:
-- [ ] Create `src/types/operation-plan.ts`
-- [ ] Define OperationPlan, PlannedStep interfaces
-- [ ] Create `src/services/planning-agent.ts`
-- [ ] Implement PlanningAgent class
-- [ ] Implement `planFromIntent()` method
-- [ ] Use Claude API for plan generation
-- [ ] Implement cost estimation
-- [ ] Implement risk analysis
-- [ ] Implement `presentForConfirmation()` method
-- [ ] Implement `execute()` method with progress
-- [ ] Add automatic snapshot before execution
-- [ ] Add rollback on failure
-- [ ] Test with various intents
-- [ ] Measure plan acceptance rate
-- [ ] Document usage
-- [ ] Commit changes
-
----
-
-### Task 3.3: Add Advanced AI Insights
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create `src/services/insights-engine.ts`
-- [ ] Implement InsightsEngine class
-- [ ] Implement `explainAnomalies()` method
-- [ ] Implement `discoverRelationships()` method
-- [ ] Implement `generatePredictions()` method
-- [ ] Implement `generateNarrative()` method
-- [ ] Integrate with analysis handler
-- [ ] Test with sample datasets
-- [ ] Refine insight quality
-- [ ] Commit changes
-
----
-
-### Task 3.4: Enhanced MCP Sampling with Tool Calling 🆕 NEW (MCP Nov 2025)
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
-
-**Impact**: Leverage new MCP 2025-11-25 sampling features for multi-tool AI workflows
-
-**MCP Protocol Update**: The November 2025 MCP specification introduced:
-- **Concurrent tool execution** through parallel tool calls
-- **Server-side agent loops** with multi-step reasoning
-- **Tool definitions in sampling requests**
-
-**Implementation**:
-- [ ] Read `src/mcp/sampling.ts` (already exists!)
-- [ ] Review MCP 2025-11-25 sampling enhancements
-- [ ] **Enhance createSamplingRequest() with new parameters:**
-  - [ ] Add `tools?: Tool[]` parameter for tool definitions
-  - [ ] Add `toolChoice?: ToolChoice` parameter for tool selection control
-  - [ ] Add `parallelToolCalls?: boolean` for concurrent execution
-- [ ] **Implement multi-tool sampling workflows:**
-  - [ ] Data quality analysis → automatic fixes → validation loop
-  - [ ] Structure analysis → chart generation → formatting
-  - [ ] Statistical analysis → insight generation → report creation
-- [ ] **Add server-side agent loop support:**
-  - [ ] Multi-step reasoning for complex operations
-  - [ ] Tool chaining with context passing
-  - [ ] Error recovery and retry logic
-- [ ] Update analysis handlers to use enhanced sampling
-- [ ] Test multi-tool workflows
-- [ ] Test concurrent tool execution
-- [ ] Measure latency improvement
-- [ ] Document new capabilities
-- [ ] Commit changes
-
-**Expected Impact**:
-- 20-40% faster AI-powered analysis operations
-- More sophisticated multi-step analysis workflows
-- Better tool coordination and chaining
-
-**Code Example**:
-```typescript
-// Before (November 2025)
-const result = await sampling.createSamplingRequest({
-  messages: [{ role: 'user', content: 'Analyze data quality' }]
-});
-
-// After (with new features)
-const result = await sampling.createSamplingRequest({
-  messages: [{ role: 'user', content: 'Analyze and fix data quality issues' }],
-  tools: [
-    { name: 'sheets_analysis', schema: analysisSchema },
-    { name: 'sheets_values', schema: valuesSchema },
-    { name: 'sheets_format', schema: formatSchema }
-  ],
-  toolChoice: 'auto',
-  parallelToolCalls: true  // Execute independent tools concurrently
-});
+```
+Issue: Ensure tokens/secrets are never exposed in logs or errors
+Files: src/utils/google-api.ts, src/utils/error-factory.ts
 ```
 
----
-
-## 🔒 PHASE 4: SAFETY & RELIABILITY (Weeks 6-7)
-
-### Task 4.1: Implement Transaction Support
-**Priority**: P2 | **Effort**: 5d | **Status**: ⬜ Not Started
-
 **Checklist**:
-- [ ] Create `src/types/transaction.ts`
-- [ ] Define Transaction interface
-- [ ] Create `src/services/transaction-manager.ts`
-- [ ] Implement TransactionManager class
-- [ ] Implement `begin()` method (create snapshot)
-- [ ] Implement `queue()` method (add to transaction)
-- [ ] Implement `commit()` method (execute batch)
-- [ ] Implement `rollback()` method (restore snapshot)
-- [ ] Implement `mergeToBatchRequest()` method
-- [ ] Create `src/handlers/transaction.ts`
-- [ ] Define sheets_transaction tool
-- [ ] Add begin, queue, commit, rollback actions
-- [ ] Test atomicity
-- [ ] Test rollback on failure
-- [ ] Test performance (N calls → 1 call)
-- [ ] Document usage
+- [ ] Read google-api.ts (API client code)
+- [ ] Search for all error.message/error.stack usages
+- [ ] Add token redaction to error factory
+- [ ] Redact: access_token, refresh_token, client_secret
+- [ ] Add assertions in tests
+- [ ] Test: Trigger errors with auth tokens
+- [ ] Verify tokens are redacted in logs
 - [ ] Commit changes
 
 ---
 
-### Task 4.2: Build Automatic Rollback System + Circuit Breaker Fallbacks ⚡ ENHANCED
-**Priority**: P2 | **Effort**: 3d | **Status**: ⬜ Not Started
+### Task 4.3: Validate Retry and Error Mapping with Integration Tests
+**Priority**: P2 | **Effort**: 3h | **Status**: ⬜ Not Started
+**Finding**: Unproven - live Google API request validation needed
 
-**Checklist**:
-- [ ] Create `src/services/auto-rollback.ts`
-- [ ] Implement AutoRollbackSystem class
-- [ ] Add config: enabled, autoRollbackOnError, confirmBeforeRollback
-- [ ] Implement `executeWithRollback()` wrapper
-- [ ] Create snapshot before operation
-- [ ] Catch errors and restore snapshot
-- [ ] Add user confirmation option
-- [ ] Add clear error messaging
-- [ ] Wrap all destructive operations
-- [ ] Test with various errors
-- [ ] Test rollback accuracy
-- [ ] **NEW: Enhance circuit breaker with fallback strategies**
-- [ ] **NEW: Read `src/utils/circuit-breaker.ts` (already exists!)**
-- [ ] **NEW: Add `executeWithFallback()` method**
-- [ ] **NEW: Implement fallback strategies:**
-  - [ ] Cached data fallback when API unavailable
-  - [ ] Read-only mode fallback for service degradation
-  - [ ] Graceful degradation with partial feature set
-- [ ] **NEW: Add fallback metrics and monitoring**
-- [ ] Test circuit breaker with fallbacks
-- [ ] Commit changes
-
-**New Features from Optimization Analysis**:
-- Circuit breaker fallback strategies for resilience
-- Graceful degradation when APIs are unavailable
-- Improved user experience during outages
-
-**Code Example**:
-```typescript
-class CircuitBreakerWithFallback extends CircuitBreaker {
-  async executeWithFallback<T>(
-    operation: () => Promise<T>,
-    fallback: () => Promise<T>
-  ): Promise<T> {
-    try {
-      return await this.execute(operation);
-    } catch (error) {
-      if (this.state === 'OPEN') {
-        logger.warn('Circuit open, using fallback');
-        return fallback();
-      }
-      throw error;
-    }
-  }
-}
+```
+Issue: Ensure retry logic and error mapping work correctly
+Files: tests/integration/*.ts
 ```
 
----
-
-### Task 4.3: Add Conflict Detection
-**Priority**: P3 | **Effort**: 3d | **Status**: ⬜ Not Started
-
 **Checklist**:
-- [ ] Create `src/types/conflict.ts`
-- [ ] Define Conflict, RangeVersion interfaces
-- [ ] Create `src/services/conflict-detector.ts`
-- [ ] Implement ConflictDetector class
-- [ ] Track range versions (timestamp, checksum, user)
-- [ ] Implement `detectConflict()` method
-- [ ] Compare timestamps and checksums
-- [ ] Implement `resolveConflict()` method
-- [ ] Add strategies: overwrite, merge, cancel
-- [ ] Implement 3-way merge
-- [ ] Test conflict scenarios
-- [ ] Test resolution strategies
+- [ ] Run: npm run test:integration (with TEST_REAL_API=true)
+- [ ] Verify retry logic for 429 errors
+- [ ] Verify retry logic for 503 errors
+- [ ] Verify exponential backoff
+- [ ] Verify error mapping to MCP format
+- [ ] Test: Rate limit handling
+- [ ] Test: Quota exceeded handling
+- [ ] Test: Network timeout handling
+- [ ] Document integration test setup
 - [ ] Commit changes
 
 ---
 
-### Task 4.4: Implement Operation Impact Analysis
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
+## 🟠 PHASE 5: RELEASE CLEANUP (Week 5)
 
-**Checklist**:
-- [ ] Create `src/services/impact-analyzer.ts`
-- [ ] Implement ImpactAnalyzer class
-- [ ] Implement `analyzeOperation()` method
-- [ ] Count cells/rows/columns affected
-- [ ] Find affected formulas
-- [ ] Find affected charts
-- [ ] Find affected pivot tables
-- [ ] Find affected validation rules
-- [ ] Estimate execution time
-- [ ] Implement `showInDryRun()` method
-- [ ] Integrate with all destructive operations
-- [ ] Test accuracy
-- [ ] Commit changes
+### Task 5.1: Verify TypeScript/Zod Compile Status
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: Unproven - need to verify build succeeds
 
----
-
-## 🎨 PHASE 5: UX POLISH (Week 8)
-
-### Task 5.1: Build Comprehensive Undo System
-**Priority**: P3 | **Effort**: 5d | **Status**: ⬜ Not Started
-**Depends**: Task 1.3
-
-**Checklist**:
-- [ ] Create `src/handlers/history.ts`
-- [ ] Define sheets_history tool
-- [ ] Create `src/services/undo-system.ts`
-- [ ] Implement UndoSystem class
-- [ ] Track operation history with snapshots
-- [ ] Implement `list` action
-- [ ] Implement `undo` action
-- [ ] Implement `redo` action
-- [ ] Implement `revert_to` action
-- [ ] Implement `clear` action
-- [ ] Test undo/redo chains
-- [ ] Test revert to specific operation
-- [ ] Document usage
-- [ ] Commit changes
-
----
-
-## 📊 PHASE 6: MONITORING & OBSERVABILITY (Week 8)
-
-### Task 6.1: Add Structured Logging
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create/refactor `src/utils/logger.ts`
-- [ ] Implement StructuredLogger class
-- [ ] Add request ID generation/tracking
-- [ ] Add user ID tracking
-- [ ] Add tool/action tracking
-- [ ] Add duration tracking
-- [ ] Add metadata support
-- [ ] Replace all console.log with logger
-- [ ] Test log output format
-- [ ] Document log schema
-- [ ] Commit changes
-
----
-
-### Task 6.2: Create Health Check Endpoints
-**Priority**: P3 | **Effort**: 1d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create `src/server/health.ts`
-- [ ] Add GET /health endpoint (basic)
-- [ ] Add GET /health/detailed endpoint
-- [ ] Include auth status
-- [ ] Include API connectivity test
-- [ ] Include cache stats
-- [ ] Include quota stats
-- [ ] Integrate with main server
-- [ ] Test endpoints
-- [ ] Document endpoints
-- [ ] Commit changes
-
----
-
-### Task 6.3: Set Up Alerting System
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
-
-**Checklist**:
-- [ ] Create `src/services/alerting.ts`
-- [ ] Define alert thresholds
-- [ ] Implement AlertingSystem class
-- [ ] Track auth failures (>5 in 5 min → critical)
-- [ ] Track disconnections (>10 in 1 hour → warning)
-- [ ] Track JSON errors (>1 in 1 hour → error)
-- [ ] Track API error rate (>5% in 10 min → warning)
-- [ ] Implement notification delivery
-- [ ] Test alert triggering
-- [ ] Test false positive rate
-- [ ] Document alerting
-- [ ] Commit changes
-
----
-
-## 🚀 PHASE 7: ADVANCED INTEGRATIONS (Weeks 9-11)
-
-### Task 7.1: BigQuery Connected Sheets Integration 📊
-**Priority**: P2 | **Effort**: 3-5d | **Status**: ⬜ Not Started
-**Impact**: 9/10 integrated with ServalSheets
-
-**Reference**: `/home/claude/apps-script-bigquery-analysis.md`
-
-**Day 1: Foundation (4-5h)**
-- [ ] Create `src/services/bigquery-client.ts`
-- [ ] Add BigQuery OAuth scopes to `src/auth/scopes.ts`
-  - [ ] `https://www.googleapis.com/auth/bigquery.readonly`
-  - [ ] `https://www.googleapis.com/auth/bigquery`
-- [ ] Implement BigQueryClient class
-  - [ ] `listDatasets()` method
-  - [ ] `listTables()` method
-  - [ ] `executeQuery()` method
-  - [ ] `createTable()` method
-- [ ] Test OAuth flow with new scopes
-
-**Day 2: Core Tool Implementation (5-6h)**
-- [ ] Create `src/schemas/bigquery.ts`
-- [ ] Define action-based discriminated union schema:
-  - [ ] `connect` - Link spreadsheet to BigQuery dataset
-  - [ ] `query` - Execute SQL and write results to sheet
-  - [ ] `refresh` - Refresh connected data source
-  - [ ] `list_connections` - List data sources in spreadsheet
-  - [ ] `schedule` - Set up scheduled refresh (metadata only)
-- [ ] Create `src/handlers/bigquery.handler.ts`
-- [ ] Implement handler switch cases
-- [ ] Register `sheets_bigquery` tool with annotations
-
-**Day 3: Connected Sheets API (4-5h)**
-- [ ] Implement DataSource management
-  - [ ] Add data source to spreadsheet
-  - [ ] Configure data source refresh schedule
-  - [ ] Handle OAuth token passthrough
-- [ ] Implement query-to-sheet workflow
-  - [ ] Execute BigQuery SQL
-  - [ ] Write results to specified range
-  - [ ] Preserve formatting options
-- [ ] Add preview mode (LIMIT 100)
-
-**Day 4: Testing & Polish (3-4h)**
-- [ ] Test with real BigQuery datasets
-- [ ] Test large result handling (>10K rows)
-- [ ] Test scheduled refresh setup
-- [ ] Add error handling for quota limits
-- [ ] Add documentation
-- [ ] Commit changes
-
-**Tool Schema**:
-```typescript
-const BigQuerySchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('connect'),
-    spreadsheetId: z.string(),
-    projectId: z.string(),
-    datasetId: z.string(),
-    tableId: z.string().optional()
-  }),
-  z.object({
-    action: z.literal('query'),
-    spreadsheetId: z.string(),
-    sql: z.string(),
-    destinationRange: z.string(),
-    writeDisposition: z.enum(['OVERWRITE', 'APPEND']).default('OVERWRITE')
-  }),
-  z.object({
-    action: z.literal('refresh'),
-    spreadsheetId: z.string(),
-    dataSourceId: z.string()
-  }),
-  z.object({
-    action: z.literal('list_connections'),
-    spreadsheetId: z.string()
-  })
-]);
+```
+Issue: Ensure all TypeScript and Zod schemas compile without errors
+Files: All TypeScript files
 ```
 
+**Checklist**:
+- [ ] Run: npm run typecheck
+- [ ] Fix any type errors
+- [ ] Run: npm run build
+- [ ] Verify dist/ is generated
+- [ ] Check for any Zod validation errors
+- [ ] Test: Import compiled modules
+- [ ] Commit fixes
+
 ---
 
-### Task 7.2: Google Apps Script Integration 🔧
-**Priority**: P2 | **Effort**: 2-3d | **Status**: ⬜ Not Started
-**Impact**: 8/10 integrated with ServalSheets
+### Task 5.2: Verify Dist Artifact Parity
+**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+**Finding**: Unproven - need to verify dist matches src
 
-**Reference**: `/home/claude/apps-script-integration-analysis.md`
-
-**Day 1: Core Infrastructure (4-5h)**
-- [ ] Add Apps Script OAuth scopes to `src/auth/scopes.ts`
-  - [ ] `https://www.googleapis.com/auth/script.projects`
-  - [ ] `https://www.googleapis.com/auth/script.deployments`
-  - [ ] `https://www.googleapis.com/auth/script.processes`
-  - [ ] `https://www.googleapis.com/auth/script.scriptapp`
-- [ ] Create `src/services/appscript-client.ts`
-- [ ] Implement AppsScriptClient class using `googleapis` official client
-  - [ ] `createProject()` method
-  - [ ] `getProject()` method
-  - [ ] `getContent()` method
-  - [ ] `updateContent()` method
-  - [ ] `runScript()` method
-  - [ ] `createDeployment()` method
-  - [ ] `listDeployments()` method
-  - [ ] `createVersion()` method
-  - [ ] `listVersions()` method
-  - [ ] `listProcesses()` method
-- [ ] Test OAuth flow with new scopes
-
-**Day 2: Tool Handler Implementation (4-5h)**
-- [ ] Create `src/schemas/appscript.ts`
-- [ ] Define action-based discriminated union schema:
-  - [ ] `project_create` - Create new Apps Script project
-  - [ ] `project_get` - Get project details
-  - [ ] `project_get_content` - Get script files
-  - [ ] `project_update_content` - Update script code
-  - [ ] `version_create` - Create immutable version
-  - [ ] `version_list` - List all versions
-  - [ ] `deploy_create` - Create API executable deployment
-  - [ ] `deploy_list` - List deployments
-  - [ ] `deploy_delete` - Delete deployment
-  - [ ] `script_run` - Execute script function
-  - [ ] `process_list` - List running/recent processes
-  - [ ] `create_bound_script` - ServalSheets helper: Create script bound to spreadsheet
-- [ ] Create `src/handlers/appscript.handler.ts`
-- [ ] Implement handler switch cases
-- [ ] Register `sheets_appscript` tool with annotations
-
-**Day 3: Integration & Testing (3-4h)**
-- [ ] Add script templates for common use cases
-  - [ ] `sheets_automation` - onEdit triggers
-  - [ ] `data_validation` - Custom validation
-  - [ ] `scheduled_report` - Time-based triggers
-- [ ] Implement `create_bound_script` convenience action
-  - [ ] Create project bound to spreadsheet
-  - [ ] Add initial code
-  - [ ] Create version and deployment
-- [ ] Test with real Apps Script projects
-- [ ] Test script execution with parameters
-- [ ] Test Cloud Platform project requirements
-- [ ] Add error handling for common issues
-  - [ ] PERMISSION_DENIED (project mismatch)
-  - [ ] Script execution timeout
-  - [ ] Invalid function name
-- [ ] Add documentation
-- [ ] Commit changes
-
-**Tool Schema**:
-```typescript
-const AppsScriptSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('project_create'),
-    title: z.string().min(1),
-    parentId: z.string().optional().describe('Spreadsheet ID to bind script to')
-  }),
-  z.object({
-    action: z.literal('script_run'),
-    scriptId: z.string(),
-    functionName: z.string(),
-    parameters: z.array(z.any()).optional(),
-    devMode: z.boolean().default(false)
-  }),
-  z.object({
-    action: z.literal('create_bound_script'),
-    spreadsheetId: z.string(),
-    scriptName: z.string(),
-    template: z.enum(['sheets_automation', 'data_validation', 'scheduled_report']).optional(),
-    code: z.string().optional()
-  }),
-  // ... other actions
-]);
+```
+Issue: Ensure built artifacts match source code
+Files: dist/*, src/*
 ```
 
-**Critical Notes**:
-- Apps Script API does NOT work with service accounts
-- Calling app must share same Cloud Platform project with script
-- Parameters limited to primitives (string, number, array, object, boolean)
-- Cannot pass Apps Script-specific objects (Document, SpreadsheetApp, etc.)
+**Checklist**:
+- [ ] Run: npm run build
+- [ ] Compare dist/mcp/registration.js to src/mcp/registration.ts
+- [ ] Verify tool counts match
+- [ ] Verify action lists match
+- [ ] Check for any missing exports
+- [ ] Test: Run dist/index.js
+- [ ] Verify server starts correctly
+- [ ] Commit any build config fixes
 
 ---
 
-### Task 7.3: Unified Sheets + BigQuery + Apps Script Workflows 🔗
-**Priority**: P3 | **Effort**: 2d | **Status**: ⬜ Not Started
-**Depends**: Task 7.1, Task 7.2
+### Task 5.3: Update package.json for Prepack Hook
+**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+**Finding**: Related to #5 HIGH - ensure generator runs before publish
 
-**Goal**: Create seamless cross-feature workflows
+```
+Issue: Ensure metadata is regenerated before publishing
+Files: package.json
+```
 
-**Workflow 1: ETL Pipeline**
-- [ ] Query BigQuery data
-- [ ] Write to staging sheet
-- [ ] Run Apps Script for transformation
-- [ ] Write to final destination
-
-**Workflow 2: Automated Reporting**
-- [ ] Pull BigQuery analytics
-- [ ] Generate charts/formatting
-- [ ] Run Apps Script to email report
-
-**Workflow 3: Data Sync**
-- [ ] Apps Script trigger on sheet change
-- [ ] Push changes to BigQuery
-- [ ] Maintain sync status
-
-**Implementation**:
-- [ ] Create `src/services/unified-workflows.ts`
-- [ ] Implement workflow orchestration
-- [ ] Add workflow templates
-- [ ] Test end-to-end workflows
-- [ ] Add documentation
+**Checklist**:
+- [ ] Read package.json:75 (scripts section)
+- [ ] Add/update prepack script:
+  ```json
+  "prepack": "npm run generate:metadata && npm run build"
+  ```
+- [ ] Test: npm pack
+- [ ] Verify generator runs automatically
+- [ ] Verify build runs automatically
+- [ ] Check tarball contents
 - [ ] Commit changes
 
 ---
 
-## 📋 Quick Reference
+### Task 5.4: Final Validation and Release Checklist
+**Priority**: P1 | **Effort**: 3h | **Status**: ⬜ Not Started
 
-**Current Sprint**: Phase 0 - Critical Fixes
-**Sprint Goal**: System stable, secure, no startup errors
-**Sprint Duration**: 2 days (7 hours total)
+```
+Final validation before release
+```
 
-**Daily Standup Questions**:
-1. What did I complete yesterday?
-2. What am I working on today?
-3. Any blockers?
-
-**Definition of Done**:
-- [ ] Code written and tested
-- [ ] Tests passing
-- [ ] Logs verified (no new errors)
-- [ ] Documentation updated
-- [ ] Changes committed
-- [ ] Progress tracker updated
+**Checklist**:
+- [ ] Run: npm run typecheck (must pass)
+- [ ] Run: npm run build (must pass)
+- [ ] Run: npm run validate:server-json (must pass)
+- [ ] Run: npm run ci (must pass all checks)
+- [ ] Verify all HIGH findings resolved
+- [ ] Verify all MED findings resolved
+- [ ] Document remaining LOW findings
+- [ ] Update CHANGELOG.md
+- [ ] Update version in package.json
+- [ ] Create release tag
+- [ ] Publish to npm (if ready)
 
 ---
 
-## 🎯 Today's Focus
+## 📊 PHASE SUMMARY
 
-1. **Task 0.1**: Fix Authentication Client Errors (4h)
-2. **Task 0.2**: Set Production Encryption Key (1h)
-3. **Task 0.3**: Fix Knowledge Base JSON Syntax (2h)
+### Phase 0: Critical Runtime Breakages
+**Duration**: 2-3 days
+**Tasks**: 5 tasks (0.1-0.5)
+**Severity**: All P0 (blocking)
+**Goal**: System stable, no runtime errors, clean stdio output
 
-**Expected Outcome**: System running with zero startup errors, zero auth errors, secure encryption.
+### Phase 1: MCP Protocol Compliance
+**Duration**: 1 week
+**Tasks**: 8 tasks (1.1-1.8)
+**Severity**: P1 (high priority)
+**Goal**: Full MCP protocol compliance across all transports
 
-**Let's get started!** 🚀
+### Phase 2: Single Source of Truth
+**Duration**: 1 week
+**Tasks**: 3 tasks (2.1-2.3)
+**Severity**: P1-P2
+**Goal**: Metadata generated from schemas, zero drift
+
+### Phase 3: Documentation & Consistency
+**Duration**: 3 days
+**Tasks**: 3 tasks (3.1-3.3)
+**Severity**: P1
+**Goal**: Docs accurate, counts correct, capabilities honest
+
+### Phase 4: Auth & API Hardening
+**Duration**: 1 week
+**Tasks**: 3 tasks (4.1-4.3)
+**Severity**: P2
+**Goal**: Security verified, scopes correct, errors safe
+
+### Phase 5: Release Cleanup
+**Duration**: 2-3 days
+**Tasks**: 4 tasks (5.1-5.4)
+**Severity**: P1
+**Goal**: Clean release, validated build, automated checks
+
+---
+
+## 🎯 CURRENT SPRINT: PHASE 0
+
+**Sprint Goal**: Resolve all P0 blocking issues
+**Sprint Duration**: 2-3 days (14-17 hours total)
+
+**Must Complete**:
+1. Task 0.1: Wire sampling/elicitation (4h)
+2. Task 0.2: Fix task cancellation (3h)
+3. Task 0.3: Initialize HTTP/remote services (3h)
+4. Task 0.4: Fix server.json validation (2h)
+5. Task 0.5: Fix stdout logging (2h)
+
+**Success Criteria**:
+- [ ] All HIGH severity findings resolved
+- [ ] System starts without errors
+- [ ] All transports functional (stdio, HTTP, remote)
+- [ ] Clean stdio output (no protocol corruption)
+- [ ] CI validation passes
+
+---
+
+## 🏷️ FINDING REFERENCE
+
+| Finding | Severity | Task(s) | Status |
+|---------|----------|---------|--------|
+| #1 Sampling/elicitation not wired | HIGH | 0.1 | ⬜ Not Started |
+| #2 Task cancel ineffective | HIGH | 0.2 | ⬜ Not Started |
+| #3 HTTP/remote services missing | HIGH | 0.3 | ⬜ Not Started |
+| #4 server.json validation fails | HIGH | 0.4 | ⬜ Not Started |
+| #5 Metadata/action list drift | HIGH | 2.1, 2.2, 3.2 | ⬜ Not Started |
+| #6 MCP context incomplete | MED | 1.1 | ⬜ Not Started |
+| #7 Protocol errors not tool errors | MED | 1.2 | ⬜ Not Started |
+| #8 History undo/revert broken | MED | 1.3 | ⬜ Not Started |
+| #9 sheets_fix not registered | MED | 1.4 | ⬜ Not Started |
+| #10 Logging not registered | MED | 1.5 | ⬜ Not Started |
+| #11 Completions not wired | MED | 1.6 | ⬜ Not Started |
+| #12 Resource parity missing | MED | 1.7 | ⬜ Not Started |
+| #13 sheets_auth not wired HTTP | MED | 1.8 | ⬜ Not Started |
+| #14 Subscriptions unsupported | LOW | 3.3 | ⬜ Not Started |
+| #15 stdout corrupts stdio | MED | 0.5 | ⬜ Not Started |
+| #16 /info descriptions blank | LOW | 2.3 | ⬜ Not Started |
+| #17 Docs reference removed tools | LOW | 3.1 | ⬜ Not Started |
+
+---
+
+## 📝 NOTES
+
+- **Original TODO preserved**: Tasks from original Phase 0-7 are still valid for future enhancements
+- **Focus on fixes first**: Current plan prioritizes fixing broken functionality over new features
+- **Dependency tracking**: Some tasks depend on others (noted in task headers)
+- **Testing required**: Each task includes verification steps
+- **Commit granularity**: Commit after each completed task
+
+---
+
+**Last Updated**: 2026-01-07
+**Total Tasks**: 21 (5 P0, 11 P1, 5 P2)
+**Estimated Duration**: 5-6 weeks for all phases
+**Current Sprint**: Phase 0 (Critical Fixes)
+
+**Let's fix the foundation first!** 🔧

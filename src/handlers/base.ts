@@ -34,6 +34,7 @@ export interface HandlerContext {
   requestDeduplicator?: RequestDeduplicator;
   circuitBreaker?: CircuitBreaker;
   elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+  server?: import('@modelcontextprotocol/sdk/server/index.js').Server; // MCP Server instance for elicitation/sampling
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;

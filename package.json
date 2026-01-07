@@ -44,6 +44,7 @@
   "scripts": {
     "gen:metadata": "tsx scripts/generate-metadata.ts",
     "check:drift": "bash scripts/check-metadata-drift.sh",
+    "check:placeholders": "bash scripts/no-placeholders.sh",
     "build": "npm run gen:metadata && tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:copy-assets": "cp -r src/knowledge dist/",
     "build:clean": "npm run clean && npm run build",
@@ -62,7 +63,7 @@
     "format:check": "prettier --check src/**/*.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:watch": "tsc -p tsconfig.json --noEmit --watch",
-    "verify": "npm run check:drift && npm run typecheck && npm run lint && npm run format:check && npm test",
+    "verify": "npm run check:drift && npm run check:placeholders && npm run typecheck && npm run lint && npm run format:check && npm test",
     "check": "npm run verify",
     "ci": "npm run clean && npm run build && npm run verify && npm run validate:server-json && npm run smoke",
     "security:audit": "npm audit --audit-level=high",
