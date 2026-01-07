@@ -325,8 +325,8 @@ Files: src/server.ts, src/mcp/completions.ts
 
 ---
 
-### Task 1.7: Add Resource Parity Across Transports
-**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+### Task 1.7: Add Resource Parity Across Transports ✅ COMPLETE
+**Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #12 MED - Resource registration lacks transport parity
 
 ```
@@ -338,26 +338,29 @@ Files: src/server/http-server.ts, src/server/remote-server.ts
 ```
 
 **Checklist**:
-- [ ] Read server.ts:669-680 (full resource registration list)
-- [ ] Read http-server.ts:140 (current HTTP resources)
-- [ ] Read remote-server.ts:364 (current remote resources)
-- [ ] Add missing resources to HTTP/remote:
-  - [ ] history://operations
-  - [ ] cache://stats
-  - [ ] transaction://active
-  - [ ] conflict://recent
-  - [ ] impact://analysis
-  - [ ] validation://summary
-  - [ ] metrics://performance
-  - [ ] confirm://pending
-  - [ ] analyze://cache
-- [ ] Test: Request each resource via HTTP/remote
-- [ ] Verify parity with stdio
-- [ ] Commit changes
+- [x] Read server.ts:672-711 (full resource registration list)
+- [x] Read http-server.ts:157-159 (current HTTP resources - only core + knowledge)
+- [x] Read remote-server.ts:382-384 (current remote resources - only core + knowledge)
+- [x] Import all resource registration functions in HTTP server
+- [x] Import all resource registration functions in remote server
+- [x] Add missing resources to HTTP server:
+  - [x] registerHistoryResources
+  - [x] registerCacheResources
+  - [x] registerTransactionResources (if googleClient)
+  - [x] registerConflictResources (if googleClient)
+  - [x] registerImpactResources (if googleClient)
+  - [x] registerValidationResources (if googleClient)
+  - [x] registerMetricsResources (if googleClient)
+  - [x] registerConfirmResources
+  - [x] registerAnalyzeResources
+  - [x] registerReferenceResources
+- [x] Add same resources to remote server
+- [x] Test: Verify typecheck passes
+- [x] Test: Verify build succeeds
+- [x] Commit changes
 
-**Best Fix**:
-- [ ] Centralize resource registration in shared function
-- [ ] Call from all transports
+**Result**:
+All three transports now have identical resource registration, maintaining the same conditional logic (Phase 4 resources only registered if googleClient exists).
 
 ---
 

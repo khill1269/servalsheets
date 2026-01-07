@@ -42,7 +42,19 @@ import { SnapshotService } from './services/snapshot.js';
 import { createHandlers, type HandlerContext } from './handlers/index.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
 import { logger } from './utils/logger.js';
-import { registerKnowledgeResources } from './resources/knowledge.js';
+import {
+  registerKnowledgeResources,
+  registerHistoryResources,
+  registerCacheResources,
+  registerTransactionResources,
+  registerConflictResources,
+  registerImpactResources,
+  registerValidationResources,
+  registerMetricsResources,
+  registerConfirmResources,
+  registerAnalyzeResources,
+  registerReferenceResources,
+} from './resources/index.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
@@ -382,6 +394,28 @@ async function main(): Promise<void> {
       registerServalSheetsResources(mcpServer, googleClient ?? null);
       registerServalSheetsPrompts(mcpServer);
       registerKnowledgeResources(mcpServer);
+
+      // Register operation history resources
+      registerHistoryResources(mcpServer);
+
+      // Register cache statistics resources
+      registerCacheResources(mcpServer);
+
+      // Register Phase 4 resources (only if Google client was initialized)
+      if (googleClient) {
+        registerTransactionResources(mcpServer);
+        registerConflictResources(mcpServer);
+        registerImpactResources(mcpServer);
+        registerValidationResources(mcpServer);
+        registerMetricsResources(mcpServer);
+      }
+
+      // Register MCP-native resources (Elicitation & Sampling)
+      registerConfirmResources(mcpServer);
+      registerAnalyzeResources(mcpServer);
+
+      // Register static reference resources
+      registerReferenceResources(mcpServer);
 
       // Register logging handler
       // Note: Using 'as any' to bypass TypeScript's deep type inference issues
