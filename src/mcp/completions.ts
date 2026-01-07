@@ -14,7 +14,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 185 actions across 24 tools (sheets_fix has no actions - single request mode)
+ * Total: 188 actions across 24 tools (sheets_fix has no actions - single request mode)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: ['add_named_range', 'update_named_range', 'delete_named_range', 'list_named_ranges', 'get_named_range', 'add_protected_range', 'update_protected_range', 'delete_protected_range', 'list_protected_ranges', 'set_metadata', 'get_metadata', 'delete_metadata', 'add_banding', 'update_banding', 'delete_banding', 'list_banding', 'create_table', 'delete_table', 'list_tables'],

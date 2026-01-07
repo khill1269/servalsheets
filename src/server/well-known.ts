@@ -129,11 +129,11 @@ export function getMcpConfiguration(): McpServerConfiguration {
       resources: {
         supported: true,
         templates: true,
-        subscriptions: true,
+        subscriptions: false,
       },
       prompts: {
         supported: true,
-        count: 7,
+        count: 17,
       },
       tasks: {
         supported: true,

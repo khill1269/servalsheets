@@ -11,7 +11,7 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 23 tools with 179 actions (discriminated unions)
+ * - tools: 24 tools with 188 actions (discriminated unions)
  * - resources: 2 URI templates + 7 knowledge resources
  * - prompts: 6 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
@@ -254,7 +254,7 @@ export function createServerCapabilities(): ServerCapabilities {
  * They are sent during initialization and can be added to system prompts.
  */
 export const SERVER_INSTRUCTIONS = `
-ServalSheets is a comprehensive Google Sheets MCP server with 23 tools and 152 actions.
+ServalSheets is a comprehensive Google Sheets MCP server with 24 tools and 188 actions.
 
 ## 🔐 MANDATORY FIRST STEP: Authentication
 

@@ -113,7 +113,7 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  *
- * 16 core tools + 5 enterprise tools + 2 MCP-native tools = 23 tools
+ * 16 core tools + 5 enterprise tools + 3 MCP-native tools = 24 tools
  *
  * Schema Pattern: z.object({ request: z.discriminatedUnion('action', ...) })
  * - Actions are discriminated by `action` within `request`
@@ -1077,7 +1077,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
             type: 'text' as const,
             text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 23 powerful tools and 180 actions.
+I'm your Google Sheets assistant with 24 powerful tools and 188 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
