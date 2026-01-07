@@ -62,12 +62,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // CORE DATA OPERATIONS
   //=============================================================================
 
-  sheets_spreadsheet: `Create, get, copy, update spreadsheets and manage properties. Actions: create, get, copy, update_properties, list.
+  sheets_spreadsheet: `Create, get, copy, update spreadsheets and manage properties. Actions: get, create, copy, update_properties, get_url, batch_get.
 
 **Quick Examples:**
 • Create new: {"action":"create","title":"Q4 Budget 2024"}
 • Get metadata: {"action":"get","spreadsheetId":"1ABC..."}
-• List all: {"action":"list"} → Returns your spreadsheets
+• Get URL: {"action":"get_url","spreadsheetId":"1ABC..."} → Returns edit/view links
+• Batch get: {"action":"batch_get","spreadsheetIds":["1ABC...","2DEF..."]} → Get multiple spreadsheets
 • Copy: {"action":"copy","spreadsheetId":"1ABC...","title":"Copy of Budget"}
 • Update: {"action":"update_properties","spreadsheetId":"1ABC...","title":"New Title"}
 

@@ -606,7 +606,7 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
 
       columns.push({
         index: colIdx,
-        name: headers[colIdx] as string | undefined,
+        name: headers[colIdx] != null ? String(headers[colIdx]) : undefined,
         count,
         sum: numeric.length ? sum : undefined,
         mean,
