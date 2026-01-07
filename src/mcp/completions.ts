@@ -17,81 +17,29 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  * Total: 185 actions across 24 tools (sheets_fix has no actions - single request mode)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
-  // sheets_auth: 4 actions (src/schemas/auth.ts)
-  sheets_auth: ['status', 'login', 'callback', 'logout'],
-
-  // sheets_spreadsheet: 6 actions (src/schemas/spreadsheet.ts)
-  sheets_spreadsheet: ['get', 'create', 'copy', 'update_properties', 'get_url', 'batch_get'],
-  
-  // sheets_sheet: 7 actions (src/schemas/sheet.ts)
-  sheets_sheet: ['add', 'delete', 'duplicate', 'update', 'copy_to', 'list', 'get'],
-  
-  // sheets_values: 9 actions (src/schemas/values.ts)
-  sheets_values: ['read', 'write', 'append', 'clear', 'batch_read', 'batch_write', 'batch_clear', 'find', 'replace'],
-  
-  // sheets_cells: 12 actions (src/schemas/cells.ts)
-  sheets_cells: ['add_note', 'get_note', 'clear_note', 'set_validation', 'clear_validation', 'set_hyperlink', 'clear_hyperlink', 'merge', 'unmerge', 'get_merges', 'cut', 'copy'],
-  
-  // sheets_format: 9 actions (src/schemas/format.ts)
-  sheets_format: ['set_format', 'set_background', 'set_text_format', 'set_number_format', 'set_alignment', 'set_borders', 'clear_format', 'apply_preset', 'auto_fit'],
-  
-  // sheets_dimensions: 21 actions (src/schemas/dimensions.ts)
-  sheets_dimensions: ['insert_rows', 'insert_columns', 'delete_rows', 'delete_columns', 'move_rows', 'move_columns', 'resize_rows', 'resize_columns', 'auto_resize', 'hide_rows', 'hide_columns', 'show_rows', 'show_columns', 'freeze_rows', 'freeze_columns', 'group_rows', 'group_columns', 'ungroup_rows', 'ungroup_columns', 'append_rows', 'append_columns'],
-  
-  // sheets_rules: 8 actions (src/schemas/rules.ts)
-  sheets_rules: ['add_conditional_format', 'update_conditional_format', 'delete_conditional_format', 'list_conditional_formats', 'add_data_validation', 'clear_data_validation', 'list_data_validations', 'add_preset_rule'],
-  
-  // sheets_charts: 9 actions (src/schemas/charts.ts)
-  sheets_charts: ['create', 'update', 'delete', 'list', 'get', 'move', 'resize', 'update_data_range', 'export'],
-  
-  // sheets_pivot: 6 actions (src/schemas/pivot.ts)
-  sheets_pivot: ['create', 'update', 'delete', 'list', 'get', 'refresh'],
-  
-  // sheets_filter_sort: 14 actions (src/schemas/filter-sort.ts)
-  sheets_filter_sort: ['set_basic_filter', 'clear_basic_filter', 'get_basic_filter', 'update_filter_criteria', 'sort_range', 'create_filter_view', 'update_filter_view', 'delete_filter_view', 'list_filter_views', 'get_filter_view', 'create_slicer', 'update_slicer', 'delete_slicer', 'list_slicers'],
-  
-  // sheets_sharing: 8 actions (src/schemas/sharing.ts)
-  sheets_sharing: ['share', 'update_permission', 'remove_permission', 'list_permissions', 'get_permission', 'transfer_ownership', 'set_link_sharing', 'get_sharing_link'],
-  
-  // sheets_comments: 10 actions (src/schemas/comments.ts)
-  sheets_comments: ['add', 'update', 'delete', 'list', 'get', 'resolve', 'reopen', 'add_reply', 'update_reply', 'delete_reply'],
-  
-  // sheets_versions: 10 actions (src/schemas/versions.ts)
-  sheets_versions: ['list_revisions', 'get_revision', 'restore_revision', 'keep_revision', 'create_snapshot', 'list_snapshots', 'restore_snapshot', 'delete_snapshot', 'compare', 'export_version'],
-  
-  // sheets_analysis: 13 actions (src/schemas/analysis.ts)
-  sheets_analysis: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges', 'detect_patterns', 'column_analysis', 'suggest_templates', 'generate_formula', 'suggest_chart'],
-  
-  // sheets_advanced: 19 actions (src/schemas/advanced.ts)
   sheets_advanced: ['add_named_range', 'update_named_range', 'delete_named_range', 'list_named_ranges', 'get_named_range', 'add_protected_range', 'update_protected_range', 'delete_protected_range', 'list_protected_ranges', 'set_metadata', 'get_metadata', 'delete_metadata', 'add_banding', 'update_banding', 'delete_banding', 'list_banding', 'create_table', 'delete_table', 'list_tables'],
-
-  // === Enterprise Tools ===
-
-  // sheets_transaction: 6 actions (src/schemas/transaction.ts)
-  sheets_transaction: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
-
-  // sheets_validation: 1 action (src/schemas/validation.ts)
-  sheets_validation: ['validate'],
-
-  // sheets_conflict: 2 actions (src/schemas/conflict.ts)
-  sheets_conflict: ['detect', 'resolve'],
-
-  // sheets_impact: 1 action (src/schemas/impact.ts)
-  sheets_impact: ['analyze'],
-
-  // sheets_history: 7 actions (src/schemas/history.ts)
-  sheets_history: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
-
-  // === MCP-Native Tools ===
-
-  // sheets_confirm: 2 actions (src/schemas/confirm.ts) - MCP Elicitation SEP-1036
-  sheets_confirm: ['request', 'get_stats'],
-
-  // sheets_analyze: 4 actions (src/schemas/analyze.ts) - MCP Sampling SEP-1577
+  sheets_analysis: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges', 'detect_patterns', 'column_analysis', 'suggest_templates', 'generate_formula', 'suggest_chart'],
   sheets_analyze: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats'],
-
-  // sheets_fix: No actions - single request mode (src/schemas/fix.ts)
-  // Note: sheets_fix does not use action-based dispatch
+  sheets_auth: ['status', 'login', 'callback', 'logout'],
+  sheets_cells: ['add_note', 'get_note', 'clear_note', 'set_validation', 'clear_validation', 'set_hyperlink', 'clear_hyperlink', 'merge', 'unmerge', 'get_merges', 'cut', 'copy'],
+  sheets_charts: ['create', 'update', 'delete', 'list', 'get', 'move', 'resize', 'update_data_range', 'export'],
+  sheets_comments: ['add', 'update', 'delete', 'list', 'get', 'resolve', 'reopen', 'add_reply', 'update_reply', 'delete_reply'],
+  sheets_confirm: ['request', 'get_stats'],
+  sheets_conflict: ['detect', 'resolve'],
+  sheets_dimensions: ['insert_rows', 'insert_columns', 'delete_rows', 'delete_columns', 'move_rows', 'move_columns', 'resize_rows', 'resize_columns', 'auto_resize', 'hide_rows', 'hide_columns', 'show_rows', 'show_columns', 'freeze_rows', 'freeze_columns', 'group_rows', 'group_columns', 'ungroup_rows', 'ungroup_columns', 'append_rows', 'append_columns'],
+  sheets_filter-sort: ['set_basic_filter', 'clear_basic_filter', 'get_basic_filter', 'update_filter_criteria', 'sort_range', 'create_filter_view', 'update_filter_view', 'delete_filter_view', 'list_filter_views', 'get_filter_view', 'create_slicer', 'update_slicer', 'delete_slicer', 'list_slicers'],
+  sheets_format: ['set_format', 'set_background', 'set_text_format', 'set_number_format', 'set_alignment', 'set_borders', 'clear_format', 'apply_preset', 'auto_fit'],
+  sheets_history: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
+  sheets_impact: ['analyze'],
+  sheets_pivot: ['create', 'update', 'delete', 'list', 'get', 'refresh'],
+  sheets_rules: ['add_conditional_format', 'update_conditional_format', 'delete_conditional_format', 'list_conditional_formats', 'add_data_validation', 'clear_data_validation', 'list_data_validations', 'add_preset_rule'],
+  sheets_sharing: ['share', 'update_permission', 'remove_permission', 'list_permissions', 'get_permission', 'transfer_ownership', 'set_link_sharing', 'get_sharing_link'],
+  sheets_sheet: ['add', 'delete', 'duplicate', 'update', 'copy_to', 'list', 'get'],
+  sheets_spreadsheet: ['get', 'create', 'copy', 'update_properties', 'get_url', 'batch_get'],
+  sheets_transaction: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
+  sheets_validation: ['validate'],
+  sheets_values: ['read', 'write', 'append', 'clear', 'batch_read', 'batch_write', 'batch_clear', 'find', 'replace'],
+  sheets_versions: ['list_revisions', 'get_revision', 'restore_revision', 'keep_revision', 'create_snapshot', 'list_snapshots', 'restore_snapshot', 'delete_snapshot', 'compare', 'export_version'],
 };
 
 /**

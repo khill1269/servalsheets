@@ -269,10 +269,7 @@ export const TOOL_REGISTRY = {
 } as const;
 
 // Tool count
-export const TOOL_COUNT = Object.keys(TOOL_REGISTRY).length;
+export const TOOL_COUNT = 25;
 
 // Action count
-export const ACTION_COUNT = Object.values(TOOL_REGISTRY).reduce(
-  (sum, tool) => sum + tool.actions.length,
-  0
-);
+export const ACTION_COUNT = 189;

@@ -1,104 +1,177 @@
 #!/usr/bin/env tsx
 /**
- * Generate metadata from canonical TOOL_DEFINITIONS
+ * Generate metadata from schema files using AST parsing
  *
- * Single source of truth: src/mcp/registration.ts TOOL_DEFINITIONS
+ * Single source of truth: src/schemas/*.ts discriminated unions
  * Derived outputs:
  * - Tool/action counts
  * - package.json description
  * - src/schemas/index.ts exports
+ * - src/schemas/annotations.ts ACTION_COUNTS
+ * - src/mcp/completions.ts TOOL_ACTIONS
  * - server.json metadata
  *
- * This prevents drift between source code and metadata.
+ * Uses TypeScript Compiler API for robust AST parsing instead of regex.
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import * as ts from 'typescript';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 
 // ============================================================================
-// IMPORT TOOL DEFINITIONS (Source of Truth)
+// SPECIAL CASE TOOLS (don't follow standard discriminated union pattern)
 // ============================================================================
 
-// We'll parse the TypeScript file directly to avoid circular dependencies
-// and to work before the build step
-const registrationContent = readFileSync(
-  join(ROOT, 'src/mcp/registration.ts'),
-  'utf-8'
-);
+const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> = {
+  'fix': { count: 0, actions: [] },  // Single request mode, no actions
+  'validation': { count: 1, actions: ['validate'] },
+  'impact': { count: 1, actions: ['analyze'] },
+  'analyze': { count: 4, actions: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats'] },
+  'confirm': { count: 2, actions: ['request', 'get_stats'] },
+};
 
-// Extract tool count from the export const TOOL_DEFINITIONS array
-const toolMatch = registrationContent.match(/export const TOOL_DEFINITIONS.*?\[([\s\S]*?)\] as const;/);
-if (!toolMatch) {
-  console.error('❌ Could not find TOOL_DEFINITIONS in registration.ts');
-  process.exit(1);
+// ============================================================================
+// AST-BASED ACTION EXTRACTION
+// ============================================================================
+
+interface SchemaAnalysis {
+  toolName: string;
+  fileName: string;
+  actionCount: number;
+  actions: string[];
+  hasDiscriminatedUnion: boolean;
 }
-
-// Count tool definitions by counting opening braces at the start of tool objects
-// Each tool starts with "  {\n    name:"
-const toolDefSection = toolMatch[1];
-const toolDefinitions = toolDefSection.match(/\{\s*name:\s*['"][\w_]+['"]/g) || [];
-const TOOL_COUNT = toolDefinitions.length;
-
-console.log(`📊 Found ${TOOL_COUNT} tool definitions`);
-
-// ============================================================================
-// COUNT ACTIONS
-// ============================================================================
 
 /**
- * Count actions by analyzing schema files
- * Each discriminated union option = 1 action
+ * Extract action literal from z.literal('action_name') AST node
  */
-function countActionsInSchema(schemaPath: string): number {
-  try {
-    const content = readFileSync(schemaPath, 'utf-8');
-
-    // Match discriminated union definitions
-    // Pattern: z.discriminatedUnion('action', [...])
-    const unionMatches = content.match(/z\.discriminatedUnion\(['"]action['"],\s*\[([\s\S]*?)\]\)/g);
-
-    if (!unionMatches) {
-      return 0;
-    }
-
-    let actionCount = 0;
-    for (const match of unionMatches) {
-      // Count z.object({ action: z.literal('...') }) patterns
-      const literals = match.match(/action:\s*z\.literal\(['"][\w_]+['"]\)/g);
-      if (literals) {
-        actionCount += literals.length;
+function extractActionLiteral(node: ts.Node): string | null {
+  // Looking for: action: z.literal('some_action')
+  if (ts.isPropertyAssignment(node)) {
+    const name = node.name;
+    if (ts.isIdentifier(name) && name.text === 'action') {
+      const initializer = node.initializer;
+      // Handle z.literal('action')
+      if (ts.isCallExpression(initializer)) {
+        // Check if it's specifically z.literal() call
+        const expression = initializer.expression;
+        if (ts.isPropertyAccessExpression(expression)) {
+          const property = expression.name;
+          if (ts.isIdentifier(property) && property.text === 'literal') {
+            const args = initializer.arguments;
+            if (args.length > 0 && ts.isStringLiteral(args[0])) {
+              return args[0].text;
+            }
+          }
+        }
       }
     }
+  }
+  return null;
+}
 
-    return actionCount;
-  } catch {
-    return 0;
+/**
+ * Recursively visit AST nodes to find action literals
+ */
+function visitNode(node: ts.Node, actions: string[]): void {
+  const actionLiteral = extractActionLiteral(node);
+  if (actionLiteral) {
+    actions.push(actionLiteral);
+  }
+
+  ts.forEachChild(node, (child) => visitNode(child, actions));
+}
+
+/**
+ * Analyze a schema file using TypeScript AST parsing
+ */
+function analyzeSchemaFile(filePath: string): SchemaAnalysis {
+  const fileName = filePath.split('/').pop() || '';
+  const toolName = fileName.replace('.ts', '');
+
+  // Check for special cases first
+  if (SPECIAL_CASE_TOOLS[toolName]) {
+    const special = SPECIAL_CASE_TOOLS[toolName];
+    return {
+      toolName,
+      fileName,
+      actionCount: special.count,
+      actions: special.actions,
+      hasDiscriminatedUnion: false,
+    };
+  }
+
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+
+    // Create a source file (no type checking needed, just parsing)
+    const sourceFile = ts.createSourceFile(
+      fileName,
+      content,
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    const actions: string[] = [];
+
+    // Walk the AST to find all action literals
+    visitNode(sourceFile, actions);
+
+    // Remove duplicates (shouldn't happen, but be safe)
+    const uniqueActions = Array.from(new Set(actions));
+
+    return {
+      toolName,
+      fileName,
+      actionCount: uniqueActions.length,
+      actions: uniqueActions,
+      hasDiscriminatedUnion: uniqueActions.length > 0,
+    };
+  } catch (error) {
+    console.error(`⚠️  Error parsing ${fileName}:`, error);
+    return {
+      toolName,
+      fileName,
+      actionCount: 0,
+      actions: [],
+      hasDiscriminatedUnion: false,
+    };
   }
 }
 
-// Scan all schema files
-const schemaFiles = [
-  'auth.ts', 'spreadsheet.ts', 'sheet.ts', 'values.ts', 'cells.ts',
-  'format.ts', 'dimensions.ts', 'rules.ts', 'charts.ts', 'pivot.ts',
-  'filter-sort.ts', 'sharing.ts', 'comments.ts', 'versions.ts',
-  'analysis.ts', 'advanced.ts', 'transaction.ts', 'validation.ts',
-  'conflict.ts', 'impact.ts', 'history.ts', 'confirm.ts', 'analyze.ts'
-];
+// ============================================================================
+// SCAN SCHEMA FILES
+// ============================================================================
 
-let ACTION_COUNT = 0;
+const schemaFiles = readdirSync(join(ROOT, 'src/schemas'))
+  .filter(f => f.endsWith('.ts') && f !== 'index.ts' && f !== 'shared.ts' && f !== 'annotations.ts' && f !== 'descriptions.ts' && f !== 'prompts.ts' && f !== 'logging.ts');
+
+console.log(`\n📊 Analyzing ${schemaFiles.length} schema files...\n`);
+
+const analyses: SchemaAnalysis[] = [];
+let totalActions = 0;
+
 for (const file of schemaFiles) {
   const path = join(ROOT, 'src/schemas', file);
-  const count = countActionsInSchema(path);
-  if (count > 0) {
-    console.log(`  📝 ${file.padEnd(20)} → ${count} actions`);
-    ACTION_COUNT += count;
+  const analysis = analyzeSchemaFile(path);
+  analyses.push(analysis);
+  totalActions += analysis.actionCount;
+
+  if (analysis.actionCount > 0) {
+    const actionList = analysis.actions.length <= 5
+      ? `[${analysis.actions.join(', ')}]`
+      : `[${analysis.actions.slice(0, 3).join(', ')}, ... +${analysis.actions.length - 3} more]`;
+    console.log(`  📝 ${file.padEnd(20)} → ${String(analysis.actionCount).padStart(2)} actions ${actionList}`);
   }
 }
+
+const TOOL_COUNT = analyses.length;
+const ACTION_COUNT = totalActions;
 
 console.log(`\n✅ Total: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions\n`);
 
@@ -109,7 +182,6 @@ console.log(`\n✅ Total: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions\n`);
 const pkgPath = join(ROOT, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
 
-// Update description with correct counts
 const oldDescription = pkg.description;
 pkg.description = oldDescription.replace(
   /\d+ tools, \d+ actions/,
@@ -130,40 +202,81 @@ if (oldDescription !== pkg.description) {
 const schemasIndexPath = join(ROOT, 'src/schemas/index.ts');
 let schemasIndex = readFileSync(schemasIndexPath, 'utf-8');
 
-// Check if constants already exist
-if (schemasIndex.includes('export const TOOL_COUNT')) {
-  // Replace existing values
-  schemasIndex = schemasIndex.replace(
-    /export const TOOL_COUNT = \d+;/,
-    `export const TOOL_COUNT = ${TOOL_COUNT};`
-  );
-  schemasIndex = schemasIndex.replace(
-    /export const ACTION_COUNT = \d+;/,
-    `export const ACTION_COUNT = ${ACTION_COUNT};`
-  );
-  console.log('✅ Updated src/schemas/index.ts constants');
-} else {
-  // Append constants at the end
-  schemasIndex += `\n// ============================================================================
-// METADATA (Auto-generated - do not edit manually)
-// ============================================================================
+// Update TOOL_COUNT and ACTION_COUNT in TOOL_REGISTRY calculation
+schemasIndex = schemasIndex.replace(
+  /\/\/ Tool count\nexport const TOOL_COUNT = Object\.keys\(TOOL_REGISTRY\)\.length;/,
+  `// Tool count\nexport const TOOL_COUNT = ${TOOL_COUNT};`
+);
 
-/**
- * Total number of tools in ServalSheets
- * Generated from TOOL_DEFINITIONS in src/mcp/registration.ts
- */
-export const TOOL_COUNT = ${TOOL_COUNT};
-
-/**
- * Total number of actions across all tools
- * Generated by counting discriminated union options in schemas
- */
-export const ACTION_COUNT = ${ACTION_COUNT};
-`;
-  console.log('✅ Added constants to src/schemas/index.ts');
-}
+schemasIndex = schemasIndex.replace(
+  /\/\/ Action count\nexport const ACTION_COUNT = Object\.values\(TOOL_REGISTRY\)\.reduce\(\s*\(sum, tool\) => sum \+ tool\.actions\.length,\s*0\s*\);/,
+  `// Action count\nexport const ACTION_COUNT = ${ACTION_COUNT};`
+);
 
 writeFileSync(schemasIndexPath, schemasIndex);
+console.log('✅ Updated src/schemas/index.ts constants');
+
+// ============================================================================
+// UPDATE SRC/SCHEMAS/ANNOTATIONS.TS - ACTION_COUNTS
+// ============================================================================
+
+const annotationsPath = join(ROOT, 'src/schemas/annotations.ts');
+let annotationsContent = readFileSync(annotationsPath, 'utf-8');
+
+// Build ACTION_COUNTS map
+const actionCountsMap = analyses
+  .filter(a => a.actionCount > 0)
+  .map(a => `  sheets_${a.toolName}: ${a.actionCount},`)
+  .join('\n');
+
+const actionCountsBlock = `export const ACTION_COUNTS = {\n${actionCountsMap}\n} as const;`;
+
+// Replace existing ACTION_COUNTS or add it
+if (annotationsContent.includes('export const ACTION_COUNTS')) {
+  annotationsContent = annotationsContent.replace(
+    /export const ACTION_COUNTS = \{[\s\S]*?\} as const;/,
+    actionCountsBlock
+  );
+} else {
+  annotationsContent += `\n\n// ============================================================================\n// ACTION COUNTS (Auto-generated)\n// ============================================================================\n\n${actionCountsBlock}\n`;
+}
+
+writeFileSync(annotationsPath, annotationsContent);
+console.log('✅ Updated src/schemas/annotations.ts ACTION_COUNTS');
+
+// ============================================================================
+// UPDATE SRC/MCP/COMPLETIONS.TS - TOOL_ACTIONS
+// ============================================================================
+
+const completionsPath = join(ROOT, 'src/mcp/completions.ts');
+let completionsContent = readFileSync(completionsPath, 'utf-8');
+
+// Build TOOL_ACTIONS map
+const toolActionsMap = analyses
+  .filter(a => a.actionCount > 0)
+  .map(a => `  sheets_${a.toolName}: [${a.actions.map(act => `'${act}'`).join(', ')}],`)
+  .join('\n');
+
+const toolActionsBlock = `const TOOL_ACTIONS: Record<string, string[]> = {\n${toolActionsMap}\n};`;
+
+// Replace existing TOOL_ACTIONS
+if (completionsContent.includes('const TOOL_ACTIONS')) {
+  completionsContent = completionsContent.replace(
+    /const TOOL_ACTIONS: Record<string, string\[\]> = \{[\s\S]*?\};/,
+    toolActionsBlock
+  );
+} else {
+  // Add after imports
+  const importEndIndex = completionsContent.lastIndexOf('import ');
+  const nextLineIndex = completionsContent.indexOf('\n', importEndIndex) + 1;
+  completionsContent =
+    completionsContent.slice(0, nextLineIndex) +
+    `\n// ============================================================================\n// TOOL ACTIONS (Auto-generated)\n// ============================================================================\n\n${toolActionsBlock}\n\n` +
+    completionsContent.slice(nextLineIndex);
+}
+
+writeFileSync(completionsPath, completionsContent);
+console.log('✅ Updated src/mcp/completions.ts TOOL_ACTIONS');
 
 // ============================================================================
 // GENERATE SERVER.JSON
@@ -194,7 +307,7 @@ const serverJson = {
       "Advanced Features (5 tools): pivot, filter_sort, sharing, comments, versions",
       "Analytics (2 tools): analysis, advanced",
       "Enterprise (5 tools): transaction, validation, conflict, impact, history",
-      "MCP-Native (2 tools): confirm (Elicitation), analyze (Sampling)"
+      "MCP-Native (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)"
     ]
   },
   author: {
@@ -227,6 +340,8 @@ console.log(`
 ║  Updated:                              ║
 ║  ✓ package.json                        ║
 ║  ✓ src/schemas/index.ts                ║
+║  ✓ src/schemas/annotations.ts          ║
+║  ✓ src/mcp/completions.ts              ║
 ║  ✓ server.json                         ║
 ╚════════════════════════════════════════╝
 `);
