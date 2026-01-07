@@ -131,18 +131,71 @@ export class RangeResolver {
     spreadsheetId: string,
     a1: string
   ): Promise<ResolvedRange> {
+    // Check if input is JUST a range (e.g., "A1:Z200") without sheet qualifier
+    // A1 notation pattern: optional column letters, optional row numbers, optional colon, repeat
+    const rangeOnlyPattern = /^[A-Z]+\d*(?::[A-Z]+\d*)?$/i;
+
+    let sheetName: string;
+    let rangeRef: string;
+
+    if (rangeOnlyPattern.test(a1)) {
+      // Input is just a range like "A1:Z200" without sheet name
+      // Use first sheet as default
+      const response = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties',
+      });
+
+      const firstSheet = response.data.sheets?.[0];
+      if (!firstSheet?.properties) {
+        throw new RangeResolutionError(
+          'No sheets found in spreadsheet',
+          'SHEET_NOT_FOUND'
+        );
+      }
+
+      sheetName = firstSheet.properties.title ?? 'Sheet1';
+      rangeRef = a1;
+
+      // Get sheet info to validate
+      const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
+
+      // Build full A1 notation with sheet name
+      const fullA1 = `'${this.escapeSheetName(sheetInfo.title)}'!${rangeRef}`;
+
+      return {
+        sheetId: sheetInfo.sheetId,
+        sheetName: sheetInfo.title,
+        a1Notation: fullA1,
+        gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: `Range without sheet qualifier resolved to: ${fullA1}`,
+        },
+      };
+    }
+
     // Parse sheet name and range - handle escaped quotes in sheet names
     // Patterns: 'Sheet Name'!A1:B2 or SheetName!A1:B2
-    const match = a1.match(/^(?:'((?:[^']|'')+)'|([^!]+))!?(.*)$/);
-    let sheetName = match?.[1] ?? match?.[2] ?? 'Sheet1';
-    const rangeRef = match?.[3] ?? '';
+    const match = a1.match(/^(?:'((?:[^']|'')+)'|([^!]+))!(.*)$/);
+
+    if (!match) {
+      throw new RangeResolutionError(
+        `Invalid A1 notation format: "${a1}". Expected format: "Sheet1!A1:Z200" or "A1:Z200"`,
+        'INVALID_RANGE'
+      );
+    }
+
+    sheetName = match[1] ?? match[2] ?? 'Sheet1';
+    rangeRef = match[3] ?? '';
 
     // Unescape sheet name (convert '' back to ')
     sheetName = sheetName.replace(/''/g, "'");
 
     // Get sheet info
     const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
-    
+
     return {
       sheetId: sheetInfo.sheetId,
       sheetName: sheetInfo.title,
