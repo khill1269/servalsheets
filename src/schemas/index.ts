@@ -269,7 +269,7 @@ export const TOOL_REGISTRY = {
 } as const;
 
 // Tool count
-export const TOOL_COUNT = 25;
+export const TOOL_COUNT = 24;
 
 // Action count
-export const ACTION_COUNT = 189;
+export const ACTION_COUNT = 188;

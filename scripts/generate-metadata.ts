@@ -202,14 +202,14 @@ if (oldDescription !== pkg.description) {
 const schemasIndexPath = join(ROOT, 'src/schemas/index.ts');
 let schemasIndex = readFileSync(schemasIndexPath, 'utf-8');
 
-// Update TOOL_COUNT and ACTION_COUNT in TOOL_REGISTRY calculation
+// Update TOOL_COUNT and ACTION_COUNT (matches either static number or dynamic expression)
 schemasIndex = schemasIndex.replace(
-  /\/\/ Tool count\nexport const TOOL_COUNT = Object\.keys\(TOOL_REGISTRY\)\.length;/,
+  /\/\/ Tool count\nexport const TOOL_COUNT = (?:Object\.keys\(TOOL_REGISTRY\)\.length|\d+);/,
   `// Tool count\nexport const TOOL_COUNT = ${TOOL_COUNT};`
 );
 
 schemasIndex = schemasIndex.replace(
-  /\/\/ Action count\nexport const ACTION_COUNT = Object\.values\(TOOL_REGISTRY\)\.reduce\(\s*\(sum, tool\) => sum \+ tool\.actions\.length,\s*0\s*\);/,
+  /\/\/ Action count\nexport const ACTION_COUNT = (?:Object\.values\(TOOL_REGISTRY\)\.reduce\(\s*\(sum, tool\) => sum \+ tool\.actions\.length,\s*0\s*\)|\d+);/,
   `// Action count\nexport const ACTION_COUNT = ${ACTION_COUNT};`
 );
 

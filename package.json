@@ -71,7 +71,7 @@
     "smoke": "node dist/cli.js --version",
     "verify:build": "npm run build && npm run validate:server-json && npm run smoke && echo 'Build OK'",
     "clean": "rm -rf dist .tsbuildinfo .tsbuildinfo.build",
-    "prepack": "npm run build && npm run validate:server-json",
+    "prepack": "npm run gen:metadata && npm run build && npm run validate:server-json",
     "docker:build": "docker build -f deployment/docker/Dockerfile -t servalsheets .",
     "docker:run": "docker run -p 3000:3000 --env-file .env servalsheets",
     "docs": "typedoc",
