@@ -119,3 +119,14 @@ export const SheetsFixOutputSchema = z.object({
 
 export type SheetsFixInput = z.infer<typeof SheetsFixInputSchema>;
 export type SheetsFixOutput = z.infer<typeof SheetsFixOutputSchema>;
+
+// Tool annotations for MCP registration
+import type { ToolAnnotations } from './shared.js';
+
+export const SHEETS_FIX_ANNOTATIONS: ToolAnnotations = {
+  title: 'Automated Issue Fixing',
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+};

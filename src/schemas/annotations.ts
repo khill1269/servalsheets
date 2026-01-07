@@ -174,6 +174,13 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,  // AI output varies
     openWorldHint: true,    // MCP Sampling
   },
+  sheets_fix: {
+    title: 'Automated Issue Fixing',
+    readOnlyHint: false,
+    destructiveHint: true,  // Applies fixes to spreadsheet
+    idempotentHint: false,
+    openWorldHint: true,
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -208,6 +215,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   // MCP-Native Tools
   sheets_confirm: 1,      // confirm (via Elicitation)
   sheets_analyze: 1,      // analyze (via Sampling)
+  sheets_fix: 1,          // fix (automated issue resolution)
 };
 
 /**

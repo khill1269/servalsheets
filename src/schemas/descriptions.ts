@@ -670,6 +670,52 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_transaction (execute confirmed plan atomically)
 → sheets_history (track confirmed operations)`,
 
+  sheets_fix: `Automatically fix common spreadsheet issues detected by sheets_analysis. Supports preview mode (see what would be fixed) and apply mode (actually fix).
+
+**Quick Examples:**
+• Preview fixes: {"spreadsheetId":"1ABC...","issues":[...],"mode":"preview"}
+• Apply fixes: {"spreadsheetId":"1ABC...","issues":[...],"mode":"apply","safety":{"createSnapshot":true}}
+• Filter by severity: {"spreadsheetId":"1ABC...","issues":[...],"filters":{"severity":["high","medium"]}}
+
+**Fixable Issue Types:**
+• MULTIPLE_TODAY → Replace redundant TODAY() calls with cell references
+• FULL_COLUMN_REFS → Convert A:A to bounded ranges
+• NO_FROZEN_HEADERS → Freeze top row for better navigation
+• NO_FROZEN_COLUMNS → Freeze left column(s) for better navigation
+• NO_PROTECTION → Protect formula cells from accidental edits
+• NESTED_IFERROR → Simplify excessive IFERROR nesting
+• EXCESSIVE_CF_RULES → Consolidate overlapping conditional format rules
+
+**Performance Tips:**
+• Always preview before apply - verify fix operations are correct
+• Enable createSnapshot:true for instant rollback capability
+• Use filters to apply only high/medium severity fixes first
+• Limit fixes to specific sheets with filters.sheets parameter
+
+**Common Workflows:**
+1. Run sheets_analysis → Get data_quality or formula_audit results
+2. Preview fixes → {"mode":"preview"} to see operations
+3. Review operations → Verify estimated impact and risk
+4. Apply fixes → {"mode":"apply","safety":{"createSnapshot":true}}
+5. Verify → Re-run sheets_analysis to check verificationScore
+
+**Safety Features:**
+• createSnapshot:true → Auto-snapshot before applying (rollback via sheets_history)
+• dryRun:true → Simulate without applying (testing)
+• Preview mode → Shows exact operations before execution
+• Risk levels → Each operation tagged low/medium/high
+
+**Error Recovery:**
+• FIX_FAILED → Check results array for specific operation errors
+• SNAPSHOT_FAILED → Verify storage quota available
+• INVALID_ISSUE → Issue type not fixable by this tool
+
+**Commonly Used With:**
+→ sheets_analysis (detect issues before fixing)
+→ sheets_history (rollback if fixes cause problems)
+→ sheets_confirm (confirm high-risk fixes before applying)
+→ sheets_transaction (execute multiple fixes atomically)`,
+
 };
 
 // Type export for other modules

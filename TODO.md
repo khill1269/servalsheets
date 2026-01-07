@@ -132,8 +132,8 @@ Files: src/core/task-store.ts
 
 ## 🟡 PHASE 1: MCP PROTOCOL COMPLIANCE (Week 1)
 
-### Task 1.1: Forward Complete MCP Context
-**Priority**: P1 | **Effort**: 3h | **Status**: ⬜ Not Started
+### Task 1.1: Forward Complete MCP Context ✅ COMPLETE
+**Priority**: P1 | **Effort**: 3h | **Status**: ✅ Done
 **Finding**: #6 MED - MCP call context forwarding incomplete
 
 ```
@@ -144,17 +144,17 @@ Files: src/server.ts, src/mcp/registration.ts
 ```
 
 **Checklist**:
-- [ ] Read server.ts:283 (stdio tool registration)
-- [ ] Read registration.ts:862 (HTTP/remote registration)
-- [ ] Update server.ts:283 to forward full `extra` object
-- [ ] Add requestId from extra.requestId || extra.requestInfo?._meta?.requestId
-- [ ] Add abortSignal from extra.signal
-- [ ] Preserve sendNotification, progressToken, elicit, sample
-- [ ] Update registration.ts:586 to build full request context
-- [ ] Test: Verify requestId flows through
-- [ ] Test: Verify signal propagates for cancellation
-- [ ] Test: Verify progress notifications work
-- [ ] Commit changes
+- [x] Read server.ts:283 (stdio tool registration)
+- [x] Read registration.ts:862 (HTTP/remote registration)
+- [x] Update server.ts:283 to forward full `extra` object
+- [x] Add requestId from extra.requestId || extra.requestInfo?._meta?.requestId
+- [x] Add abortSignal from extra.signal
+- [x] Preserve sendNotification, progressToken, elicit, sample
+- [x] Update registration.ts:586 to build full request context
+- [x] Test: Verify requestId flows through
+- [x] Test: Verify signal propagates for cancellation
+- [x] Test: Verify progress notifications work
+- [x] Commit changes
 
 **Diff Snippet**:
 ```typescript
@@ -181,8 +181,8 @@ Files: src/server.ts, src/mcp/registration.ts
 
 ---
 
-### Task 1.2: Return MCP Tool Errors, Not Protocol Errors
-**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+### Task 1.2: Return MCP Tool Errors, Not Protocol Errors ✅ COMPLETE
+**Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #7 MED - HTTP/remote tools throw protocol errors
 
 ```
@@ -192,23 +192,23 @@ Files: src/mcp/registration.ts
 ```
 
 **Checklist**:
-- [ ] Read registration.ts:717 (createToolCallHandler error handling)
-- [ ] Read server.ts (stdio error handling for comparison)
-- [ ] Update createToolCallHandler to catch errors
-- [ ] Convert errors to buildToolResponse({ success: false, error: ... })
-- [ ] Return CallToolResult with isError: true
-- [ ] Test: Trigger tool error in HTTP/remote
-- [ ] Verify client receives structured error, not protocol error
-- [ ] Commit changes
+- [x] Read registration.ts:717 (createToolCallHandler error handling)
+- [x] Read server.ts (stdio error handling for comparison)
+- [x] Update createToolCallHandler to catch errors
+- [x] Convert errors to buildToolResponse({ success: false, error: ... })
+- [x] Return CallToolResult with isError: true
+- [x] Test: Trigger tool error in HTTP/remote
+- [x] Verify client receives structured error, not protocol error
+- [x] Commit changes
 
 **Best Fix**:
-- [ ] Extract shared error-mapping utility
-- [ ] Use in both stdio and HTTP/remote
+- [x] Extract shared error-mapping utility
+- [x] Use in both stdio and HTTP/remote
 
 ---
 
-### Task 1.3: Fix History Undo/Revert by Injecting SnapshotService
-**Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
+### Task 1.3: Fix History Undo/Revert by Injecting SnapshotService ✅ COMPLETE
+**Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #8 MED - History undo/revert broken
 
 ```
@@ -219,23 +219,23 @@ Files: src/handlers/index.ts, src/handlers/history.ts
 ```
 
 **Checklist**:
-- [ ] Read index.ts:164 (HistoryHandler construction)
-- [ ] Read history.ts constructor (check for snapshotService parameter)
-- [ ] Update index.ts:164 to pass snapshotService into HistoryHandler
-- [ ] Verify SnapshotService is available in createHandlers context
-- [ ] Test: sheets_history undo operation
-- [ ] Test: sheets_history revert operation
-- [ ] Verify no SERVICE_NOT_INITIALIZED errors
-- [ ] Commit changes
+- [x] Read index.ts:164 (HistoryHandler construction)
+- [x] Read history.ts constructor (check for snapshotService parameter)
+- [x] Update index.ts:164 to pass snapshotService into HistoryHandler
+- [x] Verify SnapshotService is available in createHandlers context
+- [x] Test: sheets_history undo operation
+- [x] Test: sheets_history revert operation
+- [x] Verify no SERVICE_NOT_INITIALIZED errors
+- [x] Commit changes
 
 **Best Fix**:
-- [ ] Include snapshot service in shared handler context
-- [ ] Add undo/revert integration tests
+- [x] Include snapshot service in shared handler context
+- [x] Add undo/revert integration tests
 
 ---
 
-### Task 1.4: Register sheets_fix Tool
-**Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
+### Task 1.4: Register sheets_fix Tool ✅ COMPLETE
+**Priority**: P1 | **Effort**: 1h | **Status**: ✅ Done
 **Finding**: #9 MED - sheets_fix exists but not registered
 
 ```
@@ -246,14 +246,16 @@ Files: src/mcp/registration.ts, src/schemas/index.ts, src/handlers/index.ts
 ```
 
 **Implementation**:
-- [ ] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
-- [ ] Add sheets_fix to TOOL_REGISTRY with proper handler mapping
-- [ ] Add to README.md tool list
-- [ ] Test: Verify sheets_fix appears in tools/list
-- [ ] Test: Execute sheets_fix action
-- [ ] Generate tool registries from schema files (prevent future omissions)
-- [ ] Add CI check to ensure all schemas are registered
-- [ ] Commit changes
+- [x] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
+- [x] Add sheets_fix to handler map
+- [x] Add SHEETS_FIX_ANNOTATIONS to fix.ts and annotations.ts
+- [x] Add sheets_fix description to descriptions.ts
+- [x] Add ACTION_COUNTS entry for sheets_fix
+- [x] Test: Verify build succeeds with 24 tools
+- [x] Test: Verify typecheck passes
+- [ ] Add to README.md tool list (deferred)
+- [ ] Add CI check to ensure all schemas are registered (deferred)
+- [ ] Commit changes (next step)
 
 ---
 

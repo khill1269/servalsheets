@@ -71,6 +71,7 @@ import {
   // New MCP-native tools
   SheetsConfirmInputSchema, SheetsConfirmOutputSchema, SHEETS_CONFIRM_ANNOTATIONS,
   SheetsAnalyzeInputSchema, SheetsAnalyzeOutputSchema, SHEETS_ANALYZE_ANNOTATIONS,
+  SheetsFixInputSchema, SheetsFixOutputSchema, SHEETS_FIX_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
 } from '../schemas/index.js';
@@ -289,6 +290,13 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     outputSchema: SheetsAnalyzeOutputSchema,
     annotations: SHEETS_ANALYZE_ANNOTATIONS,
   },
+  {
+    name: 'sheets_fix',
+    description: TOOL_DESCRIPTIONS['sheets_fix']!,
+    inputSchema: SheetsFixInputSchema,
+    outputSchema: SheetsFixOutputSchema,
+    annotations: SHEETS_FIX_ANNOTATIONS,
+  },
 ] as const;
 
 // ============================================================================
@@ -329,6 +337,7 @@ export function createToolHandlerMap(
     // MCP-native tools (use Server instance from context for Elicitation/Sampling)
     'sheets_confirm': (args) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args)),
     'sheets_analyze': (args) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args)),
+    'sheets_fix': (args) => handlers.fix.handle(SheetsFixInputSchema.parse(args)),
   };
 
   if (authHandler) {
