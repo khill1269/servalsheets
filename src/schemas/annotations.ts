@@ -204,7 +204,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_sharing: 8,
   sheets_comments: 10,
   sheets_versions: 10,
-  sheets_analysis: 13,
+  sheets_analysis: 13,  // data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
   sheets_advanced: 19,
   // Enterprise Tools
   sheets_transaction: 6,  // begin, queue, commit, rollback, status, list
@@ -213,9 +213,9 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_impact: 1,       // analyze
   sheets_history: 7,      // list, get, stats, undo, redo, revert_to, clear
   // MCP-Native Tools
-  sheets_confirm: 1,      // confirm (via Elicitation)
-  sheets_analyze: 1,      // analyze (via Sampling)
-  sheets_fix: 1,          // fix (automated issue resolution)
+  sheets_confirm: 2,      // request, get_stats (via Elicitation)
+  sheets_analyze: 4,      // analyze, generate_formula, suggest_chart, get_stats (via Sampling)
+  sheets_fix: 0,          // No actions - single request mode (automated issue resolution)
 };
 
 /**

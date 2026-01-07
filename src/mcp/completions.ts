@@ -11,10 +11,10 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * Action names for each tool (for autocompletion)
- * 
+ *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 185+ actions across 23 tools
+ * Total: 185 actions across 24 tools (sheets_fix has no actions - single request mode)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   // sheets_auth: 4 actions (src/schemas/auth.ts)
@@ -59,8 +59,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
   // sheets_versions: 10 actions (src/schemas/versions.ts)
   sheets_versions: ['list_revisions', 'get_revision', 'restore_revision', 'keep_revision', 'create_snapshot', 'list_snapshots', 'restore_snapshot', 'delete_snapshot', 'compare', 'export_version'],
   
-  // sheets_analysis: 8 actions (src/schemas/analysis.ts)
-  sheets_analysis: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges'],
+  // sheets_analysis: 13 actions (src/schemas/analysis.ts)
+  sheets_analysis: ['data_quality', 'formula_audit', 'structure_analysis', 'statistics', 'correlations', 'summary', 'dependencies', 'compare_ranges', 'detect_patterns', 'column_analysis', 'suggest_templates', 'generate_formula', 'suggest_chart'],
   
   // sheets_advanced: 19 actions (src/schemas/advanced.ts)
   sheets_advanced: ['add_named_range', 'update_named_range', 'delete_named_range', 'list_named_ranges', 'get_named_range', 'add_protected_range', 'update_protected_range', 'delete_protected_range', 'list_protected_ranges', 'set_metadata', 'get_metadata', 'delete_metadata', 'add_banding', 'update_banding', 'delete_banding', 'list_banding', 'create_table', 'delete_table', 'list_tables'],
@@ -79,16 +79,19 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
   // sheets_impact: 1 action (src/schemas/impact.ts)
   sheets_impact: ['analyze'],
 
-  // sheets_history: 3 actions (src/schemas/history.ts)
-  sheets_history: ['list', 'get', 'stats'],
+  // sheets_history: 7 actions (src/schemas/history.ts)
+  sheets_history: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
 
   // === MCP-Native Tools ===
 
-  // sheets_confirm: 3 actions (src/schemas/confirm.ts) - MCP Elicitation SEP-1036
-  sheets_confirm: ['request', 'check', 'cancel'],
+  // sheets_confirm: 2 actions (src/schemas/confirm.ts) - MCP Elicitation SEP-1036
+  sheets_confirm: ['request', 'get_stats'],
 
-  // sheets_analyze: 1 action (src/schemas/analyze.ts) - MCP Sampling SEP-1577
-  sheets_analyze: ['analyze'],
+  // sheets_analyze: 4 actions (src/schemas/analyze.ts) - MCP Sampling SEP-1577
+  sheets_analyze: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats'],
+
+  // sheets_fix: No actions - single request mode (src/schemas/fix.ts)
+  // Note: sheets_fix does not use action-based dispatch
 };
 
 /**

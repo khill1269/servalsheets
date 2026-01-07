@@ -236,7 +236,7 @@ export const TOOL_REGISTRY = {
     schema: 'SheetsHistoryInputSchema',
     output: 'SheetsHistoryOutputSchema',
     annotations: 'SHEETS_HISTORY_ANNOTATIONS',
-    actions: ['list', 'get', 'stats'],
+    actions: ['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'],
   },
   // MCP-native tools using Elicitation and Sampling
   sheets_confirm: {
@@ -256,6 +256,15 @@ export const TOOL_REGISTRY = {
     output: 'SheetsAnalyzeOutputSchema',
     annotations: 'SHEETS_ANALYZE_ANNOTATIONS',
     actions: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats'],
+  },
+  sheets_fix: {
+    name: 'sheets_fix',
+    title: 'Automated Issue Fixing',
+    description: 'Automatically fix common spreadsheet issues detected by sheets_analysis. Supports preview mode (see what would be fixed) and apply mode (actually fix).',
+    schema: 'SheetsFixInputSchema',
+    output: 'SheetsFixOutputSchema',
+    annotations: 'SHEETS_FIX_ANNOTATIONS',
+    actions: [],  // No actions - single request mode
   },
 } as const;
 
