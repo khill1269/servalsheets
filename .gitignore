@@ -28,10 +28,17 @@ Thumbs.db
 *.json
 !package.json
 !tsconfig.json
+!tsconfig.build.json
+!inspector.json
+!server.json
+!vitest.config.ts
 !tests/config/test-credentials.example.json
 service-account*.json
 credentials*.json
 tests/config/test-credentials.json
+.secrets/
+*.tokens.enc
+*.enc
 
 # Logs
 *.log

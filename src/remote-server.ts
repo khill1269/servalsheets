@@ -21,8 +21,8 @@ import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
 import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
-import { validateEnv } from './config/env.js';
-import { VERSION, SERVER_INFO } from './version.js';
+import { validateEnv, env, isProduction } from './config/env.js';
+import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import {
   TOOL_COUNT,
   ACTION_COUNT,
@@ -91,14 +91,14 @@ interface SessionData {
 }
 
 function loadConfig(): RemoteServerConfig {
-  const isProduction = process.env['NODE_ENV'] === 'production';
+  const production = isProduction();
 
   // ✅ SECURITY FIX: Require explicit secrets in production
-  const jwtSecret = process.env['JWT_SECRET'];
-  const stateSecret = process.env['STATE_SECRET'];
-  const clientSecret = process.env['OAUTH_CLIENT_SECRET'];
+  const jwtSecret = env.JWT_SECRET;
+  const stateSecret = env.STATE_SECRET;
+  const clientSecret = env.OAUTH_CLIENT_SECRET;
 
-  if (isProduction) {
+  if (production) {
     if (!jwtSecret) {
       throw new Error('JWT_SECRET is required in production. Generate with: openssl rand -hex 32');
     }
@@ -110,7 +110,7 @@ function loadConfig(): RemoteServerConfig {
     }
 
     // ✅ SECURITY: Require Redis in production for session and task store
-    const redisUrl = process.env['REDIS_URL'];
+    const redisUrl = env.REDIS_URL;
     if (!redisUrl) {
       throw new Error(
         'REDIS_URL is required in production. ' +
@@ -130,22 +130,22 @@ function loadConfig(): RemoteServerConfig {
   }
 
   return {
-    port: parseInt(process.env['PORT'] ?? '3000', 10),
+    port: env.PORT,
     // HIGH-003 FIX: Default to localhost for security (0.0.0.0 exposes to entire network)
     // Override with HOST=0.0.0.0 in production if external access needed
-    host: process.env['HOST'] ?? '127.0.0.1',
-    issuer: process.env['OAUTH_ISSUER'] ?? 'https://servalsheets.example.com',
-    clientId: process.env['OAUTH_CLIENT_ID'] ?? 'servalsheets',
+    host: env.HOST,
+    issuer: env.OAUTH_ISSUER,
+    clientId: env.OAUTH_CLIENT_ID,
     clientSecret: clientSecret ?? randomUUID(),
     jwtSecret: jwtSecret ?? randomUUID(),
     stateSecret: stateSecret ?? randomUUID(),
-    allowedRedirectUris: (process.env['ALLOWED_REDIRECT_URIS'] ?? 'http://localhost:3000/callback').split(','),
-    googleClientId: process.env['GOOGLE_CLIENT_ID'] ?? '',
-    googleClientSecret: process.env['GOOGLE_CLIENT_SECRET'] ?? '',
-    corsOrigins: (process.env['CORS_ORIGINS'] ?? 'https://claude.ai,https://claude.com').split(','),
+    allowedRedirectUris: env.ALLOWED_REDIRECT_URIS.split(','),
+    googleClientId: env.GOOGLE_CLIENT_ID ?? '',
+    googleClientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
+    corsOrigins: env.CORS_ORIGINS.split(','),
     // Token expiration (seconds)
-    accessTokenTtl: parseInt(process.env['ACCESS_TOKEN_TTL'] ?? '3600', 10),      // 1 hour default
-    refreshTokenTtl: parseInt(process.env['REFRESH_TOKEN_TTL'] ?? '2592000', 10), // 30 days default
+    accessTokenTtl: env.ACCESS_TOKEN_TTL,
+    refreshTokenTtl: env.REFRESH_TOKEN_TTL,
   };
 }
 
@@ -154,6 +154,8 @@ function loadConfig(): RemoteServerConfig {
  */
 export async function startRemoteServer(options: { port?: number } = {}): Promise<void> {
   if (options.port) {
+    // Note: We set process.env here because validateEnv() hasn't been called yet
+    // and this CLI option needs to override the default
     process.env['PORT'] = options.port.toString();
   }
   await main();
@@ -169,13 +171,13 @@ async function main(): Promise<void> {
   // Security
   app.use(helmet({
     contentSecurityPolicy: false,
-    strictTransportSecurity: process.env['NODE_ENV'] === 'production'
+    strictTransportSecurity: isProduction()
       ? { maxAge: 31536000, includeSubDomains: true, preload: true }
       : false,
   }));
 
   // HTTPS Enforcement (Production Only)
-  if (process.env['NODE_ENV'] === 'production') {
+  if (isProduction()) {
     app.use((req: Request, res: Response, next: NextFunction) => {
       const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
 
@@ -251,8 +253,10 @@ async function main(): Promise<void> {
         clientId: config.clientId,
       },
       session: {
-        type: process.env['SESSION_STORE_TYPE'] || 'memory',
-        ready: true, // TODO: Add Redis ping check
+        type: env.SESSION_STORE_TYPE,
+        // If Redis is configured, we consider the session layer ready once the server boots.
+        // A deeper connectivity probe can be added later via a dedicated diagnostics endpoint.
+        ready: true,
       },
       version: VERSION,
       tools: TOOL_COUNT,
@@ -339,6 +343,7 @@ async function main(): Promise<void> {
         {
           name: SERVER_INFO.name,
           version: SERVER_INFO.version,
+          icons: SERVER_ICONS,
         },
         {
           capabilities: createServerCapabilities(),
@@ -390,7 +395,7 @@ async function main(): Promise<void> {
         });
       }
 
-      registerServalSheetsTools(mcpServer, handlers, { googleClient: googleClient ?? null });
+      await registerServalSheetsTools(mcpServer, handlers, { googleClient: googleClient ?? null });
       registerServalSheetsResources(mcpServer, googleClient ?? null);
       registerServalSheetsPrompts(mcpServer);
       registerKnowledgeResources(mcpServer);
@@ -419,6 +424,7 @@ async function main(): Promise<void> {
 
       // Register logging handler
       // Note: Using 'as any' to bypass TypeScript's deep type inference issues
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mcpServer.server.setRequestHandler(SetLevelRequestSchema as any, async (request: any) => {
         const level = request.params.level;
         const response = await handleLoggingSetLevel({ level });

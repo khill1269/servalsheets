@@ -1,12 +1,12 @@
 /**
  * ServalSheets - Enhanced Tool Descriptions
- * 
+ *
  * LLM-Optimized descriptions that help AI agents:
  * 1. Know WHEN to use each tool
  * 2. See COMMON PATTERNS with examples
  * 3. Understand QUOTA implications
  * 4. Make better tool selection decisions
- * 
+ *
  * Format: Each description includes:
  * - Primary purpose (first line)
  * - **When to use:** decision guidance
@@ -16,11 +16,10 @@
  */
 
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
-
   //=============================================================================
   // AUTHENTICATION
   //=============================================================================
-  
+
   sheets_auth: `🔐 OAuth 2.1 authentication management with PKCE. ALWAYS check status before other operations. Actions: status, login, callback, logout.
 
 **Quick Examples:**
@@ -137,21 +136,30 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • Semantic ranges {"semantic":{"column":"Revenue"}} find by header
 • For >10K cells enable majorDimension:"ROWS"
 
+**🔒 Safety & Undo (Critical for Writes):**
+• DRY-RUN FIRST: {"safety":{"dryRun":true}} → Preview changes before executing
+• USER CONFIRMATION: Use sheets_confirm for >100 cells or destructive ops
+• AUTO-SNAPSHOT: {"safety":{"createSnapshot":true}} → Auto-backup before execution
+• TRANSACTIONS: Wrap 2+ writes in sheets_transaction for atomicity + rollback
+• UNDO: sheets_history action="rollback" OR sheets_versions action="restore"
+
 **Common Workflows:**
 1. After reading → Use sheets_analysis for data quality
-2. Before writes → Use sheets_validation for pre-flight checks
-3. Critical changes → Wrap in sheets_transaction for atomicity
+2. Before writes → ALWAYS use dryRun first to preview
+3. Before >100 cells → Use sheets_confirm for user approval
+4. For 2+ operations → Wrap in sheets_transaction for atomicity
+5. Critical changes → Enable createSnapshot for instant undo
 
 **Error Recovery:**
-• QUOTA_EXCEEDED → Use batch operations, wait 60s
+• QUOTA_EXCEEDED → Use batch operations (batch_write), wait 60s
 • RANGE_NOT_FOUND → Check sheet name with sheets_spreadsheet
 • PERMISSION_DENIED → Call sheets_auth action="login"
 
 **Commonly Used With:**
-→ sheets_analysis (analyze data quality after reading)
+→ sheets_confirm (get approval before >100 cell writes)
+→ sheets_transaction (wrap multiple writes atomically)
 → sheets_validation (validate before writing)
-→ sheets_format (format after bulk writes)
-→ sheets_transaction (wrap writes for atomicity)`,
+→ sheets_analysis (analyze data quality after reading)`,
 
   //=============================================================================
   // FORMATTING & STYLING
@@ -214,13 +222,40 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_cells (merge headers before formatting)
 → sheets_transaction (batch format operations)`,
 
-  sheets_dimensions: `Manage rows and columns: insert, delete, resize, freeze, group. Actions: insert_rows, insert_columns, delete_rows, delete_columns, resize, freeze_rows, freeze_columns, auto_resize.
+  sheets_dimensions: `⚠️ Manage rows and columns: insert, delete, resize, freeze, group. DELETE OPERATIONS ARE DESTRUCTIVE - always confirm first. Actions: insert_rows, insert_columns, delete_rows, delete_columns, resize, freeze_rows, freeze_columns, auto_resize.
+
+**⚡ WHEN TO USE:**
+• Insert rows/columns before bulk data operations
+• Delete rows/columns (with confirmation for >10 rows)
+• Resize rows/columns for better readability
+• Freeze rows/columns for navigation (headers/labels)
+• Auto-resize after data import for optimal width
+• Group rows/columns for collapsible sections
+
+**❌ DON'T USE FOR:**
+• Data modification (use sheets_values)
+• Cell formatting (use sheets_format)
+• Reading dimensions (use sheets_spreadsheet action="get")
+
+**🔴 CRITICAL: Delete Operations Safety**
+• delete_rows/delete_columns are PERMANENT (no built-in undo)
+• ALWAYS use sheets_confirm before deleting >10 rows
+• ALWAYS enable createSnapshot:true for delete operations
+• ALWAYS check dependencies with sheets_impact before delete
 
 **Quick Examples:**
 • Insert rows: {"action":"insert_rows","spreadsheetId":"1ABC...","sheetId":0,"startIndex":5,"count":10}
-• Delete columns: {"action":"delete_columns","spreadsheetId":"1ABC...","sheetId":0,"startIndex":3,"count":2}
+• Delete columns (SAFE): {"action":"delete_columns","spreadsheetId":"1ABC...","sheetId":0,"startIndex":3,"count":2,"safety":{"dryRun":true,"createSnapshot":true}}
 • Freeze headers: {"action":"freeze_rows","spreadsheetId":"1ABC...","sheetId":0,"count":1}
 • Auto-resize: {"action":"auto_resize","spreadsheetId":"1ABC...","sheetId":0,"dimension":"COLUMNS"}
+
+**🔒 Safety & Undo for Deletes:**
+1. DRY-RUN: {"safety":{"dryRun":true}} → See what will be deleted
+2. IMPACT CHECK: sheets_impact action="analyze" → Check formula dependencies
+3. USER CONFIRM: sheets_confirm → Get approval for >10 rows/columns
+4. SNAPSHOT: {"safety":{"createSnapshot":true}} → Create restore point
+5. EXECUTE: Remove dryRun flag, delete with snapshot
+6. UNDO: sheets_versions action="restore" using snapshotId from response
 
 **Performance Tips:**
 • Insert/delete multiple rows in one call instead of looping
@@ -228,9 +263,11 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • Freeze headers immediately after creating sheet for better UX
 
 **Common Workflows:**
-1. After import → Auto-resize columns for readability
-2. Before adding data → Insert rows/columns to make space
-3. For reports → Freeze top row and first column
+1. Before delete → Check impact with sheets_impact
+2. Before delete → Request confirmation with sheets_confirm
+3. After import → Auto-resize columns for readability
+4. Before adding data → Insert rows/columns to make space
+5. For reports → Freeze top row and first column
 
 **Error Recovery:**
 • INDEX_OUT_OF_BOUNDS → Verify sheet dimensions with sheets_sheet list
@@ -238,9 +275,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • TOO_MANY_ROWS → Google Sheets limit is 10M cells per sheet
 
 **Commonly Used With:**
-→ sheets_values (insert rows before bulk writes)
-→ sheets_format (auto-resize after data import)
-→ sheets_advanced (group rows for better organization)`,
+→ sheets_confirm (ALWAYS for delete operations >10 rows)
+→ sheets_impact (check dependencies before delete)
+→ sheets_versions (create snapshot before delete)
+→ sheets_values (insert rows before bulk writes)`,
 
   //=============================================================================
   // DATA RULES
@@ -427,7 +465,31 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // ANALYSIS & INTELLIGENCE
   //=============================================================================
 
-  sheets_analysis: `Analyze structure, data quality, formulas, and statistics (read-only). Actions: data_quality, formula_audit, statistics, detect_patterns, column_analysis, suggest_chart.
+  sheets_analysis: `📊 Analyze structure, data quality, formulas, and statistics (read-only, fast, deterministic). Use THIS tool for traditional analysis. Actions: data_quality, formula_audit, statistics, detect_patterns, column_analysis, suggest_chart.
+
+**🔍 sheets_analysis vs sheets_analyze - WHEN TO USE WHICH:**
+
+**Use sheets_analysis (THIS TOOL) for:**
+✅ Fast, deterministic checks (<1 second)
+✅ Data quality issues (empty cells, duplicates, mixed types)
+✅ Formula errors (#REF!, #DIV/0!, circular refs)
+✅ Statistics (mean, median, std dev, correlation)
+✅ Known issue types with specific fixes
+✅ Structural analysis (sheets, ranges, named ranges)
+✅ Performance (no LLM cost or latency)
+
+**Use sheets_analyze (AI tool) for:**
+✅ Pattern detection (AI finds non-obvious trends)
+✅ Anomaly detection (statistical outliers with context)
+✅ Formula generation (natural language → Google Sheets formula)
+✅ Chart recommendations (AI suggests best visualization)
+✅ Novel insights (AI explains what's interesting about the data)
+✅ Complex interpretation (requires reasoning)
+
+**Decision Tree:**
+1. Need basic stats or known issues? → sheets_analysis
+2. Need AI to find patterns/generate formulas? → sheets_analyze
+3. Unsure? → Start with sheets_analysis (fast/free), then sheets_analyze for deeper insights
 
 **Quick Examples:**
 • Data quality: {"action":"data_quality","spreadsheetId":"1ABC...","range":"Sheet1!A1:Z100"}
@@ -435,17 +497,26 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • Statistics: {"action":"statistics","spreadsheetId":"1ABC...","range":"Data!B2:B100"}
 • Patterns: {"action":"detect_patterns","spreadsheetId":"1ABC...","range":"Sales!A:D"}
 
+**What Each Action Finds:**
+• data_quality: Empty headers, duplicates, mixed types, missing values, whitespace
+• formula_audit: Broken refs, volatile functions (TODAY/RAND), complex formulas, full column refs (A:A), nested IFERROR, VLOOKUP performance issues
+• statistics: Mean, median, mode, std dev, min, max, quartiles, null count
+• detect_patterns: Trends, correlations, seasonality, anomalies (z-score outliers)
+• column_analysis: Data type detection, distribution, unique values, frequency
+• suggest_chart: Best chart types for data structure
+
 **Performance Tips:**
 • Limit range to analyzed area only - don't scan entire sheet
-• data_quality checks: empty cells, duplicates, type mismatches
-• formula_audit finds: #REF!, #DIV/0!, circular references
+• data_quality checks <10K cells in <1 second
+• formula_audit scans all formulas in sheet (can take 2-3 seconds for large sheets)
 • Use before writes to catch issues early (saves API quota)
+• Results are cached for 60 seconds
 
 **Common Workflows:**
 1. After data import → {"action":"data_quality"} to verify
 2. Before complex formulas → {"action":"formula_audit"} for errors
-3. For dashboards → {"action":"suggest_chart"} for viz recommendations
-4. Data profiling → {"action":"column_analysis"} per column
+3. For quick stats → {"action":"statistics"} (faster than AI)
+4. THEN if needed → Use sheets_analyze for AI insights
 
 **Error Recovery:**
 • RANGE_TOO_LARGE → Reduce range to <10K cells per analysis
@@ -453,36 +524,67 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • INVALID_RANGE → Verify format: "Sheet1!A1:D10"
 
 **Commonly Used With:**
-→ sheets_analyze (AI-powered insights after quality check)
+→ sheets_analyze (AI insights AFTER sheets_analysis finds issues)
+→ sheets_fix (automatically fix issues found)
 → sheets_values (fix issues found in analysis)
-→ sheets_format (apply conditional formatting based on findings)
-→ sheets_charts (visualize analysis results)`,
+→ sheets_format (apply conditional formatting based on findings)`,
 
-  sheets_analyze: `AI-powered data analysis using MCP Sampling (SEP-1577). Analyze patterns, anomalies, trends, generate formulas, suggest charts.
+  sheets_analyze: `🤖 AI-powered data analysis using MCP Sampling (SEP-1577). Use for pattern detection, anomaly detection, formula generation, and chart recommendations. THIS IS THE AI TOOL - use sheets_analysis for traditional analysis.
+
+**🔍 sheets_analyze vs sheets_analysis - WHEN TO USE WHICH:**
+
+**Use sheets_analyze (THIS TOOL - AI) for:**
+✅ Pattern detection (AI finds non-obvious trends in time series, sales, etc.)
+✅ Anomaly detection (AI explains WHY outliers are interesting)
+✅ Formula generation (natural language → Google Sheets formula)
+✅ Chart recommendations (AI suggests best visualization types)
+✅ Novel insights (AI explains what's interesting about the data)
+✅ Complex interpretation (requires reasoning about business context)
+
+**Use sheets_analysis (traditional tool) for:**
+✅ Fast, deterministic checks (<1 second, no LLM cost)
+✅ Data quality issues (empty cells, duplicates)
+✅ Formula errors (#REF!, #DIV/0!)
+✅ Simple statistics (mean, median, std dev)
+
+**Decision Tree:**
+1. Need AI reasoning/insights? → sheets_analyze
+2. Need to generate formulas from natural language? → sheets_analyze
+3. Need basic stats or known issues? → sheets_analysis
+4. Workflow: ALWAYS start with sheets_analysis (fast), THEN sheets_analyze for deeper insights
 
 **Quick Examples:**
-• Full analysis: {"action":"analyze","spreadsheetId":"1ABC...","range":"Sales!A1:F100","types":["patterns","anomalies","trends"]}
-• Generate formula: {"action":"generate_formula","spreadsheetId":"1ABC...","description":"Calculate YoY growth from columns B and C"}
-• Suggest chart: {"action":"suggest_chart","spreadsheetId":"1ABC...","range":"A1:D20","goal":"show trends over time"}
+• Full analysis: {"action":"analyze","spreadsheetId":"1ABC...","range":"Sales!A1:F100","analysisTypes":["patterns","anomalies","trends"]}
+• Generate formula: {"action":"generate_formula","spreadsheetId":"1ABC...","description":"Calculate YoY growth percentage comparing this year (column B) to last year (column C)","range":"Data!A1:C100"}
+• Suggest chart: {"action":"suggest_chart","spreadsheetId":"1ABC...","range":"A1:D20","goal":"show revenue trends over time"}
+
+**What AI Provides:**
+• analyze: Patterns (trends, correlations, seasonality), anomalies (outliers with context), data quality issues with suggested fixes, overall quality score (0-100)
+• generate_formula: Google Sheets formula from natural language, explanation of how it works, alternative formulas, assumptions, tips
+• suggest_chart: Best chart types ranked by suitability, configuration (axes, series), reasoning for each suggestion
 
 **Performance Tips:**
-• Uses MCP Sampling for intelligent analysis
-• Limit to <5000 cells for fast responses
-• Specify analysis types to reduce processing
+• Uses MCP Sampling - requires client support (Claude Desktop supports it)
+• Limit to <5000 cells for fast responses (<3 seconds)
+• Specify analysisTypes to reduce processing time
+• More expensive than sheets_analysis (uses LLM tokens)
+• Response time: 2-5 seconds depending on data size
 
 **Common Workflows:**
-1. New dataset → Full analysis for overview
-2. Need formula → Describe in natural language
-3. Create dashboard → Get chart suggestions
+1. ALWAYS start: sheets_analysis (fast checks)
+2. IF need insights: sheets_analyze (AI reasoning)
+3. Example: "Analyze this data" → sheets_analysis first, then sheets_analyze if user wants deeper insights
 
 **Error Recovery:**
-• SAMPLING_UNAVAILABLE → Client doesn't support MCP Sampling
-• RANGE_TOO_LARGE → Reduce to representative sample
+• SAMPLING_UNAVAILABLE → Client doesn't support MCP Sampling (use sheets_analysis instead)
+• RANGE_TOO_LARGE → Reduce to <5000 cells (sample if needed)
+• PARSE_ERROR → AI response format invalid, retry with clearer context
 
 **Commonly Used With:**
-→ sheets_analysis (basic analysis before AI insights)
-→ sheets_charts (create suggested charts)
-→ sheets_values (apply generated formulas)`,
+→ sheets_analysis (run BEFORE sheets_analyze for baseline)
+→ sheets_charts (create AI-suggested charts)
+→ sheets_values (apply generated formulas)
+→ sheets_confirm (confirm AI suggestions before applying)`,
 
   //=============================================================================
   // ADVANCED FEATURES
@@ -515,34 +617,51 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // ENTERPRISE / SAFETY
   //=============================================================================
 
-  sheets_transaction: `Execute multiple operations atomically with rollback support. Actions: begin, add_operation, commit, rollback, status.
+  sheets_transaction: `Execute multiple operations atomically with rollback support. ALWAYS use for 2+ operations on the same spreadsheet. Actions: begin, queue, commit, rollback, status.
+
+**⚡ WHEN TO USE (Critical):**
+• ANY TIME you need 2+ operations on the same spreadsheet
+• Bulk imports/updates (>50 rows)
+• Multi-step workflows (format + write + validate)
+• Operations that must succeed or fail together
+• Critical changes requiring atomicity
+
+**❌ DON'T USE:**
+• Single operations (just call the tool directly)
+• Read-only operations (analysis, queries)
+• Operations on different spreadsheets
+
+**Performance Benefits:**
+• 🚀 1 API call instead of N calls (80-95% quota savings)
+• ⚡ 10x faster for bulk operations (batched execution)
+• 🔄 Automatic rollback on ANY failure (no partial writes)
+• 🔒 Guaranteed atomicity (all-or-nothing)
 
 **Quick Examples:**
-• Begin: {"action":"begin","spreadsheetId":"1ABC...","description":"Bulk import Q1 data"}
-• Add op: {"action":"add_operation","transactionId":"tx_123","operation":{"tool":"sheets_values","args":{...}}}
-• Commit: {"action":"commit","transactionId":"tx_123"}
-• Rollback: {"action":"rollback","transactionId":"tx_123"}
+• Begin: {"action":"begin","spreadsheetId":"1ABC...","autoRollback":true}
+• Queue: {"action":"queue","transactionId":"tx_123","operation":{"tool":"sheets_values","action":"write","params":{...}}}
+• Commit: {"action":"commit","transactionId":"tx_123"} ← Executes all atomically
 
-**Performance Tips:**
-• Batch 10-50 operations per transaction - saves 80-95% API quota
-• Use for any multi-step workflow to ensure atomicity
-• Rollback is instant using auto-snapshots
+**Workflow Pattern:**
+1. BEGIN transaction: {"action":"begin","spreadsheetId":"1ABC..."}
+2. QUEUE each operation: {"action":"queue","transactionId":"tx_123","operation":{...}} (repeat)
+3. COMMIT all: {"action":"commit","transactionId":"tx_123"} → Single API call executes all
+4. IF ERROR → Auto-rollback if autoRollback:true
 
-**Common Workflows:**
-1. Before commit → Use sheets_validation to verify all operations
-2. After rollback → Use sheets_history to see what was reverted
-3. For critical changes → Always wrap in transaction
+**Example - Bulk Import (Instead of 100 writes):**
+Begin tx → Queue write op #1 → Queue write op #2 → ... → Queue write op #100 → Commit
+Result: 1 API call, 99% quota saved, atomic execution
 
 **Error Recovery:**
 • TRANSACTION_TIMEOUT → Commit smaller batches (max 50 operations)
-• INVALID_OPERATION → Validate each operation before adding
-• SNAPSHOT_FAILED → Check storage quota with sheets_spreadsheet
+• INVALID_OPERATION → Validate each operation before queuing
+• AUTO_ROLLBACK → Transaction failed, spreadsheet unchanged (safe)
 
 **Commonly Used With:**
+→ sheets_confirm (get user approval before committing)
 → sheets_validation (validate before transaction)
 → sheets_history (track transaction operations)
-→ sheets_versions (automatic snapshots on begin)
-→ All tools (wrap any multi-step workflow)`,
+→ sheets_values (batch writes in transaction)`,
 
   sheets_validation: `Pre-flight validation before operations: check data quality, detect conflicts, verify ranges. Actions: validate_operation, check_conflicts, verify_range, validate_data.
 
@@ -646,32 +765,94 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_analysis (debug data quality issues)
 → All tools (audit trail for all operations)`,
 
-  sheets_confirm: `Confirm multi-step operations with the user before execution. Uses MCP Elicitation (SEP-1036). Claude plans, user confirms, Claude executes.
+  sheets_confirm: `⚠️ Request user confirmation before executing multi-step or destructive operations. Uses MCP Elicitation (SEP-1036). YOU (Claude) plan → USER confirms via interactive UI → YOU execute.
+
+**🔴 WHEN YOU MUST USE THIS (Critical):**
+• BEFORE any operation that:
+  - Modifies >100 cells
+  - Deletes sheets, rows, or columns
+  - Changes sharing permissions
+  - Executes 3+ operations in sequence
+  - Has "high" risk level
+  - Is irreversible without manual restore
+
+**❌ DON'T USE FOR:**
+• Read-only operations (analysis, queries)
+• Single cell edits
+• Low-risk operations (<10 cells modified)
+• Operations user explicitly said "just do it"
+
+**MCP Elicitation Flow:**
+1. YOU build operation plan with steps, risks, impact
+2. YOU call sheets_confirm with the plan
+3. USER sees interactive form in Claude Desktop:
+   ┌─────────────────────────────────────────┐
+   │ Plan: Delete Duplicate Rows             │
+   │ Risk: HIGH | Affects: 150 rows          │
+   │                                         │
+   │ Step 1: Identify duplicates (low risk)  │
+   │ Step 2: Delete 150 rows (HIGH RISK)    │
+   │ Step 3: Update formulas (medium risk)  │
+   │                                         │
+   │ Snapshot will be created for undo      │
+   │                                         │
+   │ [✓ Approve] [✎ Modify] [✗ Cancel]      │
+   └─────────────────────────────────────────┘
+4. USER clicks Approve/Modify/Cancel
+5. YOU receive confirmation result
+6. IF APPROVED → Execute plan with sheets_transaction
+7. IF REJECTED → Abort, no changes made
 
 **Quick Examples:**
-• Confirm plan: {"action":"request_confirmation","plan":{"title":"Delete Old Data","steps":[...],"risk":"high"}}
-• Get status: {"action":"get_status","confirmationId":"conf_123"}
+{
+  "action": "request",
+  "plan": {
+    "title": "Clean Data Quality Issues",
+    "description": "Fix 25 data quality issues found in Sales sheet",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "description": "Remove 10 duplicate rows from A2:A100",
+        "tool": "sheets_dimensions",
+        "action": "delete_rows",
+        "risk": "high",
+        "estimatedApiCalls": 1,
+        "isDestructive": true,
+        "canUndo": true
+      },
+      {
+        "stepNumber": 2,
+        "description": "Fix 15 empty cells in required columns",
+        "tool": "sheets_values",
+        "action": "write",
+        "risk": "medium",
+        "estimatedApiCalls": 1,
+        "isDestructive": true,
+        "canUndo": true
+      }
+    ],
+    "willCreateSnapshot": true,
+    "additionalWarnings": ["This will permanently delete rows"]
+  }
+}
 
-**Performance Tips:**
-• Use for any destructive or bulk operation
-• Plan previews use sheets_impact internally
-• User sees full plan before confirming
-
-**Common Workflows:**
-1. Plan operation → Build step list
-2. Request confirmation → User reviews
-3. On confirm → Execute with sheets_transaction
-4. On reject → Abort cleanly
+**Best Practices:**
+• ALWAYS show estimated impact (cells, rows, API calls)
+• ALWAYS indicate if operation is destructive
+• ALWAYS mention snapshot/undo capability
+• Be specific in step descriptions (not "update data" but "update 50 cells in column B")
+• Include risk level for EACH step (low/medium/high)
 
 **Error Recovery:**
-• ELICITATION_UNAVAILABLE → Client doesn't support MCP Elicitation
-• CONFIRMATION_TIMEOUT → Prompt user to confirm again
-• USER_REJECTED → Abort operation, no changes made
+• ELICITATION_UNAVAILABLE → Client doesn't support MCP Elicitation (use dry-run instead)
+• USER_REJECTED → User declined, abort operation, explain what was avoided
+• USER_MODIFIED → User changed plan, parse modifications and adjust
 
 **Commonly Used With:**
-→ sheets_impact (generate plan impact preview)
-→ sheets_transaction (execute confirmed plan atomically)
-→ sheets_history (track confirmed operations)`,
+→ sheets_impact (analyze impact before building plan)
+→ sheets_transaction (execute approved plan atomically)
+→ sheets_analysis (show data quality issues to fix)
+→ sheets_history (track confirmed operations for audit)`,
 
   sheets_fix: `Automatically fix common spreadsheet issues detected by sheets_analysis. Supports preview mode (see what would be fixed) and apply mode (actually fix).
 
@@ -718,7 +899,6 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_history (rollback if fixes cause problems)
 → sheets_confirm (confirm high-risk fixes before applying)
 → sheets_transaction (execute multiple fixes atomically)`,
-
 };
 
 // Type export for other modules

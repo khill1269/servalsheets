@@ -48,10 +48,8 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
         action: 'list_revisions',
         spreadsheetId: 'sheet-id',
-      },
     });
 
     const parsed = SheetsVersionsOutputSchema.safeParse(result);
@@ -69,12 +67,10 @@ describe('VersionsHandler', () => {
     mockDriveApi.files.get.mockResolvedValue({ data: { name: 'Original' } });
 
     const result = await handler.handle({
-      request: {
-        action: 'restore_snapshot',
-        spreadsheetId: 'sheet-id',
-        snapshotId: 'snap',
-      },
-    } as any);
+      action: 'restore_snapshot',
+      spreadsheetId: 'sheet-id',
+      snapshotId: 'snap',
+    });
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -88,11 +84,9 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
-        action: 'list_snapshots',
-        spreadsheetId: 'sheet-id',
-      },
-    } as any);
+      action: 'list_snapshots',
+      spreadsheetId: 'sheet-id',
+    });
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {
@@ -106,12 +100,10 @@ describe('VersionsHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
-        action: 'export_version',
-        spreadsheetId: 'sheet-id',
-        format: 'pdf',
-      },
-    } as any);
+      action: 'export_version',
+      spreadsheetId: 'sheet-id',
+      format: 'pdf',
+    });
 
     const parsed = SheetsVersionsOutputSchema.safeParse(result);
     expect(parsed.success).toBe(true);
@@ -123,13 +115,11 @@ describe('VersionsHandler', () => {
 
   it('deletes snapshot with dryRun', async () => {
     const result = await handler.handle({
-      request: {
-        action: 'delete_snapshot',
-        spreadsheetId: 'sheet-id',
-        snapshotId: 'snap1',
-        safety: { dryRun: true },
-      },
-    } as any);
+      action: 'delete_snapshot',
+      spreadsheetId: 'sheet-id',
+      snapshotId: 'snap1',
+      safety: { dryRun: true },
+    });
 
     expect(result.response.success).toBe(true);
     if (result.response.success) {

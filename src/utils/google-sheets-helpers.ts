@@ -1,10 +1,10 @@
 /**
  * ServalSheets - Google API Utilities
- * 
+ *
  * Clean helpers for common operations.
  */
 
-import type { sheets_v4 } from 'googleapis';
+import type { sheets_v4 } from "googleapis";
 
 // ============================================================================
 // COLOR CONVERSION
@@ -13,8 +13,12 @@ import type { sheets_v4 } from 'googleapis';
 /**
  * Convert hex color to Google Sheets RGB (0-1 scale)
  */
-export function hexToRgb(hex: string): { red: number; green: number; blue: number } {
-  const clean = hex.replace('#', '');
+export function hexToRgb(hex: string): {
+  red: number;
+  green: number;
+  blue: number;
+} {
+  const clean = hex.replace("#", "");
   return {
     red: parseInt(clean.substring(0, 2), 16) / 255,
     green: parseInt(clean.substring(2, 4), 16) / 255,
@@ -25,10 +29,20 @@ export function hexToRgb(hex: string): { red: number; green: number; blue: numbe
 /**
  * Convert Google Sheets RGB to hex
  */
-export function rgbToHex(color: { red?: number; green?: number; blue?: number }): string {
-  const r = Math.round((color.red ?? 0) * 255).toString(16).padStart(2, '0');
-  const g = Math.round((color.green ?? 0) * 255).toString(16).padStart(2, '0');
-  const b = Math.round((color.blue ?? 0) * 255).toString(16).padStart(2, '0');
+export function rgbToHex(color: {
+  red?: number;
+  green?: number;
+  blue?: number;
+}): string {
+  const r = Math.round((color.red ?? 0) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  const g = Math.round((color.green ?? 0) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  const b = Math.round((color.blue ?? 0) * 255)
+    .toString(16)
+    .padStart(2, "0");
   return `#${r}${g}${b}`;
 }
 
@@ -68,7 +82,9 @@ export function parseA1Notation(a1: string): ParsedA1 {
   }
 
   // Standard range notation
-  const match = a1.match(/^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i);
+  const match = a1.match(
+    /^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i,
+  );
   if (!match) {
     throw new Error(`Invalid A1 notation: ${a1}`);
   }
@@ -81,7 +97,9 @@ export function parseA1Notation(a1: string): ParsedA1 {
 
   const startCol = columnLetterToIndex(startColLetter);
   const startRow = parseInt(startRowStr, 10) - 1;
-  const endCol = endColLetter ? columnLetterToIndex(endColLetter) + 1 : startCol + 1;
+  const endCol = endColLetter
+    ? columnLetterToIndex(endColLetter) + 1
+    : startCol + 1;
   const endRow = endRowStr ? parseInt(endRowStr, 10) : startRow + 1;
 
   return { sheetName, startCol, startRow, endCol, endRow };
@@ -123,7 +141,7 @@ export function columnLetterToIndex(letter: string): number {
  * Convert 0-based index to column letter
  */
 export function indexToColumnLetter(index: number): string {
-  let letter = '';
+  let letter = "";
   let n = index + 1;
   while (n > 0) {
     const remainder = (n - 1) % 26;
@@ -141,20 +159,23 @@ export function buildA1Notation(
   startCol: number,
   startRow: number,
   endCol?: number,
-  endRow?: number
+  endRow?: number,
 ): string {
   const startCell = `${indexToColumnLetter(startCol)}${startRow + 1}`;
-  const endCell = endCol !== undefined && endRow !== undefined
-    ? `:${indexToColumnLetter(endCol - 1)}${endRow}`
-    : '';
-  
+  const endCell =
+    endCol !== undefined && endRow !== undefined
+      ? `:${indexToColumnLetter(endCol - 1)}${endRow}`
+      : "";
+
   const range = `${startCell}${endCell}`;
-  
+
   if (sheetName) {
-    const quotedName = /[^a-zA-Z0-9_]/.test(sheetName) ? `'${sheetName}'` : sheetName;
+    const quotedName = /[^a-zA-Z0-9_]/.test(sheetName)
+      ? `'${sheetName}'`
+      : sheetName;
     return `${quotedName}!${range}`;
   }
-  
+
   return range;
 }
 
@@ -201,15 +222,15 @@ export function estimateCellCount(range: sheets_v4.Schema$GridRange): number {
  */
 export function extractSpreadsheetId(urlOrId: string): string {
   // Already an ID (no slashes)
-  if (!urlOrId.includes('/')) {
+  if (!urlOrId.includes("/")) {
     return urlOrId;
   }
-  
+
   // Extract from URL: https://docs.google.com/spreadsheets/d/{ID}/edit
   const match = urlOrId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (match) {
     return match[1]!;
   }
-  
+
   throw new Error(`Cannot extract spreadsheet ID from: ${urlOrId}`);
 }

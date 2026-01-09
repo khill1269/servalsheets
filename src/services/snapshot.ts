@@ -1,13 +1,13 @@
 /**
  * ServalSheets - Snapshot Service
- * 
+ *
  * Creates backup copies for rollback capability
  * MCP Protocol: 2025-11-25
  */
 
-import type { drive_v3 } from 'googleapis';
-import { ServiceError, NotFoundError } from '../core/errors.js';
-import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import type { drive_v3 } from "googleapis";
+import { ServiceError, NotFoundError } from "../core/errors.js";
+import { CircuitBreaker } from "../utils/circuit-breaker.js";
 
 export interface Snapshot {
   id: string;
@@ -44,17 +44,14 @@ export class SnapshotService {
       failureThreshold: 5,
       successThreshold: 2,
       timeout: 60000, // 60 seconds
-      name: 'drive-api',
+      name: "drive-api",
     });
   }
 
   /**
    * Create a snapshot of a spreadsheet
    */
-  async create(
-    spreadsheetId: string,
-    name?: string
-  ): Promise<string> {
+  async create(spreadsheetId: string, name?: string): Promise<string> {
     const timestamp = new Date().toISOString();
     const snapshotName = name ?? `Snapshot ${timestamp}`;
 
@@ -62,7 +59,7 @@ export class SnapshotService {
     const requestBody: drive_v3.Schema$File = {
       name: snapshotName,
     };
-    
+
     // Only add parents if we have a folder ID
     if (this.defaultFolderId) {
       requestBody.parents = [this.defaultFolderId];
@@ -79,11 +76,11 @@ export class SnapshotService {
     const copyId = response.data?.id;
     if (!copyId) {
       throw new ServiceError(
-        'Failed to create snapshot: Google API did not return a file ID',
-        'SNAPSHOT_CREATION_FAILED',
-        'Google Drive',
+        "Failed to create snapshot: Google API did not return a file ID",
+        "SNAPSHOT_CREATION_FAILED",
+        "Google Drive",
         true,
-        { spreadsheetId, name: snapshotName }
+        { spreadsheetId, name: snapshotName },
       );
     }
 
@@ -98,7 +95,7 @@ export class SnapshotService {
     // Store snapshot reference
     const existing = this.snapshots.get(spreadsheetId) ?? [];
     existing.push(snapshot);
-    
+
     // Prune old snapshots
     while (existing.length > this.maxSnapshots) {
       const oldest = existing.shift();
@@ -108,7 +105,7 @@ export class SnapshotService {
         });
       }
     }
-    
+
     this.snapshots.set(spreadsheetId, existing);
 
     return snapshot.id;
@@ -126,7 +123,7 @@ export class SnapshotService {
    */
   get(snapshotId: string): Snapshot | undefined {
     for (const snapshots of this.snapshots.values()) {
-      const found = snapshots.find(s => s.id === snapshotId);
+      const found = snapshots.find((s) => s.id === snapshotId);
       if (found) return found;
     }
     return undefined;
@@ -138,7 +135,7 @@ export class SnapshotService {
   async restore(snapshotId: string): Promise<string> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new NotFoundError('Snapshot', snapshotId, { operation: 'restore' });
+      throw new NotFoundError("Snapshot", snapshotId, { operation: "restore" });
     }
 
     // Copy snapshot to create restored file (with circuit breaker protection)
@@ -154,11 +151,11 @@ export class SnapshotService {
     const restoredId = response.data?.id;
     if (!restoredId) {
       throw new ServiceError(
-        'Failed to restore snapshot: Google API did not return a file ID',
-        'SNAPSHOT_RESTORE_FAILED',
-        'Google Drive',
+        "Failed to restore snapshot: Google API did not return a file ID",
+        "SNAPSHOT_RESTORE_FAILED",
+        "Google Drive",
         true,
-        { snapshotId }
+        { snapshotId },
       );
     }
 
@@ -171,7 +168,7 @@ export class SnapshotService {
   async delete(snapshotId: string): Promise<void> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new NotFoundError('Snapshot', snapshotId, { operation: 'delete' });
+      throw new NotFoundError("Snapshot", snapshotId, { operation: "delete" });
     }
 
     // Delete the copy (with circuit breaker protection)
@@ -183,7 +180,7 @@ export class SnapshotService {
 
     // Remove from memory
     for (const [spreadsheetId, snapshots] of this.snapshots.entries()) {
-      const filtered = snapshots.filter(s => s.id !== snapshotId);
+      const filtered = snapshots.filter((s) => s.id !== snapshotId);
       if (filtered.length !== snapshots.length) {
         this.snapshots.set(spreadsheetId, filtered);
         break;

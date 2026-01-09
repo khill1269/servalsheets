@@ -43,12 +43,10 @@ describe('FilterSortHandler', () => {
 
   it('sets a basic filter', async () => {
     const result = await handler.handle({
-      request: {
         action: 'set_basic_filter',
         spreadsheetId: 'sheet-id',
         range: { a1: 'Sheet1!A1:B10' },
         sheetId: 0,
-      },
     });
 
     const parsed = SheetsFilterSortOutputSchema.safeParse(result);
@@ -58,12 +56,10 @@ describe('FilterSortHandler', () => {
 
   it('clears filter with dryRun', async () => {
     const result = await handler.handle({
-      request: {
         action: 'clear_basic_filter',
         spreadsheetId: 'sheet-id',
         sheetId: 0,
         safety: { dryRun: true },
-      },
     });
 
     expect(result.response.success).toBe(true);

@@ -5,85 +5,97 @@
  * MCP Protocol: 2025-11-25
  */
 
-import type { drive_v3 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
-import type { Intent } from '../core/intent.js';
+import type { drive_v3 } from "googleapis";
+import { BaseHandler, type HandlerContext } from "./base.js";
+import type { Intent } from "../core/intent.js";
 import type {
   SheetsCommentsInput,
   SheetsCommentsOutput,
-  CommentsAction,
+  
   CommentsResponse,
-} from '../schemas/index.js';
+} from "../schemas/index.js";
 
 type CommentsSuccess = Extract<CommentsResponse, { success: true }>;
 
-export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsCommentsOutput> {
+export class CommentsHandler extends BaseHandler<
+  SheetsCommentsInput,
+  SheetsCommentsOutput
+> {
   private driveApi: drive_v3.Drive | undefined;
 
   constructor(context: HandlerContext, driveApi?: drive_v3.Drive) {
-    super('sheets_comments', context);
+    super("sheets_comments", context);
     this.driveApi = driveApi;
   }
 
   async handle(input: SheetsCommentsInput): Promise<SheetsCommentsOutput> {
+    // Track spreadsheet ID for better error messages
+    this.trackSpreadsheetId(input.spreadsheetId);
+
     if (!this.driveApi) {
       return {
         response: this.error({
-          code: 'INTERNAL_ERROR',
-          message: 'Drive API not available - required for comment operations',
+          code: "INTERNAL_ERROR",
+          message: "Drive API not available - required for comment operations",
           details: {
-            action: input.request.action,
-            spreadsheetId: input.request.spreadsheetId,
-            requiredScope: 'https://www.googleapis.com/auth/drive.file',
+            action: input.action,
+            spreadsheetId: input.spreadsheetId,
+            requiredScope: "https://www.googleapis.com/auth/drive.file",
           },
           retryable: false,
-          resolution: 'Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.',
+          resolution:
+            "Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.",
           resolutionSteps: [
-            '1. Verify GOOGLE_APPLICATION_CREDENTIALS or service account setup',
-            '2. Ensure drive.file scope is included in OAuth scopes',
-            '3. Re-authenticate if using OAuth',
+            "1. Verify GOOGLE_APPLICATION_CREDENTIALS or service account setup",
+            "2. Ensure drive.file scope is included in OAuth scopes",
+            "3. Re-authenticate if using OAuth",
           ],
         }),
       };
     }
 
+    // Phase 1, Task 1.4: Infer missing parameters from context
+    const inferredRequest = this.inferRequestParameters(
+      input,
+    ) as SheetsCommentsInput;
+
     try {
-      const req = input.request;
+      const req = inferredRequest;
       let response: CommentsResponse;
       switch (req.action) {
-        case 'add':
+        case "add":
           response = await this.handleAdd(req);
           break;
-        case 'update':
+        case "update":
           response = await this.handleUpdate(req);
           break;
-        case 'delete':
+        case "delete":
           response = await this.handleDelete(req);
           break;
-        case 'list':
+        case "list":
           response = await this.handleList(req);
           break;
-        case 'get':
+        case "get":
           response = await this.handleGet(req);
           break;
-        case 'resolve':
+        case "resolve":
           response = await this.handleResolve(req);
           break;
-        case 'reopen':
+        case "reopen":
           response = await this.handleReopen(req);
           break;
-        case 'add_reply':
+        case "add_reply":
           response = await this.handleAddReply(req);
           break;
-        case 'update_reply':
+        case "update_reply":
           response = await this.handleUpdateReply(req);
           break;
-        case 'delete_reply':
+        case "delete_reply":
           response = await this.handleDeleteReply(req);
           break;
         default:
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: "INVALID_PARAMS",
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
@@ -103,7 +115,7 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
   // ============================================================
 
   private async handleAdd(
-    input: Extract<CommentsAction, { action: 'add' }>
+    input: Extract<SheetsCommentsInput, { action: "add" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.create({
       fileId: input.spreadsheetId,
@@ -111,34 +123,36 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
         content: input.content,
         anchor: input.anchor,
       },
-      fields: 'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+      fields:
+        "id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor",
     });
 
-    return this.success('add', { comment: this.mapComment(response.data) });
+    return this.success("add", { comment: this.mapComment(response.data) });
   }
 
   private async handleUpdate(
-    input: Extract<CommentsAction, { action: 'update' }>
+    input: Extract<SheetsCommentsInput, { action: "update" }>,
   ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('update', {}, undefined, true);
+      return this.success("update", {}, undefined, true);
     }
 
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
       requestBody: { content: input.content },
-      fields: 'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+      fields:
+        "id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor",
     });
 
-    return this.success('update', { comment: this.mapComment(response.data) });
+    return this.success("update", { comment: this.mapComment(response.data) });
   }
 
   private async handleDelete(
-    input: Extract<CommentsAction, { action: 'delete' }>
+    input: Extract<SheetsCommentsInput, { action: "delete" }>,
   ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('delete', {}, undefined, true);
+      return this.success("delete", {}, undefined, true);
     }
 
     await this.driveApi!.comments.delete({
@@ -146,78 +160,82 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
       commentId: input.commentId,
     });
 
-    return this.success('delete', {});
+    return this.success("delete", {});
   }
 
   private async handleList(
-    input: Extract<CommentsAction, { action: 'list' }>
+    input: Extract<SheetsCommentsInput, { action: "list" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.list({
       fileId: input.spreadsheetId,
       includeDeleted: input.includeDeleted ?? false,
       pageToken: input.startIndex ? String(input.startIndex) : undefined,
       pageSize: input.maxResults ?? 100,
-      fields: 'comments(id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)))',
+      fields:
+        "comments(id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)))",
     });
 
     const comments = (response.data.comments ?? []).map(this.mapComment);
-    return this.success('list', { comments });
+    return this.success("list", { comments });
   }
 
   private async handleGet(
-    input: Extract<CommentsAction, { action: 'get' }>
+    input: Extract<SheetsCommentsInput, { action: "get" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.get({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
-      fields: 'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)',
+      fields:
+        "id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)",
     });
 
-    return this.success('get', { comment: this.mapComment(response.data) });
+    return this.success("get", { comment: this.mapComment(response.data) });
   }
 
   private async handleResolve(
-    input: Extract<CommentsAction, { action: 'resolve' }>
+    input: Extract<SheetsCommentsInput, { action: "resolve" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
       requestBody: { resolved: true },
-      fields: 'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+      fields:
+        "id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor",
     });
-    return this.success('resolve', { comment: this.mapComment(response.data) });
+    return this.success("resolve", { comment: this.mapComment(response.data) });
   }
 
   private async handleReopen(
-    input: Extract<CommentsAction, { action: 'reopen' }>
+    input: Extract<SheetsCommentsInput, { action: "reopen" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
       requestBody: { resolved: false },
-      fields: 'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+      fields:
+        "id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor",
     });
-    return this.success('reopen', { comment: this.mapComment(response.data) });
+    return this.success("reopen", { comment: this.mapComment(response.data) });
   }
 
   private async handleAddReply(
-    input: Extract<CommentsAction, { action: 'add_reply' }>
+    input: Extract<SheetsCommentsInput, { action: "add_reply" }>,
   ): Promise<CommentsResponse> {
     const response = await this.driveApi!.replies.create({
       fileId: input.spreadsheetId,
       commentId: input.commentId,
       requestBody: { content: input.content },
-      fields: 'id',
+      fields: "id",
     });
 
-    return this.success('add_reply', { replyId: response.data.id ?? '' });
+    return this.success("add_reply", { replyId: response.data.id ?? "" });
   }
 
   private async handleUpdateReply(
-    input: Extract<CommentsAction, { action: 'update_reply' }>
+    input: Extract<SheetsCommentsInput, { action: "update_reply" }>,
   ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('update_reply', {}, undefined, true);
+      return this.success("update_reply", {}, undefined, true);
     }
 
     await this.driveApi!.replies.update({
@@ -227,14 +245,14 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
       requestBody: { content: input.content },
     });
 
-    return this.success('update_reply', { replyId: input.replyId });
+    return this.success("update_reply", { replyId: input.replyId });
   }
 
   private async handleDeleteReply(
-    input: Extract<CommentsAction, { action: 'delete_reply' }>
+    input: Extract<SheetsCommentsInput, { action: "delete_reply" }>,
   ): Promise<CommentsResponse> {
     if (input.safety?.dryRun) {
-      return this.success('delete_reply', {}, undefined, true);
+      return this.success("delete_reply", {}, undefined, true);
     }
 
     await this.driveApi!.replies.delete({
@@ -243,29 +261,31 @@ export class CommentsHandler extends BaseHandler<SheetsCommentsInput, SheetsComm
       replyId: input.replyId,
     });
 
-    return this.success('delete_reply', {});
+    return this.success("delete_reply", {});
   }
 
   // ============================================================
   // Helpers
   // ============================================================
 
-  private mapComment = (c: drive_v3.Schema$Comment | undefined): NonNullable<CommentsSuccess['comment']> => ({
-    id: c?.id ?? '',
-    content: c?.content ?? '',
+  private mapComment = (
+    c: drive_v3.Schema$Comment | undefined,
+  ): NonNullable<CommentsSuccess["comment"]> => ({
+    id: c?.id ?? "",
+    content: c?.content ?? "",
     author: {
-      displayName: c?.author?.displayName ?? '',
+      displayName: c?.author?.displayName ?? "",
       emailAddress: c?.author?.emailAddress ?? undefined,
     },
-    createdTime: c?.createdTime ?? '',
-    modifiedTime: c?.modifiedTime ?? '',
+    createdTime: c?.createdTime ?? "",
+    modifiedTime: c?.modifiedTime ?? "",
     resolved: c?.resolved ?? false,
     anchor: c?.anchor ?? undefined,
-    replies: (c?.replies ?? []).map(r => ({
-      id: r.id ?? '',
-      content: r.content ?? '',
-      author: { displayName: r.author?.displayName ?? '' },
-      createdTime: r.createdTime ?? '',
+    replies: (c?.replies ?? []).map((r) => ({
+      id: r.id ?? "",
+      content: r.content ?? "",
+      author: { displayName: r.author?.displayName ?? "" },
+      createdTime: r.createdTime ?? "",
     })),
   });
 }

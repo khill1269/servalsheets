@@ -13,7 +13,7 @@
  * - Memory-efficient (sliding window)
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 // ==================== Types ====================
 
@@ -124,13 +124,16 @@ const MAX_OPERATIONS = 500;
 
 class MetricsService {
   private startTime: Date = new Date();
-  private operations: Map<string, {
-    count: number;
-    successCount: number;
-    failureCount: number;
-    durations: number[]; // Circular buffer
-    lastRecorded: number;
-  }> = new Map();
+  private operations: Map<
+    string,
+    {
+      count: number;
+      successCount: number;
+      failureCount: number;
+      durations: number[]; // Circular buffer
+      lastRecorded: number;
+    }
+  > = new Map();
 
   private cacheRequests = 0;
   private cacheHits = 0;
@@ -146,11 +149,13 @@ class MetricsService {
   private verboseLogging: boolean;
 
   constructor(options: { enabled?: boolean; verboseLogging?: boolean } = {}) {
-    this.enabled = options.enabled ?? (process.env['METRICS_ENABLED'] !== 'false');
-    this.verboseLogging = options.verboseLogging ?? (process.env['METRICS_VERBOSE'] === 'true');
+    this.enabled =
+      options.enabled ?? process.env["METRICS_ENABLED"] !== "false";
+    this.verboseLogging =
+      options.verboseLogging ?? process.env["METRICS_VERBOSE"] === "true";
 
     if (this.enabled) {
-      logger.info('Metrics service initialized', {
+      logger.info("Metrics service initialized", {
         enabled: this.enabled,
         verboseLogging: this.verboseLogging,
         maxOperations: MAX_OPERATIONS,
@@ -218,7 +223,7 @@ class MetricsService {
     }
 
     if (this.verboseLogging) {
-      logger.debug('Operation recorded in metrics', {
+      logger.debug("Operation recorded in metrics", {
         name,
         durationMs,
         success,
@@ -248,7 +253,10 @@ class MetricsService {
     if (!this.enabled) return;
 
     this.apiCalls++;
-    this.apiCallsByMethod.set(method, (this.apiCallsByMethod.get(method) || 0) + 1);
+    this.apiCallsByMethod.set(
+      method,
+      (this.apiCallsByMethod.get(method) || 0) + 1,
+    );
     if (error) {
       this.apiErrors++;
     }
@@ -295,13 +303,16 @@ class MetricsService {
   /**
    * Calculate operation metrics with percentiles
    */
-  private calculateOperationMetrics(name: string, op: {
-    count: number;
-    successCount: number;
-    failureCount: number;
-    durations: number[];
-    lastRecorded: number;
-  }): OperationMetrics {
+  private calculateOperationMetrics(
+    name: string,
+    op: {
+      count: number;
+      successCount: number;
+      failureCount: number;
+      durations: number[];
+      lastRecorded: number;
+    },
+  ): OperationMetrics {
     const durations = [...op.durations].sort((a, b) => a - b);
     const total = durations.reduce((sum, d) => sum + d, 0);
 
@@ -380,9 +391,11 @@ class MetricsService {
   getSummary(): MetricsSummary {
     const operations = this.getAllOperationMetrics();
     const totalOperations = operations.reduce((sum, op) => sum + op.count, 0);
-    const avgSuccessRate = operations.length > 0
-      ? operations.reduce((sum, op) => sum + op.successRate, 0) / operations.length
-      : 0;
+    const avgSuccessRate =
+      operations.length > 0
+        ? operations.reduce((sum, op) => sum + op.successRate, 0) /
+          operations.length
+        : 0;
 
     return {
       startTime: this.startTime.toISOString(),
@@ -432,7 +445,7 @@ class MetricsService {
 
 // ==================== Singleton ====================
 
-import * as os from 'os';
+import * as os from "os";
 
 let metricsService: MetricsService | null = null;
 
@@ -456,7 +469,10 @@ export function setMetricsService(service: MetricsService): void {
 /**
  * Initialize metrics service with options
  */
-export function initMetricsService(options?: { enabled?: boolean; verboseLogging?: boolean }): MetricsService {
+export function initMetricsService(options?: {
+  enabled?: boolean;
+  verboseLogging?: boolean;
+}): MetricsService {
   metricsService = new MetricsService(options);
   return metricsService;
 }

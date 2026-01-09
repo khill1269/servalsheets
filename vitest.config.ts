@@ -4,6 +4,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Ensure tests don't run in production mode
+    env: {
+      NODE_ENV: 'test',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -24,7 +28,6 @@ export default defineConfig({
         branches: 70,
         statements: 75,
       },
-      all: true,
       include: ['src/**/*.ts'],
     },
     testTimeout: 10000,

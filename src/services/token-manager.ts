@@ -5,8 +5,8 @@
  * Automatically refreshes OAuth tokens before they expire.
  */
 
-import type { OAuth2Client } from 'google-auth-library';
-import { logger } from '../utils/logger.js';
+import type { OAuth2Client } from "google-auth-library";
+import { logger } from "../utils/logger.js";
 
 export interface TokenStatus {
   hasAccessToken: boolean;
@@ -24,7 +24,9 @@ export interface TokenManagerOptions {
   /** Check interval in milliseconds (default: 5 minutes) */
   checkIntervalMs?: number;
   /** Callback when token is refreshed */
-  onTokenRefreshed?: (tokens: import('google-auth-library').Credentials) => void | Promise<void>;
+  onTokenRefreshed?: (
+    tokens: import("google-auth-library").Credentials,
+  ) => void | Promise<void>;
   /** Callback when refresh fails */
   onRefreshError?: (error: Error) => void | Promise<void>;
 }
@@ -48,7 +50,9 @@ export class TokenManager {
   private checkIntervalMs: number;
   private intervalId?: NodeJS.Timeout;
   private isRunning = false;
-  private onTokenRefreshed?: (tokens: import('google-auth-library').Credentials) => void | Promise<void>;
+  private onTokenRefreshed?: (
+    tokens: import("google-auth-library").Credentials,
+  ) => void | Promise<void>;
   private onRefreshError?: (error: Error) => void | Promise<void>;
 
   // Metrics
@@ -109,7 +113,8 @@ export class TokenManager {
     const now = Date.now();
     const timeUntilExpiry = expiryDate - now;
     const tokenLifetime = this.estimateTokenLifetime(expiryDate, now);
-    const needsRefresh = timeUntilExpiry < (tokenLifetime * (1 - this.refreshThreshold));
+    const needsRefresh =
+      timeUntilExpiry < tokenLifetime * (1 - this.refreshThreshold);
 
     return {
       hasAccessToken,
@@ -128,7 +133,8 @@ export class TokenManager {
     const timeUntilExpiry = expiryDate - now;
 
     // If token is already expired or about to expire, assume 1 hour lifetime
-    if (timeUntilExpiry < 60000) { // Less than 1 minute
+    if (timeUntilExpiry < 60000) {
+      // Less than 1 minute
       return 3600000; // 1 hour
     }
 
@@ -149,13 +155,13 @@ export class TokenManager {
 
     // No refresh token available
     if (!status.hasRefreshToken) {
-      logger.debug('No refresh token available for proactive refresh');
+      logger.debug("No refresh token available for proactive refresh");
       return false;
     }
 
     // Token doesn't need refresh yet
     if (!status.needsRefresh) {
-      logger.debug('Token does not need refresh yet', {
+      logger.debug("Token does not need refresh yet", {
         timeUntilExpiry: status.timeUntilExpiry,
         expiryDate: status.expiryDate,
       });
@@ -163,7 +169,7 @@ export class TokenManager {
     }
 
     // Refresh the token
-    logger.info('Proactively refreshing OAuth token', {
+    logger.info("Proactively refreshing OAuth token", {
       timeUntilExpiry: status.timeUntilExpiry,
       threshold: this.refreshThreshold,
     });
@@ -176,7 +182,7 @@ export class TokenManager {
    */
   async refreshToken(): Promise<boolean> {
     if (!this.oauthClient) {
-      throw new Error('OAuth client not configured');
+      throw new Error("OAuth client not configured");
     }
 
     const startTime = Date.now();
@@ -193,10 +199,12 @@ export class TokenManager {
 
       // Update rolling average
       this.metrics.averageRefreshDuration =
-        (this.metrics.averageRefreshDuration * (this.metrics.successfulRefreshes - 1) + duration)
-        / this.metrics.successfulRefreshes;
+        (this.metrics.averageRefreshDuration *
+          (this.metrics.successfulRefreshes - 1) +
+          duration) /
+        this.metrics.successfulRefreshes;
 
-      logger.info('Token refreshed successfully', {
+      logger.info("Token refreshed successfully", {
         duration,
         newExpiry: credentials.expiry_date,
       });
@@ -210,14 +218,13 @@ export class TokenManager {
       }
 
       return true;
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.metrics.failedRefreshes++;
       this.metrics.lastRefreshTime = Date.now();
       this.metrics.lastRefreshSuccess = false;
 
-      logger.error('Failed to refresh token', {
+      logger.error("Failed to refresh token", {
         error: error instanceof Error ? error.message : String(error),
         duration,
       });
@@ -263,23 +270,27 @@ export class TokenManager {
 
     // Count refreshes in the last hour
     const recentRefreshes = this.refreshHistory.filter(
-      (entry) => entry.timestamp > oneHourAgo
+      (entry) => entry.timestamp > oneHourAgo,
     );
 
     if (recentRefreshes.length > this.anomalyThreshold) {
-      logger.warn('Unusual token refresh pattern detected - possible compromised token', {
-        refreshesInLastHour: recentRefreshes.length,
-        threshold: this.anomalyThreshold,
-        recommendation: 'Review token usage and consider rotating OAuth credentials',
-      });
+      logger.warn(
+        "Unusual token refresh pattern detected - possible compromised token",
+        {
+          refreshesInLastHour: recentRefreshes.length,
+          threshold: this.anomalyThreshold,
+          recommendation:
+            "Review token usage and consider rotating OAuth credentials",
+        },
+      );
     }
 
     // Check for rapid refresh failures (potential attack)
     const recentFailures = recentRefreshes.filter((entry) => !entry.success);
     if (recentFailures.length >= 3) {
-      logger.error('Multiple token refresh failures detected', {
+      logger.error("Multiple token refresh failures detected", {
         failuresInLastHour: recentFailures.length,
-        recommendation: 'Check OAuth credentials and refresh token validity',
+        recommendation: "Check OAuth credentials and refresh token validity",
       });
     }
   }
@@ -298,11 +309,17 @@ export class TokenManager {
     const oneHourAgo = now - 3600000;
     const oneDayAgo = now - 86400000;
 
-    const lastHour = this.refreshHistory.filter((entry) => entry.timestamp > oneHourAgo);
-    const lastDay = this.refreshHistory.filter((entry) => entry.timestamp > oneDayAgo);
+    const lastHour = this.refreshHistory.filter(
+      (entry) => entry.timestamp > oneHourAgo,
+    );
+    const lastDay = this.refreshHistory.filter(
+      (entry) => entry.timestamp > oneDayAgo,
+    );
 
     const totalInHistory = this.refreshHistory.length;
-    const failures = this.refreshHistory.filter((entry) => !entry.success).length;
+    const failures = this.refreshHistory.filter(
+      (entry) => !entry.success,
+    ).length;
 
     return {
       refreshesLastHour: lastHour.length,
@@ -317,19 +334,19 @@ export class TokenManager {
    */
   start(): void {
     if (this.isRunning) {
-      logger.warn('Token manager already running');
+      logger.warn("Token manager already running");
       return;
     }
 
     this.isRunning = true;
-    logger.info('Starting token manager', {
+    logger.info("Starting token manager", {
       checkIntervalMs: this.checkIntervalMs,
       refreshThreshold: this.refreshThreshold,
     });
 
     // Initial check
     this.checkAndRefresh().catch((error) => {
-      logger.error('Error in initial token check', {
+      logger.error("Error in initial token check", {
         error: error instanceof Error ? error.message : String(error),
       });
     });
@@ -337,7 +354,7 @@ export class TokenManager {
     // Set up periodic checks
     this.intervalId = setInterval(() => {
       this.checkAndRefresh().catch((error) => {
-        logger.error('Error in token refresh check', {
+        logger.error("Error in token refresh check", {
           error: error instanceof Error ? error.message : String(error),
         });
       });
@@ -359,7 +376,7 @@ export class TokenManager {
       this.intervalId = undefined;
     }
 
-    logger.info('Token manager stopped', {
+    logger.info("Token manager stopped", {
       metrics: this.getMetrics(),
     });
   }
@@ -370,9 +387,10 @@ export class TokenManager {
   getMetrics(): unknown {
     return {
       ...this.metrics,
-      successRate: this.metrics.totalRefreshes > 0
-        ? this.metrics.successfulRefreshes / this.metrics.totalRefreshes
-        : 0,
+      successRate:
+        this.metrics.totalRefreshes > 0
+          ? this.metrics.successfulRefreshes / this.metrics.totalRefreshes
+          : 0,
       isRunning: this.isRunning,
     };
   }

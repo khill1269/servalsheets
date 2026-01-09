@@ -4,8 +4,11 @@
  * Prevents DoS attacks by limiting the number of concurrent sessions per user/token
  */
 
-import { logger } from './logger.js';
-import { MAX_SESSIONS_PER_USER, MAX_TOTAL_SESSIONS } from '../config/constants.js';
+import { logger } from "./logger.js";
+import {
+  MAX_SESSIONS_PER_USER,
+  MAX_TOTAL_SESSIONS,
+} from "../config/constants.js";
 
 export interface SessionLimiterOptions {
   maxSessionsPerUser: number;
@@ -66,7 +69,7 @@ export class SessionLimiter {
     // Track session to user mapping
     this.sessionToUser.set(sessionId, userId);
 
-    logger.debug('Session registered', {
+    logger.debug("Session registered", {
       sessionId,
       userId,
       userSessionCount: userSessions.size,
@@ -95,7 +98,7 @@ export class SessionLimiter {
     // Remove session to user mapping
     this.sessionToUser.delete(sessionId);
 
-    logger.debug('Session unregistered', {
+    logger.debug("Session unregistered", {
       sessionId,
       userId,
       remainingUserSessions: userSessions?.size ?? 0,

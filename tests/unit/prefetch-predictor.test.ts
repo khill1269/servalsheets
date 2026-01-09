@@ -8,6 +8,13 @@ import { setHistoryService } from '../../src/services/history-service.js';
 import { HistoryService } from '../../src/services/history-service.js';
 import type { OperationHistory } from '../../src/types/history.js';
 
+type PrefetchStats = {
+  totalPredictions: number;
+  correctPredictions: number;
+  accuracy: number;
+  patternCount: number;
+};
+
 describe('PrefetchPredictor', () => {
   let predictor: PrefetchPredictor;
   let mockHistoryService: HistoryService;
@@ -38,14 +45,14 @@ describe('PrefetchPredictor', () => {
 
       predictor.learnFromHistory();
 
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
       expect(stats.patternCount).toBeGreaterThan(0);
     });
 
     it('should handle empty history', () => {
       predictor.learnFromHistory();
 
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
       expect(stats.patternCount).toBe(0);
     });
 
@@ -61,7 +68,7 @@ describe('PrefetchPredictor', () => {
       predictor.learnFromHistory();
 
       // Should skip the failed operation in pattern learning
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
       expect(stats.patternCount).toBeGreaterThanOrEqual(0);
     });
   });
@@ -310,7 +317,7 @@ describe('PrefetchPredictor', () => {
       predictor.learnFromHistory();
       predictor.predict();
 
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
 
       expect(stats.totalPredictions).toBeGreaterThan(0);
     });
@@ -335,7 +342,7 @@ describe('PrefetchPredictor', () => {
       predictor.recordPredictionAccuracy(true);
       predictor.recordPredictionAccuracy(false);
 
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
 
       expect(stats.correctPredictions).toBe(2);
       // Accuracy = correctPredictions / totalPredictions
@@ -349,7 +356,7 @@ describe('PrefetchPredictor', () => {
       predictor.recordPredictionAccuracy(true);
       predictor.resetStats();
 
-      const stats = predictor.getStats();
+      const stats = predictor.getStats() as PrefetchStats;
 
       expect(stats.totalPredictions).toBe(0);
       expect(stats.correctPredictions).toBe(0);

@@ -26,24 +26,28 @@ const getZodShape = (schema: any): Record<string, unknown> | undefined => {
   return shape;
 };
 
+const hasField = (shape: Record<string, unknown> | undefined, field: string): boolean => {
+  if (!shape) return false;
+  const fieldSchema = shape[field] as any;
+  if (!fieldSchema) return false;
+  // Field exists - may be wrapped in ZodDefault, ZodOptional, etc.
+  return true;
+};
+
 describe('Schema Transformation', () => {
-  describe('Envelope Detection', () => {
+  describe('Schema Structure (Refactored)', () => {
     for (const tool of TOOL_DEFINITIONS) {
-      it(`${tool.name}: input schema should be a Zod object with request union`, () => {
-        expect(isZodObject(tool.inputSchema)).toBe(true);
-        const shape = getZodShape(tool.inputSchema);
-        expect(shape?.request).toBeDefined();
-        // Tools with single actions (like sheets_impact) may use simple objects instead of discriminated unions
-        const isUnion = isDiscriminatedUnion(shape?.request);
-        const isSingleAction = isZodObject(shape?.request) && getZodShape(shape?.request)?.action;
-        expect(isUnion || isSingleAction).toBe(true);
+      it(`${tool.name}: input schema should be a discriminated union (action-based router)`, () => {
+        // NEW: All input schemas are now direct discriminated unions
+        // No wrapper object with 'request' field
+        expect(isDiscriminatedUnion(tool.inputSchema)).toBe(true);
       });
 
       it(`${tool.name}: output schema should be a Zod object with response union`, () => {
         expect(isZodObject(tool.outputSchema)).toBe(true);
         const shape = getZodShape(tool.outputSchema);
-        expect(shape?.response).toBeDefined();
-        expect(isDiscriminatedUnion(shape?.response)).toBe(true);
+        expect(shape?.['response']).toBeDefined();
+        expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
       });
     }
   });
@@ -61,9 +65,16 @@ describe('Schema Transformation', () => {
           expect(jsonSchema).toBeDefined();
         });
 
-        it('should have type: "object"', () => {
+        it('should be valid JSON Schema (object, union, or array of schemas)', () => {
           jsonSchema = zodToJsonSchemaCompat(tool.inputSchema);
-          expect(jsonSchema.type).toBe('object');
+          // After refactoring, discriminated unions may return:
+          // 1. An object with type: "object"
+          // 2. An object with anyOf/oneOf
+          // 3. An array of schema objects (union branches)
+          const isArray = Array.isArray(jsonSchema);
+          const hasType = jsonSchema['type'] === 'object';
+          const hasUnion = !!(jsonSchema['anyOf'] || jsonSchema['oneOf']);
+          expect(isArray || hasType || hasUnion).toBe(true);
         });
 
         it('should NOT contain Zod-specific properties', () => {
@@ -78,17 +89,21 @@ describe('Schema Transformation', () => {
           expect(jsonSchema).not.toHaveProperty('safeParseAsync');
         });
 
-        it('should have oneOf or properties structure', () => {
+        it('should represent discriminated union (anyOf, oneOf, or array)', () => {
           jsonSchema = zodToJsonSchemaCompat(tool.inputSchema);
 
-          // Should have either oneOf (discriminated union) or properties (regular object)
-          const hasOneOf = 'oneOf' in jsonSchema && Array.isArray(jsonSchema.oneOf) && jsonSchema.oneOf.length > 0;
-          const hasProperties = 'properties' in jsonSchema &&
-                               typeof jsonSchema.properties === 'object' &&
-                               jsonSchema.properties !== null &&
-                               Object.keys(jsonSchema.properties).length > 0;
+          // NEW: All tools now use direct discriminated unions
+          // JSON Schema may be represented as:
+          // 1. Object with anyOf property
+          // 2. Object with oneOf property
+          // 3. Array of schema objects (direct union branches)
+          const isArray = Array.isArray(jsonSchema) && jsonSchema.length > 0;
+          const anyOf = jsonSchema['anyOf'];
+          const hasAnyOf = Array.isArray(anyOf) && anyOf.length > 0;
+          const oneOf = jsonSchema['oneOf'];
+          const hasOneOf = Array.isArray(oneOf) && oneOf.length > 0;
 
-          expect(hasOneOf || hasProperties).toBe(true);
+          expect(isArray || hasAnyOf || hasOneOf).toBe(true);
         });
 
         it('should pass verifyJsonSchema safety check', () => {
@@ -115,7 +130,7 @@ describe('Schema Transformation', () => {
 
         it('should have type: "object"', () => {
           jsonSchema = zodToJsonSchemaCompat(tool.outputSchema);
-          expect(jsonSchema.type).toBe('object');
+          expect(jsonSchema['type']).toBe('object');
         });
 
         it('should NOT contain Zod-specific properties', () => {

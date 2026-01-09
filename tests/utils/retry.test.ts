@@ -391,8 +391,12 @@ describe('executeWithRetry', () => {
         timeoutMs: 1000,
       });
 
-      await vi.advanceTimersByTimeAsync(50);
-      await expect(promise).rejects.toThrow('always fails');
+      // Ensure promise rejection is caught before advancing timers
+      const resultPromise = promise.catch((e) => e);
+      await vi.advanceTimersByTimeAsync(100);
+      const result = await resultPromise;
+      expect(result).toBeInstanceOf(Error);
+      expect((result as Error).message).toBe('always fails');
       // Initial attempt + 2 retries = 3 total attempts
       expect(attempts).toBe(3);
     });
@@ -417,9 +421,8 @@ describe('executeWithRetry', () => {
   });
 
   describe('Timeout', () => {
-    it.skip('should abort operation on timeout', async () => {
-      // Note: Skipped due to fake timer interaction issues with AbortSignal
-      // Timeout functionality is tested in integration tests with real timers
+    it('should abort operation on timeout', async () => {
+      vi.useRealTimers();
       const op = vi.fn().mockImplementation((signal: AbortSignal) => {
         return new Promise((_resolve, reject) => {
           signal.addEventListener('abort', () => {
@@ -430,14 +433,13 @@ describe('executeWithRetry', () => {
       });
 
       const promise = executeWithRetry(op, {
-        maxRetries: 1,
-        baseDelayMs: 10,
+        maxRetries: 0,
+        baseDelayMs: 1,
         jitterRatio: 0,
-        timeoutMs: 100,
+        timeoutMs: 20,
       });
 
-      await vi.advanceTimersByTimeAsync(100);
-      await expect(promise).rejects.toThrow();
+      await expect(promise).rejects.toThrow(/timed out/i);
     });
   });
 

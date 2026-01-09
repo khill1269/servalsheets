@@ -5,36 +5,36 @@
  * Takes issues from sheets_analysis and applies fixes in transaction.
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
-import type { Intent } from '../core/intent.js';
+import type { sheets_v4 } from "googleapis";
+import { BaseHandler, type HandlerContext } from "./base.js";
+import type { Intent } from "../core/intent.js";
 import type {
   SheetsFixInput,
   SheetsFixOutput,
-  SheetsFixRequest,
-  SheetsFixResponse,
   FixOperation,
   IssueToFix,
   FixResult,
-} from '../schemas/fix.js';
+} from "../schemas/fix.js";
 
 export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   private sheetsApi: sheets_v4.Sheets;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
-    super('sheets_fix', context);
+    super("sheets_fix", context);
     this.sheetsApi = sheetsApi;
   }
 
   async handle(input: SheetsFixInput): Promise<SheetsFixOutput> {
-    const { request } = input;
-
+    // Input is now the action directly (no request wrapper)
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(request) as SheetsFixRequest;
+    const inferredRequest = this.inferRequestParameters(input) as SheetsFixInput;
 
     try {
       // Filter issues based on user preferences
-      const filteredIssues = this.filterIssues(inferredRequest.issues, inferredRequest.filters);
+      const filteredIssues = this.filterIssues(
+        inferredRequest.issues,
+        inferredRequest.filters,
+      );
 
       if (filteredIssues.length === 0) {
         return {
@@ -43,7 +43,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
             mode: inferredRequest.mode,
             operations: [],
             summary: { total: 0, skipped: inferredRequest.issues.length },
-            message: 'No issues matched the filters',
+            message: "No issues matched the filters",
           },
         };
       }
@@ -51,15 +51,18 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       // Generate fix operations
       const operations = await this.generateFixOperations(
         inferredRequest.spreadsheetId,
-        filteredIssues
+        filteredIssues,
       );
 
       // Preview mode - just return operations
-      if (inferredRequest.mode === 'preview' || inferredRequest.safety?.dryRun) {
+      if (
+        inferredRequest.mode === "preview" ||
+        inferredRequest.safety?.dryRun
+      ) {
         return {
           response: {
             success: true,
-            mode: 'preview',
+            mode: "preview",
             operations,
             summary: {
               total: operations.length,
@@ -70,15 +73,19 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       }
 
       // Apply mode - execute operations
-      const snapshot = inferredRequest.safety?.createSnapshot !== false
-        ? await this.createSnapshot(inferredRequest.spreadsheetId)
-        : undefined;
+      const snapshot =
+        inferredRequest.safety?.createSnapshot !== false
+          ? await this.createSnapshot(inferredRequest.spreadsheetId)
+          : undefined;
 
-      const results = await this.applyFixOperations(inferredRequest.spreadsheetId, operations);
+      const results = await this.applyFixOperations(
+        inferredRequest.spreadsheetId,
+        operations,
+      );
 
       // Count successes/failures
-      const applied = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
+      const applied = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
 
       // Track context on success
       if (applied > 0) {
@@ -90,7 +97,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       return {
         response: {
           success: true,
-          mode: 'apply',
+          mode: "apply",
           operations,
           results,
           snapshotId: snapshot?.revisionId,
@@ -108,25 +115,25 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   }
 
   protected createIntents(input: SheetsFixInput): Intent[] {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
 
-    if (request.mode === 'preview' || request.safety?.dryRun) {
+    if (input.mode === "preview" || input.safety?.dryRun) {
       return []; // Read-only preview
     }
 
     // Fixing issues is destructive
     return [
       {
-        type: 'SET_VALUES' as const,
+        type: "SET_VALUES" as const,
         target: {
-          spreadsheetId: request.spreadsheetId,
+          spreadsheetId: input.spreadsheetId,
         },
         payload: {
-          issues: request.issues,
+          issues: input.issues,
         },
         metadata: {
-          sourceTool: 'sheets_fix',
-          sourceAction: 'apply_fixes',
+          sourceTool: "sheets_fix",
+          sourceAction: "apply_fixes",
           priority: 0,
           destructive: true,
         },
@@ -139,22 +146,24 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
    */
   private filterIssues(
     issues: IssueToFix[],
-    filters?: SheetsFixRequest['filters']
+    filters?: SheetsFixInput["filters"],
   ): IssueToFix[] {
     if (!filters) return issues;
 
     let filtered = issues;
 
     if (filters.severity) {
-      filtered = filtered.filter(i => filters.severity!.includes(i.severity));
+      filtered = filtered.filter((i) => filters.severity!.includes(i.severity));
     }
 
     if (filters.types) {
-      filtered = filtered.filter(i => filters.types!.includes(i.type));
+      filtered = filtered.filter((i) => filters.types!.includes(i.type));
     }
 
     if (filters.sheets) {
-      filtered = filtered.filter(i => !i.sheet || filters.sheets!.includes(i.sheet));
+      filtered = filtered.filter(
+        (i) => !i.sheet || filters.sheets!.includes(i.sheet),
+      );
     }
 
     if (filters.limit) {
@@ -169,7 +178,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
    */
   private async generateFixOperations(
     spreadsheetId: string,
-    issues: IssueToFix[]
+    issues: IssueToFix[],
   ): Promise<FixOperation[]> {
     const operations: FixOperation[] = [];
 
@@ -186,28 +195,28 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
    */
   private async generateFixForIssue(
     spreadsheetId: string,
-    issue: IssueToFix
+    issue: IssueToFix,
   ): Promise<FixOperation[]> {
     switch (issue.type) {
-      case 'MULTIPLE_TODAY':
+      case "MULTIPLE_TODAY":
         return this.fixMultipleToday(spreadsheetId);
 
-      case 'NO_FROZEN_HEADERS':
+      case "NO_FROZEN_HEADERS":
         return this.fixFrozenHeaders(spreadsheetId, issue.sheet!);
 
-      case 'NO_FROZEN_COLUMNS':
+      case "NO_FROZEN_COLUMNS":
         return this.fixFrozenColumns(spreadsheetId, issue.sheet!);
 
-      case 'NO_PROTECTION':
+      case "NO_PROTECTION":
         return this.fixProtection(spreadsheetId, issue.sheet!);
 
-      case 'FULL_COLUMN_REFS':
+      case "FULL_COLUMN_REFS":
         return this.fixFullColumnRefs(spreadsheetId, issue);
 
-      case 'NESTED_IFERROR':
+      case "NESTED_IFERROR":
         return this.fixNestedIferror(spreadsheetId, issue);
 
-      case 'EXCESSIVE_CF_RULES':
+      case "EXCESSIVE_CF_RULES":
         return this.fixExcessiveCfRules(spreadsheetId, issue.sheet!);
 
       default:
@@ -218,33 +227,35 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Consolidate multiple TODAY() calls
    */
-  private async fixMultipleToday(spreadsheetId: string): Promise<FixOperation[]> {
+  private async fixMultipleToday(
+    spreadsheetId: string,
+  ): Promise<FixOperation[]> {
     return [
       {
         id: `fix_today_${Date.now()}`,
-        issueType: 'MULTIPLE_TODAY',
-        tool: 'sheets_values',
-        action: 'write',
+        issueType: "MULTIPLE_TODAY",
+        tool: "sheets_values",
+        action: "write",
         parameters: {
           spreadsheetId,
-          range: '_System!B1',
-          values: [['=TODAY()']],
+          range: "_System!B1",
+          values: [["=TODAY()"]],
         },
-        estimatedImpact: 'Create _System!B1 with =TODAY() formula',
-        risk: 'low',
+        estimatedImpact: "Create _System!B1 with =TODAY() formula",
+        risk: "low",
       },
       {
         id: `fix_today_name_${Date.now()}`,
-        issueType: 'MULTIPLE_TODAY',
-        tool: 'sheets_advanced',
-        action: 'create_named_range',
+        issueType: "MULTIPLE_TODAY",
+        tool: "sheets_advanced",
+        action: "create_named_range",
         parameters: {
           spreadsheetId,
-          name: 'TodayDate',
-          range: '_System!B1',
+          name: "TodayDate",
+          range: "_System!B1",
         },
         estimatedImpact: 'Create named range "TodayDate" → _System!B1',
-        risk: 'low',
+        risk: "low",
       },
       // Note: Actually replacing =TODAY() in formulas requires reading all formulas first
       // This would be a follow-up operation or require AI assistance
@@ -254,29 +265,34 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Freeze header rows
    */
-  private async fixFrozenHeaders(spreadsheetId: string, sheetName: string): Promise<FixOperation[]> {
+  private async fixFrozenHeaders(
+    spreadsheetId: string,
+    sheetName: string,
+  ): Promise<FixOperation[]> {
     // Get sheet ID
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+    const sheet = response.data.sheets?.find(
+      (s) => s.properties?.title === sheetName,
+    );
     if (!sheet) return [];
 
     return [
       {
         id: `fix_freeze_headers_${Date.now()}`,
-        issueType: 'NO_FROZEN_HEADERS',
-        tool: 'sheets_dimensions',
-        action: 'freeze_rows',
+        issueType: "NO_FROZEN_HEADERS",
+        tool: "sheets_dimensions",
+        action: "freeze_rows",
         parameters: {
           spreadsheetId,
           sheetId: sheet.properties!.sheetId!,
           count: 1,
         },
         estimatedImpact: `Freeze row 1 in "${sheetName}"`,
-        risk: 'low',
+        risk: "low",
       },
     ];
   }
@@ -284,28 +300,33 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Freeze ID columns
    */
-  private async fixFrozenColumns(spreadsheetId: string, sheetName: string): Promise<FixOperation[]> {
+  private async fixFrozenColumns(
+    spreadsheetId: string,
+    sheetName: string,
+  ): Promise<FixOperation[]> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+    const sheet = response.data.sheets?.find(
+      (s) => s.properties?.title === sheetName,
+    );
     if (!sheet) return [];
 
     return [
       {
         id: `fix_freeze_columns_${Date.now()}`,
-        issueType: 'NO_FROZEN_COLUMNS',
-        tool: 'sheets_dimensions',
-        action: 'freeze_columns',
+        issueType: "NO_FROZEN_COLUMNS",
+        tool: "sheets_dimensions",
+        action: "freeze_columns",
         parameters: {
           spreadsheetId,
           sheetId: sheet.properties!.sheetId!,
           count: 1,
         },
         estimatedImpact: `Freeze column A in "${sheetName}"`,
-        risk: 'low',
+        risk: "low",
       },
     ];
   }
@@ -313,29 +334,34 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Protect formula cells
    */
-  private async fixProtection(spreadsheetId: string, sheetName: string): Promise<FixOperation[]> {
+  private async fixProtection(
+    spreadsheetId: string,
+    sheetName: string,
+  ): Promise<FixOperation[]> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+    const sheet = response.data.sheets?.find(
+      (s) => s.properties?.title === sheetName,
+    );
     if (!sheet) return [];
 
     return [
       {
         id: `fix_protection_${Date.now()}`,
-        issueType: 'NO_PROTECTION',
-        tool: 'sheets_advanced',
-        action: 'add_protected_range',
+        issueType: "NO_PROTECTION",
+        tool: "sheets_advanced",
+        action: "add_protected_range",
         parameters: {
           spreadsheetId,
           sheetId: sheet.properties!.sheetId!,
-          description: 'Auto-protected by ServalSheets',
+          description: "Auto-protected by ServalSheets",
           warningOnly: true, // Don't lock out users
         },
         estimatedImpact: `Add protection to "${sheetName}" (warning mode)`,
-        risk: 'low',
+        risk: "low",
       },
     ];
   }
@@ -343,21 +369,24 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Replace full column references with bounded ranges
    */
-  private async fixFullColumnRefs(_spreadsheetId: string, _issue: IssueToFix): Promise<FixOperation[]> {
+  private async fixFullColumnRefs(
+    _spreadsheetId: string,
+    _issue: IssueToFix,
+  ): Promise<FixOperation[]> {
     // This requires reading formulas, parsing, and rewriting
     // Would need AI assistance or complex regex
     // Placeholder for now
     return [
       {
         id: `fix_full_column_${Date.now()}`,
-        issueType: 'FULL_COLUMN_REFS',
-        tool: 'sheets_values',
-        action: 'find_replace',
+        issueType: "FULL_COLUMN_REFS",
+        tool: "sheets_values",
+        action: "find_replace",
         parameters: {
           // This would need actual formula locations
         },
-        estimatedImpact: 'Replace A:A with A2:A500 in formulas',
-        risk: 'medium',
+        estimatedImpact: "Replace A:A with A2:A500 in formulas",
+        risk: "medium",
       },
     ];
   }
@@ -365,7 +394,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Simplify nested IFERROR
    */
-  private async fixNestedIferror(_spreadsheetId: string, _issue: IssueToFix): Promise<FixOperation[]> {
+  private async fixNestedIferror(
+    _spreadsheetId: string,
+    _issue: IssueToFix,
+  ): Promise<FixOperation[]> {
     // Requires formula parsing and rewriting
     // Placeholder
     return [];
@@ -374,20 +406,25 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Fix: Consolidate excessive CF rules
    */
-  private async fixExcessiveCfRules(_spreadsheetId: string, _sheetName: string): Promise<FixOperation[]> {
+  private async fixExcessiveCfRules(
+    _spreadsheetId: string,
+    _sheetName: string,
+  ): Promise<FixOperation[]> {
     // Would need to read rules, merge similar ones, delete duplicates
-    // Complex - placeholder
+    // Complex - currently returns no operations
     return [];
   }
 
   /**
    * Create snapshot before making changes
    */
-  private async createSnapshot(spreadsheetId: string): Promise<{ revisionId: string } | undefined> {
+  private async createSnapshot(
+    spreadsheetId: string,
+  ): Promise<{ revisionId: string } | undefined> {
     try {
-      const response = await this.sheetsApi.spreadsheets.get({
+      const _response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'spreadsheetUrl',
+        fields: "spreadsheetUrl",
       });
 
       // Note: Google Sheets API doesn't have a direct "create snapshot" endpoint
@@ -403,14 +440,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
    */
   private async applyFixOperations(
     _spreadsheetId: string,
-    operations: FixOperation[]
+    operations: FixOperation[],
   ): Promise<FixResult[]> {
     const results: FixResult[] = [];
 
     for (const op of operations) {
       try {
-        // Here we would actually call the appropriate tool
-        // For now, simulate execution
+        // Execute directly against the Sheets API for supported operations.
         await this.executeOperation(op);
 
         results.push({
@@ -422,7 +458,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         results.push({
           operationId: op.id,
           success: false,
-          message: 'Failed to apply operation',
+          message: "Failed to apply operation",
           error: err instanceof Error ? err.message : String(err),
         });
       }
@@ -438,72 +474,80 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     const { tool, action, parameters } = op;
 
     switch (tool) {
-      case 'sheets_values':
-        if (action === 'write') {
+      case "sheets_values":
+        if (action === "write") {
           await this.sheetsApi.spreadsheets.values.update({
-            spreadsheetId: parameters['spreadsheetId'] as string,
-            range: parameters['range'] as string,
-            valueInputOption: 'USER_ENTERED',
+            spreadsheetId: parameters["spreadsheetId"] as string,
+            range: parameters["range"] as string,
+            valueInputOption: "USER_ENTERED",
             requestBody: {
-              values: parameters['values'] as unknown[][],
+              values: parameters["values"] as unknown[][],
             },
           });
         }
         break;
 
-      case 'sheets_dimensions':
-        if (action === 'freeze_rows' || action === 'freeze_columns') {
+      case "sheets_dimensions":
+        if (action === "freeze_rows" || action === "freeze_columns") {
           await this.sheetsApi.spreadsheets.batchUpdate({
-            spreadsheetId: parameters['spreadsheetId'] as string,
+            spreadsheetId: parameters["spreadsheetId"] as string,
             requestBody: {
-              requests: [{
-                updateSheetProperties: {
-                  properties: {
-                    sheetId: parameters['sheetId'] as number,
-                    gridProperties: {
-                      [action === 'freeze_rows' ? 'frozenRowCount' : 'frozenColumnCount']: parameters['count'] as number,
+              requests: [
+                {
+                  updateSheetProperties: {
+                    properties: {
+                      sheetId: parameters["sheetId"] as number,
+                      gridProperties: {
+                        [action === "freeze_rows"
+                          ? "frozenRowCount"
+                          : "frozenColumnCount"]: parameters["count"] as number,
+                      },
                     },
+                    fields: `gridProperties.${action === "freeze_rows" ? "frozenRowCount" : "frozenColumnCount"}`,
                   },
-                  fields: `gridProperties.${action === 'freeze_rows' ? 'frozenRowCount' : 'frozenColumnCount'}`,
                 },
-              }],
+              ],
             },
           });
         }
         break;
 
-      case 'sheets_advanced':
-        if (action === 'add_protected_range') {
+      case "sheets_advanced":
+        if (action === "add_protected_range") {
           await this.sheetsApi.spreadsheets.batchUpdate({
-            spreadsheetId: parameters['spreadsheetId'] as string,
+            spreadsheetId: parameters["spreadsheetId"] as string,
             requestBody: {
-              requests: [{
-                addProtectedRange: {
-                  protectedRange: {
-                    range: {
-                      sheetId: parameters['sheetId'] as number,
+              requests: [
+                {
+                  addProtectedRange: {
+                    protectedRange: {
+                      range: {
+                        sheetId: parameters["sheetId"] as number,
+                      },
+                      description: parameters["description"] as string,
+                      warningOnly: parameters["warningOnly"] as boolean,
                     },
-                    description: parameters['description'] as string,
-                    warningOnly: parameters['warningOnly'] as boolean,
                   },
                 },
-              }],
+              ],
             },
           });
-        } else if (action === 'create_named_range') {
+        } else if (action === "create_named_range") {
           await this.sheetsApi.spreadsheets.batchUpdate({
-            spreadsheetId: parameters['spreadsheetId'] as string,
+            spreadsheetId: parameters["spreadsheetId"] as string,
             requestBody: {
-              requests: [{
-                addNamedRange: {
-                  namedRange: {
-                    name: parameters['name'] as string,
-                    range: {
-                      sheetId: 0, // Would need to parse parameters.range
+              requests: [
+                {
+                  addNamedRange: {
+                    namedRange: {
+                      name: parameters["name"] as string,
+                      range: {
+                        sheetId: 0, // Would need to parse parameters.range
+                      },
                     },
                   },
                 },
-              }],
+              ],
             },
           });
         }

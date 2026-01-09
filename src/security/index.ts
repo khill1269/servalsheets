@@ -15,7 +15,7 @@ export {
   createScopeValidator,
   requireScopes,
   isIncrementalScopeError,
-} from './incremental-scope.js';
+} from "./incremental-scope.js";
 
 export {
   ResourceIndicatorValidator,
@@ -24,4 +24,4 @@ export {
   createResourceIndicatorValidator,
   type ResourceIndicatorConfig,
   type TokenValidationResult,
-} from './resource-indicators.js';
+} from "./resource-indicators.js";

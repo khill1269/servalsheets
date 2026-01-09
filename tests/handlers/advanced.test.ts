@@ -50,12 +50,10 @@ describe('AdvancedHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
         action: 'add_named_range',
         spreadsheetId: 'sheet-id',
         name: 'Range1',
         range: { a1: 'Sheet1!A1:B2' },
-      },
     });
 
     const parsed = SheetsAdvancedOutputSchema.safeParse(result);

@@ -13,13 +13,13 @@
  * Analysis type options
  */
 export type AnalysisType =
-  | 'summary'
-  | 'patterns'
-  | 'anomalies'
-  | 'trends'
-  | 'quality'
-  | 'correlations'
-  | 'recommendations';
+  | "summary"
+  | "patterns"
+  | "anomalies"
+  | "trends"
+  | "quality"
+  | "correlations"
+  | "recommendations";
 
 /**
  * Request for AI-powered analysis
@@ -43,9 +43,9 @@ export interface AnalysisRequest {
  * Sampling message for MCP
  */
 export interface SamplingMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: {
-    type: 'text';
+    type: "text";
     text: string;
   };
 }
@@ -62,7 +62,7 @@ export interface SamplingRequest {
     speedPriority?: number;
   };
   maxTokens: number;
-  includeContext?: 'none' | 'thisServer' | 'allServers';
+  includeContext?: "none" | "thisServer" | "allServers";
 }
 
 /**
@@ -70,28 +70,37 @@ export interface SamplingRequest {
  */
 export function buildAnalysisSamplingRequest(
   data: unknown[][],
-  request: AnalysisRequest
+  request: AnalysisRequest,
 ): SamplingRequest {
   const analysisTypeDescriptions: Record<AnalysisType, string> = {
-    summary: 'Provide a comprehensive summary of the data including key statistics, data types, and notable observations.',
-    patterns: 'Identify recurring patterns, sequences, and regularities in the data.',
-    anomalies: 'Find outliers, unexpected values, missing data, and inconsistencies.',
-    trends: 'Analyze trends over time or across categories, including growth/decline patterns.',
-    quality: 'Assess data quality including completeness, consistency, accuracy, and format issues.',
-    correlations: 'Discover relationships and correlations between different columns/fields.',
-    recommendations: 'Provide actionable recommendations for improving, organizing, or utilizing this data.',
+    summary:
+      "Provide a comprehensive summary of the data including key statistics, data types, and notable observations.",
+    patterns:
+      "Identify recurring patterns, sequences, and regularities in the data.",
+    anomalies:
+      "Find outliers, unexpected values, missing data, and inconsistencies.",
+    trends:
+      "Analyze trends over time or across categories, including growth/decline patterns.",
+    quality:
+      "Assess data quality including completeness, consistency, accuracy, and format issues.",
+    correlations:
+      "Discover relationships and correlations between different columns/fields.",
+    recommendations:
+      "Provide actionable recommendations for improving, organizing, or utilizing this data.",
   };
 
   const requestedAnalyses = request.analysisTypes
     .map((type) => `- **${type}**: ${analysisTypeDescriptions[type]}`)
-    .join('\n');
+    .join("\n");
 
-  const contextInfo = request.context ? `\n\nAdditional context: ${request.context}` : '';
+  const contextInfo = request.context
+    ? `\n\nAdditional context: ${request.context}`
+    : "";
   const locationInfo = request.sheetName
-    ? `Sheet: ${request.sheetName}${request.range ? `, Range: ${request.range}` : ''}`
+    ? `Sheet: ${request.sheetName}${request.range ? `, Range: ${request.range}` : ""}`
     : request.range
       ? `Range: ${request.range}`
-      : 'Entire spreadsheet';
+      : "Entire spreadsheet";
 
   // Prepare data sample (limit to avoid token overflow)
   const maxRows = 100;
@@ -100,7 +109,7 @@ export function buildAnalysisSamplingRequest(
   const truncatedNote =
     data.length > maxRows || (data[0] && data[0].length > maxCols)
       ? `\n\n*Note: Data truncated from ${data.length} rows × ${data[0]?.length ?? 0} cols to ${dataSample.length} rows × ${dataSample[0]?.length ?? 0} cols for analysis.*`
-      : '';
+      : "";
 
   const prompt = `Analyze the following spreadsheet data and provide insights.
 
@@ -143,21 +152,21 @@ Format your response as JSON with this structure:
   return {
     messages: [
       {
-        role: 'user',
+        role: "user",
         content: {
-          type: 'text',
+          type: "text",
           text: prompt,
         },
       },
     ],
     systemPrompt: `You are an expert data analyst specializing in spreadsheet data analysis. You provide clear, actionable insights based on the data provided. Always be specific, cite examples from the data, and indicate your confidence level. Focus on practical findings that help users understand and improve their data.`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: "claude-3-sonnet" }],
       intelligencePriority: 0.8,
       speedPriority: 0.5,
     },
     maxTokens: request.maxTokens ?? 4096,
-    includeContext: 'thisServer',
+    includeContext: "thisServer",
   };
 }
 
@@ -171,18 +180,20 @@ export function buildFormulaSamplingRequest(
     sampleData?: unknown[][];
     targetCell?: string;
     sheetName?: string;
-  }
+  },
 ): SamplingRequest {
   const headerInfo = context.headers
-    ? `\n**Headers:** ${context.headers.join(', ')}`
-    : '';
+    ? `\n**Headers:** ${context.headers.join(", ")}`
+    : "";
   const sampleInfo = context.sampleData
     ? `\n**Sample data:**\n\`\`\`json\n${JSON.stringify(context.sampleData.slice(0, 5), null, 2)}\n\`\`\``
-    : '';
+    : "";
   const targetInfo = context.targetCell
     ? `\n**Target cell:** ${context.targetCell}`
-    : '';
-  const sheetInfo = context.sheetName ? `\n**Sheet:** ${context.sheetName}` : '';
+    : "";
+  const sheetInfo = context.sheetName
+    ? `\n**Sheet:** ${context.sheetName}`
+    : "";
 
   const prompt = `Generate a Google Sheets formula for the following requirement:
 
@@ -212,21 +223,21 @@ Format your response as JSON:
   return {
     messages: [
       {
-        role: 'user',
+        role: "user",
         content: {
-          type: 'text',
+          type: "text",
           text: prompt,
         },
       },
     ],
     systemPrompt: `You are an expert in Google Sheets formulas. You create efficient, accurate formulas and explain them clearly. Always consider edge cases and provide alternatives when appropriate.`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: "claude-3-sonnet" }],
       intelligencePriority: 0.9,
       speedPriority: 0.5,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
+    includeContext: "thisServer",
   };
 }
 
@@ -239,15 +250,15 @@ export function buildChartSamplingRequest(
     goal?: string;
     dataDescription?: string;
     preferredTypes?: string[];
-  }
+  },
 ): SamplingRequest {
-  const goalInfo = context.goal ? `\n**Goal:** ${context.goal}` : '';
+  const goalInfo = context.goal ? `\n**Goal:** ${context.goal}` : "";
   const descInfo = context.dataDescription
     ? `\n**Data description:** ${context.dataDescription}`
-    : '';
+    : "";
   const prefInfo = context.preferredTypes?.length
-    ? `\n**Preferred chart types:** ${context.preferredTypes.join(', ')}`
-    : '';
+    ? `\n**Preferred chart types:** ${context.preferredTypes.join(", ")}`
+    : "";
 
   // Sample the data
   const dataSample = data.slice(0, 20).map((row) => row.slice(0, 10));
@@ -293,21 +304,21 @@ Format your response as JSON:
   return {
     messages: [
       {
-        role: 'user',
+        role: "user",
         content: {
-          type: 'text',
+          type: "text",
           text: prompt,
         },
       },
     ],
     systemPrompt: `You are a data visualization expert. You recommend the most effective chart types based on data characteristics and visualization goals. Consider data types, relationships, and the story the data tells.`,
     modelPreferences: {
-      hints: [{ name: 'claude-3-sonnet' }],
+      hints: [{ name: "claude-3-sonnet" }],
       intelligencePriority: 0.7,
       speedPriority: 0.6,
     },
     maxTokens: 2048,
-    includeContext: 'thisServer',
+    includeContext: "thisServer",
   };
 }
 
@@ -337,7 +348,7 @@ export function parseAnalysisResponse(responseText: string): {
     if (!jsonMatch) {
       return {
         success: false,
-        error: 'No JSON found in response',
+        error: "No JSON found in response",
       };
     }
 

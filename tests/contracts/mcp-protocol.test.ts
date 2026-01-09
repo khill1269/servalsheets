@@ -12,12 +12,20 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerServalSheetsTools, registerServalSheetsPrompts } from '../../src/mcp/registration.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 import { patchMcpServerRequestHandler } from '../../src/mcp/sdk-compat.js';
 
 patchMcpServerRequestHandler();
+
+/**
+ * The MCP SDK stores registrations on private fields (e.g. `_registeredTools`).
+ * Tests are allowed to peek, but TypeScript requires we go through `unknown`
+ * (or `any`) when accessing private members.
+ */
+function getPrivateField<T>(obj: unknown, key: string): T | undefined {
+  return (obj as Record<string, unknown>)[key] as T | undefined;
+}
 
 describe('MCP Protocol Compliance', () => {
   let server: McpServer;
@@ -53,19 +61,23 @@ describe('MCP Protocol Compliance', () => {
   describe('Tool Registration', () => {
     it('should register exactly 16 tools', () => {
       // Access private _registeredTools field (it's an object, not a Map)
-      const serverAny = server as any;
-      const tools = serverAny._registeredTools;
+      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools');
 
       expect(tools).toBeDefined();
-      const toolNames = Object.keys(tools);
+      const toolNames = Object.keys(tools!);
       expect(toolNames.length).toBe(TOOL_COUNT);
     });
 
     it('all tools should have required fields', () => {
-      const serverAny = server as any;
-      const tools = serverAny._registeredTools as Record<string, any>;
+      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
 
-      for (const [name, toolDef] of Object.entries(tools)) {
+      for (const [name, toolDefUnknown] of Object.entries(tools)) {
+        const toolDef = toolDefUnknown as {
+          description?: unknown;
+          inputSchema?: unknown;
+          handler?: unknown;
+          annotations?: unknown;
+        };
         // Every tool must have a name (the object key)
         expect(name).toBeDefined();
         expect(typeof name).toBe('string');
@@ -93,8 +105,7 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all tool names should follow naming convention', () => {
-      const serverAny = server as any;
-      const tools = serverAny._registeredTools as Record<string, any>;
+      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
 
       for (const name of Object.keys(tools)) {
         // Tool names should be lowercase with underscores
@@ -106,8 +117,7 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('tool names should be unique', () => {
-      const serverAny = server as any;
-      const tools = serverAny._registeredTools as Record<string, any>;
+      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
 
       // Object keys are unique by definition
       const toolNames = Object.keys(tools);
@@ -115,32 +125,35 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all tools should have annotations', () => {
-      const serverAny = server as any;
-      const tools = serverAny._registeredTools as Record<string, any>;
+      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
 
-      for (const toolDef of Object.values(tools)) {
+      for (const toolDefUnknown of Object.values(tools)) {
+        const toolDef = toolDefUnknown as { annotations?: unknown };
         expect(toolDef.annotations).toBeDefined();
         expect(typeof toolDef.annotations).toBe('object');
-        expect(toolDef.annotations.title).toBeDefined();
+        const annotations = toolDef.annotations as { title?: unknown };
+        expect(annotations.title).toBeDefined();
       }
     });
   });
 
   describe('Prompt Registration', () => {
     it('should register prompts', () => {
-      const serverAny = server as any;
-      const prompts = serverAny._registeredPrompts;
+      const prompts = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredPrompts');
 
       expect(prompts).toBeDefined();
-      const promptNames = Object.keys(prompts);
+      const promptNames = Object.keys(prompts!);
       expect(promptNames.length).toBeGreaterThan(0);
     });
 
     it('all prompts should have handlers', () => {
-      const serverAny = server as any;
-      const prompts = serverAny._registeredPrompts as Record<string, any>;
+      const prompts = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredPrompts') as Record<string, unknown>;
 
-      for (const [name, promptDef] of Object.entries(prompts)) {
+      for (const [name, promptDefUnknown] of Object.entries(prompts)) {
+        const promptDef = promptDefUnknown as {
+          description?: unknown;
+          callback?: unknown;
+        };
         expect(name).toBeDefined();
         expect(typeof name).toBe('string');
         expect(name.length).toBeGreaterThan(0);
@@ -158,11 +171,10 @@ describe('MCP Protocol Compliance', () => {
 
   describe('Resource Registration', () => {
     it('should have resource registration capability', () => {
-      const serverAny = server as any;
-      const resources = serverAny._registeredResources;
+      const resources = getPrivateField<unknown>(server as unknown, '_registeredResources');
 
       expect(resources).toBeDefined();
-      // Resources may be empty if not implemented yet, but the field should exist
+      // Resources may be empty if a server doesn't expose any, but the field should exist
     });
   });
 

@@ -8,10 +8,10 @@
  * prevent sensitive data (tokens, API keys) from leaking into logs.
  */
 
-import type { ErrorDetail } from '../schemas/shared.js';
-import { redactString, redactObject } from '../utils/redact.js';
+import type { ErrorDetail } from "../schemas/shared.js";
+import { redactString, redactObject } from "../utils/redact.js";
 
-type ErrorCode = ErrorDetail['code'];
+type ErrorCode = ErrorDetail["code"];
 
 /**
  * Base class for all ServalSheets errors
@@ -48,7 +48,7 @@ export class ServiceError extends ServalSheetsError {
     code: ErrorCode,
     serviceName: string,
     retryable: boolean = false,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(message, { ...details, serviceName });
     this.code = code;
@@ -74,11 +74,15 @@ export class ServiceError extends ServalSheetsError {
  * Use when: Invalid environment variables, missing config, validation failures
  */
 export class ConfigError extends ServalSheetsError {
-  code: ErrorCode = 'CONFIG_ERROR';
+  code: ErrorCode = "CONFIG_ERROR";
   retryable = false;
   configKey: string;
 
-  constructor(message: string, configKey: string, details?: Record<string, unknown>) {
+  constructor(
+    message: string,
+    configKey: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message, { ...details, configKey });
     this.configKey = configKey;
   }
@@ -92,8 +96,8 @@ export class ConfigError extends ServalSheetsError {
       resolution: `Fix the configuration for ${this.configKey} and restart the server.`,
       resolutionSteps: [
         `1. Check environment variable or config file for ${this.configKey}`,
-        '2. Validate the value matches expected format',
-        '3. Restart the server after fixing configuration',
+        "2. Validate the value matches expected format",
+        "3. Restart the server after fixing configuration",
       ],
     };
   }
@@ -104,7 +108,7 @@ export class ConfigError extends ServalSheetsError {
  * Use when: Invalid user input, malformed data, type mismatches
  */
 export class ValidationError extends ServalSheetsError {
-  code: ErrorCode = 'VALIDATION_ERROR';
+  code: ErrorCode = "VALIDATION_ERROR";
   retryable = false;
   field: string;
   expectedFormat?: string;
@@ -113,7 +117,7 @@ export class ValidationError extends ServalSheetsError {
     message: string,
     field: string,
     expectedFormat?: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(message, { ...details, field, expectedFormat });
     this.field = field;
@@ -123,7 +127,7 @@ export class ValidationError extends ServalSheetsError {
   toErrorDetail(): ErrorDetail {
     const steps = [
       `1. Check the value of '${this.field}'`,
-      '2. Ensure it matches the required format',
+      "2. Ensure it matches the required format",
     ];
 
     if (this.expectedFormat) {
@@ -146,7 +150,7 @@ export class ValidationError extends ServalSheetsError {
  * Use when: Spreadsheet not found, snapshot not found, resource lookup failures
  */
 export class NotFoundError extends ServalSheetsError {
-  code: ErrorCode = 'NOT_FOUND';
+  code: ErrorCode = "NOT_FOUND";
   retryable = false;
   resourceType: string;
   resourceId: string;
@@ -154,9 +158,13 @@ export class NotFoundError extends ServalSheetsError {
   constructor(
     resourceType: string,
     resourceId: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
-    super(`${resourceType} not found: ${resourceId}`, { ...details, resourceType, resourceId });
+    super(`${resourceType} not found: ${resourceId}`, {
+      ...details,
+      resourceType,
+      resourceId,
+    });
     this.resourceType = resourceType;
     this.resourceId = resourceId;
   }
@@ -170,8 +178,8 @@ export class NotFoundError extends ServalSheetsError {
       resolution: `Verify that the ${this.resourceType} '${this.resourceId}' exists and is accessible.`,
       resolutionSteps: [
         `1. Check if ${this.resourceType} '${this.resourceId}' exists`,
-        '2. Verify you have permission to access it',
-        '3. If using a reference, ensure it is up to date',
+        "2. Verify you have permission to access it",
+        "3. If using a reference, ensure it is up to date",
       ],
     };
   }
@@ -185,7 +193,12 @@ export class AuthenticationError extends ServalSheetsError {
   code: ErrorCode;
   retryable: boolean;
 
-  constructor(message: string, code: ErrorCode = 'AUTH_ERROR', retryable: boolean = false, details?: Record<string, unknown>) {
+  constructor(
+    message: string,
+    code: ErrorCode = "AUTH_ERROR",
+    retryable: boolean = false,
+    details?: Record<string, unknown>,
+  ) {
     super(message, details);
     this.code = code;
     this.retryable = retryable;
@@ -198,18 +211,18 @@ export class AuthenticationError extends ServalSheetsError {
       details: this.details,
       retryable: this.retryable,
       resolution: this.retryable
-        ? 'Re-authenticate and retry the operation.'
-        : 'Check your authentication credentials and OAuth configuration.',
+        ? "Re-authenticate and retry the operation."
+        : "Check your authentication credentials and OAuth configuration.",
       resolutionSteps: this.retryable
         ? [
-            '1. Refresh your access token',
-            '2. Re-authenticate if refresh fails',
-            '3. Retry the operation',
+            "1. Refresh your access token",
+            "2. Re-authenticate if refresh fails",
+            "3. Retry the operation",
           ]
         : [
-            '1. Verify OAuth client credentials',
-            '2. Check OAuth flow configuration',
-            '3. Ensure redirect URIs are correct',
+            "1. Verify OAuth client credentials",
+            "2. Check OAuth flow configuration",
+            "3. Ensure redirect URIs are correct",
           ],
     };
   }
@@ -223,7 +236,12 @@ export class DataError extends ServalSheetsError {
   code: ErrorCode;
   retryable: boolean;
 
-  constructor(message: string, code: ErrorCode = 'DATA_ERROR', retryable: boolean = false, details?: Record<string, unknown>) {
+  constructor(
+    message: string,
+    code: ErrorCode = "DATA_ERROR",
+    retryable: boolean = false,
+    details?: Record<string, unknown>,
+  ) {
     super(message, details);
     this.code = code;
     this.retryable = retryable;
@@ -235,7 +253,8 @@ export class DataError extends ServalSheetsError {
       message: this.message,
       details: this.details,
       retryable: this.retryable,
-      resolution: 'Check data integrity and format. May require manual intervention.',
+      resolution:
+        "Check data integrity and format. May require manual intervention.",
     };
   }
 }
@@ -245,11 +264,15 @@ export class DataError extends ServalSheetsError {
  * Use when: Unknown handler, method not found, lazy loading failures
  */
 export class HandlerLoadError extends ServalSheetsError {
-  code: ErrorCode = 'HANDLER_LOAD_ERROR';
+  code: ErrorCode = "HANDLER_LOAD_ERROR";
   retryable = false;
   handlerName: string;
 
-  constructor(message: string, handlerName: string, details?: Record<string, unknown>) {
+  constructor(
+    message: string,
+    handlerName: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message, { ...details, handlerName });
     this.handlerName = handlerName;
   }

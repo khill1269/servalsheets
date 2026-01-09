@@ -14,40 +14,37 @@
  * - Tests will be skipped automatically if Redis connection fails
  */
 
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RedisTaskStore } from '../../src/core/task-store.js';
 import type { TaskStatus } from '../../src/core/task-store.js';
 
-// Check if Redis is available
-let redisAvailable = false;
+// Check if Redis is available BEFORE tests register
 const redisUrl = process.env['REDIS_URL'] || 'redis://localhost:6379';
 
-describe('RedisTaskStore', () => {
+// Check Redis availability with top-level await
+let redisAvailable = false;
+try {
+  const testStore = new RedisTaskStore(redisUrl, 'test:availability:');
+  await testStore.createTask();
+  await testStore.disconnect();
+  redisAvailable = true;
+  console.log('[RedisTaskStore Tests] Redis connection successful');
+} catch (error) {
+  console.log('[RedisTaskStore Tests] Redis not available:', (error as Error).message);
+  redisAvailable = false;
+}
+
+describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
   let store: RedisTaskStore;
 
-  beforeAll(async () => {
-    // Test Redis availability
-    try {
-      const testStore = new RedisTaskStore(redisUrl, 'test:availability:');
-      await testStore.createTask();
-      await testStore.disconnect();
-      redisAvailable = true;
-    } catch (error) {
-      console.warn('Redis not available, skipping RedisTaskStore tests:', error);
-      redisAvailable = false;
-    }
-  });
-
   beforeEach(async () => {
-    if (!redisAvailable) return;
-
     // Use unique key prefix for test isolation
     const prefix = `test:${Date.now()}:`;
     store = new RedisTaskStore(redisUrl, prefix);
   });
 
   afterEach(async () => {
-    if (!redisAvailable || !store) return;
+    if (!store) return;
 
     try {
       // Clean up all test tasks
@@ -62,7 +59,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('createTask', () => {
-    it.skipIf(!redisAvailable)('should create a task with default TTL', async () => {
+    it('should create a task with default TTL', async () => {
       const task = await store.createTask();
 
       expect(task.taskId).toMatch(/^task_\d+_[a-z0-9]+$/);
@@ -73,19 +70,19 @@ describe('RedisTaskStore', () => {
       expect(task.lastUpdatedAt).toBeDefined();
     });
 
-    it.skipIf(!redisAvailable)('should create a task with custom TTL', async () => {
+    it('should create a task with custom TTL', async () => {
       const task = await store.createTask({ ttl: 600000 });
       expect(task.ttl).toBe(600000); // 10 minutes
     });
 
-    it.skipIf(!redisAvailable)('should create tasks with unique IDs', async () => {
+    it('should create tasks with unique IDs', async () => {
       const task1 = await store.createTask();
       const task2 = await store.createTask();
 
       expect(task1.taskId).not.toBe(task2.taskId);
     });
 
-    it.skipIf(!redisAvailable)('should persist task to Redis', async () => {
+    it('should persist task to Redis', async () => {
       const task = await store.createTask();
 
       // Create new store instance to verify persistence
@@ -96,7 +93,7 @@ describe('RedisTaskStore', () => {
       await store2.disconnect();
     });
 
-    it.skipIf(!redisAvailable)('should set Redis TTL correctly', async () => {
+    it('should set Redis TTL correctly', async () => {
       const task = await store.createTask({ ttl: 10000 }); // 10 seconds
 
       // Verify task exists
@@ -106,19 +103,19 @@ describe('RedisTaskStore', () => {
   });
 
   describe('getTask', () => {
-    it.skipIf(!redisAvailable)('should retrieve an existing task', async () => {
+    it('should retrieve an existing task', async () => {
       const created = await store.createTask();
       const retrieved = await store.getTask(created.taskId);
 
       expect(retrieved).toEqual(created);
     });
 
-    it.skipIf(!redisAvailable)('should return null for non-existent task', async () => {
+    it('should return null for non-existent task', async () => {
       const retrieved = await store.getTask('task_nonexistent');
       expect(retrieved).toBeNull();
     });
 
-    it.skipIf(!redisAvailable)('should return null for expired task', async () => {
+    it('should return null for expired task', async () => {
       // Create task with short TTL
       const task = await store.createTask({ ttl: 100 }); // 100ms
 
@@ -129,7 +126,7 @@ describe('RedisTaskStore', () => {
       expect(retrieved).toBeNull();
     });
 
-    it.skipIf(!redisAvailable)('should return task with updated fields', async () => {
+    it('should return task with updated fields', async () => {
       const task = await store.createTask();
       await store.updateTaskStatus(task.taskId, 'completed', 'Done!');
 
@@ -140,7 +137,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('updateTaskStatus', () => {
-    it.skipIf(!redisAvailable)('should update task status', async () => {
+    it('should update task status', async () => {
       const task = await store.createTask();
 
       await store.updateTaskStatus(task.taskId, 'completed', 'Success');
@@ -150,13 +147,13 @@ describe('RedisTaskStore', () => {
       expect(updated?.statusMessage).toBe('Success');
     });
 
-    it.skipIf(!redisAvailable)('should throw for non-existent task', async () => {
+    it('should throw for non-existent task', async () => {
       await expect(
         store.updateTaskStatus('task_nonexistent', 'completed')
       ).rejects.toThrow('Task not found');
     });
 
-    it.skipIf(!redisAvailable)('should update lastUpdatedAt timestamp', async () => {
+    it('should update lastUpdatedAt timestamp', async () => {
       const task = await store.createTask();
       const originalTimestamp = task.lastUpdatedAt;
 
@@ -170,7 +167,7 @@ describe('RedisTaskStore', () => {
       expect(updated!.lastUpdatedAt > originalTimestamp).toBe(true);
     });
 
-    it.skipIf(!redisAvailable)('should allow status transition to all valid states', async () => {
+    it('should allow status transition to all valid states', async () => {
       const task = await store.createTask();
 
       const states: TaskStatus[] = ['working', 'completed', 'failed', 'cancelled', 'input_required'];
@@ -182,7 +179,7 @@ describe('RedisTaskStore', () => {
       }
     });
 
-    it.skipIf(!redisAvailable)('should persist across store instances', async () => {
+    it('should persist across store instances', async () => {
       const task = await store.createTask();
       await store.updateTaskStatus(task.taskId, 'completed', 'Done');
 
@@ -198,7 +195,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('storeTaskResult and getTaskResult', () => {
-    it.skipIf(!redisAvailable)('should store and retrieve task result', async () => {
+    it('should store and retrieve task result', async () => {
       const task = await store.createTask();
       const result = {
         content: [{ type: 'text' as const, text: 'Success!' }],
@@ -211,20 +208,20 @@ describe('RedisTaskStore', () => {
       expect(retrieved).toEqual({ status: 'completed', result });
     });
 
-    it.skipIf(!redisAvailable)('should return null for task without result', async () => {
+    it('should return null for task without result', async () => {
       const task = await store.createTask();
       const result = await store.getTaskResult(task.taskId);
 
       expect(result).toBeNull();
     });
 
-    it.skipIf(!redisAvailable)('should throw for non-existent task when storing result', async () => {
+    it('should throw for non-existent task when storing result', async () => {
       await expect(
         store.storeTaskResult('task_nonexistent', 'completed', { content: [], isError: false })
       ).rejects.toThrow('Task not found');
     });
 
-    it.skipIf(!redisAvailable)('should persist result across store instances', async () => {
+    it('should persist result across store instances', async () => {
       const task = await store.createTask();
       const result = {
         content: [{ type: 'text' as const, text: 'Test result' }],
@@ -241,7 +238,7 @@ describe('RedisTaskStore', () => {
       await store2.disconnect();
     });
 
-    it.skipIf(!redisAvailable)('should handle large result data', async () => {
+    it('should handle large result data', async () => {
       const task = await store.createTask();
       const largeText = 'x'.repeat(100000); // 100KB text
       const result = {
@@ -252,17 +249,21 @@ describe('RedisTaskStore', () => {
       await store.storeTaskResult(task.taskId, 'completed', result);
       const retrieved = await store.getTaskResult(task.taskId);
 
-      expect(retrieved?.result.content[0].text).toBe(largeText);
+      const first = retrieved?.result.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first.text).toBe(largeText);
     });
   });
 
   describe('getAllTasks', () => {
-    it.skipIf(!redisAvailable)('should return empty array when no tasks', async () => {
+    it('should return empty array when no tasks', async () => {
       const tasks = await store.getAllTasks();
       expect(tasks).toEqual([]);
     });
 
-    it.skipIf(!redisAvailable)('should return all tasks', async () => {
+    it('should return all tasks', async () => {
       await store.createTask();
       await store.createTask();
       await store.createTask();
@@ -271,7 +272,7 @@ describe('RedisTaskStore', () => {
       expect(tasks).toHaveLength(3);
     });
 
-    it.skipIf(!redisAvailable)('should sort tasks by creation time (newest first)', async () => {
+    it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
       await new Promise(resolve => setTimeout(resolve, 10));
       const task2 = await store.createTask();
@@ -280,12 +281,16 @@ describe('RedisTaskStore', () => {
 
       const tasks = await store.getAllTasks();
 
-      expect(tasks[0].taskId).toBe(task3.taskId);
-      expect(tasks[1].taskId).toBe(task2.taskId);
-      expect(tasks[2].taskId).toBe(task1.taskId);
+      const [first, second, third] = tasks;
+      if (!first || !second || !third) {
+        throw new Error('Expected at least 3 tasks');
+      }
+      expect(first.taskId).toBe(task3.taskId);
+      expect(second.taskId).toBe(task2.taskId);
+      expect(third.taskId).toBe(task1.taskId);
     });
 
-    it.skipIf(!redisAvailable)('should not include expired tasks', async () => {
+    it('should not include expired tasks', async () => {
       // Create short-lived task
       await store.createTask({ ttl: 100 }); // 100ms
       // Create long-lived task
@@ -298,7 +303,7 @@ describe('RedisTaskStore', () => {
       expect(tasks).toHaveLength(1);
     });
 
-    it.skipIf(!redisAvailable)('should work across store instances', async () => {
+    it('should work across store instances', async () => {
       await store.createTask();
       await store.createTask();
 
@@ -312,7 +317,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('deleteTask', () => {
-    it.skipIf(!redisAvailable)('should delete task and result', async () => {
+    it('should delete task and result', async () => {
       const task = await store.createTask();
       const result = { content: [{ type: 'text' as const, text: 'Test' }], isError: false };
       await store.storeTaskResult(task.taskId, 'completed', result);
@@ -326,11 +331,11 @@ describe('RedisTaskStore', () => {
       expect(retrievedResult).toBeNull();
     });
 
-    it.skipIf(!redisAvailable)('should not throw for non-existent task', async () => {
+    it('should not throw for non-existent task', async () => {
       await expect(store.deleteTask('task_nonexistent')).resolves.not.toThrow();
     });
 
-    it.skipIf(!redisAvailable)('should persist deletion across store instances', async () => {
+    it('should persist deletion across store instances', async () => {
       const task = await store.createTask();
       await store.deleteTask(task.taskId);
 
@@ -344,7 +349,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('getTaskStats', () => {
-    it.skipIf(!redisAvailable)('should return counts by status', async () => {
+    it('should return counts by status', async () => {
       // Create tasks with different statuses
       await store.createTask(); // working
       const task2 = await store.createTask();
@@ -363,7 +368,7 @@ describe('RedisTaskStore', () => {
       expect(stats.input_required).toBe(0);
     });
 
-    it.skipIf(!redisAvailable)('should return zero counts when no tasks', async () => {
+    it('should return zero counts when no tasks', async () => {
       const stats = await store.getTaskStats();
 
       expect(stats.working).toBe(0);
@@ -375,7 +380,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('cleanupExpiredTasks', () => {
-    it.skipIf(!redisAvailable)('should report expired tasks', async () => {
+    it('should report expired tasks', async () => {
       // Create short-lived tasks
       await store.createTask({ ttl: 100 });
       await store.createTask({ ttl: 100 });
@@ -393,19 +398,19 @@ describe('RedisTaskStore', () => {
   });
 
   describe('disconnect', () => {
-    it.skipIf(!redisAvailable)('should disconnect successfully', async () => {
+    it('should disconnect successfully', async () => {
       await store.createTask();
       await expect(store.disconnect()).resolves.not.toThrow();
     });
 
-    it.skipIf(!redisAvailable)('should be safe to call multiple times', async () => {
+    it('should be safe to call multiple times', async () => {
       await store.disconnect();
       await expect(store.disconnect()).resolves.not.toThrow();
     });
   });
 
   describe('edge cases', () => {
-    it.skipIf(!redisAvailable)('should handle concurrent task creations', async () => {
+    it('should handle concurrent task creations', async () => {
       const promises = Array.from({ length: 20 }, () => store.createTask());
       const tasks = await Promise.all(promises);
 
@@ -413,7 +418,7 @@ describe('RedisTaskStore', () => {
       expect(new Set(tasks.map(t => t.taskId)).size).toBe(20); // All unique
     });
 
-    it.skipIf(!redisAvailable)('should handle status message with special characters', async () => {
+    it('should handle status message with special characters', async () => {
       const task = await store.createTask();
       const message = 'Error: "Invalid" <data> & more\n\tSpecial chars';
 
@@ -423,7 +428,7 @@ describe('RedisTaskStore', () => {
       expect(updated?.statusMessage).toBe(message);
     });
 
-    it.skipIf(!redisAvailable)('should handle JSON serialization in results', async () => {
+    it('should handle JSON serialization in results', async () => {
       const task = await store.createTask();
       const result = {
         content: [
@@ -441,7 +446,7 @@ describe('RedisTaskStore', () => {
   });
 
   describe('multi-instance behavior', () => {
-    it.skipIf(!redisAvailable)('should share tasks across multiple store instances', async () => {
+    it('should share tasks across multiple store instances', async () => {
       const store1 = new RedisTaskStore(redisUrl, 'multi-test:');
       const store2 = new RedisTaskStore(redisUrl, 'multi-test:');
 
@@ -458,7 +463,7 @@ describe('RedisTaskStore', () => {
       }
     });
 
-    it.skipIf(!redisAvailable)('should propagate status updates across instances', async () => {
+    it('should propagate status updates across instances', async () => {
       const store1 = new RedisTaskStore(redisUrl, 'multi-status:');
       const store2 = new RedisTaskStore(redisUrl, 'multi-status:');
 

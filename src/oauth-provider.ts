@@ -18,7 +18,7 @@ import { SessionStore, createSessionStore } from './storage/session-store.js';
 import { getSessionStoreConfig } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { CircuitBreaker } from './utils/circuit-breaker.js';
-import { VERSION } from './version.js';
+import { VERSION, SERVER_ICONS } from './version.js';
 
 export interface OAuthConfig {
   issuer: string;
@@ -387,6 +387,7 @@ export class OAuthProvider {
         name: 'servalsheets',
         version: VERSION,
         description: 'Production-grade Google Sheets MCP server',
+        icons: SERVER_ICONS,
         oauth: {
           authorization_endpoint: `${this.config.issuer}/oauth/authorize`,
           token_endpoint: `${this.config.issuer}/oauth/token`,

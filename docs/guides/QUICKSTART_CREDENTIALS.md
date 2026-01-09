@@ -155,7 +155,7 @@ After getting credentials:
 
 1. Update `~/Library/Application Support/Claude/claude_desktop_config.json`
 2. Restart Claude Desktop (⌘+Q then reopen)
-3. Look for 🔨 icon in bottom-right
+3. Look for 🔨 icon in bottom-right (custom ServalSheets icon may not appear yet)
 4. Test: "List sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
 
 ## Troubleshooting

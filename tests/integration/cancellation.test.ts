@@ -59,35 +59,33 @@ describe('Cancellation and Timeout Behavior', () => {
   });
 
   describe('Timeout Handling', () => {
-    let batchCompiler: BatchCompiler;
-    let mockSheetsApi: any;
-    let mockSnapshotService: any;
+    let _batchCompiler: BatchCompiler;
+    let mockSheetsApi: sheets_v4.Sheets;
+    let mockSnapshotService: SnapshotService;
 
     beforeEach(() => {
-      // Create mock that can simulate slow operations
+      // Create mock that can mimic slow operations
       mockSheetsApi = {
         spreadsheets: {
           batchUpdate: vi.fn(),
           get: vi.fn(),
         },
-      };
+      } as unknown as sheets_v4.Sheets;
 
-      mockSnapshotService = {
-        createSnapshot: vi.fn(),
-      };
+      mockSnapshotService = { createSnapshot: vi.fn() } as unknown as SnapshotService;
 
-      batchCompiler = new BatchCompiler({
+      _batchCompiler = new BatchCompiler({
         rateLimiter: new RateLimiter(),
-        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi as any }),
+        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi }),
         policyEnforcer: new PolicyEnforcer(),
-        snapshotService: mockSnapshotService as any,
-        sheetsApi: mockSheetsApi as any,
+        snapshotService: mockSnapshotService,
+        sheetsApi: mockSheetsApi,
       });
     });
 
     it('should handle operation timeout gracefully', async () => {
       // Simulate a very slow operation
-      const slowOperation = async () => {
+      const slowOperation = async (): Promise<void> => {
         await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds
       };
 
@@ -118,7 +116,7 @@ describe('Cancellation and Timeout Behavior', () => {
         ]);
       };
 
-      const fastOperation = async () => {
+      const fastOperation = async (): Promise<string> => {
         await new Promise(resolve => setTimeout(resolve, 10));
         return 'completed';
       };
@@ -127,7 +125,7 @@ describe('Cancellation and Timeout Behavior', () => {
       const result = await executeWithTimeout(fastOperation, 1000);
       expect(result).toBe('completed');
 
-      const slowOperation = async () => {
+      const slowOperation = async (): Promise<string> => {
         await new Promise(resolve => setTimeout(resolve, 2000));
         return 'completed';
       };
@@ -141,9 +139,9 @@ describe('Cancellation and Timeout Behavior', () => {
 
   describe('Progress Tracking for Long Operations', () => {
     it('should demonstrate progress callback pattern', async () => {
-      const progressEvents: any[] = [];
+      const progressEvents: unknown[] = [];
 
-      const onProgress = (event: any) => {
+      const onProgress = (event: unknown): void => {
         progressEvents.push(event);
       };
 
@@ -152,14 +150,14 @@ describe('Cancellation and Timeout Behavior', () => {
           batchUpdate: vi.fn(),
           get: vi.fn(),
         },
-      };
+      } as unknown as sheets_v4.Sheets;
 
       const batchCompiler = new BatchCompiler({
         rateLimiter: new RateLimiter(),
-        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi as any }),
+        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi }),
         policyEnforcer: new PolicyEnforcer(),
-        snapshotService: { createSnapshot: vi.fn() } as any,
-        sheetsApi: mockSheetsApi as any,
+        snapshotService: { createSnapshot: vi.fn() } as unknown as SnapshotService,
+        sheetsApi: mockSheetsApi,
         onProgress, // Progress callback
       });
 
@@ -207,7 +205,7 @@ describe('Cancellation and Timeout Behavior', () => {
     it('should demonstrate safe retry pattern', async () => {
       let callCount = 0;
 
-      const idempotentOperation = async () => {
+      const idempotentOperation = async (): Promise<string> => {
         callCount++;
         // Check current state before modifying
         // Only modify if not already in desired state
@@ -261,20 +259,20 @@ describe('Cancellation and Timeout Behavior', () => {
             }),
           },
         },
-      };
+      } as unknown as sheets_v4.Sheets;
 
       const batchCompiler = new BatchCompiler({
         rateLimiter: new RateLimiter(),
-        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi as any }),
+        diffEngine: new DiffEngine({ sheetsApi: mockSheetsApi }),
         policyEnforcer: new PolicyEnforcer(),
-        snapshotService: { createSnapshot: vi.fn() } as any,
-        sheetsApi: mockSheetsApi as any,
+        snapshotService: { createSnapshot: vi.fn() } as unknown as SnapshotService,
+        sheetsApi: mockSheetsApi,
       });
 
       // Dry run validates without executing
       const result = await batchCompiler.executeWithSafety({
         spreadsheetId: 'test-123',
-        safety: { dryRun: true },
+        safety: { dryRun: true, autoSnapshot: false },
         operation: async () => {
           // Would do real work in non-dry-run
         },

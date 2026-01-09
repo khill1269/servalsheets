@@ -3,7 +3,7 @@
  * Filtering and sorting operations
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,
@@ -17,7 +17,7 @@ import {
   MutationSummarySchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
 const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -32,15 +32,17 @@ const FilterCriteriaSchema = z.object({
 
 const SortSpecSchema = z.object({
   columnIndex: z.number().int().min(0),
-  sortOrder: SortOrderSchema.optional().default('ASCENDING'),
+  sortOrder: SortOrderSchema.optional().default("ASCENDING"),
   foregroundColor: ColorSchema.optional(),
   backgroundColor: ColorSchema.optional(),
 });
 
-const FilterSortActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsFilterSortInputSchema = z.discriminatedUnion("action", [
   // SET_BASIC_FILTER
   BaseSchema.extend({
-    action: z.literal('set_basic_filter'),
+    action: z.literal("set_basic_filter"),
     sheetId: SheetIdSchema,
     range: RangeInputSchema.optional(),
     criteria: z.record(z.number(), FilterCriteriaSchema).optional(),
@@ -48,20 +50,20 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // CLEAR_BASIC_FILTER
   BaseSchema.extend({
-    action: z.literal('clear_basic_filter'),
+    action: z.literal("clear_basic_filter"),
     sheetId: SheetIdSchema,
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // GET_BASIC_FILTER
   BaseSchema.extend({
-    action: z.literal('get_basic_filter'),
+    action: z.literal("get_basic_filter"),
     sheetId: SheetIdSchema,
   }),
 
   // UPDATE_FILTER_CRITERIA
   BaseSchema.extend({
-    action: z.literal('update_filter_criteria'),
+    action: z.literal("update_filter_criteria"),
     sheetId: SheetIdSchema,
     columnIndex: z.number().int().min(0),
     criteria: FilterCriteriaSchema,
@@ -70,7 +72,7 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // SORT_RANGE
   BaseSchema.extend({
-    action: z.literal('sort_range'),
+    action: z.literal("sort_range"),
     range: RangeInputSchema,
     sortSpecs: z.array(SortSpecSchema).min(1),
     safety: SafetyOptionsSchema.optional(),
@@ -78,7 +80,7 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // CREATE_FILTER_VIEW
   BaseSchema.extend({
-    action: z.literal('create_filter_view'),
+    action: z.literal("create_filter_view"),
     sheetId: SheetIdSchema,
     title: z.string(),
     range: RangeInputSchema.optional(),
@@ -88,7 +90,7 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // UPDATE_FILTER_VIEW
   BaseSchema.extend({
-    action: z.literal('update_filter_view'),
+    action: z.literal("update_filter_view"),
     filterViewId: z.number().int(),
     title: z.string().optional(),
     criteria: z.record(z.number(), FilterCriteriaSchema).optional(),
@@ -98,26 +100,26 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // DELETE_FILTER_VIEW
   BaseSchema.extend({
-    action: z.literal('delete_filter_view'),
+    action: z.literal("delete_filter_view"),
     filterViewId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_FILTER_VIEWS
   BaseSchema.extend({
-    action: z.literal('list_filter_views'),
+    action: z.literal("list_filter_views"),
     sheetId: SheetIdSchema.optional(),
   }),
 
   // GET_FILTER_VIEW
   BaseSchema.extend({
-    action: z.literal('get_filter_view'),
+    action: z.literal("get_filter_view"),
     filterViewId: z.number().int(),
   }),
 
   // CREATE_SLICER
   BaseSchema.extend({
-    action: z.literal('create_slicer'),
+    action: z.literal("create_slicer"),
     sheetId: SheetIdSchema,
     dataRange: RangeInputSchema,
     filterColumn: z.number().int().min(0),
@@ -133,7 +135,7 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // UPDATE_SLICER
   BaseSchema.extend({
-    action: z.literal('update_slicer'),
+    action: z.literal("update_slicer"),
     slicerId: z.number().int(),
     filterColumn: z.number().int().min(0).optional(),
     title: z.string().optional(),
@@ -142,41 +144,47 @@ const FilterSortActionSchema = z.discriminatedUnion('action', [
 
   // DELETE_SLICER
   BaseSchema.extend({
-    action: z.literal('delete_slicer'),
+    action: z.literal("delete_slicer"),
     slicerId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_SLICERS
   BaseSchema.extend({
-    action: z.literal('list_slicers'),
+    action: z.literal("list_slicers"),
     sheetId: SheetIdSchema.optional(),
   }),
 ]);
 
-export const SheetsFilterSortInputSchema = z.object({
-  request: FilterSortActionSchema,
-});
-
-const FilterSortResponseSchema = z.discriminatedUnion('success', [
+const FilterSortResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
-    filter: z.object({
-      range: GridRangeSchema,
-      criteria: z.record(z.string(), z.unknown()),
-    }).optional(),
-    filterViews: z.array(z.object({
-      filterViewId: z.number().int(),
-      title: z.string(),
-      range: GridRangeSchema,
-    })).optional(),
+    filter: z
+      .object({
+        range: GridRangeSchema,
+        criteria: z.record(z.string(), z.unknown()),
+      })
+      .optional(),
+    filterViews: z
+      .array(
+        z.object({
+          filterViewId: z.number().int(),
+          title: z.string(),
+          range: GridRangeSchema,
+        }),
+      )
+      .optional(),
     filterViewId: z.number().int().optional(),
-    slicers: z.array(z.object({
-      slicerId: z.number().int(),
-      sheetId: z.number().int(),
-      title: z.string().optional(),
-    })).optional(),
+    slicers: z
+      .array(
+        z.object({
+          slicerId: z.number().int(),
+          sheetId: z.number().int(),
+          title: z.string().optional(),
+        }),
+      )
+      .optional(),
     slicerId: z.number().int().optional(),
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -193,7 +201,7 @@ export const SheetsFilterSortOutputSchema = z.object({
 });
 
 export const SHEETS_FILTER_SORT_ANNOTATIONS: ToolAnnotations = {
-  title: 'Filter & Sort',
+  title: "Filter & Sort",
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
@@ -201,6 +209,8 @@ export const SHEETS_FILTER_SORT_ANNOTATIONS: ToolAnnotations = {
 };
 
 export type SheetsFilterSortInput = z.infer<typeof SheetsFilterSortInputSchema>;
-export type SheetsFilterSortOutput = z.infer<typeof SheetsFilterSortOutputSchema>;
-export type FilterSortAction = z.infer<typeof FilterSortActionSchema>;
+export type SheetsFilterSortOutput = z.infer<
+  typeof SheetsFilterSortOutputSchema
+>;
+
 export type FilterSortResponse = z.infer<typeof FilterSortResponseSchema>;

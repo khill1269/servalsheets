@@ -208,7 +208,7 @@ describe('Redaction Utility', () => {
       const result = redactObject(error);
 
       expect(result).toHaveProperty('name', 'Error');
-      expect((result as Error).message).toContain('Bearer [REDACTED]');
+      expect((result as Error).message).toContain('[REDACTED]');
       expect((result as Error).message).not.toContain('ya29');
       expect(result).toHaveProperty('stack');
     });

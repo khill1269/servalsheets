@@ -41,7 +41,8 @@ echo ""
 
 # Get the absolute path to this script's directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CLI_PATH="$SCRIPT_DIR/dist/cli.js"
+# CLI lives in the repo-level dist/ directory (not scripts/dist)
+CLI_PATH="$SCRIPT_DIR/../dist/cli.js"
 
 # Check if CLI exists
 if [ ! -f "$CLI_PATH" ]; then
@@ -276,7 +277,7 @@ echo ""
 echo "Next steps:"
 echo "1. ${YELLOW}Quit Claude Desktop completely${NC} (⌘+Q)"
 echo "2. ${YELLOW}Reopen Claude Desktop${NC}"
-echo "3. Look for the 🔨 icon (bottom-right) indicating MCP servers loaded"
+echo "3. Look for the 🔨 icon (bottom-right) indicating MCP servers loaded (custom icon may not appear yet)"
 echo "4. ${YELLOW}Share your Google Sheets${NC} with service account email"
 echo "5. Test with: 'List sheets in spreadsheet: <your-spreadsheet-id>'"
 echo ""

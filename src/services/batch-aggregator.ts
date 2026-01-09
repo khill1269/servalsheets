@@ -13,7 +13,7 @@
  * - Per-spreadsheet batching
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 export interface BatchRequest<T = unknown> {
   /** Unique identifier for tracking */
@@ -76,14 +76,14 @@ export class BatchAggregator<T = unknown> {
 
   constructor(
     private batchExecutor: (requests: BatchRequest<T>[]) => Promise<unknown[]>,
-    options: BatchAggregatorOptions = {}
+    options: BatchAggregatorOptions = {},
   ) {
     this.windowMs = options.windowMs ?? 50;
     this.maxBatchSize = options.maxBatchSize ?? 100;
     this.verboseLogging = options.verboseLogging ?? false;
 
     if (this.verboseLogging) {
-      logger.info('Batch aggregator initialized', {
+      logger.info("Batch aggregator initialized", {
         windowMs: this.windowMs,
         maxBatchSize: this.maxBatchSize,
       });
@@ -94,11 +94,7 @@ export class BatchAggregator<T = unknown> {
    * Add a request to the aggregation window
    * Returns a promise that resolves when the batch executes
    */
-  add(
-    id: string,
-    spreadsheetId: string,
-    params: T
-  ): Promise<unknown> {
+  add(id: string, spreadsheetId: string, params: T): Promise<unknown> {
     this.stats.totalRequests++;
 
     return new Promise((resolve, reject) => {
@@ -125,7 +121,7 @@ export class BatchAggregator<T = unknown> {
         this.windows.set(windowKey, window);
 
         if (this.verboseLogging) {
-          logger.debug('Created new batch window', {
+          logger.debug("Created new batch window", {
             windowKey,
             windowMs: this.windowMs,
           });
@@ -161,7 +157,7 @@ export class BatchAggregator<T = unknown> {
     this.stats.batchesSent++;
 
     if (this.verboseLogging) {
-      logger.debug('Executing batch window', {
+      logger.debug("Executing batch window", {
         windowKey,
         batchSize,
         windowDuration: Date.now() - window.startTime,
@@ -180,26 +176,29 @@ export class BatchAggregator<T = unknown> {
         if (request && result !== undefined) {
           request.resolve(result);
         } else if (request) {
-          request.reject(new Error('No result returned for request'));
+          request.reject(new Error("No result returned for request"));
         }
       }
 
-      logger.info('Batch executed successfully', {
+      logger.info("Batch executed successfully", {
         windowKey,
         batchSize,
         apiCallsSaved: batchSize - 1,
       });
     } catch (error) {
       // Reject all promises in batch
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Batch execution failed', {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error("Batch execution failed", {
         windowKey,
         batchSize,
         error: errorMessage,
       });
 
       for (const request of requests) {
-        request.reject(error instanceof Error ? error : new Error(errorMessage));
+        request.reject(
+          error instanceof Error ? error : new Error(errorMessage),
+        );
       }
     }
   }
@@ -230,13 +229,17 @@ export class BatchAggregator<T = unknown> {
    * Get statistics
    */
   getStats(): BatchAggregatorStats {
-    const averageBatchSize = this.stats.batchesSent > 0
-      ? this.stats.batchedRequests / this.stats.batchesSent
-      : 0;
+    const averageBatchSize =
+      this.stats.batchesSent > 0
+        ? this.stats.batchedRequests / this.stats.batchesSent
+        : 0;
 
-    const apiCallReduction = this.stats.totalRequests > 0
-      ? ((this.stats.totalRequests - this.stats.batchesSent) / this.stats.totalRequests) * 100
-      : 0;
+    const apiCallReduction =
+      this.stats.totalRequests > 0
+        ? ((this.stats.totalRequests - this.stats.batchesSent) /
+            this.stats.totalRequests) *
+          100
+        : 0;
 
     return {
       totalRequests: this.stats.totalRequests,
@@ -281,7 +284,7 @@ export class BatchAggregator<T = unknown> {
  */
 export function createBatchAggregator<T>(
   batchExecutor: (requests: BatchRequest<T>[]) => Promise<unknown[]>,
-  options?: BatchAggregatorOptions
+  options?: BatchAggregatorOptions,
 ): BatchAggregator<T> {
   return new BatchAggregator<T>(batchExecutor, options);
 }

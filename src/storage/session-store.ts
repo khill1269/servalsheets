@@ -5,7 +5,7 @@
  * Implementations: in-memory (development), Redis (production)
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 /**
  * Session store interface for storing temporary data with TTL
@@ -114,8 +114,8 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     // Simple glob pattern matching (supports * wildcard)
-    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-    return allKeys.filter(key => regex.test(key));
+    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+    return allKeys.filter((key) => regex.test(key));
   }
 
   async cleanup(): Promise<void> {
@@ -133,7 +133,7 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     if (keysToDelete.length > 0) {
-      logger.debug('Session store cleanup', {
+      logger.debug("Session store cleanup", {
         expiredEntries: keysToDelete.length,
         remainingKeys: this.store.size,
       });
@@ -190,24 +190,24 @@ export class RedisSessionStore implements SessionStore {
     try {
       // Dynamic import to make Redis optional
       // @ts-ignore - Redis is an optional peer dependency
-      const { createClient } = await import('redis');
+      const { createClient } = await import("redis");
 
       this.client = createClient({
         url: this.redisUrl,
       });
 
-      this.client.on('error', (err: Error) => {
-        console.error('[RedisSessionStore] Redis error:', err);
+      this.client.on("error", (err: Error) => {
+        console.error("[RedisSessionStore] Redis error:", err);
       });
 
       await this.client.connect();
       this.connected = true;
-      console.error('[RedisSessionStore] Connected to Redis');
+      console.error("[RedisSessionStore] Connected to Redis");
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
-        `Make sure Redis is installed (npm install redis) and running. ` +
-        `Error: ${error instanceof Error ? error.message : String(error)}`
+          `Make sure Redis is installed (npm install redis) and running. ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -249,7 +249,7 @@ export class RedisSessionStore implements SessionStore {
 
   async keys(pattern?: string): Promise<string[]> {
     await this.ensureConnected();
-    return await this.client.keys(pattern || '*');
+    return await this.client.keys(pattern || "*");
   }
 
   async cleanup(): Promise<void> {
@@ -282,10 +282,10 @@ export class RedisSessionStore implements SessionStore {
  */
 export function createSessionStore(redisUrl?: string): SessionStore {
   if (redisUrl) {
-    console.error('[SessionStore] Using Redis session store');
+    console.error("[SessionStore] Using Redis session store");
     return new RedisSessionStore(redisUrl);
   }
 
-  console.error('[SessionStore] Using in-memory session store');
+  console.error("[SessionStore] Using in-memory session store");
   return new InMemorySessionStore();
 }

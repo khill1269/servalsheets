@@ -42,7 +42,7 @@ export interface TestCredentials {
  * Check if integration tests should run
  */
 export function shouldRunIntegrationTests(): boolean {
-  return process.env.TEST_REAL_API === 'true';
+  return process.env['TEST_REAL_API'] === 'true';
 }
 
 /**
@@ -61,7 +61,7 @@ export async function loadTestCredentials(): Promise<TestCredentials | null> {
 
   try {
     // Try loading from explicit test credentials path
-    const explicitPath = process.env.GOOGLE_TEST_CREDENTIALS_PATH;
+    const explicitPath = process.env['GOOGLE_TEST_CREDENTIALS_PATH'];
     if (explicitPath && existsSync(explicitPath)) {
       const content = await readFile(explicitPath, 'utf-8');
       return JSON.parse(content);
@@ -75,10 +75,10 @@ export async function loadTestCredentials(): Promise<TestCredentials | null> {
     }
 
     // Try loading from GOOGLE_APPLICATION_CREDENTIALS as fallback
-    const googleCredsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const googleCredsPath = process.env['GOOGLE_APPLICATION_CREDENTIALS'];
     if (googleCredsPath && existsSync(googleCredsPath)) {
       const serviceAccount = JSON.parse(await readFile(googleCredsPath, 'utf-8'));
-      const spreadsheetId = process.env.TEST_SPREADSHEET_ID;
+      const spreadsheetId = process.env['TEST_SPREADSHEET_ID'];
 
       if (!spreadsheetId) {
         console.warn('⚠️  GOOGLE_APPLICATION_CREDENTIALS found but TEST_SPREADSHEET_ID is not set');

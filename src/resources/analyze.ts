@@ -5,8 +5,8 @@
  * Uses MCP Sampling (SEP-1577) for AI-powered analysis.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getSamplingAnalysisService } from '../services/sampling-analysis.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getSamplingAnalysisService } from "../services/sampling-analysis.js";
 
 /**
  * Register analyze resources with the MCP server
@@ -16,56 +16,71 @@ export function registerAnalyzeResources(server: McpServer): number {
 
   // Resource 1: analyze://stats - Analysis service statistics
   server.registerResource(
-    'AI Analysis Statistics',
-    'analyze://stats',
+    "AI Analysis Statistics",
+    "analyze://stats",
     {
-      description: 'AI analysis service statistics: requests, success rate, response times',
-      mimeType: 'application/json',
+      description:
+        "AI analysis service statistics: requests, success rate, response times",
+      mimeType: "application/json",
     },
     async (uri) => {
       try {
         const stats = analysisService.getStats();
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              stats: {
-                totalRequests: stats.totalRequests,
-                successfulRequests: stats.successfulRequests,
-                failedRequests: stats.failedRequests,
-                successRate: `${stats.successRate.toFixed(1)}%`,
-                avgResponseTime: `${(stats.avgResponseTime / 1000).toFixed(2)}s`,
-                requestsByType: stats.requestsByType,
-              },
-              summary: `${stats.successfulRequests}/${stats.totalRequests} analysis requests successful (${stats.successRate.toFixed(1)}% success rate)`,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  stats: {
+                    totalRequests: stats.totalRequests,
+                    successfulRequests: stats.successfulRequests,
+                    failedRequests: stats.failedRequests,
+                    successRate: `${stats.successRate.toFixed(1)}%`,
+                    avgResponseTime: `${(stats.avgResponseTime / 1000).toFixed(2)}s`,
+                    requestsByType: stats.requestsByType,
+                  },
+                  summary: `${stats.successfulRequests}/${stats.totalRequests} analysis requests successful (${stats.successRate.toFixed(1)}% success rate)`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              error: 'Failed to fetch analysis statistics',
-              message: errorMessage,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch analysis statistics",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Resource 2: analyze://help - Analysis capabilities documentation
   server.registerResource(
-    'AI Analysis Help',
-    'analyze://help',
+    "AI Analysis Help",
+    "analyze://help",
     {
-      description: 'Documentation for AI-powered data analysis using MCP Sampling',
-      mimeType: 'text/markdown',
+      description:
+        "Documentation for AI-powered data analysis using MCP Sampling",
+      mimeType: "text/markdown",
     },
     async (uri) => {
       try {
@@ -173,28 +188,33 @@ View analysis statistics at: analyze://stats
 `;
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/markdown',
-            text: helpText,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/markdown",
+              text: helpText,
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/plain',
-            text: `Error fetching analysis help: ${errorMessage}`,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/plain",
+              text: `Error fetching analysis help: ${errorMessage}`,
+            },
+          ],
         };
       }
-    }
+    },
   );
 
-  console.error('[ServalSheets] Registered 2 analyze resources:');
-  console.error('  - analyze://stats (analysis service statistics)');
-  console.error('  - analyze://help (AI analysis documentation)');
+  console.error("[ServalSheets] Registered 2 analyze resources:");
+  console.error("  - analyze://stats (analysis service statistics)");
+  console.error("  - analyze://help (AI analysis documentation)");
 
   return 2;
 }

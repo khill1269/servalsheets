@@ -13,10 +13,10 @@
  * - Background prefetch execution
  */
 
-import { logger } from '../utils/logger.js';
-import { getHistoryService } from './history-service.js';
-import type { OperationHistory } from '../types/history.js';
-import { getParallelExecutor } from './parallel-executor.js';
+import { logger } from "../utils/logger.js";
+import { getHistoryService } from "./history-service.js";
+import type { OperationHistory } from "../types/history.js";
+import { getParallelExecutor } from "./parallel-executor.js";
 
 export interface PrefetchPrediction {
   /** Type of operation to prefetch */
@@ -86,7 +86,7 @@ export class PrefetchPredictor {
     this.enablePrefetch = options.enablePrefetch ?? true;
 
     if (this.verboseLogging) {
-      logger.info('Prefetch predictor initialized', {
+      logger.info("Prefetch predictor initialized", {
         minConfidence: this.minConfidence,
         maxPredictions: this.maxPredictions,
         enablePrefetch: this.enablePrefetch,
@@ -110,7 +110,7 @@ export class PrefetchPredictor {
       const current = operations[i];
       const next = operations[i + 1];
 
-      if (!current || !next || current.result !== 'success') {
+      if (!current || !next || current.result !== "success") {
         continue;
       }
 
@@ -128,7 +128,7 @@ export class PrefetchPredictor {
     this.lastOperations = operations.slice(-10);
 
     if (this.verboseLogging) {
-      logger.debug('Pattern learning complete', {
+      logger.debug("Pattern learning complete", {
         patterns: this.sequencePatterns.size,
         recentOps: this.lastOperations.length,
       });
@@ -143,7 +143,7 @@ export class PrefetchPredictor {
 
     // Get last successful operation
     const lastOp = this.lastOperations
-      .filter(op => op.result === 'success')
+      .filter((op) => op.result === "success")
       .slice(-1)[0];
 
     if (!lastOp) {
@@ -161,7 +161,7 @@ export class PrefetchPredictor {
 
     // Sort by priority and confidence, take top N
     const sorted = predictions
-      .filter(p => p.confidence >= this.minConfidence)
+      .filter((p) => p.confidence >= this.minConfidence)
       .sort((a, b) => {
         if (b.priority !== a.priority) {
           return b.priority - a.priority;
@@ -173,7 +173,7 @@ export class PrefetchPredictor {
     this.stats.totalPredictions += sorted.length;
 
     if (this.verboseLogging) {
-      logger.debug('Generated predictions', {
+      logger.debug("Generated predictions", {
         total: predictions.length,
         filtered: sorted.length,
         topPrediction: sorted[0],
@@ -188,7 +188,7 @@ export class PrefetchPredictor {
    */
   async prefetchInBackground(
     predictions: PrefetchPrediction[],
-    executor: (prediction: PrefetchPrediction) => Promise<void>
+    executor: (prediction: PrefetchPrediction) => Promise<void>,
   ): Promise<PrefetchResult[]> {
     if (!this.enablePrefetch || predictions.length === 0) {
       return [];
@@ -196,7 +196,7 @@ export class PrefetchPredictor {
 
     const parallelExecutor = getParallelExecutor();
 
-    const tasks = predictions.map(prediction => ({
+    const tasks = predictions.map((prediction) => ({
       id: `prefetch-${prediction.tool}-${prediction.action}`,
       fn: async () => {
         const startTime = Date.now();
@@ -224,15 +224,15 @@ export class PrefetchPredictor {
     // Extract successful results and filter out failures
     // Check both task-level success and result-level success
     const results = allResults
-      .filter(r => r.success && r.result && r.result.success)
-      .map(r => r.result!);
+      .filter((r) => r.success && r.result && r.result.success)
+      .map((r) => r.result!);
 
     this.stats.totalPrefetches += allResults.length;
-    this.stats.successfulPrefetches += results.filter(r => r.success).length;
+    this.stats.successfulPrefetches += results.filter((r) => r.success).length;
 
-    logger.info('Background prefetch completed', {
+    logger.info("Background prefetch completed", {
       total: allResults.length,
-      successful: results.filter(r => r.success).length,
+      successful: results.filter((r) => r.success).length,
       failed: allResults.length - results.length,
     });
 
@@ -252,14 +252,17 @@ export class PrefetchPredictor {
     }
 
     // Calculate total occurrences for confidence
-    const total = Array.from(transitions.values()).reduce((sum, count) => sum + count, 0);
+    const total = Array.from(transitions.values()).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
 
     // Create predictions for most common transitions
     for (const [nextKey, count] of transitions.entries()) {
       const confidence = count / total;
 
       if (confidence >= this.minConfidence) {
-        const [tool, action] = nextKey.split(':');
+        const [tool, action] = nextKey.split(":");
         predictions.push({
           tool: tool!,
           action: action!,
@@ -281,30 +284,34 @@ export class PrefetchPredictor {
     const predictions: PrefetchPrediction[] = [];
 
     // If last op was reading a sheet, predict reading next sheet
-    if (lastOp.tool === 'sheets_values' && lastOp.action === 'read' && lastOp.sheetId !== undefined) {
+    if (
+      lastOp.tool === "sheets_values" &&
+      lastOp.action === "read" &&
+      lastOp.sheetId !== undefined
+    ) {
       predictions.push({
-        tool: 'sheets_values',
-        action: 'read',
+        tool: "sheets_values",
+        action: "read",
         params: {
           spreadsheetId: lastOp.spreadsheetId,
           sheetId: lastOp.sheetId + 1,
         },
         confidence: 0.6,
-        reason: 'Users often read sequential sheets',
+        reason: "Users often read sequential sheets",
         priority: 2,
       });
     }
 
     // If last op was on a spreadsheet, predict getting spreadsheet metadata
-    if (lastOp.spreadsheetId && lastOp.tool !== 'sheets_spreadsheet') {
+    if (lastOp.spreadsheetId && lastOp.tool !== "sheets_spreadsheet") {
       predictions.push({
-        tool: 'sheets_spreadsheet',
-        action: 'get',
+        tool: "sheets_spreadsheet",
+        action: "get",
         params: {
           spreadsheetId: lastOp.spreadsheetId,
         },
         confidence: 0.5,
-        reason: 'Spreadsheet metadata often accessed after operations',
+        reason: "Spreadsheet metadata often accessed after operations",
         priority: 1,
       });
     }
@@ -315,12 +322,18 @@ export class PrefetchPredictor {
   /**
    * Predict adjacent range reads
    */
-  private predictAdjacentRanges(lastOp: OperationHistory): PrefetchPrediction[] {
+  private predictAdjacentRanges(
+    lastOp: OperationHistory,
+  ): PrefetchPrediction[] {
     const predictions: PrefetchPrediction[] = [];
 
     // If last op was reading a range, predict reading adjacent ranges
-    if (lastOp.tool === 'sheets_values' && lastOp.action === 'read' && typeof lastOp.params['range'] === 'string') {
-      const range = lastOp.params['range'] as string;
+    if (
+      lastOp.tool === "sheets_values" &&
+      lastOp.action === "read" &&
+      typeof lastOp.params["range"] === "string"
+    ) {
+      const range = lastOp.params["range"] as string;
       const match = range.match(/^([^!]+)!([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
 
       if (match) {
@@ -333,14 +346,14 @@ export class PrefetchPredictor {
         const nextRange = `${sheet}!${startCol}${nextStartRow}:${endCol}${nextEndRow}`;
 
         predictions.push({
-          tool: 'sheets_values',
-          action: 'read',
+          tool: "sheets_values",
+          action: "read",
           params: {
             spreadsheetId: lastOp.spreadsheetId,
             range: nextRange,
           },
           confidence: 0.7,
-          reason: 'Users often scroll through sequential ranges',
+          reason: "Users often scroll through sequential ranges",
           priority: 2,
         });
       }
@@ -362,16 +375,16 @@ export class PrefetchPredictor {
   private inferParams(
     lastOp: OperationHistory,
     _tool: string,
-    _action: string
+    _action: string,
   ): Record<string, unknown> {
     const params: Record<string, unknown> = {};
 
     // Copy common params
     if (lastOp.spreadsheetId) {
-      params['spreadsheetId'] = lastOp.spreadsheetId;
+      params["spreadsheetId"] = lastOp.spreadsheetId;
     }
     if (lastOp.sheetId !== undefined) {
-      params['sheetId'] = lastOp.sheetId;
+      params["sheetId"] = lastOp.sheetId;
     }
 
     return params;
@@ -392,12 +405,14 @@ export class PrefetchPredictor {
   getStats(): unknown {
     return {
       ...this.stats,
-      accuracy: this.stats.totalPredictions > 0
-        ? (this.stats.correctPredictions / this.stats.totalPredictions) * 100
-        : 0,
-      prefetchSuccessRate: this.stats.totalPrefetches > 0
-        ? (this.stats.successfulPrefetches / this.stats.totalPrefetches) * 100
-        : 0,
+      accuracy:
+        this.stats.totalPredictions > 0
+          ? (this.stats.correctPredictions / this.stats.totalPredictions) * 100
+          : 0,
+      prefetchSuccessRate:
+        this.stats.totalPrefetches > 0
+          ? (this.stats.successfulPrefetches / this.stats.totalPrefetches) * 100
+          : 0,
       patternCount: this.sequencePatterns.size,
     };
   }
@@ -425,9 +440,11 @@ let prefetchPredictor: PrefetchPredictor | null = null;
 export function getPrefetchPredictor(): PrefetchPredictor {
   if (!prefetchPredictor) {
     prefetchPredictor = new PrefetchPredictor({
-      verboseLogging: process.env['PREFETCH_VERBOSE'] === 'true',
-      minConfidence: parseFloat(process.env['PREFETCH_MIN_CONFIDENCE'] || '0.5'),
-      enablePrefetch: process.env['PREFETCH_ENABLED'] !== 'false',
+      verboseLogging: process.env["PREFETCH_VERBOSE"] === "true",
+      minConfidence: parseFloat(
+        process.env["PREFETCH_MIN_CONFIDENCE"] || "0.5",
+      ),
+      enablePrefetch: process.env["PREFETCH_ENABLED"] !== "false",
     });
   }
   return prefetchPredictor;

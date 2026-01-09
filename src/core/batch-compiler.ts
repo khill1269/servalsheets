@@ -5,19 +5,30 @@
  * Tighten-up #8: Single batchUpdate compiler
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { createHash } from 'crypto';
-import type { Intent } from './intent.js';
-import { INTENT_TO_REQUEST_TYPE, DESTRUCTIVE_INTENTS, HIGH_RISK_INTENTS } from './intent.js';
-import type { RateLimiter } from './rate-limiter.js';
-import type { DiffEngine } from './diff-engine.js';
-import type { PolicyEnforcer } from './policy-enforcer.js';
-import type { SnapshotService } from '../services/snapshot.js';
-import type { SafetyOptions, DiffResult, ErrorDetail } from '../schemas/shared.js';
-import { monitorPayload, type PayloadMetrics } from '../utils/payload-monitor.js';
-import { analyzeBatchEfficiency } from '../utils/batch-efficiency.js';
-import { logger } from '../utils/logger.js';
-import { sendProgress } from '../utils/request-context.js';
+import type { sheets_v4 } from "googleapis";
+import { createHash } from "crypto";
+import type { Intent } from "./intent.js";
+import {
+  INTENT_TO_REQUEST_TYPE,
+  DESTRUCTIVE_INTENTS,
+  HIGH_RISK_INTENTS,
+} from "./intent.js";
+import type { RateLimiter } from "./rate-limiter.js";
+import type { DiffEngine } from "./diff-engine.js";
+import type { PolicyEnforcer } from "./policy-enforcer.js";
+import type { SnapshotService } from "../services/snapshot.js";
+import type {
+  SafetyOptions,
+  DiffResult,
+  ErrorDetail,
+} from "../schemas/shared.js";
+import {
+  monitorPayload,
+  type PayloadMetrics,
+} from "../utils/payload-monitor.js";
+import { analyzeBatchEfficiency } from "../utils/batch-efficiency.js";
+import { logger } from "../utils/logger.js";
+import { sendProgress } from "../utils/request-context.js";
 
 export interface CompiledBatch {
   spreadsheetId: string;
@@ -33,14 +44,14 @@ export interface ExecutionResult {
   spreadsheetId: string;
   responses: sheets_v4.Schema$Response[];
   diff?: DiffResult;
-  snapshotId?: string | undefined;  // Allow undefined for exactOptionalPropertyTypes
+  snapshotId?: string | undefined; // Allow undefined for exactOptionalPropertyTypes
   error?: ErrorDetail;
   dryRun: boolean;
   payloadMetrics?: PayloadMetrics;
 }
 
 export interface ProgressEvent {
-  phase: 'validating' | 'compiling' | 'executing' | 'capturing_diff';
+  phase: "validating" | "compiling" | "executing" | "capturing_diff";
   current: number;
   total: number;
   message: string;
@@ -65,7 +76,7 @@ export interface SafetyExecutionOptions {
   range?: string;
   operation: () => Promise<void>;
   diffOptions?: {
-    tier?: 'METADATA' | 'SAMPLE' | 'FULL';
+    tier?: "METADATA" | "SAMPLE" | "FULL";
     sampleSize?: number;
     maxFullDiffCells?: number;
   };
@@ -108,19 +119,19 @@ export class BatchCompiler {
 
     // 3. Convert to API requests
     const batches: CompiledBatch[] = [];
-    
+
     for (const [spreadsheetId, group] of Object.entries(grouped)) {
-      const requests = group.map(intent => this.intentToRequest(intent));
+      const requests = group.map((intent) => this.intentToRequest(intent));
       const merged = this.mergeCompatibleRequests(requests);
       const chunked = this.chunkRequests(merged, 500);
-      
+
       for (const chunk of chunked) {
         batches.push({
           spreadsheetId,
           requests: chunk,
           estimatedCells: this.estimateCells(group),
-          destructive: group.some(i => DESTRUCTIVE_INTENTS.has(i.type)),
-          highRisk: group.some(i => HIGH_RISK_INTENTS.has(i.type)),
+          destructive: group.some((i) => DESTRUCTIVE_INTENTS.has(i.type)),
+          highRisk: group.some((i) => HIGH_RISK_INTENTS.has(i.type)),
           intentCount: group.length,
         });
       }
@@ -134,7 +145,7 @@ export class BatchCompiler {
    */
   async execute(
     batch: CompiledBatch,
-    safety?: SafetyOptions
+    safety?: SafetyOptions,
   ): Promise<ExecutionResult> {
     const baseResult = {
       spreadsheetId: batch.spreadsheetId,
@@ -143,13 +154,13 @@ export class BatchCompiler {
 
     // Progress: validating
     this.onProgress?.({
-      phase: 'validating',
+      phase: "validating",
       current: 0,
       total: 4,
-      message: 'Validating safety constraints',
+      message: "Validating safety constraints",
       spreadsheetId: batch.spreadsheetId,
     });
-    await sendProgress(0, 4, 'Validating safety constraints');
+    await sendProgress(0, 4, "Validating safety constraints");
 
     // 1. Effect scope check (Tighten-up #2)
     if (safety?.effectScope) {
@@ -160,23 +171,23 @@ export class BatchCompiler {
           success: false,
           responses: [],
           error: {
-            code: 'EFFECT_SCOPE_EXCEEDED',
+            code: "EFFECT_SCOPE_EXCEEDED",
             message: `Operation would affect ~${batch.estimatedCells} cells, limit is ${maxCells}`,
             retryable: false,
-            suggestedFix: 'Narrow the range or increase maxCellsAffected limit',
+            suggestedFix: "Narrow the range or increase maxCellsAffected limit",
           },
         };
       }
     }
 
     // 2. Rate limit check
-    await this.rateLimiter.acquire('write', batch.requests.length);
+    await this.rateLimiter.acquire("write", batch.requests.length);
 
     // 3. Expected state check (Tighten-up #1)
     if (safety?.expectedState) {
       const mismatch = await this.checkExpectedState(
         batch.spreadsheetId,
-        safety.expectedState
+        safety.expectedState,
       );
       if (mismatch) {
         return {
@@ -195,18 +206,18 @@ export class BatchCompiler {
         success: true,
         responses: [],
         diff: {
-          tier: 'METADATA',
+          tier: "METADATA",
           before: {
             timestamp: new Date().toISOString(),
             rowCount: 0,
             columnCount: 0,
-            checksum: '',
+            checksum: "",
           },
           after: {
             timestamp: new Date().toISOString(),
             rowCount: 0,
             columnCount: 0,
-            checksum: '',
+            checksum: "",
           },
           summary: {
             rowsChanged: 0,
@@ -218,27 +229,30 @@ export class BatchCompiler {
 
     // Progress: compiling/preparing
     this.onProgress?.({
-      phase: 'compiling',
+      phase: "compiling",
       current: 1,
       total: 4,
-      message: 'Capturing current state',
+      message: "Capturing current state",
       spreadsheetId: batch.spreadsheetId,
     });
-    await sendProgress(1, 4, 'Capturing current state');
+    await sendProgress(1, 4, "Capturing current state");
 
     // 5. Capture before state (for diff)
     const diffTier = this.diffEngine.getDefaultTier();
-    const beforeState = await this.diffEngine.captureState(batch.spreadsheetId, { tier: diffTier });
+    const beforeState = await this.diffEngine.captureState(
+      batch.spreadsheetId,
+      { tier: diffTier },
+    );
 
     // 6. Auto-snapshot for high-risk operations
     let snapshotId: string | undefined;
-    if (batch.highRisk && (safety?.autoSnapshot !== false)) {
+    if (batch.highRisk && safety?.autoSnapshot !== false) {
       snapshotId = await this.snapshotService.create(batch.spreadsheetId);
     }
 
     // Progress: executing
     this.onProgress?.({
-      phase: 'executing',
+      phase: "executing",
       current: 2,
       total: 4,
       message: `Executing ${batch.requests.length} request(s)`,
@@ -259,10 +273,11 @@ export class BatchCompiler {
         responses: [],
         snapshotId, // Return snapshot ID if already created
         error: {
-          code: 'PAYLOAD_TOO_LARGE',
+          code: "PAYLOAD_TOO_LARGE",
           message: `Request payload (${(payloadSize / 1_000_000).toFixed(2)}MB) exceeds Google's 9MB limit`,
           retryable: false,
-          suggestedFix: 'Split operation into smaller batches or reduce data size',
+          suggestedFix:
+            "Split operation into smaller batches or reduce data size",
           details: {
             payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
             limitMB: 9,
@@ -274,7 +289,7 @@ export class BatchCompiler {
 
     // Log warning if approaching limit
     if (payloadSize > WARNING_THRESHOLD) {
-      logger.warn('Payload size approaching limit', {
+      logger.warn("Payload size approaching limit", {
         spreadsheetId: batch.spreadsheetId,
         payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
         limitMB: 9,
@@ -293,21 +308,24 @@ export class BatchCompiler {
       const payloadMetrics = monitorPayload(
         `batchUpdate:${batch.spreadsheetId}`,
         requestPayload,
-        response.data
+        response.data,
       );
 
       // Progress: diffing
       this.onProgress?.({
-        phase: 'capturing_diff',
+        phase: "capturing_diff",
         current: 3,
         total: 4,
-        message: 'Capturing changes',
+        message: "Capturing changes",
         spreadsheetId: batch.spreadsheetId,
       });
-      await sendProgress(3, 4, 'Capturing changes');
+      await sendProgress(3, 4, "Capturing changes");
 
       // 8. Capture after state and generate diff
-      const afterState = await this.diffEngine.captureState(batch.spreadsheetId, { tier: diffTier });
+      const afterState = await this.diffEngine.captureState(
+        batch.spreadsheetId,
+        { tier: diffTier },
+      );
       const diff = await this.diffEngine.diff(beforeState, afterState);
 
       return {
@@ -332,7 +350,9 @@ export class BatchCompiler {
   /**
    * Execute a custom operation with safety rails and diff capture
    */
-  async executeWithSafety(options: SafetyExecutionOptions): Promise<ExecutionResult> {
+  async executeWithSafety(
+    options: SafetyExecutionOptions,
+  ): Promise<ExecutionResult> {
     const safety = options.safety;
     const baseResult = {
       spreadsheetId: options.spreadsheetId,
@@ -342,13 +362,13 @@ export class BatchCompiler {
     const highRisk = options.highRisk ?? options.destructive ?? false;
 
     this.onProgress?.({
-      phase: 'validating',
+      phase: "validating",
       current: 0,
       total: 4,
-      message: 'Validating safety constraints',
+      message: "Validating safety constraints",
       spreadsheetId: options.spreadsheetId,
     });
-    await sendProgress(0, 4, 'Validating safety constraints');
+    await sendProgress(0, 4, "Validating safety constraints");
 
     if (safety?.effectScope) {
       const maxCells = safety.effectScope.maxCellsAffected ?? 50000;
@@ -358,10 +378,10 @@ export class BatchCompiler {
           success: false,
           responses: [],
           error: {
-            code: 'EFFECT_SCOPE_EXCEEDED',
+            code: "EFFECT_SCOPE_EXCEEDED",
             message: `Operation would affect ~${estimatedCells} cells, limit is ${maxCells}`,
             retryable: false,
-            suggestedFix: 'Narrow the range or increase maxCellsAffected limit',
+            suggestedFix: "Narrow the range or increase maxCellsAffected limit",
           },
         };
       }
@@ -372,21 +392,21 @@ export class BatchCompiler {
           success: false,
           responses: [],
           error: {
-            code: 'EXPLICIT_RANGE_REQUIRED',
-            message: 'Explicit range required for this operation',
+            code: "EXPLICIT_RANGE_REQUIRED",
+            message: "Explicit range required for this operation",
             retryable: false,
-            suggestedFix: 'Provide an explicit A1 range',
+            suggestedFix: "Provide an explicit A1 range",
           },
         };
       }
     }
 
-    await this.rateLimiter.acquire('write', 1);
+    await this.rateLimiter.acquire("write", 1);
 
     if (safety?.expectedState) {
       const mismatch = await this.checkExpectedState(
         options.spreadsheetId,
-        safety.expectedState
+        safety.expectedState,
       );
       if (mismatch) {
         return {
@@ -404,18 +424,18 @@ export class BatchCompiler {
         success: true,
         responses: [],
         diff: {
-          tier: 'METADATA',
+          tier: "METADATA",
           before: {
             timestamp: new Date().toISOString(),
             rowCount: 0,
             columnCount: 0,
-            checksum: '',
+            checksum: "",
           },
           after: {
             timestamp: new Date().toISOString(),
             rowCount: 0,
             columnCount: 0,
-            checksum: '',
+            checksum: "",
           },
           summary: {
             rowsChanged: 0,
@@ -426,35 +446,39 @@ export class BatchCompiler {
     }
 
     this.onProgress?.({
-      phase: 'compiling',
+      phase: "compiling",
       current: 1,
       total: 4,
-      message: 'Capturing current state',
+      message: "Capturing current state",
       spreadsheetId: options.spreadsheetId,
     });
-    await sendProgress(1, 4, 'Capturing current state');
+    await sendProgress(1, 4, "Capturing current state");
 
     // Use provided diffOptions or fall back to default tier
-    const diffTier = options.diffOptions?.tier ?? this.diffEngine.getDefaultTier();
-    const beforeState = await this.diffEngine.captureState(options.spreadsheetId, {
-      tier: diffTier,
-      sampleSize: options.diffOptions?.sampleSize,
-      maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
-    });
+    const diffTier =
+      options.diffOptions?.tier ?? this.diffEngine.getDefaultTier();
+    const beforeState = await this.diffEngine.captureState(
+      options.spreadsheetId,
+      {
+        tier: diffTier,
+        sampleSize: options.diffOptions?.sampleSize,
+        maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
+      },
+    );
 
     let snapshotId: string | undefined;
-    if (highRisk && (safety?.autoSnapshot !== false)) {
+    if (highRisk && safety?.autoSnapshot !== false) {
       snapshotId = await this.snapshotService.create(options.spreadsheetId);
     }
 
     this.onProgress?.({
-      phase: 'executing',
+      phase: "executing",
       current: 2,
       total: 4,
-      message: 'Executing operation',
+      message: "Executing operation",
       spreadsheetId: options.spreadsheetId,
     });
-    await sendProgress(2, 4, 'Executing operation');
+    await sendProgress(2, 4, "Executing operation");
 
     try {
       await options.operation();
@@ -469,19 +493,22 @@ export class BatchCompiler {
     }
 
     this.onProgress?.({
-      phase: 'capturing_diff',
+      phase: "capturing_diff",
       current: 3,
       total: 4,
-      message: 'Capturing changes',
+      message: "Capturing changes",
       spreadsheetId: options.spreadsheetId,
     });
-    await sendProgress(3, 4, 'Capturing changes');
+    await sendProgress(3, 4, "Capturing changes");
 
-    const afterState = await this.diffEngine.captureState(options.spreadsheetId, {
-      tier: diffTier,
-      sampleSize: options.diffOptions?.sampleSize,
-      maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
-    });
+    const afterState = await this.diffEngine.captureState(
+      options.spreadsheetId,
+      {
+        tier: diffTier,
+        sampleSize: options.diffOptions?.sampleSize,
+        maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
+      },
+    );
     const diff = await this.diffEngine.diff(beforeState, afterState);
 
     return {
@@ -500,10 +527,13 @@ export class BatchCompiler {
    */
   async executeAll(
     batches: CompiledBatch[],
-    safety?: SafetyOptions
+    safety?: SafetyOptions,
   ): Promise<ExecutionResult[]> {
     // Group batches by spreadsheetId for parallel execution
-    const batchesBySpreadsheet = new Map<string, Array<{ batch: CompiledBatch; index: number }>>();
+    const batchesBySpreadsheet = new Map<
+      string,
+      Array<{ batch: CompiledBatch; index: number }>
+    >();
 
     batches.forEach((batch, index) => {
       const spreadsheetId = batch.spreadsheetId;
@@ -515,28 +545,33 @@ export class BatchCompiler {
 
     // Execute each spreadsheet's batches sequentially, but different spreadsheets in parallel
     const spreadsheetResults = await Promise.all(
-      Array.from(batchesBySpreadsheet.values()).map(async (spreadsheetBatches) => {
-        const groupResults: Array<{ result: ExecutionResult; index: number }> = [];
+      Array.from(batchesBySpreadsheet.values()).map(
+        async (spreadsheetBatches) => {
+          const groupResults: Array<{
+            result: ExecutionResult;
+            index: number;
+          }> = [];
 
-        for (const { batch, index } of spreadsheetBatches) {
-          const result = await this.execute(batch, safety);
-          groupResults.push({ result, index });
+          for (const { batch, index } of spreadsheetBatches) {
+            const result = await this.execute(batch, safety);
+            groupResults.push({ result, index });
 
-          // Stop on first failure within this spreadsheet's batches
-          if (!result.success) {
-            break;
+            // Stop on first failure within this spreadsheet's batches
+            if (!result.success) {
+              break;
+            }
           }
-        }
 
-        return groupResults;
-      })
+          return groupResults;
+        },
+      ),
     );
 
     // Flatten and sort results by original index to maintain order
     const allResults = spreadsheetResults
       .flat()
       .sort((a, b) => a.index - b.index)
-      .map(item => item.result);
+      .map((item) => item.result);
 
     return allResults;
   }
@@ -546,12 +581,15 @@ export class BatchCompiler {
   // ============================================================
 
   private groupBySpreadsheet(intents: Intent[]): Record<string, Intent[]> {
-    return intents.reduce((acc, intent) => {
-      const id = intent.target.spreadsheetId;
-      if (!acc[id]) acc[id] = [];
-      acc[id].push(intent);
-      return acc;
-    }, {} as Record<string, Intent[]>);
+    return intents.reduce(
+      (acc, intent) => {
+        const id = intent.target.spreadsheetId;
+        if (!acc[id]) acc[id] = [];
+        acc[id].push(intent);
+        return acc;
+      },
+      {} as Record<string, Intent[]>,
+    );
   }
 
   private intentToRequest(intent: Intent): sheets_v4.Schema$Request {
@@ -560,7 +598,7 @@ export class BatchCompiler {
   }
 
   private mergeCompatibleRequests(
-    requests: sheets_v4.Schema$Request[]
+    requests: sheets_v4.Schema$Request[],
   ): sheets_v4.Schema$Request[] {
     // For now, return as-is
     // Future: merge multiple updateCells for same range, etc.
@@ -583,69 +621,73 @@ export class BatchCompiler {
 
   private async checkExpectedState(
     spreadsheetId: string,
-    expected: NonNullable<SafetyOptions['expectedState']>
+    expected: NonNullable<SafetyOptions["expectedState"]>,
   ): Promise<ErrorDetail | null> {
     try {
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'sheets.properties',
+        fields: "sheets.properties",
       });
 
       const sheets = response.data.sheets ?? [];
-      
+
       // Check row count
       if (expected.rowCount !== undefined) {
         const totalRows = sheets.reduce(
           (sum, s) => sum + (s.properties?.gridProperties?.rowCount ?? 0),
-          0
+          0,
         );
         if (totalRows !== expected.rowCount) {
           return {
-            code: 'PRECONDITION_FAILED',
+            code: "PRECONDITION_FAILED",
             message: `Expected ${expected.rowCount} rows, found ${totalRows}`,
             retryable: true,
-            suggestedFix: 'Re-read the spreadsheet and try again',
+            suggestedFix: "Re-read the spreadsheet and try again",
           };
         }
       }
 
       // Check sheet title
       if (expected.sheetTitle !== undefined) {
-        const found = sheets.some(s => s.properties?.title === expected.sheetTitle);
+        const found = sheets.some(
+          (s) => s.properties?.title === expected.sheetTitle,
+        );
         if (!found) {
           return {
-            code: 'PRECONDITION_FAILED',
+            code: "PRECONDITION_FAILED",
             message: `Sheet "${expected.sheetTitle}" not found`,
             retryable: true,
-            suggestedFix: 'Verify the sheet exists and try again',
+            suggestedFix: "Verify the sheet exists and try again",
           };
         }
       }
 
       // Check checksum of range values
       if (expected.checksum !== undefined) {
-        const checksumRange = expected.checksumRange ?? 'A1:J10';
+        const checksumRange = expected.checksumRange ?? "A1:J10";
         try {
           const valuesResponse = await this.sheetsApi.spreadsheets.values.get({
             spreadsheetId,
             range: checksumRange,
-            valueRenderOption: 'UNFORMATTED_VALUE',
+            valueRenderOption: "UNFORMATTED_VALUE",
           });
           const values = valuesResponse.data.values ?? [];
-          const actualChecksum = createHash('md5').update(JSON.stringify(values)).digest('hex');
-          
+          const actualChecksum = createHash("md5")
+            .update(JSON.stringify(values))
+            .digest("hex");
+
           if (actualChecksum !== expected.checksum) {
             return {
-              code: 'PRECONDITION_FAILED',
+              code: "PRECONDITION_FAILED",
               message: `Checksum mismatch: expected ${expected.checksum.slice(0, 8)}..., got ${actualChecksum.slice(0, 8)}...`,
               retryable: true,
-              suggestedFix: 'Data changed since last read. Re-read and retry.',
+              suggestedFix: "Data changed since last read. Re-read and retry.",
             };
           }
         } catch {
           return {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to validate checksum',
+            code: "INTERNAL_ERROR",
+            message: "Failed to validate checksum",
             retryable: true,
           };
         }
@@ -654,30 +696,31 @@ export class BatchCompiler {
       // Check first row values (headers)
       if (expected.firstRowValues !== undefined) {
         try {
-          const sheetPrefix = expected.sheetTitle 
-            ? `'${expected.sheetTitle.replace(/'/g, "''")}'!` 
-            : '';
+          const sheetPrefix = expected.sheetTitle
+            ? `'${expected.sheetTitle.replace(/'/g, "''")}'!`
+            : "";
           const headerResponse = await this.sheetsApi.spreadsheets.values.get({
             spreadsheetId,
             range: `${sheetPrefix}1:1`,
-            valueRenderOption: 'FORMATTED_VALUE',
+            valueRenderOption: "FORMATTED_VALUE",
           });
-          
-          const actualValues = (headerResponse.data.values?.[0] ?? []) as string[];
+
+          const actualValues = (headerResponse.data.values?.[0] ??
+            []) as string[];
           for (let i = 0; i < expected.firstRowValues.length; i++) {
             if (actualValues[i] !== expected.firstRowValues[i]) {
               return {
-                code: 'PRECONDITION_FAILED',
-                message: `Header mismatch at column ${i + 1}: expected "${expected.firstRowValues[i]}", got "${actualValues[i] ?? '(empty)'}"`,
+                code: "PRECONDITION_FAILED",
+                message: `Header mismatch at column ${i + 1}: expected "${expected.firstRowValues[i]}", got "${actualValues[i] ?? "(empty)"}"`,
                 retryable: true,
-                suggestedFix: 'Column structure changed. Verify headers.',
+                suggestedFix: "Column structure changed. Verify headers.",
               };
             }
           }
         } catch {
           return {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to validate headers',
+            code: "INTERNAL_ERROR",
+            message: "Failed to validate headers",
             retryable: true,
           };
         }
@@ -686,8 +729,8 @@ export class BatchCompiler {
       return null;
     } catch {
       return {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to check expected state',
+        code: "INTERNAL_ERROR",
+        message: "Failed to check expected state",
         retryable: true,
       };
     }
@@ -696,61 +739,63 @@ export class BatchCompiler {
   private mapGoogleError(error: unknown): ErrorDetail {
     if (error instanceof Error) {
       const message = error.message;
-      
+
       // Rate limit
-      if (message.includes('429') || message.includes('rate limit')) {
+      if (message.includes("429") || message.includes("rate limit")) {
         // Dynamically throttle rate limiter for 60 seconds
         this.rateLimiter.throttle(60000);
 
         return {
-          code: 'RATE_LIMITED',
-          message: 'API rate limit exceeded. Rate limiter automatically throttled for 60 seconds.',
+          code: "RATE_LIMITED",
+          message:
+            "API rate limit exceeded. Rate limiter automatically throttled for 60 seconds.",
           retryable: true,
           retryAfterMs: 60000,
-          suggestedFix: 'Wait a minute and try again. Rate limits have been temporarily reduced.',
+          suggestedFix:
+            "Wait a minute and try again. Rate limits have been temporarily reduced.",
         };
       }
-      
+
       // Permission
-      if (message.includes('403') || message.includes('permission')) {
+      if (message.includes("403") || message.includes("permission")) {
         return {
-          code: 'PERMISSION_DENIED',
-          message: 'Permission denied',
+          code: "PERMISSION_DENIED",
+          message: "Permission denied",
           retryable: false,
-          suggestedFix: 'Check that you have edit access to the spreadsheet',
+          suggestedFix: "Check that you have edit access to the spreadsheet",
         };
       }
-      
+
       // Not found
-      if (message.includes('404') || message.includes('not found')) {
+      if (message.includes("404") || message.includes("not found")) {
         return {
-          code: 'SPREADSHEET_NOT_FOUND',
-          message: 'Spreadsheet not found',
+          code: "SPREADSHEET_NOT_FOUND",
+          message: "Spreadsheet not found",
           retryable: false,
-          suggestedFix: 'Check the spreadsheet ID',
+          suggestedFix: "Check the spreadsheet ID",
         };
       }
-      
+
       // Quota
-      if (message.includes('quota')) {
+      if (message.includes("quota")) {
         return {
-          code: 'QUOTA_EXCEEDED',
-          message: 'API quota exceeded',
+          code: "QUOTA_EXCEEDED",
+          message: "API quota exceeded",
           retryable: true,
           retryAfterMs: 3600000,
-          suggestedFix: 'Wait an hour or request quota increase',
+          suggestedFix: "Wait an hour or request quota increase",
         };
       }
 
       return {
-        code: 'UNKNOWN_ERROR',
+        code: "UNKNOWN_ERROR",
         message: error.message,
         retryable: false,
       };
     }
 
     return {
-      code: 'UNKNOWN_ERROR',
+      code: "UNKNOWN_ERROR",
       message: String(error),
       retryable: false,
     };

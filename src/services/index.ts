@@ -6,34 +6,35 @@
  * - Services provide infrastructure and utilities
  * - Elicitation (SEP-1036) for user confirmation
  * - Sampling (SEP-1577) for AI-powered analysis
- * 
+ *
  * Note: Types are exported from schemas (not duplicated here) to avoid conflicts.
  */
 
 // Core Services
-export * from './snapshot.js';
-export * from './google-api.js';
-export * from './token-store.js';
+export * from "./snapshot.js";
+export * from "./google-api.js";
+export * from "./token-store.js";
 
 // Phase 1: Quick Wins
-export * from './token-manager.js';
-export * from './history-service.js';
-export * from './context-manager.js';
+export * from "./token-manager.js";
+export * from "./history-service.js";
+export * from "./context-manager.js";
 
 // Phase 2: Performance
-export * from './parallel-executor.js';
-export * from './prefetch-predictor.js';
-export * from './prefetching-system.js';
-export * from './batching-system.js';
-export * from './access-pattern-tracker.js';
-export * from './batch-aggregator.js';
+export * from "./parallel-executor.js";
+export * from "./prefetch-predictor.js";
+export * from "./prefetching-system.js";
+export * from "./batching-system.js";
+export * from "./access-pattern-tracker.js";
+export * from "./batch-aggregator.js";
+export * from "./request-merger.js";
 
 // Phase 3: MCP-Native Intelligence
 // Export only functions, not types (types come from schemas)
 export {
   getConfirmationService,
   resetConfirmationService,
-} from './confirm-service.js';
+} from "./confirm-service.js";
 
 export {
   buildAnalysisSamplingRequest,
@@ -42,12 +43,15 @@ export {
   parseAnalysisResponse,
   getSamplingAnalysisService,
   resetSamplingAnalysisService,
-} from './sampling-analysis.js';
+} from "./sampling-analysis.js";
 
 // Removed: workflow-engine.js (Claude orchestrates natively via MCP)
 
 // Phase 4: Safety & Reliability
-export * from './transaction-manager.js';
-export * from './conflict-detector.js';
-export * from './impact-analyzer.js';
-export * from './validation-engine.js';
+export * from "./transaction-manager.js";
+export * from "./conflict-detector.js";
+export * from "./impact-analyzer.js";
+export * from "./validation-engine.js";
+
+// Task Management
+export * from "./task-manager.js";

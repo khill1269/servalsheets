@@ -5,6 +5,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from '../../src/services/context-manager.js';
 
+type TestParams = {
+  action?: string;
+  spreadsheetId?: string;
+  sheetId?: number;
+  range?: string;
+};
+
+type StatsSnapshot = {
+  totalInferences: number;
+  spreadsheetIdInferences: number;
+  sheetIdInferences: number;
+  rangeInferences: number;
+  contextUpdates: number;
+  inferenceRate: number;
+};
+
 describe('ContextManager', () => {
   let contextManager: ContextManager;
 
@@ -68,7 +84,7 @@ describe('ContextManager', () => {
     });
 
     it('should infer missing spreadsheetId', () => {
-      const params = { action: 'read' };
+      const params: TestParams = { action: 'read' };
       const inferred = contextManager.inferParameters(params);
 
       expect(inferred.spreadsheetId).toBe('sheet123');
@@ -76,21 +92,21 @@ describe('ContextManager', () => {
     });
 
     it('should infer missing sheetId', () => {
-      const params = { action: 'update', spreadsheetId: 'sheet123' };
+      const params: TestParams = { action: 'update', spreadsheetId: 'sheet123' };
       const inferred = contextManager.inferParameters(params);
 
       expect(inferred.sheetId).toBe(0);
     });
 
     it('should infer missing range', () => {
-      const params = { action: 'write', spreadsheetId: 'sheet123' };
+      const params: TestParams = { action: 'write', spreadsheetId: 'sheet123' };
       const inferred = contextManager.inferParameters(params);
 
       expect(inferred.range).toBe('A1:B10');
     });
 
     it('should not override provided values', () => {
-      const params = {
+      const params: TestParams = {
         spreadsheetId: 'different123',
         sheetId: 5,
         range: 'C1:D20',
@@ -104,7 +120,7 @@ describe('ContextManager', () => {
     });
 
     it('should infer multiple missing parameters', () => {
-      const params = { action: 'read' };
+      const params: TestParams = { action: 'read' };
       const inferred = contextManager.inferParameters(params);
 
       expect(inferred.spreadsheetId).toBe('sheet123');
@@ -120,7 +136,7 @@ describe('ContextManager', () => {
       // Wait for context to become stale
       return new Promise((resolve) => {
         setTimeout(() => {
-          const params = { action: 'read' };
+          const params: TestParams = { action: 'read' };
           const inferred = shortTTL.inferParameters(params);
 
           expect(inferred.spreadsheetId).toBeUndefined();
@@ -209,7 +225,7 @@ describe('ContextManager', () => {
       contextManager.inferParameters({ action: 'read' });
       contextManager.inferParameters({ action: 'write', spreadsheetId: 'sheet123' });
 
-      const stats = contextManager.getStats();
+      const stats = contextManager.getStats() as StatsSnapshot;
 
       expect(stats.totalInferences).toBe(5); // 3 from first, 2 from second
       expect(stats.spreadsheetIdInferences).toBe(1);
@@ -221,7 +237,7 @@ describe('ContextManager', () => {
       contextManager.updateContext({ spreadsheetId: 'new123' });
       contextManager.updateContext({ sheetId: 5 });
 
-      const stats = contextManager.getStats();
+      const stats = contextManager.getStats() as StatsSnapshot;
 
       expect(stats.contextUpdates).toBe(3); // 1 in beforeEach + 2 here
     });
@@ -229,7 +245,7 @@ describe('ContextManager', () => {
     it('should calculate inference rate', () => {
       contextManager.inferParameters({ action: 'read' });
 
-      const stats = contextManager.getStats();
+      const stats = contextManager.getStats() as StatsSnapshot;
 
       expect(stats.inferenceRate).toBeGreaterThan(0);
     });
@@ -239,7 +255,7 @@ describe('ContextManager', () => {
 
       contextManager.resetStats();
 
-      const stats = contextManager.getStats();
+      const stats = contextManager.getStats() as StatsSnapshot;
 
       expect(stats.totalInferences).toBe(0);
       expect(stats.contextUpdates).toBe(0);

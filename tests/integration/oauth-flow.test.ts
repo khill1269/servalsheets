@@ -10,7 +10,7 @@
  * These tests verify security controls are properly enforced.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import express, { type Express } from 'express';
 import jwt from 'jsonwebtoken';
@@ -445,9 +445,13 @@ describe('OAuth Flow Integration Tests', () => {
     });
   });
 
-  describe.skip('Scope Validation - TODO: Fix OAuth scope configuration', () => {
+  describe('Scope Validation', () => {
     it('should accept valid scopes', async () => {
       const validScopes = ['sheets:read', 'sheets:write', 'sheets:admin'];
+
+      // Valid PKCE code_challenge must be base64url and 43-128 chars.
+      // The OAuth provider enforces this; use a compliant dummy value for tests.
+      const validCodeChallenge = 'a'.repeat(43);
 
       for (const scope of validScopes) {
         const response = await request(app)
@@ -457,7 +461,7 @@ describe('OAuth Flow Integration Tests', () => {
             redirect_uri: validRedirectUri,
             response_type: 'code',
             scope,
-            code_challenge: 'test',
+            code_challenge: validCodeChallenge,
             code_challenge_method: 'S256',
           });
 
@@ -467,6 +471,8 @@ describe('OAuth Flow Integration Tests', () => {
     });
 
     it('should handle multiple scopes', async () => {
+      // Valid PKCE code_challenge must be base64url and 43-128 chars.
+      const validCodeChallenge = 'a'.repeat(43);
       const response = await request(app)
         .get('/oauth/authorize')
         .query({
@@ -474,7 +480,7 @@ describe('OAuth Flow Integration Tests', () => {
           redirect_uri: validRedirectUri,
           response_type: 'code',
           scope: 'sheets:read sheets:write',
-          code_challenge: 'test',
+          code_challenge: validCodeChallenge,
           code_challenge_method: 'S256',
         });
 

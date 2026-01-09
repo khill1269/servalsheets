@@ -1,35 +1,40 @@
 /**
  * ServalSheets - Values Handler
- * 
+ *
  * Handles sheets_values tool (read, write, append, clear, find, replace)
  * MCP Protocol: 2025-11-25
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
-import type { Intent } from '../core/intent.js';
+import type { sheets_v4 } from "googleapis";
+import { BaseHandler, type HandlerContext } from "./base.js";
+import type { Intent } from "../core/intent.js";
 import type {
   SheetsValuesInput,
   SheetsValuesOutput,
-  ValuesAction,
   ValuesResponse,
   ValuesArray,
-} from '../schemas/index.js';
-import { getRequestContext, getRequestLogger } from '../utils/request-context.js';
-import { logger } from '../utils/logger.js';
-import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
-import { createRequestKey } from '../utils/request-deduplication.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { CACHE_TTL_VALUES } from '../config/constants.js';
-import { getParallelExecutor } from '../services/parallel-executor.js';
-import { FallbackStrategies } from '../utils/circuit-breaker.js';
+} from "../schemas/index.js";
+import {
+  getRequestContext,
+  getRequestLogger,
+} from "../utils/request-context.js";
+import { logger } from "../utils/logger.js";
+import { cacheManager, createCacheKey } from "../utils/cache-manager.js";
+import { createRequestKey } from "../utils/request-deduplication.js";
+import { confirmDestructiveAction } from "../mcp/elicitation.js";
+import { CACHE_TTL_VALUES } from "../config/constants.js";
+import { getParallelExecutor } from "../services/parallel-executor.js";
+import { FallbackStrategies } from "../utils/circuit-breaker.js";
 
-export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOutput> {
+export class ValuesHandler extends BaseHandler<
+  SheetsValuesInput,
+  SheetsValuesOutput
+> {
   private sheetsApi: sheets_v4.Sheets;
   private valueCacheMap = new Map<string, sheets_v4.Schema$ValueRange>();
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
-    super('sheets_values', context);
+    super("sheets_values", context);
     this.sheetsApi = sheetsApi;
 
     // Register circuit breaker fallback strategies for read operations
@@ -59,9 +64,9 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     this.context.circuitBreaker.registerFallback(
       FallbackStrategies.cachedData(
         this.valueCacheMap,
-        'values-fallback-cache',
-        100 // Highest priority
-      )
+        "values-fallback-cache",
+        100, // Highest priority
+      ),
     );
 
     // Fallback 2: Retry with exponential backoff (high priority)
@@ -70,12 +75,12 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       FallbackStrategies.retryWithBackoff(
         async () => {
           // This will be set dynamically per request
-          throw new Error('Retry operation not set');
+          throw new Error("Retry operation not set");
         },
-        3,    // Max 3 retries
+        3, // Max 3 retries
         1000, // 1 second base delay
-        80    // High priority
-      )
+        80, // High priority
+      ),
     );
 
     // Fallback 3: Degraded mode (low priority, last resort)
@@ -84,25 +89,34 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       FallbackStrategies.degradedMode(
         {
           values: [],
-          range: '',
-          warning: 'Google Sheets API unavailable. Returning empty data. System is in degraded mode.',
+          range: "",
+          warning:
+            "Google Sheets API unavailable. Returning empty data. System is in degraded mode.",
           degraded: true,
         },
-        50 // Lower priority
-      )
+        50, // Lower priority
+      ),
     );
 
-    logger.info('Registered circuit breaker fallback strategies for values handler', {
-      strategies: ['cached-data', 'retry-with-backoff', 'degraded-mode'],
-      circuitName: this.context.circuitBreaker.getState(),
-    });
+    logger.info(
+      "Registered circuit breaker fallback strategies for values handler",
+      {
+        strategies: ["cached-data", "retry-with-backoff", "degraded-mode"],
+        circuitName: this.context.circuitBreaker.getState(),
+      },
+    );
   }
 
   async handle(input: SheetsValuesInput): Promise<SheetsValuesOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
+
+    // Track spreadsheet ID for better error messages
+    this.trackSpreadsheetId(input.spreadsheetId);
 
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(request) as ValuesAction;
+    const inferredRequest = this.inferRequestParameters(
+      input,
+    ) as SheetsValuesInput;
 
     try {
       const response = await this.executeAction(inferredRequest);
@@ -111,8 +125,18 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       if (response.success) {
         this.trackContextFromRequest({
           spreadsheetId: inferredRequest.spreadsheetId,
-          sheetId: 'sheetId' in inferredRequest ? (typeof inferredRequest.sheetId === 'number' ? inferredRequest.sheetId : undefined) : undefined,
-          range: 'range' in inferredRequest ? (typeof inferredRequest.range === 'string' ? inferredRequest.range : undefined) : undefined,
+          sheetId:
+            "sheetId" in inferredRequest
+              ? typeof inferredRequest.sheetId === "number"
+                ? inferredRequest.sheetId
+                : undefined
+              : undefined,
+          range:
+            "range" in inferredRequest
+              ? typeof inferredRequest.range === "string"
+                ? inferredRequest.range
+                : undefined
+              : undefined,
         });
       }
 
@@ -123,82 +147,93 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
   }
 
   protected createIntents(input: SheetsValuesInput): Intent[] {
-    const req = input.request;
+    // Input is the action directly (no request wrapper)
     const baseIntent = {
       target: {
-        spreadsheetId: req.spreadsheetId,
+        spreadsheetId: input.spreadsheetId,
       },
       metadata: {
         sourceTool: this.toolName,
-        sourceAction: req.action,
+        sourceAction: input.action,
         priority: 1,
         destructive: false,
       },
     };
 
-    switch (req.action) {
-      case 'write':
-        return [{
-          ...baseIntent,
-          type: 'SET_VALUES' as const,
-          payload: { values: req.values },
-          metadata: {
-            ...baseIntent.metadata,
-            estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
+    switch (input.action) {
+      case "write":
+        return [
+          {
+            ...baseIntent,
+            type: "SET_VALUES" as const,
+            payload: { values: input.values },
+            metadata: {
+              ...baseIntent.metadata,
+              estimatedCells: input.values.reduce(
+                (sum, row) => sum + row.length,
+                0,
+              ),
+            },
           },
-        }];
-      case 'append':
-        return [{
-          ...baseIntent,
-          type: 'APPEND_VALUES' as const,
-          payload: { values: req.values },
-          metadata: {
-            ...baseIntent.metadata,
-            estimatedCells: req.values.reduce((sum, row) => sum + row.length, 0),
+        ];
+      case "append":
+        return [
+          {
+            ...baseIntent,
+            type: "APPEND_VALUES" as const,
+            payload: { values: input.values },
+            metadata: {
+              ...baseIntent.metadata,
+              estimatedCells: input.values.reduce(
+                (sum, row) => sum + row.length,
+                0,
+              ),
+            },
           },
-        }];
-      case 'clear':
-        return [{
-          ...baseIntent,
-          type: 'CLEAR_VALUES' as const,
-          payload: {},
-          metadata: {
-            ...baseIntent.metadata,
-            destructive: true,
+        ];
+      case "clear":
+        return [
+          {
+            ...baseIntent,
+            type: "CLEAR_VALUES" as const,
+            payload: {},
+            metadata: {
+              ...baseIntent.metadata,
+              destructive: true,
+            },
           },
-        }];
+        ];
       default:
         return [];
     }
   }
 
-
   /**
    * Execute action and return response (extracted for task/non-task paths)
    */
-  private async executeAction(request: ValuesAction): Promise<ValuesResponse> {
+  private async executeAction(request: SheetsValuesInput): Promise<ValuesResponse> {
     switch (request.action) {
-      case 'read':
+      case "read":
         return await this.handleRead(request);
-      case 'write':
+      case "write":
         return await this.handleWrite(request);
-      case 'append':
+      case "append":
         return await this.handleAppend(request);
-      case 'clear':
+      case "clear":
         return await this.handleClear(request);
-      case 'batch_read':
+      case "batch_read":
         return await this.handleBatchRead(request);
-      case 'batch_write':
+      case "batch_write":
         return await this.handleBatchWrite(request);
-      case 'batch_clear':
+      case "batch_clear":
         return await this.handleBatchClear(request);
-      case 'find':
+      case "find":
         return await this.handleFind(request);
-      case 'replace':
+      case "replace":
         return await this.handleReplace(request);
       default:
         return this.error({
-          code: 'INVALID_PARAMS',
+          code: "INVALID_PARAMS",
           message: `Unknown action: ${(request as { action: string }).action}`,
           retryable: false,
         });
@@ -237,7 +272,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
    * This ensures graceful degradation and system resilience.
    */
   private async handleRead(
-    input: Extract<ValuesAction, { action: 'read' }>
+    input: Extract<SheetsValuesInput, { action: "read" }>,
   ): Promise<ValuesResponse> {
     // Use streaming mode for large reads if requested
     if (input.streaming) {
@@ -251,38 +286,80 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       spreadsheetId: input.spreadsheetId,
       range,
     };
-    if (input.valueRenderOption) params.valueRenderOption = input.valueRenderOption;
+    if (input.valueRenderOption)
+      params.valueRenderOption = input.valueRenderOption;
     if (input.majorDimension) params.majorDimension = input.majorDimension;
 
     // Try cache first (1min TTL for values data)
-    const cacheKey = createCacheKey('values:read', params as unknown as Record<string, unknown>);
-    const cached = cacheManager.get<sheets_v4.Schema$ValueRange>(cacheKey, 'values');
+    const cacheKey = createCacheKey(
+      "values:read",
+      params as unknown as Record<string, unknown>,
+    );
+    const cached = cacheManager.get<sheets_v4.Schema$ValueRange>(
+      cacheKey,
+      "values",
+    );
 
-    const response = (cached ? { data: cached } : await (async () => {
-      // Create deduplication key
-      const requestKey = createRequestKey('values.get', {
-        spreadsheetId: input.spreadsheetId,
-        range,
-        valueRenderOption: input.valueRenderOption,
-        majorDimension: input.majorDimension,
-      });
+    const response = (
+      cached
+        ? { data: cached }
+        : await (async () => {
+            // Create deduplication key
+            const requestKey = createRequestKey("values.get", {
+              spreadsheetId: input.spreadsheetId,
+              range,
+              valueRenderOption: input.valueRenderOption,
+              majorDimension: input.majorDimension,
+            });
 
-      // Deduplicate the API call
-      const fetchFn = async (): Promise<unknown> => {
-        const result = await this.sheetsApi.spreadsheets.values.get(params);
-        // Cache the result for standard cache
-        cacheManager.set(cacheKey, result.data, { ttl: CACHE_TTL_VALUES, namespace: 'values' });
-        // Track range dependency for invalidation
-        cacheManager.trackRangeDependency(input.spreadsheetId, range, cacheKey);
-        // Also store in fallback cache for circuit breaker resilience
-        this.valueCacheMap.set('values-fallback-cache', result.data);
-        return result;
-      };
+            // Deduplicate the API call
+            const fetchFn = async (): Promise<unknown> => {
+              // Check if request merger is available and enabled
+              const requestMerger = cacheManager.getRequestMerger();
+              let result: sheets_v4.Schema$ValueRange;
 
-      return this.context.requestDeduplicator
-        ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-        : await fetchFn();
-    })()) as { data: sheets_v4.Schema$ValueRange };
+              if (requestMerger) {
+                // Use request merger to potentially merge with other concurrent reads
+                result = await requestMerger.mergeRead(
+                  this.sheetsApi,
+                  input.spreadsheetId,
+                  range,
+                  {
+                    valueRenderOption: input.valueRenderOption,
+                    majorDimension: input.majorDimension,
+                  },
+                );
+              } else {
+                // Direct API call
+                const apiResponse =
+                  await this.sheetsApi.spreadsheets.values.get(params);
+                result = apiResponse.data;
+              }
+
+              // Cache the result for standard cache
+              cacheManager.set(cacheKey, result, {
+                ttl: CACHE_TTL_VALUES,
+                namespace: "values",
+              });
+              // Track range dependency for invalidation
+              cacheManager.trackRangeDependency(
+                input.spreadsheetId,
+                range,
+                cacheKey,
+              );
+              // Also store in fallback cache for circuit breaker resilience
+              this.valueCacheMap.set("values-fallback-cache", result);
+              return { data: result };
+            };
+
+            return this.context.requestDeduplicator
+              ? await this.context.requestDeduplicator.deduplicate(
+                  requestKey,
+                  fetchFn,
+                )
+              : await fetchFn();
+          })()
+    ) as { data: sheets_v4.Schema$ValueRange };
 
     const values = (response.data.values ?? []) as ValuesArray;
 
@@ -298,14 +375,15 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
 
     // Only add optional fields if they have truthy values
     if (response.data.majorDimension) {
-      result['majorDimension'] = response.data.majorDimension;
+      result["majorDimension"] = response.data.majorDimension;
     }
     if (truncated) {
-      result['truncated'] = true;
-      result['resourceUri'] = `sheets:///${input.spreadsheetId}/${encodeURIComponent(range)}`;
+      result["truncated"] = true;
+      result["resourceUri"] =
+        `sheets:///${input.spreadsheetId}/${encodeURIComponent(range)}`;
     }
 
-    return this.success('read', result);
+    return this.success("read", result);
   }
 
   /**
@@ -313,7 +391,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
    * Chunks data to respect request deadlines and memory limits
    */
   private async handleStreamingRead(
-    input: Extract<ValuesAction, { action: 'read' }>
+    input: Extract<SheetsValuesInput, { action: "read" }>,
   ): Promise<ValuesResponse> {
     const chunkSize = input.chunkSize ?? 1000;
     const range = await this.resolveRange(input.spreadsheetId, input.range);
@@ -322,10 +400,13 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     const rangeMatch = range.match(/^([^!]+)!([A-Z]+)(\d+):([A-Z]+)(\d+)?$/);
     if (!rangeMatch) {
       // If range doesn't match expected pattern, fall back to non-streaming
-      logger.warn('Streaming mode requires explicit range format (Sheet!A1:D100)', {
-        range,
-        spreadsheetId: input.spreadsheetId,
-      });
+      logger.warn(
+        "Streaming mode requires explicit range format (Sheet!A1:D100)",
+        {
+          range,
+          spreadsheetId: input.spreadsheetId,
+        },
+      );
       return this.handleRead({ ...input, streaming: false });
     }
 
@@ -339,7 +420,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     while (hasMore && currentRow <= finalRow) {
       // Check deadline
       if (ctx && Date.now() > ctx.deadline) {
-        logger.warn('Streaming read interrupted by deadline', {
+        logger.warn("Streaming read interrupted by deadline", {
           rowsRead: allValues.length,
           requestId: ctx.requestId,
           spreadsheetId: input.spreadsheetId,
@@ -355,7 +436,8 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
         spreadsheetId: input.spreadsheetId,
         range: chunkRange,
       };
-      if (input.valueRenderOption) params.valueRenderOption = input.valueRenderOption;
+      if (input.valueRenderOption)
+        params.valueRenderOption = input.valueRenderOption;
       if (input.majorDimension) params.majorDimension = input.majorDimension;
 
       const response = await this.sheetsApi.spreadsheets.values.get(params);
@@ -364,9 +446,9 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       allValues.push(...chunkValues);
 
       // Report progress
-      if (this.context.batchCompiler['onProgress']) {
-        this.context.batchCompiler['onProgress']({
-          phase: 'executing',
+      if (this.context.batchCompiler["onProgress"]) {
+        this.context.batchCompiler["onProgress"]({
+          phase: "executing",
           current: allValues.length,
           total: finalRow - parseInt(startRow!) + 1,
           message: `Read ${allValues.length} rows`,
@@ -379,31 +461,32 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       currentRow += chunkSize;
     }
 
-    logger.info('Streaming read completed', {
+    logger.info("Streaming read completed", {
       spreadsheetId: input.spreadsheetId,
       rowsRead: allValues.length,
       chunksRead: Math.ceil(allValues.length / chunkSize),
     });
 
-    return this.success('read', {
+    return this.success("read", {
       values: allValues,
       range,
       rowCount: allValues.length,
       streaming: true,
-      majorDimension: input.majorDimension ?? 'ROWS',
+      majorDimension: input.majorDimension ?? "ROWS",
     });
   }
 
   private async handleWrite(
-    input: Extract<ValuesAction, { action: 'write' }>
+    input: Extract<SheetsValuesInput, { action: "write" }>,
   ): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
 
     const updatedRows = input.values.length;
-    const updatedColumns = input.values.length > 0
-      ? Math.max(...input.values.map(row => row.length))
-      : 0;
+    const updatedColumns =
+      input.values.length > 0
+        ? Math.max(...input.values.map((row) => row.length))
+        : 0;
     let updateResult: sheets_v4.Schema$UpdateValuesResponse | undefined;
 
     const execution = await this.context.batchCompiler.executeWithSafety({
@@ -416,7 +499,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
         const response = await this.sheetsApi.spreadsheets.values.update({
           spreadsheetId: input.spreadsheetId,
           range,
-          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+          valueInputOption: input.valueInputOption ?? "USER_ENTERED",
           includeValuesInResponse: input.includeValuesInResponse ?? false,
           requestBody: { values: input.values },
         });
@@ -425,30 +508,39 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Write operation to range ${input.range} failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          range: input.range,
-          valueCount: input.values?.length,
-          cellCount: (input.values?.length || 0) * (input.values?.[0]?.length || 0),
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Write operation to range ${input.range} failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            range: input.range,
+            valueCount: input.values?.length,
+            cellCount:
+              (input.values?.length || 0) * (input.values?.[0]?.length || 0),
+          },
+          retryable: true, // Server errors are often transient
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and Google API status.",
         },
-        retryable: true,  // Server errors are often transient
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and Google API status.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('write', {
-        updatedCells: cellCount,
-        updatedRows,
-        updatedColumns,
-        updatedRange: range,
-      }, mutation, true);
+      return this.success(
+        "write",
+        {
+          updatedCells: cellCount,
+          updatedRows,
+          updatedColumns,
+          updatedRange: range,
+        },
+        mutation,
+        true,
+      );
     }
 
     // Invalidate affected cache entries
@@ -463,23 +555,24 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     };
 
     // Include updatedData if requested
-    if (input.includeValuesInResponse && updateResult?.['updatedData']) {
-      responseData['updatedData'] = updateResult['updatedData'];
+    if (input.includeValuesInResponse && updateResult?.["updatedData"]) {
+      responseData["updatedData"] = updateResult["updatedData"];
     }
 
-    return this.success('write', responseData, mutation);
+    return this.success("write", responseData, mutation);
   }
 
   private async handleAppend(
-    input: Extract<ValuesAction, { action: 'append' }>
+    input: Extract<SheetsValuesInput, { action: "append" }>,
   ): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
 
     const updatedRows = input.values.length;
-    const updatedColumns = input.values.length > 0
-      ? Math.max(...input.values.map(row => row.length))
-      : 0;
+    const updatedColumns =
+      input.values.length > 0
+        ? Math.max(...input.values.map((row) => row.length))
+        : 0;
     let updates: sheets_v4.Schema$UpdateValuesResponse | undefined;
 
     const execution = await this.context.batchCompiler.executeWithSafety({
@@ -488,56 +581,95 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       estimatedCells: cellCount,
       range,
       operation: async () => {
-        const response = await this.sheetsApi.spreadsheets.values.append({
-          spreadsheetId: input.spreadsheetId,
-          range,
-          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-          insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
-          requestBody: { values: input.values },
-        });
-        updates = response.data.updates;
+        // Route through batching system if available and not in dry-run mode
+        if (
+          this.context.batchingSystem &&
+          !input.safety?.dryRun &&
+          input.insertDataOption !== "OVERWRITE"
+        ) {
+          const batchResult = await this.context.batchingSystem.execute<{
+            updates?: sheets_v4.Schema$UpdateValuesResponse;
+            tableRange?: string;
+          }>({
+            id: `append-${Date.now()}-${Math.random()}`,
+            type: "values:append",
+            spreadsheetId: input.spreadsheetId,
+            params: {
+              range,
+              values: input.values,
+              valueInputOption: input.valueInputOption ?? "USER_ENTERED",
+              insertDataOption: input.insertDataOption ?? "INSERT_ROWS",
+            },
+          });
+          updates = batchResult.updates;
+        } else {
+          // Fall back to direct API call for dry-run or OVERWRITE mode
+          const response = await this.sheetsApi.spreadsheets.values.append({
+            spreadsheetId: input.spreadsheetId,
+            range,
+            valueInputOption: input.valueInputOption ?? "USER_ENTERED",
+            insertDataOption: input.insertDataOption ?? "INSERT_ROWS",
+            requestBody: { values: input.values },
+          });
+          updates = response.data.updates;
+        }
       },
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Append operation to range ${input.range} failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          range: input.range,
-          valueCount: input.values?.length,
-          rowsToAppend: input.values?.length,
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Append operation to range ${input.range} failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            range: input.range,
+            valueCount: input.values?.length,
+            rowsToAppend: input.values?.length,
+          },
+          retryable: true,
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and ensure the range is valid.",
         },
-        retryable: true,
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and ensure the range is valid.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('append', {
-        updatedCells: cellCount,
-        updatedRows,
-        updatedColumns,
-        updatedRange: range,
-      }, mutation, true);
+      return this.success(
+        "append",
+        {
+          updatedCells: cellCount,
+          updatedRows,
+          updatedColumns,
+          updatedRange: range,
+        },
+        mutation,
+        true,
+      );
     }
 
-    return this.success('append', {
-      updatedCells: updates?.updatedCells ?? 0,
-      updatedRows: updates?.updatedRows ?? 0,
-      updatedColumns: updates?.updatedColumns ?? 0,
-      updatedRange: updates?.updatedRange ?? range,
-    }, mutation);
+    return this.success(
+      "append",
+      {
+        updatedCells: updates?.updatedCells ?? 0,
+        updatedRows: updates?.updatedRows ?? 0,
+        updatedColumns: updates?.updatedColumns ?? 0,
+        updatedRange: updates?.updatedRange ?? range,
+      },
+      mutation,
+    );
   }
 
   private async handleClear(
-    input: Extract<ValuesAction, { action: 'clear' }>
+    input: Extract<SheetsValuesInput, { action: "clear" }>,
   ): Promise<ValuesResponse> {
-    const resolved = await this.context.rangeResolver.resolve(input.spreadsheetId, input.range);
+    const resolved = await this.context.rangeResolver.resolve(
+      input.spreadsheetId,
+      input.range,
+    );
     const range = resolved.a1Notation;
     const estimatedCells = this.estimateCellsFromGridRange(resolved.gridRange);
 
@@ -545,21 +677,24 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     if (this.context.samplingServer) {
       try {
         const confirmation = await confirmDestructiveAction(
-          this.context.samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer,
-          'Clear Cell Values',
-          `This will permanently clear all values in range ${range} (approximately ${estimatedCells} cells) in spreadsheet ${input.spreadsheetId}.`
+          this.context
+            .samplingServer as unknown as import("../mcp/elicitation.js").ElicitationServer,
+          "Clear Cell Values",
+          `This will permanently clear all values in range ${range} (approximately ${estimatedCells} cells) in spreadsheet ${input.spreadsheetId}.`,
         );
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'INVALID_REQUEST',
-            message: 'Operation cancelled by user',
+            code: "INVALID_REQUEST",
+            message: "Operation cancelled by user",
             retryable: false,
           });
         }
       } catch (error) {
         // If elicitation fails, proceed (backward compatibility)
-        getRequestLogger().warn('Elicitation failed for clear operation', { error });
+        getRequestLogger().warn("Elicitation failed for clear operation", {
+          error,
+        });
       }
     }
 
@@ -581,48 +716,61 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Clear operation on range ${input.range} failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          range: input.range,
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Clear operation on range ${input.range} failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            range: input.range,
+          },
+          retryable: true,
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and ensure the range exists.",
         },
-        retryable: true,
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and ensure the range exists.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('clear', {
-        updatedRange: range,
-      }, mutation, true);
+      return this.success(
+        "clear",
+        {
+          updatedRange: range,
+        },
+        mutation,
+        true,
+      );
     }
 
-    return this.success('clear', {
-      updatedRange: clearedRange ?? range,
-    }, mutation);
+    return this.success(
+      "clear",
+      {
+        updatedRange: clearedRange ?? range,
+      },
+      mutation,
+    );
   }
 
   private async handleBatchRead(
-    input: Extract<ValuesAction, { action: 'batch_read' }>
+    input: Extract<SheetsValuesInput, { action: "batch_read" }>,
   ): Promise<ValuesResponse> {
     const ranges = await Promise.all(
-      input.ranges.map(r => this.resolveRange(input.spreadsheetId, r))
+      input.ranges.map((r) => this.resolveRange(input.spreadsheetId, r)),
     );
 
     const params: sheets_v4.Params$Resource$Spreadsheets$Values$Batchget = {
       spreadsheetId: input.spreadsheetId,
       ranges,
     };
-    if (input.valueRenderOption) params.valueRenderOption = input.valueRenderOption;
+    if (input.valueRenderOption)
+      params.valueRenderOption = input.valueRenderOption;
     if (input.majorDimension) params.majorDimension = input.majorDimension;
 
     // Create deduplication key for batch read
-    const requestKey = createRequestKey('values.batchGet', {
+    const requestKey = createRequestKey("values.batchGet", {
       spreadsheetId: input.spreadsheetId,
       ranges,
       valueRenderOption: input.valueRenderOption,
@@ -630,32 +778,40 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     // Deduplicate the API call
-    const fetchFn = async (): Promise<unknown> => this.sheetsApi.spreadsheets.values.batchGet(params);
-    const response = (this.context.requestDeduplicator
-      ? await this.context.requestDeduplicator.deduplicate(requestKey, fetchFn)
-      : await fetchFn()) as { data: { valueRanges?: sheets_v4.Schema$ValueRange[] } };
+    const fetchFn = async (): Promise<unknown> =>
+      this.sheetsApi.spreadsheets.values.batchGet(params);
+    const response = (
+      this.context.requestDeduplicator
+        ? await this.context.requestDeduplicator.deduplicate(
+            requestKey,
+            fetchFn,
+          )
+        : await fetchFn()
+    ) as { data: { valueRanges?: sheets_v4.Schema$ValueRange[] } };
 
-    return this.success('batch_read', {
-      valueRanges: (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
-        range: vr.range ?? '',
-        values: (vr.values ?? []) as ValuesArray,
-      })),
+    return this.success("batch_read", {
+      valueRanges: (response.data.valueRanges ?? []).map(
+        (vr: sheets_v4.Schema$ValueRange) => ({
+          range: vr.range ?? "",
+          values: (vr.values ?? []) as ValuesArray,
+        }),
+      ),
     });
   }
 
   private async handleBatchWrite(
-    input: Extract<ValuesAction, { action: 'batch_write' }>
+    input: Extract<SheetsValuesInput, { action: "batch_write" }>,
   ): Promise<ValuesResponse> {
     const data = await Promise.all(
-      input.data.map(async d => ({
+      input.data.map(async (d) => ({
         range: await this.resolveRange(input.spreadsheetId, d.range),
         values: d.values,
-      }))
+      })),
     );
 
     const totalCells = data.reduce(
       (sum, d) => sum + d.values.reduce((s, row) => s + row.length, 0),
-      0
+      0,
     );
     let batchResult: sheets_v4.Schema$BatchUpdateValuesResponse | undefined;
 
@@ -663,13 +819,13 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       spreadsheetId: input.spreadsheetId,
       safety: input.safety,
       estimatedCells: totalCells,
-      range: data.map(d => d.range).join(','),
+      range: data.map((d) => d.range).join(","),
       diffOptions: input.diffOptions,
       operation: async () => {
         const response = await this.sheetsApi.spreadsheets.values.batchUpdate({
           spreadsheetId: input.spreadsheetId,
           requestBody: {
-            valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+            valueInputOption: input.valueInputOption ?? "USER_ENTERED",
             includeValuesInResponse: input.includeValuesInResponse ?? false,
             data,
           },
@@ -679,27 +835,39 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Batch write operation failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          rangeCount: input.data.length,
-          ranges: input.data.map(d => d.range),
-          totalCells: input.data.reduce((sum, d) => sum + (d.values?.length || 0) * (d.values?.[0]?.length || 0), 0),
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Batch write operation failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            rangeCount: input.data.length,
+            ranges: input.data.map((d) => d.range),
+            totalCells: input.data.reduce(
+              (sum, d) =>
+                sum + (d.values?.length || 0) * (d.values?.[0]?.length || 0),
+              0,
+            ),
+          },
+          retryable: true,
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and Google API status.",
         },
-        retryable: true,
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and Google API status.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('batch_write', {
-        updatedCells: totalCells,
-      }, mutation, true);
+      return this.success(
+        "batch_write",
+        {
+          updatedCells: totalCells,
+        },
+        mutation,
+        true,
+      );
     }
 
     // Build response, conditionally including responses data
@@ -710,44 +878,52 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     };
 
     // Include responses (each with updatedData) if requested
-    if (input.includeValuesInResponse && batchResult?.['responses']) {
-      responseData['responses'] = batchResult['responses'];
+    if (input.includeValuesInResponse && batchResult?.["responses"]) {
+      responseData["responses"] = batchResult["responses"];
     }
 
-    return this.success('batch_write', responseData, mutation);
+    return this.success("batch_write", responseData, mutation);
   }
 
   private async handleBatchClear(
-    input: Extract<ValuesAction, { action: 'batch_clear' }>
+    input: Extract<SheetsValuesInput, { action: "batch_clear" }>,
   ): Promise<ValuesResponse> {
     const resolvedRanges = await Promise.all(
-      input.ranges.map(r => this.context.rangeResolver.resolve(input.spreadsheetId, r))
+      input.ranges.map((r) =>
+        this.context.rangeResolver.resolve(input.spreadsheetId, r),
+      ),
     );
-    const ranges = resolvedRanges.map(r => r.a1Notation);
+    const ranges = resolvedRanges.map((r) => r.a1Notation);
     const estimatedCells = resolvedRanges.reduce(
       (sum, r) => sum + this.estimateCellsFromGridRange(r.gridRange),
-      0
+      0,
     );
 
     // Request confirmation for destructive batch operation if elicitation is supported
-    if (this.context.elicitationServer && (input.ranges.length > 5 || estimatedCells > 1000)) {
+    if (
+      this.context.elicitationServer &&
+      (input.ranges.length > 5 || estimatedCells > 1000)
+    ) {
       try {
         const confirmation = await confirmDestructiveAction(
           this.context.elicitationServer,
-          'Batch Clear Data',
-          `You are about to clear ${input.ranges.length} range${input.ranges.length > 1 ? 's' : ''} containing approximately ${estimatedCells.toLocaleString()} cells.\n\nAll data in these ranges will be permanently removed:\n${ranges.slice(0, 5).join(', ')}${ranges.length > 5 ? ` and ${ranges.length - 5} more...` : ''}`
+          "Batch Clear Data",
+          `You are about to clear ${input.ranges.length} range${input.ranges.length > 1 ? "s" : ""} containing approximately ${estimatedCells.toLocaleString()} cells.\n\nAll data in these ranges will be permanently removed:\n${ranges.slice(0, 5).join(", ")}${ranges.length > 5 ? ` and ${ranges.length - 5} more...` : ""}`,
         );
 
         if (!confirmation.confirmed) {
           return this.error({
-            code: 'PRECONDITION_FAILED',
-            message: 'Batch clear operation cancelled by user',
+            code: "PRECONDITION_FAILED",
+            message: "Batch clear operation cancelled by user",
             retryable: false,
           });
         }
       } catch (err) {
         // If elicitation fails, proceed (backward compatibility)
-        this.context.logger?.warn('Elicitation failed for batch_clear, proceeding with operation', { error: err });
+        this.context.logger?.warn(
+          "Elicitation failed for batch_clear, proceeding with operation",
+          { error: err },
+        );
       }
     }
 
@@ -755,7 +931,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       spreadsheetId: input.spreadsheetId,
       safety: input.safety,
       estimatedCells,
-      range: ranges.join(','),
+      range: ranges.join(","),
       highRisk: true,
       operation: async () => {
         await this.sheetsApi.spreadsheets.values.batchClear({
@@ -766,62 +942,81 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Batch clear operation failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          rangeCount: input.ranges.length,
-          ranges: input.ranges,
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Batch clear operation failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            rangeCount: input.ranges.length,
+            ranges: input.ranges,
+          },
+          retryable: true,
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and ensure all ranges exist.",
         },
-        retryable: true,
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and ensure all ranges exist.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('batch_clear', {
-        updatedCells: estimatedCells,
-      }, mutation, true);
+      return this.success(
+        "batch_clear",
+        {
+          updatedCells: estimatedCells,
+        },
+        mutation,
+        true,
+      );
     }
 
-    return this.success('batch_clear', {
-      updatedCells: 0,
-    }, mutation);
+    return this.success(
+      "batch_clear",
+      {
+        updatedCells: 0,
+      },
+      mutation,
+    );
   }
 
   private async handleFind(
-    input: Extract<ValuesAction, { action: 'find' }>
+    input: Extract<SheetsValuesInput, { action: "find" }>,
   ): Promise<ValuesResponse> {
     // Get all values in range
-    const range = input.range 
+    const range = input.range
       ? await this.resolveRange(input.spreadsheetId, input.range)
       : undefined;
 
     const params: sheets_v4.Params$Resource$Spreadsheets$Values$Get = {
       spreadsheetId: input.spreadsheetId,
-      range: range ?? 'A:ZZ',
-      valueRenderOption: input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE',
+      range: range ?? "A:ZZ",
+      valueRenderOption: input.includeFormulas ? "FORMULA" : "FORMATTED_VALUE",
     };
-    
+
     const response = await this.sheetsApi.spreadsheets.values.get(params);
 
     const values = response.data.values ?? [];
-    const matches: Array<{ cell: string; value: string; row: number; column: number }> = [];
+    const matches: Array<{
+      cell: string;
+      value: string;
+      row: number;
+      column: number;
+    }> = [];
     const query = input.matchCase ? input.query : input.query.toLowerCase();
     const limit = input.limit ?? 100;
 
     for (let row = 0; row < values.length && matches.length < limit; row++) {
       const rowData = values[row];
       if (!rowData) continue;
-      
+
       for (let col = 0; col < rowData.length && matches.length < limit; col++) {
-        const cellValue = String(rowData[col] ?? '');
-        const compareValue = input.matchCase ? cellValue : cellValue.toLowerCase();
-        
+        const cellValue = String(rowData[col] ?? "");
+        const compareValue = input.matchCase
+          ? cellValue
+          : cellValue.toLowerCase();
+
         const isMatch = input.matchEntireCell
           ? compareValue === query
           : compareValue.includes(query);
@@ -837,23 +1032,25 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       }
     }
 
-    return this.success('find', { matches });
+    return this.success("find", { matches });
   }
 
   private async handleReplace(
-    input: Extract<ValuesAction, { action: 'replace' }>
+    input: Extract<SheetsValuesInput, { action: "replace" }>,
   ): Promise<ValuesResponse> {
     const resolvedRange = input.range
       ? await this.resolveRange(input.spreadsheetId, input.range)
       : undefined;
-    const needsEstimate = Boolean(input.safety?.dryRun || input.safety?.effectScope);
+    const needsEstimate = Boolean(
+      input.safety?.dryRun || input.safety?.effectScope,
+    );
     let estimatedMatches = 0;
 
     if (needsEstimate) {
       const maxCells = input.safety?.effectScope?.maxCellsAffected;
       const limit = maxCells ? maxCells + 1 : 10000;
       const findInput = {
-        action: 'find' as const,
+        action: "find" as const,
         spreadsheetId: input.spreadsheetId,
         query: input.find,
         matchCase: input.matchCase ?? false,
@@ -868,7 +1065,8 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
         return findResult;
       }
 
-      estimatedMatches = (findResult as { matches?: unknown[] }).matches?.length ?? 0;
+      estimatedMatches =
+        (findResult as { matches?: unknown[] }).matches?.length ?? 0;
     }
 
     let replacementsCount = 0;
@@ -881,15 +1079,17 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
         const response = await this.sheetsApi.spreadsheets.batchUpdate({
           spreadsheetId: input.spreadsheetId,
           requestBody: {
-            requests: [{
-              findReplace: {
-                find: input.find,
-                replacement: input.replacement,
-                matchCase: input.matchCase,
-                matchEntireCell: input.matchEntireCell,
-                allSheets: !input.range,
+            requests: [
+              {
+                findReplace: {
+                  find: input.find,
+                  replacement: input.replacement,
+                  matchCase: input.matchCase,
+                  matchEntireCell: input.matchEntireCell,
+                  allSheets: !input.range,
+                },
               },
-            }],
+            ],
           },
         });
 
@@ -899,32 +1099,44 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     });
 
     if (!execution.success) {
-      return this.error(execution.error ?? {
-        code: 'INTERNAL_ERROR',
-        message: `Replace operation failed: Unknown error`,
-        details: {
-          spreadsheetId: input.spreadsheetId,
-          range: input.range,
-          searchTerm: input.find,
-          replacement: input.replacement,
+      return this.error(
+        execution.error ?? {
+          code: "INTERNAL_ERROR",
+          message: `Replace operation failed: Unknown error`,
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            range: input.range,
+            searchTerm: input.find,
+            replacement: input.replacement,
+          },
+          retryable: true,
+          retryStrategy: "exponential_backoff",
+          resolution:
+            "Retry the operation. If error persists, check spreadsheet permissions and Google API status.",
         },
-        retryable: true,
-        retryStrategy: 'exponential_backoff',
-        resolution: 'Retry the operation. If error persists, check spreadsheet permissions and Google API status.',
-      });
+      );
     }
 
     const mutation = this.createMutationSummary([execution]);
 
     if (execution.dryRun) {
-      return this.success('replace', {
-        replacementsCount: estimatedMatches,
-      }, mutation, true);
+      return this.success(
+        "replace",
+        {
+          replacementsCount: estimatedMatches,
+        },
+        mutation,
+        true,
+      );
     }
 
-    return this.success('replace', {
-      replacementsCount,
-    }, mutation);
+    return this.success(
+      "replace",
+      {
+        replacementsCount,
+      },
+      mutation,
+    );
   }
 
   /**
@@ -941,7 +1153,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     options?: {
       valueRenderOption?: string;
       majorDimension?: string;
-    }
+    },
   ): Promise<ValuesArray> {
     const parallelExecutor = getParallelExecutor();
 
@@ -970,7 +1182,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       chunks.push({ start: row, end: chunkEnd, range: chunkRange });
     }
 
-    logger.info('Reading range in parallel chunks', {
+    logger.info("Reading range in parallel chunks", {
       spreadsheetId,
       totalRows: finalRow - startRowNum + 1,
       chunkCount: chunks.length,
@@ -993,17 +1205,20 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
     }));
 
     // Execute chunks in parallel
-    const chunkResults = await parallelExecutor.executeAllSuccessful(tasks, (progress) => {
-      if (this.context.batchCompiler['onProgress']) {
-        this.context.batchCompiler['onProgress']({
-          phase: 'executing',
-          current: progress.completed,
-          total: progress.total,
-          message: `Reading chunks: ${progress.completed}/${progress.total}`,
-          spreadsheetId,
-        });
-      }
-    });
+    const chunkResults = await parallelExecutor.executeAllSuccessful(
+      tasks,
+      (progress) => {
+        if (this.context.batchCompiler["onProgress"]) {
+          this.context.batchCompiler["onProgress"]({
+            phase: "executing",
+            current: progress.completed,
+            total: progress.total,
+            message: `Reading chunks: ${progress.completed}/${progress.total}`,
+            spreadsheetId,
+          });
+        }
+      },
+    );
 
     // Merge chunks into single array
     const allValues: ValuesArray = [];
@@ -1011,7 +1226,7 @@ export class ValuesHandler extends BaseHandler<SheetsValuesInput, SheetsValuesOu
       allValues.push(...chunkData);
     }
 
-    logger.info('Parallel chunked read completed', {
+    logger.info("Parallel chunked read completed", {
       spreadsheetId,
       chunksRead: chunkResults.length,
       totalRows: allValues.length,

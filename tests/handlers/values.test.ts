@@ -86,11 +86,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1:B2' },
-        },
       });
 
       // Verify response envelope (NOT nested in 'data')
@@ -124,11 +122,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1:CV200' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -149,12 +145,10 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'write',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1:B2' },
           values: [['A', 'B'], ['1', '2']],
-        },
       });
 
       // Verify response envelope
@@ -173,13 +167,11 @@ describe('ValuesHandler Output Schema Compliance', () => {
 
     it('should return dryRun at top level', async () => {
       const result = await handler.handle({
-        request: {
           action: 'write',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1' },
           values: [['Test']],
           safety: { dryRun: true },
-        },
       });
 
       expect(result.response).toHaveProperty('dryRun', true);
@@ -205,12 +197,10 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'append',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1' },
           values: [['Row1'], ['Row2'], ['Row3']],
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -233,11 +223,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'clear',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1:Z100' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -263,14 +251,12 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'batch_read',
           spreadsheetId: 'test-id',
           ranges: [
             { a1: 'Sheet1!A1:A10' },
             { a1: 'Sheet1!B1:B10' },
           ],
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -295,11 +281,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'find',
           spreadsheetId: 'test-id',
           query: 'foo',
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -323,12 +307,10 @@ describe('ValuesHandler Output Schema Compliance', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'replace',
           spreadsheetId: 'test-id',
           find: 'old',
           replacement: 'new',
-        },
       });
 
       expect(result.response).toHaveProperty('success', true);
@@ -350,11 +332,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'invalid-id',
           range: { a1: 'Sheet1!A1' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', false);
@@ -373,11 +353,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'invalid-id',
           range: { a1: 'Sheet1!A1' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', false);
@@ -391,11 +369,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', false);
@@ -410,11 +386,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', false);
@@ -428,11 +402,9 @@ describe('ValuesHandler Output Schema Compliance', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-id',
           range: { a1: 'Sheet1!A1' },
-        },
       });
 
       expect(result.response).toHaveProperty('success', false);

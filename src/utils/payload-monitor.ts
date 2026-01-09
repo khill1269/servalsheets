@@ -4,7 +4,7 @@
  * Monitors request/response payload sizes for Google Sheets API calls
  */
 
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
 
 export interface PayloadMetrics {
   requestSize: number;
@@ -30,9 +30,9 @@ export function calculatePayloadSize(payload: unknown): number {
 
   try {
     const jsonString = JSON.stringify(payload);
-    return Buffer.byteLength(jsonString, 'utf8');
+    return Buffer.byteLength(jsonString, "utf8");
   } catch (error) {
-    logger.warn('Failed to calculate payload size', { error });
+    logger.warn("Failed to calculate payload size", { error });
     return 0;
   }
 }
@@ -43,7 +43,7 @@ export function calculatePayloadSize(payload: unknown): number {
 export function monitorPayload(
   operation: string,
   request: unknown,
-  response: unknown
+  response: unknown,
 ): PayloadMetrics {
   const requestSize = calculatePayloadSize(request);
   const responseSize = calculatePayloadSize(response);
@@ -62,13 +62,13 @@ export function monitorPayload(
 
   // Log warnings for large payloads
   if (requestSizeMB > RECOMMENDED_MAX_MB) {
-    logger.error('Request payload exceeds Google recommended maximum', {
+    logger.error("Request payload exceeds Google recommended maximum", {
       operation,
       sizeMB: metrics.requestSizeMB,
       recommendedMaxMB: RECOMMENDED_MAX_MB,
     });
   } else if (requestSizeMB > WARNING_THRESHOLD_MB) {
-    logger.warn('Request payload approaching maximum', {
+    logger.warn("Request payload approaching maximum", {
       operation,
       sizeMB: metrics.requestSizeMB,
       recommendedMaxMB: RECOMMENDED_MAX_MB,
@@ -76,7 +76,7 @@ export function monitorPayload(
   }
 
   if (responseSizeMB > RECOMMENDED_MAX_MB) {
-    logger.warn('Response payload exceeds Google recommended maximum', {
+    logger.warn("Response payload exceeds Google recommended maximum", {
       operation,
       sizeMB: metrics.responseSizeMB,
       recommendedMaxMB: RECOMMENDED_MAX_MB,
@@ -84,7 +84,7 @@ export function monitorPayload(
   }
 
   // Debug log for all payloads
-  logger.debug('Payload size metrics', metrics);
+  logger.debug("Payload size metrics", metrics);
 
   return metrics;
 }
@@ -101,10 +101,10 @@ export function isWithinLimits(payloadSize: number): boolean {
  * Format bytes to human-readable string
  */
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
 
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`;

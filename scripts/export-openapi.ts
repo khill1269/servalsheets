@@ -275,7 +275,7 @@ MCP resources for monitoring:
   };
 
   // Add generic success response schema
-  spec.components.schemas.SuccessResponse = {
+  spec.components.schemas["SuccessResponse"] = {
     type: 'object',
     properties: {
       response: {
@@ -325,11 +325,10 @@ async function main() {
   const outputArg = args.find(arg => arg.startsWith('--output='));
   const formatArg = args.find(arg => arg.startsWith('--format='));
 
-  const outputPath = outputArg
-    ? outputArg.split('=')[1]
-    : path.join(__dirname, '../docs/openapi.json');
+  const outputPath =
+    outputArg?.split('=')[1] || path.join(__dirname, '../docs/openapi.json');
 
-  const format = formatArg ? formatArg.split('=')[1] : 'json';
+  const format = formatArg?.split('=')[1] || 'json';
 
   console.log('Generating OpenAPI specification...');
   console.log(`  Tools: 7 MCP tools`);

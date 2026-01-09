@@ -71,6 +71,8 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 5000,
           },
         };
@@ -87,6 +89,8 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 5000,
           },
         };
@@ -97,8 +101,8 @@ describe('PolicyEnforcer', () => {
         } catch (error) {
           const policyError = error as PolicyViolationError;
           expect(policyError.code).toBe('EFFECT_SCOPE_EXCEEDED');
-          expect(policyError.details?.estimatedCells).toBe(5000);
-          expect(policyError.details?.max).toBe(1000);
+          expect(policyError.details?.['estimatedCells']).toBe(5000);
+          expect(policyError.details?.['max']).toBe(1000);
         }
       });
 
@@ -110,6 +114,8 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 500,
           },
         };
@@ -131,6 +137,7 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_rows',
+            priority: 0,
             destructive: true,
           },
         };
@@ -151,6 +158,7 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_rows',
+            priority: 0,
             destructive: true,
           },
         };
@@ -172,6 +180,7 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_columns',
+            priority: 0,
             destructive: true,
           },
         };
@@ -192,6 +201,7 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_columns',
+            priority: 0,
             destructive: true,
           },
         };
@@ -209,6 +219,8 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 1,
           },
         }));
@@ -225,6 +237,8 @@ describe('PolicyEnforcer', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 1,
           },
         }));
@@ -240,13 +254,13 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
           {
             type: 'CLEAR_VALUES',
             target: { spreadsheetId: 'test' },
             payload: {},
-            metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', destructive: true },
+            metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
           },
         ];
 
@@ -260,7 +274,7 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
         ];
 
@@ -278,13 +292,13 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
           {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 2 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
         ];
 
@@ -303,7 +317,7 @@ describe('PolicyEnforcer', () => {
         type: 'CLEAR_VALUES',
         target: { spreadsheetId: 'test' }, // No range specified
         payload: {},
-        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', destructive: true },
+        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
       };
 
       await expect(enforcer.validateIntents([intent]))
@@ -319,7 +333,7 @@ describe('PolicyEnforcer', () => {
         type: 'CLEAR_VALUES',
         target: { spreadsheetId: 'test', range: 'Sheet1!A1:B10' }, // Range specified
         payload: {},
-        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', destructive: true },
+        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
       };
 
       await expect(enforcer.validateIntents([intent])).resolves.not.toThrow();

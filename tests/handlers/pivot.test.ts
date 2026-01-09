@@ -43,12 +43,10 @@ describe('PivotHandler', () => {
 
   it('creates a pivot table', async () => {
     const result = await handler.handle({
-      request: {
         action: 'create',
         spreadsheetId: 'sheet-id',
         sourceRange: { a1: 'Sheet1!A1:B5' },
         values: [{ sourceColumnOffset: 1, summarizeFunction: 'SUM' }],
-      },
     });
 
     const parsed = SheetsPivotOutputSchema.safeParse(result);
@@ -71,10 +69,8 @@ describe('PivotHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
         action: 'list',
         spreadsheetId: 'sheet-id',
-      },
     });
 
     expect(result.response.success).toBe(true);
@@ -85,12 +81,10 @@ describe('PivotHandler', () => {
 
   it('supports dryRun on delete', async () => {
     const result = await handler.handle({
-      request: {
         action: 'delete',
         spreadsheetId: 'sheet-id',
         sheetId: 0,
         safety: { dryRun: true },
-      },
     });
 
     expect(result.response.success).toBe(true);

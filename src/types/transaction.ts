@@ -10,38 +10,38 @@
  * Phase 4, Task 4.1
  */
 
-import type { GoogleApiClient } from '../services/google-api.js';
+import type { GoogleApiClient } from "../services/google-api.js";
 
 /**
  * Transaction status
  */
 export type TransactionStatus =
-  | 'pending'
-  | 'queued'
-  | 'executing'
-  | 'committed'
-  | 'rolled_back'
-  | 'failed';
+  | "pending"
+  | "queued"
+  | "executing"
+  | "committed"
+  | "rolled_back"
+  | "failed";
 
 /**
  * Operation type for transaction queuing
  */
 export type OperationType =
-  | 'values_write'
-  | 'values_append'
-  | 'values_update'
-  | 'format_apply'
-  | 'sheet_create'
-  | 'sheet_delete'
-  | 'cell_merge'
-  | 'cell_unmerge'
-  | 'row_insert'
-  | 'row_delete'
-  | 'column_insert'
-  | 'column_delete'
-  | 'formula_write'
-  | 'validation_add'
-  | 'custom';
+  | "values_write"
+  | "values_append"
+  | "values_update"
+  | "format_apply"
+  | "sheet_create"
+  | "sheet_delete"
+  | "cell_merge"
+  | "cell_unmerge"
+  | "row_insert"
+  | "row_delete"
+  | "column_insert"
+  | "column_delete"
+  | "formula_write"
+  | "validation_add"
+  | "custom";
 
 /**
  * Queued operation within a transaction
@@ -72,7 +72,7 @@ export interface QueuedOperation {
   dependsOn?: string[];
 
   /** Operation status */
-  status: 'pending' | 'executing' | 'completed' | 'failed';
+  status: "pending" | "executing" | "completed" | "failed";
 
   /** Result (when completed) */
   result?: unknown;
@@ -251,7 +251,7 @@ export interface MetadataState {
   metadataId: number;
   metadataKey: string;
   metadataValue: string;
-  visibility: 'DOCUMENT' | 'PROJECT';
+  visibility: "DOCUMENT" | "PROJECT";
 }
 
 /**
@@ -286,7 +286,7 @@ export interface Transaction {
   userId?: string;
 
   /** Isolation level */
-  isolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
+  isolationLevel?: "read_uncommitted" | "read_committed" | "serializable";
 
   /** Auto-commit */
   autoCommit?: boolean;
@@ -481,7 +481,10 @@ export interface TransactionConfig {
   verboseLogging?: boolean;
 
   /** Default isolation level */
-  defaultIsolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
+  defaultIsolationLevel?:
+    | "read_uncommitted"
+    | "read_committed"
+    | "serializable";
 
   /** Google API client for batch operations */
   googleClient?: GoogleApiClient;
@@ -554,14 +557,17 @@ export interface SnapshotConfig {
 /**
  * Transaction isolation level
  */
-export type IsolationLevel = 'read_uncommitted' | 'read_committed' | 'serializable';
+export type IsolationLevel =
+  | "read_uncommitted"
+  | "read_committed"
+  | "serializable";
 
 /**
  * Transaction event
  */
 export interface TransactionEvent {
   /** Event type */
-  type: 'begin' | 'queue' | 'commit' | 'rollback' | 'fail';
+  type: "begin" | "queue" | "commit" | "rollback" | "fail";
 
   /** Transaction ID */
   transactionId: string;

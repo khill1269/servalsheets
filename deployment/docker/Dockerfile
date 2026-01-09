@@ -18,17 +18,24 @@ RUN npm run build
 # Production image
 FROM node:22-alpine
 
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
 WORKDIR /app
 
-# Copy built files
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY package.json ./
-COPY server.json ./
+# Copy built files with correct ownership
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --chown=nodejs:nodejs package.json ./
+COPY --chown=nodejs:nodejs server.json ./
 
 # Environment
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Switch to non-root user
+USER nodejs
 
 # Expose port
 EXPOSE 3000

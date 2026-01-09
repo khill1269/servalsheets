@@ -5,7 +5,7 @@
  * Follows the same pattern as task-store for consistency
  */
 
-import { logger as baseLogger } from './logger.js';
+import { logger as baseLogger } from "./logger.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any; // Dynamically imported, avoid compile-time dependency
@@ -79,8 +79,8 @@ export class InMemoryCacheStore implements CacheStore {
     if (!pattern) return allKeys;
 
     // Simple glob pattern matching (* wildcard)
-    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-    return allKeys.filter(key => regex.test(key));
+    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+    return allKeys.filter((key) => regex.test(key));
   }
 
   async size(): Promise<number> {
@@ -98,13 +98,13 @@ export class InMemoryCacheStore implements CacheStore {
  */
 export class RedisCacheStore implements CacheStore {
   private redis: RedisClient;
-  private logger = baseLogger.child({ component: 'RedisCacheStore' });
-  private keyPrefix = 'cache:';
+  private logger = baseLogger.child({ component: "RedisCacheStore" });
+  private keyPrefix = "cache:";
 
   constructor(redisUrl: string) {
     // Dynamic import to avoid loading ioredis unless Redis is actually used
-     
-    const Redis = require('ioredis');
+
+    const Redis = require("ioredis");
 
     this.redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
@@ -112,12 +112,12 @@ export class RedisCacheStore implements CacheStore {
       lazyConnect: false,
     });
 
-    this.redis.on('error', (error: Error) => {
-      this.logger.error('Redis cache error', { error });
+    this.redis.on("error", (error: Error) => {
+      this.logger.error("Redis cache error", { error });
     });
 
-    this.redis.on('connect', () => {
-      this.logger.info('Redis cache connected');
+    this.redis.on("connect", () => {
+      this.logger.info("Redis cache connected");
     });
   }
 
@@ -140,7 +140,7 @@ export class RedisCacheStore implements CacheStore {
 
       return entry;
     } catch (error) {
-      this.logger.error('Redis cache get error', { key, error });
+      this.logger.error("Redis cache get error", { key, error });
       return null;
     }
   }
@@ -155,7 +155,7 @@ export class RedisCacheStore implements CacheStore {
 
       await this.redis.setex(this.prefixKey(key), ttlSeconds, data);
     } catch (error) {
-      this.logger.error('Redis cache set error', { key, error });
+      this.logger.error("Redis cache set error", { key, error });
     }
   }
 
@@ -163,7 +163,7 @@ export class RedisCacheStore implements CacheStore {
     try {
       await this.redis.del(this.prefixKey(key));
     } catch (error) {
-      this.logger.error('Redis cache delete error', { key, error });
+      this.logger.error("Redis cache delete error", { key, error });
     }
   }
 
@@ -196,7 +196,7 @@ export class RedisCacheStore implements CacheStore {
         await this.redis.del(...keysToDelete);
       }
     } catch (error) {
-      this.logger.error('Redis cache clear error', { namespace, error });
+      this.logger.error("Redis cache clear error", { namespace, error });
     }
   }
 
@@ -209,7 +209,7 @@ export class RedisCacheStore implements CacheStore {
       // Remove prefix from returned keys
       return keys.map((key: string) => key.substring(this.keyPrefix.length));
     } catch (error) {
-      this.logger.error('Redis cache keys error', { pattern, error });
+      this.logger.error("Redis cache keys error", { pattern, error });
       return [];
     }
   }
@@ -219,7 +219,7 @@ export class RedisCacheStore implements CacheStore {
       const keys = await this.redis.keys(`${this.keyPrefix}*`);
       return keys.length;
     } catch (error) {
-      this.logger.error('Redis cache size error', { error });
+      this.logger.error("Redis cache size error", { error });
       return 0;
     }
   }

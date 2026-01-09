@@ -5,6 +5,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TokenManager } from '../../src/services/token-manager.js';
 
+type TokenMetrics = {
+  totalRefreshes: number;
+  successfulRefreshes: number;
+  failedRefreshes: number;
+  successRate: number;
+  lastRefreshSuccess: boolean;
+  isRunning: boolean;
+};
+
 describe('TokenManager', () => {
   let tokenManager: TokenManager;
   let mockOAuthClient: any;
@@ -145,18 +154,21 @@ describe('TokenManager', () => {
     it('should start and stop monitoring', async () => {
       tokenManager.start();
 
-      expect(tokenManager.getMetrics().isRunning).toBe(true);
+      const runningMetrics = tokenManager.getMetrics() as TokenMetrics;
+      expect(runningMetrics.isRunning).toBe(true);
 
       tokenManager.stop();
 
-      expect(tokenManager.getMetrics().isRunning).toBe(false);
+      const stoppedMetrics = tokenManager.getMetrics() as TokenMetrics;
+      expect(stoppedMetrics.isRunning).toBe(false);
     });
 
     it('should not start twice', () => {
       tokenManager.start();
       tokenManager.start(); // Second call should be ignored
 
-      expect(tokenManager.getMetrics().isRunning).toBe(true);
+      const metrics = tokenManager.getMetrics() as TokenMetrics;
+      expect(metrics.isRunning).toBe(true);
     });
   });
 
@@ -165,7 +177,7 @@ describe('TokenManager', () => {
       await tokenManager.refreshToken();
       await tokenManager.refreshToken();
 
-      const metrics = tokenManager.getMetrics();
+      const metrics = tokenManager.getMetrics() as TokenMetrics;
 
       expect(metrics.totalRefreshes).toBe(2);
       expect(metrics.successfulRefreshes).toBe(2);
@@ -179,7 +191,7 @@ describe('TokenManager', () => {
 
       await tokenManager.refreshToken();
 
-      const metrics = tokenManager.getMetrics();
+      const metrics = tokenManager.getMetrics() as TokenMetrics;
 
       expect(metrics.totalRefreshes).toBe(1);
       expect(metrics.successfulRefreshes).toBe(0);
@@ -193,7 +205,7 @@ describe('TokenManager', () => {
 
       tokenManager.resetMetrics();
 
-      const metrics = tokenManager.getMetrics();
+      const metrics = tokenManager.getMetrics() as TokenMetrics;
 
       expect(metrics.totalRefreshes).toBe(0);
       expect(metrics.successfulRefreshes).toBe(0);

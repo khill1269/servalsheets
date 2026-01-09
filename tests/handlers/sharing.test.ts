@@ -47,13 +47,11 @@ describe('SharingHandler', () => {
     });
 
     const result = await handler.handle({
-      request: {
         action: 'share',
         spreadsheetId: 'sheet-id',
         type: 'user',
         role: 'writer',
         emailAddress: 'a@example.com',
-      },
     });
 
     const parsed = SheetsSharingOutputSchema.safeParse(result);
@@ -66,12 +64,10 @@ describe('SharingHandler', () => {
 
   it('supports dryRun for remove_permission', async () => {
     const result = await handler.handle({
-      request: {
         action: 'remove_permission',
         spreadsheetId: 'sheet-id',
         permissionId: 'perm-2',
         safety: { dryRun: true },
-      },
     });
 
     expect(result.response.success).toBe(true);

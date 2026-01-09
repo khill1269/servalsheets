@@ -4,8 +4,8 @@
  * Works around SDK method literal extraction with Zod v4 (def.values).
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { getObjectShape } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { getObjectShape } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 
 let patched = false;
 
@@ -17,19 +17,29 @@ export function patchMcpServerRequestHandler(): void {
 
   Server.prototype.setRequestHandler = function setRequestHandlerPatched(
     requestSchema: unknown,
-    handler: unknown
+    handler: unknown,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const shape = getObjectShape(requestSchema as any); // getObjectShape expects zod schema internals
-    const methodSchema = shape?.['method'] as Record<string, unknown> | undefined;
+    const methodSchema = shape?.["method"] as
+      | Record<string, unknown>
+      | undefined;
 
-    if (methodSchema && methodSchema['value'] === undefined) {
-      const def = (methodSchema['_def'] as { value?: unknown; values?: unknown[] } | undefined)
-        ?? ((methodSchema['_zod'] as { def?: { value?: unknown; values?: unknown[] } } | undefined)?.def);
-      const literal = def?.value ?? (Array.isArray(def?.values) ? def?.values[0] : undefined);
+    if (methodSchema && methodSchema["value"] === undefined) {
+      const def =
+        (methodSchema["_def"] as
+          | { value?: unknown; values?: unknown[] }
+          | undefined) ??
+        (
+          methodSchema["_zod"] as
+            | { def?: { value?: unknown; values?: unknown[] } }
+            | undefined
+        )?.def;
+      const literal =
+        def?.value ?? (Array.isArray(def?.values) ? def?.values[0] : undefined);
 
-      if (typeof literal === 'string') {
-        Object.defineProperty(methodSchema, 'value', {
+      if (typeof literal === "string") {
+        Object.defineProperty(methodSchema, "value", {
           value: literal,
           configurable: true,
         });

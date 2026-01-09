@@ -12,10 +12,10 @@
  * - Request deduplication integration
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 export interface ParallelExecutorOptions {
-  /** Maximum concurrent requests (default: 5) */
+  /** Maximum concurrent requests (default: 20) */
   concurrency?: number;
   /** Enable verbose logging (default: false) */
   verboseLogging?: boolean;
@@ -87,14 +87,27 @@ export class ParallelExecutor {
   };
 
   constructor(options: ParallelExecutorOptions = {}) {
-    this.concurrency = options.concurrency ?? 5;
+    // Default concurrency increased to 20 to better utilize Google Sheets API quotas
+    const DEFAULT_CONCURRENCY = 20;
+
+    // Support PARALLEL_CONCURRENCY environment variable
+    const envConcurrency = process.env["PARALLEL_CONCURRENCY"]
+      ? parseInt(process.env["PARALLEL_CONCURRENCY"], 10)
+      : undefined;
+
+    // Use options.concurrency, then env var, then default
+    this.concurrency = options.concurrency ?? envConcurrency ?? DEFAULT_CONCURRENCY;
+
+    // Ensure reasonable bounds: minimum 1, maximum 100
+    this.concurrency = Math.max(1, Math.min(100, this.concurrency));
+
     this.verboseLogging = options.verboseLogging ?? false;
     this.retryOnError = options.retryOnError ?? true;
     this.maxRetries = options.maxRetries ?? 3;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
 
     if (this.verboseLogging) {
-      logger.info('Parallel executor initialized', {
+      logger.info("Parallel executor initialized", {
         concurrency: this.concurrency,
         retryOnError: this.retryOnError,
         maxRetries: this.maxRetries,
@@ -107,14 +120,16 @@ export class ParallelExecutor {
    */
   async executeAll<T>(
     tasks: ParallelTask<T>[],
-    onProgress?: (progress: ParallelProgress) => void
+    onProgress?: (progress: ParallelProgress) => void,
   ): Promise<ParallelResult<T>[]> {
     if (tasks.length === 0) {
       return [];
     }
 
     // Sort by priority (higher first)
-    const sortedTasks = [...tasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    const sortedTasks = [...tasks].sort(
+      (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
+    );
 
     const results: ParallelResult<T>[] = [];
     const executing: Promise<void>[] = [];
@@ -161,7 +176,7 @@ export class ParallelExecutor {
           completed++;
 
           if (this.verboseLogging) {
-            logger.debug('Task completed successfully', {
+            logger.debug("Task completed successfully", {
               id: task.id,
               duration,
               retries,
@@ -176,14 +191,14 @@ export class ParallelExecutor {
 
           if (retries <= this.maxRetries && this.retryOnError) {
             const delay = this.retryDelayMs * Math.pow(2, retries - 1); // Exponential backoff
-            logger.warn('Task failed, retrying', {
+            logger.warn("Task failed, retrying", {
               id: task.id,
               attempt: retries,
               maxRetries: this.maxRetries,
               delayMs: delay,
               error: lastError.message,
             });
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise((resolve) => setTimeout(resolve, delay));
           } else {
             break;
           }
@@ -208,7 +223,7 @@ export class ParallelExecutor {
       completed++;
       failed++;
 
-      logger.error('Task failed after retries', {
+      logger.error("Task failed after retries", {
         id: task.id,
         retries: retries - 1,
         error: lastError?.message,
@@ -250,12 +265,12 @@ export class ParallelExecutor {
    */
   async executeAllSuccessful<T>(
     tasks: ParallelTask<T>[],
-    onProgress?: (progress: ParallelProgress) => void
+    onProgress?: (progress: ParallelProgress) => void,
   ): Promise<T[]> {
     const results = await this.executeAll(tasks, onProgress);
     return results
-      .filter(r => r.success && r.result !== undefined)
-      .map(r => r.result!);
+      .filter((r) => r.success && r.result !== undefined)
+      .map((r) => r.result!);
   }
 
   /**
@@ -263,17 +278,19 @@ export class ParallelExecutor {
    */
   async executeAllOrFail<T>(
     tasks: ParallelTask<T>[],
-    onProgress?: (progress: ParallelProgress) => void
+    onProgress?: (progress: ParallelProgress) => void,
   ): Promise<T[]> {
     const results = await this.executeAll(tasks, onProgress);
 
-    const failures = results.filter(r => !r.success);
+    const failures = results.filter((r) => !r.success);
     if (failures.length > 0) {
-      const errorMessages = failures.map(f => `${f.id}: ${f.error?.message}`).join('; ');
+      const errorMessages = failures
+        .map((f) => `${f.id}: ${f.error?.message}`)
+        .join("; ");
       throw new Error(`${failures.length} task(s) failed: ${errorMessages}`);
     }
 
-    return results.map(r => r.result!);
+    return results.map((r) => r.result!);
   }
 
   /**
@@ -291,20 +308,23 @@ export class ParallelExecutor {
       totalFailed: this.stats.totalFailed,
       totalRetries: this.stats.totalRetries,
       totalDuration: this.stats.totalDuration,
-      successRate: this.stats.totalExecuted > 0
-        ? (this.stats.totalSucceeded / this.stats.totalExecuted) * 100
-        : 0,
-      averageDuration: this.stats.totalExecuted > 0
-        ? this.stats.totalDuration / this.stats.totalExecuted
-        : 0,
+      successRate:
+        this.stats.totalExecuted > 0
+          ? (this.stats.totalSucceeded / this.stats.totalExecuted) * 100
+          : 0,
+      averageDuration:
+        this.stats.totalExecuted > 0
+          ? this.stats.totalDuration / this.stats.totalExecuted
+          : 0,
       p50Duration: p50,
       p95Duration: p95,
       p99Duration: p99,
       minDuration: sortedDurations[0] ?? 0,
       maxDuration: sortedDurations[sortedDurations.length - 1] ?? 0,
-      averageRetries: this.stats.totalExecuted > 0
-        ? this.stats.totalRetries / this.stats.totalExecuted
-        : 0,
+      averageRetries:
+        this.stats.totalExecuted > 0
+          ? this.stats.totalRetries / this.stats.totalExecuted
+          : 0,
     };
   }
 
@@ -341,8 +361,8 @@ let parallelExecutor: ParallelExecutor | null = null;
 export function getParallelExecutor(): ParallelExecutor {
   if (!parallelExecutor) {
     parallelExecutor = new ParallelExecutor({
-      concurrency: parseInt(process.env['PARALLEL_CONCURRENCY'] || '5', 10),
-      verboseLogging: process.env['PARALLEL_VERBOSE'] === 'true',
+      verboseLogging: process.env["PARALLEL_VERBOSE"] === "true",
+      // Concurrency will be determined by constructor's env var handling
     });
   }
   return parallelExecutor;

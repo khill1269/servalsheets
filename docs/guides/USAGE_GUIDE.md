@@ -347,7 +347,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 1. Quit Claude Desktop completely (**⌘+Q** on Mac)
 2. Wait 2 seconds
 3. Reopen Claude Desktop
-4. Look for the **🔨 icon** in the bottom-right corner
+4. Look for the **🔨 icon** in the bottom-right corner (custom ServalSheets icon may not appear yet)
 
 ### Step 3: Try Interactive Prompts
 
@@ -871,7 +871,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 
 ### Issue: "ServalSheets not showing in Claude Desktop"
 
-**Symptoms**: No 🔨 icon, tools not available
+**Symptoms**: No 🔨 icon (standard MCP indicator), tools not available
 
 **Solutions**:
 1. Check config file: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .`

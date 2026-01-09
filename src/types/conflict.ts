@@ -10,34 +10,34 @@
  * Phase 4, Task 4.2
  */
 
-import type { GoogleApiClient } from '../services/google-api.js';
+import type { GoogleApiClient } from "../services/google-api.js";
 
 /**
  * Conflict severity
  */
-export type ConflictSeverity = 'info' | 'warning' | 'error' | 'critical';
+export type ConflictSeverity = "info" | "warning" | "error" | "critical";
 
 /**
  * Conflict type
  */
 export type ConflictType =
-  | 'concurrent_modification'
-  | 'stale_data'
-  | 'overlapping_range'
-  | 'deletion_conflict'
-  | 'format_conflict'
-  | 'formula_conflict';
+  | "concurrent_modification"
+  | "stale_data"
+  | "overlapping_range"
+  | "deletion_conflict"
+  | "format_conflict"
+  | "formula_conflict";
 
 /**
  * Resolution strategy
  */
 export type ResolutionStrategy =
-  | 'overwrite'      // User's changes win
-  | 'merge'          // Attempt 3-way merge
-  | 'cancel'         // Discard user's changes
-  | 'manual'         // Require manual resolution
-  | 'last_write_wins' // Most recent wins
-  | 'first_write_wins'; // First wins
+  | "overwrite" // User's changes win
+  | "merge" // Attempt 3-way merge
+  | "cancel" // Discard user's changes
+  | "manual" // Require manual resolution
+  | "last_write_wins" // Most recent wins
+  | "first_write_wins"; // First wins
 
 /**
  * Range version for tracking modifications
@@ -198,7 +198,7 @@ export interface CellChange {
   newValue?: unknown;
 
   /** Change type */
-  changeType: 'added' | 'modified' | 'deleted';
+  changeType: "added" | "modified" | "deleted";
 }
 
 /**
@@ -215,7 +215,7 @@ export interface MergeStrategy {
   merge: (
     yourData: unknown,
     theirData: unknown,
-    baseData?: unknown
+    baseData?: unknown,
   ) => Promise<MergeResult>;
 }
 
@@ -421,7 +421,7 @@ export interface ConcurrentEditWarning {
   yourSessionId: string;
 
   /** Severity */
-  severity: 'info' | 'warning';
+  severity: "info" | "warning";
 
   /** Message */
   message: string;

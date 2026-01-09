@@ -40,7 +40,7 @@ describe('RangeResolver', () => {
       });
 
       const result = await resolver.resolve('test-id', {
-        semantic: { sheet: "John's Data", column: 'Header1' },
+        semantic: { sheet: "John's Data", column: 'Header1', includeHeader: true },
       });
 
       // Should escape the single quote by doubling it
@@ -59,7 +59,7 @@ describe('RangeResolver', () => {
       });
 
       const result = await resolver.resolve('test-id', {
-        semantic: { sheet: "It's John's Sheet", column: 'Col1' },
+        semantic: { sheet: "It's John's Sheet", column: 'Col1', includeHeader: true },
       });
 
       expect(result.a1Notation).toContain("'It''s John''s Sheet'");
@@ -94,7 +94,7 @@ describe('RangeResolver', () => {
       });
 
       const result = await resolver.resolve('test-id', {
-        semantic: { sheet: 'SimpleSheet', column: 'Header' },
+        semantic: { sheet: 'SimpleSheet', column: 'Header', includeHeader: true },
       });
 
       expect(result.a1Notation).toContain("'SimpleSheet'");
@@ -179,7 +179,7 @@ describe('RangeResolver', () => {
         await resolver.resolve('test-id', { namedRange: 'NonExistent' });
       } catch (error) {
         expect((error as RangeResolutionError).code).toBe('RANGE_NOT_FOUND');
-        expect((error as RangeResolutionError).details?.available).toContain('ExistingRange');
+        expect((error as RangeResolutionError).details?.['available']).toContain('ExistingRange');
       }
     });
   });
@@ -199,7 +199,7 @@ describe('RangeResolver', () => {
       });
 
       const result = await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Email' },
+        semantic: { sheet: 'Sheet1', column: 'Email', includeHeader: true },
       });
 
       expect(result.resolution.method).toBe('semantic_header');
@@ -215,7 +215,7 @@ describe('RangeResolver', () => {
 
       // Using "Customer Email" directly should match exactly
       const result = await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Customer Email' },
+        semantic: { sheet: 'Sheet1', column: 'Customer Email', includeHeader: true },
       });
 
       expect(result.resolution.method).toBe('semantic_header');
@@ -228,14 +228,14 @@ describe('RangeResolver', () => {
       });
 
       await expect(
-        resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address' } })
+        resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true } })
       ).rejects.toThrow(RangeResolutionError);
 
       try {
-        await resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address' } });
+        await resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true } });
       } catch (error) {
         expect((error as RangeResolutionError).code).toBe('RANGE_NOT_FOUND');
-        expect((error as RangeResolutionError).details?.available).toContain('Name');
+        expect((error as RangeResolutionError).details?.['available']).toContain('Name');
       }
     });
 
@@ -311,12 +311,12 @@ describe('RangeResolver', () => {
 
       // First call
       await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       // Second call - should use cache
       await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Email' },
+        semantic: { sheet: 'Sheet1', column: 'Email', includeHeader: true },
       });
 
       // values.get should only be called once (cached)
@@ -335,13 +335,13 @@ describe('RangeResolver', () => {
       });
 
       await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       resolver.clearCache();
 
       await resolver.resolve('test-id', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       // values.get should be called twice after cache clear
@@ -361,12 +361,12 @@ describe('RangeResolver', () => {
 
       // Call for spreadsheet A
       await resolver.resolve('spreadsheet-a', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       // Call for spreadsheet B
       await resolver.resolve('spreadsheet-b', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       // Invalidate only spreadsheet A
@@ -374,11 +374,11 @@ describe('RangeResolver', () => {
 
       // Call again - A should refetch, B should use cache
       await resolver.resolve('spreadsheet-a', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       await resolver.resolve('spreadsheet-b', {
-        semantic: { sheet: 'Sheet1', column: 'Name' },
+        semantic: { sheet: 'Sheet1', column: 'Name', includeHeader: true },
       });
 
       // A: 2 calls, B: 1 call = 3 total

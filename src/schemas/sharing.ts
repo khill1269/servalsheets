@@ -3,7 +3,7 @@
  * Permission and sharing operations (Drive API)
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   SpreadsheetIdSchema,
   PermissionRoleSchema,
@@ -13,7 +13,7 @@ import {
   MutationSummarySchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
 const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -29,10 +29,12 @@ const PermissionSchema = z.object({
   expirationTime: z.string().optional(),
 });
 
-const SharingActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsSharingInputSchema = z.discriminatedUnion("action", [
   // SHARE
   BaseSchema.extend({
-    action: z.literal('share'),
+    action: z.literal("share"),
     emailAddress: z.string().email().optional(),
     domain: z.string().optional(),
     type: PermissionTypeSchema,
@@ -44,7 +46,7 @@ const SharingActionSchema = z.discriminatedUnion('action', [
 
   // UPDATE_PERMISSION
   BaseSchema.extend({
-    action: z.literal('update_permission'),
+    action: z.literal("update_permission"),
     permissionId: z.string(),
     role: PermissionRoleSchema,
     expirationTime: z.string().optional(),
@@ -53,32 +55,32 @@ const SharingActionSchema = z.discriminatedUnion('action', [
 
   // REMOVE_PERMISSION
   BaseSchema.extend({
-    action: z.literal('remove_permission'),
+    action: z.literal("remove_permission"),
     permissionId: z.string(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_PERMISSIONS
   BaseSchema.extend({
-    action: z.literal('list_permissions'),
+    action: z.literal("list_permissions"),
   }),
 
   // GET_PERMISSION
   BaseSchema.extend({
-    action: z.literal('get_permission'),
+    action: z.literal("get_permission"),
     permissionId: z.string(),
   }),
 
   // TRANSFER_OWNERSHIP
   BaseSchema.extend({
-    action: z.literal('transfer_ownership'),
+    action: z.literal("transfer_ownership"),
     newOwnerEmail: z.string().email(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // SET_LINK_SHARING
   BaseSchema.extend({
-    action: z.literal('set_link_sharing'),
+    action: z.literal("set_link_sharing"),
     enabled: z.boolean(),
     role: PermissionRoleSchema.optional(),
     safety: SafetyOptionsSchema.optional(),
@@ -86,16 +88,12 @@ const SharingActionSchema = z.discriminatedUnion('action', [
 
   // GET_SHARING_LINK
   BaseSchema.extend({
-    action: z.literal('get_sharing_link'),
+    action: z.literal("get_sharing_link"),
     role: PermissionRoleSchema.optional(),
   }),
 ]);
 
-export const SheetsSharingInputSchema = z.object({
-  request: SharingActionSchema,
-});
-
-const SharingResponseSchema = z.discriminatedUnion('success', [
+const SharingResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -117,7 +115,7 @@ export const SheetsSharingOutputSchema = z.object({
 });
 
 export const SHEETS_SHARING_ANNOTATIONS: ToolAnnotations = {
-  title: 'Sharing & Permissions',
+  title: "Sharing & Permissions",
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
@@ -126,5 +124,5 @@ export const SHEETS_SHARING_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsSharingInput = z.infer<typeof SheetsSharingInputSchema>;
 export type SheetsSharingOutput = z.infer<typeof SheetsSharingOutputSchema>;
-export type SharingAction = z.infer<typeof SharingActionSchema>;
+
 export type SharingResponse = z.infer<typeof SharingResponseSchema>;

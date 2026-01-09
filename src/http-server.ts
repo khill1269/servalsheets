@@ -23,7 +23,7 @@ import { initConflictDetector } from './services/conflict-detector.js';
 import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
 import { ACTION_COUNT, TOOL_COUNT } from './schemas/annotations.js';
-import { VERSION, SERVER_INFO } from './version.js';
+import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
 import { metricsHandler } from './observability/metrics.js';
@@ -103,6 +103,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
     {
       name: SERVER_INFO.name,
       version: SERVER_INFO.version,
+      icons: SERVER_ICONS,
     },
     {
       capabilities: createServerCapabilities(),
@@ -165,7 +166,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
     });
   }
 
-  registerServalSheetsTools(mcpServer, handlers, { googleClient });
+  await registerServalSheetsTools(mcpServer, handlers, { googleClient });
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
   registerKnowledgeResources(mcpServer);
@@ -194,6 +195,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
 
   // Register logging handler
   // Note: Using 'as any' to bypass TypeScript's deep type inference issues
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mcpServer.server.setRequestHandler(SetLevelRequestSchema as any, async (request: any) => {
     const level = request.params.level;
     const response = await handleLoggingSetLevel({ level });

@@ -131,7 +131,7 @@ npm run start:http
 
 - [ ] **Testing**
   - [ ] Restarted Claude Desktop (⌘+Q, reopen)
-  - [ ] Saw 🔨 icon in Claude Desktop
+  - [ ] Saw 🔨 icon in Claude Desktop (custom ServalSheets icon may not appear yet)
   - [ ] Tested basic operation
   - [ ] Checked logs: `~/Library/Logs/Claude/mcp-server-servalsheets.log`
 
@@ -228,7 +228,7 @@ After installation, verify everything works:
 
 ### 1. Check MCP Server Loaded
 ```bash
-# Look for 🔨 icon in Claude Desktop bottom-right
+# Look for 🔨 icon in Claude Desktop bottom-right (custom ServalSheets icon may not appear yet)
 ```
 
 ### 2. Test Basic Operation
@@ -388,7 +388,7 @@ Before considering installation complete:
 - [ ] Build succeeded with zero errors
 - [ ] Configuration file created and valid JSON
 - [ ] Credentials configured (service account OR OAuth)
-- [ ] Claude Desktop restarted and shows 🔨 icon
+- [ ] Claude Desktop restarted and shows 🔨 icon (custom ServalSheets icon may not appear yet)
 - [ ] Test operation succeeded
 - [ ] Logs show no errors
 - [ ] v1.1.1 features confirmed in logs

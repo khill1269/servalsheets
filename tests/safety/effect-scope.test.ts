@@ -32,6 +32,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 5000, // Exceeds 1000 limit
           },
         };
@@ -48,6 +50,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 5000,
           },
         };
@@ -74,6 +78,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 500, // Within 1000 limit
           },
         };
@@ -89,6 +95,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 1000, // Exactly at limit
           },
         };
@@ -110,6 +118,7 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_rows',
+            priority: 0,
             destructive: true,
           },
         };
@@ -130,6 +139,7 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_rows',
+            priority: 0,
             destructive: true,
           },
         };
@@ -151,6 +161,7 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_columns',
+            priority: 0,
             destructive: true,
           },
         };
@@ -171,6 +182,7 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_dimensions',
             sourceAction: 'delete_columns',
+            priority: 0,
             destructive: true,
           },
         };
@@ -188,6 +200,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 1,
           },
         }));
@@ -204,6 +218,8 @@ describe('Effect Scope Enforcement', () => {
           metadata: {
             sourceTool: 'sheets_values',
             sourceAction: 'write',
+            priority: 0,
+            destructive: false,
             estimatedCells: 1,
           },
         }));
@@ -219,13 +235,13 @@ describe('Effect Scope Enforcement', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test-id', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
           {
             type: 'CLEAR_VALUES',
             target: { spreadsheetId: 'test-id' },
             payload: {},
-            metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', destructive: true },
+            metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
           },
         ];
 
@@ -239,7 +255,7 @@ describe('Effect Scope Enforcement', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test-id', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
           },
         ];
 
@@ -259,12 +275,14 @@ describe('Effect Scope Enforcement', () => {
         type: 'SET_VALUES',
         target: { spreadsheetId: 'test-id' },
         payload: {},
-        metadata: {
-          sourceTool: 'sheets_values',
-          sourceAction: 'write',
-          estimatedCells: 150, // Exceeds custom 100 limit
-        },
-      };
+          metadata: {
+            sourceTool: 'sheets_values',
+            sourceAction: 'write',
+            priority: 0,
+            destructive: false,
+            estimatedCells: 150, // Exceeds custom 100 limit
+          },
+        };
 
       await expect(enforcer.validateIntents([intent]))
         .rejects.toThrow(PolicyViolationError);
@@ -278,18 +296,18 @@ describe('Effect Scope Enforcement', () => {
 
       const intents: Intent[] = [
         {
-          type: 'DELETE_SHEET',
-          target: { spreadsheetId: 'test-id', sheetId: 1 },
-          payload: {},
-          metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
-        },
-        {
-          type: 'DELETE_SHEET',
-          target: { spreadsheetId: 'test-id', sheetId: 2 },
-          payload: {},
-          metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', destructive: true },
-        },
-      ];
+            type: 'DELETE_SHEET',
+            target: { spreadsheetId: 'test-id', sheetId: 1 },
+            payload: {},
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+          },
+          {
+            type: 'DELETE_SHEET',
+            target: { spreadsheetId: 'test-id', sheetId: 2 },
+            payload: {},
+            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+          },
+        ];
 
       await expect(enforcer.validateIntents(intents)).resolves.not.toThrow();
     });

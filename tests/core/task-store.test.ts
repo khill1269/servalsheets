@@ -199,7 +199,11 @@ describe('InMemoryTaskStore', () => {
       await store.storeTaskResult(task.taskId, 'completed', result2);
 
       const retrieved = await store.getTaskResult(task.taskId);
-      expect(retrieved?.result.content[0].text).toBe('Second');
+      const first = retrieved?.result.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first.text).toBe('Second');
     });
   });
 
@@ -227,9 +231,13 @@ describe('InMemoryTaskStore', () => {
 
       const tasks = await store.getAllTasks();
 
-      expect(tasks[0].taskId).toBe(task3.taskId);
-      expect(tasks[1].taskId).toBe(task2.taskId);
-      expect(tasks[2].taskId).toBe(task1.taskId);
+      const [first, second, third] = tasks;
+      if (!first || !second || !third) {
+        throw new Error('Expected at least 3 tasks');
+      }
+      expect(first.taskId).toBe(task3.taskId);
+      expect(second.taskId).toBe(task2.taskId);
+      expect(third.taskId).toBe(task1.taskId);
     });
 
     it('should not include expired tasks', async () => {
@@ -343,7 +351,7 @@ describe('InMemoryTaskStore', () => {
       expect(stats.input_required).toBe(0);
     });
 
-    it.skip('should not count expired tasks - FLAKY: timing-dependent', async () => {
+    it('should not count expired tasks', async () => {
       // Create expired task with very short TTL
       const task = await store.createTask({ ttl: 50 });
       await store.updateTaskStatus(task.taskId, 'completed');
@@ -450,7 +458,11 @@ describe('InMemoryTaskStore', () => {
       await store.storeTaskResult(task.taskId, 'completed', result);
       const retrieved = await store.getTaskResult(task.taskId);
 
-      expect(retrieved?.result.content[0].text).toBe(largeText);
+      const first = retrieved?.result.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first.text).toBe(largeText);
     });
   });
 });

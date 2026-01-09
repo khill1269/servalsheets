@@ -35,12 +35,10 @@ describe('CellsHandler', () => {
 
   it('rejects non-http hyperlinks', async () => {
     const result = await handler.handle({
-      request: {
         action: 'set_hyperlink',
         spreadsheetId: 'sheet-id',
         cell: 'Sheet1!A1',
         url: 'javascript:alert(1)',
-      },
     });
 
     expect(result.response.success).toBe(false);
@@ -57,13 +55,11 @@ describe('CellsHandler', () => {
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
 
     const result = await handler.handle({
-      request: {
         action: 'set_hyperlink',
         spreadsheetId: 'sheet-id',
         cell: 'Sheet1!A1',
         url: 'https://example.com?q="x"',
         label: 'He said "hi"',
-      },
     });
 
     expect(result.response.success).toBe(true);

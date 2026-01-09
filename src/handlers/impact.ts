@@ -4,12 +4,12 @@
  * Handles pre-execution impact analysis with dependency tracking.
  */
 
-import { getImpactAnalyzer } from '../services/impact-analyzer.js';
+import { getImpactAnalyzer } from "../services/impact-analyzer.js";
 import type {
   SheetsImpactInput,
   SheetsImpactOutput,
   ImpactResponse,
-} from '../schemas/impact.js';
+} from "../schemas/impact.js";
 
 export interface ImpactHandlerOptions {
   // Options can be added as needed
@@ -21,15 +21,15 @@ export class ImpactHandler {
   }
 
   async handle(input: SheetsImpactInput): Promise<SheetsImpactOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
     const impactAnalyzer = getImpactAnalyzer();
 
     try {
-      const analysis = await impactAnalyzer.analyzeOperation(request.operation);
+      const analysis = await impactAnalyzer.analyzeOperation(input.operation);
 
       const response: ImpactResponse = {
         success: true,
-        action: 'analyze',
+        action: "analyze",
         impact: {
           severity: analysis.severity,
           scope: {
@@ -41,24 +41,36 @@ export class ImpactHandler {
           affectedResources: {
             formulas: analysis.formulasAffected.map((f) => f.cell),
             charts: analysis.chartsAffected.map((c) => c.title),
-            pivotTables: analysis.pivotTablesAffected.map((p) => `PivotTable ${p.pivotTableId}`),
-            validationRules: analysis.validationRulesAffected.map((v) => v.range),
+            pivotTables: analysis.pivotTablesAffected.map(
+              (p) => `PivotTable ${p.pivotTableId}`,
+            ),
+            validationRules: analysis.validationRulesAffected.map(
+              (v) => v.range,
+            ),
             namedRanges: analysis.namedRangesAffected.map((n) => n.name),
-            protectedRanges: analysis.protectedRangesAffected.map((p) => p.range),
+            protectedRanges: analysis.protectedRangesAffected.map(
+              (p) => p.range,
+            ),
           },
           estimatedExecutionTime: analysis.estimatedExecutionTime,
           warnings: analysis.warnings.map((w) => ({
             severity: w.severity,
             message: w.message,
-            affectedResources: w.suggestedAction ? [w.suggestedAction] : undefined,
+            affectedResources: w.suggestedAction
+              ? [w.suggestedAction]
+              : undefined,
           })),
           recommendations: analysis.recommendations.map((r) => ({
             action: r,
-            reason: 'Suggested based on impact analysis',
-            priority: analysis.severity === 'high' || analysis.severity === 'critical' ? 'high' as const : 'medium' as const,
+            reason: "Suggested based on impact analysis",
+            priority:
+              analysis.severity === "high" || analysis.severity === "critical"
+                ? ("high" as const)
+                : ("medium" as const),
           })),
-          canProceed: analysis.severity !== 'critical',
-          requiresConfirmation: analysis.severity === 'high' || analysis.severity === 'critical',
+          canProceed: analysis.severity !== "critical",
+          requiresConfirmation:
+            analysis.severity === "high" || analysis.severity === "critical",
         },
         message: `Impact analysis complete. Severity: ${analysis.severity}, ${analysis.cellsAffected} cell(s) affected, ${analysis.warnings.length} warning(s).`,
       };
@@ -70,7 +82,7 @@ export class ImpactHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

@@ -299,8 +299,39 @@ Complete chronicle of 8 development phases:
 
 ---
 
-**Documentation Version:** 2.2 (Updated 2026-01-04)
-**Total Files:** 100+ documentation files
+### Analysis Reports (`./analysis/`)
+Technical analysis and audit reports:
+
+- **[COMPETITIVE_ANALYSIS_2026-01-06.md](./analysis/COMPETITIVE_ANALYSIS_2026-01-06.md)** - Market analysis
+- **[COMPLETE_TOOL_ANALYSIS_2026-01-07.md](./analysis/COMPLETE_TOOL_ANALYSIS_2026-01-07.md)** - Tool coverage analysis
+- **[COMPREHENSIVE_ERROR_ANALYSIS_2026-01-07.md](./analysis/COMPREHENSIVE_ERROR_ANALYSIS_2026-01-07.md)** - Error handling audit
+- **[HANDLER_ANALYSIS_REPORT.md](./analysis/HANDLER_ANALYSIS_REPORT.md)** - Handler implementation review
+- **[CLAUDE_GUIDANCE_AUDIT_2026-01-07.md](./analysis/CLAUDE_GUIDANCE_AUDIT_2026-01-07.md)** - AI guidance audit
+
+### Planning (`./planning/`)
+Roadmaps and strategic planning documents:
+
+- **[STRATEGIC_ROADMAP.md](./planning/STRATEGIC_ROADMAP.md)** - Long-term vision
+- **[IMPROVEMENT_ROADMAP.md](./planning/IMPROVEMENT_ROADMAP.md)** - Enhancement backlog
+- **[TODO.md](./planning/TODO.md)** - Current task list
+- **[WHATS_LEFT_TO_BUILD.md](./planning/WHATS_LEFT_TO_BUILD.md)** - Remaining features
+
+### Setup Guides (`./setup/`)
+Initial setup and configuration:
+
+- **[CLAUDE_DESKTOP_SETUP.md](./setup/CLAUDE_DESKTOP_SETUP.md)** - Claude Desktop config
+- **[PRE_LAUNCH_CHECKLIST.md](./setup/PRE_LAUNCH_CHECKLIST.md)** - Launch preparation
+
+### Archive (`./archive/`)
+Historical documentation organized by category:
+
+- **[archive/phases/](./archive/phases/)** - Development phase documentation
+- **[archive/sessions/](./archive/sessions/)** - Work session summaries and completions
+
+---
+
+**Documentation Version:** 2.3 (Updated 2026-01-07)
+**Total Files:** 100+ documentation files (consolidated from 60 root files)
 **Examples:** 21 example files (17 tool/workflow + 4 response examples)
 **Runbooks:** 6 production-ready operational runbooks
 **Diagrams:** 11 architecture diagrams in Mermaid format

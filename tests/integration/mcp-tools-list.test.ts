@@ -194,7 +194,7 @@ describe('MCP Protocol tools/list', () => {
       // Schema should NOT be empty
       expect(tool.inputSchema.type).toBe('object');
 
-      // Should have properties OR oneOf (not an empty schema)
+      // Should have properties OR oneOf/anyOf (not an empty schema)
       const hasProperties = tool.inputSchema.properties &&
                           typeof tool.inputSchema.properties === 'object' &&
                           Object.keys(tool.inputSchema.properties).length > 0;
@@ -202,7 +202,10 @@ describe('MCP Protocol tools/list', () => {
       const hasOneOf = Array.isArray(tool.inputSchema.oneOf) &&
                       tool.inputSchema.oneOf.length > 0;
 
-      expect(hasProperties || hasOneOf).toBe(true);
+      const hasAnyOf = Array.isArray(tool.inputSchema.anyOf) &&
+                      tool.inputSchema.anyOf.length > 0;
+
+      expect(hasProperties || hasOneOf || hasAnyOf).toBe(true);
 
       // CRITICAL: Must NOT have Zod methods
       // If these exist, the schema wasn't properly transformed and will cause

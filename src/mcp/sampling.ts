@@ -1,10 +1,10 @@
 /**
  * ServalSheets - SEP-1577 Sampling Support
- * 
+ *
  * Enables server-to-client LLM requests for intelligent spreadsheet operations.
  * The server can request the client's LLM to analyze data, generate formulas,
  * and perform agentic tasks with tool support.
- * 
+ *
  * @module mcp/sampling
  * @see https://spec.modelcontextprotocol.io/specification/2025-11-25/client/sampling/
  */
@@ -16,8 +16,8 @@ import type {
   SamplingMessage,
   Tool,
   TextContent,
-  ModelPreferences
-} from '@modelcontextprotocol/sdk/types.js';
+  ModelPreferences,
+} from "@modelcontextprotocol/sdk/types.js";
 
 // ============================================================================
 // Types
@@ -58,7 +58,7 @@ export interface GenerateFormulaOptions {
   /** Maximum tokens */
   maxTokens?: number;
   /** Preferred formula style */
-  style?: 'concise' | 'readable' | 'optimized';
+  style?: "concise" | "readable" | "optimized";
 }
 
 /**
@@ -84,7 +84,9 @@ export interface AgenticResult {
  */
 export interface SamplingServer {
   getClientCapabilities(): ClientCapabilities | undefined;
-  createMessage(params: CreateMessageRequest['params']): Promise<CreateMessageResult>;
+  createMessage(
+    params: CreateMessageRequest["params"],
+  ): Promise<CreateMessageResult>;
 }
 
 // ============================================================================
@@ -94,30 +96,36 @@ export interface SamplingServer {
 /**
  * Check if the client supports sampling and its sub-features
  */
-export function checkSamplingSupport(clientCapabilities: ClientCapabilities | undefined): SamplingSupport {
+export function checkSamplingSupport(
+  clientCapabilities: ClientCapabilities | undefined,
+): SamplingSupport {
   return {
     supported: !!clientCapabilities?.sampling,
     hasTools: !!clientCapabilities?.sampling?.tools,
-    hasContext: !!clientCapabilities?.sampling?.context
+    hasContext: !!clientCapabilities?.sampling?.context,
   };
 }
 
 /**
  * Assert that sampling is supported, throw if not
  */
-export function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
+export function assertSamplingSupport(
+  clientCapabilities: ClientCapabilities | undefined,
+): void {
   if (!clientCapabilities?.sampling) {
-    throw new Error('Client does not support sampling capability');
+    throw new Error("Client does not support sampling capability");
   }
 }
 
 /**
  * Assert that sampling with tools is supported
  */
-export function assertSamplingToolsSupport(clientCapabilities: ClientCapabilities | undefined): void {
+export function assertSamplingToolsSupport(
+  clientCapabilities: ClientCapabilities | undefined,
+): void {
   assertSamplingSupport(clientCapabilities);
   if (!clientCapabilities?.sampling?.tools) {
-    throw new Error('Client does not support tool use in sampling');
+    throw new Error("Client does not support tool use in sampling");
   }
 }
 
@@ -129,11 +137,13 @@ export function assertSamplingToolsSupport(clientCapabilities: ClientCapabilitie
  * Extract text content from sampling result
  */
 export function extractTextFromResult(result: CreateMessageResult): string {
-  const content = Array.isArray(result.content) ? result.content : [result.content];
+  const content = Array.isArray(result.content)
+    ? result.content
+    : [result.content];
   return content
-    .filter((block): block is TextContent => block.type === 'text')
-    .map(block => block.text)
-    .join('\n');
+    .filter((block): block is TextContent => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }
 
 /**
@@ -141,8 +151,8 @@ export function extractTextFromResult(result: CreateMessageResult): string {
  */
 export function createUserMessage(text: string): SamplingMessage {
   return {
-    role: 'user',
-    content: { type: 'text', text }
+    role: "user",
+    content: { type: "text", text },
   };
 }
 
@@ -151,8 +161,8 @@ export function createUserMessage(text: string): SamplingMessage {
  */
 export function createAssistantMessage(text: string): SamplingMessage {
   return {
-    role: 'assistant',
-    content: { type: 'text', text }
+    role: "assistant",
+    content: { type: "text", text },
   };
 }
 
@@ -164,67 +174,75 @@ export function formatDataForLLM(
   options: {
     maxRows?: number;
     includeRowNumbers?: boolean;
-    format?: 'json' | 'csv' | 'markdown';
-  } = {}
+    format?: "json" | "csv" | "markdown";
+  } = {},
 ): string {
-  const { maxRows = 100, includeRowNumbers = true, format = 'markdown' } = options;
-  
+  const {
+    maxRows = 100,
+    includeRowNumbers = true,
+    format = "markdown",
+  } = options;
+
   const truncatedData = data.slice(0, maxRows);
   const wasTruncated = data.length > maxRows;
-  
+
   let formatted: string;
-  
+
   switch (format) {
-    case 'json':
+    case "json":
       formatted = JSON.stringify(truncatedData, null, 2);
       break;
-      
-    case 'csv':
+
+    case "csv":
       formatted = truncatedData
         .map((row, i) => {
-          const cells = row.map(cell => 
-            typeof cell === 'string' && cell.includes(',') 
-              ? `"${cell}"` 
-              : String(cell ?? '')
-          ).join(',');
+          const cells = row
+            .map((cell) =>
+              typeof cell === "string" && cell.includes(",")
+                ? `"${cell}"`
+                : String(cell ?? ""),
+            )
+            .join(",");
           return includeRowNumbers ? `${i + 1},${cells}` : cells;
         })
-        .join('\n');
+        .join("\n");
       break;
-      
-    case 'markdown':
+
+    case "markdown":
     default:
       if (truncatedData.length === 0) {
-        formatted = '(empty)';
+        formatted = "(empty)";
       } else {
         const headers = truncatedData[0] as unknown[];
         const rows = truncatedData.slice(1);
-        
+
         // Header row
-        const headerRow = includeRowNumbers 
-          ? `| # | ${headers.map(h => String(h ?? '')).join(' | ')} |`
-          : `| ${headers.map(h => String(h ?? '')).join(' | ')} |`;
-        
+        const headerRow = includeRowNumbers
+          ? `| # | ${headers.map((h) => String(h ?? "")).join(" | ")} |`
+          : `| ${headers.map((h) => String(h ?? "")).join(" | ")} |`;
+
         // Separator
         const separator = includeRowNumbers
-          ? `|---|${headers.map(() => '---').join('|')}|`
-          : `|${headers.map(() => '---').join('|')}|`;
-        
+          ? `|---|${headers.map(() => "---").join("|")}|`
+          : `|${headers.map(() => "---").join("|")}|`;
+
         // Data rows
         const dataRows = rows.map((row, i) => {
-          const cells = (row as unknown[]).map(cell => String(cell ?? '')).join(' | ');
+          const cells = (row as unknown[])
+            .map((cell) => String(cell ?? ""))
+            .join(" | ");
           return includeRowNumbers ? `| ${i + 2} | ${cells} |` : `| ${cells} |`;
         });
-        
-        formatted = [headerRow, separator, ...dataRows].join('\n');
+
+        formatted = [headerRow, separator, ...dataRows].join("\n");
       }
       break;
   }
-  
+
   if (wasTruncated) {
     formatted += `\n\n(Showing ${maxRows} of ${data.length} rows)`;
   }
-  
+
   return formatted;
 }
 
@@ -260,7 +278,7 @@ Explain why your recommendation fits the data.`,
   formulaExplanation: `You are a Google Sheets teacher.
 Explain formulas in simple terms.
 Break down complex formulas into steps.
-Provide examples of how each part works.`
+Provide examples of how each part works.`,
 };
 
 // ============================================================================
@@ -269,7 +287,7 @@ Provide examples of how each part works.`
 
 /**
  * Analyze spreadsheet data using the client's LLM
- * 
+ *
  * @example
  * ```typescript
  * const insights = await analyzeData(server, {
@@ -285,39 +303,39 @@ export async function analyzeData(
     question: string;
     context?: string;
   },
-  options: AnalyzeDataOptions = {}
+  options: AnalyzeDataOptions = {},
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
-  
+
   const {
     systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
     maxTokens = 1000,
     modelPreferences,
-    temperature
+    temperature,
   } = options;
-  
+
   const formattedData = formatDataForLLM(params.data);
-  
+
   let prompt = `Analyze this spreadsheet data and answer: ${params.question}\n\n`;
   if (params.context) {
     prompt += `Context: ${params.context}\n\n`;
   }
   prompt += `Data:\n${formattedData}`;
-  
+
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt,
     maxTokens,
     ...(modelPreferences && { modelPreferences }),
-    ...(temperature !== undefined && { temperature })
+    ...(temperature !== undefined && { temperature }),
   });
-  
+
   return extractTextFromResult(result);
 }
 
 /**
  * Generate a Google Sheets formula from natural language
- * 
+ *
  * @example
  * ```typescript
  * const formula = await generateFormula(server, {
@@ -335,52 +353,56 @@ export async function generateFormula(
     sampleData?: unknown[][];
     existingFormulas?: string[];
   },
-  options: GenerateFormulaOptions = {}
+  options: GenerateFormulaOptions = {},
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
-  
-  const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
-  
+
+  const {
+    includeExplanation = false,
+    maxTokens = 300,
+    style = "readable",
+  } = options;
+
   let prompt = `Generate a Google Sheets formula for: ${params.description}\n\n`;
-  
+
   if (params.headers) {
-    prompt += `Column headers: ${params.headers.join(', ')}\n`;
+    prompt += `Column headers: ${params.headers.join(", ")}\n`;
   }
-  
+
   if (params.sampleData) {
     prompt += `Sample data:\n${formatDataForLLM(params.sampleData, { maxRows: 5 })}\n`;
   }
-  
+
   if (params.existingFormulas?.length) {
-    prompt += `\nExisting formulas in sheet (for reference):\n${params.existingFormulas.join('\n')}\n`;
+    prompt += `\nExisting formulas in sheet (for reference):\n${params.existingFormulas.join("\n")}\n`;
   }
-  
+
   prompt += `\nStyle preference: ${style}`;
-  
+
   if (!includeExplanation) {
-    prompt += '\n\nReturn ONLY the formula, no explanation.';
+    prompt += "\n\nReturn ONLY the formula, no explanation.";
   }
-  
+
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.formulaGeneration,
-    maxTokens
+    maxTokens,
   });
-  
+
   let formula = extractTextFromResult(result).trim();
-  
+
   // Clean up common formatting issues
   if (!includeExplanation) {
     // Remove markdown code blocks if present
-    formula = formula.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '');
+    formula = formula.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "");
     // Remove leading = if duplicated
-    formula = formula.replace(/^=+/, '=');
+    formula = formula.replace(/^=+/, "=");
     // Ensure formula starts with =
-    if (!formula.startsWith('=')) {
-      formula = '=' + formula;
+    if (!formula.startsWith("=")) {
+      formula = "=" + formula;
     }
   }
-  
+
   return formula;
 }
 
@@ -393,39 +415,39 @@ export async function recommendChart(
     data: unknown[][];
     purpose?: string;
     audience?: string;
-  }
+  },
 ): Promise<{
   chartType: string;
   reason: string;
   alternatives: string[];
 }> {
   assertSamplingSupport(server.getClientCapabilities());
-  
-  let prompt = 'Recommend the best chart type for this data.\n\n';
+
+  let prompt = "Recommend the best chart type for this data.\n\n";
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
-  
+
   if (params.purpose) {
     prompt += `Purpose: ${params.purpose}\n`;
   }
   if (params.audience) {
     prompt += `Audience: ${params.audience}\n`;
   }
-  
+
   prompt += `\nRespond in this exact JSON format:
 {
   "chartType": "COLUMN|LINE|PIE|SCATTER|AREA|BAR",
   "reason": "Brief explanation",
   "alternatives": ["Alternative1", "Alternative2"]
 }`;
-  
+
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.chartRecommendation,
-    maxTokens: 300
+    maxTokens: 300,
   });
-  
+
   const text = extractTextFromResult(result);
-  
+
   try {
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -435,11 +457,11 @@ export async function recommendChart(
   } catch {
     // Fallback parsing
   }
-  
+
   return {
-    chartType: 'COLUMN',
+    chartType: "COLUMN",
     reason: text,
-    alternatives: []
+    alternatives: [],
   };
 }
 
@@ -449,20 +471,20 @@ export async function recommendChart(
 export async function explainFormula(
   server: SamplingServer,
   formula: string,
-  options: { detailed?: boolean } = {}
+  options: { detailed?: boolean } = {},
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
-  
+
   const prompt = options.detailed
     ? `Explain this Google Sheets formula in detail, breaking down each part:\n\n${formula}`
     : `Briefly explain what this Google Sheets formula does:\n\n${formula}`;
-  
+
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.formulaExplanation,
-    maxTokens: options.detailed ? 800 : 300
+    maxTokens: options.detailed ? 800 : 300,
   });
-  
+
   return extractTextFromResult(result);
 }
 
@@ -474,23 +496,25 @@ export async function identifyDataIssues(
   params: {
     data: unknown[][];
     columnTypes?: Record<string, string>;
-  }
-): Promise<Array<{
-  type: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  location: string;
-  description: string;
-  suggestedFix: string;
-}>> {
+  },
+): Promise<
+  Array<{
+    type: string;
+    severity: "critical" | "high" | "medium" | "low";
+    location: string;
+    description: string;
+    suggestedFix: string;
+  }>
+> {
   assertSamplingSupport(server.getClientCapabilities());
-  
-  let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
+
+  let prompt = "Identify data quality issues in this spreadsheet data.\n\n";
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;
-  
+
   if (params.columnTypes) {
     prompt += `Expected column types: ${JSON.stringify(params.columnTypes)}\n\n`;
   }
-  
+
   prompt += `Respond with a JSON array of issues:
 [{
   "type": "missing_value|duplicate|inconsistent_format|invalid_type|outlier|typo",
@@ -499,15 +523,15 @@ export async function identifyDataIssues(
   "description": "What's wrong",
   "suggestedFix": "How to fix it"
 }]`;
-  
+
   const result = await server.createMessage({
     messages: [createUserMessage(prompt)],
     systemPrompt: SAMPLING_PROMPTS.dataCleaning,
-    maxTokens: 1500
+    maxTokens: 1500,
   });
-  
+
   const text = extractTextFromResult(result);
-  
+
   try {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
@@ -516,7 +540,7 @@ export async function identifyDataIssues(
   } catch {
     // Fallback
   }
-  
+
   return [];
 }
 
@@ -529,96 +553,98 @@ export async function identifyDataIssues(
  */
 export const AGENTIC_TOOLS: Tool[] = [
   {
-    name: 'read_range',
-    description: 'Read values from a spreadsheet range',
+    name: "read_range",
+    description: "Read values from a spreadsheet range",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        range: { 
-          type: 'string', 
-          description: 'A1 notation range (e.g., "Sheet1!A1:C10")' 
-        }
-      },
-      required: ['range']
-    }
-  },
-  {
-    name: 'write_cell',
-    description: 'Write a value to a specific cell',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        cell: { type: 'string', description: 'Cell address (e.g., "A1")' },
-        value: { type: 'string', description: 'Value to write' }
-      },
-      required: ['cell', 'value']
-    }
-  },
-  {
-    name: 'find_issues',
-    description: 'Find data quality issues in a range',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        range: { type: 'string', description: 'Range to analyze' },
-        issueTypes: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Types of issues to look for'
-        }
-      },
-      required: ['range']
-    }
-  },
-  {
-    name: 'apply_fix',
-    description: 'Apply a fix to a data issue',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        cell: { type: 'string', description: 'Cell to fix' },
-        oldValue: { type: 'string', description: 'Current value' },
-        newValue: { type: 'string', description: 'Corrected value' },
-        reason: { type: 'string', description: 'Why this fix is needed' }
-      },
-      required: ['cell', 'oldValue', 'newValue', 'reason']
-    }
-  },
-  {
-    name: 'add_validation',
-    description: 'Add data validation to a range',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        range: { type: 'string', description: 'Range to validate' },
-        validationType: { 
-          type: 'string', 
-          enum: ['list', 'number', 'date', 'text_length', 'custom'],
-          description: 'Type of validation' 
+        range: {
+          type: "string",
+          description: 'A1 notation range (e.g., "Sheet1!A1:C10")',
         },
-        criteria: { type: 'string', description: 'Validation criteria' }
       },
-      required: ['range', 'validationType', 'criteria']
-    }
+      required: ["range"],
+    },
   },
   {
-    name: 'report_complete',
-    description: 'Report that the task is complete',
+    name: "write_cell",
+    description: "Write a value to a specific cell",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        summary: { type: 'string', description: 'Summary of actions taken' },
-        changesCount: { type: 'number', description: 'Number of changes made' }
+        cell: { type: "string", description: 'Cell address (e.g., "A1")' },
+        value: { type: "string", description: "Value to write" },
       },
-      required: ['summary', 'changesCount']
-    }
-  }
+      required: ["cell", "value"],
+    },
+  },
+  {
+    name: "find_issues",
+    description: "Find data quality issues in a range",
+    inputSchema: {
+      type: "object",
+      properties: {
+        range: { type: "string", description: "Range to analyze" },
+        issueTypes: {
+          type: "array",
+          items: { type: "string" },
+          description: "Types of issues to look for",
+        },
+      },
+      required: ["range"],
+    },
+  },
+  {
+    name: "apply_fix",
+    description: "Apply a fix to a data issue",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cell: { type: "string", description: "Cell to fix" },
+        oldValue: { type: "string", description: "Current value" },
+        newValue: { type: "string", description: "Corrected value" },
+        reason: { type: "string", description: "Why this fix is needed" },
+      },
+      required: ["cell", "oldValue", "newValue", "reason"],
+    },
+  },
+  {
+    name: "add_validation",
+    description: "Add data validation to a range",
+    inputSchema: {
+      type: "object",
+      properties: {
+        range: { type: "string", description: "Range to validate" },
+        validationType: {
+          type: "string",
+          enum: ["list", "number", "date", "text_length", "custom"],
+          description: "Type of validation",
+        },
+        criteria: { type: "string", description: "Validation criteria" },
+      },
+      required: ["range", "validationType", "criteria"],
+    },
+  },
+  {
+    name: "report_complete",
+    description: "Report that the task is complete",
+    inputSchema: {
+      type: "object",
+      properties: {
+        summary: { type: "string", description: "Summary of actions taken" },
+        changesCount: { type: "number", description: "Number of changes made" },
+      },
+      required: ["summary", "changesCount"],
+    },
+  },
 ];
 
 /**
  * Check if client supports agentic operations (sampling with tools)
  */
-export function supportsAgenticOperations(clientCapabilities: ClientCapabilities | undefined): boolean {
+export function supportsAgenticOperations(
+  clientCapabilities: ClientCapabilities | undefined,
+): boolean {
   return !!clientCapabilities?.sampling?.tools;
 }
 
@@ -628,12 +654,10 @@ export function supportsAgenticOperations(clientCapabilities: ClientCapabilities
 export function createAgenticRequest(
   task: string,
   context: string,
-  tools: Tool[] = AGENTIC_TOOLS
-): CreateMessageRequest['params'] {
+  tools: Tool[] = AGENTIC_TOOLS,
+): CreateMessageRequest["params"] {
   return {
-    messages: [
-      createUserMessage(`${task}\n\nContext:\n${context}`)
-    ],
+    messages: [createUserMessage(`${task}\n\nContext:\n${context}`)],
     systemPrompt: `You are an autonomous spreadsheet assistant. Use the available tools to complete the task.
 Work step by step:
 1. First, understand the current state
@@ -644,8 +668,8 @@ Work step by step:
 
 Be careful with destructive operations. Always explain your reasoning.`,
     tools,
-    toolChoice: { mode: 'auto' },
-    maxTokens: 2000
+    toolChoice: { mode: "auto" },
+    maxTokens: 2000,
   };
 }
 
@@ -658,5 +682,5 @@ export type {
   CreateMessageResult,
   SamplingMessage,
   Tool,
-  ModelPreferences
+  ModelPreferences,
 };

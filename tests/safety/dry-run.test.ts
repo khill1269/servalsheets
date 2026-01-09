@@ -77,13 +77,12 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - write action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        request: {
-          action: 'write',
-          spreadsheetId: 'test-spreadsheet-id',
-          range: { a1: 'Sheet1!A1' },
-          values: [['Test Value']],
-          safety: { dryRun: true },
-        },
+        action: 'write',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1' },
+        values: [['Test Value']],
+        safety: { dryRun: true, autoSnapshot: false },
+        includeValuesInResponse: false,
       });
 
       // API should NOT be called
@@ -110,13 +109,12 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'write',
           spreadsheetId: 'test-spreadsheet-id',
           range: { a1: 'Sheet1!A1' },
           values: [['Test Value']],
-          safety: { dryRun: false },
-        },
+          safety: { dryRun: false, autoSnapshot: false },
+          includeValuesInResponse: false,
       });
 
       // API should be called
@@ -141,12 +139,11 @@ describe('Dry Run Safety', () => {
       });
 
       await handler.handle({
-        request: {
-          action: 'write',
-          spreadsheetId: 'test-spreadsheet-id',
-          range: { a1: 'Sheet1!A1' },
-          values: [['Test Value']],
-        },
+        action: 'write',
+        spreadsheetId: 'test-spreadsheet-id',
+        range: { a1: 'Sheet1!A1' },
+        values: [['Test Value']],
+        includeValuesInResponse: false,
       });
 
       // API should be called when no safety options
@@ -157,13 +154,11 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - append action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        request: {
           action: 'append',
           spreadsheetId: 'test-spreadsheet-id',
           range: { a1: 'Sheet1!A1' },
           values: [['Row 1'], ['Row 2'], ['Row 3']],
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true, autoSnapshot: false },
       });
 
       // API should NOT be called
@@ -183,12 +178,10 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - clear action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        request: {
           action: 'clear',
           spreadsheetId: 'test-spreadsheet-id',
           range: { a1: 'Sheet1!A1:Z100' },
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true, autoSnapshot: false },
       });
 
       // API should NOT be called
@@ -207,15 +200,14 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - batch_write action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        request: {
           action: 'batch_write',
           spreadsheetId: 'test-spreadsheet-id',
           data: [
             { range: { a1: 'Sheet1!A1' }, values: [['A']] },
             { range: { a1: 'Sheet1!B1' }, values: [['B']] },
           ],
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true, autoSnapshot: false },
+          includeValuesInResponse: false,
       });
 
       // API should NOT be called
@@ -234,15 +226,13 @@ describe('Dry Run Safety', () => {
   describe('ValuesHandler - batch_clear action', () => {
     it('should NOT call API when dryRun=true', async () => {
       const result = await handler.handle({
-        request: {
           action: 'batch_clear',
           spreadsheetId: 'test-spreadsheet-id',
           ranges: [
             { a1: 'Sheet1!A1:A10' },
             { a1: 'Sheet1!B1:B10' },
           ],
-          safety: { dryRun: true },
-        },
+          safety: { dryRun: true, autoSnapshot: false },
       });
 
       // API should NOT be called
@@ -268,13 +258,13 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'replace',
           spreadsheetId: 'test-spreadsheet-id',
           find: 'foo',
           replacement: 'replaced',
-          safety: { dryRun: true },
-        },
+          matchCase: false,
+          matchEntireCell: false,
+          safety: { dryRun: true, autoSnapshot: false },
       });
 
       // batchUpdate (which does the replace) should NOT be called
@@ -301,12 +291,10 @@ describe('Dry Run Safety', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'read',
           spreadsheetId: 'test-spreadsheet-id',
           range: { a1: 'Sheet1!A1:B2' },
           // Note: read doesn't have safety options in schema
-        },
       });
 
       // API should be called

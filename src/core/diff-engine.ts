@@ -1,20 +1,20 @@
 /**
  * ServalSheets - Diff Engine
- * 
+ *
  * Tiered diffing for mutation summaries
  * Tighten-up #3: Don't try to diff everything
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { createHash } from 'crypto';
-import type { DiffResult, DiffOptions, CellValue } from '../schemas/shared.js';
-import PQueue from 'p-queue';
+import type { sheets_v4 } from "googleapis";
+import { createHash } from "crypto";
+import type { DiffResult, DiffOptions, CellValue } from "../schemas/shared.js";
+import PQueue from "p-queue";
 
 type CellChangeRecord = {
   cell: string;
   before?: CellValue;
   after?: CellValue;
-  type: 'value' | 'format' | 'formula' | 'note';
+  type: "value" | "format" | "formula" | "note";
 };
 
 type SheetSamples = {
@@ -42,14 +42,14 @@ export interface SheetState {
 
 export interface DiffEngineOptions {
   sheetsApi: sheets_v4.Sheets;
-  defaultTier?: 'METADATA' | 'SAMPLE' | 'FULL';
+  defaultTier?: "METADATA" | "SAMPLE" | "FULL";
   sampleSize?: number;
   maxFullDiffCells?: number;
   blockSize?: number;
 }
 
 export interface CaptureStateOptions {
-  tier?: 'METADATA' | 'SAMPLE' | 'FULL';
+  tier?: "METADATA" | "SAMPLE" | "FULL";
   sampleSize?: number;
   maxFullDiffCells?: number;
 }
@@ -59,20 +59,20 @@ export interface CaptureStateOptions {
  */
 export class DiffEngine {
   private sheetsApi: sheets_v4.Sheets;
-  private defaultTier: 'METADATA' | 'SAMPLE' | 'FULL';
+  private defaultTier: "METADATA" | "SAMPLE" | "FULL";
   private sampleSize: number;
   private maxFullDiffCells: number;
   private blockSize: number;
 
   constructor(options: DiffEngineOptions) {
     this.sheetsApi = options.sheetsApi;
-    this.defaultTier = options.defaultTier ?? 'SAMPLE';
+    this.defaultTier = options.defaultTier ?? "SAMPLE";
     this.sampleSize = options.sampleSize ?? 10;
     this.maxFullDiffCells = options.maxFullDiffCells ?? 5000;
     this.blockSize = options.blockSize ?? 1000;
   }
 
-  getDefaultTier(): 'METADATA' | 'SAMPLE' | 'FULL' {
+  getDefaultTier(): "METADATA" | "SAMPLE" | "FULL" {
     return this.defaultTier;
   }
 
@@ -83,7 +83,7 @@ export class DiffEngine {
    */
   async captureState(
     spreadsheetId: string,
-    options?: CaptureStateOptions
+    options?: CaptureStateOptions,
   ): Promise<SpreadsheetState> {
     const targetTier = options?.tier ?? this.defaultTier;
     const sampleSize = options?.sampleSize ?? this.sampleSize;
@@ -94,98 +94,120 @@ export class DiffEngine {
       includeGridData: false,
     });
 
-    const shouldCaptureSamples = targetTier !== 'METADATA';
-    const shouldCaptureFull = targetTier === 'FULL';
+    const shouldCaptureSamples = targetTier !== "METADATA";
+    const shouldCaptureFull = targetTier === "FULL";
 
     // Create queue to limit concurrent sheet fetches (prevent OOM on large spreadsheets)
-    const concurrency = parseInt(process.env['DIFF_ENGINE_CONCURRENCY'] ?? '10');
+    const concurrency = parseInt(
+      process.env["DIFF_ENGINE_CONCURRENCY"] ?? "10",
+    );
     const queue = new PQueue({ concurrency });
 
     // Parallelize data fetching for all sheets with concurrency limit
     const sheets: SheetState[] = await Promise.all(
-      (response.data.sheets ?? []).map((sheet) => queue.add(async () => {
-        const props = sheet.properties;
-        if (!props) {
-          return null;
-        }
+      (response.data.sheets ?? []).map((sheet) =>
+        queue.add(async () => {
+          const props = sheet.properties;
+          if (!props) {
+            return null;
+          }
 
-        const escapedTitle = (props.title ?? '').replace(/'/g, "''");
-        const rowCount = props.gridProperties?.rowCount ?? 0;
-        const columnCount = props.gridProperties?.columnCount ?? 0;
+          const escapedTitle = (props.title ?? "").replace(/'/g, "''");
+          const rowCount = props.gridProperties?.rowCount ?? 0;
+          const columnCount = props.gridProperties?.columnCount ?? 0;
 
-        // Fetch sample data and full values in parallel for this sheet
-        const [sampleData, values] = await Promise.all([
-          // Sample data fetch
-          (async (): Promise<SheetSamples> => {
-            if (!shouldCaptureSamples) {
-              return { firstRows: [], lastRows: [] };
-            }
+          // Fetch sample data and full values in parallel for this sheet
+          const [sampleData, values] = await Promise.all([
+            // Sample data fetch
+            (async (): Promise<SheetSamples> => {
+              if (!shouldCaptureSamples) {
+                return { firstRows: [], lastRows: [] };
+              }
 
-            const firstRange = `'${escapedTitle}'!A1:ZZ${sampleSize}`;
-            const firstRowsPromise = this.getRangeValues(spreadsheetId, firstRange);
+              const firstRange = `'${escapedTitle}'!A1:ZZ${sampleSize}`;
+              const firstRowsPromise = this.getRangeValues(
+                spreadsheetId,
+                firstRange,
+              );
 
-            const lastRowsPromise = rowCount > sampleSize * 2
-              ? this.getRangeValues(
-                  spreadsheetId,
-                  `'${escapedTitle}'!A${rowCount - sampleSize}:ZZ${rowCount}`
-                )
-              : Promise.resolve([]);
+              const lastRowsPromise =
+                rowCount > sampleSize * 2
+                  ? this.getRangeValues(
+                      spreadsheetId,
+                      `'${escapedTitle}'!A${rowCount - sampleSize}:ZZ${rowCount}`,
+                    )
+                  : Promise.resolve([]);
 
-            const [firstRows, lastRows] = await Promise.all([firstRowsPromise, lastRowsPromise]);
-            return { firstRows, lastRows };
-          })(),
-          // Full values fetch
-          (async (): Promise<CellValue[][] | undefined> => {
-            if (!shouldCaptureFull) {
-              return undefined;
-            }
+              const [firstRows, lastRows] = await Promise.all([
+                firstRowsPromise,
+                lastRowsPromise,
+              ]);
+              return { firstRows, lastRows };
+            })(),
+            // Full values fetch
+            (async (): Promise<CellValue[][] | undefined> => {
+              if (!shouldCaptureFull) {
+                return undefined;
+              }
 
-            const maxRows = Math.min(
-              rowCount,
-              Math.ceil(maxFullDiffCells / Math.max(columnCount, 1))
-            );
-            // Match SAMPLE range limit (ZZ = column 702) instead of capping at Z (column 26)
-            const endCol = this.columnIndexToLetter(Math.min(Math.max(columnCount - 1, 0), 701));
-            const fullRange = `'${escapedTitle}'!A1:${endCol}${maxRows}`;
-            return this.getRangeValues(spreadsheetId, fullRange);
-          })(),
-        ]);
+              const maxRows = Math.min(
+                rowCount,
+                Math.ceil(maxFullDiffCells / Math.max(columnCount, 1)),
+              );
+              // Match SAMPLE range limit (ZZ = column 702) instead of capping at Z (column 26)
+              const endCol = this.columnIndexToLetter(
+                Math.min(Math.max(columnCount - 1, 0), 701),
+              );
+              const fullRange = `'${escapedTitle}'!A1:${endCol}${maxRows}`;
+              return this.getRangeValues(spreadsheetId, fullRange);
+            })(),
+          ]);
 
-        // Compute sheet checksum from dimensions and title
-        const sheetMetadata = `${props.sheetId}-${props.title}-${rowCount}-${columnCount}`;
-        const sheetChecksum = createHash('md5').update(sheetMetadata).digest('hex');
+          // Compute sheet checksum from dimensions and title
+          const sheetMetadata = `${props.sheetId}-${props.title}-${rowCount}-${columnCount}`;
+          const sheetChecksum = createHash("md5")
+            .update(sheetMetadata)
+            .digest("hex");
 
-        // Compute block checksums if we have values (for faster diff)
-        const blockChecksums = values ? this.computeBlockChecksums(values) : undefined;
+          // Compute block checksums if we have values (for faster diff)
+          const blockChecksums = values
+            ? this.computeBlockChecksums(values)
+            : undefined;
 
-        const sheetState: SheetState = {
-          sheetId: props.sheetId ?? 0,
-          title: props.title ?? '',
-          rowCount,
-          columnCount,
-          checksum: sheetChecksum,
-          blockChecksums,
-          sampleData: sampleData.firstRows.length || sampleData.lastRows.length ? sampleData : undefined,
-          values,
-        };
+          const sheetState: SheetState = {
+            sheetId: props.sheetId ?? 0,
+            title: props.title ?? "",
+            rowCount,
+            columnCount,
+            checksum: sheetChecksum,
+            blockChecksums,
+            sampleData:
+              sampleData.firstRows.length || sampleData.lastRows.length
+                ? sampleData
+                : undefined,
+            values,
+          };
 
-        return sheetState;
-      }))
-    ).then(results => results.filter((s): s is SheetState => s !== null));
+          return sheetState;
+        }),
+      ),
+    ).then((results) => results.filter((s): s is SheetState => s !== null));
 
     // Compute overall checksum from sheet metadata
-    const stateString = JSON.stringify(sheets.map(s => ({
-      id: s.sheetId,
-      title: s.title,
-      rows: s.rowCount,
-      cols: s.columnCount,
-    })));
+    const stateString = JSON.stringify(
+      sheets.map((s) => ({
+        id: s.sheetId,
+        title: s.title,
+        rows: s.rowCount,
+        cols: s.columnCount,
+      })),
+    );
 
     return {
       timestamp: new Date().toISOString(),
       spreadsheetId,
       sheets,
-      checksum: createHash('md5').update(stateString).digest('hex'),
+      checksum: createHash("md5").update(stateString).digest("hex"),
     };
   }
 
@@ -196,19 +218,19 @@ export class DiffEngine {
    */
   async captureRangeState(
     spreadsheetId: string,
-    range: string
+    range: string,
   ): Promise<{ checksum: string; rowCount: number; values?: CellValue[][] }> {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
       range,
-      valueRenderOption: 'UNFORMATTED_VALUE',
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
 
     const values = response.data.values ?? [];
     const valuesString = JSON.stringify(values);
 
     return {
-      checksum: createHash('md5').update(valuesString).digest('hex'),
+      checksum: createHash("md5").update(valuesString).digest("hex"),
       rowCount: values.length,
       values: values as CellValue[][],
     };
@@ -242,7 +264,7 @@ export class DiffEngine {
   captureStateFromResponse(
     spreadsheetId: string,
     sheetsResponse: sheets_v4.Schema$Spreadsheet,
-    options?: CaptureStateOptions
+    options?: CaptureStateOptions,
   ): SpreadsheetState {
     const targetTier = options?.tier ?? this.defaultTier;
     const sampleSize = options?.sampleSize ?? this.sampleSize;
@@ -258,45 +280,62 @@ export class DiffEngine {
         let values: CellValue[][] | undefined;
         let sampleData: SheetSamples | undefined;
 
-        if (sheet.data && sheet.data.length > 0 && sheet.data[0] && targetTier === 'FULL') {
+        if (
+          sheet.data &&
+          sheet.data.length > 0 &&
+          sheet.data[0] &&
+          targetTier === "FULL"
+        ) {
           // Extract cell values from RowData
           values = (sheet.data[0].rowData ?? []).map((rowData) =>
-            (rowData.values ?? []).map((cellData) =>
-              cellData.effectiveValue?.numberValue ??
-              cellData.effectiveValue?.stringValue ??
-              cellData.effectiveValue?.boolValue ??
-              cellData.formattedValue ??
-              null
-            )
+            (rowData.values ?? []).map(
+              (cellData) =>
+                cellData.effectiveValue?.numberValue ??
+                cellData.effectiveValue?.stringValue ??
+                cellData.effectiveValue?.boolValue ??
+                cellData.formattedValue ??
+                null,
+            ),
           );
-        } else if (sheet.data && sheet.data.length > 0 && sheet.data[0] && targetTier === 'SAMPLE') {
+        } else if (
+          sheet.data &&
+          sheet.data.length > 0 &&
+          sheet.data[0] &&
+          targetTier === "SAMPLE"
+        ) {
           // Extract sample rows from gridData
           const allRows = (sheet.data[0].rowData ?? []).map((rowData) =>
-            (rowData.values ?? []).map((cellData) =>
-              cellData.effectiveValue?.numberValue ??
-              cellData.effectiveValue?.stringValue ??
-              cellData.effectiveValue?.boolValue ??
-              cellData.formattedValue ??
-              null
-            )
+            (rowData.values ?? []).map(
+              (cellData) =>
+                cellData.effectiveValue?.numberValue ??
+                cellData.effectiveValue?.stringValue ??
+                cellData.effectiveValue?.boolValue ??
+                cellData.formattedValue ??
+                null,
+            ),
           );
 
           const firstRows = allRows.slice(0, sampleSize);
-          const lastRows = rowCount > sampleSize * 2
-            ? allRows.slice(Math.max(0, rowCount - sampleSize))
-            : [];
+          const lastRows =
+            rowCount > sampleSize * 2
+              ? allRows.slice(Math.max(0, rowCount - sampleSize))
+              : [];
 
           sampleData = { firstRows, lastRows };
         }
 
         // Compute checksums
         const sheetMetadata = `${props.sheetId}-${props.title}-${rowCount}-${columnCount}`;
-        const sheetChecksum = createHash('md5').update(sheetMetadata).digest('hex');
-        const blockChecksums = values ? this.computeBlockChecksums(values) : undefined;
+        const sheetChecksum = createHash("md5")
+          .update(sheetMetadata)
+          .digest("hex");
+        const blockChecksums = values
+          ? this.computeBlockChecksums(values)
+          : undefined;
 
         return {
           sheetId: props.sheetId ?? 0,
-          title: props.title ?? '',
+          title: props.title ?? "",
           rowCount,
           columnCount,
           checksum: sheetChecksum,
@@ -313,14 +352,14 @@ export class DiffEngine {
         title: s.title,
         rows: s.rowCount,
         cols: s.columnCount,
-      }))
+      })),
     );
 
     return {
       timestamp: new Date().toISOString(),
       spreadsheetId,
       sheets,
-      checksum: createHash('md5').update(stateString).digest('hex'),
+      checksum: createHash("md5").update(stateString).digest("hex"),
     };
   }
 
@@ -351,13 +390,13 @@ export class DiffEngine {
    */
   captureRangeStateFromResponse(
     range: string,
-    updatedData?: sheets_v4.Schema$ValueRange
+    updatedData?: sheets_v4.Schema$ValueRange,
   ): { checksum: string; rowCount: number; values?: CellValue[][] } {
     const values = (updatedData?.values ?? []) as CellValue[][];
     const valuesString = JSON.stringify(values);
 
     return {
-      checksum: createHash('md5').update(valuesString).digest('hex'),
+      checksum: createHash("md5").update(valuesString).digest("hex"),
       rowCount: values.length,
       values,
     };
@@ -369,14 +408,14 @@ export class DiffEngine {
   async diff(
     before: SpreadsheetState,
     after: SpreadsheetState,
-    options?: DiffOptions
+    options?: DiffOptions,
   ): Promise<DiffResult> {
     const tier = this.selectTier(before, after, options);
 
     switch (tier) {
-      case 'FULL':
+      case "FULL":
         return await this.fullDiff(before, after);
-      case 'SAMPLE':
+      case "SAMPLE":
         return await this.sampleDiff(before, after, options?.sampleSize);
       default:
         return this.metadataDiff(before, after);
@@ -386,14 +425,17 @@ export class DiffEngine {
   /**
    * Metadata-only diff (Tier 1)
    */
-  private metadataDiff(before: SpreadsheetState, after: SpreadsheetState): DiffResult {
+  private metadataDiff(
+    before: SpreadsheetState,
+    after: SpreadsheetState,
+  ): DiffResult {
     const beforeRows = before.sheets.reduce((sum, s) => sum + s.rowCount, 0);
     const afterRows = after.sheets.reduce((sum, s) => sum + s.rowCount, 0);
     const beforeCols = before.sheets.reduce((sum, s) => sum + s.columnCount, 0);
     const afterCols = after.sheets.reduce((sum, s) => sum + s.columnCount, 0);
 
     return {
-      tier: 'METADATA',
+      tier: "METADATA",
       before: {
         timestamp: before.timestamp,
         rowCount: beforeRows,
@@ -419,7 +461,7 @@ export class DiffEngine {
   private async sampleDiff(
     before: SpreadsheetState,
     after: SpreadsheetState,
-    sampleSize: number = this.sampleSize
+    sampleSize: number = this.sampleSize,
   ): Promise<DiffResult> {
     const samples: {
       firstRows: CellChangeRecord[];
@@ -434,13 +476,17 @@ export class DiffEngine {
     const changedRows = new Set<number>();
 
     for (const sheet of after.sheets) {
-      const beforeSheet = before.sheets.find(s => s.sheetId === sheet.sheetId);
+      const beforeSheet = before.sheets.find(
+        (s) => s.sheetId === sheet.sheetId,
+      );
       const escapedTitle = sheet.title.replace(/'/g, "''");
 
-      const afterFirst = sheet.sampleData?.firstRows ?? await this.getRangeValues(
-        after.spreadsheetId,
-        `'${escapedTitle}'!A1:ZZ${sampleSize}`
-      );
+      const afterFirst =
+        sheet.sampleData?.firstRows ??
+        (await this.getRangeValues(
+          after.spreadsheetId,
+          `'${escapedTitle}'!A1:ZZ${sampleSize}`,
+        ));
       const beforeFirst = beforeSheet?.sampleData?.firstRows ?? [];
       cellsSampled += this.countCells(afterFirst);
       this.collectSampleChanges(
@@ -449,15 +495,17 @@ export class DiffEngine {
         beforeFirst,
         0,
         samples.firstRows,
-        changedRows
+        changedRows,
       );
 
       const shouldCheckLast = sheet.rowCount > sampleSize * 2;
       if (shouldCheckLast) {
-        const afterLast = sheet.sampleData?.lastRows ?? await this.getRangeValues(
-          after.spreadsheetId,
-          `'${escapedTitle}'!A${sheet.rowCount - sampleSize}:ZZ${sheet.rowCount}`
-        );
+        const afterLast =
+          sheet.sampleData?.lastRows ??
+          (await this.getRangeValues(
+            after.spreadsheetId,
+            `'${escapedTitle}'!A${sheet.rowCount - sampleSize}:ZZ${sheet.rowCount}`,
+          ));
         const beforeLast = beforeSheet?.sampleData?.lastRows ?? [];
         const startRowIndex = sheet.rowCount - afterLast.length;
         cellsSampled += this.countCells(afterLast);
@@ -467,13 +515,13 @@ export class DiffEngine {
           beforeLast,
           startRowIndex,
           samples.lastRows,
-          changedRows
+          changedRows,
         );
       }
     }
 
     return {
-      tier: 'SAMPLE',
+      tier: "SAMPLE",
       samples,
       summary: {
         rowsChanged: changedRows.size,
@@ -488,7 +536,7 @@ export class DiffEngine {
    */
   private async fullDiff(
     before: SpreadsheetState,
-    after: SpreadsheetState
+    after: SpreadsheetState,
   ): Promise<DiffResult> {
     const changes: CellChangeRecord[] = [];
 
@@ -498,46 +546,66 @@ export class DiffEngine {
     const maxCells = this.maxFullDiffCells;
 
     // Create queue for parallel block processing
-    const concurrency = parseInt(process.env['DIFF_ENGINE_CONCURRENCY'] ?? '10');
+    const concurrency = parseInt(
+      process.env["DIFF_ENGINE_CONCURRENCY"] ?? "10",
+    );
     const queue = new PQueue({ concurrency });
 
     // Process sheets in parallel
     const sheetResults = await Promise.all(
-      after.sheets.map(afterSheet => queue.add(async () => {
-        if (cellsCompared >= maxCells) {
-          return { changes: [], cellsAdded: 0, cellsRemoved: 0, cellsCompared: 0 };
-        }
+      after.sheets.map((afterSheet) =>
+        queue.add(async () => {
+          if (cellsCompared >= maxCells) {
+            return {
+              changes: [],
+              cellsAdded: 0,
+              cellsRemoved: 0,
+              cellsCompared: 0,
+            };
+          }
 
-        const beforeSheet = before.sheets.find(s => s.sheetId === afterSheet.sheetId);
+          const beforeSheet = before.sheets.find(
+            (s) => s.sheetId === afterSheet.sheetId,
+          );
 
-        // OPTIMIZATION: Early termination if sheet checksums match
-        if (beforeSheet && afterSheet.checksum === beforeSheet.checksum) {
-          return { changes: [], cellsAdded: 0, cellsRemoved: 0, cellsCompared: 0 };
-        }
+          // OPTIMIZATION: Early termination if sheet checksums match
+          if (beforeSheet && afterSheet.checksum === beforeSheet.checksum) {
+            return {
+              changes: [],
+              cellsAdded: 0,
+              cellsRemoved: 0,
+              cellsCompared: 0,
+            };
+          }
 
-        const afterValues = await this.ensureValues(
-          afterSheet,
-          after.spreadsheetId,
-          maxCells - cellsCompared
-        );
-        const beforeValues = beforeSheet
-          ? await this.ensureValues(beforeSheet, before.spreadsheetId, maxCells - cellsCompared)
-          : [];
+          const afterValues = await this.ensureValues(
+            afterSheet,
+            after.spreadsheetId,
+            maxCells - cellsCompared,
+          );
+          const beforeValues = beforeSheet
+            ? await this.ensureValues(
+                beforeSheet,
+                before.spreadsheetId,
+                maxCells - cellsCompared,
+              )
+            : [];
 
-        // OPTIMIZATION: Use block checksums to identify changed regions
-        const changedBlocks = this.identifyChangedBlocks(
-          beforeSheet?.blockChecksums,
-          afterSheet.blockChecksums
-        );
+          // OPTIMIZATION: Use block checksums to identify changed regions
+          const changedBlocks = this.identifyChangedBlocks(
+            beforeSheet?.blockChecksums,
+            afterSheet.blockChecksums,
+          );
 
-        return this.diffSheetValues(
-          afterSheet.title,
-          afterValues,
-          beforeValues,
-          changedBlocks,
-          maxCells - cellsCompared
-        );
-      }))
+          return this.diffSheetValues(
+            afterSheet.title,
+            afterValues,
+            beforeValues,
+            changedBlocks,
+            maxCells - cellsCompared,
+          );
+        }),
+      ),
     );
 
     // Aggregate results from parallel processing
@@ -550,14 +618,16 @@ export class DiffEngine {
 
     // Check for removed sheets
     for (const beforeSheet of before.sheets) {
-      const stillExists = after.sheets.some(s => s.sheetId === beforeSheet.sheetId);
+      const stillExists = after.sheets.some(
+        (s) => s.sheetId === beforeSheet.sheetId,
+      );
       if (!stillExists) {
         cellsRemoved += beforeSheet.rowCount * beforeSheet.columnCount;
       }
     }
 
     return {
-      tier: 'FULL',
+      tier: "FULL",
       changes,
       summary: {
         cellsChanged: changes.length,
@@ -571,18 +641,24 @@ export class DiffEngine {
    * Convert column index to letter (0 = A, 25 = Z, 26 = AA)
    */
   private columnIndexToLetter(index: number): string {
-    let letter = '';
+    let letter = "";
     let temp = index + 1;
     while (temp > 0) {
       const mod = (temp - 1) % 26;
       letter = String.fromCharCode(65 + mod) + letter;
       temp = Math.floor((temp - 1) / 26);
     }
-    return letter || 'A';
+    return letter || "A";
   }
 
-  private formatCell(sheetTitle: string, colIndex: number, rowIndex: number): string {
-    const sheetPrefix = sheetTitle ? `'${sheetTitle.replace(/'/g, "''")}'!` : '';
+  private formatCell(
+    sheetTitle: string,
+    colIndex: number,
+    rowIndex: number,
+  ): string {
+    const sheetPrefix = sheetTitle
+      ? `'${sheetTitle.replace(/'/g, "''")}'!`
+      : "";
     return `${sheetPrefix}${this.columnIndexToLetter(colIndex)}${rowIndex + 1}`;
   }
 
@@ -592,28 +668,28 @@ export class DiffEngine {
   private selectTier(
     before: SpreadsheetState,
     after: SpreadsheetState,
-    options?: DiffOptions
-  ): 'METADATA' | 'SAMPLE' | 'FULL' {
+    options?: DiffOptions,
+  ): "METADATA" | "SAMPLE" | "FULL" {
     const requestedTier = options?.tier ?? this.defaultTier;
     const maxFull = options?.maxFullDiffCells ?? this.maxFullDiffCells;
-    
+
     // Estimate total cells
     const beforeCells = before.sheets.reduce(
       (sum, s) => sum + s.rowCount * s.columnCount,
-      0
+      0,
     );
     const afterCells = after.sheets.reduce(
       (sum, s) => sum + s.rowCount * s.columnCount,
-      0
+      0,
     );
     const maxCells = Math.max(beforeCells, afterCells);
 
     // Auto-downgrade based on size
-    if (requestedTier === 'FULL' && maxCells > maxFull) {
-      return 'SAMPLE';
+    if (requestedTier === "FULL" && maxCells > maxFull) {
+      return "SAMPLE";
     }
-    if (requestedTier === 'SAMPLE' && maxCells > maxFull * 10) {
-      return 'METADATA';
+    if (requestedTier === "SAMPLE" && maxCells > maxFull * 10) {
+      return "METADATA";
     }
 
     return requestedTier;
@@ -624,7 +700,7 @@ export class DiffEngine {
    */
   private estimateChangedCells(
     before: SpreadsheetState,
-    after: SpreadsheetState
+    after: SpreadsheetState,
   ): number {
     if (before.checksum === after.checksum) {
       return 0;
@@ -633,13 +709,13 @@ export class DiffEngine {
     // Rough estimate: if checksums differ, assume some percentage changed
     const totalCells = after.sheets.reduce(
       (sum, s) => sum + s.rowCount * s.columnCount,
-      0
+      0,
     );
-    
+
     // Check for structural changes
     const beforeSheets = before.sheets.length;
     const afterSheets = after.sheets.length;
-    
+
     if (beforeSheets !== afterSheets) {
       // Major structural change
       return totalCells;
@@ -651,13 +727,13 @@ export class DiffEngine {
 
   private async getRangeValues(
     spreadsheetId: string,
-    range: string
+    range: string,
   ): Promise<CellValue[][]> {
     try {
       const response = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId,
         range,
-        valueRenderOption: 'UNFORMATTED_VALUE',
+        valueRenderOption: "UNFORMATTED_VALUE",
       });
       return (response.data.values ?? []) as CellValue[][];
     } catch {
@@ -671,7 +747,7 @@ export class DiffEngine {
     beforeValues: CellValue[][],
     rowOffset: number,
     bucket: CellChangeRecord[],
-    changedRows: Set<number>
+    changedRows: Set<number>,
   ): void {
     for (let row = 0; row < afterValues.length; row++) {
       const afterRow = afterValues[row] ?? [];
@@ -688,7 +764,7 @@ export class DiffEngine {
             cell: this.formatCell(sheetTitle, col, rowOffset + row),
             before: beforeVal,
             after: afterVal,
-            type: 'value',
+            type: "value",
           });
         }
       }
@@ -706,7 +782,7 @@ export class DiffEngine {
   private async ensureValues(
     sheet: SheetState,
     spreadsheetId: string,
-    remainingBudget: number
+    remainingBudget: number,
   ): Promise<CellValue[][]> {
     if (sheet.values) {
       return sheet.values;
@@ -716,9 +792,11 @@ export class DiffEngine {
     const columnCount = sheet.columnCount;
     const maxRows = Math.min(
       rowCount,
-      Math.ceil(remainingBudget / Math.max(columnCount, 1))
+      Math.ceil(remainingBudget / Math.max(columnCount, 1)),
     );
-    const endCol = this.columnIndexToLetter(Math.min(Math.max(columnCount - 1, 0), 25));
+    const endCol = this.columnIndexToLetter(
+      Math.min(Math.max(columnCount - 1, 0), 25),
+    );
     const range = `'${sheet.title.replace(/'/g, "''")}'!A1:${endCol}${Math.max(maxRows, 1)}`;
 
     const values = await this.getRangeValues(spreadsheetId, range);
@@ -738,7 +816,7 @@ export class DiffEngine {
       const blockEnd = Math.min(i + blockSize, values.length);
       const block = values.slice(i, blockEnd);
       const blockString = JSON.stringify(block);
-      const checksum = createHash('md5').update(blockString).digest('hex');
+      const checksum = createHash("md5").update(blockString).digest("hex");
       checksums.push(checksum);
     }
 
@@ -751,7 +829,7 @@ export class DiffEngine {
    */
   private identifyChangedBlocks(
     beforeChecksums?: string[],
-    afterChecksums?: string[]
+    afterChecksums?: string[],
   ): Set<number> | null {
     // If either is missing, assume all blocks changed
     if (!beforeChecksums || !afterChecksums) {
@@ -783,7 +861,7 @@ export class DiffEngine {
     afterValues: CellValue[][],
     beforeValues: CellValue[][],
     changedBlocks: Set<number> | null,
-    maxCells: number
+    maxCells: number,
   ): {
     changes: CellChangeRecord[];
     cellsAdded: number;
@@ -824,7 +902,7 @@ export class DiffEngine {
             cell: this.formatCell(sheetTitle, col, row),
             before: beforeVal,
             after: afterVal,
-            type: 'value',
+            type: "value",
           });
         }
 

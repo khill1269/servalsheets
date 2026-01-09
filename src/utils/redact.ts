@@ -9,111 +9,123 @@
  */
 
 /**
- * Field names that contain sensitive data
+ * Field names that contain sensitive data (all lowercase for case-insensitive matching)
  * Used for object key-based redaction
  */
 export const SENSITIVE_FIELD_NAMES = new Set([
   // OAuth & Authentication
-  'access_token',
-  'accessToken',
-  'refresh_token',
-  'refreshToken',
-  'id_token',
-  'idToken',
-  'bearer',
-  'authorization',
-  'auth',
-  'token',
-  'jwt',
+  "access_token",
+  "accesstoken",
+  "refresh_token",
+  "refreshtoken",
+  "id_token",
+  "idtoken",
+  "bearer",
+  "authorization",
+  "auth",
+  "token",
+  "jwt",
 
   // API Keys & Secrets
-  'api_key',
-  'apiKey',
-  'apikey',
-  'client_secret',
-  'clientSecret',
-  'client_id', // Debatable, but safer to redact
-  'clientId',
-  'secret',
-  'private_key',
-  'privateKey',
+  "api_key",
+  "apikey",
+  "client_secret",
+  "clientsecret",
+  "client_id",
+  "clientid",
+  "secret",
+  "private_key",
+  "privatekey",
 
   // Credentials
-  'password',
-  'passwd',
-  'pwd',
-  'credentials',
-  'creds',
+  "password",
+  "passwd",
+  "pwd",
+  "credentials",
+  "creds",
 
   // Session & Cookies
-  'session',
-  'sessionid',
-  'session_id',
-  'cookie',
-  'csrf',
-  'xsrf',
+  "session",
+  "sessionid",
+  "session_id",
+  "cookie",
+  "csrf",
+  "xsrf",
 
   // Other sensitive
-  'ssn',
-  'social_security',
-  'credit_card',
-  'creditcard',
-  'cvv',
-  'pin',
+  "ssn",
+  "social_security",
+  "socialsecurity",
+  "credit_card",
+  "creditcard",
+  "cvv",
+  "pin",
 ]);
 
 /**
  * Patterns for detecting and redacting sensitive strings
+ * IMPORTANT: Order matters! Specific patterns should come before generic ones.
  */
 export const SENSITIVE_STRING_PATTERNS = [
-  // Bearer tokens (Authorization: Bearer ...)
+  // 1. Google API Keys (AIza...) - MUST come before generic patterns
+  // Real keys are 35 chars after AIza, but we use 6+ to catch truncated keys in tests/logs
+  {
+    pattern: /AIza[A-Za-z0-9_-]{6,}/g,
+    replacement: "AIza[REDACTED]",
+    description: "Google API Key",
+  },
+
+  // 2. Google OAuth access tokens (ya29.xxx format)
+  {
+    pattern: /ya29\.[A-Za-z0-9_-]+/g,
+    replacement: "[REDACTED]",
+    description: "Google OAuth access token",
+  },
+
+  // 3. Bearer tokens (Authorization: Bearer ...)
   {
     pattern: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
-    replacement: 'Bearer [REDACTED]',
-    description: 'OAuth Bearer token',
+    replacement: "Bearer [REDACTED]",
+    description: "OAuth Bearer token",
   },
 
-  // Google API Keys (AIza...)
-  {
-    pattern: /AIza[A-Za-z0-9_-]{35}/g,
-    replacement: 'AIza[REDACTED]',
-    description: 'Google API Key',
-  },
-
-  // JWT tokens (eyJ...eyJ...signature)
+  // 4. JWT tokens (eyJ...eyJ...signature)
   {
     pattern: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
-    replacement: 'eyJ[REDACTED]',
-    description: 'JWT token',
+    replacement: "eyJ[REDACTED]",
+    description: "JWT token",
   },
 
-  // URLs with tokens/keys in query params
-  {
-    pattern: /([?&])(access_token|token|key|apikey|api_key|secret|password|pwd)=([^&\s]+)/gi,
-    replacement: '$1$2=[REDACTED]',
-    description: 'URL query parameter with sensitive data',
-  },
-
-  // Basic Auth (Authorization: Basic base64...)
-  {
-    pattern: /Basic\s+[A-Za-z0-9+/=]+/gi,
-    replacement: 'Basic [REDACTED]',
-    description: 'HTTP Basic Auth',
-  },
-
-  // AWS-style keys (AKIA...)
+  // 5. AWS-style keys (AKIA...)
   {
     pattern: /AKIA[A-Z0-9]{16}/g,
-    replacement: 'AKIA[REDACTED]',
-    description: 'AWS Access Key',
+    replacement: "AKIA[REDACTED]",
+    description: "AWS Access Key",
   },
 
-  // Generic long alphanumeric strings in sensitive contexts
-  // (Only redact if preceded by sensitive keywords)
+  // 6. URLs with tokens/keys in query params
   {
-    pattern: /(token|key|secret|password|bearer|auth)["\s:=]+[A-Za-z0-9\-._~+/]{32,}/gi,
-    replacement: '$1: [REDACTED]',
-    description: 'Long alphanumeric string after sensitive keyword',
+    pattern:
+      /([?&])(access_token|token|key|apikey|api_key|secret|password|pwd)=([^&\s]+)/gi,
+    replacement: "$1$2=[REDACTED]",
+    description: "URL query parameter with sensitive data",
+  },
+
+  // 7. Basic Auth (Authorization: Basic base64...)
+  {
+    pattern: /Basic\s+[A-Za-z0-9+/=]+/gi,
+    replacement: "Basic [REDACTED]",
+    description: "HTTP Basic Auth",
+  },
+
+  // 8. Generic long alphanumeric strings in sensitive contexts
+  // This should be LAST since it's the most generic
+  // Only match if NOT already containing [REDACTED] and NOT matching Google API key pattern
+  {
+    pattern:
+      /(token|secret|password|bearer|auth)["'\s:=]+(?!AIza)([A-Za-z0-9\-._~+/]{32,})/gi,
+    replacement: "$1: [REDACTED]",
+    description: "Long alphanumeric string after sensitive keyword",
   },
 ];
 
@@ -124,14 +136,17 @@ export const SENSITIVE_STRING_PATTERNS = [
  * @returns String with sensitive data replaced with [REDACTED]
  */
 export function redactString(text: string): string {
-  if (typeof text !== 'string') {
+  if (typeof text !== "string") {
     return text;
   }
 
   let result = text;
 
-  // Apply all pattern-based redactions
+  // Apply all pattern-based redactions in order
+  // Order is critical - specific patterns before generic ones
   for (const { pattern, replacement } of SENSITIVE_STRING_PATTERNS) {
+    // Reset regex lastIndex for global patterns
+    pattern.lastIndex = 0;
     result = result.replace(pattern, replacement as string);
   }
 
@@ -147,7 +162,11 @@ export function redactString(text: string): string {
  * @param depth - Current recursion depth (prevent stack overflow)
  * @returns Redacted copy of the object
  */
-export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0): T {
+export function redactObject<T>(
+  obj: T,
+  seen = new WeakSet<object>(),
+  depth = 0,
+): T {
   // Prevent stack overflow
   if (depth > 10) {
     return obj;
@@ -158,9 +177,9 @@ export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0)
     return obj;
   }
 
-  if (typeof obj !== 'object') {
+  if (typeof obj !== "object") {
     // Redact strings
-    if (typeof obj === 'string') {
+    if (typeof obj === "string") {
       return redactString(obj) as unknown as T;
     }
     return obj;
@@ -168,24 +187,32 @@ export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0)
 
   // Handle circular references
   if (seen.has(obj as object)) {
-    return '[Circular]' as unknown as T;
+    return "[Circular]" as unknown as T;
   }
   seen.add(obj as object);
 
   // Handle arrays
   if (Array.isArray(obj)) {
-    return obj.map(item => redactObject(item, seen, depth + 1)) as unknown as T;
+    return obj.map((item) =>
+      redactObject(item, seen, depth + 1),
+    ) as unknown as T;
   }
 
   // Handle Error objects specially (preserve stack trace)
   if (obj instanceof Error) {
-    const redacted = new (obj.constructor as ErrorConstructor)(redactString(obj.message));
+    const redacted = new (obj.constructor as ErrorConstructor)(
+      redactString(obj.message),
+    );
     redacted.stack = obj.stack; // Preserve stack trace (doesn't contain tokens)
 
     // Redact any custom properties on the error
     for (const [key, value] of Object.entries(obj)) {
-      if (key !== 'message' && key !== 'stack' && key !== 'name') {
-        (redacted as unknown as Record<string, unknown>)[key] = redactObject(value, seen, depth + 1);
+      if (key !== "message" && key !== "stack" && key !== "name") {
+        (redacted as unknown as Record<string, unknown>)[key] = redactObject(
+          value,
+          seen,
+          depth + 1,
+        );
       }
     }
 
@@ -198,13 +225,23 @@ export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0)
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     const lowerKey = key.toLowerCase();
 
-    // Check if this key is sensitive
+    // Check if this key is sensitive (case-insensitive)
     if (SENSITIVE_FIELD_NAMES.has(lowerKey)) {
-      result[key] = '[REDACTED]';
-    } else if (typeof value === 'string') {
+      if (typeof value === "string") {
+        // Apply pattern-based redaction first
+        const redacted = redactString(value);
+        // If patterns didn't redact anything, use full redaction
+        result[key] = redacted === value ? "[REDACTED]" : redacted;
+      } else if (typeof value === "object" && value !== null) {
+        // Recursively redact nested objects even in sensitive fields
+        result[key] = redactObject(value, seen, depth + 1);
+      } else {
+        result[key] = "[REDACTED]";
+      }
+    } else if (typeof value === "string") {
       // Redact string values
       result[key] = redactString(value);
-    } else if (typeof value === 'object' && value !== null) {
+    } else if (typeof value === "object" && value !== null) {
       // Recursively redact nested objects
       result[key] = redactObject(value, seen, depth + 1);
     } else {
@@ -217,7 +254,7 @@ export function redactObject<T>(obj: T, seen = new WeakSet<object>(), depth = 0)
 }
 
 /**
- * Check if a field name is sensitive
+ * Check if a field name is sensitive (case-insensitive)
  *
  * @param fieldName - Field name to check
  * @returns True if field should be redacted
@@ -233,11 +270,11 @@ export function isSensitiveField(fieldName: string): boolean {
  * @returns Redacted value
  */
 export function redact<T>(value: T): T {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return redactString(value) as unknown as T;
   }
 
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === "object" && value !== null) {
     return redactObject(value);
   }
 
@@ -252,5 +289,5 @@ export function redact<T>(value: T): T {
  * @returns Array of redacted values
  */
 export function redactAll<T extends unknown[]>(...values: T): T {
-  return values.map(v => redact(v)) as T;
+  return values.map((v) => redact(v)) as T;
 }

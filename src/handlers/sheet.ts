@@ -1,73 +1,86 @@
 /**
  * ServalSheets - Sheet Handler
- * 
+ *
  * Handles sheets_sheet tool (add, delete, duplicate, update, copy_to, list, get)
  * MCP Protocol: 2025-11-25
  */
 
-import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
-import type { Intent } from '../core/intent.js';
+import type { sheets_v4 } from "googleapis";
+import { BaseHandler, type HandlerContext } from "./base.js";
+import type { Intent } from "../core/intent.js";
 import type {
   SheetsSheetInput,
   SheetsSheetOutput,
   SheetInfo,
-  SheetAction,
   SheetResponse,
-} from '../schemas/index.js';
-import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { getRequestLogger } from '../utils/request-context.js';
+} from "../schemas/index.js";
+import { confirmDestructiveAction } from "../mcp/elicitation.js";
+import { getRequestLogger } from "../utils/request-context.js";
 
-export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutput> {
+export class SheetHandler extends BaseHandler<
+  SheetsSheetInput,
+  SheetsSheetOutput
+> {
   private sheetsApi: sheets_v4.Sheets;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
-    super('sheets_sheet', context);
+    super("sheets_sheet", context);
     this.sheetsApi = sheetsApi;
   }
 
   async handle(input: SheetsSheetInput): Promise<SheetsSheetOutput> {
+    // Input is now the action directly (no request wrapper)
     try {
       // Phase 1, Task 1.4: Infer missing parameters from context
-      const req = this.inferRequestParameters(input.request) as SheetAction;
+      const req = this.inferRequestParameters(input) as SheetsSheetInput;
 
       let response: SheetResponse;
       switch (req.action) {
-        case 'add':
+        case "add":
           response = await this.handleAdd(req);
           break;
-        case 'delete':
+        case "delete":
           response = await this.handleDelete(req);
           break;
-        case 'duplicate':
+        case "duplicate":
           response = await this.handleDuplicate(req);
           break;
-        case 'update':
+        case "update":
           response = await this.handleUpdate(req);
           break;
-        case 'copy_to':
+        case "copy_to":
           response = await this.handleCopyTo(req);
           break;
-        case 'list':
+        case "list":
           response = await this.handleList(req);
           break;
-        case 'get':
+        case "get":
           response = await this.handleGet(req);
           break;
         default:
           response = this.error({
-            code: 'INVALID_PARAMS',
+            code: "INVALID_PARAMS",
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
           });
       }
 
       // Phase 1, Task 1.4: Track context after successful operation
-      if (response.success && 'spreadsheetId' in req) {
+      if (response.success && "spreadsheetId" in req) {
         this.trackContextFromRequest({
           spreadsheetId: req.spreadsheetId,
-          sheetId: 'sheetId' in req ? (typeof req.sheetId === 'number' ? req.sheetId : undefined) : undefined,
-          sheetName: response.success && 'sheetName' in response ? (typeof response.sheetName === 'string' ? response.sheetName : undefined) : undefined,
+          sheetId:
+            "sheetId" in req
+              ? typeof req.sheetId === "number"
+                ? req.sheetId
+                : undefined
+              : undefined,
+          sheetName:
+            response.success && "sheetName" in response
+              ? typeof response.sheetName === "string"
+                ? response.sheetName
+                : undefined
+              : undefined,
         });
       }
 
@@ -78,63 +91,71 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   }
 
   protected createIntents(input: SheetsSheetInput): Intent[] {
-    const req = input.request;
-    switch (req.action) {
-      case 'add':
-        return [{
-          type: 'ADD_SHEET',
-          target: { spreadsheetId: req.spreadsheetId },
-          payload: { title: req.title },
-          metadata: {
-            sourceTool: this.toolName,
-            sourceAction: 'add',
-            priority: 1,
-            destructive: false,
+    // Input is now the action directly (no request wrapper)
+    switch (input.action) {
+      case "add":
+        return [
+          {
+            type: "ADD_SHEET",
+            target: { spreadsheetId: input.spreadsheetId },
+            payload: { title: input.title },
+            metadata: {
+              sourceTool: this.toolName,
+              sourceAction: "add",
+              priority: 1,
+              destructive: false,
+            },
           },
-        }];
-      case 'delete':
-        return [{
-          type: 'DELETE_SHEET',
-          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
-          payload: {},
-          metadata: {
-            sourceTool: this.toolName,
-            sourceAction: 'delete',
-            priority: 1,
-            destructive: true,
+        ];
+      case "delete":
+        return [
+          {
+            type: "DELETE_SHEET",
+            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            payload: {},
+            metadata: {
+              sourceTool: this.toolName,
+              sourceAction: "delete",
+              priority: 1,
+              destructive: true,
+            },
           },
-        }];
-      case 'duplicate':
-        return [{
-          type: 'DUPLICATE_SHEET',
-          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
-          payload: { newTitle: req.newTitle },
-          metadata: {
-            sourceTool: this.toolName,
-            sourceAction: 'duplicate',
-            priority: 1,
-            destructive: false,
+        ];
+      case "duplicate":
+        return [
+          {
+            type: "DUPLICATE_SHEET",
+            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            payload: { newTitle: input.newTitle },
+            metadata: {
+              sourceTool: this.toolName,
+              sourceAction: "duplicate",
+              priority: 1,
+              destructive: false,
+            },
           },
-        }];
-      case 'update':
-        return [{
-          type: 'UPDATE_SHEET_PROPERTIES',
-          target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
-          payload: { title: req.title, hidden: req.hidden },
-          metadata: {
-            sourceTool: this.toolName,
-            sourceAction: 'update',
-            priority: 1,
-            destructive: false,
+        ];
+      case "update":
+        return [
+          {
+            type: "UPDATE_SHEET_PROPERTIES",
+            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            payload: { title: input.title, hidden: input.hidden },
+            metadata: {
+              sourceTool: this.toolName,
+              sourceAction: "update",
+              priority: 1,
+              destructive: false,
+            },
           },
-        }];
+        ];
       default:
         return [];
     }
   }
 
   private async handleAdd(
-    input: Extract<SheetAction, { action: 'add' }>
+    input: Extract<SheetsSheetInput, { action: "add" }>,
   ): Promise<SheetResponse> {
     const sheetProperties: sheets_v4.Schema$SheetProperties = {
       title: input.title,
@@ -161,9 +182,11 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
-        requests: [{
-          addSheet: { properties: sheetProperties },
-        }],
+        requests: [
+          {
+            addSheet: { properties: sheetProperties },
+          },
+        ],
       },
     });
 
@@ -173,50 +196,62 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       title: newSheet?.title ?? input.title,
       index: newSheet?.index ?? 0,
       rowCount: newSheet?.gridProperties?.rowCount ?? input.rowCount ?? 1000,
-      columnCount: newSheet?.gridProperties?.columnCount ?? input.columnCount ?? 26,
+      columnCount:
+        newSheet?.gridProperties?.columnCount ?? input.columnCount ?? 26,
       hidden: newSheet?.hidden ?? false,
       tabColor: this.convertTabColor(newSheet?.tabColor),
     };
 
-    return this.success('add', { sheet });
+    return this.success("add", { sheet });
   }
 
   private async handleDelete(
-    input: Extract<SheetAction, { action: 'delete' }>
+    input: Extract<SheetsSheetInput, { action: "delete" }>,
   ): Promise<SheetResponse> {
     // Check if sheet exists when allowMissing is true
     if (input.allowMissing) {
       const exists = await this.sheetExists(input.spreadsheetId, input.sheetId);
       if (!exists) {
-        return this.success('delete', { alreadyDeleted: true });
+        return this.success("delete", { alreadyDeleted: true });
       }
     }
 
     // Request confirmation for destructive operation if elicitation is supported
     if (this.context.samplingServer && !input.safety?.dryRun) {
       try {
-        const confirmation = await confirmDestructiveAction(
-          this.context.samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer,
-          'Delete Sheet',
-          `This will permanently delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
-        );
+        // Check if client supports form elicitation before attempting confirmation
+        const server = this.context
+          .samplingServer as unknown as import("../mcp/elicitation.js").ElicitationServer;
+        const caps = server.getClientCapabilities?.();
 
-        if (!confirmation.confirmed) {
-          return this.error({
-            code: 'INVALID_REQUEST',
-            message: 'Operation cancelled by user',
-            retryable: false,
-          });
+        // Only request confirmation if client supports form-based elicitation
+        if (caps?.elicitation?.form) {
+          const confirmation = await confirmDestructiveAction(
+            server,
+            "Delete Sheet",
+            `This will permanently delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`,
+          );
+
+          if (!confirmation.confirmed) {
+            return this.error({
+              code: "INVALID_REQUEST",
+              message: "Operation cancelled by user",
+              retryable: false,
+            });
+          }
         }
+        // If client doesn't support elicitation, proceed without confirmation
       } catch (error) {
         // If elicitation fails, proceed (backward compatibility)
-        getRequestLogger().warn('Elicitation failed for delete operation', { error });
+        getRequestLogger().warn("Elicitation failed for delete operation", {
+          error,
+        });
       }
     }
 
     // Dry run support
     if (input.safety?.dryRun) {
-      return this.success('delete', {}, undefined, true);
+      return this.success("delete", {}, undefined, true);
     }
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -226,16 +261,16 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       },
     });
 
-    return this.success('delete', {});
+    return this.success("delete", {});
   }
 
   private async handleDuplicate(
-    input: Extract<SheetAction, { action: 'duplicate' }>
+    input: Extract<SheetsSheetInput, { action: "duplicate" }>,
   ): Promise<SheetResponse> {
     const duplicateRequest: sheets_v4.Schema$DuplicateSheetRequest = {
       sourceSheetId: input.sheetId,
     };
-    
+
     if (input.insertIndex !== undefined) {
       duplicateRequest.insertSheetIndex = input.insertIndex;
     }
@@ -253,34 +288,36 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
     const newSheet = response.data.replies?.[0]?.duplicateSheet?.properties;
     const sheet: SheetInfo = {
       sheetId: newSheet?.sheetId ?? 0,
-      title: newSheet?.title ?? '',
+      title: newSheet?.title ?? "",
       index: newSheet?.index ?? 0,
       rowCount: newSheet?.gridProperties?.rowCount ?? 0,
       columnCount: newSheet?.gridProperties?.columnCount ?? 0,
       hidden: newSheet?.hidden ?? false,
     };
 
-    return this.success('duplicate', { sheet });
+    return this.success("duplicate", { sheet });
   }
 
   private async handleUpdate(
-    input: Extract<SheetAction, { action: 'update' }>
+    input: Extract<SheetsSheetInput, { action: "update" }>,
   ): Promise<SheetResponse> {
     // Build properties and fields mask
-    const properties: sheets_v4.Schema$SheetProperties = { sheetId: input.sheetId };
+    const properties: sheets_v4.Schema$SheetProperties = {
+      sheetId: input.sheetId,
+    };
     const fields: string[] = [];
 
     if (input.title !== undefined) {
       properties.title = input.title;
-      fields.push('title');
+      fields.push("title");
     }
     if (input.index !== undefined) {
       properties.index = input.index;
-      fields.push('index');
+      fields.push("index");
     }
     if (input.hidden !== undefined) {
       properties.hidden = input.hidden;
-      fields.push('hidden');
+      fields.push("hidden");
     }
     if (input.tabColor !== undefined) {
       properties.tabColor = {
@@ -289,17 +326,17 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
         blue: input.tabColor.blue,
         alpha: input.tabColor.alpha,
       };
-      fields.push('tabColor');
+      fields.push("tabColor");
     }
     if (input.rightToLeft !== undefined) {
       properties.rightToLeft = input.rightToLeft;
-      fields.push('rightToLeft');
+      fields.push("rightToLeft");
     }
 
     if (fields.length === 0) {
       return this.error({
-        code: 'INVALID_PARAMS',
-        message: 'No properties to update',
+        code: "INVALID_PARAMS",
+        message: "No properties to update",
         retryable: false,
       });
     }
@@ -307,25 +344,29 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
-        requests: [{
-          updateSheetProperties: {
-            properties,
-            fields: fields.join(','),
+        requests: [
+          {
+            updateSheetProperties: {
+              properties,
+              fields: fields.join(","),
+            },
           },
-        }],
+        ],
       },
     });
 
     // Fetch updated sheet info
     const updated = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheetData = updated.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
+    const sheetData = updated.data.sheets?.find(
+      (s) => s.properties?.sheetId === input.sheetId,
+    );
     if (!sheetData?.properties) {
       return this.error({
-        code: 'SHEET_NOT_FOUND',
+        code: "SHEET_NOT_FOUND",
         message: `Sheet ${input.sheetId} not found after update`,
         retryable: false,
       });
@@ -333,7 +374,7 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
 
     const sheet: SheetInfo = {
       sheetId: sheetData.properties.sheetId ?? 0,
-      title: sheetData.properties.title ?? '',
+      title: sheetData.properties.title ?? "",
       index: sheetData.properties.index ?? 0,
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
@@ -341,11 +382,11 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       tabColor: this.convertTabColor(sheetData.properties.tabColor),
     };
 
-    return this.success('update', { sheet });
+    return this.success("update", { sheet });
   }
 
   private async handleCopyTo(
-    input: Extract<SheetAction, { action: 'copy_to' }>
+    input: Extract<SheetsSheetInput, { action: "copy_to" }>,
   ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.sheets.copyTo({
       spreadsheetId: input.spreadsheetId,
@@ -357,30 +398,30 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
 
     const sheet: SheetInfo = {
       sheetId: response.data.sheetId ?? 0,
-      title: response.data.title ?? '',
+      title: response.data.title ?? "",
       index: response.data.index ?? 0,
       rowCount: response.data.gridProperties?.rowCount ?? 0,
       columnCount: response.data.gridProperties?.columnCount ?? 0,
       hidden: response.data.hidden ?? false,
     };
 
-    return this.success('copy_to', { 
+    return this.success("copy_to", {
       sheet,
       copiedSheetId: response.data.sheetId ?? 0,
     });
   }
 
   private async handleList(
-    input: Extract<SheetAction, { action: 'list' }>
+    input: Extract<SheetsSheetInput, { action: "list" }>,
   ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheets: SheetInfo[] = (response.data.sheets ?? []).map(s => ({
+    const sheets: SheetInfo[] = (response.data.sheets ?? []).map((s) => ({
       sheetId: s.properties?.sheetId ?? 0,
-      title: s.properties?.title ?? '',
+      title: s.properties?.title ?? "",
       index: s.properties?.index ?? 0,
       rowCount: s.properties?.gridProperties?.rowCount ?? 0,
       columnCount: s.properties?.gridProperties?.columnCount ?? 0,
@@ -388,21 +429,23 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       tabColor: this.convertTabColor(s.properties?.tabColor),
     }));
 
-    return this.success('list', { sheets });
+    return this.success("list", { sheets });
   }
 
   private async handleGet(
-    input: Extract<SheetAction, { action: 'get' }>
+    input: Extract<SheetsSheetInput, { action: "get" }>,
   ): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
+      fields: "sheets.properties",
     });
 
-    const sheetData = response.data.sheets?.find(s => s.properties?.sheetId === input.sheetId);
+    const sheetData = response.data.sheets?.find(
+      (s) => s.properties?.sheetId === input.sheetId,
+    );
     if (!sheetData?.properties) {
       return this.error({
-        code: 'SHEET_NOT_FOUND',
+        code: "SHEET_NOT_FOUND",
         message: `Sheet ${input.sheetId} not found`,
         retryable: false,
       });
@@ -410,7 +453,7 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
 
     const sheet: SheetInfo = {
       sheetId: sheetData.properties.sheetId ?? 0,
-      title: sheetData.properties.title ?? '',
+      title: sheetData.properties.title ?? "",
       index: sheetData.properties.index ?? 0,
       rowCount: sheetData.properties.gridProperties?.rowCount ?? 0,
       columnCount: sheetData.properties.gridProperties?.columnCount ?? 0,
@@ -418,15 +461,15 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
       tabColor: this.convertTabColor(sheetData.properties.tabColor),
     };
 
-    return this.success('get', { sheet });
+    return this.success("get", { sheet });
   }
 
   /**
    * Convert Google API tab color to our schema format
    */
   private convertTabColor(
-    tabColor: sheets_v4.Schema$Color | null | undefined
-  ): SheetInfo['tabColor'] {
+    tabColor: sheets_v4.Schema$Color | null | undefined,
+  ): SheetInfo["tabColor"] {
     if (!tabColor) return undefined;
     return {
       red: tabColor.red ?? 0,
@@ -439,13 +482,19 @@ export class SheetHandler extends BaseHandler<SheetsSheetInput, SheetsSheetOutpu
   /**
    * Check if a sheet exists in a spreadsheet
    */
-  private async sheetExists(spreadsheetId: string, sheetId: number): Promise<boolean> {
+  private async sheetExists(
+    spreadsheetId: string,
+    sheetId: number,
+  ): Promise<boolean> {
     try {
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: 'sheets.properties.sheetId',
+        fields: "sheets.properties.sheetId",
       });
-      return response.data.sheets?.some(s => s.properties?.sheetId === sheetId) ?? false;
+      return (
+        response.data.sheets?.some((s) => s.properties?.sheetId === sheetId) ??
+        false
+      );
     } catch {
       return false;
     }

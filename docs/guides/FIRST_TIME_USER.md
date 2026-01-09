@@ -7,7 +7,7 @@ You've successfully installed ServalSheets. Here's how to get started in Claude 
 ### Step 1: Restart Claude Desktop
 1. Quit Claude Desktop completely (⌘+Q)
 2. Reopen Claude Desktop
-3. Look for the 🔨 icon in the bottom-right corner
+3. Look for the 🔨 icon in the bottom-right corner (custom ServalSheets icon may not appear yet)
 
 ### Step 2: Say Hello
 Type this in Claude Desktop:

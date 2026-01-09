@@ -4,11 +4,11 @@
  * Async-local storage for per-request metadata (requestId, logger, deadlines, progress notifications).
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
-import { randomUUID } from 'crypto';
-import type { Logger } from 'winston';
-import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import { logger as baseLogger } from './logger.js';
+import { AsyncLocalStorage } from "async_hooks";
+import { randomUUID } from "crypto";
+import type { Logger } from "winston";
+import type { ServerNotification } from "@modelcontextprotocol/sdk/types.js";
+import { logger as baseLogger } from "./logger.js";
 
 export interface RequestContext {
   requestId: string;
@@ -29,8 +29,10 @@ export interface RequestContext {
 
 const storage = new AsyncLocalStorage<RequestContext>();
 const DEFAULT_TIMEOUT_MS = parseInt(
-  process.env['REQUEST_TIMEOUT_MS'] ?? process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000',
-  10
+  process.env["REQUEST_TIMEOUT_MS"] ??
+    process.env["GOOGLE_API_TIMEOUT_MS"] ??
+    "30000",
+  10,
 );
 
 export function createRequestContext(options?: {
@@ -56,7 +58,7 @@ export function createRequestContext(options?: {
 
 export function runWithRequestContext<T>(
   context: RequestContext,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   return storage.run(context, fn);
 }
@@ -80,7 +82,7 @@ export function getRequestLogger(): Logger {
 export async function sendProgress(
   progress: number,
   total?: number,
-  message?: string
+  message?: string,
 ): Promise<void> {
   const context = storage.getStore();
   if (!context?.sendNotification || !context?.progressToken) {
@@ -90,7 +92,7 @@ export async function sendProgress(
 
   try {
     await context.sendNotification({
-      method: 'notifications/progress',
+      method: "notifications/progress",
       params: {
         progressToken: context.progressToken,
         progress,
@@ -100,6 +102,11 @@ export async function sendProgress(
     });
   } catch (error) {
     // Don't fail the operation if progress notification fails
-    context.logger.warn('Failed to send progress notification', { error, progress, total, message });
+    context.logger.warn("Failed to send progress notification", {
+      error,
+      progress,
+      total,
+      message,
+    });
   }
 }

@@ -3,36 +3,38 @@
  * Pre-execution impact analysis for operations with dependency tracking.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   ErrorDetailSchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
-const ImpactActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsImpactInputSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal('analyze'),
-    spreadsheetId: z.string().min(1).describe('Spreadsheet ID'),
-    operation: z.object({
-      type: z.string().describe('Operation type (e.g., "values_write", "sheet_delete")'),
-      tool: z.string().describe('Tool name (e.g., "sheets_values")'),
-      action: z.string().describe('Action name (e.g., "write", "clear")'),
-      params: z.record(z.unknown()).describe('Operation parameters'),
-    }).describe('Operation to analyze'),
+    action: z.literal("analyze").describe("Analyze the impact of a proposed operation"),
+    spreadsheetId: z.string().min(1).describe("Spreadsheet ID"),
+    operation: z
+      .object({
+        type: z
+          .string()
+          .describe('Operation type (e.g., "values_write", "sheet_delete")'),
+        tool: z.string().describe('Tool name (e.g., "sheets_values")'),
+        action: z.string().describe('Action name (e.g., "write", "clear")'),
+        params: z.record(z.unknown()).describe("Operation parameters"),
+      })
+      .describe("Operation to analyze"),
   }),
 ]);
 
-export const SheetsImpactInputSchema = z.object({
-  request: ImpactActionSchema,
-});
-
-const ImpactResponseSchema = z.discriminatedUnion('success', [
+const ImpactResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
     impact: z.object({
-      severity: z.enum(['low', 'medium', 'high', 'critical']),
+      severity: z.enum(["low", "medium", "high", "critical"]),
       scope: z.object({
         rows: z.number(),
         columns: z.number(),
@@ -48,16 +50,20 @@ const ImpactResponseSchema = z.discriminatedUnion('success', [
         protectedRanges: z.array(z.string()),
       }),
       estimatedExecutionTime: z.number(),
-      warnings: z.array(z.object({
-        severity: z.enum(['low', 'medium', 'high', 'critical']),
-        message: z.string(),
-        affectedResources: z.array(z.string()).optional(),
-      })),
-      recommendations: z.array(z.object({
-        action: z.string(),
-        reason: z.string(),
-        priority: z.enum(['low', 'medium', 'high']),
-      })),
+      warnings: z.array(
+        z.object({
+          severity: z.enum(["low", "medium", "high", "critical"]),
+          message: z.string(),
+          affectedResources: z.array(z.string()).optional(),
+        }),
+      ),
+      recommendations: z.array(
+        z.object({
+          action: z.string(),
+          reason: z.string(),
+          priority: z.enum(["low", "medium", "high"]),
+        }),
+      ),
       canProceed: z.boolean(),
       requiresConfirmation: z.boolean(),
     }),
@@ -75,7 +81,7 @@ export const SheetsImpactOutputSchema = z.object({
 });
 
 export const SHEETS_IMPACT_ANNOTATIONS: ToolAnnotations = {
-  title: 'Impact Analysis',
+  title: "Impact Analysis",
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
@@ -84,5 +90,4 @@ export const SHEETS_IMPACT_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsImpactInput = z.infer<typeof SheetsImpactInputSchema>;
 export type SheetsImpactOutput = z.infer<typeof SheetsImpactOutputSchema>;
-export type ImpactAction = z.infer<typeof ImpactActionSchema>;
 export type ImpactResponse = z.infer<typeof ImpactResponseSchema>;

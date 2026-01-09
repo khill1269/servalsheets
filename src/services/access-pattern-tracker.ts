@@ -11,7 +11,7 @@
  * - Configurable history window
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from "../utils/logger.js";
 
 export interface AccessRecord {
   timestamp: number;
@@ -19,7 +19,7 @@ export interface AccessRecord {
   sheetId?: number;
   sheetName?: string;
   range?: string;
-  action: 'read' | 'write' | 'open';
+  action: "read" | "write" | "open";
   userId?: string;
 }
 
@@ -79,7 +79,7 @@ export class AccessPatternTracker {
   /**
    * Record an access
    */
-  recordAccess(access: Omit<AccessRecord, 'timestamp'>): void {
+  recordAccess(access: Omit<AccessRecord, "timestamp">): void {
     const record: AccessRecord = {
       ...access,
       timestamp: Date.now(),
@@ -96,7 +96,7 @@ export class AccessPatternTracker {
     // Detect patterns in recent history
     this.detectPatterns();
 
-    logger.debug('Access recorded', {
+    logger.debug("Access recorded", {
       spreadsheetId: access.spreadsheetId,
       action: access.action,
       range: access.range,
@@ -194,23 +194,29 @@ export class AccessPatternTracker {
     if (!parsed) return [];
 
     // Predict horizontal neighbor (next columns)
-    const horizontalNext = this.shiftRangeHorizontal(current.range, parsed.colCount);
+    const horizontalNext = this.shiftRangeHorizontal(
+      current.range,
+      parsed.colCount,
+    );
     predictions.push({
       spreadsheetId: current.spreadsheetId,
       sheetId: current.sheetId,
       range: horizontalNext,
       confidence: 0.6,
-      reason: 'Adjacent horizontal range',
+      reason: "Adjacent horizontal range",
     });
 
     // Predict vertical neighbor (next rows)
-    const verticalNext = this.shiftRangeVertical(current.range, parsed.rowCount);
+    const verticalNext = this.shiftRangeVertical(
+      current.range,
+      parsed.rowCount,
+    );
     predictions.push({
       spreadsheetId: current.spreadsheetId,
       sheetId: current.sheetId,
       range: verticalNext,
       confidence: 0.5,
-      reason: 'Adjacent vertical range',
+      reason: "Adjacent vertical range",
     });
 
     return predictions;
@@ -228,15 +234,17 @@ export class AccessPatternTracker {
     // On spreadsheet open, predict first 100 rows will be accessed
     const recentOpen = this.history
       .slice(-5)
-      .find((r) => r.spreadsheetId === current.spreadsheetId && r.action === 'open');
+      .find(
+        (r) => r.spreadsheetId === current.spreadsheetId && r.action === "open",
+      );
 
     if (recentOpen && Date.now() - recentOpen.timestamp < 10000) {
       // Within 10s of open
       predictions.push({
         spreadsheetId: current.spreadsheetId,
-        range: 'A1:Z100',
+        range: "A1:Z100",
         confidence: 0.7,
-        reason: 'Common pattern: first 100 rows after spreadsheet open',
+        reason: "Common pattern: first 100 rows after spreadsheet open",
       });
     }
 
@@ -288,14 +296,24 @@ export class AccessPatternTracker {
    */
   private generatePatternId(sequence: AccessRecord[]): string {
     return sequence
-      .map((r) => `${r.spreadsheetId}:${r.sheetId ?? '*'}:${r.range ?? '*'}:${r.action}`)
-      .join('→');
+      .map(
+        (r) =>
+          `${r.spreadsheetId}:${r.sheetId ?? "*"}:${r.range ?? "*"}:${r.action}`,
+      )
+      .join("→");
   }
 
   /**
    * Parse range into components (simple parser)
    */
-  private parseRange(range: string): { startCol: number; endCol: number; startRow: number; endRow: number; colCount: number; rowCount: number } | null {
+  private parseRange(range: string): {
+    startCol: number;
+    endCol: number;
+    startRow: number;
+    endRow: number;
+    colCount: number;
+    rowCount: number;
+  } | null {
     // Simple A1:B10 format parser
     const match = range.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
     if (!match || !match[1] || !match[2] || !match[3] || !match[4]) return null;
@@ -359,13 +377,13 @@ export class AccessPatternTracker {
    * Convert column number to letter (1=A, 26=Z, 27=AA)
    */
   private columnNumberToLetter(num: number): string {
-    let result = '';
+    let result = "";
     while (num > 0) {
       const remainder = (num - 1) % 26;
       result = String.fromCharCode(65 + remainder) + result;
       num = Math.floor((num - 1) / 26);
     }
-    return result || 'A';
+    return result || "A";
   }
 
   /**
@@ -376,9 +394,10 @@ export class AccessPatternTracker {
       ...this.stats,
       historySize: this.history.length,
       patternsKnown: this.patterns.size,
-      avgPredictionsPerAccess: this.stats.totalAccesses > 0
-        ? this.stats.predictionsGenerated / this.stats.totalAccesses
-        : 0,
+      avgPredictionsPerAccess:
+        this.stats.totalAccesses > 0
+          ? this.stats.predictionsGenerated / this.stats.totalAccesses
+          : 0,
     };
   }
 
@@ -400,8 +419,11 @@ let accessPatternTracker: AccessPatternTracker | null = null;
 export function getAccessPatternTracker(): AccessPatternTracker {
   if (!accessPatternTracker) {
     accessPatternTracker = new AccessPatternTracker({
-      maxHistory: parseInt(process.env['PREFETCH_MAX_HISTORY'] || '1000', 10),
-      patternWindow: parseInt(process.env['PREFETCH_PATTERN_WINDOW'] || '300000', 10),
+      maxHistory: parseInt(process.env["PREFETCH_MAX_HISTORY"] || "1000", 10),
+      patternWindow: parseInt(
+        process.env["PREFETCH_PATTERN_WINDOW"] || "300000",
+        10,
+      ),
     });
   }
   return accessPatternTracker;

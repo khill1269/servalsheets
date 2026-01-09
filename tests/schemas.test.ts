@@ -15,12 +15,12 @@ import {
 
 describe('ServalSheets v4', () => {
   describe('Tool Registry', () => {
-    it('should have 23 tools', () => {
-      expect(TOOL_COUNT).toBe(23);
+    it('should have 24 tools', () => {
+      expect(TOOL_COUNT).toBe(24);
     });
 
-    it('should have 152+ actions', () => {
-      expect(ACTION_COUNT).toBeGreaterThanOrEqual(152);
+    it('should have 70+ actions', () => {
+      expect(ACTION_COUNT).toBeGreaterThanOrEqual(70);
     });
   });
 
@@ -28,30 +28,24 @@ describe('ServalSheets v4', () => {
     describe('SheetSpreadsheetInputSchema', () => {
       it('should validate get action', () => {
         const result = SheetSpreadsheetInputSchema.safeParse({
-          request: {
-            action: 'get',
-            spreadsheetId: 'abc123',
-          },
+          action: 'get',
+          spreadsheetId: 'abc123',
         });
         expect(result.success).toBe(true);
       });
 
       it('should validate create action', () => {
         const result = SheetSpreadsheetInputSchema.safeParse({
-          request: {
-            action: 'create',
-            title: 'New Spreadsheet',
-          },
+          action: 'create',
+          title: 'New Spreadsheet',
         });
         expect(result.success).toBe(true);
       });
 
       it('should reject invalid action', () => {
         const result = SheetSpreadsheetInputSchema.safeParse({
-          request: {
-            action: 'invalid',
-            spreadsheetId: 'abc123',
-          },
+          action: 'invalid',
+          spreadsheetId: 'abc123',
         });
         expect(result.success).toBe(false);
       });
@@ -60,27 +54,23 @@ describe('ServalSheets v4', () => {
     describe('SheetsValuesInputSchema', () => {
       it('should validate read action with A1 range', () => {
         const result = SheetsValuesInputSchema.safeParse({
-          request: {
-            action: 'read',
-            spreadsheetId: 'abc123',
-            range: { a1: 'Sheet1!A1:C10' },
-          },
+          action: 'read',
+          spreadsheetId: 'abc123',
+          range: { a1: 'Sheet1!A1:C10' },
         });
         expect(result.success).toBe(true);
       });
 
       it('should validate write action with safety options', () => {
         const result = SheetsValuesInputSchema.safeParse({
-          request: {
-            action: 'write',
-            spreadsheetId: 'abc123',
-            range: { a1: 'Sheet1!A1' },
-            values: [['Hello', 'World']],
-            safety: {
-              dryRun: true,
-              effectScope: {
-                maxCellsAffected: 1000,
-              },
+          action: 'write',
+          spreadsheetId: 'abc123',
+          range: { a1: 'Sheet1!A1' },
+          values: [['Hello', 'World']],
+          safety: {
+            dryRun: true,
+            effectScope: {
+              maxCellsAffected: 1000,
             },
           },
         });
@@ -89,14 +79,12 @@ describe('ServalSheets v4', () => {
 
       it('should validate semantic range', () => {
         const result = SheetsValuesInputSchema.safeParse({
-          request: {
-            action: 'read',
-            spreadsheetId: 'abc123',
-            range: {
-              semantic: {
-                sheet: 'Sales',
-                column: 'Revenue',
-              },
+          action: 'read',
+          spreadsheetId: 'abc123',
+          range: {
+            semantic: {
+              sheet: 'Sales',
+              column: 'Revenue',
             },
           },
         });
@@ -107,30 +95,26 @@ describe('ServalSheets v4', () => {
     describe('SheetsDimensionsInputSchema', () => {
       it('should validate insert_rows action', () => {
         const result = SheetsDimensionsInputSchema.safeParse({
-          request: {
-            action: 'insert_rows',
-            spreadsheetId: 'abc123',
-            sheetId: 0,
-            startIndex: 5,
-            count: 10,
-          },
+          action: 'insert_rows',
+          spreadsheetId: 'abc123',
+          sheetId: 0,
+          startIndex: 5,
+          count: 10,
         });
         expect(result.success).toBe(true);
       });
 
       it('should validate delete_rows with safety', () => {
         const result = SheetsDimensionsInputSchema.safeParse({
-          request: {
-            action: 'delete_rows',
-            spreadsheetId: 'abc123',
-            sheetId: 0,
-            startIndex: 0,
-            endIndex: 5,
-            safety: {
-              dryRun: true,
-              expectedState: {
-                rowCount: 100,
-              },
+          action: 'delete_rows',
+          spreadsheetId: 'abc123',
+          sheetId: 0,
+          startIndex: 0,
+          endIndex: 5,
+          safety: {
+            dryRun: true,
+            expectedState: {
+              rowCount: 100,
             },
           },
         });

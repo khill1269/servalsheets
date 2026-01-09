@@ -11,36 +11,36 @@
  */
 
 // Re-export base types
-export * from './base.js';
+export * from "./base.js";
 
 // Re-export handler types for backwards compatibility
-export type { ValuesHandler } from './values.js';
-export type { SpreadsheetHandler } from './spreadsheet.js';
-export type { SheetHandler } from './sheet.js';
-export type { CellsHandler } from './cells.js';
-export type { FormatHandler } from './format.js';
-export type { DimensionsHandler } from './dimensions.js';
-export type { RulesHandler } from './rules.js';
-export type { ChartsHandler } from './charts.js';
-export type { PivotHandler } from './pivot.js';
-export type { FilterSortHandler } from './filter-sort.js';
-export type { SharingHandler } from './sharing.js';
-export type { CommentsHandler } from './comments.js';
-export type { VersionsHandler } from './versions.js';
-export type { AnalysisHandler } from './analysis.js';
-export type { AdvancedHandler } from './advanced.js';
-export type { TransactionHandler } from './transaction.js';
-export type { ValidationHandler } from './validation.js';
-export type { ConflictHandler } from './conflict.js';
-export type { ImpactHandler } from './impact.js';
-export type { HistoryHandler } from './history.js';
+export type { ValuesHandler } from "./values.js";
+export type { SpreadsheetHandler } from "./spreadsheet.js";
+export type { SheetHandler } from "./sheet.js";
+export type { CellsHandler } from "./cells.js";
+export type { FormatHandler } from "./format.js";
+export type { DimensionsHandler } from "./dimensions.js";
+export type { RulesHandler } from "./rules.js";
+export type { ChartsHandler } from "./charts.js";
+export type { PivotHandler } from "./pivot.js";
+export type { FilterSortHandler } from "./filter-sort.js";
+export type { SharingHandler } from "./sharing.js";
+export type { CommentsHandler } from "./comments.js";
+export type { VersionsHandler } from "./versions.js";
+export type { AnalysisHandler } from "./analysis.js";
+export type { AdvancedHandler } from "./advanced.js";
+export type { TransactionHandler } from "./transaction.js";
+export type { ValidationHandler } from "./validation.js";
+export type { ConflictHandler } from "./conflict.js";
+export type { ImpactHandler } from "./impact.js";
+export type { HistoryHandler } from "./history.js";
 // New MCP-native handlers
-export type { ConfirmHandler } from './confirm.js';
-export type { AnalyzeHandler } from './analyze.js';
+export type { ConfirmHandler } from "./confirm.js";
+export type { AnalyzeHandler } from "./analyze.js";
 
-import type { sheets_v4, drive_v3 } from 'googleapis';
-import type { HandlerContext } from './base.js';
-import { HandlerLoadError } from '../core/errors.js';
+import type { sheets_v4, drive_v3 } from "googleapis";
+import type { HandlerContext } from "./base.js";
+import { HandlerLoadError } from "../core/errors.js";
 
 export interface HandlerFactoryOptions {
   context: HandlerContext;
@@ -50,30 +50,30 @@ export interface HandlerFactoryOptions {
 
 // Define handler types for TypeScript
 export interface Handlers {
-  values: import('./values.js').ValuesHandler;
-  spreadsheet: import('./spreadsheet.js').SpreadsheetHandler;
-  sheet: import('./sheet.js').SheetHandler;
-  cells: import('./cells.js').CellsHandler;
-  format: import('./format.js').FormatHandler;
-  dimensions: import('./dimensions.js').DimensionsHandler;
-  rules: import('./rules.js').RulesHandler;
-  charts: import('./charts.js').ChartsHandler;
-  pivot: import('./pivot.js').PivotHandler;
-  filterSort: import('./filter-sort.js').FilterSortHandler;
-  sharing: import('./sharing.js').SharingHandler;
-  comments: import('./comments.js').CommentsHandler;
-  versions: import('./versions.js').VersionsHandler;
-  analysis: import('./analysis.js').AnalysisHandler;
-  advanced: import('./advanced.js').AdvancedHandler;
-  transaction: import('./transaction.js').TransactionHandler;
-  validation: import('./validation.js').ValidationHandler;
-  conflict: import('./conflict.js').ConflictHandler;
-  impact: import('./impact.js').ImpactHandler;
-  history: import('./history.js').HistoryHandler;
+  values: import("./values.js").ValuesHandler;
+  spreadsheet: import("./spreadsheet.js").SpreadsheetHandler;
+  sheet: import("./sheet.js").SheetHandler;
+  cells: import("./cells.js").CellsHandler;
+  format: import("./format.js").FormatHandler;
+  dimensions: import("./dimensions.js").DimensionsHandler;
+  rules: import("./rules.js").RulesHandler;
+  charts: import("./charts.js").ChartsHandler;
+  pivot: import("./pivot.js").PivotHandler;
+  filterSort: import("./filter-sort.js").FilterSortHandler;
+  sharing: import("./sharing.js").SharingHandler;
+  comments: import("./comments.js").CommentsHandler;
+  versions: import("./versions.js").VersionsHandler;
+  analysis: import("./analysis.js").AnalysisHandler;
+  advanced: import("./advanced.js").AdvancedHandler;
+  transaction: import("./transaction.js").TransactionHandler;
+  validation: import("./validation.js").ValidationHandler;
+  conflict: import("./conflict.js").ConflictHandler;
+  impact: import("./impact.js").ImpactHandler;
+  history: import("./history.js").HistoryHandler;
   // New MCP-native handlers
-  confirm: import('./confirm.js').ConfirmHandler;
-  analyze: import('./analyze.js').AnalyzeHandler;
-  fix: import('./fix.js').FixHandler;
+  confirm: import("./confirm.js").ConfirmHandler;
+  analyze: import("./analyze.js").AnalyzeHandler;
+  fix: import("./fix.js").FixHandler;
 }
 
 /**
@@ -86,98 +86,102 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
 
   const loaders = {
     async values() {
-      const { ValuesHandler } = await import('./values.js');
+      const { ValuesHandler } = await import("./values.js");
       return new ValuesHandler(options.context, options.sheetsApi);
     },
     async spreadsheet() {
-      const { SpreadsheetHandler } = await import('./spreadsheet.js');
-      return new SpreadsheetHandler(options.context, options.sheetsApi, options.driveApi);
+      const { SpreadsheetHandler } = await import("./spreadsheet.js");
+      return new SpreadsheetHandler(
+        options.context,
+        options.sheetsApi,
+        options.driveApi,
+      );
     },
     async sheet() {
-      const { SheetHandler } = await import('./sheet.js');
+      const { SheetHandler } = await import("./sheet.js");
       return new SheetHandler(options.context, options.sheetsApi);
     },
     async cells() {
-      const { CellsHandler } = await import('./cells.js');
+      const { CellsHandler } = await import("./cells.js");
       return new CellsHandler(options.context, options.sheetsApi);
     },
     async format() {
-      const { FormatHandler } = await import('./format.js');
+      const { FormatHandler } = await import("./format.js");
       return new FormatHandler(options.context, options.sheetsApi);
     },
     async dimensions() {
-      const { DimensionsHandler } = await import('./dimensions.js');
+      const { DimensionsHandler } = await import("./dimensions.js");
       return new DimensionsHandler(options.context, options.sheetsApi);
     },
     async rules() {
-      const { RulesHandler } = await import('./rules.js');
+      const { RulesHandler } = await import("./rules.js");
       return new RulesHandler(options.context, options.sheetsApi);
     },
     async charts() {
-      const { ChartsHandler } = await import('./charts.js');
+      const { ChartsHandler } = await import("./charts.js");
       return new ChartsHandler(options.context, options.sheetsApi);
     },
     async pivot() {
-      const { PivotHandler } = await import('./pivot.js');
+      const { PivotHandler } = await import("./pivot.js");
       return new PivotHandler(options.context, options.sheetsApi);
     },
     async filterSort() {
-      const { FilterSortHandler } = await import('./filter-sort.js');
+      const { FilterSortHandler } = await import("./filter-sort.js");
       return new FilterSortHandler(options.context, options.sheetsApi);
     },
     async sharing() {
-      const { SharingHandler } = await import('./sharing.js');
+      const { SharingHandler } = await import("./sharing.js");
       return new SharingHandler(options.context, options.driveApi);
     },
     async comments() {
-      const { CommentsHandler } = await import('./comments.js');
+      const { CommentsHandler } = await import("./comments.js");
       return new CommentsHandler(options.context, options.driveApi);
     },
     async versions() {
-      const { VersionsHandler } = await import('./versions.js');
+      const { VersionsHandler } = await import("./versions.js");
       return new VersionsHandler(options.context, options.driveApi);
     },
     async analysis() {
-      const { AnalysisHandler } = await import('./analysis.js');
+      const { AnalysisHandler } = await import("./analysis.js");
       return new AnalysisHandler(options.context, options.sheetsApi);
     },
     async advanced() {
-      const { AdvancedHandler } = await import('./advanced.js');
+      const { AdvancedHandler } = await import("./advanced.js");
       return new AdvancedHandler(options.context, options.sheetsApi);
     },
     async transaction() {
-      const { TransactionHandler } = await import('./transaction.js');
+      const { TransactionHandler } = await import("./transaction.js");
       return new TransactionHandler();
     },
     async validation() {
-      const { ValidationHandler } = await import('./validation.js');
+      const { ValidationHandler } = await import("./validation.js");
       return new ValidationHandler();
     },
     async conflict() {
-      const { ConflictHandler } = await import('./conflict.js');
+      const { ConflictHandler } = await import("./conflict.js");
       return new ConflictHandler();
     },
     async impact() {
-      const { ImpactHandler } = await import('./impact.js');
+      const { ImpactHandler } = await import("./impact.js");
       return new ImpactHandler();
     },
     async history() {
-      const { HistoryHandler } = await import('./history.js');
+      const { HistoryHandler } = await import("./history.js");
       return new HistoryHandler({
-        snapshotService: options.context.snapshotService
+        snapshotService: options.context.snapshotService,
       });
     },
     // New MCP-native handlers
     async confirm() {
-      const { ConfirmHandler } = await import('./confirm.js');
+      const { ConfirmHandler } = await import("./confirm.js");
       return new ConfirmHandler({ context: options.context });
     },
     async analyze() {
-      const { AnalyzeHandler } = await import('./analyze.js');
+      const { AnalyzeHandler } = await import("./analyze.js");
       return new AnalyzeHandler(options.context, options.sheetsApi);
     },
     async fix() {
-      const { FixHandler } = await import('./fix.js');
+      const { FixHandler } = await import("./fix.js");
       return new FixHandler(options.context, options.sheetsApi);
     },
   };
@@ -192,34 +196,38 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
       // Check if loader exists for this handler
       const loader = loaders[prop as keyof typeof loaders];
       if (!loader) {
-        throw new HandlerLoadError(
-          `Unknown handler: ${prop}`,
-          prop as string,
-          { availableHandlers: Object.keys(loaders) }
-        );
+        throw new HandlerLoadError(`Unknown handler: ${prop}`, prop as string, {
+          availableHandlers: Object.keys(loaders),
+        });
       }
 
       // Return a proxy that loads the handler on first method call
-      return new Proxy({}, {
-        get(_, methodProp: string) {
-          return async (...args: unknown[]) => {
-            // Lazy load and cache the handler
-            if (!cache[prop as keyof Handlers]) {
-              (cache as Record<string, unknown>)[prop as string] = await loader();
-            }
-            const handler = cache[prop as keyof Handlers]!;
-            const method = (handler as unknown as Record<string, unknown>)[methodProp];
-            if (typeof method !== 'function') {
-              throw new HandlerLoadError(
-                `Method ${methodProp} not found on handler ${prop}`,
-                prop as string,
-                { method: methodProp as string }
-              );
-            }
-            return method.apply(handler, args);
-          };
+      return new Proxy(
+        {},
+        {
+          get(_, methodProp: string) {
+            return async (...args: unknown[]) => {
+              // Lazy load and cache the handler
+              if (!cache[prop as keyof Handlers]) {
+                (cache as Record<string, unknown>)[prop as string] =
+                  await loader();
+              }
+              const handler = cache[prop as keyof Handlers]!;
+              const method = (handler as unknown as Record<string, unknown>)[
+                methodProp
+              ];
+              if (typeof method !== "function") {
+                throw new HandlerLoadError(
+                  `Method ${methodProp} not found on handler ${prop}`,
+                  prop as string,
+                  { method: methodProp as string },
+                );
+              }
+              return method.apply(handler, args);
+            };
+          },
         },
-      });
+      );
     },
   });
 }

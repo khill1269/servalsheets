@@ -3,7 +3,7 @@
  * Comment operations (Drive API)
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   SpreadsheetIdSchema,
   ErrorDetailSchema,
@@ -11,7 +11,7 @@ import {
   MutationSummarySchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
 const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -28,27 +28,33 @@ const CommentSchema = z.object({
   modifiedTime: z.string(),
   resolved: z.boolean(),
   anchor: z.string().optional(),
-  replies: z.array(z.object({
-    id: z.string(),
-    content: z.string(),
-    author: z.object({
-      displayName: z.string(),
-    }),
-    createdTime: z.string(),
-  })).optional(),
+  replies: z
+    .array(
+      z.object({
+        id: z.string(),
+        content: z.string(),
+        author: z.object({
+          displayName: z.string(),
+        }),
+        createdTime: z.string(),
+      }),
+    )
+    .optional(),
 });
 
-const CommentsActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsCommentsInputSchema = z.discriminatedUnion("action", [
   // ADD
   BaseSchema.extend({
-    action: z.literal('add'),
+    action: z.literal("add"),
     content: z.string(),
     anchor: z.string().optional(),
   }),
 
   // UPDATE
   BaseSchema.extend({
-    action: z.literal('update'),
+    action: z.literal("update"),
     commentId: z.string(),
     content: z.string(),
     safety: SafetyOptionsSchema.optional(),
@@ -56,14 +62,14 @@ const CommentsActionSchema = z.discriminatedUnion('action', [
 
   // DELETE
   BaseSchema.extend({
-    action: z.literal('delete'),
+    action: z.literal("delete"),
     commentId: z.string(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST
   BaseSchema.extend({
-    action: z.literal('list'),
+    action: z.literal("list"),
     includeDeleted: z.boolean().optional().default(false),
     startIndex: z.number().int().min(0).optional(),
     maxResults: z.number().int().positive().optional().default(100),
@@ -71,32 +77,32 @@ const CommentsActionSchema = z.discriminatedUnion('action', [
 
   // GET
   BaseSchema.extend({
-    action: z.literal('get'),
+    action: z.literal("get"),
     commentId: z.string(),
   }),
 
   // RESOLVE
   BaseSchema.extend({
-    action: z.literal('resolve'),
+    action: z.literal("resolve"),
     commentId: z.string(),
   }),
 
   // REOPEN
   BaseSchema.extend({
-    action: z.literal('reopen'),
+    action: z.literal("reopen"),
     commentId: z.string(),
   }),
 
   // ADD_REPLY
   BaseSchema.extend({
-    action: z.literal('add_reply'),
+    action: z.literal("add_reply"),
     commentId: z.string(),
     content: z.string(),
   }),
 
   // UPDATE_REPLY
   BaseSchema.extend({
-    action: z.literal('update_reply'),
+    action: z.literal("update_reply"),
     commentId: z.string(),
     replyId: z.string(),
     content: z.string(),
@@ -105,18 +111,15 @@ const CommentsActionSchema = z.discriminatedUnion('action', [
 
   // DELETE_REPLY
   BaseSchema.extend({
-    action: z.literal('delete_reply'),
+    action: z.literal("delete_reply"),
     commentId: z.string(),
     replyId: z.string(),
     safety: SafetyOptionsSchema.optional(),
   }),
 ]);
 
-export const SheetsCommentsInputSchema = z.object({
-  request: CommentsActionSchema,
-});
 
-const CommentsResponseSchema = z.discriminatedUnion('success', [
+const CommentsResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -138,7 +141,7 @@ export const SheetsCommentsOutputSchema = z.object({
 });
 
 export const SHEETS_COMMENTS_ANNOTATIONS: ToolAnnotations = {
-  title: 'Comments',
+  title: "Comments",
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
@@ -147,5 +150,5 @@ export const SHEETS_COMMENTS_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsCommentsInput = z.infer<typeof SheetsCommentsInputSchema>;
 export type SheetsCommentsOutput = z.infer<typeof SheetsCommentsOutputSchema>;
-export type CommentsAction = z.infer<typeof CommentsActionSchema>;
+
 export type CommentsResponse = z.infer<typeof CommentsResponseSchema>;

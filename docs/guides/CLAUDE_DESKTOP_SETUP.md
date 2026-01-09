@@ -160,7 +160,7 @@ The script will:
 
 1. Quit Claude Desktop completely (⌘+Q)
 2. Reopen Claude Desktop
-3. Look for the 🔨 icon in bottom-right (indicates MCP servers loaded)
+3. Look for the 🔨 icon in bottom-right (indicates MCP servers loaded; custom ServalSheets icon may not appear yet)
 
 ### Step 4: Test the Setup
 
@@ -266,7 +266,7 @@ The following features are **always active** in v1.1.1:
 
 ### Issue: "MCP server not loading" (no 🔨 icon)
 
-**Symptoms**: Tools don't appear in Claude Desktop
+**Symptoms**: Tools don't appear in Claude Desktop (no MCP icon in the bottom-right)
 
 **Fixes**:
 1. Check config file syntax (must be valid JSON)
@@ -574,7 +574,7 @@ Built-in rate limiter respects Google's quotas:
 - [ ] File permissions set to 600
 - [ ] Claude Desktop config updated
 - [ ] Claude Desktop restarted
-- [ ] 🔨 icon appears in Claude Desktop
+- [ ] 🔨 icon appears in Claude Desktop (custom ServalSheets icon may not appear yet)
 - [ ] Test spreadsheet shared with service account
 - [ ] Test query successful
 

@@ -4,12 +4,12 @@
  * Handles multi-operation transactions with atomicity and auto-rollback.
  */
 
-import { getTransactionManager } from '../services/transaction-manager.js';
+import { getTransactionManager } from "../services/transaction-manager.js";
 import type {
   SheetsTransactionInput,
   SheetsTransactionOutput,
   TransactionResponse,
-} from '../schemas/transaction.js';
+} from "../schemas/transaction.js";
 
 export interface TransactionHandlerOptions {
   // Options can be added as needed
@@ -20,60 +20,83 @@ export class TransactionHandler {
     // Constructor logic if needed
   }
 
-  async handle(input: SheetsTransactionInput): Promise<SheetsTransactionOutput> {
-    const { request } = input;
+  async handle(
+    input: SheetsTransactionInput,
+  ): Promise<SheetsTransactionOutput> {
+    // Input is now the action directly (no request wrapper)
     const transactionManager = getTransactionManager();
 
     try {
       let response: TransactionResponse;
 
-      switch (request.action) {
-        case 'begin': {
-          const txId = await transactionManager.begin(request.spreadsheetId, {
-            autoCommit: request.autoSnapshot ?? false,
-            autoRollback: request.autoRollback ?? true,
-            isolationLevel: request.isolationLevel ?? 'read_committed',
+      switch (input.action) {
+        case "begin": {
+          // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
+          // The input.autoSnapshot parameter is currently ignored (design limitation)
+          const txId = await transactionManager.begin(input.spreadsheetId, {
+            autoCommit: false, // Fixed: was incorrectly using input.autoSnapshot
+            autoRollback: input.autoRollback ?? true,
+            isolationLevel: input.isolationLevel ?? "read_committed",
           });
+
+          // Warn about snapshot limitations for large spreadsheets
+          const snapshotWarning = input.autoSnapshot
+            ? " Note: Snapshots are metadata-only and may fail for very large spreadsheets (>50MB metadata)."
+            : "";
 
           response = {
             success: true,
-            action: 'begin',
+            action: "begin",
             transactionId: txId,
-            status: 'pending',
+            status: "pending",
             operationsQueued: 0,
-            message: `Transaction ${txId} started for spreadsheet ${request.spreadsheetId}`,
+            message: `Transaction ${txId} started for spreadsheet ${input.spreadsheetId}.${snapshotWarning}`,
           };
           break;
         }
 
-        case 'queue': {
-          await transactionManager.queue(request.transactionId, {
-            type: 'custom',
-            tool: request.operation.tool,
-            action: request.operation.action,
-            params: request.operation.params,
+        case "queue": {
+          await transactionManager.queue(input.transactionId, {
+            type: "custom",
+            tool: input.operation.tool,
+            action: input.operation.action,
+            params: input.operation.params,
           });
 
-          const tx = transactionManager.getTransaction(request.transactionId);
+          const tx = transactionManager.getTransaction(input.transactionId);
+
+          // Generate warnings for large transactions
+          const warnings: string[] = [];
+          if (tx.operations.length > 50) {
+            warnings.push(
+              `Large transaction (${tx.operations.length} operations). Consider splitting into multiple smaller transactions for better reliability and easier debugging.`,
+            );
+          } else if (tx.operations.length > 20) {
+            warnings.push(
+              `Transaction size is growing (${tx.operations.length} operations). Maximum recommended size is 50 operations.`,
+            );
+          }
+
           response = {
             success: true,
-            action: 'queue',
-            transactionId: request.transactionId,
+            action: "queue",
+            transactionId: input.transactionId,
             operationsQueued: tx.operations.length,
             message: `Operation queued. ${tx.operations.length} operation(s) in transaction.`,
+            _meta: warnings.length > 0 ? { warnings } : undefined,
           };
           break;
         }
 
-        case 'commit': {
-          const result = await transactionManager.commit(request.transactionId);
+        case "commit": {
+          const result = await transactionManager.commit(input.transactionId);
 
           if (result.success) {
             response = {
               success: true,
-              action: 'commit',
-              transactionId: request.transactionId,
-              status: 'committed',
+              action: "commit",
+              transactionId: input.transactionId,
+              status: "committed",
               operationsExecuted: result.operationResults.length,
               apiCallsSaved: result.apiCallsSaved,
               duration: result.duration,
@@ -83,11 +106,11 @@ export class TransactionHandler {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
-                message: result.error?.message || 'Transaction commit failed',
+                code: "INTERNAL_ERROR",
+                message: result.error?.message || "Transaction commit failed",
                 retryable: false,
                 details: result.rolledBack
-                  ? { rollback: 'Transaction was automatically rolled back' }
+                  ? { rollback: "Transaction was automatically rolled back" }
                   : undefined,
               },
             };
@@ -95,26 +118,26 @@ export class TransactionHandler {
           break;
         }
 
-        case 'rollback': {
-          await transactionManager.rollback(request.transactionId);
+        case "rollback": {
+          await transactionManager.rollback(input.transactionId);
 
           response = {
             success: true,
-            action: 'rollback',
-            transactionId: request.transactionId,
-            status: 'rolled_back',
-            message: `Transaction ${request.transactionId} rolled back successfully.`,
+            action: "rollback",
+            transactionId: input.transactionId,
+            status: "rolled_back",
+            message: `Transaction ${input.transactionId} rolled back successfully.`,
           };
           break;
         }
 
-        case 'status': {
-          const tx = transactionManager.getTransaction(request.transactionId);
+        case "status": {
+          const tx = transactionManager.getTransaction(input.transactionId);
 
           response = {
             success: true,
-            action: 'status',
-            transactionId: request.transactionId,
+            action: "status",
+            transactionId: input.transactionId,
             status: tx.status,
             operationsQueued: tx.operations.length,
             snapshotId: tx.snapshot?.id,
@@ -123,25 +146,25 @@ export class TransactionHandler {
           break;
         }
 
-        case 'list': {
+        case "list": {
           // Note: TransactionManager doesn't expose a listTransactions method
           // For now, return empty list - will need to add this method to TransactionManager
           response = {
             success: true,
-            action: 'list',
+            action: "list",
             transactions: [],
-            message: 'Transaction listing not yet implemented',
+            message: "Transaction listing not yet implemented",
           };
           break;
         }
 
         default: {
           // TypeScript exhaustiveness check
-          const exhaustiveCheck: never = request;
+          const exhaustiveCheck: never = input;
           response = {
             success: false,
             error: {
-              code: 'INVALID_PARAMS',
+              code: "INVALID_PARAMS",
               message: `Unsupported action: ${(exhaustiveCheck as { action: string }).action}`,
               retryable: false,
             },
@@ -156,7 +179,7 @@ export class TransactionHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

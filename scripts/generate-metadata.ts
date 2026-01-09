@@ -64,8 +64,9 @@ function extractActionLiteral(node: ts.Node): string | null {
           const property = expression.name;
           if (ts.isIdentifier(property) && property.text === 'literal') {
             const args = initializer.arguments;
-            if (args.length > 0 && ts.isStringLiteral(args[0])) {
-              return args[0].text;
+            const firstArg = args[0];
+            if (firstArg && ts.isStringLiteral(firstArg)) {
+              return firstArg.text;
             }
           }
         }
@@ -253,8 +254,11 @@ let completionsContent = readFileSync(completionsPath, 'utf-8');
 
 // Build TOOL_ACTIONS map
 const toolActionsMap = analyses
-  .filter(a => a.actionCount > 0)
-  .map(a => `  sheets_${a.toolName}: [${a.actions.map(act => `'${act}'`).join(', ')}],`)
+  .filter((a) => a.actionCount > 0)
+  .map((a) => {
+    const actionLines = a.actions.map((act) => `    "${act}",`).join('\n');
+    return `  sheets_${a.toolName}: [\n${actionLines}\n  ],`;
+  })
   .join('\n');
 
 const toolActionsBlock = `const TOOL_ACTIONS: Record<string, string[]> = {\n${toolActionsMap}\n};`;
@@ -286,6 +290,13 @@ const serverJson = {
   name: pkg.mcpName || pkg.name,
   version: pkg.version,
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
+  icons: [
+    {
+      src: "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
+      mimeType: "image/png",
+      sizes: ["1536x1024"]
+    }
+  ],
   mcpProtocol: "2025-11-25",
   packages: [],
   tools: [],

@@ -153,7 +153,7 @@ killall Claude
 open -a Claude
 ```
 
-Look for the 🔨 icon in the bottom-right corner!
+Look for the 🔨 icon in the bottom-right corner (custom ServalSheets icon may not appear yet)!
 
 ---
 

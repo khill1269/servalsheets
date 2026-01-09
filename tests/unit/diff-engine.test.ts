@@ -10,6 +10,7 @@ import type { sheets_v4 } from 'googleapis';
 describe('DiffEngine', () => {
   let diffEngine: DiffEngine;
   let mockSheetsApi: sheets_v4.Sheets;
+  const defaultDiffOptions = { sampleSize: 10, maxFullDiffCells: 5000 };
 
   beforeEach(() => {
     // Mock Google Sheets API
@@ -54,7 +55,10 @@ describe('DiffEngine', () => {
         data: { values: [] },
       });
 
-      const state = await diffEngine.captureState('test-sheet', { tier: 'METADATA' });
+      const state = await diffEngine.captureState('test-sheet', {
+        ...defaultDiffOptions,
+        tier: 'METADATA',
+      });
 
       expect(state.spreadsheetId).toBe('test-sheet');
       expect(state.sheets).toHaveLength(1);
@@ -89,7 +93,10 @@ describe('DiffEngine', () => {
         },
       });
 
-      const state = await diffEngine.captureState('test-sheet', { tier: 'SAMPLE', sampleSize: 10 });
+      const state = await diffEngine.captureState('test-sheet', {
+        ...defaultDiffOptions,
+        tier: 'SAMPLE',
+      });
 
       expect(state.sheets[0]?.sampleData).toBeDefined();
       expect(state.sheets[0]?.sampleData?.firstRows).toBeDefined();
@@ -121,7 +128,10 @@ describe('DiffEngine', () => {
         data: { values: mockValues },
       });
 
-      const state = await diffEngine.captureState('test-sheet', { tier: 'FULL' });
+      const state = await diffEngine.captureState('test-sheet', {
+        ...defaultDiffOptions,
+        tier: 'FULL',
+      });
 
       expect(state.sheets[0]?.values).toBeDefined();
       expect(state.sheets[0]?.blockChecksums).toBeDefined();
@@ -139,10 +149,16 @@ describe('DiffEngine', () => {
         { sheetId: 0, title: 'Sheet1', rowCount: 100, columnCount: 26, checksum: 'abc123' },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'METADATA' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'METADATA',
+      });
 
       expect(result.tier).toBe('METADATA');
-      expect(result.summary?.rowsChanged).toBe(0);
+      if (result.tier !== 'METADATA') {
+        throw new Error('Expected METADATA diff');
+      }
+      expect(result.summary.rowsChanged).toBe(0);
     });
 
     it('should detect structural changes in metadata diff', async () => {
@@ -154,10 +170,16 @@ describe('DiffEngine', () => {
         { sheetId: 0, title: 'Sheet1', rowCount: 150, columnCount: 26, checksum: 'def456' },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'METADATA' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'METADATA',
+      });
 
       expect(result.tier).toBe('METADATA');
-      expect(result.summary?.rowsChanged).toBe(50);
+      if (result.tier !== 'METADATA') {
+        throw new Error('Expected METADATA diff');
+      }
+      expect(result.summary.rowsChanged).toBe(50);
     });
 
     it('should perform sample diff with changes', async () => {
@@ -189,11 +211,17 @@ describe('DiffEngine', () => {
         },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'SAMPLE' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'SAMPLE',
+      });
 
       expect(result.tier).toBe('SAMPLE');
+      if (result.tier !== 'SAMPLE') {
+        throw new Error('Expected SAMPLE diff');
+      }
       expect(result.samples).toBeDefined();
-      expect(result.samples!.firstRows.length).toBeGreaterThan(0);
+      expect(result.samples.firstRows.length).toBeGreaterThan(0);
     });
 
     it('should perform full diff with block optimization', async () => {
@@ -229,14 +257,24 @@ describe('DiffEngine', () => {
         },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'FULL' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'FULL',
+      });
 
       expect(result.tier).toBe('FULL');
+      if (result.tier !== 'FULL') {
+        throw new Error('Expected FULL diff');
+      }
       expect(result.changes).toBeDefined();
-      expect(result.changes!.length).toBe(1);
-      expect(result.changes![0]?.cell).toContain('A1');
-      expect(result.changes![0]?.before).toBe('A1');
-      expect(result.changes![0]?.after).toBe('A1_CHANGED');
+      expect(result.changes.length).toBe(1);
+      const [firstChange] = result.changes;
+      if (!firstChange) {
+        throw new Error('Expected change result');
+      }
+      expect(firstChange.cell).toContain('A1');
+      expect(firstChange.before).toBe('A1');
+      expect(firstChange.after).toBe('A1_CHANGED');
     });
 
     it('should skip unchanged sheets using checksum optimization', async () => {
@@ -269,11 +307,17 @@ describe('DiffEngine', () => {
         },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'FULL' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'FULL',
+      });
 
       expect(result.tier).toBe('FULL');
+      if (result.tier !== 'FULL') {
+        throw new Error('Expected FULL diff');
+      }
       expect(result.changes).toBeDefined();
-      expect(result.changes!.length).toBe(0); // No changes due to checksum match
+      expect(result.changes.length).toBe(0); // No changes due to checksum match
     });
 
     it('should detect removed sheets', async () => {
@@ -307,10 +351,16 @@ describe('DiffEngine', () => {
         },
       ]);
 
-      const result = await diffEngine.diff(beforeState, afterState, { tier: 'FULL' });
+      const result = await diffEngine.diff(beforeState, afterState, {
+        ...defaultDiffOptions,
+        tier: 'FULL',
+      });
 
       expect(result.tier).toBe('FULL');
-      expect(result.summary?.cellsRemoved).toBe(500); // 50 rows * 10 cols
+      if (result.tier !== 'FULL') {
+        throw new Error('Expected FULL diff');
+      }
+      expect(result.summary.cellsRemoved).toBe(500); // 50 rows * 10 cols
     });
   });
 
@@ -344,6 +394,7 @@ describe('DiffEngine', () => {
 
       const startTime = Date.now();
       const state = await diffEngine.captureState('test-sheet', {
+        ...defaultDiffOptions,
         tier: 'FULL',
         maxFullDiffCells: 50000,
       });
@@ -375,7 +426,10 @@ describe('DiffEngine', () => {
       });
 
       const startTime = Date.now();
-      const state = await diffEngine.captureState('test-sheet', { tier: 'SAMPLE' });
+      const state = await diffEngine.captureState('test-sheet', {
+        ...defaultDiffOptions,
+        tier: 'SAMPLE',
+      });
       const duration = Date.now() - startTime;
 
       expect(state.sheets).toHaveLength(5);
@@ -397,6 +451,7 @@ describe('DiffEngine', () => {
       ]);
 
       const result = await diffEngine.diff(largeState, largeState, {
+        ...defaultDiffOptions,
         tier: 'FULL',
         maxFullDiffCells: 5000,
       });
@@ -417,6 +472,7 @@ describe('DiffEngine', () => {
       ]);
 
       const result = await diffEngine.diff(veryLargeState, veryLargeState, {
+        ...defaultDiffOptions,
         tier: 'SAMPLE',
         maxFullDiffCells: 5000,
       });

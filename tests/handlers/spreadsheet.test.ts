@@ -34,6 +34,13 @@ const createMockContext = (): HandlerContext => ({
     validateIntents: vi.fn().mockResolvedValue(undefined),
     validateEffectScope: vi.fn().mockResolvedValue(undefined),
   } as any,
+  auth: {
+    hasElevatedAccess: true,
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file',
+    ],
+  },
 });
 
 describe('SpreadsheetHandler', () => {
@@ -78,10 +85,8 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'test-id',
-        },
       });
 
       // Validate against schema
@@ -111,10 +116,8 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'test-id',
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -144,10 +147,8 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'create',
           title: 'New Spreadsheet',
-        },
       });
 
       const parsed = SheetsSpreadsheetOutputSchema.safeParse(result);
@@ -173,14 +174,12 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'create',
           title: 'Custom Sheets',
           sheets: [
             { title: 'Data', rowCount: 500, columnCount: 10 },
             { title: 'Summary', rowCount: 100, columnCount: 5 },
           ],
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -206,10 +205,8 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'copy',
           spreadsheetId: 'original-id',
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -227,10 +224,8 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handlerNoDrive.handle({
-        request: {
-          action: 'copy',
-          spreadsheetId: 'test-id',
-        },
+        action: 'copy',
+        spreadsheetId: 'test-id',
       });
 
       expect(result.response.success).toBe(false);
@@ -253,11 +248,9 @@ describe('SpreadsheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'update_properties',
           spreadsheetId: 'test-id',
           title: 'Updated Title',
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -280,10 +273,8 @@ describe('SpreadsheetHandler', () => {
 
     it('should error when no properties provided', async () => {
       const result = await handler.handle({
-        request: {
           action: 'update_properties',
           spreadsheetId: 'test-id',
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -296,10 +287,8 @@ describe('SpreadsheetHandler', () => {
   describe('get_url action', () => {
     it('should return computed URL', async () => {
       const result = await handler.handle({
-        request: {
           action: 'get_url',
           spreadsheetId: 'test-id-123',
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -328,10 +317,8 @@ describe('SpreadsheetHandler', () => {
         });
 
       const result = await handler.handle({
-        request: {
           action: 'batch_get',
           spreadsheetIds: ['id-1', 'id-2'],
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -350,10 +337,8 @@ describe('SpreadsheetHandler', () => {
         .mockRejectedValueOnce(new Error('Not found'));
 
       const result = await handler.handle({
-        request: {
           action: 'batch_get',
           spreadsheetIds: ['id-1', 'id-2'],
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -372,10 +357,8 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'nonexistent',
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -390,10 +373,8 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'forbidden',
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -408,10 +389,8 @@ describe('SpreadsheetHandler', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'test-id',
-        },
       });
 
       expect(result.response.success).toBe(false);

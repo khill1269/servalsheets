@@ -507,7 +507,7 @@ const phoneNumber: DataValidationRule = {
     values: [{ userEnteredValue: '=REGEXMATCH(A1,"^\\d{3}-\\d{3}-\\d{4}$")' }],
   },
   strict: true,
-  inputMessage: 'Format: XXX-XXX-XXXX',
+  inputMessage: 'Format: 000-000-0000',
 };
 
 // Age validation (18+)

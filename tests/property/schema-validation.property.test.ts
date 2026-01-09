@@ -119,11 +119,9 @@ describe('Schema Validation Property Tests', () => {
           (spreadsheetId, colIndex, rowNum) => {
             const colLetter = String.fromCharCode(65 + colIndex);
             const input = {
-              request: {
-                action: 'read' as const,
-                spreadsheetId,
-                range: { a1: `${colLetter}${rowNum}` },
-              },
+              action: 'read' as const,
+              spreadsheetId,
+              range: { a1: `${colLetter}${rowNum}` },
             };
 
             const result = SheetsValuesInputSchema.safeParse(input);
@@ -136,10 +134,8 @@ describe('Schema Validation Property Tests', () => {
 
     it('should reject read action without spreadsheetId', () => {
       const input = {
-        request: {
-          action: 'read' as const,
-          range: { a1: 'A1:B10' },
-        },
+        action: 'read' as const,
+        range: { a1: 'A1:B10' },
       };
 
       const result = SheetsValuesInputSchema.safeParse(input);
@@ -158,12 +154,10 @@ describe('Schema Validation Property Tests', () => {
           (spreadsheetId, colIndex, rowNum, values) => {
             const colLetter = String.fromCharCode(65 + colIndex);
             const input = {
-              request: {
-                action: 'write' as const,
-                spreadsheetId,
-                range: { a1: `${colLetter}${rowNum}` },
-                values,
-              },
+              action: 'write' as const,
+              spreadsheetId,
+              range: { a1: `${colLetter}${rowNum}` },
+              values,
             };
 
             const result = SheetsValuesInputSchema.safeParse(input);
@@ -176,11 +170,9 @@ describe('Schema Validation Property Tests', () => {
 
     it('should reject write action without values', () => {
       const input = {
-        request: {
-          action: 'write' as const,
-          spreadsheetId: 'test-id',
-          range: { a1: 'A1:B10' },
-        },
+        action: 'write' as const,
+        spreadsheetId: 'test-id',
+        range: { a1: 'A1:B10' },
       };
 
       const result = SheetsValuesInputSchema.safeParse(input);
@@ -195,15 +187,13 @@ describe('Schema Validation Property Tests', () => {
           fc.integer({ min: 1, max: 1000000 }),
           (maxCells) => {
             const input = {
-              request: {
-                action: 'write' as const,
-                spreadsheetId: 'test-id',
-                range: { a1: 'A1:B10' },
-                values: [['test']],
-                safety: {
-                  effectScope: {
-                    maxCellsAffected: maxCells,
-                  },
+              action: 'write' as const,
+              spreadsheetId: 'test-id',
+              range: { a1: 'A1:B10' },
+              values: [['test']],
+              safety: {
+                effectScope: {
+                  maxCellsAffected: maxCells,
                 },
               },
             };
@@ -218,14 +208,12 @@ describe('Schema Validation Property Tests', () => {
 
     it('should accept dryRun flag', () => {
       const input = {
-        request: {
-          action: 'write' as const,
-          spreadsheetId: 'test-id',
-          range: { a1: 'A1:B10' },
-          values: [['test']],
-          safety: {
-            dryRun: true,
-          },
+        action: 'write' as const,
+        spreadsheetId: 'test-id',
+        range: { a1: 'A1:B10' },
+        values: [['test']],
+        safety: {
+          dryRun: true,
         },
       };
 
@@ -240,11 +228,9 @@ describe('Schema Validation Property Tests', () => {
       
       for (const action of actions) {
         const baseInput = {
-          request: {
-            action,
-            spreadsheetId: 'test-id',
-            range: { a1: 'A1:B10' },
-          },
+          action,
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1:B10' },
         };
 
         // Write and append require values
@@ -253,10 +239,8 @@ describe('Schema Validation Property Tests', () => {
           expect(withoutValues.success).toBe(false);
 
           const withValues = SheetsValuesInputSchema.safeParse({
-            request: {
-              ...baseInput.request,
-              values: [['test']],
-            },
+            ...baseInput,
+            values: [['test']],
           });
           expect(withValues.success).toBe(true);
         } else {

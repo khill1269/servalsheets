@@ -14,8 +14,8 @@ import type {
   OperationHistory,
   OperationHistoryStats,
   OperationHistoryFilter,
-} from '../types/history.js';
-import { logger } from '../utils/logger.js';
+} from "../types/history.js";
+import { logger } from "../utils/logger.js";
 
 export interface HistoryServiceOptions {
   /** Maximum number of operations to keep (default: 100) */
@@ -47,7 +47,7 @@ export class HistoryService {
     this.maxSize = options.maxSize ?? 100;
     this.verboseLogging = options.verboseLogging ?? false;
 
-    logger.info('History service initialized', {
+    logger.info("History service initialized", {
       maxSize: this.maxSize,
       verboseLogging: this.verboseLogging,
     });
@@ -64,7 +64,11 @@ export class HistoryService {
     this.operationsMap.set(operation.id, operation);
 
     // Add to undo stack if it has a snapshot (only successful write operations)
-    if (operation.result === 'success' && operation.snapshotId && operation.spreadsheetId) {
+    if (
+      operation.result === "success" &&
+      operation.snapshotId &&
+      operation.spreadsheetId
+    ) {
       const stack = this.undoStacks.get(operation.spreadsheetId) || [];
       stack.push(operation.id);
       this.undoStacks.set(operation.spreadsheetId, stack);
@@ -82,7 +86,7 @@ export class HistoryService {
     }
 
     if (this.verboseLogging) {
-      logger.debug('Operation recorded in history', {
+      logger.debug("Operation recorded in history", {
         id: operation.id,
         tool: operation.tool,
         action: operation.action,
@@ -120,17 +124,23 @@ export class HistoryService {
       }
 
       if (filter.spreadsheetId) {
-        filtered = filtered.filter((op) => op.spreadsheetId === filter.spreadsheetId);
+        filtered = filtered.filter(
+          (op) => op.spreadsheetId === filter.spreadsheetId,
+        );
       }
 
       if (filter.startTime) {
         const startTime = new Date(filter.startTime).getTime();
-        filtered = filtered.filter((op) => new Date(op.timestamp).getTime() >= startTime);
+        filtered = filtered.filter(
+          (op) => new Date(op.timestamp).getTime() >= startTime,
+        );
       }
 
       if (filter.endTime) {
         const endTime = new Date(filter.endTime).getTime();
-        filtered = filtered.filter((op) => new Date(op.timestamp).getTime() <= endTime);
+        filtered = filtered.filter(
+          (op) => new Date(op.timestamp).getTime() <= endTime,
+        );
       }
 
       if (filter.limit && filter.limit > 0) {
@@ -152,7 +162,7 @@ export class HistoryService {
    * Get failed operations
    */
   getFailures(count?: number): OperationHistory[] {
-    const failures = this.operations.filter((op) => op.result === 'error');
+    const failures = this.operations.filter((op) => op.result === "error");
     return count ? failures.slice(-count) : failures;
   }
 
@@ -160,7 +170,9 @@ export class HistoryService {
    * Get operations for a specific spreadsheet
    */
   getBySpreadsheet(spreadsheetId: string, count?: number): OperationHistory[] {
-    const ops = this.operations.filter((op) => op.spreadsheetId === spreadsheetId);
+    const ops = this.operations.filter(
+      (op) => op.spreadsheetId === spreadsheetId,
+    );
     return count ? ops.slice(-count) : ops;
   }
 
@@ -169,15 +181,20 @@ export class HistoryService {
    */
   getStats(): OperationHistoryStats {
     const total = this.operations.length;
-    const successful = this.operations.filter((op) => op.result === 'success').length;
+    const successful = this.operations.filter(
+      (op) => op.result === "success",
+    ).length;
     const failed = total - successful;
 
-    const totalDuration = this.operations.reduce((sum, op) => sum + op.duration, 0);
+    const totalDuration = this.operations.reduce(
+      (sum, op) => sum + op.duration,
+      0,
+    );
     const averageDuration = total > 0 ? totalDuration / total : 0;
 
     const totalCells = this.operations.reduce(
       (sum, op) => sum + (op.cellsAffected || 0),
-      0
+      0,
     );
 
     // Find most common tool
@@ -232,7 +249,7 @@ export class HistoryService {
     this.operations = [];
     this.operationsMap.clear();
 
-    logger.info('Operation history cleared');
+    logger.info("Operation history cleared");
   }
 
   /**
@@ -319,7 +336,9 @@ export class HistoryService {
   clearForSpreadsheet(spreadsheetId: string): number {
     // Remove operations
     const before = this.operations.length;
-    this.operations = this.operations.filter((op) => op.spreadsheetId !== spreadsheetId);
+    this.operations = this.operations.filter(
+      (op) => op.spreadsheetId !== spreadsheetId,
+    );
     const removed = before - this.operations.length;
 
     // Rebuild map
@@ -332,7 +351,9 @@ export class HistoryService {
     this.undoStacks.delete(spreadsheetId);
     this.redoStacks.delete(spreadsheetId);
 
-    logger.info(`Cleared ${removed} operations for spreadsheet ${spreadsheetId}`);
+    logger.info(
+      `Cleared ${removed} operations for spreadsheet ${spreadsheetId}`,
+    );
     return removed;
   }
 

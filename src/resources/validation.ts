@@ -4,8 +4,8 @@
  * Exposes validation engine capabilities as MCP resources for discovery and reference.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getValidationEngine } from '../services/validation-engine.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getValidationEngine } from "../services/validation-engine.js";
 
 /**
  * Register validation resources with the MCP server
@@ -15,58 +15,75 @@ export function registerValidationResources(server: McpServer): number {
 
   // Resource 1: validation://stats - Validation engine statistics
   server.registerResource(
-    'Validation Engine Statistics',
-    'validation://stats',
+    "Validation Engine Statistics",
+    "validation://stats",
     {
-      description: 'Validation engine statistics: total validations, success rate, error counts by type and severity',
-      mimeType: 'application/json',
+      description:
+        "Validation engine statistics: total validations, success rate, error counts by type and severity",
+      mimeType: "application/json",
     },
     async (uri) => {
       try {
         const stats = validationEngine.getStats();
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              stats: {
-                totalValidations: stats.totalValidations,
-                passedValidations: stats.passedValidations,
-                failedValidations: stats.failedValidations,
-                successRate: `${(stats.successRate * 100).toFixed(1)}%`,
-                avgValidationTime: `${stats.avgValidationTime.toFixed(2)}ms`,
-                errorsByType: stats.errorsByType,
-                errorsBySeverity: stats.errorsBySeverity,
-                cacheHitRate: stats.cacheHitRate ? `${(stats.cacheHitRate * 100).toFixed(1)}%` : 'N/A',
-              },
-              summary: `Validated ${stats.totalValidations} value(s), ${stats.passedValidations} passed, ${stats.failedValidations} failed (${(stats.successRate * 100).toFixed(1)}% success rate)`,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  stats: {
+                    totalValidations: stats.totalValidations,
+                    passedValidations: stats.passedValidations,
+                    failedValidations: stats.failedValidations,
+                    successRate: `${(stats.successRate * 100).toFixed(1)}%`,
+                    avgValidationTime: `${stats.avgValidationTime.toFixed(2)}ms`,
+                    errorsByType: stats.errorsByType,
+                    errorsBySeverity: stats.errorsBySeverity,
+                    cacheHitRate: stats.cacheHitRate
+                      ? `${(stats.cacheHitRate * 100).toFixed(1)}%`
+                      : "N/A",
+                  },
+                  summary: `Validated ${stats.totalValidations} value(s), ${stats.passedValidations} passed, ${stats.failedValidations} failed (${(stats.successRate * 100).toFixed(1)}% success rate)`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              error: 'Failed to fetch validation statistics',
-              message: errorMessage,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch validation statistics",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Resource 2: validation://help - Validation capabilities documentation
   server.registerResource(
-    'Validation Engine Help',
-    'validation://help',
+    "Validation Engine Help",
+    "validation://help",
     {
-      description: 'Documentation for the validation engine: data types, formats, custom rules, business logic',
-      mimeType: 'text/markdown',
+      description:
+        "Documentation for the validation engine: data types, formats, custom rules, business logic",
+      mimeType: "text/markdown",
     },
     async (uri) => {
       try {
@@ -257,14 +274,14 @@ Set environment variables:
 - \`VALIDATION_MAX_ERRORS\`: Max errors to collect (default: 100)
 - \`VALIDATION_ASYNC_TIMEOUT\`: Async validation timeout in ms (default: 5000)
 - \`VALIDATION_ENABLE_CACHING\`: Enable result caching (default: true)
-- \`VALIDATION_CACHE_TTL\`: Cache TTL in ms (default: 60000 = 1 minute)
+- \`VALIDATION_CACHE_TTL\`: Cache TTL in ms (default: 300000 = 5 minutes)
 - \`VALIDATION_VERBOSE\`: Verbose logging (default: false)
 
 ## Performance Features
 
 ### Result Caching
 Validation results are cached to avoid redundant checks:
-- Configurable TTL (default: 1 minute)
+- Configurable TTL (default: 5 minutes)
 - Automatic cache cleanup
 - Cache hit rate tracking
 
@@ -350,29 +367,34 @@ validationEngine.resetStats();
 `;
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/markdown',
-            text: helpText,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/markdown",
+              text: helpText,
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/plain',
-            text: `Error fetching validation help: ${errorMessage}`,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/plain",
+              text: `Error fetching validation help: ${errorMessage}`,
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Note: Using console.error for MCP server startup output (visible to user)
-  console.error('[ServalSheets] Registered 2 validation resources:');
-  console.error('  - validation://stats (validation engine statistics)');
-  console.error('  - validation://help (validation engine documentation)');
+  console.error("[ServalSheets] Registered 2 validation resources:");
+  console.error("  - validation://stats (validation engine statistics)");
+  console.error("  - validation://help (validation engine documentation)");
 
   return 2;
 }

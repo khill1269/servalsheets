@@ -4,8 +4,8 @@
  * Exposes conflict detector capabilities as MCP resources for discovery and reference.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getConflictDetector } from '../services/conflict-detector.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getConflictDetector } from "../services/conflict-detector.js";
 
 /**
  * Register conflict resources with the MCP server
@@ -15,61 +15,76 @@ export function registerConflictResources(server: McpServer): number {
 
   // Resource 1: conflict://stats - Conflict detector statistics
   server.registerResource(
-    'Conflict Detector Statistics',
-    'conflict://stats',
+    "Conflict Detector Statistics",
+    "conflict://stats",
     {
-      description: 'Conflict detector statistics: conflicts detected, resolution rate, strategies used',
-      mimeType: 'application/json',
+      description:
+        "Conflict detector statistics: conflicts detected, resolution rate, strategies used",
+      mimeType: "application/json",
     },
     async (uri) => {
       try {
         const stats = conflictDetector.getStats();
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              stats: {
-                totalChecks: stats.totalChecks,
-                conflictsDetected: stats.conflictsDetected,
-                conflictsResolved: stats.conflictsResolved,
-                conflictsAutoResolved: stats.conflictsAutoResolved,
-                conflictsManuallyResolved: stats.conflictsManuallyResolved,
-                detectionRate: `${(stats.detectionRate * 100).toFixed(1)}%`,
-                resolutionSuccessRate: `${(stats.resolutionSuccessRate * 100).toFixed(1)}%`,
-                avgResolutionTime: `${(stats.avgResolutionTime / 1000).toFixed(2)}s`,
-                resolutionsByStrategy: stats.resolutionsByStrategy,
-                cacheHitRate: `${(stats.cacheHitRate * 100).toFixed(1)}%`,
-                versionsTracked: stats.versionsTracked,
-              },
-              summary: `Detected ${stats.conflictsDetected} conflict(s) from ${stats.totalChecks} check(s) with ${(stats.resolutionSuccessRate * 100).toFixed(1)}% resolution success rate`,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  stats: {
+                    totalChecks: stats.totalChecks,
+                    conflictsDetected: stats.conflictsDetected,
+                    conflictsResolved: stats.conflictsResolved,
+                    conflictsAutoResolved: stats.conflictsAutoResolved,
+                    conflictsManuallyResolved: stats.conflictsManuallyResolved,
+                    detectionRate: `${(stats.detectionRate * 100).toFixed(1)}%`,
+                    resolutionSuccessRate: `${(stats.resolutionSuccessRate * 100).toFixed(1)}%`,
+                    avgResolutionTime: `${(stats.avgResolutionTime / 1000).toFixed(2)}s`,
+                    resolutionsByStrategy: stats.resolutionsByStrategy,
+                    cacheHitRate: `${(stats.cacheHitRate * 100).toFixed(1)}%`,
+                    versionsTracked: stats.versionsTracked,
+                  },
+                  summary: `Detected ${stats.conflictsDetected} conflict(s) from ${stats.totalChecks} check(s) with ${(stats.resolutionSuccessRate * 100).toFixed(1)}% resolution success rate`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              error: 'Failed to fetch transaction statistics',
-              message: errorMessage,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch transaction statistics",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Resource 2: conflict://help - Transaction capabilities documentation
   server.registerResource(
-    'Conflict Detector Help',
-    'conflict://help',
+    "Conflict Detector Help",
+    "conflict://help",
     {
-      description: 'Documentation for the conflict detector: atomicity, rollback, batch operations',
-      mimeType: 'text/markdown',
+      description:
+        "Documentation for the conflict detector: atomicity, rollback, batch operations",
+      mimeType: "text/markdown",
     },
     async (uri) => {
       try {
@@ -276,29 +291,34 @@ Maximum 10 concurrent transactions (configurable) to prevent resource exhaustion
 `;
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/markdown',
-            text: helpText,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/markdown",
+              text: helpText,
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/plain',
-            text: `Error fetching transaction help: ${errorMessage}`,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/plain",
+              text: `Error fetching transaction help: ${errorMessage}`,
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Note: Using console.error for MCP server startup output (visible to user)
-  console.error('[ServalSheets] Registered 2 conflict resources:');
-  console.error('  - conflict://stats (conflict detector statistics)');
-  console.error('  - conflict://help (conflict detector documentation)');
+  console.error("[ServalSheets] Registered 2 conflict resources:");
+  console.error("  - conflict://stats (conflict detector statistics)");
+  console.error("  - conflict://help (conflict detector documentation)");
 
   return 2;
 }

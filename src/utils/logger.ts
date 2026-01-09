@@ -7,9 +7,9 @@
  * (tokens, API keys, credentials) from leaking into logs.
  */
 
-import winston from 'winston';
-import { getServiceContextFlat } from './logger-context.js';
-import { redactObject } from './redact.js';
+import winston from "winston";
+import { getServiceContextFlat } from "./logger-context.js";
+import { redactObject } from "./redact.js";
 
 /**
  * Winston format for redacting sensitive data
@@ -26,12 +26,15 @@ const addServiceContext = winston.format((info) => {
   return info;
 });
 
-const level = process.env['LOG_LEVEL'] ?? (process.env['NODE_ENV'] === 'production' ? 'info' : 'debug');
+const level =
+  process.env["LOG_LEVEL"] ??
+  (process.env["NODE_ENV"] === "production" ? "info" : "debug");
 
 // Detect if we're in STDIO mode for MCP (logs must go to stderr, not stdout)
 // Winston Console transport writes to stderr by default when level is 'error' or when stderrLevels is configured
 // In STDIO mode, ALL logs must go to stderr to avoid interfering with JSON-RPC on stdout
-const isStdioMode = process.env['MCP_TRANSPORT'] === 'stdio' || !process.env['MCP_TRANSPORT'];
+const isStdioMode =
+  process.env["MCP_TRANSPORT"] === "stdio" || !process.env["MCP_TRANSPORT"];
 
 export const logger = winston.createLogger({
   level,
@@ -40,18 +43,22 @@ export const logger = winston.createLogger({
     winston.format.timestamp(),
     addServiceContext(),
     redactSensitive(),
-    winston.format.json()
+    winston.format.json(),
   ),
   transports: [
     new winston.transports.Console({
       // In STDIO mode, send ALL log levels to stderr (not just errors)
       // This prevents any logs from interfering with JSON-RPC messages on stdout
-      stderrLevels: isStdioMode ? ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'] : ['error'],
-    })
+      stderrLevels: isStdioMode
+        ? ["error", "warn", "info", "http", "verbose", "debug", "silly"]
+        : ["error"],
+    }),
   ],
   defaultMeta: getServiceContextFlat(),
 });
 
-export function createChildLogger(meta: Record<string, unknown>): winston.Logger {
+export function createChildLogger(
+  meta: Record<string, unknown>,
+): winston.Logger {
   return logger.child(meta);
 }

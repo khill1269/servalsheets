@@ -30,5 +30,11 @@ export * from './services/index.js';
 export * from './handlers/index.js';
 
 // Version info
-export { VERSION, MCP_PROTOCOL_VERSION, VERSION_STRING, SERVER_INFO } from './version.js';
+export {
+  VERSION,
+  MCP_PROTOCOL_VERSION,
+  VERSION_STRING,
+  SERVER_INFO,
+  SERVER_ICONS,
+} from './version.js';
 export const SHEETS_API_VERSION = 'v4';

@@ -3,36 +3,36 @@
  * Authentication management for OAuth-based usage.
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   ErrorDetailSchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
-const AuthActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsAuthInputSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal('status'),
+    action: z.literal("status").describe("Check authentication status"),
   }),
   z.object({
-    action: z.literal('login'),
-    scopes: z.array(z.string()).optional()
-      .describe('Optional additional OAuth scopes to request'),
+    action: z.literal("login").describe("Initiate OAuth login flow"),
+    scopes: z
+      .array(z.string())
+      .optional()
+      .describe("Optional additional OAuth scopes to request"),
   }),
   z.object({
-    action: z.literal('callback'),
-    code: z.string().min(1).describe('Authorization code returned by Google'),
+    action: z.literal("callback").describe("Complete OAuth flow with authorization code"),
+    code: z.string().min(1).describe("Authorization code returned by Google"),
   }),
   z.object({
-    action: z.literal('logout'),
+    action: z.literal("logout").describe("Clear stored credentials"),
   }),
 ]);
 
-export const SheetsAuthInputSchema = z.object({
-  request: AuthActionSchema,
-});
-
-const AuthResponseSchema = z.discriminatedUnion('success', [
+const AuthResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -58,7 +58,7 @@ export const SheetsAuthOutputSchema = z.object({
 });
 
 export const SHEETS_AUTH_ANNOTATIONS: ToolAnnotations = {
-  title: 'Authentication',
+  title: "Authentication",
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: false,
@@ -67,5 +67,4 @@ export const SHEETS_AUTH_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsAuthInput = z.infer<typeof SheetsAuthInputSchema>;
 export type SheetsAuthOutput = z.infer<typeof SheetsAuthOutputSchema>;
-export type AuthAction = z.infer<typeof AuthActionSchema>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;

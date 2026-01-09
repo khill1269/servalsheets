@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 23 tools, 152 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 24 tools, 188 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -45,7 +45,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 ## Features
 
 ### Core Capabilities
-- **23 Tools, 152 Actions**: Comprehensive Google Sheets API v4 coverage
+- **24 Tools, 188 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -56,7 +56,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
-- ✅ **Tools**: 23 tools with 152 actions using discriminated unions
+- ✅ **Tools**: 24 tools with 188 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -174,7 +174,7 @@ ServalSheets has comprehensive documentation organized by use case:
 
 ## Tools Reference
 
-### Core Operations (16 tools, 156 actions)
+### Core Operations (16 tools, 165 actions)
 | Tool | Actions | Description | Read-Only | Destructive |
 |------|---------|-------------|-----------|-------------|
 | `sheets_auth` | 4 | Authentication & OAuth | **Yes** | No |
@@ -194,17 +194,17 @@ ServalSheets has comprehensive documentation organized by use case:
 | `sheets_analysis` | 13 | Data analysis, AI insights | **Yes** | No |
 | `sheets_advanced` | 19 | Named ranges, protection | No | Yes |
 
-### Advanced Operations (8 tools, 36 actions)
+### Enterprise & MCP-Native Tools (8 tools, 23 actions)
 | Tool | Actions | Description | Read-Only | Destructive |
 |------|---------|-------------|-----------|-------------|
 | `sheets_transaction` | 6 | Transaction management | No | Yes |
-| `sheets_workflow` | 5 | Multi-step automation | No | Yes |
-| `sheets_insights` | 3 | AI-powered insights | **Yes** | No |
-| `sheets_validation` | 4 | Data validation checking | **Yes** | No |
-| `sheets_plan` | 3 | Natural language planning | **Yes** | No |
+| `sheets_validation` | 1 | Data validation checking | **Yes** | No |
 | `sheets_conflict` | 2 | Conflict detection | **Yes** | No |
 | `sheets_impact` | 1 | Pre-execution analysis | **Yes** | No |
-| `sheets_history` | 3 | Operation history | **Yes** | No |
+| `sheets_history` | 7 | Operation history & undo | **Yes** | No |
+| `sheets_confirm` | 2 | User confirmation (Elicitation) | **Yes** | No |
+| `sheets_analyze` | 4 | AI analysis (Sampling) | **Yes** | No |
+| `sheets_fix` | 0 | Automated issue fixing | No | Yes |
 
 ## Examples
 

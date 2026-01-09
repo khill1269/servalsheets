@@ -4,12 +4,12 @@
  * Handles data validation with builtin and custom rules.
  */
 
-import { getValidationEngine } from '../services/validation-engine.js';
+import { getValidationEngine } from "../services/validation-engine.js";
 import type {
   SheetsValidationInput,
   SheetsValidationOutput,
   ValidationResponse,
-} from '../schemas/validation.js';
+} from "../schemas/validation.js";
 
 export interface ValidationHandlerOptions {
   // Options can be added as needed
@@ -21,19 +21,22 @@ export class ValidationHandler {
   }
 
   async handle(input: SheetsValidationInput): Promise<SheetsValidationOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
     const validationEngine = getValidationEngine();
 
     try {
       let response: ValidationResponse;
 
-      switch (request.action) {
-        case 'validate': {
-          const report = await validationEngine.validate(request.value, request.context);
+      switch (input.action) {
+        case "validate": {
+          const report = await validationEngine.validate(
+            input.value,
+            input.context,
+          );
 
           response = {
             success: true,
-            action: 'validate',
+            action: "validate",
             valid: report.valid,
             errorCount: report.errors.length,
             warningCount: report.warnings.length,
@@ -70,7 +73,7 @@ export class ValidationHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

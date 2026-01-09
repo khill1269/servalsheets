@@ -5,6 +5,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ParallelExecutor } from '../../src/services/parallel-executor.js';
 
+type ParallelStats = {
+  totalExecuted: number;
+  totalSucceeded: number;
+  totalFailed: number;
+  successRate: number;
+  averageDuration: number;
+};
+
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;
 
@@ -194,7 +202,7 @@ describe('ParallelExecutor', () => {
 
       await executor.executeAll(tasks);
 
-      const stats = executor.getStats();
+      const stats = executor.getStats() as ParallelStats;
 
       expect(stats.totalExecuted).toBe(3);
       expect(stats.totalSucceeded).toBe(2);
@@ -209,7 +217,7 @@ describe('ParallelExecutor', () => {
       await executor.executeAll(tasks);
       executor.resetStats();
 
-      const stats = executor.getStats();
+      const stats = executor.getStats() as ParallelStats;
 
       expect(stats.totalExecuted).toBe(0);
       expect(stats.totalSucceeded).toBe(0);

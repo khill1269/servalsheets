@@ -20,13 +20,22 @@
  * Note: For multi-instance Redis caching, use cache-store.ts and cache-factory.ts
  */
 
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
+import type { RequestMerger } from "../services/request-merger.js";
 
 export interface CacheEntry<T = unknown> {
   value: T;
   expires: number;
   size: number;
   namespace?: string;
+}
+
+export interface ParsedRange {
+  sheetName: string | null;
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
 }
 
 export interface CacheOptions {
@@ -56,6 +65,7 @@ export class CacheManager {
   private cache: Map<string, CacheEntry>;
   private cleanupTimer?: NodeJS.Timeout;
   private rangeDependencies: Map<string, Set<string>>; // spreadsheetId:range -> cache keys
+  private requestMerger?: RequestMerger;
 
   // Configuration
   private readonly enabled: boolean;
@@ -67,30 +77,42 @@ export class CacheManager {
   private hits = 0;
   private misses = 0;
 
-  constructor(options: {
-    enabled?: boolean;
-    defaultTTL?: number;
-    maxSizeMB?: number;
-    cleanupInterval?: number;
-  } = {}) {
+  constructor(
+    options: {
+      enabled?: boolean;
+      defaultTTL?: number;
+      maxSizeMB?: number;
+      cleanupInterval?: number;
+    } = {},
+  ) {
     this.cache = new Map();
     this.rangeDependencies = new Map();
 
-    const envEnabled = process.env['CACHE_ENABLED'];
-    const isTestEnv = process.env['NODE_ENV'] === 'test';
-    this.enabled = options.enabled ?? (envEnabled !== undefined ? envEnabled !== 'false' : !isTestEnv);
-    this.defaultTTL = options.defaultTTL ?? parseInt(process.env['CACHE_DEFAULT_TTL'] || '300000', 10);
-    this.maxSizeBytes = (options.maxSizeMB ?? parseInt(process.env['CACHE_MAX_SIZE'] || '100', 10)) * 1024 * 1024;
-    this.cleanupInterval = options.cleanupInterval ?? parseInt(process.env['CACHE_CLEANUP_INTERVAL'] || '300000', 10);
+    const envEnabled = process.env["CACHE_ENABLED"];
+    const isTestEnv = process.env["NODE_ENV"] === "test";
+    this.enabled =
+      options.enabled ??
+      (envEnabled !== undefined ? envEnabled !== "false" : !isTestEnv);
+    this.defaultTTL =
+      options.defaultTTL ??
+      parseInt(process.env["CACHE_DEFAULT_TTL"] || "300000", 10);
+    this.maxSizeBytes =
+      (options.maxSizeMB ??
+        parseInt(process.env["CACHE_MAX_SIZE"] || "100", 10)) *
+      1024 *
+      1024;
+    this.cleanupInterval =
+      options.cleanupInterval ??
+      parseInt(process.env["CACHE_CLEANUP_INTERVAL"] || "300000", 10);
 
     if (this.enabled) {
-      logger.info('Cache manager initialized', {
+      logger.info("Cache manager initialized", {
         defaultTTL: `${this.defaultTTL}ms`,
         maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
         cleanupInterval: `${this.cleanupInterval}ms`,
       });
     } else {
-      logger.info('Cache manager disabled');
+      logger.info("Cache manager disabled");
     }
   }
 
@@ -111,7 +133,7 @@ export class CacheManager {
       this.cleanupTimer.unref();
     }
 
-    logger.debug('Cache cleanup task started', {
+    logger.debug("Cache cleanup task started", {
       intervalMs: this.cleanupInterval,
     });
   }
@@ -123,7 +145,7 @@ export class CacheManager {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = undefined;
-      logger.debug('Cache cleanup task stopped');
+      logger.debug("Cache cleanup task stopped");
     }
   }
 
@@ -148,12 +170,12 @@ export class CacheManager {
     if (Date.now() > entry.expires) {
       this.cache.delete(cacheKey);
       this.misses++;
-      logger.debug('Cache entry expired', { key, namespace });
+      logger.debug("Cache entry expired", { key, namespace });
       return undefined;
     }
 
     this.hits++;
-    logger.debug('Cache hit', { key, namespace });
+    logger.debug("Cache hit", { key, namespace });
     return entry.value;
   }
 
@@ -172,7 +194,7 @@ export class CacheManager {
     // Check if adding this entry would exceed max size
     const currentSize = this.getTotalSize();
     if (currentSize + size > this.maxSizeBytes) {
-      logger.warn('Cache size limit approaching, cleaning up', {
+      logger.warn("Cache size limit approaching, cleaning up", {
         currentSize: `${(currentSize / 1024 / 1024).toFixed(2)}MB`,
         maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
       });
@@ -187,7 +209,7 @@ export class CacheManager {
     };
 
     this.cache.set(cacheKey, entry);
-    logger.debug('Cache entry set', {
+    logger.debug("Cache entry set", {
       key,
       namespace: options.namespace,
       ttl,
@@ -203,7 +225,7 @@ export class CacheManager {
     const deleted = this.cache.delete(cacheKey);
 
     if (deleted) {
-      logger.debug('Cache entry deleted', { key, namespace });
+      logger.debug("Cache entry deleted", { key, namespace });
     }
 
     return deleted;
@@ -237,7 +259,7 @@ export class CacheManager {
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
-    options: CacheOptions = {}
+    options: CacheOptions = {},
   ): Promise<T> {
     const cached = this.get<T>(key, options.namespace);
     if (cached !== undefined) {
@@ -253,7 +275,7 @@ export class CacheManager {
    * Invalidate all entries matching a pattern
    */
   invalidatePattern(pattern: RegExp | string, namespace?: string): number {
-    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    const regex = typeof pattern === "string" ? new RegExp(pattern) : pattern;
     let count = 0;
 
     for (const [key] of this.cache) {
@@ -267,7 +289,11 @@ export class CacheManager {
     }
 
     if (count > 0) {
-      logger.debug('Cache pattern invalidated', { pattern: pattern.toString(), namespace, count });
+      logger.debug("Cache pattern invalidated", {
+        pattern: pattern.toString(),
+        namespace,
+        count,
+      });
     }
 
     return count;
@@ -288,7 +314,7 @@ export class CacheManager {
     }
 
     if (count > 0) {
-      logger.debug('Cache namespace cleared', { namespace, count });
+      logger.debug("Cache namespace cleared", { namespace, count });
     }
 
     return count;
@@ -300,7 +326,7 @@ export class CacheManager {
   clear(): void {
     const count = this.cache.size;
     this.cache.clear();
-    logger.debug('Cache cleared', { entriesCleared: count });
+    logger.debug("Cache cleared", { entriesCleared: count });
   }
 
   /**
@@ -318,7 +344,7 @@ export class CacheManager {
     }
 
     if (expired > 0) {
-      logger.debug('Cache cleanup completed', {
+      logger.debug("Cache cleanup completed", {
         expired,
         remaining: this.cache.size,
       });
@@ -331,7 +357,10 @@ export class CacheManager {
    * @param namespace Optional namespace filter
    * @returns Array of cache keys that are expiring soon
    */
-  getExpiringEntries(thresholdMs: number, namespace?: string): Array<{ key: string; expiresIn: number }> {
+  getExpiringEntries(
+    thresholdMs: number,
+    namespace?: string,
+  ): Array<{ key: string; expiresIn: number }> {
     const now = Date.now();
     const expiringThreshold = now + thresholdMs;
     const expiring: Array<{ key: string; expiresIn: number }> = [];
@@ -369,7 +398,7 @@ export class CacheManager {
       this.cache.delete(key);
     });
 
-    logger.debug('Evicted oldest cache entries', {
+    logger.debug("Evicted oldest cache entries", {
       removed: countToRemove,
       remaining: this.cache.size,
     });
@@ -394,7 +423,7 @@ export class CacheManager {
         newestExpiry = entry.expires;
       }
 
-      const ns = entry.namespace || 'default';
+      const ns = entry.namespace || "default";
       byNamespace[ns] = (byNamespace[ns] || 0) + 1;
     }
 
@@ -422,6 +451,22 @@ export class CacheManager {
   }
 
   /**
+   * Set request merger for read optimization
+   * @param merger RequestMerger instance
+   */
+  setRequestMerger(merger: RequestMerger): void {
+    this.requestMerger = merger;
+    logger.info("RequestMerger attached to CacheManager");
+  }
+
+  /**
+   * Get request merger if configured
+   */
+  getRequestMerger(): RequestMerger | undefined {
+    return this.requestMerger;
+  }
+
+  /**
    * Build a cache key with optional namespace
    */
   private buildKey(key: string, namespace?: string): string {
@@ -434,7 +479,7 @@ export class CacheManager {
   private estimateSize(value: unknown): number {
     try {
       // Accurate UTF-8 byte length calculation
-      return Buffer.byteLength(JSON.stringify(value), 'utf8');
+      return Buffer.byteLength(JSON.stringify(value), "utf8");
     } catch {
       // Fallback to a conservative estimate
       return 1024; // 1KB default
@@ -456,7 +501,11 @@ export class CacheManager {
    * Track range dependency for cache invalidation
    * Associates a cache key with a spreadsheet range
    */
-  trackRangeDependency(spreadsheetId: string, range: string, cacheKey: string): void {
+  trackRangeDependency(
+    spreadsheetId: string,
+    range: string,
+    cacheKey: string,
+  ): void {
     const depKey = `${spreadsheetId}:${range}`;
     if (!this.rangeDependencies.has(depKey)) {
       this.rangeDependencies.set(depKey, new Set());
@@ -472,25 +521,40 @@ export class CacheManager {
     const affected = this.findOverlappingRanges(spreadsheetId, range);
     let count = 0;
 
+    const invalidatedRanges: string[] = [];
+
     for (const affectedRange of affected) {
       const depKey = `${spreadsheetId}:${affectedRange}`;
       const deps = this.rangeDependencies.get(depKey);
       if (deps) {
+        const keysInvalidated = deps.size;
         for (const cacheKey of deps) {
           if (this.cache.delete(cacheKey)) {
             count++;
           }
         }
         this.rangeDependencies.delete(depKey);
+        if (keysInvalidated > 0) {
+          invalidatedRanges.push(
+            `${affectedRange} (${keysInvalidated} keys)`,
+          );
+        }
       }
     }
 
     if (count > 0) {
-      logger.debug('Range-specific cache invalidation', {
+      logger.debug("Range-specific cache invalidation", {
         spreadsheetId,
-        range,
+        writeRange: range,
         keysInvalidated: count,
         rangesAffected: affected.length,
+        invalidatedRanges,
+      });
+    } else {
+      logger.debug("No cache entries to invalidate", {
+        spreadsheetId,
+        writeRange: range,
+        checkedRanges: affected.length,
       });
     }
 
@@ -499,52 +563,197 @@ export class CacheManager {
 
   /**
    * Find ranges that overlap with the given range
-   * Simple implementation: exact match + full sheet invalidation
+   * Uses precise intersection algorithm to minimize false positives
    */
-  private findOverlappingRanges(spreadsheetId: string, range: string): string[] {
-    const overlapping: string[] = [range];
+  private findOverlappingRanges(
+    spreadsheetId: string,
+    range: string,
+  ): string[] {
+    const overlapping: string[] = [];
 
-    // If range is "Sheet1!A1:D10", also invalidate "Sheet1" (full sheet)
-    if (range.includes('!')) {
-      const [sheetName] = range.split('!');
-      if (sheetName) {
-        overlapping.push(sheetName);
+    // Check all tracked ranges for overlaps
+    for (const depKey of this.rangeDependencies.keys()) {
+      // Parse depKey format: "spreadsheetId:range"
+      const parts = depKey.split(":");
+      if (parts.length < 2) continue;
 
-        // Also check for other ranges on the same sheet
-        for (const depKey of this.rangeDependencies.keys()) {
-          if (depKey.startsWith(`${spreadsheetId}:${sheetName}!`)) {
-            const existingRange = depKey.split(':')[1];
-            if (existingRange && this.rangesOverlap(range, existingRange)) {
-              overlapping.push(existingRange);
-            }
-          }
-        }
+      const depSpreadsheetId = parts[0];
+      if (depSpreadsheetId !== spreadsheetId) continue;
+
+      // Reconstruct the range (handle cases where range contains ":")
+      const existingRange = parts.slice(1).join(":");
+
+      // Check if ranges overlap using precise intersection
+      if (this.rangesOverlap(range, existingRange)) {
+        overlapping.push(existingRange);
       }
     }
 
-    return [...new Set(overlapping)]; // Deduplicate
+    // If no specific overlaps found but range has exact match, include it
+    if (overlapping.length === 0) {
+      const exactMatchKey = `${spreadsheetId}:${range}`;
+      if (this.rangeDependencies.has(exactMatchKey)) {
+        overlapping.push(range);
+      }
+    }
+
+    return overlapping;
   }
 
   /**
    * Check if two A1 ranges overlap
-   * Simplified check: exact match or both on same sheet
+   * Uses precise range intersection algorithm
    */
   private rangesOverlap(range1: string, range2: string): boolean {
     if (range1 === range2) return true;
 
-    // Extract sheet names
-    const sheet1 = range1.includes('!') ? range1.split('!')[0] : range1;
-    const sheet2 = range2.includes('!') ? range2.split('!')[0] : range2;
+    try {
+      const parsed1 = this.parseA1Notation(range1);
+      const parsed2 = this.parseA1Notation(range2);
 
-    // If on different sheets, no overlap
-    if (sheet1 !== sheet2) return false;
+      return this.rangesIntersect(parsed1, parsed2);
+    } catch (error) {
+      // Fallback to conservative behavior if parsing fails
+      logger.warn("Failed to parse A1 notation for overlap check", {
+        range1,
+        range2,
+        error,
+      });
+      return true; // Conservative: assume overlap if can't parse
+    }
+  }
 
-    // If either is just a sheet name (no cell range), they overlap
-    if (!range1.includes('!') || !range2.includes('!')) return true;
+  /**
+   * Parse A1 notation into structured range
+   * Handles: A1, A:A, 1:1, A1:B10, Sheet!A1:B10, 'Sheet Name'!A1:B10
+   */
+  private parseA1Notation(range: string): ParsedRange {
+    let sheetName: string | null = null;
+    let cellRange = range;
 
-    // For simplicity, assume all ranges on same sheet overlap
-    // A more sophisticated implementation would parse A1 notation and check bounds
-    return true;
+    // Extract sheet name if present
+    if (range.includes("!")) {
+      const parts = range.split("!");
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        sheetName = parts[0];
+        cellRange = parts[1];
+        // Remove quotes from sheet name if present
+        if (sheetName.startsWith("'") && sheetName.endsWith("'")) {
+          sheetName = sheetName.slice(1, -1);
+        }
+      }
+    }
+
+    // Handle special cases
+    if (!cellRange || cellRange.trim() === "") {
+      // Just sheet name - entire sheet
+      return {
+        sheetName,
+        startRow: 1,
+        startCol: 1,
+        endRow: Infinity,
+        endCol: Infinity,
+      };
+    }
+
+    // Check for column range (A:A or A:Z)
+    const colRangeMatch = cellRange.match(/^([A-Z]+):([A-Z]+)$/);
+    if (colRangeMatch) {
+      const startCol = this.columnToNumber(colRangeMatch[1]!);
+      const endCol = this.columnToNumber(colRangeMatch[2]!);
+      return {
+        sheetName,
+        startRow: 1,
+        startCol,
+        endRow: Infinity,
+        endCol,
+      };
+    }
+
+    // Check for row range (1:1 or 1:100)
+    const rowRangeMatch = cellRange.match(/^(\d+):(\d+)$/);
+    if (rowRangeMatch) {
+      return {
+        sheetName,
+        startRow: parseInt(rowRangeMatch[1]!, 10),
+        startCol: 1,
+        endRow: parseInt(rowRangeMatch[2]!, 10),
+        endCol: Infinity,
+      };
+    }
+
+    // Parse cell range (A1 or A1:B10)
+    const rangeParts = cellRange.split(":");
+    if (rangeParts.length === 1) {
+      // Single cell
+      const cell = this.parseCell(rangeParts[0]!);
+      return {
+        sheetName,
+        startRow: cell.row,
+        startCol: cell.col,
+        endRow: cell.row,
+        endCol: cell.col,
+      };
+    } else if (rangeParts.length === 2) {
+      // Range
+      const start = this.parseCell(rangeParts[0]!);
+      const end = this.parseCell(rangeParts[1]!);
+      return {
+        sheetName,
+        startRow: Math.min(start.row, end.row),
+        startCol: Math.min(start.col, end.col),
+        endRow: Math.max(start.row, end.row),
+        endCol: Math.max(start.col, end.col),
+      };
+    }
+
+    throw new Error(`Invalid A1 notation: ${range}`);
+  }
+
+  /**
+   * Parse a single cell reference like "A1" into row and column numbers
+   */
+  private parseCell(cell: string): { row: number; col: number } {
+    const match = cell.match(/^([A-Z]+)(\d+)$/);
+    if (!match) {
+      throw new Error(`Invalid cell reference: ${cell}`);
+    }
+
+    const col = this.columnToNumber(match[1]!);
+    const row = parseInt(match[2]!, 10);
+
+    return { row, col };
+  }
+
+  /**
+   * Convert column letter(s) to number (A=1, B=2, ..., Z=26, AA=27, etc.)
+   */
+  private columnToNumber(col: string): number {
+    let result = 0;
+    for (let i = 0; i < col.length; i++) {
+      result = result * 26 + (col.charCodeAt(i) - 64);
+    }
+    return result;
+  }
+
+  /**
+   * Check if two parsed ranges intersect
+   */
+  private rangesIntersect(range1: ParsedRange, range2: ParsedRange): boolean {
+    // Different sheets never intersect
+    if (range1.sheetName !== range2.sheetName) {
+      return false;
+    }
+
+    // Check row intersection
+    const rowsIntersect =
+      range1.startRow <= range2.endRow && range1.endRow >= range2.startRow;
+
+    // Check column intersection
+    const colsIntersect =
+      range1.startCol <= range2.endCol && range1.endCol >= range2.startCol;
+
+    return rowsIntersect && colsIntersect;
   }
 }
 
@@ -558,13 +767,13 @@ export const cacheManager = new CacheManager();
  */
 export function createCacheKey(
   operation: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): string {
   // Sort keys for consistent hashing
   const sortedKeys = Object.keys(params).sort();
   const serialized = sortedKeys
     .map((key) => `${key}=${JSON.stringify(params[key])}`)
-    .join('&');
+    .join("&");
 
   return `${operation}:${serialized}`;
 }

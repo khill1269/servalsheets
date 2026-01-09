@@ -8,7 +8,7 @@
 /**
  * Risk level for an operation
  */
-export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type RiskLevel = "low" | "medium" | "high" | "critical";
 
 /**
  * Risk assessment for an operation or step
@@ -230,7 +230,7 @@ export interface PlannedStepResult {
  */
 export interface PlanModification {
   /** Type of modification */
-  type: 'add_step' | 'remove_step' | 'modify_step' | 'reorder_steps';
+  type: "add_step" | "remove_step" | "modify_step" | "reorder_steps";
 
   /** Step number to modify (if applicable) */
   stepNumber?: number;
@@ -248,7 +248,10 @@ export interface PlanModification {
 /**
  * Tool executor function type for executing plan steps
  */
-export type ToolExecutor = (action: string, params: Record<string, unknown>) => Promise<unknown>;
+export type ToolExecutor = (
+  action: string,
+  params: Record<string, unknown>,
+) => Promise<unknown>;
 
 /**
  * Planning agent configuration

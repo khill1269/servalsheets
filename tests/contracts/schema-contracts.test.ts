@@ -36,67 +36,62 @@ import {
   SheetsHistoryInputSchema,
   SheetsConfirmInputSchema,
   SheetsAnalyzeInputSchema,
+  SheetsFixInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
 import { SheetsAuthInputSchema } from '../../src/schemas/auth.js';
 
 // Sample valid inputs for each tool (using first action from each schema)
+// NEW: After refactoring, inputs no longer wrapped in "request:"
 const VALID_INPUTS: Record<string, unknown> = {
-  sheets_auth: { request: { action: 'status' } },
-  sheets_spreadsheet: { request: { action: 'get', spreadsheetId: 'test123' } },
-  sheets_sheet: { request: { action: 'add', spreadsheetId: 'test123', title: 'New Sheet' } },
-  sheets_values: { request: { action: 'read', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:B10' } } },
-  sheets_cells: { request: { action: 'add_note', spreadsheetId: 'test123', cell: 'A1', note: 'Test note' } },
-  sheets_format: { request: { action: 'set_format', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1' }, format: {} } },
-  sheets_dimensions: { request: { action: 'insert_rows', spreadsheetId: 'test123', sheetId: 0, startIndex: 5 } },
+  sheets_auth: { action: 'status' },
+  sheets_spreadsheet: { action: 'get', spreadsheetId: 'test123' },
+  sheets_sheet: { action: 'add', spreadsheetId: 'test123', title: 'New Sheet' },
+  sheets_values: { action: 'read', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:B10' } },
+  sheets_cells: { action: 'add_note', spreadsheetId: 'test123', cell: 'A1', note: 'Test note' },
+  sheets_format: { action: 'set_format', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1' }, format: {} },
+  sheets_dimensions: { action: 'insert_rows', spreadsheetId: 'test123', sheetId: 0, startIndex: 5 },
   sheets_rules: {
-    request: {
-      action: 'add_conditional_format',
-      spreadsheetId: 'test123',
-      sheetId: 0,
-      range: { a1: 'Sheet1!A1:A10' },
-      rule: { type: 'boolean', condition: { type: 'BLANK' }, format: {} },
-    },
+    action: 'add_conditional_format',
+    spreadsheetId: 'test123',
+    sheetId: 0,
+    range: { a1: 'Sheet1!A1:A10' },
+    rule: { type: 'boolean', condition: { type: 'BLANK' }, format: {} },
   },
   sheets_charts: {
-    request: {
-      action: 'create',
-      spreadsheetId: 'test123',
-      sheetId: 0,
-      chartType: 'BAR',
-      data: { sourceRange: { a1: 'Sheet1!A1:C10' } },
-      position: { anchorCell: 'E1' },
-    },
+    action: 'create',
+    spreadsheetId: 'test123',
+    sheetId: 0,
+    chartType: 'BAR',
+    data: { sourceRange: { a1: 'Sheet1!A1:C10' } },
+    position: { anchorCell: 'E1' },
   },
   sheets_pivot: {
-    request: {
-      action: 'create',
-      spreadsheetId: 'test123',
-      sourceRange: { a1: 'Sheet1!A1:C10' },
-      values: [{ sourceColumnOffset: 0, summarizeFunction: 'SUM' }],
-    },
+    action: 'create',
+    spreadsheetId: 'test123',
+    sourceRange: { a1: 'Sheet1!A1:C10' },
+    values: [{ sourceColumnOffset: 0, summarizeFunction: 'SUM' }],
   },
-  sheets_filter_sort: { request: { action: 'set_basic_filter', spreadsheetId: 'test123', sheetId: 0 } },
-  sheets_sharing: { request: { action: 'share', spreadsheetId: 'test123', type: 'anyone', role: 'reader' } },
-  sheets_comments: { request: { action: 'add', spreadsheetId: 'test123', content: 'Test comment' } },
-  sheets_versions: { request: { action: 'list_revisions', spreadsheetId: 'test123' } },
-  sheets_analysis: { request: { action: 'data_quality', spreadsheetId: 'test123' } },
+  sheets_filter_sort: { action: 'set_basic_filter', spreadsheetId: 'test123', sheetId: 0 },
+  sheets_sharing: { action: 'share', spreadsheetId: 'test123', type: 'anyone', role: 'reader' },
+  sheets_comments: { action: 'add', spreadsheetId: 'test123', content: 'Test comment' },
+  sheets_versions: { action: 'list_revisions', spreadsheetId: 'test123' },
+  sheets_analysis: { action: 'data_quality', spreadsheetId: 'test123' },
   sheets_advanced: {
-    request: {
-      action: 'add_named_range',
-      spreadsheetId: 'test123',
-      name: 'TestRange',
-      range: { a1: 'Sheet1!A1:C10' },
-    },
+    action: 'add_named_range',
+    spreadsheetId: 'test123',
+    name: 'TestRange',
+    range: { a1: 'Sheet1!A1:C10' },
   },
-  sheets_transaction: { request: { action: 'begin', spreadsheetId: 'test123' } },
-  sheets_validation: { request: { action: 'validate', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:A10' }, rule: 'type', options: { type: 'NUMBER' } } },
-  sheets_conflict: { request: { action: 'detect', spreadsheetId: 'test123' } },
-  sheets_impact: { request: { action: 'analyze', spreadsheetId: 'test123', operation: { type: 'values_write', tool: 'sheets_values', action: 'write', params: { range: 'A1:B10', values: [[1, 2]] } } } },
-  sheets_history: { request: { action: 'list' } },
-  sheets_confirm: { request: { action: 'request', plan: { title: 'Test Plan', description: 'Test', steps: [{ stepNumber: 1, description: 'Test step', tool: 'sheets_values', action: 'read', risk: 'low', estimatedApiCalls: 1, isDestructive: false, canUndo: false }] } } },
-  sheets_analyze: { request: { action: 'generate_formula', spreadsheetId: 'test123', description: 'Sum column A' } },
+  sheets_transaction: { action: 'begin', spreadsheetId: 'test123' },
+  sheets_validation: { action: 'validate', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:A10' }, rule: 'type', options: { type: 'NUMBER' } },
+  sheets_conflict: { action: 'detect', spreadsheetId: 'test123' },
+  sheets_impact: { action: 'analyze', spreadsheetId: 'test123', operation: { type: 'values_write', tool: 'sheets_values', action: 'write', params: { range: 'A1:B10', values: [[1, 2]] } } },
+  sheets_history: { action: 'list' },
+  sheets_confirm: { action: 'request', plan: { title: 'Test Plan', description: 'Test', steps: [{ stepNumber: 1, description: 'Test step', tool: 'sheets_values', action: 'read', risk: 'low', estimatedApiCalls: 1, isDestructive: false, canUndo: false }] } },
+  sheets_analyze: { action: 'generate_formula', spreadsheetId: 'test123', description: 'Sum column A' },
+  sheets_fix: { action: 'fix', spreadsheetId: 'test123', issues: [{ type: 'MULTIPLE_TODAY', severity: 'medium', sheet: 'Sheet1', description: 'Multiple TODAY() calls' }] },
 };
 
 // All tool input schemas
@@ -124,17 +119,18 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_history', schema: SheetsHistoryInputSchema },
   { name: 'sheets_confirm', schema: SheetsConfirmInputSchema },
   { name: 'sheets_analyze', schema: SheetsAnalyzeInputSchema },
+  { name: 'sheets_fix', schema: SheetsFixInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 23 tools', () => {
-      expect(TOOL_COUNT).toBe(23);
-      expect(TOOL_SCHEMAS).toHaveLength(23);
+    it('should have exactly 24 tools', () => {
+      expect(TOOL_COUNT).toBe(24);
+      expect(TOOL_SCHEMAS).toHaveLength(24);
     });
 
-    it('should have 152+ total actions across all tools', () => {
-      expect(ACTION_COUNT).toBeGreaterThanOrEqual(152);
+    it('should have 70+ total actions across all tools', () => {
+      expect(ACTION_COUNT).toBeGreaterThanOrEqual(70);
     });
 
     it('should not have duplicate tool names', () => {
@@ -162,18 +158,14 @@ describe('Schema Contracts', () => {
       it(`${tool.name} rejects invalid inputs`, () => {
         // Test with invalid action
         const invalidAction = tool.schema.safeParse({
-          request: {
             action: 'invalid_action_name',
             spreadsheetId: 'test123',
-          },
         });
         expect(invalidAction.success).toBe(false);
 
         // Test with missing required field (spreadsheetId)
         const missingField = tool.schema.safeParse({
-          request: {
             action: 'get',
-          },
         });
         expect(missingField.success).toBe(false);
       });
@@ -192,12 +184,10 @@ describe('Schema Contracts', () => {
 
       for (const action of actions) {
         const result = SheetsValuesInputSchema.safeParse({
-          request: {
             action,
             spreadsheetId: 'test123',
             range: { a1: 'Sheet1!A1:B10' },
             ...(action === 'write' || action === 'append' ? { values: [[1, 2]] } : {}),
-          },
         });
 
         if (!result.success) {
@@ -211,19 +201,15 @@ describe('Schema Contracts', () => {
     it('sheets_spreadsheet discriminates correctly', () => {
       // 'get' requires spreadsheetId
       const getValid = SheetSpreadsheetInputSchema.safeParse({
-        request: {
           action: 'get',
           spreadsheetId: 'test123',
-        },
       });
       expect(getValid.success).toBe(true);
 
       // 'create' requires title
       const createValid = SheetSpreadsheetInputSchema.safeParse({
-        request: {
           action: 'create',
           title: 'New Spreadsheet',
-        },
       });
       expect(createValid.success).toBe(true);
     });
@@ -232,34 +218,28 @@ describe('Schema Contracts', () => {
   describe('Required Fields Validation', () => {
     it('sheets_values requires spreadsheetId', () => {
       const result = SheetsValuesInputSchema.safeParse({
-        request: {
           action: 'read',
           range: { a1: 'Sheet1!A1' },
           // Missing spreadsheetId
-        },
       });
       expect(result.success).toBe(false);
     });
 
     it('sheets_values write action requires values', () => {
       const result = SheetsValuesInputSchema.safeParse({
-        request: {
           action: 'write',
           spreadsheetId: 'test123',
           range: { a1: 'Sheet1!A1' },
           // Missing values
-        },
       });
       expect(result.success).toBe(false);
     });
 
     it('sheets_sheet add action requires title', () => {
       const result = SheetsSheetInputSchema.safeParse({
-        request: {
           action: 'add',
           spreadsheetId: 'test123',
           // Missing title
-        },
       });
       expect(result.success).toBe(false);
     });

@@ -685,64 +685,74 @@ newrelic.startWebTransaction('sheets_spreadsheet:read', async () => {
 
 ## Alerting
 
-Set up alerts for critical issues.
+ServalSheets provides comprehensive Prometheus alert rules for production incident prevention. The complete alert rules are defined in `deployment/prometheus/alerts.yml`.
 
-### Alert Rules
+### Alert Severity Levels
 
-#### 1. Quota Exhaustion
+| Severity | Response Time | Description | Examples |
+|----------|--------------|-------------|----------|
+| **critical** | Immediate | User-facing impact, service degradation | Service down, high error rate, circuit breaker open |
+| **warning** | 15 minutes | Performance degradation, risk of impact | Queue backup, high latency, quota near limit |
+| **info** | 1 hour | Optimization opportunities, trends | Low cache hit rate, small batch sizes |
 
-**Condition**: Write quota < 10% of capacity
+### Alert Rule Categories
 
-```yaml
-# Prometheus alert
-groups:
-- name: servalsheets
-  rules:
-  - alert: WriteQuotaLow
-    expr: servalsheets_quota_available{quota_type="write"} < 6
-    for: 1m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Write quota low"
-      description: "Write quota at {{ $value }} tokens (< 10% of 60)"
-```
+ServalSheets alerts are organized into four categories:
 
-#### 2. High Error Rate
+1. **Critical Alerts** (`servalsheets_critical`) - Immediate response required
+2. **Warning Alerts** (`servalsheets_warnings`) - Degraded performance
+3. **Info Alerts** (`servalsheets_info`) - Operational awareness
+4. **Anomaly Alerts** (`servalsheets_anomalies`) - Rate of change detection
 
-**Condition**: Error rate > 5% of operations
+### Critical Alert Rules
+
+#### 1. High Error Rate
+
+**Trigger**: Error rate > 5% for 2 minutes
 
 ```yaml
 - alert: HighErrorRate
   expr: |
-    rate(servalsheets_operations_total{status="error"}[5m]) /
-    rate(servalsheets_operations_total[5m]) > 0.05
-  for: 5m
+    (
+      rate(servalsheets_tool_calls_total{status="error"}[5m]) /
+      rate(servalsheets_tool_calls_total[5m])
+    ) > 0.05
+  for: 2m
   labels:
     severity: critical
-  annotations:
-    summary: "High error rate"
-    description: "Error rate is {{ $value | humanizePercentage }}"
 ```
 
-#### 3. Slow Operations
+**Impact**: Users experiencing failed operations
 
-**Condition**: P95 latency > 5 seconds
+**Response Actions**:
+1. Check logs for error patterns
+2. Review recent deployments
+3. Check Google API status
+4. Verify authentication is working
+
+#### 2. Circuit Breaker Open
+
+**Trigger**: Circuit breaker state >= 2 for 1 minute
 
 ```yaml
-- alert: SlowOperations
-  expr: histogram_quantile(0.95, servalsheets_operation_duration_ms) > 5000
-  for: 10m
+- alert: CircuitBreakerOpen
+  expr: servalsheets_circuit_breaker_state{circuit=~".+"} >= 2
+  for: 1m
   labels:
-    severity: warning
-  annotations:
-    summary: "Operations running slow"
-    description: "P95 latency is {{ $value }}ms"
+    severity: critical
 ```
 
-#### 4. Service Down
+**Impact**: Requests to affected service are being rejected
 
-**Condition**: Health check failing
+**Response Actions**:
+1. Check downstream service health
+2. Review error logs
+3. Verify network connectivity
+4. Check authentication status
+
+#### 3. Service Down
+
+**Trigger**: Service unreachable for 1 minute
 
 ```yaml
 - alert: ServiceDown
@@ -750,12 +760,439 @@ groups:
   for: 1m
   labels:
     severity: critical
-  annotations:
-    summary: "ServalSheets service down"
-    description: "Service has been down for 1 minute"
+```
+
+**Impact**: Complete service outage, all requests failing
+
+**Response Actions**:
+1. Check process status
+2. Review system logs
+3. Check resources (CPU, memory, disk)
+4. Verify network connectivity
+5. Restart service if needed
+
+#### 4. High Authentication Failure Rate
+
+**Trigger**: Auth failure rate > 10% for 2 minutes
+
+```yaml
+- alert: HighAuthenticationFailureRate
+  expr: |
+    (
+      rate(servalsheets_google_api_calls_total{status="error",method=~".*auth.*"}[5m]) /
+      rate(servalsheets_google_api_calls_total{method=~".*auth.*"}[5m])
+    ) > 0.1
+  for: 2m
+  labels:
+    severity: critical
+```
+
+**Impact**: Users unable to authenticate with Google Sheets API
+
+**Response Actions**:
+1. Verify OAuth credentials are valid
+2. Check token expiration
+3. Verify Google API console configuration
+4. Check for API quota issues
+5. Review service account permissions
+
+#### 5. High Memory Usage
+
+**Trigger**: Memory usage > 1.5GB for 5 minutes
+
+```yaml
+- alert: HighMemoryUsage
+  expr: |
+    (
+      process_resident_memory_bytes{job="servalsheets"} /
+      (1024 * 1024 * 1024)
+    ) > 1.5
+  for: 5m
+  labels:
+    severity: critical
+```
+
+**Impact**: Service may crash or become unresponsive
+
+**Response Actions**:
+1. Check for memory leaks
+2. Review large operations in progress
+3. Clear cache if needed
+4. Consider scaling up memory
+5. Review batch sizes
+
+### Warning Alert Rules
+
+#### 1. Request Queue Backup
+
+**Trigger**: Queue depth > 50 for 5 minutes
+
+```yaml
+- alert: RequestQueueBackup
+  expr: servalsheets_request_queue_depth > 50
+  for: 5m
+  labels:
+    severity: warning
+```
+
+**Impact**: Increased latency for user requests
+
+**Response Actions**:
+1. Check for slow operations
+2. Review rate limiting configuration
+3. Consider horizontal scaling
+4. Check for Google API throttling
+
+#### 2. High P99 Latency
+
+**Trigger**: P99 latency > 5 seconds for 5 minutes
+
+```yaml
+- alert: HighLatencyP99
+  expr: servalsheets_tool_call_latency_summary{quantile="0.99"} > 5
+  for: 5m
+  labels:
+    severity: warning
+```
+
+**Impact**: 1% of requests experiencing significant delays
+
+**Response Actions**:
+1. Check Google API performance
+2. Review cache hit rate
+3. Check for large operations
+4. Review batch sizes
+5. Consider optimizing diff strategy
+
+#### 3. API Quota Near Limit
+
+**Trigger**: API call rate > 55/minute for 2 minutes
+
+```yaml
+- alert: APIQuotaNearLimit
+  expr: rate(servalsheets_google_api_calls_total[1m]) > 55
+  for: 2m
+  labels:
+    severity: warning
+```
+
+**Impact**: Risk of API throttling and request failures
+
+**Response Actions**:
+1. Enable or tune caching
+2. Review batch efficiency
+3. Check for unnecessary API calls
+4. Consider rate limiting client requests
+5. Request quota increase from Google
+
+### Info Alert Rules
+
+#### 1. Low Cache Hit Rate
+
+**Trigger**: Cache hit rate < 50% for 10 minutes
+
+```yaml
+- alert: LowCacheHitRate
+  expr: |
+    (
+      rate(servalsheets_cache_hits_total[5m]) /
+      (rate(servalsheets_cache_hits_total[5m]) + rate(servalsheets_cache_misses_total[5m]))
+    ) < 0.5
+  for: 10m
+  labels:
+    severity: info
+```
+
+**Impact**: Increased API calls and latency
+
+**Response Actions**:
+1. Review cache TTL configuration
+2. Check cache size limits
+3. Review access patterns
+4. Consider increasing cache size
+
+#### 2. Low Batch Efficiency
+
+**Trigger**: Batch efficiency ratio < 0.6 for 10 minutes
+
+```yaml
+- alert: LowBatchEfficiency
+  expr: servalsheets_batch_efficiency_ratio < 0.6
+  for: 10m
+  labels:
+    severity: info
+```
+
+**Impact**: More API calls than necessary
+
+**Response Actions**:
+1. Review batching strategy
+2. Check operation patterns
+3. Consider adjusting batch thresholds
+4. Review client usage patterns
+
+### Anomaly Alert Rules
+
+#### 1. Sudden Drop in Requests
+
+**Trigger**: Request rate < 20% of baseline for 5 minutes
+
+```yaml
+- alert: SuddenDropInRequests
+  expr: |
+    (
+      rate(servalsheets_tool_calls_total[5m]) /
+      rate(servalsheets_tool_calls_total[1h] offset 1h)
+    ) < 0.2
+  for: 5m
+  labels:
+    severity: warning
+```
+
+**Impact**: Possible client issues or service degradation
+
+**Response Actions**:
+1. Check client connectivity
+2. Review error rates
+3. Check for network issues
+4. Verify service health
+
+#### 2. Sudden Spike in Requests
+
+**Trigger**: Request rate > 3x baseline for 5 minutes
+
+```yaml
+- alert: SuddenSpikeInRequests
+  expr: |
+    (
+      rate(servalsheets_tool_calls_total[5m]) /
+      rate(servalsheets_tool_calls_total[1h] offset 1h)
+    ) > 3
+  for: 5m
+  labels:
+    severity: warning
+```
+
+**Impact**: Potential quota exhaustion or abuse
+
+**Response Actions**:
+1. Check for legitimate traffic spike
+2. Review client behavior
+3. Check for potential abuse
+4. Consider rate limiting
+
+### Alert Configuration
+
+#### Loading Alert Rules
+
+```bash
+# Validate alert rules syntax
+promtool check rules deployment/prometheus/alerts.yml
+
+# Load rules into Prometheus
+# Update prometheus.yml:
+rule_files:
+  - "alerts.yml"
+
+# Reload Prometheus configuration
+curl -X POST http://localhost:9090/-/reload
+```
+
+#### Prometheus Configuration
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+# Alert manager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Rule files
+rule_files:
+  - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  - job_name: 'servalsheets'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['servalsheets:9090']
+```
+
+### Alertmanager Configuration
+
+Alertmanager routes and manages alert notifications from Prometheus.
+
+#### Basic Alertmanager Setup
+
+```yaml
+# alertmanager.yml
+global:
+  resolve_timeout: 5m
+
+# Route tree
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+
+  routes:
+    # Critical alerts go to PagerDuty
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true
+
+    # Critical alerts also go to Slack
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+
+    # Warning alerts go to Slack
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+
+    # Info alerts go to Slack with lower priority
+    - match:
+        severity: info
+      receiver: 'slack-info'
+
+# Receivers
+receivers:
+  - name: 'default'
+    # Default catch-all
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '<YOUR_PAGERDUTY_INTEGRATION_KEY>'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          alert: '{{ .GroupLabels.alertname }}'
+          severity: '{{ .GroupLabels.severity }}'
+          description: '{{ .CommonAnnotations.description }}'
+          impact: '{{ .CommonAnnotations.impact }}'
+          action: '{{ .CommonAnnotations.action }}'
+
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '<YOUR_SLACK_WEBHOOK_URL>'
+        channel: '#servalsheets-alerts-critical'
+        title: ':rotating_light: CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Impact:* {{ .CommonAnnotations.impact }}
+          *Required Action:* {{ .CommonAnnotations.action }}
+        color: danger
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - api_url: '<YOUR_SLACK_WEBHOOK_URL>'
+        channel: '#servalsheets-alerts'
+        title: ':warning: Warning: {{ .GroupLabels.alertname }}'
+        text: |
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Impact:* {{ .CommonAnnotations.impact }}
+        color: warning
+
+  - name: 'slack-info'
+    slack_configs:
+      - api_url: '<YOUR_SLACK_WEBHOOK_URL>'
+        channel: '#servalsheets-monitoring'
+        title: ':information_source: Info: {{ .GroupLabels.alertname }}'
+        text: |
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+        color: good
+
+# Inhibition rules - suppress less severe alerts when more severe are firing
+inhibit_rules:
+  # Suppress warning alerts if critical alerts are firing
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['component', 'alertname']
+
+  # Suppress info alerts if warning or critical alerts are firing
+  - source_match:
+      severity: warning
+    target_match:
+      severity: info
+    equal: ['component', 'alertname']
+```
+
+#### Starting Alertmanager
+
+```bash
+# Docker Compose
+version: '3'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alerts.yml:/etc/prometheus/alerts.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-lifecycle'
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
 ```
 
 ### PagerDuty Integration
+
+#### Setup PagerDuty Service
+
+1. Create a PagerDuty service for ServalSheets
+2. Add Prometheus integration to get integration key
+3. Configure Alertmanager with the integration key
+4. Set up escalation policies
+
+#### PagerDuty Event Routing
+
+```yaml
+# alertmanager.yml - Advanced PagerDuty configuration
+receivers:
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '<YOUR_INTEGRATION_KEY>'
+        description: '{{ .CommonAnnotations.summary }}'
+        severity: '{{ .GroupLabels.severity }}'
+        client: 'ServalSheets Monitoring'
+        client_url: 'http://prometheus:9090/alerts'
+        details:
+          alert: '{{ .GroupLabels.alertname }}'
+          component: '{{ .GroupLabels.component }}'
+          severity: '{{ .GroupLabels.severity }}'
+          description: '{{ .CommonAnnotations.description }}'
+          impact: '{{ .CommonAnnotations.impact }}'
+          action: '{{ .CommonAnnotations.action }}'
+          runbook: '{{ .CommonAnnotations.runbook }}'
+          firing_alerts: '{{ .Alerts.Firing | len }}'
+          resolved_alerts: '{{ .Alerts.Resolved | len }}'
+```
+
+#### Custom PagerDuty Integration (Alternative)
 
 ```typescript
 // From src/alerts/pagerduty.ts
@@ -773,8 +1210,26 @@ export async function triggerAlert(
       summary: message,
       severity,
       source: 'servalsheets',
+      component: details.component || 'unknown',
       custom_details: details,
     },
+    links: [
+      {
+        href: details.runbook,
+        text: 'Runbook',
+      },
+    ],
+  });
+
+  await event.send();
+}
+
+// Resolve an incident
+export async function resolveAlert(dedupKey: string): Promise<void> {
+  const event = new Event({
+    routing_key: process.env.PAGERDUTY_ROUTING_KEY,
+    event_action: 'resolve',
+    dedup_key: dedupKey,
   });
 
   await event.send();
@@ -782,6 +1237,44 @@ export async function triggerAlert(
 ```
 
 ### Slack Integration
+
+#### Slack Webhook Setup
+
+1. Create a Slack app at api.slack.com/apps
+2. Enable Incoming Webhooks
+3. Add webhook URLs to Alertmanager configuration
+4. Create channels: #servalsheets-alerts-critical, #servalsheets-alerts, #servalsheets-monitoring
+
+#### Advanced Slack Notifications
+
+```yaml
+# alertmanager.yml - Rich Slack formatting
+receivers:
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '<YOUR_SLACK_WEBHOOK_URL>'
+        channel: '#servalsheets-alerts-critical'
+        username: 'ServalSheets Alerting'
+        icon_emoji: ':rotating_light:'
+        title: 'CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        title_link: 'http://prometheus:9090/alerts'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Labels.alertname }}
+          *Component:* {{ .Labels.component }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Impact:* {{ .Annotations.impact }}
+          *Required Actions:*
+          {{ .Annotations.action }}
+          *Runbook:* {{ .Annotations.runbook }}
+          *Started:* {{ .StartsAt }}
+          {{ end }}
+        color: danger
+        send_resolved: true
+```
+
+#### Custom Slack Integration (Alternative)
 
 ```typescript
 // From src/alerts/slack.ts
@@ -791,25 +1284,309 @@ const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
 
 export async function sendAlert(
   channel: string,
-  message: string,
-  severity: 'info' | 'warning' | 'error'
+  alertName: string,
+  severity: 'info' | 'warning' | 'critical',
+  annotations: {
+    summary: string;
+    description: string;
+    impact?: string;
+    action?: string;
+    runbook?: string;
+  }
 ): Promise<void> {
   const color = {
     info: '#36a64f',
     warning: '#ff9900',
-    error: '#ff0000',
+    critical: '#ff0000',
   }[severity];
+
+  const emoji = {
+    info: ':information_source:',
+    warning: ':warning:',
+    critical: ':rotating_light:',
+  }[severity];
+
+  const fields = [
+    {
+      title: 'Summary',
+      value: annotations.summary,
+      short: false,
+    },
+    {
+      title: 'Description',
+      value: annotations.description,
+      short: false,
+    },
+  ];
+
+  if (annotations.impact) {
+    fields.push({
+      title: 'Impact',
+      value: annotations.impact,
+      short: false,
+    });
+  }
+
+  if (annotations.action) {
+    fields.push({
+      title: 'Required Action',
+      value: annotations.action,
+      short: false,
+    });
+  }
 
   await slack.chat.postMessage({
     channel,
+    text: `${emoji} ${severity.toUpperCase()}: ${alertName}`,
     attachments: [{
       color,
-      title: 'ServalSheets Alert',
-      text: message,
+      title: `${alertName} Alert`,
+      fields,
+      footer: 'ServalSheets Monitoring',
+      footer_icon: 'https://servalsheets.io/icon.png',
       ts: Math.floor(Date.now() / 1000).toString(),
+      actions: annotations.runbook ? [
+        {
+          type: 'button',
+          text: 'View Runbook',
+          url: annotations.runbook,
+        },
+      ] : undefined,
     }],
   });
 }
+```
+
+### Testing Alert Rules
+
+#### Test Alert Firing
+
+You can test alerts by manually triggering conditions or using Alertmanager's test API.
+
+##### 1. Manual Condition Testing
+
+```bash
+# Test high error rate by generating errors
+# (Requires test script that can generate controlled errors)
+./scripts/test-generate-errors.sh --rate 10 --duration 300
+
+# Test queue backup by sending many requests
+./scripts/test-load-spike.sh --qps 100 --duration 300
+
+# Test cache by clearing it
+curl -X POST http://localhost:9090/cache/clear
+
+# Monitor alerts firing
+curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.state=="firing")'
+```
+
+##### 2. Alertmanager Test Mode
+
+```bash
+# Send test alert to Alertmanager
+curl -X POST http://localhost:9093/api/v1/alerts -H 'Content-Type: application/json' -d '[
+  {
+    "labels": {
+      "alertname": "TestHighErrorRate",
+      "severity": "critical",
+      "component": "api"
+    },
+    "annotations": {
+      "summary": "Test alert for high error rate",
+      "description": "This is a test alert to verify notification channels",
+      "impact": "Testing notification system",
+      "action": "No action required - this is a test"
+    },
+    "startsAt": "'"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"'",
+    "endsAt": "'"$(date -u -d '+5 minutes' +%Y-%m-%dT%H:%M:%S.000Z)"'"
+  }
+]'
+```
+
+##### 3. Prometheus Recording Rules for Testing
+
+```yaml
+# test-alerts.yml
+groups:
+  - name: test_alerts
+    interval: 30s
+    rules:
+      # Recording rule to simulate high error rate
+      - record: test:servalsheets_error_rate:5m
+        expr: |
+          rate(servalsheets_tool_calls_total{status="error"}[5m]) /
+          rate(servalsheets_tool_calls_total[5m])
+
+      # Test alert that fires when recording rule is active
+      - alert: TestHighErrorRate
+        expr: test:servalsheets_error_rate:5m > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          test: "true"
+        annotations:
+          summary: "Test alert - high error rate"
+```
+
+#### Validate Alert Configuration
+
+```bash
+# 1. Validate alert rules syntax
+promtool check rules deployment/prometheus/alerts.yml
+
+# Expected output:
+# Checking deployment/prometheus/alerts.yml
+#   SUCCESS: 24 rules found
+
+# 2. Test PromQL expressions
+promtool query instant http://localhost:9090 \
+  'rate(servalsheets_tool_calls_total{status="error"}[5m]) / rate(servalsheets_tool_calls_total[5m])'
+
+# 3. Check alert rules loaded in Prometheus
+curl http://localhost:9090/api/v1/rules | jq '.data.groups[] | select(.name | startswith("servalsheets"))'
+
+# 4. Check current firing alerts
+curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.state=="firing")'
+
+# 5. Check Alertmanager status
+curl http://localhost:9093/api/v1/status | jq .
+
+# 6. Verify Alertmanager configuration
+amtool check-config deployment/prometheus/alertmanager.yml
+```
+
+#### Alert Testing Scenarios
+
+##### Scenario 1: High Error Rate Alert
+
+```bash
+# Generate high error rate (requires test harness)
+# 1. Start monitoring alerts
+watch -n 5 'curl -s http://localhost:9090/api/v1/alerts | jq ".data.alerts[] | select(.labels.alertname==\"HighErrorRate\")"'
+
+# 2. Generate errors
+for i in {1..100}; do
+  curl -X POST http://localhost:3000/api/test/error &
+done
+
+# 3. Wait for alert to fire (2 minutes + evaluation interval)
+# 4. Verify notification received in Slack/PagerDuty
+# 5. Stop error generation and verify alert resolves
+```
+
+##### Scenario 2: Queue Backup Alert
+
+```bash
+# 1. Monitor queue depth
+watch -n 2 'curl -s http://localhost:9090/api/v1/query?query=servalsheets_request_queue_depth | jq ".data.result[0].value[1]"'
+
+# 2. Generate load to fill queue
+ab -n 10000 -c 100 http://localhost:3000/api/test/slow
+
+# 3. Verify alert fires when queue > 50 for 5 minutes
+# 4. Check notification channels
+# 5. Allow queue to drain and verify resolution
+```
+
+##### Scenario 3: Circuit Breaker Alert
+
+```bash
+# 1. Monitor circuit breaker state
+watch -n 2 'curl -s http://localhost:9090/api/v1/query?query=servalsheets_circuit_breaker_state | jq .'
+
+# 2. Cause downstream failures to open circuit breaker
+# (Requires ability to make Google API fail)
+./scripts/test-circuit-breaker.sh --fail-rate 100 --duration 60
+
+# 3. Verify alert fires when state >= 2
+# 4. Check critical notification
+# 5. Allow circuit to recover and verify half-open alert
+```
+
+##### Scenario 4: Low Cache Hit Rate Alert
+
+```bash
+# 1. Monitor cache hit rate
+watch -n 5 'curl -s "http://localhost:9090/api/v1/query?query=(rate(servalsheets_cache_hits_total[5m])/(rate(servalsheets_cache_hits_total[5m])+rate(servalsheets_cache_misses_total[5m])))" | jq ".data.result[0].value[1]"'
+
+# 2. Clear cache to reduce hit rate
+curl -X POST http://localhost:9090/cache/clear
+
+# 3. Generate traffic with varied requests (low cache hits)
+./scripts/test-varied-requests.sh --requests 1000 --unique 900
+
+# 4. Verify alert fires when hit rate < 50% for 10 minutes
+# 5. Allow cache to warm up and verify resolution
+```
+
+### Alert Runbooks
+
+Each alert should have a corresponding runbook. Create runbooks at `docs/runbooks/<alert-name>.md`.
+
+#### Runbook Template
+
+```markdown
+# [Alert Name] Runbook
+
+## Alert Details
+- **Severity**: [critical|warning|info]
+- **Component**: [api|cache|queue|etc]
+- **Trigger**: [Condition that causes alert to fire]
+
+## Symptoms
+- [User-visible symptoms]
+- [System symptoms]
+
+## Impact
+- **User Impact**: [How users are affected]
+- **Business Impact**: [Business implications]
+
+## Investigation Steps
+
+1. **Check Alert Details**
+   ```bash
+   # View alert in Prometheus
+   curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels.alertname=="AlertName")'
+   ```
+
+2. **Review Logs**
+   ```bash
+   # Check recent error logs
+   tail -100 /var/log/servalsheets/app.log | jq 'select(.level=="error")'
+   ```
+
+3. **Check Metrics**
+   ```bash
+   # Query relevant metrics
+   curl 'http://localhost:9090/api/v1/query?query=metric_name'
+   ```
+
+## Resolution Steps
+
+### Immediate Actions
+1. [First action to take]
+2. [Second action to take]
+
+### Root Cause Investigation
+1. [Investigation step 1]
+2. [Investigation step 2]
+
+### Long-term Fixes
+1. [Preventive measure 1]
+2. [Preventive measure 2]
+
+## Related Alerts
+- [Related alert 1]
+- [Related alert 2]
+
+## Escalation
+- **Level 1**: On-call engineer
+- **Level 2**: Team lead
+- **Level 3**: Senior engineer / Architect
+
+## References
+- [Link to relevant documentation]
+- [Link to similar incidents]
 ```
 
 ---

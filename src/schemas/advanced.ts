@@ -3,7 +3,7 @@
  * Advanced features: named ranges, protected ranges, metadata, banding
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,
@@ -15,7 +15,7 @@ import {
   MutationSummarySchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from './shared.js';
+} from "./shared.js";
 
 const BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -33,11 +33,13 @@ const ProtectedRangeSchema = z.object({
   description: z.string().optional(),
   warningOnly: z.boolean(),
   requestingUserCanEdit: z.boolean(),
-  editors: z.object({
-    users: z.array(z.string()).optional(),
-    groups: z.array(z.string()).optional(),
-    domainUsersCanEdit: z.boolean().optional(),
-  }).optional(),
+  editors: z
+    .object({
+      users: z.array(z.string()).optional(),
+      groups: z.array(z.string()).optional(),
+      domainUsersCanEdit: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 const BandingPropertiesSchema = z.object({
@@ -47,19 +49,21 @@ const BandingPropertiesSchema = z.object({
   footerColor: ColorSchema.optional(),
 });
 
-const AdvancedActionSchema = z.discriminatedUnion('action', [
+// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// This exposes all fields at top level for proper MCP client UX
+export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
   // === NAMED RANGES ===
-  
+
   // ADD_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal('add_named_range'),
+    action: z.literal("add_named_range").describe("Create a named range for easy reference"),
     name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
     range: RangeInputSchema,
   }),
 
   // UPDATE_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal('update_named_range'),
+    action: z.literal("update_named_range").describe("Update an existing named range"),
     namedRangeId: z.string(),
     name: z.string().optional(),
     range: RangeInputSchema.optional(),
@@ -68,19 +72,19 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // DELETE_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal('delete_named_range'),
+    action: z.literal("delete_named_range").describe("Delete a named range"),
     namedRangeId: z.string(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_NAMED_RANGES
   BaseSchema.extend({
-    action: z.literal('list_named_ranges'),
+    action: z.literal("list_named_ranges").describe("List all named ranges in spreadsheet"),
   }),
 
   // GET_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal('get_named_range'),
+    action: z.literal("get_named_range").describe("Get details of a specific named range"),
     name: z.string(),
   }),
 
@@ -88,42 +92,46 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // ADD_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal('add_protected_range'),
+    action: z.literal("add_protected_range").describe("Protect a range from editing"),
     range: RangeInputSchema,
     description: z.string().optional(),
     warningOnly: z.boolean().optional().default(false),
-    editors: z.object({
-      users: z.array(z.string().email()).optional(),
-      groups: z.array(z.string().email()).optional(),
-      domainUsersCanEdit: z.boolean().optional(),
-    }).optional(),
+    editors: z
+      .object({
+        users: z.array(z.string().email()).optional(),
+        groups: z.array(z.string().email()).optional(),
+        domainUsersCanEdit: z.boolean().optional(),
+      })
+      .optional(),
   }),
 
   // UPDATE_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal('update_protected_range'),
+    action: z.literal("update_protected_range").describe("Update protection settings for a range"),
     protectedRangeId: z.number().int(),
     range: RangeInputSchema.optional(),
     description: z.string().optional(),
     warningOnly: z.boolean().optional(),
-    editors: z.object({
-      users: z.array(z.string().email()).optional(),
-      groups: z.array(z.string().email()).optional(),
-      domainUsersCanEdit: z.boolean().optional(),
-    }).optional(),
+    editors: z
+      .object({
+        users: z.array(z.string().email()).optional(),
+        groups: z.array(z.string().email()).optional(),
+        domainUsersCanEdit: z.boolean().optional(),
+      })
+      .optional(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // DELETE_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal('delete_protected_range'),
+    action: z.literal("delete_protected_range").describe("Remove protection from a range"),
     protectedRangeId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_PROTECTED_RANGES
   BaseSchema.extend({
-    action: z.literal('list_protected_ranges'),
+    action: z.literal("list_protected_ranges").describe("List all protected ranges"),
     sheetId: SheetIdSchema.optional(),
   }),
 
@@ -131,30 +139,34 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // SET_METADATA
   BaseSchema.extend({
-    action: z.literal('set_metadata'),
+    action: z.literal("set_metadata").describe("Set custom metadata on spreadsheet or sheet"),
     metadataKey: z.string(),
     metadataValue: z.string(),
-    visibility: z.enum(['DOCUMENT', 'PROJECT']).optional().default('DOCUMENT'),
-    location: z.object({
-      sheetId: SheetIdSchema.optional(),
-      dimensionRange: z.object({
-        sheetId: SheetIdSchema,
-        dimension: z.enum(['ROWS', 'COLUMNS']),
-        startIndex: z.number().int().min(0),
-        endIndex: z.number().int().min(1),
-      }).optional(),
-    }).optional(),
+    visibility: z.enum(["DOCUMENT", "PROJECT"]).optional().default("DOCUMENT"),
+    location: z
+      .object({
+        sheetId: SheetIdSchema.optional(),
+        dimensionRange: z
+          .object({
+            sheetId: SheetIdSchema,
+            dimension: z.enum(["ROWS", "COLUMNS"]),
+            startIndex: z.number().int().min(0),
+            endIndex: z.number().int().min(1),
+          })
+          .optional(),
+      })
+      .optional(),
   }),
 
   // GET_METADATA
   BaseSchema.extend({
-    action: z.literal('get_metadata'),
+    action: z.literal("get_metadata").describe("Retrieve metadata values"),
     metadataKey: z.string().optional(),
   }),
 
   // DELETE_METADATA
   BaseSchema.extend({
-    action: z.literal('delete_metadata'),
+    action: z.literal("delete_metadata").describe("Delete metadata entry"),
     metadataId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
@@ -163,7 +175,7 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // ADD_BANDING
   BaseSchema.extend({
-    action: z.literal('add_banding'),
+    action: z.literal("add_banding").describe("Add alternating row or column colors"),
     range: RangeInputSchema,
     rowProperties: BandingPropertiesSchema.optional(),
     columnProperties: BandingPropertiesSchema.optional(),
@@ -171,7 +183,7 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // UPDATE_BANDING
   BaseSchema.extend({
-    action: z.literal('update_banding'),
+    action: z.literal("update_banding").describe("Update banding colors and properties"),
     bandedRangeId: z.number().int(),
     rowProperties: BandingPropertiesSchema.optional(),
     columnProperties: BandingPropertiesSchema.optional(),
@@ -180,14 +192,14 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // DELETE_BANDING
   BaseSchema.extend({
-    action: z.literal('delete_banding'),
+    action: z.literal("delete_banding").describe("Remove banding from range"),
     bandedRangeId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_BANDING
   BaseSchema.extend({
-    action: z.literal('list_banding'),
+    action: z.literal("list_banding").describe("List all banded ranges"),
     sheetId: SheetIdSchema.optional(),
   }),
 
@@ -195,80 +207,99 @@ const AdvancedActionSchema = z.discriminatedUnion('action', [
 
   // CREATE_TABLE
   BaseSchema.extend({
-    action: z.literal('create_table'),
+    action: z.literal("create_table").describe("Create a structured table"),
     range: RangeInputSchema,
     hasHeaders: z.boolean().optional().default(true),
   }),
 
   // DELETE_TABLE
   BaseSchema.extend({
-    action: z.literal('delete_table'),
+    action: z.literal("delete_table").describe("Delete a table"),
     tableId: z.string(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_TABLES
   BaseSchema.extend({
-    action: z.literal('list_tables'),
+    action: z.literal("list_tables").describe("List all tables in spreadsheet"),
   }),
 ]);
 
-export const SheetsAdvancedInputSchema = z.object({
-  request: AdvancedActionSchema,
-});
 
-const AdvancedResponseSchema = z.discriminatedUnion('success', [
+const AdvancedResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
-    
+
     // Named ranges
     namedRange: NamedRangeSchema.optional(),
     namedRanges: z.array(NamedRangeSchema).optional(),
-    
+
     // Protected ranges
     protectedRange: ProtectedRangeSchema.optional(),
     protectedRanges: z.array(ProtectedRangeSchema).optional(),
     protectedRangeId: z.number().int().optional(),
-    
+
     // Metadata
-    metadata: z.array(z.object({
-      metadataId: z.number().int(),
-      metadataKey: z.string(),
-      metadataValue: z.string(),
-      visibility: z.string(),
-      location: z.object({
-        locationType: z.string(),
-        sheetId: z.number().int().optional(),
-      }).optional(),
-    })).optional(),
+    metadata: z
+      .array(
+        z.object({
+          metadataId: z.number().int(),
+          metadataKey: z.string(),
+          metadataValue: z.string(),
+          visibility: z.string(),
+          location: z
+            .object({
+              locationType: z.string(),
+              sheetId: z.number().int().optional(),
+            })
+            .optional(),
+        }),
+      )
+      .optional(),
     metadataId: z.number().int().optional(),
-    
+
     // Banding
-    bandedRange: z.object({
-      bandedRangeId: z.number().int(),
-      range: GridRangeSchema,
-    }).optional(),
-    bandedRanges: z.array(z.object({
-      bandedRangeId: z.number().int(),
-      range: GridRangeSchema,
-    })).optional(),
+    bandedRange: z
+      .object({
+        bandedRangeId: z.number().int(),
+        range: GridRangeSchema,
+      })
+      .optional(),
+    bandedRanges: z
+      .array(
+        z.object({
+          bandedRangeId: z.number().int(),
+          range: GridRangeSchema,
+        }),
+      )
+      .optional(),
     bandedRangeId: z.number().int().optional(),
-    
+
     // Tables
-    table: z.object({
-      tableId: z.string(),
-      range: GridRangeSchema,
-      columns: z.array(z.object({
-        name: z.string(),
-        dataType: z.string(),
-      })).optional(),
-    }).optional(),
-    tables: z.array(z.object({
-      tableId: z.string(),
-      range: GridRangeSchema,
-    })).optional(),
-    
+    table: z
+      .object({
+        tableId: z.string(),
+        range: GridRangeSchema,
+        columns: z
+          .array(
+            z.object({
+              name: z.string(),
+              dataType: z.string(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
+    tables: z
+      .array(
+        z.object({
+          tableId: z.string(),
+          range: GridRangeSchema,
+        }),
+      )
+      .optional(),
+
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
     _meta: ResponseMetaSchema.optional(),
@@ -284,7 +315,7 @@ export const SheetsAdvancedOutputSchema = z.object({
 });
 
 export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
-  title: 'Advanced Features',
+  title: "Advanced Features",
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,
@@ -293,5 +324,4 @@ export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
 
 export type SheetsAdvancedInput = z.infer<typeof SheetsAdvancedInputSchema>;
 export type SheetsAdvancedOutput = z.infer<typeof SheetsAdvancedOutputSchema>;
-export type AdvancedAction = z.infer<typeof AdvancedActionSchema>;
 export type AdvancedResponse = z.infer<typeof AdvancedResponseSchema>;

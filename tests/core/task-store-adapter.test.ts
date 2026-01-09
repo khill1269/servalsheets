@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { Request } from '@modelcontextprotocol/sdk/types.js';
+import type { Request, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { TaskStoreAdapter } from '../../src/core/task-store-adapter.js';
 
 describe('TaskStoreAdapter', () => {
@@ -161,9 +161,12 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'completed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId);
-
-      expect(retrieved.content[0]).toEqual({ type: 'text', text: 'Success' });
+      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const first = retrieved.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first).toEqual({ type: 'text', text: 'Success' });
       expect(retrieved.isError).toBe(false);
     });
 
@@ -285,8 +288,12 @@ describe('TaskStoreAdapter', () => {
       const result = await adapter.listTasks();
 
       // Newest task should be first
-      expect(result.tasks[0].taskId).toBe(task2.taskId);
-      expect(result.tasks[1].taskId).toBe(task1.taskId);
+      const [first, second] = result.tasks;
+      if (!first || !second) {
+        throw new Error('Expected at least 2 tasks');
+      }
+      expect(first.taskId).toBe(task2.taskId);
+      expect(second.taskId).toBe(task1.taskId);
     });
 
     it('should handle pagination with exact page size boundary', async () => {
@@ -334,10 +341,14 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'completed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId);
+      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
 
       // Both Result and CallToolResult have same structure
-      expect(retrieved.content[0].text).toBe('Success');
+      const first = retrieved.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first.text).toBe('Success');
       expect(retrieved.isError).toBe(false);
     });
 
@@ -354,7 +365,7 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'failed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId);
+      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
 
       expect(retrieved.isError).toBe(true);
     });
@@ -419,8 +430,12 @@ describe('TaskStoreAdapter', () => {
       expect(retrieved?.status).toBe('completed');
 
       // 5. Retrieve result
-      const finalResult = await adapter.getTaskResult(task.taskId);
-      expect(finalResult.content[0].text).toBe('Done');
+      const finalResult = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const first = finalResult.content[0];
+      if (!first || first.type !== 'text') {
+        throw new Error('Expected text result');
+      }
+      expect(first.text).toBe('Done');
     });
 
     it('should handle error scenario', async () => {
@@ -442,7 +457,7 @@ describe('TaskStoreAdapter', () => {
       const retrieved = await adapter.getTask(task.taskId);
       expect(retrieved?.status).toBe('failed');
 
-      const result = await adapter.getTaskResult(task.taskId);
+      const result = await adapter.getTaskResult(task.taskId) as CallToolResult;
       expect(result.isError).toBe(true);
     });
   });

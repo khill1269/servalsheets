@@ -15,6 +15,7 @@ import type {
   TaskToolExecution,
 } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { TOOL_COUNT, ACTION_COUNT } from './schemas/index.js';
+import { SERVER_ICONS } from './version.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -66,7 +67,7 @@ import {
   prepareSchemaForRegistration,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources, registerReferenceResources, readReferenceResource } from './resources/index.js';
+import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources, registerReferenceResources } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
@@ -107,15 +108,15 @@ export class ServalSheetsServer {
       {
         name: options.name ?? 'servalsheets',
         version: options.version ?? PACKAGE_VERSION,
+        icons: SERVER_ICONS,
       },
       {
         // Server capabilities (logging, tasks, etc. - tools/prompts/resources auto-registered)
         capabilities: createServerCapabilities(),
         // Instructions for LLM context
         instructions: SERVER_INSTRUCTIONS,
-        // FIX: Removed taskStore from McpServer options - was causing server.connect() to hang
-        // Task support still works via our TaskStoreAdapter and manual task handling
-        // taskStore: this.taskStore,
+        // Task support (SEP-1686) for tasks/get/list/result/cancel and task-capable tools
+        taskStore: this.taskStore,
       }
     );
 
@@ -149,6 +150,10 @@ export class ServalSheetsServer {
       // Create SnapshotService for undo/revert operations
       const snapshotService = new SnapshotService({ driveApi: this.googleClient.drive });
 
+      // Initialize batching system for time-window operation batching
+      const { initBatchingSystem } = await import("./services/batching-system.js");
+      const batchingSystem = initBatchingSystem(this.googleClient.sheets);
+
       // Create reusable context and handlers
       this.context = {
         batchCompiler: new BatchCompiler({
@@ -169,6 +174,7 @@ export class ServalSheetsServer {
           },
         }),
         rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),
+        batchingSystem, // Time-window batching system for reducing API calls
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {
           hasElevatedAccess: this.googleClient.hasElevatedAccess,
@@ -289,6 +295,7 @@ export class ServalSheetsServer {
         },
         cb: (
           args: Record<string, unknown>,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           extra: any  // Use 'any' to accept full RequestHandlerExtra from SDK with all fields
         ) => Promise<CallToolResult>
       ) => void)(
@@ -748,7 +755,9 @@ export class ServalSheetsServer {
     try {
       // Note: Using 'as any' to bypass TypeScript's deep type inference issues with SetLevelRequestSchema
       this._server.server.setRequestHandler(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         SetLevelRequestSchema as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (request: any) => {
           // Extract level from request params
           const level = request.params.level;
@@ -890,6 +899,21 @@ export async function createServalSheetsServer(
   if (!options.taskStore) {
     const { createTaskStore } = await import('./core/task-store-factory.js');
     options.taskStore = await createTaskStore();
+  }
+
+  // Initialize capability cache service with Redis if available
+  const redisUrl = process.env['REDIS_URL'];
+  if (redisUrl) {
+    const { createClient } = await import('redis');
+    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
+    const redis = createClient({ url: redisUrl });
+    await redis.connect();
+    initCapabilityCacheService(redis);
+    baseLogger.info('Capability cache service initialized with Redis');
+  } else {
+    const { initCapabilityCacheService } = await import('./services/capability-cache.js');
+    initCapabilityCacheService();
+    baseLogger.info('Capability cache service initialized (memory-only)');
   }
 
   const server = new ServalSheetsServer(options);

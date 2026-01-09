@@ -63,11 +63,9 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'add',
           spreadsheetId: 'test-id',
           title: 'New Sheet',
-        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
@@ -98,13 +96,11 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'add',
           spreadsheetId: 'test-id',
           title: 'Custom',
           rowCount: 500,
           columnCount: 10,
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -134,11 +130,9 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'delete',
           spreadsheetId: 'test-id',
           sheetId: 123,
-        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
@@ -160,12 +154,10 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'delete',
           spreadsheetId: 'test-id',
           sheetId: 123,
           allowMissing: true,
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -182,13 +174,11 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'delete',
           spreadsheetId: 'test-id',
           sheetId: 123,
           allowMissing: true,
           safety: { dryRun: true },
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -217,12 +207,10 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'duplicate',
           spreadsheetId: 'test-id',
           sheetId: 0,
           newTitle: 'Sheet1 (Copy)',
-        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
@@ -254,13 +242,11 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'update',
           spreadsheetId: 'test-id',
           sheetId: 0,
           title: 'Renamed',
           hidden: true,
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -280,11 +266,9 @@ describe('SheetHandler', () => {
 
     it('should error when no properties provided', async () => {
       const result = await handler.handle({
-        request: {
           action: 'update',
           spreadsheetId: 'test-id',
           sheetId: 0,
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -306,12 +290,10 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'copy_to',
           spreadsheetId: 'source-id',
           sheetId: 0,
           destinationSpreadsheetId: 'dest-id',
-        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
@@ -337,10 +319,8 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'list',
           spreadsheetId: 'test-id',
-        },
       });
 
       const parsed = SheetsSheetOutputSchema.safeParse(result);
@@ -367,11 +347,9 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'test-id',
           sheetId: 123,
-        },
       });
 
       expect(result.response.success).toBe(true);
@@ -388,11 +366,9 @@ describe('SheetHandler', () => {
       });
 
       const result = await handler.handle({
-        request: {
           action: 'get',
           spreadsheetId: 'test-id',
           sheetId: 999,
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -409,11 +385,9 @@ describe('SheetHandler', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'add',
           spreadsheetId: 'nonexistent',
           title: 'Test',
-        },
       });
 
       expect(result.response.success).toBe(false);
@@ -428,10 +402,8 @@ describe('SheetHandler', () => {
       );
 
       const result = await handler.handle({
-        request: {
           action: 'list',
           spreadsheetId: 'test-id',
-        },
       });
 
       expect(result.response.success).toBe(false);

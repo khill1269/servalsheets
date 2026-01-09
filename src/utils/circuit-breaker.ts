@@ -10,9 +10,9 @@
  * - HALF_OPEN: Testing if service recovered, limited requests allowed
  */
 
-import { logger } from './logger.js';
+import { logger } from "./logger.js";
 
-export type CircuitState = 'closed' | 'open' | 'half_open';
+export type CircuitState = "closed" | "open" | "half_open";
 
 /**
  * Fallback strategy interface
@@ -53,10 +53,10 @@ export class CircuitBreakerError extends Error {
   constructor(
     message: string,
     public readonly circuitName: string,
-    public readonly nextAttemptTime: number
+    public readonly nextAttemptTime: number,
   ) {
     super(message);
-    this.name = 'CircuitBreakerError';
+    this.name = "CircuitBreakerError";
   }
 }
 
@@ -64,7 +64,7 @@ export class CircuitBreakerError extends Error {
  * Circuit breaker implementation with fallback strategies
  */
 export class CircuitBreaker {
-  private state: CircuitState = 'closed';
+  private state: CircuitState = "closed";
   private failureCount = 0;
   private successCount = 0;
   private totalRequests = 0;
@@ -75,7 +75,7 @@ export class CircuitBreaker {
   private fallbackUsageCount = 0;
 
   constructor(private config: CircuitBreakerConfig) {
-    this.name = config.name ?? 'default';
+    this.name = config.name ?? "default";
   }
 
   /**
@@ -85,8 +85,10 @@ export class CircuitBreaker {
   registerFallback<T>(strategy: FallbackStrategy<T>): void {
     this.fallbackStrategies.push(strategy as FallbackStrategy<unknown>);
     // Sort by priority (highest first)
-    this.fallbackStrategies.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-    logger.debug('Fallback strategy registered', {
+    this.fallbackStrategies.sort(
+      (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
+    );
+    logger.debug("Fallback strategy registered", {
       circuit: this.name,
       strategy: strategy.name,
       priority: strategy.priority ?? 0,
@@ -99,7 +101,7 @@ export class CircuitBreaker {
    */
   clearFallbacks(): void {
     this.fallbackStrategies = [];
-    logger.debug('Fallback strategies cleared', { circuit: this.name });
+    logger.debug("Fallback strategies cleared", { circuit: this.name });
   }
 
   /**
@@ -111,14 +113,14 @@ export class CircuitBreaker {
    */
   async execute<T>(
     operation: () => Promise<T>,
-    fallback?: () => Promise<T>
+    fallback?: () => Promise<T>,
   ): Promise<T> {
     this.totalRequests++;
 
     // Check if circuit is open
-    if (this.state === 'open') {
+    if (this.state === "open") {
       if (Date.now() < this.nextAttemptTime) {
-        logger.warn('Circuit breaker is open, attempting fallback', {
+        logger.warn("Circuit breaker is open, attempting fallback", {
           circuit: this.name,
           state: this.state,
           retryInMs: this.nextAttemptTime - Date.now(),
@@ -127,8 +129,8 @@ export class CircuitBreaker {
 
         // Try registered fallback strategies first
         if (this.fallbackStrategies.length > 0) {
-          const error = new Error('Circuit breaker is OPEN');
-          return await this.executeFallbacks(error) as T;
+          const error = new Error("Circuit breaker is OPEN");
+          return (await this.executeFallbacks(error)) as T;
         }
 
         // Fall back to legacy single fallback
@@ -140,12 +142,12 @@ export class CircuitBreaker {
         throw new CircuitBreakerError(
           `Circuit breaker [${this.name}] is OPEN`,
           this.name,
-          this.nextAttemptTime
+          this.nextAttemptTime,
         );
       }
 
       // Move to half-open for testing
-      this.transitionTo('half_open');
+      this.transitionTo("half_open");
     }
 
     try {
@@ -157,12 +159,16 @@ export class CircuitBreaker {
 
       // Try fallback strategies
       if (this.fallbackStrategies.length > 0) {
-        return await this.executeFallbacks(error instanceof Error ? error : new Error(String(error))) as T;
+        return (await this.executeFallbacks(
+          error instanceof Error ? error : new Error(String(error)),
+        )) as T;
       }
 
       // Legacy fallback support
-      if (this.state === 'open' && fallback) {
-        logger.info('Circuit opened, using legacy fallback', { circuit: this.name });
+      if (this.state === "open" && fallback) {
+        logger.info("Circuit opened, using legacy fallback", {
+          circuit: this.name,
+        });
         this.fallbackUsageCount++;
         return fallback();
       }
@@ -178,7 +184,7 @@ export class CircuitBreaker {
   private async executeFallbacks(error: Error): Promise<unknown> {
     for (const strategy of this.fallbackStrategies) {
       if (!strategy.shouldUse(error)) {
-        logger.debug('Skipping fallback strategy (shouldUse=false)', {
+        logger.debug("Skipping fallback strategy (shouldUse=false)", {
           circuit: this.name,
           strategy: strategy.name,
           error: error.message,
@@ -187,7 +193,7 @@ export class CircuitBreaker {
       }
 
       try {
-        logger.info('Attempting fallback strategy', {
+        logger.info("Attempting fallback strategy", {
           circuit: this.name,
           strategy: strategy.name,
           priority: strategy.priority ?? 0,
@@ -196,24 +202,27 @@ export class CircuitBreaker {
         const result = await strategy.execute();
         this.fallbackUsageCount++;
 
-        logger.info('Fallback strategy succeeded', {
+        logger.info("Fallback strategy succeeded", {
           circuit: this.name,
           strategy: strategy.name,
         });
 
         return result;
       } catch (fallbackError) {
-        logger.warn('Fallback strategy failed', {
+        logger.warn("Fallback strategy failed", {
           circuit: this.name,
           strategy: strategy.name,
-          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          error:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
         });
         // Continue to next strategy
       }
     }
 
     // All fallback strategies failed
-    logger.error('All fallback strategies exhausted', {
+    logger.error("All fallback strategies exhausted", {
       circuit: this.name,
       strategiesTried: this.fallbackStrategies.length,
     });
@@ -224,16 +233,16 @@ export class CircuitBreaker {
   private onSuccess(): void {
     this.failureCount = 0;
 
-    if (this.state === 'half_open') {
+    if (this.state === "half_open") {
       this.successCount++;
-      logger.debug('Circuit breaker success in half-open', {
+      logger.debug("Circuit breaker success in half-open", {
         circuit: this.name,
         successCount: this.successCount,
         threshold: this.config.successThreshold,
       });
 
       if (this.successCount >= this.config.successThreshold) {
-        this.transitionTo('closed');
+        this.transitionTo("closed");
       }
     }
   }
@@ -243,7 +252,7 @@ export class CircuitBreaker {
     this.failureCount++;
     this.lastFailureTime = Date.now();
 
-    logger.warn('Circuit breaker failure', {
+    logger.warn("Circuit breaker failure", {
       circuit: this.name,
       failureCount: this.failureCount,
       threshold: this.config.failureThreshold,
@@ -251,7 +260,7 @@ export class CircuitBreaker {
     });
 
     if (this.failureCount >= this.config.failureThreshold) {
-      this.transitionTo('open');
+      this.transitionTo("open");
     }
   }
 
@@ -259,33 +268,44 @@ export class CircuitBreaker {
     const oldState = this.state;
     this.state = newState;
 
-    if (newState === 'open') {
+    if (newState === "open") {
       this.nextAttemptTime = Date.now() + this.config.timeout;
       this.failureCount = 0; // Reset for next half-open attempt
-    } else if (newState === 'closed') {
+    } else if (newState === "closed") {
       this.successCount = 0;
       this.failureCount = 0;
     }
 
-    logger.info('Circuit breaker state transition', {
+    logger.info("Circuit breaker state transition", {
       circuit: this.name,
       from: oldState,
       to: newState,
-      nextAttempt: newState === 'open' ? new Date(this.nextAttemptTime).toISOString() : undefined,
+      nextAttempt:
+        newState === "open"
+          ? new Date(this.nextAttemptTime).toISOString()
+          : undefined,
     });
   }
 
   /**
    * Get current circuit breaker statistics
    */
-  getStats(): CircuitBreakerStats & { fallbackUsageCount: number; registeredFallbacks: number } {
+  getStats(): CircuitBreakerStats & {
+    fallbackUsageCount: number;
+    registeredFallbacks: number;
+  } {
     return {
       state: this.state,
       failureCount: this.failureCount,
       successCount: this.successCount,
       totalRequests: this.totalRequests,
-      lastFailure: this.lastFailureTime ? new Date(this.lastFailureTime).toISOString() : undefined,
-      nextAttempt: this.state === 'open' ? new Date(this.nextAttemptTime).toISOString() : undefined,
+      lastFailure: this.lastFailureTime
+        ? new Date(this.lastFailureTime).toISOString()
+        : undefined,
+      nextAttempt:
+        this.state === "open"
+          ? new Date(this.nextAttemptTime).toISOString()
+          : undefined,
       fallbackUsageCount: this.fallbackUsageCount,
       registeredFallbacks: this.fallbackStrategies.length,
     };
@@ -295,10 +315,10 @@ export class CircuitBreaker {
    * Manually reset the circuit breaker to closed state
    */
   reset(): void {
-    this.state = 'closed';
+    this.state = "closed";
     this.failureCount = 0;
     this.successCount = 0;
-    logger.info('Circuit breaker manually reset', { circuit: this.name });
+    logger.info("Circuit breaker manually reset", { circuit: this.name });
   }
 
   /**
@@ -312,7 +332,7 @@ export class CircuitBreaker {
    * Check if circuit is allowing requests
    */
   isOpen(): boolean {
-    return this.state === 'open' && Date.now() < this.nextAttemptTime;
+    return this.state === "open" && Date.now() < this.nextAttemptTime;
   }
 }
 
@@ -335,24 +355,26 @@ export const FallbackStrategies = {
   cachedData: <T>(
     cache: Map<string, T>,
     key: string,
-    priority = 100
+    priority = 100,
   ): FallbackStrategy<T> => ({
-    name: 'cached-data',
+    name: "cached-data",
     priority,
     execute: async () => {
       const cached = cache.get(key);
       if (!cached) {
         throw new Error(`No cached data available for key: ${key}`);
       }
-      logger.info('Fallback: Using cached data', { key });
+      logger.info("Fallback: Using cached data", { key });
       return cached;
     },
     shouldUse: (error) => {
       // Don't use cache for auth errors
       const errorMsg = error.message.toLowerCase();
-      return !errorMsg.includes('auth') &&
-             !errorMsg.includes('permission') &&
-             !errorMsg.includes('forbidden');
+      return (
+        !errorMsg.includes("auth") &&
+        !errorMsg.includes("permission") &&
+        !errorMsg.includes("forbidden")
+      );
     },
   }),
 
@@ -366,10 +388,10 @@ export const FallbackStrategies = {
    * );
    */
   degradedMode: <T>(degradedData: T, priority = 50): FallbackStrategy<T> => ({
-    name: 'degraded-mode',
+    name: "degraded-mode",
     priority,
     execute: async () => {
-      logger.warn('Fallback: Using degraded mode', { data: degradedData });
+      logger.warn("Fallback: Using degraded mode", { data: degradedData });
       return degradedData;
     },
     shouldUse: () => true, // Always usable as last resort
@@ -385,10 +407,10 @@ export const FallbackStrategies = {
    * );
    */
   safeDefault: <T>(defaultValue: T, priority = 10): FallbackStrategy<T> => ({
-    name: 'safe-default',
+    name: "safe-default",
     priority,
     execute: async () => {
-      logger.info('Fallback: Using safe default', { default: defaultValue });
+      logger.info("Fallback: Using safe default", { default: defaultValue });
       return defaultValue;
     },
     shouldUse: () => true, // Always usable as last resort
@@ -407,42 +429,44 @@ export const FallbackStrategies = {
     operation: () => Promise<T>,
     maxRetries = 3,
     baseDelayMs = 1000,
-    priority = 80
+    priority = 80,
   ): FallbackStrategy<T> => ({
-    name: 'retry-with-backoff',
+    name: "retry-with-backoff",
     priority,
     execute: async () => {
       let lastError: Error | undefined;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          logger.debug('Fallback: Retry attempt', { attempt, maxRetries });
+          logger.debug("Fallback: Retry attempt", { attempt, maxRetries });
           return await operation();
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
 
           if (attempt < maxRetries) {
             const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
-            logger.debug('Fallback: Retry failed, waiting', {
+            logger.debug("Fallback: Retry failed, waiting", {
               attempt,
               delayMs,
               error: lastError.message,
             });
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
           }
         }
       }
 
-      throw lastError || new Error('All retry attempts failed');
+      throw lastError || new Error("All retry attempts failed");
     },
     shouldUse: (error) => {
       // Only retry for transient errors
       const errorMsg = error.message.toLowerCase();
-      return errorMsg.includes('timeout') ||
-             errorMsg.includes('network') ||
-             errorMsg.includes('temporary') ||
-             error.message.includes('503') ||
-             error.message.includes('429'); // Rate limit
+      return (
+        errorMsg.includes("timeout") ||
+        errorMsg.includes("network") ||
+        errorMsg.includes("temporary") ||
+        error.message.includes("503") ||
+        error.message.includes("429")
+      ); // Rate limit
     },
   }),
 
@@ -457,12 +481,12 @@ export const FallbackStrategies = {
    */
   alternateSource: <T>(
     alternateOperation: () => Promise<T>,
-    priority = 90
+    priority = 90,
   ): FallbackStrategy<T> => ({
-    name: 'alternate-source',
+    name: "alternate-source",
     priority,
     execute: async () => {
-      logger.info('Fallback: Using alternate data source');
+      logger.info("Fallback: Using alternate data source");
       return await alternateOperation();
     },
     shouldUse: () => true, // Try alternate source for any error
@@ -480,20 +504,25 @@ export const FallbackStrategies = {
    *   )
    * );
    */
-  readOnlyMode: <T>(readOnlyResponse: T, priority = 30): FallbackStrategy<T> => ({
-    name: 'read-only-mode',
+  readOnlyMode: <T>(
+    readOnlyResponse: T,
+    priority = 30,
+  ): FallbackStrategy<T> => ({
+    name: "read-only-mode",
     priority,
     execute: async () => {
-      logger.warn('Fallback: Entering read-only mode');
+      logger.warn("Fallback: Entering read-only mode");
       return readOnlyResponse;
     },
     shouldUse: (error) => {
       // Only for write operation failures
       const errorMsg = error.message.toLowerCase();
-      return errorMsg.includes('write') ||
-             errorMsg.includes('update') ||
-             errorMsg.includes('delete') ||
-             errorMsg.includes('modify');
+      return (
+        errorMsg.includes("write") ||
+        errorMsg.includes("update") ||
+        errorMsg.includes("delete") ||
+        errorMsg.includes("modify")
+      );
     },
   }),
 };

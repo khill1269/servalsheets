@@ -13,7 +13,9 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: './tsconfig.json',
+        // Use a dedicated TSConfig for ESLint so test files are included.
+        // The main tsconfig.json intentionally excludes tests.
+        project: './tsconfig.eslint.json',
       },
       globals: {
         console: 'readonly',

@@ -758,7 +758,7 @@ await write({
 
 ### Issue: ServalSheets not appearing in Claude Desktop
 
-**Symptoms**: No 🔨 icon, tools not available
+**Symptoms**: No 🔨 icon (standard MCP indicator), tools not available
 
 **Causes**:
 - Config file missing or invalid
@@ -814,7 +814,7 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq 'select(.level ==
 # Reopen Claude Desktop
 open -a "Claude"
 
-# Look for 🔨 icon in bottom-right
+# Look for 🔨 icon in bottom-right (custom ServalSheets icon may not appear yet)
 ```
 
 ### Issue: Tools fail silently

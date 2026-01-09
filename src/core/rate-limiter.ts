@@ -1,10 +1,10 @@
 /**
  * ServalSheets - Rate Limiter
- * 
+ *
  * Enforces Google Sheets API rate limits
  */
 
-import PQueue from 'p-queue';
+import PQueue from "p-queue";
 
 export interface RateLimits {
   readsPerMinute: number;
@@ -17,8 +17,12 @@ export interface RateLimits {
  * Get rate limits from environment variables or use defaults
  */
 function getRateLimits(): RateLimits {
-  const readsPerMinute = parseInt(process.env['RATE_LIMIT_READS_PER_MINUTE'] || '300');
-  const writesPerMinute = parseInt(process.env['RATE_LIMIT_WRITES_PER_MINUTE'] || '60');
+  const readsPerMinute = parseInt(
+    process.env["RATE_LIMIT_READS_PER_MINUTE"] || "300",
+  );
+  const writesPerMinute = parseInt(
+    process.env["RATE_LIMIT_WRITES_PER_MINUTE"] || "60",
+  );
 
   return {
     readsPerMinute,
@@ -72,16 +76,16 @@ export class RateLimiter {
   /**
    * Acquire tokens for an operation
    */
-  async acquire(type: 'read' | 'write', count: number = 1): Promise<void> {
+  async acquire(type: "read" | "write", count: number = 1): Promise<void> {
     return this.queue.add(async () => {
-      const bucket = type === 'read' ? this.readBucket : this.writeBucket;
-      
+      const bucket = type === "read" ? this.readBucket : this.writeBucket;
+
       // Refill bucket
       const now = Date.now();
       const elapsed = (now - bucket.lastRefill) / 1000;
       bucket.tokens = Math.min(
         bucket.capacity,
-        bucket.tokens + elapsed * bucket.refillRate
+        bucket.tokens + elapsed * bucket.refillRate,
       );
       bucket.lastRefill = now;
 
@@ -95,7 +99,7 @@ export class RateLimiter {
         const elapsed = (Date.now() - bucket.lastRefill) / 1000;
         bucket.tokens = Math.min(
           bucket.capacity,
-          bucket.tokens + elapsed * bucket.refillRate
+          bucket.tokens + elapsed * bucket.refillRate,
         );
         bucket.lastRefill = Date.now();
       }
@@ -162,6 +166,6 @@ export class RateLimiter {
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

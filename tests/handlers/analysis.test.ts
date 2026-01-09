@@ -47,10 +47,8 @@ describe('AnalysisHandler', () => {
 
   it('runs data quality check', async () => {
     const result = await handler.handle({
-      request: {
         action: 'data_quality',
         spreadsheetId: 'sheet-id',
-      },
     });
 
     const parsed = SheetsAnalysisOutputSchema.safeParse(result);
@@ -64,12 +62,10 @@ describe('AnalysisHandler', () => {
       .mockResolvedValueOnce({ data: { values: [['A'], [2]] } });
 
     const result = await handler.handle({
-      request: {
         action: 'compare_ranges',
         spreadsheetId: 'sheet-id',
         range1: { a1: 'Sheet1!A1:A2' },
         range2: { a1: 'Sheet1!A1:A2' },
-      },
     });
 
     expect(result.response.success).toBe(true);

@@ -6,25 +6,25 @@
  * Phase 4, Task 4.3
  */
 
-import type { GoogleApiClient } from '../services/google-api.js';
+import type { GoogleApiClient } from "../services/google-api.js";
 
 /**
  * Impact severity
  */
-export type ImpactSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type ImpactSeverity = "low" | "medium" | "high" | "critical";
 
 /**
  * Affected resource type
  */
 export type AffectedResourceType =
-  | 'cells'
-  | 'formulas'
-  | 'charts'
-  | 'pivot_tables'
-  | 'validation_rules'
-  | 'conditional_formats'
-  | 'named_ranges'
-  | 'protected_ranges';
+  | "cells"
+  | "formulas"
+  | "charts"
+  | "pivot_tables"
+  | "validation_rules"
+  | "conditional_formats"
+  | "named_ranges"
+  | "protected_ranges";
 
 /**
  * Operation impact analysis
@@ -101,7 +101,10 @@ export interface AffectedFormula {
   formula: string;
 
   /** Impact type */
-  impactType: 'references_affected_range' | 'will_become_invalid' | 'will_change';
+  impactType:
+    | "references_affected_range"
+    | "will_become_invalid"
+    | "will_change";
 
   /** Description */
   description: string;
@@ -127,7 +130,7 @@ export interface AffectedChart {
   dataRanges: string[];
 
   /** Impact type */
-  impactType: 'data_source_affected' | 'will_break' | 'needs_update';
+  impactType: "data_source_affected" | "will_break" | "needs_update";
 
   /** Description */
   description: string;
@@ -147,7 +150,7 @@ export interface AffectedPivotTable {
   sourceRange: string;
 
   /** Impact type */
-  impactType: 'source_data_affected' | 'will_break' | 'needs_refresh';
+  impactType: "source_data_affected" | "will_break" | "needs_refresh";
 
   /** Description */
   description: string;
@@ -167,7 +170,7 @@ export interface AffectedValidationRule {
   ruleType: string;
 
   /** Impact type */
-  impactType: 'will_be_removed' | 'will_be_modified' | 'may_conflict';
+  impactType: "will_be_removed" | "will_be_modified" | "may_conflict";
 
   /** Description */
   description: string;
@@ -187,7 +190,7 @@ export interface AffectedNamedRange {
   range: string;
 
   /** Impact type */
-  impactType: 'will_be_affected' | 'will_become_invalid' | 'will_be_deleted';
+  impactType: "will_be_affected" | "will_become_invalid" | "will_be_deleted";
 
   /** Description */
   description: string;
@@ -207,7 +210,7 @@ export interface AffectedProtectedRange {
   description: string;
 
   /** Impact type */
-  impactType: 'will_be_affected' | 'will_be_removed' | 'permission_required';
+  impactType: "will_be_affected" | "will_be_removed" | "permission_required";
 
   /** Editors */
   editors?: string[];

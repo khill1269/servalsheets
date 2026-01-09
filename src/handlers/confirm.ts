@@ -11,19 +11,19 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
-import type { HandlerContext } from './base.js';
+import type { HandlerContext } from "./base.js";
 import {
   getConfirmationService,
   type OperationPlan as ServicePlan,
   type PlanStep as ServiceStep,
-} from '../services/confirm-service.js';
+} from "../services/confirm-service.js";
 import type {
   SheetsConfirmInput,
   SheetsConfirmOutput,
   ConfirmResponse,
   PlanStep,
-  OperationPlan,
-} from '../schemas/confirm.js';
+} from "../schemas/confirm.js";
+import { getCapabilitiesWithCache } from "../services/capability-cache.js";
 
 export interface ConfirmHandlerOptions {
   context: HandlerContext;
@@ -61,35 +61,41 @@ export class ConfirmHandler {
    * Handle confirmation requests
    */
   async handle(input: SheetsConfirmInput): Promise<SheetsConfirmOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
     const confirmService = getConfirmationService();
 
     try {
       let response: ConfirmResponse;
 
-      switch (request.action) {
-        case 'request': {
+      switch (input.action) {
+        case "request": {
           // Check if server is available
           if (!this.context.server) {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
-                message: 'MCP Server instance not available. Cannot perform elicitation.',
+                code: "ELICITATION_UNAVAILABLE",
+                message:
+                  "MCP Server instance not available. Cannot perform elicitation.",
                 retryable: false,
               },
             };
             break;
           }
 
-          // Check if client supports elicitation
-          const clientCapabilities = this.context.server.getClientCapabilities();
+          // Check if client supports elicitation (with caching)
+          const sessionId = this.context.requestId || "default";
+          const clientCapabilities = await getCapabilitiesWithCache(
+            sessionId,
+            this.context.server,
+          );
           if (!clientCapabilities?.elicitation) {
             response = {
               success: false,
               error: {
-                code: 'ELICITATION_UNAVAILABLE',
-                message: 'MCP Elicitation capability not available. The client must support elicitation (SEP-1036).',
+                code: "ELICITATION_UNAVAILABLE",
+                message:
+                  "MCP Elicitation capability not available. The client must support elicitation (SEP-1036).",
                 retryable: false,
               },
             };
@@ -98,13 +104,13 @@ export class ConfirmHandler {
 
           // Convert input plan to service plan
           const plan: ServicePlan = confirmService.createPlan(
-            request.plan.title,
-            request.plan.description,
-            request.plan.steps.map(this.toServiceStep),
+            input.plan.title,
+            input.plan.description,
+            input.plan.steps.map(this.toServiceStep),
             {
-              willCreateSnapshot: request.plan.willCreateSnapshot,
-              additionalWarnings: request.plan.additionalWarnings,
-            }
+              willCreateSnapshot: input.plan.willCreateSnapshot,
+              additionalWarnings: input.plan.additionalWarnings,
+            },
           );
 
           // Build elicitation request
@@ -113,8 +119,9 @@ export class ConfirmHandler {
           // Request user confirmation via MCP Elicitation
           const startTime = Date.now();
           const elicitResult = await this.context.server.elicitInput({
-            mode: 'form',
+            mode: "form",
             message: elicitRequest.message,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             requestedSchema: elicitRequest.requestedSchema as any, // Type assertion needed due to strict SDK schema types
           });
 
@@ -124,12 +131,12 @@ export class ConfirmHandler {
               action: elicitResult.action,
               content: elicitResult.content,
             },
-            startTime
+            startTime,
           );
 
           response = {
             success: true,
-            action: 'request',
+            action: "request",
             planId: plan.id,
             confirmation: {
               approved: confirmation.approved,
@@ -139,16 +146,16 @@ export class ConfirmHandler {
             },
             message: confirmation.approved
               ? `Plan "${plan.title}" approved by user. Ready for execution.`
-              : `Plan "${plan.title}" ${confirmation.action === 'decline' ? 'declined' : 'cancelled'} by user.`,
+              : `Plan "${plan.title}" ${confirmation.action === "decline" ? "declined" : "cancelled"} by user.`,
           };
           break;
         }
 
-        case 'get_stats': {
+        case "get_stats": {
           const stats = confirmService.getStats();
           response = {
             success: true,
-            action: 'get_stats',
+            action: "get_stats",
             stats: {
               totalConfirmations: stats.totalConfirmations,
               approved: stats.approved,
@@ -169,7 +176,7 @@ export class ConfirmHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

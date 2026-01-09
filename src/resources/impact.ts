@@ -4,8 +4,8 @@
  * Exposes impact detector capabilities as MCP resources for discovery and reference.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getImpactAnalyzer } from '../services/impact-analyzer.js';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { getImpactAnalyzer } from "../services/impact-analyzer.js";
 
 /**
  * Register impact resources with the MCP server
@@ -15,55 +15,70 @@ export function registerImpactResources(server: McpServer): number {
 
   // Resource 1: impact://stats - Impact analyzer statistics
   server.registerResource(
-    'Impact Analyzer Statistics',
-    'impact://stats',
+    "Impact Analyzer Statistics",
+    "impact://stats",
     {
-      description: 'Impact analyzer statistics: total analyses, operations prevented, warnings issued',
-      mimeType: 'application/json',
+      description:
+        "Impact analyzer statistics: total analyses, operations prevented, warnings issued",
+      mimeType: "application/json",
     },
     async (uri) => {
       try {
         const stats = impactAnalyzer.getStats();
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              stats: {
-                totalAnalyses: stats.totalAnalyses,
-                operationsPrevented: stats.operationsPrevented,
-                avgAnalysisTime: `${(stats.avgAnalysisTime / 1000).toFixed(2)}s`,
-                totalWarnings: stats.totalWarnings,
-                warningsBySeverity: stats.warningsBySeverity,
-              },
-              summary: `Analyzed ${stats.totalAnalyses} operation(s), prevented ${stats.operationsPrevented} risky operation(s), issued ${stats.totalWarnings} warning(s)`,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  stats: {
+                    totalAnalyses: stats.totalAnalyses,
+                    operationsPrevented: stats.operationsPrevented,
+                    avgAnalysisTime: `${(stats.avgAnalysisTime / 1000).toFixed(2)}s`,
+                    totalWarnings: stats.totalWarnings,
+                    warningsBySeverity: stats.warningsBySeverity,
+                  },
+                  summary: `Analyzed ${stats.totalAnalyses} operation(s), prevented ${stats.operationsPrevented} risky operation(s), issued ${stats.totalWarnings} warning(s)`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              error: 'Failed to fetch transaction statistics',
-              message: errorMessage,
-            }, null, 2),
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch transaction statistics",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Resource 2: impact://help - Transaction capabilities documentation
   server.registerResource(
-    'Impact Detector Help',
-    'impact://help',
+    "Impact Detector Help",
+    "impact://help",
     {
-      description: 'Documentation for the impact detector: atomicity, rollback, batch operations',
-      mimeType: 'text/markdown',
+      description:
+        "Documentation for the impact detector: atomicity, rollback, batch operations",
+      mimeType: "text/markdown",
     },
     async (uri) => {
       try {
@@ -270,29 +285,34 @@ Maximum 10 concurrent transactions (configurable) to prevent resource exhaustion
 `;
 
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/markdown',
-            text: helpText,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/markdown",
+              text: helpText,
+            },
+          ],
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         return {
-          contents: [{
-            uri: typeof uri === 'string' ? uri : uri.toString(),
-            mimeType: 'text/plain',
-            text: `Error fetching transaction help: ${errorMessage}`,
-          }],
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "text/plain",
+              text: `Error fetching transaction help: ${errorMessage}`,
+            },
+          ],
         };
       }
-    }
+    },
   );
 
   // Note: Using console.error for MCP server startup output (visible to user)
-  console.error('[ServalSheets] Registered 2 impact resources:');
-  console.error('  - impact://stats (impact detector statistics)');
-  console.error('  - impact://help (impact detector documentation)');
+  console.error("[ServalSheets] Registered 2 impact resources:");
+  console.error("  - impact://stats (impact detector statistics)");
+  console.error("  - impact://help (impact detector documentation)");
 
   return 2;
 }

@@ -4,13 +4,13 @@
  * Handles operation history tracking, undo/redo functionality, and debugging.
  */
 
-import { getHistoryService } from '../services/history-service.js';
-import { SnapshotService } from '../services/snapshot.js';
+import { getHistoryService } from "../services/history-service.js";
+import { SnapshotService } from "../services/snapshot.js";
 import type {
   SheetsHistoryInput,
   SheetsHistoryOutput,
   HistoryResponse,
-} from '../schemas/history.js';
+} from "../schemas/history.js";
 
 export interface HistoryHandlerOptions {
   snapshotService?: SnapshotService;
@@ -24,33 +24,36 @@ export class HistoryHandler {
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
-    const { request } = input;
+    // Input is now the action directly (no input wrapper)
     const historyService = getHistoryService();
 
     try {
       let response: HistoryResponse;
 
-      switch (request.action) {
-        case 'list': {
+      switch (input.action) {
+        case "list": {
           let operations;
-          if (request.failuresOnly) {
-            operations = historyService.getFailures(request.count);
-          } else if (request.spreadsheetId) {
-            operations = historyService.getBySpreadsheet(request.spreadsheetId, request.count);
+          if (input.failuresOnly) {
+            operations = historyService.getFailures(input.count);
+          } else if (input.spreadsheetId) {
+            operations = historyService.getBySpreadsheet(
+              input.spreadsheetId,
+              input.count,
+            );
           } else {
-            operations = historyService.getRecent(request.count || 10);
+            operations = historyService.getRecent(input.count || 10);
           }
 
           response = {
             success: true,
-            action: 'list',
+            action: "list",
             operations: operations.map((op) => ({
               id: op.id,
               tool: op.tool,
               action: op.action,
               spreadsheetId: op.spreadsheetId,
               range: undefined,
-              success: op.result === 'success',
+              success: op.result === "success",
               duration: op.duration,
               timestamp: new Date(op.timestamp).getTime(),
               error: op.errorMessage,
@@ -60,15 +63,15 @@ export class HistoryHandler {
           break;
         }
 
-        case 'get': {
-          const operation = historyService.getById(request.operationId);
+        case "get": {
+          const operation = historyService.getById(input.operationId);
 
           if (!operation) {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${request.operationId} not found`,
+                code: "NOT_FOUND",
+                message: `Operation ${input.operationId} not found`,
                 retryable: false,
               },
             };
@@ -77,31 +80,32 @@ export class HistoryHandler {
 
           response = {
             success: true,
-            action: 'get',
+            action: "get",
             operation: {
               id: operation.id,
               tool: operation.tool,
               action: operation.action,
               params: operation.params,
-              result: operation.result === 'success' ? 'success' : operation.result,
+              result:
+                operation.result === "success" ? "success" : operation.result,
               spreadsheetId: operation.spreadsheetId,
               range: undefined,
-              success: operation.result === 'success',
+              success: operation.result === "success",
               duration: operation.duration,
               timestamp: new Date(operation.timestamp).getTime(),
               error: operation.errorMessage,
             },
-            message: 'Operation retrieved',
+            message: "Operation retrieved",
           };
           break;
         }
 
-        case 'stats': {
+        case "stats": {
           const stats = historyService.getStats();
 
           response = {
             success: true,
-            action: 'stats',
+            action: "stats",
             stats: {
               totalOperations: stats.totalOperations,
               successfulOperations: stats.successfulOperations,
@@ -116,15 +120,17 @@ export class HistoryHandler {
           break;
         }
 
-        case 'undo': {
-          const operation = historyService.getLastUndoable(request.spreadsheetId);
+        case "undo": {
+          const operation = historyService.getLastUndoable(
+            input.spreadsheetId,
+          );
 
           if (!operation) {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
-                message: `No undoable operations for spreadsheet ${request.spreadsheetId}`,
+                code: "NOT_FOUND",
+                message: `No undoable operations for spreadsheet ${input.spreadsheetId}`,
                 retryable: false,
               },
             };
@@ -135,7 +141,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: "NOT_FOUND",
                 message: `Operation ${operation.id} has no snapshot for undo`,
                 retryable: false,
               },
@@ -147,8 +153,8 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SERVICE_NOT_INITIALIZED',
-                message: 'Snapshot service not available',
+                code: "SERVICE_NOT_INITIALIZED",
+                message: "Snapshot service not available",
                 retryable: false,
               },
             };
@@ -157,14 +163,16 @@ export class HistoryHandler {
 
           try {
             // Restore from snapshot
-            const restoredId = await this.snapshotService.restore(operation.snapshotId);
+            const restoredId = await this.snapshotService.restore(
+              operation.snapshotId,
+            );
 
             // Mark as undone in history
-            historyService.markAsUndone(operation.id, request.spreadsheetId);
+            historyService.markAsUndone(operation.id, input.spreadsheetId);
 
             response = {
               success: true,
-              action: 'undo',
+              action: "undo",
               restoredSpreadsheetId: restoredId,
               operationRestored: {
                 id: operation.id,
@@ -178,7 +186,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SNAPSHOT_RESTORE_FAILED',
+                code: "SNAPSHOT_RESTORE_FAILED",
                 message: error instanceof Error ? error.message : String(error),
                 retryable: true,
               },
@@ -187,15 +195,17 @@ export class HistoryHandler {
           break;
         }
 
-        case 'redo': {
-          const operation = historyService.getLastRedoable(request.spreadsheetId);
+        case "redo": {
+          const operation = historyService.getLastRedoable(
+            input.spreadsheetId,
+          );
 
           if (!operation) {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
-                message: `No redoable operations for spreadsheet ${request.spreadsheetId}`,
+                code: "NOT_FOUND",
+                message: `No redoable operations for spreadsheet ${input.spreadsheetId}`,
                 retryable: false,
               },
             };
@@ -215,24 +225,28 @@ export class HistoryHandler {
           response = {
             success: false,
             error: {
-              code: 'FEATURE_UNAVAILABLE',
-              message: 'Redo functionality is not yet implemented. Only undo operations are currently supported.',
-              details: { reason: 'Redo requires re-execution of operations which is not yet implemented' },
+              code: "FEATURE_UNAVAILABLE",
+              message:
+                "Redo functionality is not yet implemented. Only undo operations are currently supported.",
+              details: {
+                reason:
+                  "Redo requires re-execution of operations which is not yet implemented",
+              },
               retryable: false,
             },
           };
           break;
         }
 
-        case 'revert_to': {
-          const operation = historyService.getById(request.operationId);
+        case "revert_to": {
+          const operation = historyService.getById(input.operationId);
 
           if (!operation) {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${request.operationId} not found`,
+                code: "NOT_FOUND",
+                message: `Operation ${input.operationId} not found`,
                 retryable: false,
               },
             };
@@ -243,7 +257,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'NOT_FOUND',
+                code: "NOT_FOUND",
                 message: `Operation ${operation.id} has no snapshot for revert`,
                 retryable: false,
               },
@@ -255,8 +269,8 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SERVICE_NOT_INITIALIZED',
-                message: 'Snapshot service not available',
+                code: "SERVICE_NOT_INITIALIZED",
+                message: "Snapshot service not available",
                 retryable: false,
               },
             };
@@ -265,11 +279,13 @@ export class HistoryHandler {
 
           try {
             // Restore from snapshot (state before this operation)
-            const restoredId = await this.snapshotService.restore(operation.snapshotId);
+            const restoredId = await this.snapshotService.restore(
+              operation.snapshotId,
+            );
 
             response = {
               success: true,
-              action: 'revert_to',
+              action: "revert_to",
               restoredSpreadsheetId: restoredId,
               operationRestored: {
                 id: operation.id,
@@ -283,7 +299,7 @@ export class HistoryHandler {
             response = {
               success: false,
               error: {
-                code: 'SNAPSHOT_RESTORE_FAILED',
+                code: "SNAPSHOT_RESTORE_FAILED",
                 message: error instanceof Error ? error.message : String(error),
                 retryable: true,
               },
@@ -292,11 +308,11 @@ export class HistoryHandler {
           break;
         }
 
-        case 'clear': {
+        case "clear": {
           let cleared: number;
 
-          if (request.spreadsheetId) {
-            cleared = historyService.clearForSpreadsheet(request.spreadsheetId);
+          if (input.spreadsheetId) {
+            cleared = historyService.clearForSpreadsheet(input.spreadsheetId);
           } else {
             historyService.clear();
             cleared = historyService.size();
@@ -304,14 +320,23 @@ export class HistoryHandler {
 
           response = {
             success: true,
-            action: 'clear',
+            action: "clear",
             operationsCleared: cleared,
-            message: request.spreadsheetId
-              ? `Cleared ${cleared} operation(s) for spreadsheet ${request.spreadsheetId}`
+            message: input.spreadsheetId
+              ? `Cleared ${cleared} operation(s) for spreadsheet ${input.spreadsheetId}`
               : `Cleared all ${cleared} operation(s)`,
           };
           break;
         }
+        default:
+          response = {
+            success: false,
+            error: {
+              code: "INVALID_PARAMS",
+              message: `Unknown action: ${(input as { action: string }).action}`,
+              retryable: false,
+            },
+          };
       }
 
       return { response };
@@ -321,7 +346,7 @@ export class HistoryHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

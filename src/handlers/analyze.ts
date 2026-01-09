@@ -9,8 +9,8 @@
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
-import type { sheets_v4 } from 'googleapis';
-import type { HandlerContext } from './base.js';
+import type { sheets_v4 } from "googleapis";
+import type { HandlerContext } from "./base.js";
 import {
   getSamplingAnalysisService,
   buildAnalysisSamplingRequest,
@@ -18,12 +18,13 @@ import {
   buildChartSamplingRequest,
   parseAnalysisResponse,
   type AnalysisType,
-} from '../services/sampling-analysis.js';
+} from "../services/sampling-analysis.js";
 import type {
   SheetsAnalyzeInput,
   SheetsAnalyzeOutput,
   AnalyzeResponse,
-} from '../schemas/analyze.js';
+} from "../schemas/analyze.js";
+import { getCapabilitiesWithCache } from "../services/capability-cache.js";
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -38,7 +39,11 @@ export class AnalyzeHandler {
   private context: HandlerContext;
   private sheetsApi: sheets_v4.Sheets;
 
-  constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets, _options?: AnalyzeHandlerOptions) {
+  constructor(
+    context: HandlerContext,
+    sheetsApi: sheets_v4.Sheets,
+    _options?: AnalyzeHandlerOptions,
+  ) {
     // If options.context is provided, use it; otherwise use the passed context
     this.context = _options?.context ?? context;
     this.sheetsApi = sheetsApi;
@@ -47,11 +52,17 @@ export class AnalyzeHandler {
   /**
    * Resolve range to A1 notation
    */
-  private resolveRange(range?: { a1?: string; sheetName?: string; range?: string }): string | undefined {
+  private resolveRange(range?: {
+    a1?: string;
+    sheetName?: string;
+    range?: string;
+  }): string | undefined {
     if (!range) return undefined;
-    if ('a1' in range && range.a1) return range.a1;
-    if ('sheetName' in range && range.sheetName) {
-      return range.range ? `${range.sheetName}!${range.range}` : range.sheetName;
+    if ("a1" in range && range.a1) return range.a1;
+    if ("sheetName" in range && range.sheetName) {
+      return range.range
+        ? `${range.sheetName}!${range.range}`
+        : range.sheetName;
     }
     return undefined;
   }
@@ -59,11 +70,14 @@ export class AnalyzeHandler {
   /**
    * Read data from spreadsheet
    */
-  private async readData(spreadsheetId: string, range?: string): Promise<unknown[][]> {
+  private async readData(
+    spreadsheetId: string,
+    range?: string,
+  ): Promise<unknown[][]> {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
-      range: range ?? 'A:ZZ',
-      valueRenderOption: 'FORMATTED_VALUE',
+      range: range ?? "A:ZZ",
+      valueRenderOption: "FORMATTED_VALUE",
     });
     return response.data.values ?? [];
   }
@@ -72,35 +86,41 @@ export class AnalyzeHandler {
    * Handle analysis requests
    */
   async handle(input: SheetsAnalyzeInput): Promise<SheetsAnalyzeOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
     const analysisService = getSamplingAnalysisService();
 
     try {
       let response: AnalyzeResponse;
 
-      switch (request.action) {
-        case 'analyze': {
+      switch (input.action) {
+        case "analyze": {
           // Check if server is available
           if (!this.context.server) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Server instance not available. Cannot perform sampling.',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Server instance not available. Cannot perform sampling.",
                 retryable: false,
               },
             };
             break;
           }
 
-          // Check if client supports sampling
-          const clientCapabilities = this.context.server.getClientCapabilities();
+          // Check if client supports sampling (with caching)
+          const sessionId = this.context.requestId || "default";
+          const clientCapabilities = await getCapabilitiesWithCache(
+            sessionId,
+            this.context.server,
+          );
           if (!clientCapabilities?.sampling) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Sampling capability not available. The client must support sampling (SEP-1577).',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
                 retryable: false,
               },
             };
@@ -110,15 +130,15 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const rangeStr = this.resolveRange(request.range);
-          const data = await this.readData(request.spreadsheetId, rangeStr);
+          const rangeStr = this.resolveRange(input.range);
+          const data = await this.readData(input.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
             response = {
               success: false,
               error: {
-                code: 'NO_DATA',
-                message: 'No data found in the specified range',
+                code: "NO_DATA",
+                message: "No data found in the specified range",
                 retryable: false,
               },
             };
@@ -127,48 +147,58 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const samplingRequest = buildAnalysisSamplingRequest(data, {
-            spreadsheetId: request.spreadsheetId,
-            sheetName: request.range && 'sheetName' in request.range ? request.range.sheetName : undefined,
+            spreadsheetId: input.spreadsheetId,
+            sheetName:
+              input.range && "sheetName" in input.range
+                ? input.range.sheetName
+                : undefined,
             range: rangeStr,
-            analysisTypes: request.analysisTypes as AnalysisType[],
-            context: request.context,
-            maxTokens: request.maxTokens,
+            analysisTypes: input.analysisTypes as AnalysisType[],
+            context: input.context,
+            maxTokens: input.maxTokens,
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult = await this.context.server.createMessage(samplingRequest);
+          const samplingResult =
+            await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
           // Parse the response (extract text from content)
-          const contentText = typeof samplingResult.content === 'string'
-            ? samplingResult.content
-            : samplingResult.content.type === 'text'
-            ? samplingResult.content.text
-            : '';
+          const contentText =
+            typeof samplingResult.content === "string"
+              ? samplingResult.content
+              : samplingResult.content.type === "text"
+                ? samplingResult.content.text
+                : "";
           const parsed = parseAnalysisResponse(contentText);
 
           if (!parsed.success || !parsed.result) {
-            analysisService.recordFailure(request.analysisTypes as AnalysisType[]);
+            analysisService.recordFailure(
+              input.analysisTypes as AnalysisType[],
+            );
             response = {
               success: false,
               error: {
-                code: 'PARSE_ERROR',
-                message: parsed.error ?? 'Failed to parse analysis response',
+                code: "PARSE_ERROR",
+                message: parsed.error ?? "Failed to parse analysis response",
                 retryable: true,
               },
             };
             break;
           }
 
-          analysisService.recordSuccess(request.analysisTypes as AnalysisType[], duration);
+          analysisService.recordSuccess(
+            input.analysisTypes as AnalysisType[],
+            duration,
+          );
 
           response = {
             success: true,
-            action: 'analyze',
+            action: "analyze",
             summary: parsed.result.summary,
             analyses: parsed.result.analyses.map((a) => ({
               type: a.type as AnalysisType,
-              confidence: a.confidence as 'high' | 'medium' | 'low',
+              confidence: a.confidence as "high" | "medium" | "low",
               findings: a.findings,
               details: a.details,
               affectedCells: a.affectedCells,
@@ -182,27 +212,34 @@ export class AnalyzeHandler {
           break;
         }
 
-        case 'generate_formula': {
+        case "generate_formula": {
           // Check if server is available
           if (!this.context.server) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Server instance not available. Cannot perform sampling.',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Server instance not available. Cannot perform sampling.",
                 retryable: false,
               },
             };
             break;
           }
 
-          // Check if client supports sampling
-          if (!this.context.server.getClientCapabilities()?.sampling) {
+          // Check if client supports sampling (with caching)
+          const sessionId2 = this.context.requestId || "default";
+          const clientCapabilities2 = await getCapabilitiesWithCache(
+            sessionId2,
+            this.context.server,
+          );
+          if (!clientCapabilities2?.sampling) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Sampling capability not available. The client must support sampling (SEP-1577).',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
                 retryable: false,
               },
             };
@@ -215,9 +252,9 @@ export class AnalyzeHandler {
           let headers: string[] | undefined;
           let sampleData: unknown[][] | undefined;
 
-          if (request.range) {
-            const rangeStr = this.resolveRange(request.range);
-            const data = await this.readData(request.spreadsheetId, rangeStr);
+          if (input.range) {
+            const rangeStr = this.resolveRange(input.range);
+            const data = await this.readData(input.spreadsheetId, rangeStr);
             if (data.length > 0) {
               headers = data[0]?.map(String);
               sampleData = data.slice(0, 10);
@@ -225,32 +262,40 @@ export class AnalyzeHandler {
           }
 
           // Build sampling request
-          const samplingRequest = buildFormulaSamplingRequest(request.description, {
-            headers,
-            sampleData,
-            targetCell: request.targetCell,
-            sheetName: request.range && 'sheetName' in request.range ? request.range.sheetName : undefined,
-          });
+          const samplingRequest = buildFormulaSamplingRequest(
+            input.description,
+            {
+              headers,
+              sampleData,
+              targetCell: input.targetCell,
+              sheetName:
+                input.range && "sheetName" in input.range
+                  ? input.range.sheetName
+                  : undefined,
+            },
+          );
 
           // Call LLM via MCP Sampling
-          const samplingResult = await this.context.server.createMessage(samplingRequest);
+          const samplingResult =
+            await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
           // Parse the response (extract text from content)
-          const contentText = typeof samplingResult.content === 'string'
-            ? samplingResult.content
-            : samplingResult.content.type === 'text'
-            ? samplingResult.content.text
-            : '';
+          const contentText =
+            typeof samplingResult.content === "string"
+              ? samplingResult.content
+              : samplingResult.content.type === "text"
+                ? samplingResult.content.text
+                : "";
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No JSON in response');
+            if (!jsonMatch) throw new Error("No JSON in response");
             const parsed = JSON.parse(jsonMatch[0]);
 
             response = {
               success: true,
-              action: 'generate_formula',
+              action: "generate_formula",
               formula: {
                 formula: parsed.formula,
                 explanation: parsed.explanation,
@@ -265,8 +310,8 @@ export class AnalyzeHandler {
             response = {
               success: false,
               error: {
-                code: 'PARSE_ERROR',
-                message: 'Failed to parse formula response',
+                code: "PARSE_ERROR",
+                message: "Failed to parse formula response",
                 retryable: true,
               },
             };
@@ -274,27 +319,34 @@ export class AnalyzeHandler {
           break;
         }
 
-        case 'suggest_chart': {
+        case "suggest_chart": {
           // Check if server is available
           if (!this.context.server) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Server instance not available. Cannot perform sampling.',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Server instance not available. Cannot perform sampling.",
                 retryable: false,
               },
             };
             break;
           }
 
-          // Check if client supports sampling
-          if (!this.context.server.getClientCapabilities()?.sampling) {
+          // Check if client supports sampling (with caching)
+          const sessionId3 = this.context.requestId || "default";
+          const clientCapabilities3 = await getCapabilitiesWithCache(
+            sessionId3,
+            this.context.server,
+          );
+          if (!clientCapabilities3?.sampling) {
             response = {
               success: false,
               error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message: 'MCP Sampling capability not available. The client must support sampling (SEP-1577).',
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
                 retryable: false,
               },
             };
@@ -304,15 +356,15 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const rangeStr = this.resolveRange(request.range);
-          const data = await this.readData(request.spreadsheetId, rangeStr);
+          const rangeStr = this.resolveRange(input.range);
+          const data = await this.readData(input.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
             response = {
               success: false,
               error: {
-                code: 'NO_DATA',
-                message: 'No data found in the specified range',
+                code: "NO_DATA",
+                message: "No data found in the specified range",
                 retryable: false,
               },
             };
@@ -321,36 +373,40 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const samplingRequest = buildChartSamplingRequest(data, {
-            goal: request.goal,
-            preferredTypes: request.preferredTypes,
+            goal: input.goal,
+            preferredTypes: input.preferredTypes,
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult = await this.context.server.createMessage(samplingRequest);
+          const samplingResult =
+            await this.context.server.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
           // Parse the response (extract text from content)
-          const contentText = typeof samplingResult.content === 'string'
-            ? samplingResult.content
-            : samplingResult.content.type === 'text'
-            ? samplingResult.content.text
-            : '';
+          const contentText =
+            typeof samplingResult.content === "string"
+              ? samplingResult.content
+              : samplingResult.content.type === "text"
+                ? samplingResult.content.text
+                : "";
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No JSON in response');
+            if (!jsonMatch) throw new Error("No JSON in response");
             const parsed = JSON.parse(jsonMatch[0]);
 
             response = {
               success: true,
-              action: 'suggest_chart',
-              chartRecommendations: parsed.recommendations?.map((r: Record<string, unknown>) => ({
-                chartType: r['chartType'],
-                suitabilityScore: r['suitabilityScore'],
-                reasoning: r['reasoning'],
-                configuration: r['configuration'],
-                insights: r['insights'],
-              })),
+              action: "suggest_chart",
+              chartRecommendations: parsed.recommendations?.map(
+                (r: Record<string, unknown>) => ({
+                  chartType: r["chartType"],
+                  suitabilityScore: r["suitabilityScore"],
+                  reasoning: r["reasoning"],
+                  configuration: r["configuration"],
+                  insights: r["insights"],
+                }),
+              ),
               dataAssessment: parsed.dataAssessment,
               duration,
               message: `${parsed.recommendations?.length ?? 0} chart type(s) recommended`,
@@ -359,8 +415,8 @@ export class AnalyzeHandler {
             response = {
               success: false,
               error: {
-                code: 'PARSE_ERROR',
-                message: 'Failed to parse chart recommendation response',
+                code: "PARSE_ERROR",
+                message: "Failed to parse chart recommendation response",
                 retryable: true,
               },
             };
@@ -368,11 +424,11 @@ export class AnalyzeHandler {
           break;
         }
 
-        case 'get_stats': {
+        case "get_stats": {
           const stats = analysisService.getStats();
           response = {
             success: true,
-            action: 'get_stats',
+            action: "get_stats",
             stats: {
               totalRequests: stats.totalRequests,
               successfulRequests: stats.successfulRequests,
@@ -393,7 +449,7 @@ export class AnalyzeHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },

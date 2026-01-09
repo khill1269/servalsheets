@@ -4,12 +4,12 @@
  * Handles conflict detection and resolution for concurrent modifications.
  */
 
-import { getConflictDetector } from '../services/conflict-detector.js';
+import { getConflictDetector } from "../services/conflict-detector.js";
 import type {
   SheetsConflictInput,
   SheetsConflictOutput,
   ConflictResponse,
-} from '../schemas/conflict.js';
+} from "../schemas/conflict.js";
 
 export interface ConflictHandlerOptions {
   // Options can be added as needed
@@ -21,60 +21,69 @@ export class ConflictHandler {
   }
 
   async handle(input: SheetsConflictInput): Promise<SheetsConflictOutput> {
-    const { request } = input;
+    // Input is now the action directly (no request wrapper)
     const conflictDetector = getConflictDetector();
 
     try {
       let response: ConflictResponse;
 
-      switch (request.action) {
-        case 'detect': {
+      switch (input.action) {
+        case "detect": {
           // For now, return empty conflicts list as detectConflict is designed
           // for pre-write checks with expected versions
           // In production, this would query active conflicts from the detector
           response = {
             success: true,
-            action: 'detect',
+            action: "detect",
             conflicts: [],
-            message: 'No conflicts detected. Note: Conflict detection works automatically before write operations.',
+            message:
+              "No conflicts detected. Note: Conflict detection works automatically before write operations.",
           };
           break;
         }
 
-        case 'resolve': {
+        case "resolve": {
           // Map schema strategy to actual ResolutionStrategy type
-          const strategyMap: Record<string, 'overwrite' | 'merge' | 'cancel' | 'manual' | 'last_write_wins' | 'first_write_wins'> = {
-            'keep_local': 'overwrite',
-            'keep_remote': 'cancel',
-            'merge': 'merge',
-            'manual': 'manual',
+          const strategyMap: Record<
+            string,
+            | "overwrite"
+            | "merge"
+            | "cancel"
+            | "manual"
+            | "last_write_wins"
+            | "first_write_wins"
+          > = {
+            keep_local: "overwrite",
+            keep_remote: "cancel",
+            merge: "merge",
+            manual: "manual",
           };
 
           const result = await conflictDetector.resolveConflict({
-            conflictId: request.conflictId,
-            strategy: strategyMap[request.strategy] || 'manual',
-            mergeData: request.mergedValue,
+            conflictId: input.conflictId,
+            strategy: strategyMap[input.strategy] || "manual",
+            mergeData: input.mergedValue,
           });
 
           if (result.success) {
             response = {
               success: true,
-              action: 'resolve',
-              conflictId: request.conflictId,
+              action: "resolve",
+              conflictId: input.conflictId,
               resolved: true,
               resolution: {
-                strategy: request.strategy,
+                strategy: input.strategy,
                 finalValue: result.changesApplied,
                 version: result.finalVersion?.version || 0,
               },
-              message: `Conflict resolved using strategy: ${request.strategy}`,
+              message: `Conflict resolved using strategy: ${input.strategy}`,
             };
           } else {
             response = {
               success: false,
               error: {
-                code: 'INTERNAL_ERROR',
-                message: result.error?.message || 'Failed to resolve conflict',
+                code: "INTERNAL_ERROR",
+                message: result.error?.message || "Failed to resolve conflict",
                 retryable: false,
               },
             };
@@ -90,7 +99,7 @@ export class ConflictHandler {
         response: {
           success: false,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: "INTERNAL_ERROR",
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
