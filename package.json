@@ -1,6 +1,6 @@
 {
   "name": "servalsheets",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Production-grade Google Sheets MCP server with 25 tools, 195 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
