@@ -2,11 +2,18 @@
 /**
  * ServalSheets - CLI Entry Point
  * MCP Protocol: 2025-11-25
- * 
+ *
  * Supports multiple transports:
  * - STDIO (default): For Claude Desktop and MCP clients
  * - HTTP: For web-based integrations
  */
+
+// Load environment variables from .env file (silently to avoid MCP JSON parsing errors)
+import dotenv from 'dotenv';
+
+// Suppress dotenv's informational banner to prevent Claude Desktop JSON parsing errors
+// The banner "[dotenv@17.2.3] injecting env..." breaks STDIO transport JSON parsing
+dotenv.config({ quiet: true });
 
 import { type ServalSheetsServerOptions } from './server.js';
 import { logger } from './utils/logger.js';
