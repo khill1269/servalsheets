@@ -506,9 +506,16 @@ export RATE_LIMIT_READS_PER_MINUTE=300
 export RATE_LIMIT_WRITES_PER_MINUTE=60
 ```
 
-**Google Sheets API Quotas**:
-- Read requests: 300/min per user
-- Write requests: 60/min per user
+**Google Sheets API Quotas by Workspace Edition**:
+
+| Workspace Edition | Read Quota | Write Quota | Configuration |
+|-------------------|------------|-------------|---------------|
+| **Free/Personal** | 300/min | 60/min | (default values) |
+| **Business Standard** | 600/min | 120/min | `RATE_LIMIT_READS_PER_MINUTE=600 RATE_LIMIT_WRITES_PER_MINUTE=120` |
+| **Business Plus** | 900/min | 180/min | `RATE_LIMIT_READS_PER_MINUTE=900 RATE_LIMIT_WRITES_PER_MINUTE=180` |
+| **Enterprise** | 1200/min | 240/min | `RATE_LIMIT_READS_PER_MINUTE=1200 RATE_LIMIT_WRITES_PER_MINUTE=240` |
+
+**Note**: Actual quotas depend on your Google Cloud project configuration. Check your [Google Cloud Console](https://console.cloud.google.com/apis/api/sheets.googleapis.com/quotas) for exact limits.
 
 **Dynamic Throttling**: When a 429 (rate limit) error is detected, the rate limiter automatically reduces rates by 50% for 60 seconds, then restores normal limits.
 
@@ -595,6 +602,133 @@ export GOOGLE_API_TIMEOUT_MS=30000
 # Request timeout (default: 120s)
 export REQUEST_TIMEOUT_MS=120000
 ```
+
+### HTTP/2 and Connection Pool
+
+Configure HTTP/2 and connection pooling for optimal performance:
+
+```bash
+# Enable/disable HTTP/2 (default: true)
+export GOOGLE_API_HTTP2_ENABLED=true
+
+# Maximum concurrent connections (default: 50)
+export GOOGLE_API_MAX_SOCKETS=50
+
+# Keep-alive timeout in milliseconds (default: 30000)
+export GOOGLE_API_KEEPALIVE_TIMEOUT=30000
+
+# Enable connection pool monitoring (default: false)
+export ENABLE_HTTP2_POOL_MONITORING=true
+
+# Monitoring interval in milliseconds (default: 300000 = 5 minutes)
+export HTTP2_POOL_MONITOR_INTERVAL_MS=300000
+```
+
+**Benefits of HTTP/2:**
+- 5-15% latency reduction for API calls
+- Connection multiplexing (multiple requests per connection)
+- Header compression reduces overhead
+
+**Connection Pool Monitoring:**
+When enabled, logs connection pool statistics at regular intervals:
+- Active sockets (in-use connections)
+- Free sockets (available in pool)
+- Pending requests (waiting for connection)
+- Pool utilization percentage
+- Automatic warnings at 80% and 100% utilization
+
+Recommended for production to detect connection pool exhaustion before it impacts performance.
+
+### Metrics Server
+
+Expose performance metrics via HTTP endpoint for monitoring:
+
+```bash
+# Enable metrics server (default: false)
+export ENABLE_METRICS_SERVER=true
+
+# Metrics server port (default: 9090)
+export METRICS_PORT=9090
+
+# Metrics server host (default: 127.0.0.1)
+export METRICS_HOST=127.0.0.1
+```
+
+**Available endpoints:**
+
+| Endpoint | Format | Description |
+|----------|--------|-------------|
+| `/metrics` | Prometheus text | Recommended for Prometheus/Grafana |
+| `/metrics.json` | JSON | Programmatic access |
+| `/metrics.txt` | Human-readable text | Quick inspection |
+| `/health` | JSON | Health check endpoint |
+
+**Metrics exposed:**
+- **Cache metrics**: Hit rate, hits/misses, evictions, size by cache type
+- **Batching metrics**: Current window size, total batches, average batch size, deduplication count
+- **API metrics**: Total calls by method, errors by code, success/error rates
+
+**Example Prometheus configuration:**
+
+```yaml
+scrape_configs:
+  - job_name: 'servalsheets'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+```
+
+**Access metrics:**
+```bash
+# Prometheus format
+curl http://localhost:9090/metrics
+
+# JSON format
+curl http://localhost:9090/metrics.json
+
+# Human-readable
+curl http://localhost:9090/metrics.txt
+```
+
+### Memory Leak Detection
+
+Monitor Node.js heap usage to detect memory leaks before they cause crashes:
+
+```bash
+# Enable heap monitoring (default: false)
+export ENABLE_HEAP_MONITORING=true
+
+# Monitoring interval in milliseconds (default: 1800000 = 30 minutes)
+export HEAP_MONITOR_INTERVAL_MS=1800000
+
+# Warning threshold (0-1, default: 0.7 = 70%)
+export HEAP_WARNING_THRESHOLD=0.7
+
+# Critical threshold (0-1, default: 0.85 = 85%)
+export HEAP_CRITICAL_THRESHOLD=0.85
+
+# Enable heap snapshots at critical threshold (default: false)
+export ENABLE_HEAP_SNAPSHOTS=true
+
+# Heap snapshot directory (default: ./heap-snapshots)
+export HEAP_SNAPSHOT_PATH=./heap-snapshots
+```
+
+**Alerting thresholds:**
+- **Warning (70%):** Logs elevated heap usage, monitor for sustained growth
+- **Critical (85%):** Logs error with recommendation, optionally captures heap snapshot
+- **Automatic throttling:** Alerts limited to once every 5-15 minutes to prevent spam
+
+**Heap snapshots:**
+When enabled, heap snapshots are captured at critical threshold for post-mortem analysis:
+- **Chrome DevTools:** Open snapshot in Memory Profiler
+- **clinic.js:** `npm install -g clinic` then `clinic heapprofiler`
+
+**Recommendations by utilization:**
+- **95%+:** Immediate restart required to prevent OOM crash
+- **85-95%:** Schedule restart, investigate with heap snapshots
+- **70-85%:** Monitor trends, review cache policies and connection pools
+- **<70%:** Normal operation
 
 ### Example: Production Configuration
 

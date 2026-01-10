@@ -15,22 +15,23 @@ export interface SessionStore {
    * Store a value with TTL (time-to-live)
    * @param key Unique identifier for the value
    * @param value Value to store (will be JSON serialized)
-   * @param ttlSeconds Time-to-live in seconds
+   * @param options TTL options - can be number (seconds) or object with ttlMs
    */
-  set(key: string, value: unknown, ttlSeconds: number): Promise<void>;
+  set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void>;
 
   /**
    * Retrieve a value by key
    * @param key Unique identifier
-   * @returns Value if found and not expired, null otherwise
+   * @returns Value if found and not expired, undefined otherwise
    */
-  get(key: string): Promise<unknown | null>;
+  get(key: string): Promise<unknown | undefined>;
 
   /**
    * Delete a value by key
    * @param key Unique identifier
+   * @returns true if deleted, false if key didn't exist
    */
-  delete(key: string): Promise<void>;
+  delete(key: string): Promise<boolean>;
 
   /**
    * Check if a key exists
@@ -47,8 +48,9 @@ export interface SessionStore {
 
   /**
    * Clean up expired entries (for in-memory implementations)
+   * Returns number of entries removed (optional)
    */
-  cleanup(): Promise<void>;
+  cleanup(): Promise<void | number>;
 
   /**
    * Get store statistics (optional, for monitoring)
@@ -74,36 +76,48 @@ export class InMemorySessionStore implements SessionStore {
     }, cleanupIntervalMs);
   }
 
-  async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
+    // Handle both number (seconds) and object ({ ttlMs }) formats
+    let ttlMs: number;
+    if (typeof options === 'number') {
+      ttlMs = options * 1000; // Convert seconds to milliseconds
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+      ttlMs = options.ttlMs;
+    } else {
+      ttlMs = 3600000; // 1 hour default
+    }
+
     this.store.set(key, {
       value,
-      expires: Date.now() + ttlSeconds * 1000,
+      expires: Date.now() + ttlMs,
     });
   }
 
-  async get(key: string): Promise<unknown | null> {
+  async get(key: string): Promise<unknown | undefined> {
     const entry = this.store.get(key);
 
     if (!entry) {
-      return null;
+      return undefined;
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
       this.store.delete(key);
-      return null;
+      return undefined;
     }
 
     return entry.value;
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string): Promise<boolean> {
+    const existed = this.store.has(key);
     this.store.delete(key);
+    return existed;
   }
 
   async has(key: string): Promise<boolean> {
     const value = await this.get(key);
-    return value !== null;
+    return value !== undefined;
   }
 
   async keys(pattern?: string): Promise<string[]> {
@@ -118,7 +132,7 @@ export class InMemorySessionStore implements SessionStore {
     return allKeys.filter((key) => regex.test(key));
   }
 
-  async cleanup(): Promise<void> {
+  async cleanup(): Promise<number> {
     const now = Date.now();
     const keysToDelete: string[] = [];
 
@@ -133,11 +147,14 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     if (keysToDelete.length > 0) {
-      logger.debug("Session store cleanup", {
+      logger.info("Session store cleanup completed", {
         expiredEntries: keysToDelete.length,
         remainingKeys: this.store.size,
+        cleanupTimestamp: new Date().toISOString(),
       });
     }
+
+    return keysToDelete.length;
   }
 
   async stats(): Promise<{ totalKeys: number; memoryUsage?: number }> {
@@ -212,20 +229,30 @@ export class RedisSessionStore implements SessionStore {
     }
   }
 
-  async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
     await this.ensureConnected();
+
+    // Handle both number (seconds) and object ({ ttlMs }) formats
+    let ttlSeconds: number;
+    if (typeof options === 'number') {
+      ttlSeconds = options;
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+      ttlSeconds = Math.floor(options.ttlMs / 1000);
+    } else {
+      ttlSeconds = 3600; // 1 hour default
+    }
 
     const serialized = JSON.stringify(value);
     await this.client.setEx(key, ttlSeconds, serialized);
   }
 
-  async get(key: string): Promise<unknown | null> {
+  async get(key: string): Promise<unknown | undefined> {
     await this.ensureConnected();
 
     const data = await this.client.get(key);
 
     if (!data) {
-      return null;
+      return undefined;
     }
 
     try {
@@ -236,9 +263,10 @@ export class RedisSessionStore implements SessionStore {
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string): Promise<boolean> {
     await this.ensureConnected();
-    await this.client.del(key);
+    const result = await this.client.del(key);
+    return result > 0; // Redis returns number of keys deleted
   }
 
   async has(key: string): Promise<boolean> {
@@ -288,4 +316,157 @@ export function createSessionStore(redisUrl?: string): SessionStore {
 
   console.error("[SessionStore] Using in-memory session store");
   return new InMemorySessionStore();
+}
+
+/**
+ * Options for MemorySessionStore (test-compatible interface)
+ */
+export interface MemorySessionStoreOptions {
+  defaultTtlMs?: number;
+  maxEntries?: number;
+  cleanupIntervalMs?: number;
+}
+
+/**
+ * Memory-based session store with configurable TTL
+ * Compatible with test expectations for defaultTtlMs option
+ */
+export class MemorySessionStore implements SessionStore {
+  private store = new Map<string, { value: unknown; expires: number }>();
+  private cleanupInterval: NodeJS.Timeout | null = null;
+  private defaultTtlMs: number;
+  private maxEntries: number;
+
+  constructor(options: MemorySessionStoreOptions = {}) {
+    this.defaultTtlMs = options.defaultTtlMs ?? 3600000; // 1 hour default
+    this.maxEntries = options.maxEntries ?? 10000;
+    const cleanupIntervalMs = options.cleanupIntervalMs ?? 60000;
+
+    // Start cleanup interval
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup().catch(console.error);
+    }, cleanupIntervalMs);
+  }
+
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
+    // Enforce max entries limit
+    if (this.store.size >= this.maxEntries && !this.store.has(key)) {
+      // Remove oldest entry
+      const oldestKey = this.store.keys().next().value;
+      if (oldestKey) {
+        this.store.delete(oldestKey);
+      }
+    }
+
+    // Handle both number (seconds) and object ({ ttlMs }) formats
+    let ttlMs: number;
+    if (typeof options === 'number') {
+      ttlMs = options * 1000; // Convert seconds to milliseconds
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+      ttlMs = options.ttlMs;
+    } else {
+      ttlMs = this.defaultTtlMs;
+    }
+
+    this.store.set(key, {
+      value,
+      expires: Date.now() + ttlMs,
+    });
+  }
+
+  async get(key: string): Promise<unknown | undefined> {
+    const entry = this.store.get(key);
+
+    if (!entry) {
+      return undefined;
+    }
+
+    // Check if expired
+    if (Date.now() > entry.expires) {
+      this.store.delete(key);
+      return undefined;
+    }
+
+    return entry.value;
+  }
+
+  async delete(key: string): Promise<boolean> {
+    const existed = this.store.has(key);
+    this.store.delete(key);
+    return existed;
+  }
+
+  async has(key: string): Promise<boolean> {
+    const value = await this.get(key);
+    return value !== undefined;
+  }
+
+  async keys(pattern?: string): Promise<string[]> {
+    const allKeys = Array.from(this.store.keys());
+
+    if (!pattern) {
+      return allKeys;
+    }
+
+    // Simple glob pattern matching (supports * wildcard)
+    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+    return allKeys.filter((key) => regex.test(key));
+  }
+
+  async cleanup(): Promise<number> {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+
+    for (const [key, entry] of this.store.entries()) {
+      if (now > entry.expires) {
+        keysToDelete.push(key);
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this.store.delete(key);
+    }
+
+    return keysToDelete.length;
+  }
+
+  async stats(): Promise<{ totalKeys: number; memoryUsage?: number }> {
+    let memoryBytes = 0;
+
+    for (const [key, entry] of this.store.entries()) {
+      memoryBytes += key.length * 2;
+      memoryBytes += JSON.stringify(entry.value).length * 2;
+      memoryBytes += 24;
+    }
+
+    return {
+      totalKeys: this.store.size,
+      memoryUsage: memoryBytes,
+    };
+  }
+
+  /**
+   * Get size of the store (method for test compatibility)
+   */
+  async size(): Promise<number> {
+    return this.store.size;
+  }
+
+  /**
+   * Clear all entries
+   */
+  async clear(): Promise<void> {
+    this.store.clear();
+  }
+
+  /**
+   * Destroy the store and clean up resources
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.store.clear();
+  }
 }

@@ -128,6 +128,7 @@ export class GoogleApiClient {
   private httpAgents: { http: HttpAgent; https: HttpsAgent };
   private _authType: GoogleAuthType;
   private tokenManager?: TokenManager;
+  private poolMonitorInterval?: NodeJS.Timeout;
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -164,6 +165,9 @@ export class GoogleApiClient {
 
     // Initialize HTTP agents with connection pooling
     this.httpAgents = createHttpAgents();
+
+    // Set up connection pool monitoring if enabled
+    this.setupConnectionPoolMonitoring();
   }
 
   /**
@@ -201,8 +205,7 @@ export class GoogleApiClient {
 
     // Enable HTTP/2 for improved performance (5-15% latency reduction)
     // gaxios automatically negotiates HTTP/2 via ALPN if server supports it
-    const enableHTTP2 =
-      process.env["GOOGLE_API_HTTP2_ENABLED"] !== "false"; // Enabled by default
+    const enableHTTP2 = process.env["GOOGLE_API_HTTP2_ENABLED"] !== "false"; // Enabled by default
 
     // Validate HTTP/2 configuration
     const validation = validateHTTP2Config(enableHTTP2);
@@ -590,6 +593,127 @@ export class GoogleApiClient {
   }
 
   /**
+   * Set up HTTP/2 connection pool monitoring
+   * Logs connection pool statistics at regular intervals
+   * Controlled by ENABLE_HTTP2_POOL_MONITORING environment variable
+   */
+  private setupConnectionPoolMonitoring(): void {
+    const enableMonitoring =
+      process.env["ENABLE_HTTP2_POOL_MONITORING"] === "true";
+
+    if (!enableMonitoring) {
+      return;
+    }
+
+    // Monitor every 5 minutes by default
+    const intervalMs = parseInt(
+      process.env["HTTP2_POOL_MONITOR_INTERVAL_MS"] || "300000",
+      10,
+    );
+
+    this.poolMonitorInterval = setInterval(() => {
+      this.logConnectionPoolStats();
+    }, intervalMs);
+
+    logger.info("HTTP/2 connection pool monitoring enabled", {
+      intervalMs,
+      intervalMin: Math.round(intervalMs / 60000),
+    });
+  }
+
+  /**
+   * Log HTTP/2 connection pool statistics
+   * Provides visibility into connection reuse and pool utilization
+   */
+  private logConnectionPoolStats(): void {
+    const httpsAgent = this.httpAgents.https;
+
+    // Count active and free sockets
+    const activeSockets =
+      Object.keys((httpsAgent.sockets as Record<string, unknown>) || {})
+        .length || 0;
+    const freeSockets =
+      Object.keys((httpsAgent.freeSockets as Record<string, unknown>) || {})
+        .length || 0;
+    const pendingRequests =
+      Object.keys((httpsAgent.requests as Record<string, unknown>) || {})
+        .length || 0;
+
+    // Get max sockets from environment
+    const maxSockets = parseInt(
+      process.env["GOOGLE_API_MAX_SOCKETS"] || "50",
+      10,
+    );
+
+    // Calculate utilization percentage
+    const utilizationPercent = ((activeSockets / maxSockets) * 100).toFixed(1);
+
+    const stats = {
+      active_sockets: activeSockets,
+      free_sockets: freeSockets,
+      pending_requests: pendingRequests,
+      max_sockets: maxSockets,
+      utilization_percent: parseFloat(utilizationPercent),
+      total_available: activeSockets + freeSockets,
+    };
+
+    logger.info("HTTP/2 connection pool statistics", stats);
+
+    // Warn if pool is at or near capacity
+    if (activeSockets >= maxSockets) {
+      logger.warn("HTTP/2 connection pool at max capacity", {
+        ...stats,
+        recommendation:
+          "Consider increasing GOOGLE_API_MAX_SOCKETS environment variable",
+      });
+    } else if (activeSockets >= maxSockets * 0.8) {
+      logger.warn("HTTP/2 connection pool utilization high (>80%)", {
+        ...stats,
+        recommendation:
+          "Monitor for performance degradation; consider increasing pool size",
+      });
+    }
+  }
+
+  /**
+   * Get current HTTP/2 connection pool statistics
+   * Returns current state without logging
+   */
+  getConnectionPoolStats(): {
+    activeSockets: number;
+    freeSockets: number;
+    pendingRequests: number;
+    maxSockets: number;
+    utilizationPercent: number;
+  } {
+    const httpsAgent = this.httpAgents.https;
+
+    const activeSockets =
+      Object.keys((httpsAgent.sockets as Record<string, unknown>) || {})
+        .length || 0;
+    const freeSockets =
+      Object.keys((httpsAgent.freeSockets as Record<string, unknown>) || {})
+        .length || 0;
+    const pendingRequests =
+      Object.keys((httpsAgent.requests as Record<string, unknown>) || {})
+        .length || 0;
+    const maxSockets = parseInt(
+      process.env["GOOGLE_API_MAX_SOCKETS"] || "50",
+      10,
+    );
+
+    return {
+      activeSockets,
+      freeSockets,
+      pendingRequests,
+      maxSockets,
+      utilizationPercent: parseFloat(
+        ((activeSockets / maxSockets) * 100).toFixed(1),
+      ),
+    };
+  }
+
+  /**
    * Log scope usage for audit trail
    * Particularly important for elevated scope operations
    */
@@ -645,6 +769,12 @@ export class GoogleApiClient {
    * Prevents memory leaks from accumulating listeners
    */
   destroy(): void {
+    // Stop connection pool monitoring
+    if (this.poolMonitorInterval) {
+      clearInterval(this.poolMonitorInterval);
+      this.poolMonitorInterval = undefined;
+    }
+
     // Stop token manager
     if (this.tokenManager) {
       this.tokenManager.stop();
@@ -669,6 +799,8 @@ export class GoogleApiClient {
     this.auth = null;
     this._sheets = null;
     this._drive = null;
+
+    logger.info("Google API client destroyed");
   }
 }
 

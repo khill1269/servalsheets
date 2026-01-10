@@ -550,9 +550,111 @@ ServalSheets processes Google Sheets data on behalf of users:
 
 ### Data Retention
 
-- **Logs**: Retain 90 days (configurable)
-- **Token store**: Until revoked
-- **Service account keys**: Until rotated
+ServalSheets implements automatic data retention policies to comply with GDPR Article 5 (storage limitation) and security best practices.
+
+#### Session Data
+
+- **Default Retention:** 1 hour (configurable via TTL at creation time)
+- **Maximum Age:** Sessions older than their TTL are automatically purged
+- **Automatic Cleanup:** Every 60 seconds (in-memory store)
+- **Storage:** In-memory (lost on restart) or Redis (persistent)
+- **GDPR Compliance:** Automatic expiration ensures minimal data retention
+
+**Configuration:**
+```bash
+# Session store cleanup interval (milliseconds)
+# Default: 60000 (1 minute)
+export SESSION_CLEANUP_INTERVAL_MS=60000
+
+# Default session TTL (milliseconds)
+# Default: 3600000 (1 hour)
+export SESSION_DEFAULT_TTL_MS=3600000
+```
+
+#### OAuth Tokens
+
+- **Access Tokens:** Expire per Google's token lifetime (typically 1 hour)
+- **Refresh Tokens:** Stored encrypted until explicitly revoked
+- **Token Encryption:** AES-256-GCM with unique IV per token
+- **Cleanup:** Tokens are marked expired but retained for audit purposes
+- **Manual Revocation:** `sheets_auth` action with `revoke: true`
+
+**Best Practices:**
+- Rotate tokens when user access changes
+- Revoke tokens immediately upon user offboarding
+- Regularly audit token usage via logging
+
+#### Logs
+
+- **Retention Period:** 90 days (recommended)
+- **Log Rotation:** Daily or by size (100MB recommended)
+- **Audit Logs:** Retain longer for compliance (1-7 years depending on regulations)
+- **Automatic Cleanup:** Use logrotate or cloud logging retention policies
+
+**Configuration:**
+```bash
+# Log retention (days) - handled by log management system
+export LOG_RETENTION_DAYS=90
+
+# For structured logging to file
+export LOG_FILE_PATH=/var/log/servalsheets/app.log
+export LOG_MAX_SIZE=100m
+export LOG_MAX_AGE=90d
+```
+
+#### Sensitive Data in Memory
+
+- **OAuth State Parameters:** 5-minute TTL (HMAC-validated)
+- **PKCE Verifiers:** 10-minute TTL (OAuth flow completion)
+- **API Response Cache:** 5-minute TTL (default, configurable)
+- **Connection Pool:** Cleared on server restart
+
+#### Service Account Keys
+
+- **Retention:** Until rotated (recommend 90-day rotation)
+- **Storage:** Filesystem with restricted permissions (600)
+- **Backup:** Store in secure vault (HashiCorp Vault, Google Secret Manager)
+- **Rotation:** Automated via `scripts/rotate-service-account.sh`
+
+#### GDPR Right to Erasure
+
+To delete all data for a specific user:
+
+1. **Revoke OAuth tokens:**
+   ```javascript
+   await sheets_auth({ action: 'revoke' });
+   ```
+
+2. **Clear session data:**
+   ```javascript
+   // Sessions expire automatically within 1 hour
+   // For immediate removal, restart the server
+   ```
+
+3. **Remove from Google Sheets:**
+   ```javascript
+   // Use sheets_sharing to remove user permissions
+   await sheets_sharing({
+     action: 'remove_permission',
+     spreadsheetId: 'your-sheet-id',
+     email: 'user@example.com'
+   });
+   ```
+
+4. **Audit log retention:**
+   - Audit logs may be retained longer for compliance
+   - Pseudonymize user identifiers in long-term logs
+
+#### Compliance Summary
+
+| Data Type | Retention | Auto-Cleanup | GDPR Compliant |
+|-----------|-----------|--------------|----------------|
+| Sessions | 1 hour | ✅ Yes (1min) | ✅ Yes |
+| OAuth Access Tokens | 1 hour | ✅ Yes | ✅ Yes |
+| OAuth Refresh Tokens | Until revoked | ⚠️ Manual | ⚠️ Requires user action |
+| Logs (operational) | 90 days | ⚠️ External | ✅ Yes (with logrotate) |
+| Logs (audit) | 1-7 years | ⚠️ External | ✅ Yes (compliance req) |
+| Service Account Keys | Until rotated | ❌ Manual | ✅ Yes (with rotation) |
 
 ### Audit Logging
 
