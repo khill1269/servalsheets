@@ -96,8 +96,19 @@ export const SHUTDOWN_TIMEOUT = 10000;
 // Batch Operations
 // ============================================================================
 
+/**
+ * Google Sheets API Batch Limit
+ *
+ * Per Google Sheets API documentation:
+ * - Maximum 100 requests per batchUpdate call
+ * - Maximum 2 MB payload size recommended
+ *
+ * @see https://developers.google.com/workspace/sheets/api/limits
+ */
+export const GOOGLE_SHEETS_MAX_BATCH_REQUESTS = 100;
+
 /** Maximum batch size for batchUpdate operations */
-export const MAX_BATCH_SIZE = 500;
+export const MAX_BATCH_SIZE = 100;
 
 /** Chunk size for large operations */
 export const CHUNK_SIZE = 100;

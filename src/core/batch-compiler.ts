@@ -29,6 +29,7 @@ import {
 import { analyzeBatchEfficiency } from "../utils/batch-efficiency.js";
 import { logger } from "../utils/logger.js";
 import { sendProgress } from "../utils/request-context.js";
+import { GOOGLE_SHEETS_MAX_BATCH_REQUESTS } from "../config/constants.js";
 
 export interface CompiledBatch {
   spreadsheetId: string;
@@ -123,7 +124,7 @@ export class BatchCompiler {
     for (const [spreadsheetId, group] of Object.entries(grouped)) {
       const requests = group.map((intent) => this.intentToRequest(intent));
       const merged = this.mergeCompatibleRequests(requests);
-      const chunked = this.chunkRequests(merged, 500);
+      const chunked = this.chunkRequests(merged, GOOGLE_SHEETS_MAX_BATCH_REQUESTS);
 
       for (const chunk of chunked) {
         batches.push({
@@ -606,6 +607,15 @@ export class BatchCompiler {
   }
 
   private chunkRequests<T>(array: T[], size: number): T[][] {
+    // Validate against Google Sheets API limit (100 requests per batchUpdate)
+    const maxSize = GOOGLE_SHEETS_MAX_BATCH_REQUESTS;
+    if (size > maxSize) {
+      logger.warn(
+        `Requested batch size ${size} exceeds Google Sheets API limit ${maxSize}, using ${maxSize}`,
+      );
+      size = maxSize;
+    }
+
     const chunks: T[][] = [];
     for (let i = 0; i < array.length; i += size) {
       chunks.push(array.slice(i, i + size));
