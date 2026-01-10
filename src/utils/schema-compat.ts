@@ -66,6 +66,29 @@ export function isZodDiscriminatedUnion(schema: unknown): boolean {
 }
 
 /**
+ * Detects if a Zod schema is a regular union (z.union())
+ *
+ * @param schema - Any Zod schema
+ * @returns true if the schema is a z.union()
+ */
+export function isZodUnion(schema: unknown): boolean {
+  if (!schema || typeof schema !== "object") return false;
+
+  const zodSchema = schema as { _def?: Record<string, unknown> };
+  const def = zodSchema._def;
+
+  if (!def) return false;
+
+  // Zod v3 and v4: Check for ZodUnion typeName
+  if (def["typeName"] === "ZodUnion") return true;
+
+  // Alternative check: union without discriminator (regular union)
+  if (def["type"] === "union" && !def["discriminator"]) return true;
+
+  return false;
+}
+
+/**
  * Detects if a Zod schema is an object type (z.object())
  *
  * @param schema - Any Zod schema

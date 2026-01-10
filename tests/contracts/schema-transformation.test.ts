@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isDiscriminatedUnion,
   isZodObject,
+  isZodUnion,
   zodToJsonSchemaCompat,
   verifyJsonSchema,
 } from '../../src/utils/schema-compat.js';
@@ -47,7 +48,13 @@ describe('Schema Transformation', () => {
         expect(isZodObject(tool.outputSchema)).toBe(true);
         const shape = getZodShape(tool.outputSchema);
         expect(shape?.['response']).toBeDefined();
-        expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
+        // Special case: sheets_composite uses z.union instead of z.discriminatedUnion
+        // because it contains nested discriminated unions
+        if (tool.name === 'sheets_composite') {
+          expect(isZodUnion(shape?.['response'])).toBe(true);
+        } else {
+          expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
+        }
       });
     }
   });
