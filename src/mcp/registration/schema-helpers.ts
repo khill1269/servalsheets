@@ -8,7 +8,11 @@
 
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { z, type ZodTypeAny } from "zod";
-import { verifyJsonSchema } from "../../utils/schema-compat.js";
+import {
+  verifyJsonSchema,
+  zodSchemaToJsonSchema,
+  isZodObject,
+} from "../../utils/schema-compat.js";
 
 // ============================================================================
 // SCHEMA PREPARATION
@@ -17,21 +21,28 @@ import { verifyJsonSchema } from "../../utils/schema-compat.js";
 /**
  * Prepares a schema for MCP SDK registration
  *
- * MCP SDK v1.25+ properly handles all Zod schema types, including discriminated unions.
- * We pass Zod schemas directly to the SDK - it will convert them to JSON Schema internally.
+ * CRITICAL: MCP SDK v1.25.1 uses zod-to-json-schema@3.25.0 which is NOT compatible
+ * with Zod v4's discriminated unions. It returns empty schemas for them.
  *
- * This ensures the MCP Inspector can validate inputs using Zod's validation methods
- * (safeParse, safeParseAsync, etc.) which expect actual Zod schema objects.
+ * Solution: We pre-convert Zod v4 schemas to JSON Schema using Zod v4's native
+ * .toJSONSchema() method before passing to the SDK.
  *
  * @param schema - Zod schema to prepare
- * @returns Original Zod schema (SDK handles conversion internally)
+ * @returns JSON Schema object ready for MCP SDK
  */
 export function prepareSchemaForRegistration(
   schema: ZodTypeAny,
 ): AnySchema | Record<string, unknown> {
-  // Pass Zod schema as-is - SDK v1.25+ handles all schema types correctly
-  // Including: z.object(), z.discriminatedUnion(), z.union(), z.intersection()
-  return schema as unknown as AnySchema;
+  // For z.object() schemas, the SDK can handle them natively
+  // For everything else (discriminated unions, regular unions, etc.),
+  // we need to convert to JSON Schema first
+  if (isZodObject(schema)) {
+    return schema as unknown as AnySchema;
+  }
+
+  // Convert to JSON Schema using Zod v4's native method
+  // This ensures discriminated unions are properly converted
+  return zodSchemaToJsonSchema(schema);
 }
 
 /**
