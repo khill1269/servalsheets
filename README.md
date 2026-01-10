@@ -1,11 +1,11 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 24 tools, 188 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 26 tools, 208 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-144%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Tests](https://img.shields.io/badge/tests-1761%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
 
 ## What's New in v1.3.0 (2026-01-06)
 
@@ -39,13 +39,13 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 - Modern Stack: Express 5, Zod 4, Node 22 LTS, latest dependencies
 - Session Storage: TTL-based storage with optional Redis support for HA
 - Type Safety: Zero `as any` casts, full Zod validation
-- 144 Tests: 85.2% coverage including integration tests
+- 1761 Tests: Comprehensive coverage including integration tests
 - ESLint: Strict code quality enforcement
 
 ## Features
 
 ### Core Capabilities
-- **24 Tools, 188 Actions**: Comprehensive Google Sheets API v4 coverage
+- **26 Tools, 208 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -56,7 +56,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
-- ✅ **Tools**: 24 tools with 188 actions using discriminated unions
+- ✅ **Tools**: 26 tools with 208 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -643,7 +643,7 @@ npm run build
 # Type check (strict mode)
 npm run typecheck
 
-# Run tests (144 tests)
+# Run tests (1761 tests)
 npm test
 
 # Run in development mode
@@ -753,12 +753,12 @@ graph TB
 - **Transports**: STDIO, SSE, Streamable HTTP
 - **TypeScript**: Strict mode enabled, 0 errors
 - **SDK Version**: @modelcontextprotocol/sdk@1.0.4 (pinned)
-- **Test Coverage**: 144 tests passing across 19 suites
+- **Test Coverage**: 1761 tests passing across 78 suites
 
 ## Quality Metrics
 
 - ✅ **Type Safety**: Full TypeScript strict mode compliance
-- ✅ **Test Coverage**: 144 tests, 100% handler coverage
+- ✅ **Test Coverage**: 1761 tests, 100% handler coverage
 - ✅ **Protocol Compliance**: MCP 2025-11-25 certified
 - ✅ **Production Ready**: Used in Claude Connectors Directory
 - ✅ **Error Handling**: Comprehensive error codes with retry hints

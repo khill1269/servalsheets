@@ -189,6 +189,13 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false, // Import/append operations are not idempotent
     openWorldHint: true,
   },
+  sheets_session: {
+    title: "Session Context",
+    readOnlyHint: false, // Can update preferences
+    destructiveHint: false, // No data destruction
+    idempotentHint: true, // Most operations are idempotent
+    openWorldHint: false, // Session-only, no external effects
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts

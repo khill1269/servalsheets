@@ -150,7 +150,8 @@ describe('Schema Validation Property Tests', () => {
           fc.string({ minLength: 10, maxLength: 50, unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')) }),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 100 }),
-          fc.array(fc.array(fc.oneof(fc.string({ minLength: 1 }), fc.integer(), fc.float(), fc.boolean()), { minLength: 1, maxLength: 10 }), { minLength: 1, maxLength: 10 }),
+          // Use noNaN and noDefaultInfinity because Zod's z.number() rejects NaN and Infinity
+          fc.array(fc.array(fc.oneof(fc.string({ minLength: 1 }), fc.integer(), fc.double({ noNaN: true, noDefaultInfinity: true }), fc.boolean()), { minLength: 1, maxLength: 10 }), { minLength: 1, maxLength: 10 }),
           (spreadsheetId, colIndex, rowNum, values) => {
             const colLetter = String.fromCharCode(65 + colIndex);
             const input = {

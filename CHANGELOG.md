@@ -20,7 +20,7 @@ This release upgrades two critical dependencies to their latest major versions, 
   - Fixed `z.record()` API breaking change (now requires 2 arguments: key type + value type)
   - Updated 10+ schema files to use `z.record(z.string(), valueType)` instead of `z.record(valueType)`
   - Added `isZodUnion()` helper function for robust union schema detection
-  - All 25 tools (195 actions) fully compatible with Zod v4
+  - All 26 tools (208 actions) fully compatible with Zod v4
   - All 1,830+ passing tests remain passing
   - Performance improvements: 14x faster string parsing, 7x faster arrays, 6.5x faster objects
   - Bundle size reduction: ~57% smaller

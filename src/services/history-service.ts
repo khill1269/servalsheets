@@ -177,36 +177,33 @@ export class HistoryService {
   }
 
   /**
-   * Get statistics
+   * Get statistics for all operations or a specific spreadsheet
+   * @param spreadsheetId Optional spreadsheet ID to filter by
    */
-  getStats(): OperationHistoryStats {
-    const total = this.operations.length;
-    const successful = this.operations.filter(
-      (op) => op.result === "success",
-    ).length;
+  getStats(spreadsheetId?: string): OperationHistoryStats {
+    const ops = spreadsheetId
+      ? this.operations.filter(op => op.spreadsheetId === spreadsheetId)
+      : this.operations;
+
+    const total = ops.length;
+    const successful = ops.filter((op) => op.result === "success").length;
     const failed = total - successful;
 
-    const totalDuration = this.operations.reduce(
-      (sum, op) => sum + op.duration,
-      0,
-    );
+    const totalDuration = ops.reduce((sum, op) => sum + op.duration, 0);
     const averageDuration = total > 0 ? totalDuration / total : 0;
 
-    const totalCells = this.operations.reduce(
-      (sum, op) => sum + (op.cellsAffected || 0),
-      0,
-    );
+    const totalCells = ops.reduce((sum, op) => sum + (op.cellsAffected || 0), 0);
 
     // Find most common tool
     const toolCounts = new Map<string, number>();
-    this.operations.forEach((op) => {
+    ops.forEach((op) => {
       toolCounts.set(op.tool, (toolCounts.get(op.tool) || 0) + 1);
     });
     const mostCommonTool = this.getMostCommon(toolCounts);
 
     // Find most common action
     const actionCounts = new Map<string, number>();
-    this.operations.forEach((op) => {
+    ops.forEach((op) => {
       actionCounts.set(op.action, (actionCounts.get(op.action) || 0) + 1);
     });
     const mostCommonAction = this.getMostCommon(actionCounts);
@@ -220,8 +217,8 @@ export class HistoryService {
       totalCellsAffected: totalCells,
       mostCommonTool,
       mostCommonAction,
-      oldestOperation: this.operations[0]?.timestamp,
-      newestOperation: this.operations[this.operations.length - 1]?.timestamp,
+      oldestOperation: ops[0]?.timestamp,
+      newestOperation: ops[ops.length - 1]?.timestamp,
     };
   }
 
@@ -370,6 +367,157 @@ export class HistoryService {
   getRedoStackSize(spreadsheetId: string): number {
     return this.redoStacks.get(spreadsheetId)?.length || 0;
   }
+
+  /**
+   * Get undo stack for a spreadsheet
+   * Returns array of operation IDs that can be undone
+   */
+  getUndoStack(spreadsheetId: string): string[] {
+    return this.undoStacks.get(spreadsheetId) || [];
+  }
+
+  /**
+   * Get redo stack for a spreadsheet
+   * Returns array of operation IDs that can be redone
+   */
+  getRedoStack(spreadsheetId: string): string[] {
+    return this.redoStacks.get(spreadsheetId) || [];
+  }
+
+  // ==================== Extended History Features ====================
+
+  /**
+   * Record an operation with extended tracking
+   * Returns the operation ID for referencing
+   */
+  recordOperation(params: {
+    spreadsheetId: string;
+    tool: string;
+    action: string;
+    params: Record<string, unknown>;
+    result?: { success: boolean; [key: string]: unknown };
+    error?: Error;
+    snapshotId?: string;
+    timestamp: Date;
+    cellsAffected?: number;
+    rowsAffected?: number;
+  }): string {
+    const operationId = `op-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    const operation: OperationHistory = {
+      id: operationId,
+      timestamp: params.timestamp.toISOString(),
+      tool: params.tool,
+      action: params.action,
+      params: params.params,
+      result: params.error ? "error" : "success",
+      duration: 0, // Will be updated if duration tracking is added
+      spreadsheetId: params.spreadsheetId,
+      cellsAffected: params.cellsAffected,
+      rowsAffected: params.rowsAffected,
+      snapshotId: params.snapshotId,
+      errorMessage: params.error?.message,
+    };
+
+    this.record(operation);
+    return operationId;
+  }
+
+  /**
+   * Get operation history for a specific spreadsheet
+   * @param spreadsheetId The spreadsheet ID
+   * @param options Optional parameters (limit, etc.)
+   * @returns Array of operations in reverse chronological order
+   */
+  getHistory(spreadsheetId: string, options?: { limit?: number }): OperationHistory[] {
+    let ops = this.operations.filter(op => op.spreadsheetId === spreadsheetId);
+
+    // Sort by timestamp (most recent first)
+    ops.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Apply limit if specified
+    if (options?.limit && options.limit > 0) {
+      ops = ops.slice(0, options.limit);
+    }
+
+    return ops;
+  }
+
+  /**
+   * Get a specific operation by ID for a spreadsheet
+   * @param spreadsheetId The spreadsheet ID
+   * @param operationId The operation ID
+   * @returns The operation or undefined if not found
+   */
+  getOperation(spreadsheetId: string, operationId: string): OperationHistory | undefined {
+    const operation = this.operationsMap.get(operationId);
+    if (operation && operation.spreadsheetId === spreadsheetId) {
+      return operation;
+    }
+    return undefined;
+  }
+
+  /**
+   * Search operation history with filters
+   * @param spreadsheetId The spreadsheet ID
+   * @param filters Search criteria
+   * @returns Filtered operations
+   */
+  searchHistory(spreadsheetId: string, filters: {
+    tool?: string;
+    action?: string;
+    startTime?: Date;
+    endTime?: Date;
+    result?: "success" | "error";
+  }): OperationHistory[] {
+    let ops = this.operations.filter(op => op.spreadsheetId === spreadsheetId);
+
+    if (filters.tool) {
+      ops = ops.filter(op => op.tool === filters.tool);
+    }
+
+    if (filters.action) {
+      ops = ops.filter(op => op.action === filters.action);
+    }
+
+    if (filters.startTime) {
+      const startTime = filters.startTime.getTime();
+      ops = ops.filter(op => new Date(op.timestamp).getTime() >= startTime);
+    }
+
+    if (filters.endTime) {
+      const endTime = filters.endTime.getTime();
+      ops = ops.filter(op => new Date(op.timestamp).getTime() <= endTime);
+    }
+
+    if (filters.result) {
+      ops = ops.filter(op => op.result === filters.result);
+    }
+
+    return ops;
+  }
+
+  /**
+   * Clear operation history for a specific spreadsheet
+   * @param spreadsheetId The spreadsheet ID
+   */
+  clearHistory(spreadsheetId: string): void {
+    // Remove operations from array
+    this.operations = this.operations.filter(op => op.spreadsheetId !== spreadsheetId);
+
+    // Remove from map
+    for (const [id, op] of this.operationsMap.entries()) {
+      if (op.spreadsheetId === spreadsheetId) {
+        this.operationsMap.delete(id);
+      }
+    }
+
+    // Clear undo/redo stacks
+    this.undoStacks.delete(spreadsheetId);
+    this.redoStacks.delete(spreadsheetId);
+
+    logger.info("Cleared history for spreadsheet", { spreadsheetId });
+  }
 }
 
 // Singleton instance
@@ -390,4 +538,17 @@ export function getHistoryService(): HistoryService {
  */
 export function setHistoryService(service: HistoryService): void {
   historyService = service;
+}
+
+/**
+ * Reset the history service (for testing only)
+ * @internal
+ */
+export function resetHistoryService(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetHistoryService() can only be called in test environment",
+    );
+  }
+  historyService = null;
 }
