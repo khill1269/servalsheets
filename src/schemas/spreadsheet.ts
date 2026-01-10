@@ -25,7 +25,9 @@ const BaseSchema = z.object({
 export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
   // GET
   z.object({
-    action: z.literal("get").describe("Get spreadsheet metadata and properties"),
+    action: z
+      .literal("get")
+      .describe("Get spreadsheet metadata and properties"),
     spreadsheetId: SpreadsheetIdSchema.describe("Spreadsheet ID from URL"),
     includeGridData: z
       .boolean()
@@ -35,7 +37,9 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
     ranges: z
       .array(z.string())
       .optional()
-      .describe("Specific ranges to fetch if includeGridData=true (A1 notation)"),
+      .describe(
+        "Specific ranges to fetch if includeGridData=true (A1 notation)",
+      ),
   }),
 
   // CREATE
@@ -47,7 +51,10 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
       .optional()
       .default("en_US")
       .describe("Locale for formatting (default: en_US)"),
-    timeZone: z.string().optional().describe("Time zone (e.g., America/New_York)"),
+    timeZone: z
+      .string()
+      .optional()
+      .describe("Time zone (e.g., America/New_York)"),
     sheets: z
       .array(
         z.object({
@@ -70,7 +77,9 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
         }),
       )
       .optional()
-      .describe("Initial sheets/tabs to create (default: 1 sheet named 'Sheet1')"),
+      .describe(
+        "Initial sheets/tabs to create (default: 1 sheet named 'Sheet1')",
+      ),
   }),
 
   // COPY
@@ -80,12 +89,17 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
       .string()
       .optional()
       .describe("Google Drive folder ID to copy into (optional)"),
-    newTitle: z.string().optional().describe("Title for the copied spreadsheet (optional)"),
+    newTitle: z
+      .string()
+      .optional()
+      .describe("Title for the copied spreadsheet (optional)"),
   }),
 
   // UPDATE_PROPERTIES
   BaseSchema.extend({
-    action: z.literal("update_properties").describe("Update spreadsheet properties"),
+    action: z
+      .literal("update_properties")
+      .describe("Update spreadsheet properties"),
     title: z.string().optional().describe("New spreadsheet title"),
     locale: z.string().optional().describe("New locale for formatting"),
     timeZone: z.string().optional().describe("New time zone"),
@@ -102,7 +116,9 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
 
   // BATCH_GET
   z.object({
-    action: z.literal("batch_get").describe("Get metadata for multiple spreadsheets efficiently"),
+    action: z
+      .literal("batch_get")
+      .describe("Get metadata for multiple spreadsheets efficiently"),
     spreadsheetIds: z
       .array(SpreadsheetIdSchema)
       .min(1)
@@ -114,7 +130,9 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
   z.object({
     action: z
       .literal("get_comprehensive")
-      .describe("Get comprehensive metadata (sheets, named ranges, formats, etc.)"),
+      .describe(
+        "Get comprehensive metadata (sheets, named ranges, formats, etc.)",
+      ),
     spreadsheetId: SpreadsheetIdSchema.describe("Spreadsheet ID from URL"),
     includeGridData: z
       .boolean()
@@ -132,7 +150,9 @@ export const SheetSpreadsheetInputSchema = z.discriminatedUnion("action", [
 
   // LIST (enumerate user's spreadsheets)
   z.object({
-    action: z.literal("list").describe("List user's spreadsheets from Google Drive"),
+    action: z
+      .literal("list")
+      .describe("List user's spreadsheets from Google Drive"),
     maxResults: z
       .number()
       .int()
@@ -168,19 +188,19 @@ const SpreadsheetResponseSchema = z.discriminatedUnion("success", [
     comprehensiveMetadata: z
       .object({
         spreadsheetId: z.string(),
-        properties: z.record(z.unknown()).optional(),
-        namedRanges: z.array(z.record(z.unknown())).optional(),
+        properties: z.record(z.string(), z.unknown()).optional(),
+        namedRanges: z.array(z.record(z.string(), z.unknown())).optional(),
         sheets: z
           .array(
             z.object({
-              properties: z.record(z.unknown()).optional(),
-              conditionalFormats: z.array(z.record(z.unknown())).optional(),
-              protectedRanges: z.array(z.record(z.unknown())).optional(),
-              charts: z.array(z.record(z.unknown())).optional(),
-              filterViews: z.array(z.record(z.unknown())).optional(),
-              basicFilter: z.record(z.unknown()).optional(),
-              merges: z.array(z.record(z.unknown())).optional(),
-              data: z.array(z.record(z.unknown())).optional(), // Array of GridData objects from Google Sheets API
+              properties: z.record(z.string(), z.unknown()).optional(),
+              conditionalFormats: z.array(z.record(z.string(), z.unknown())).optional(),
+              protectedRanges: z.array(z.record(z.string(), z.unknown())).optional(),
+              charts: z.array(z.record(z.string(), z.unknown())).optional(),
+              filterViews: z.array(z.record(z.string(), z.unknown())).optional(),
+              basicFilter: z.record(z.string(), z.unknown()).optional(),
+              merges: z.array(z.record(z.string(), z.unknown())).optional(),
+              data: z.array(z.record(z.string(), z.unknown())).optional(), // Array of GridData objects from Google Sheets API
             }),
           )
           .optional(),

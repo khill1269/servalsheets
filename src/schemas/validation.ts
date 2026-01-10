@@ -14,14 +14,16 @@ import {
 // This exposes all fields at top level for proper MCP client UX
 export const SheetsValidationInputSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal("validate").describe("Validate a value against built-in or custom rules"),
+    action: z
+      .literal("validate")
+      .describe("Validate a value against built-in or custom rules"),
     value: z.unknown().describe("Value to validate"),
     rules: z
       .array(z.string())
       .optional()
       .describe("Validation rule IDs to apply (all rules if omitted)"),
     context: z
-      .record(z.unknown())
+      .record(z.string(), z.unknown())
       .optional()
       .describe("Validation context (spreadsheetId, sheetName, range, etc.)"),
     stopOnFirstError: z

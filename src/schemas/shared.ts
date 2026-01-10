@@ -657,7 +657,7 @@ export const ResponseMetaSchema = z.object({
   documentation: z.string().url().optional(),
   nextSteps: z.array(z.string()).optional(),
   warnings: z.array(z.string()).optional(), // Safety warnings
-  snapshot: z.record(z.unknown()).optional(), // Snapshot info for undo
+  snapshot: z.record(z.string(), z.unknown()).optional(), // Snapshot info for undo
 });
 
 // ============================================================================

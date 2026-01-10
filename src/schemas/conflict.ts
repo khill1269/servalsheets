@@ -14,7 +14,9 @@ import {
 // This exposes all fields at top level for proper MCP client UX
 export const SheetsConflictInputSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal("detect").describe("Detect conflicts in spreadsheet or range"),
+    action: z
+      .literal("detect")
+      .describe("Detect conflicts in spreadsheet or range"),
     spreadsheetId: z
       .string()
       .min(1)

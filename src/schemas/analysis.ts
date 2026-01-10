@@ -289,7 +289,6 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-
 const AnalysisResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),

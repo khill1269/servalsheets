@@ -33,7 +33,6 @@
  * @module utils/schema-compat
  */
 
-import { zodToJsonSchema } from "zod-to-json-schema";
 import type { ZodTypeAny } from "zod";
 
 /**
@@ -121,28 +120,29 @@ export function zodSchemaToJsonSchema(
   schema: ZodTypeAny,
   options: JsonSchemaOptions = {},
 ): Record<string, unknown> {
-  const {
-    refStrategy = "none",
-    target = "jsonSchema7",
-    strictUnions = true,
-  } = options;
+  const { target = "jsonSchema7" } = options;
 
   try {
-    // Use type assertion to avoid deep type instantiation
+    // Zod v4 native JSON schema support
+    // Using `.toJSONSchema()` method available in Zod v4
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jsonSchema = zodToJsonSchema(schema as any, {
-      // zod-to-json-schema accepts any zod schema type
-      $refStrategy: refStrategy,
-      target,
-      // Use strict unions for discriminated unions
-      ...(strictUnions && { strictUnions: true }),
-    }) as Record<string, unknown>;
+    const toJSONSchema = (schema as any).toJSONSchema;
 
-    if (typeof jsonSchema === "object" && jsonSchema !== null) {
-      // Remove $schema property (MCP doesn't need it)
-      const { $schema: _$schema, ...rest } = jsonSchema;
-      return rest;
+    if (typeof toJSONSchema === "function") {
+      const jsonSchema = toJSONSchema.call(schema, {
+        target: target,
+        // Zod v4 native options
+      }) as Record<string, unknown>;
+
+      if (typeof jsonSchema === "object" && jsonSchema !== null) {
+        // Remove $schema property (MCP doesn't need it)
+        const { $schema: _$schema, ...rest } = jsonSchema;
+        return rest;
+      }
     }
+
+    // Fallback: If toJSONSchema not available, return basic object schema
+    console.warn("[schema-compat] toJSONSchema not available on schema, using fallback");
   } catch (error) {
     console.error("[schema-compat] JSON Schema conversion failed:", error);
   }

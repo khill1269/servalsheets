@@ -57,9 +57,13 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
 
   // WRITE (idempotent - set exact values)
   BaseSchema.extend({
-    action: z.literal("write").describe("Write values to cells (overwrites existing data)"),
+    action: z
+      .literal("write")
+      .describe("Write values to cells (overwrites existing data)"),
     range: RangeInputSchema.describe("Target range (A1 notation or semantic)"),
-    values: ValuesArraySchema.describe("2D array of cell values (rows × columns)"),
+    values: ValuesArraySchema.describe(
+      "2D array of cell values (rows × columns)",
+    ),
     valueInputOption: ValueInputOptionSchema.optional().describe(
       "How input data should be interpreted (RAW or USER_ENTERED)",
     ),
@@ -79,7 +83,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
   // APPEND (NOT idempotent - adds rows)
   BaseSchema.extend({
     action: z.literal("append").describe("Append rows to the end of a range"),
-    range: RangeInputSchema.describe("Target range (determines where to append)"),
+    range: RangeInputSchema.describe(
+      "Target range (determines where to append)",
+    ),
     values: ValuesArraySchema.describe("2D array of cell values to append"),
     valueInputOption: ValueInputOptionSchema.optional().describe(
       "How input data should be interpreted (RAW or USER_ENTERED)",
@@ -94,8 +100,12 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
 
   // CLEAR
   BaseSchema.extend({
-    action: z.literal("clear").describe("Clear cell values in a range (delete contents)"),
-    range: RangeInputSchema.describe("Range to clear (A1 notation or semantic)"),
+    action: z
+      .literal("clear")
+      .describe("Clear cell values in a range (delete contents)"),
+    range: RangeInputSchema.describe(
+      "Range to clear (A1 notation or semantic)",
+    ),
     safety: SafetyOptionsSchema.optional().describe(
       "Safety options (dryRun, createSnapshot, etc.)",
     ),
@@ -103,7 +113,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
 
   // BATCH_READ
   BaseSchema.extend({
-    action: z.literal("batch_read").describe("Read multiple ranges efficiently (single API call)"),
+    action: z
+      .literal("batch_read")
+      .describe("Read multiple ranges efficiently (single API call)"),
     ranges: z
       .array(RangeInputSchema)
       .min(1)
@@ -119,7 +131,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
 
   // BATCH_WRITE
   BaseSchema.extend({
-    action: z.literal("batch_write").describe("Write to multiple ranges efficiently (single API call)"),
+    action: z
+      .literal("batch_write")
+      .describe("Write to multiple ranges efficiently (single API call)"),
     data: z
       .array(
         z.object({
@@ -148,7 +162,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
 
   // BATCH_CLEAR
   BaseSchema.extend({
-    action: z.literal("batch_clear").describe("Clear multiple ranges efficiently (single API call)"),
+    action: z
+      .literal("batch_clear")
+      .describe("Clear multiple ranges efficiently (single API call)"),
     ranges: z
       .array(RangeInputSchema)
       .min(1)
@@ -175,7 +191,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
       .boolean()
       .optional()
       .default(false)
-      .describe("Match entire cell content (default: false, allows partial matches)"),
+      .describe(
+        "Match entire cell content (default: false, allows partial matches)",
+      ),
     includeFormulas: z
       .boolean()
       .optional()
@@ -207,7 +225,9 @@ export const SheetsValuesInputSchema = z.discriminatedUnion("action", [
       .boolean()
       .optional()
       .default(false)
-      .describe("Match entire cell content (default: false, allows partial matches)"),
+      .describe(
+        "Match entire cell content (default: false, allows partial matches)",
+      ),
     safety: SafetyOptionsSchema.optional().describe(
       "Safety options (dryRun, createSnapshot, etc.)",
     ),

@@ -30,7 +30,7 @@ export const IssueToFixSchema = z.object({
   severity: z.enum(["low", "medium", "high"]),
   sheet: z.string().optional(),
   description: z.string(),
-  metadata: z.record(z.unknown()).optional(), // Extra context
+  metadata: z.record(z.string(), z.unknown()).optional(), // Extra context
 });
 
 export type IssueToFix = z.infer<typeof IssueToFixSchema>;
@@ -88,7 +88,7 @@ export const FixOperationSchema = z.object({
     .string()
     .describe("Tool to call (e.g., sheets_values, sheets_dimensions)"),
   action: z.string().describe("Action to perform"),
-  parameters: z.record(z.unknown()).describe("Parameters for the tool"),
+  parameters: z.record(z.string(), z.unknown()).describe("Parameters for the tool"),
   estimatedImpact: z.string().describe("What this operation will change"),
   risk: z
     .enum(["low", "medium", "high"])
@@ -152,7 +152,9 @@ export type SheetsFixResponse = z.infer<typeof SheetsFixResponseSchema>;
 // Direct export (no wrapper) exposes all fields at top level for proper MCP client UX
 export const SheetsFixInputSchema = z.discriminatedUnion("action", [
   SheetsFixRequestSchema.extend({
-    action: z.literal("fix").describe("Apply automated fixes to identified issues"),
+    action: z
+      .literal("fix")
+      .describe("Apply automated fixes to identified issues"),
   }),
 ]);
 

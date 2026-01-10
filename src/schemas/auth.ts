@@ -24,7 +24,9 @@ export const SheetsAuthInputSchema = z.discriminatedUnion("action", [
       .describe("Optional additional OAuth scopes to request"),
   }),
   z.object({
-    action: z.literal("callback").describe("Complete OAuth flow with authorization code"),
+    action: z
+      .literal("callback")
+      .describe("Complete OAuth flow with authorization code"),
     code: z.string().min(1).describe("Authorization code returned by Google"),
   }),
   z.object({

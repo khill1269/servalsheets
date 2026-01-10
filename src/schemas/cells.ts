@@ -32,52 +32,86 @@ const DataValidationSchema = z.object({
 export const SheetsCellsInputSchema = z.discriminatedUnion("action", [
   // ADD_NOTE
   BaseSchema.extend({
-    action: z.literal("add_note").describe("Add or update a note/comment on a cell"),
-    cell: z.string().describe("Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2')"),
+    action: z
+      .literal("add_note")
+      .describe("Add or update a note/comment on a cell"),
+    cell: z
+      .string()
+      .describe("Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2')"),
     note: z.string().describe("Note/comment text to add to the cell"),
   }),
 
   // GET_NOTE
   BaseSchema.extend({
-    action: z.literal("get_note").describe("Get the note/comment text from a cell"),
+    action: z
+      .literal("get_note")
+      .describe("Get the note/comment text from a cell"),
     cell: z.string().describe("Cell reference in A1 notation"),
   }),
 
   // CLEAR_NOTE
   BaseSchema.extend({
-    action: z.literal("clear_note").describe("Remove the note/comment from a cell"),
+    action: z
+      .literal("clear_note")
+      .describe("Remove the note/comment from a cell"),
     cell: z.string().describe("Cell reference in A1 notation"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // SET_VALIDATION
   BaseSchema.extend({
-    action: z.literal("set_validation").describe("Set data validation rules for a range of cells"),
-    range: RangeInputSchema.describe("Range to apply validation (A1 notation or semantic)"),
-    validation: DataValidationSchema.describe("Data validation rules (condition, input message, strict mode, dropdown)"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    action: z
+      .literal("set_validation")
+      .describe("Set data validation rules for a range of cells"),
+    range: RangeInputSchema.describe(
+      "Range to apply validation (A1 notation or semantic)",
+    ),
+    validation: DataValidationSchema.describe(
+      "Data validation rules (condition, input message, strict mode, dropdown)",
+    ),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // CLEAR_VALIDATION
   BaseSchema.extend({
-    action: z.literal("clear_validation").describe("Remove data validation rules from a range"),
+    action: z
+      .literal("clear_validation")
+      .describe("Remove data validation rules from a range"),
     range: RangeInputSchema.describe("Range to clear validation from"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // SET_HYPERLINK
   BaseSchema.extend({
-    action: z.literal("set_hyperlink").describe("Add or update a hyperlink in a cell"),
+    action: z
+      .literal("set_hyperlink")
+      .describe("Add or update a hyperlink in a cell"),
     cell: z.string().describe("Cell reference in A1 notation"),
-    url: z.string().url().describe("URL to link to (must be valid HTTP/HTTPS URL)"),
-    label: z.string().optional().describe("Optional link text (defaults to URL if omitted)"),
+    url: z
+      .string()
+      .url()
+      .describe("URL to link to (must be valid HTTP/HTTPS URL)"),
+    label: z
+      .string()
+      .optional()
+      .describe("Optional link text (defaults to URL if omitted)"),
   }),
 
   // CLEAR_HYPERLINK
   BaseSchema.extend({
-    action: z.literal("clear_hyperlink").describe("Remove a hyperlink from a cell (keeps cell content)"),
+    action: z
+      .literal("clear_hyperlink")
+      .describe("Remove a hyperlink from a cell (keeps cell content)"),
     cell: z.string().describe("Cell reference in A1 notation"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // MERGE
@@ -88,34 +122,50 @@ export const SheetsCellsInputSchema = z.discriminatedUnion("action", [
       .enum(["MERGE_ALL", "MERGE_COLUMNS", "MERGE_ROWS"])
       .optional()
       .default("MERGE_ALL")
-      .describe("Type of merge: MERGE_ALL (single cell), MERGE_COLUMNS (merge columns), MERGE_ROWS (merge rows)"),
+      .describe(
+        "Type of merge: MERGE_ALL (single cell), MERGE_COLUMNS (merge columns), MERGE_ROWS (merge rows)",
+      ),
   }),
 
   // UNMERGE
   BaseSchema.extend({
     action: z.literal("unmerge").describe("Unmerge previously merged cells"),
-    range: RangeInputSchema.describe("Range containing merged cells to unmerge"),
+    range: RangeInputSchema.describe(
+      "Range containing merged cells to unmerge",
+    ),
   }),
 
   // GET_MERGES
   BaseSchema.extend({
-    action: z.literal("get_merges").describe("Get all merged cell ranges in a sheet"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID to query for merged cells"),
+    action: z
+      .literal("get_merges")
+      .describe("Get all merged cell ranges in a sheet"),
+    sheetId: SheetIdSchema.describe(
+      "Numeric sheet ID to query for merged cells",
+    ),
   }),
 
   // CUT
   BaseSchema.extend({
-    action: z.literal("cut").describe("Cut cells (move) from source to destination"),
+    action: z
+      .literal("cut")
+      .describe("Cut cells (move) from source to destination"),
     source: RangeInputSchema.describe("Source range to cut from"),
-    destination: z.string().describe("Destination cell in A1 notation (top-left of paste area)"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    destination: z
+      .string()
+      .describe("Destination cell in A1 notation (top-left of paste area)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // COPY
   BaseSchema.extend({
     action: z.literal("copy").describe("Copy cells from source to destination"),
     source: RangeInputSchema.describe("Source range to copy from"),
-    destination: z.string().describe("Destination cell in A1 notation (top-left of paste area)"),
+    destination: z
+      .string()
+      .describe("Destination cell in A1 notation (top-left of paste area)"),
     pasteType: z
       .enum([
         "PASTE_NORMAL",
@@ -126,7 +176,9 @@ export const SheetsCellsInputSchema = z.discriminatedUnion("action", [
       ])
       .optional()
       .default("PASTE_NORMAL")
-      .describe("What to paste: NORMAL (all), VALUES (only values), FORMAT (only formatting), NO_BORDERS (exclude borders), FORMULA (formulas)"),
+      .describe(
+        "What to paste: NORMAL (all), VALUES (only values), FORMAT (only formatting), NO_BORDERS (exclude borders), FORMULA (formulas)",
+      ),
   }),
 ]);
 

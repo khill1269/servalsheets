@@ -56,14 +56,18 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // ADD_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal("add_named_range").describe("Create a named range for easy reference"),
+    action: z
+      .literal("add_named_range")
+      .describe("Create a named range for easy reference"),
     name: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
     range: RangeInputSchema,
   }),
 
   // UPDATE_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal("update_named_range").describe("Update an existing named range"),
+    action: z
+      .literal("update_named_range")
+      .describe("Update an existing named range"),
     namedRangeId: z.string(),
     name: z.string().optional(),
     range: RangeInputSchema.optional(),
@@ -79,12 +83,16 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // LIST_NAMED_RANGES
   BaseSchema.extend({
-    action: z.literal("list_named_ranges").describe("List all named ranges in spreadsheet"),
+    action: z
+      .literal("list_named_ranges")
+      .describe("List all named ranges in spreadsheet"),
   }),
 
   // GET_NAMED_RANGE
   BaseSchema.extend({
-    action: z.literal("get_named_range").describe("Get details of a specific named range"),
+    action: z
+      .literal("get_named_range")
+      .describe("Get details of a specific named range"),
     name: z.string(),
   }),
 
@@ -92,7 +100,9 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // ADD_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal("add_protected_range").describe("Protect a range from editing"),
+    action: z
+      .literal("add_protected_range")
+      .describe("Protect a range from editing"),
     range: RangeInputSchema,
     description: z.string().optional(),
     warningOnly: z.boolean().optional().default(false),
@@ -107,7 +117,9 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // UPDATE_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal("update_protected_range").describe("Update protection settings for a range"),
+    action: z
+      .literal("update_protected_range")
+      .describe("Update protection settings for a range"),
     protectedRangeId: z.number().int(),
     range: RangeInputSchema.optional(),
     description: z.string().optional(),
@@ -124,14 +136,18 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // DELETE_PROTECTED_RANGE
   BaseSchema.extend({
-    action: z.literal("delete_protected_range").describe("Remove protection from a range"),
+    action: z
+      .literal("delete_protected_range")
+      .describe("Remove protection from a range"),
     protectedRangeId: z.number().int(),
     safety: SafetyOptionsSchema.optional(),
   }),
 
   // LIST_PROTECTED_RANGES
   BaseSchema.extend({
-    action: z.literal("list_protected_ranges").describe("List all protected ranges"),
+    action: z
+      .literal("list_protected_ranges")
+      .describe("List all protected ranges"),
     sheetId: SheetIdSchema.optional(),
   }),
 
@@ -139,7 +155,9 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // SET_METADATA
   BaseSchema.extend({
-    action: z.literal("set_metadata").describe("Set custom metadata on spreadsheet or sheet"),
+    action: z
+      .literal("set_metadata")
+      .describe("Set custom metadata on spreadsheet or sheet"),
     metadataKey: z.string(),
     metadataValue: z.string(),
     visibility: z.enum(["DOCUMENT", "PROJECT"]).optional().default("DOCUMENT"),
@@ -175,7 +193,9 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // ADD_BANDING
   BaseSchema.extend({
-    action: z.literal("add_banding").describe("Add alternating row or column colors"),
+    action: z
+      .literal("add_banding")
+      .describe("Add alternating row or column colors"),
     range: RangeInputSchema,
     rowProperties: BandingPropertiesSchema.optional(),
     columnProperties: BandingPropertiesSchema.optional(),
@@ -183,7 +203,9 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
 
   // UPDATE_BANDING
   BaseSchema.extend({
-    action: z.literal("update_banding").describe("Update banding colors and properties"),
+    action: z
+      .literal("update_banding")
+      .describe("Update banding colors and properties"),
     bandedRangeId: z.number().int(),
     rowProperties: BandingPropertiesSchema.optional(),
     columnProperties: BandingPropertiesSchema.optional(),
@@ -224,7 +246,6 @@ export const SheetsAdvancedInputSchema = z.discriminatedUnion("action", [
     action: z.literal("list_tables").describe("List all tables in spreadsheet"),
   }),
 ]);
-
 
 const AdvancedResponseSchema = z.discriminatedUnion("success", [
   z.object({

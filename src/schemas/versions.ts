@@ -113,7 +113,6 @@ export const SheetsVersionsInputSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-
 const VersionsResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),

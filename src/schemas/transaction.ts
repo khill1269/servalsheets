@@ -37,7 +37,9 @@ export const SheetsTransactionInputSchema = z.discriminatedUnion("action", [
       .describe("Transaction isolation level (default: read_committed)"),
   }),
   z.object({
-    action: z.literal("queue").describe("Queue an operation in the transaction"),
+    action: z
+      .literal("queue")
+      .describe("Queue an operation in the transaction"),
     transactionId: z
       .string()
       .min(1)
@@ -52,16 +54,20 @@ export const SheetsTransactionInputSchema = z.discriminatedUnion("action", [
           .string()
           .min(1)
           .describe("Action name (e.g., write, update, format)"),
-        params: z.record(z.unknown()).describe("Operation parameters"),
+        params: z.record(z.string(), z.unknown()).describe("Operation parameters"),
       })
       .describe("Operation to queue for batch execution"),
   }),
   z.object({
-    action: z.literal("commit").describe("Commit and execute all queued operations"),
+    action: z
+      .literal("commit")
+      .describe("Commit and execute all queued operations"),
     transactionId: z.string().min(1).describe("Transaction ID to commit"),
   }),
   z.object({
-    action: z.literal("rollback").describe("Rollback transaction without executing"),
+    action: z
+      .literal("rollback")
+      .describe("Rollback transaction without executing"),
     transactionId: z.string().min(1).describe("Transaction ID to rollback"),
   }),
   z.object({

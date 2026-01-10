@@ -75,40 +75,70 @@ export const SheetsChartsInputSchema = z.discriminatedUnion("action", [
   // CREATE
   BaseSchema.extend({
     action: z.literal("create").describe("Create a new chart in a sheet"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID where chart will be created"),
-    chartType: ChartTypeSchema.describe("Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.)"),
-    data: ChartDataSchema.describe("Chart data source (range, series, categories)"),
-    position: ChartPositionSchema.describe("Chart position and size on the sheet"),
-    options: ChartOptionsSchema.optional().describe("Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)"),
+    sheetId: SheetIdSchema.describe(
+      "Numeric sheet ID where chart will be created",
+    ),
+    chartType: ChartTypeSchema.describe(
+      "Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.)",
+    ),
+    data: ChartDataSchema.describe(
+      "Chart data source (range, series, categories)",
+    ),
+    position: ChartPositionSchema.describe(
+      "Chart position and size on the sheet",
+    ),
+    options: ChartOptionsSchema.optional().describe(
+      "Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)",
+    ),
   }),
 
   // UPDATE
   BaseSchema.extend({
-    action: z.literal("update").describe("Update an existing chart's properties"),
+    action: z
+      .literal("update")
+      .describe("Update an existing chart's properties"),
     chartId: z.number().int().describe("Numeric chart ID to update"),
-    chartType: ChartTypeSchema.optional().describe("New chart type (omit to keep current)"),
-    data: ChartDataSchema.optional().describe("New data source (omit to keep current)"),
-    position: ChartPositionSchema.optional().describe("New position/size (omit to keep current)"),
-    options: ChartOptionsSchema.optional().describe("New chart options (omit to keep current)"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    chartType: ChartTypeSchema.optional().describe(
+      "New chart type (omit to keep current)",
+    ),
+    data: ChartDataSchema.optional().describe(
+      "New data source (omit to keep current)",
+    ),
+    position: ChartPositionSchema.optional().describe(
+      "New position/size (omit to keep current)",
+    ),
+    options: ChartOptionsSchema.optional().describe(
+      "New chart options (omit to keep current)",
+    ),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // DELETE
   BaseSchema.extend({
     action: z.literal("delete").describe("Delete a chart from the spreadsheet"),
     chartId: z.number().int().describe("Numeric chart ID to delete"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // LIST
   BaseSchema.extend({
-    action: z.literal("list").describe("List all charts in the spreadsheet or a specific sheet"),
-    sheetId: SheetIdSchema.optional().describe("Optional sheet ID to filter charts (omit = all sheets)"),
+    action: z
+      .literal("list")
+      .describe("List all charts in the spreadsheet or a specific sheet"),
+    sheetId: SheetIdSchema.optional().describe(
+      "Optional sheet ID to filter charts (omit = all sheets)",
+    ),
   }),
 
   // GET
   BaseSchema.extend({
-    action: z.literal("get").describe("Get detailed information about a specific chart"),
+    action: z
+      .literal("get")
+      .describe("Get detailed information about a specific chart"),
     chartId: z.number().int().describe("Numeric chart ID to retrieve"),
   }),
 
@@ -116,32 +146,60 @@ export const SheetsChartsInputSchema = z.discriminatedUnion("action", [
   BaseSchema.extend({
     action: z.literal("move").describe("Move a chart to a new position"),
     chartId: z.number().int().describe("Numeric chart ID to move"),
-    position: ChartPositionSchema.describe("New position and size for the chart"),
+    position: ChartPositionSchema.describe(
+      "New position and size for the chart",
+    ),
   }),
 
   // RESIZE
   BaseSchema.extend({
-    action: z.literal("resize").describe("Resize a chart to specific dimensions"),
+    action: z
+      .literal("resize")
+      .describe("Resize a chart to specific dimensions"),
     chartId: z.number().int().describe("Numeric chart ID to resize"),
-    width: z.number().positive().describe("New width in pixels (must be positive)"),
-    height: z.number().positive().describe("New height in pixels (must be positive)"),
+    width: z
+      .number()
+      .positive()
+      .describe("New width in pixels (must be positive)"),
+    height: z
+      .number()
+      .positive()
+      .describe("New height in pixels (must be positive)"),
   }),
 
   // UPDATE_DATA_RANGE
   BaseSchema.extend({
-    action: z.literal("update_data_range").describe("Update the data source range for a chart"),
+    action: z
+      .literal("update_data_range")
+      .describe("Update the data source range for a chart"),
     chartId: z.number().int().describe("Numeric chart ID to update"),
     data: ChartDataSchema.describe("New data source specification"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // EXPORT
   BaseSchema.extend({
-    action: z.literal("export").describe("Export a chart as an image (PNG or PDF)"),
+    action: z
+      .literal("export")
+      .describe("Export a chart as an image (PNG or PDF)"),
     chartId: z.number().int().describe("Numeric chart ID to export"),
-    format: z.enum(["PNG", "PDF"]).optional().default("PNG").describe("Export format (PNG or PDF, default: PNG)"),
-    width: z.number().positive().optional().describe("Optional custom width in pixels"),
-    height: z.number().positive().optional().describe("Optional custom height in pixels"),
+    format: z
+      .enum(["PNG", "PDF"])
+      .optional()
+      .default("PNG")
+      .describe("Export format (PNG or PDF, default: PNG)"),
+    width: z
+      .number()
+      .positive()
+      .optional()
+      .describe("Optional custom width in pixels"),
+    height: z
+      .number()
+      .positive()
+      .optional()
+      .describe("Optional custom height in pixels"),
   }),
 ]);
 

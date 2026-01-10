@@ -118,7 +118,6 @@ export const SheetsCommentsInputSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-
 const CommentsResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),

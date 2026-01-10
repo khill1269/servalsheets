@@ -66,7 +66,6 @@ export const SheetsHistoryInputSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
-
 const HistoryResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
@@ -94,7 +93,7 @@ const HistoryResponseSchema = z.discriminatedUnion("success", [
         id: z.string(),
         tool: z.string(),
         action: z.string(),
-        params: z.record(z.unknown()),
+        params: z.record(z.string(), z.unknown()),
         result: z.unknown().optional(),
         spreadsheetId: z.string().optional(),
         range: z.string().optional(),
@@ -113,7 +112,7 @@ const HistoryResponseSchema = z.discriminatedUnion("success", [
         failedOperations: z.number(),
         successRate: z.number(),
         avgDuration: z.number(),
-        operationsByTool: z.record(z.number()),
+        operationsByTool: z.record(z.string(), z.number()),
         recentFailures: z.number(),
       })
       .optional(),

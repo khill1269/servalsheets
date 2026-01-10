@@ -899,6 +899,73 @@ Result: 1 API call, 99% quota saved, atomic execution
 → sheets_history (rollback if fixes cause problems)
 → sheets_confirm (confirm high-risk fixes before applying)
 → sheets_transaction (execute multiple fixes atomically)`,
+
+  //=============================================================================
+  // COMPOSITE OPERATIONS
+  //=============================================================================
+
+  sheets_composite: `🔄 High-level composite operations that combine multiple API calls. Actions: import_csv, smart_append, bulk_update, deduplicate.
+
+**Quick Examples:**
+• Import CSV: {"action":"import_csv","spreadsheetId":"1ABC...","sheet":"Sheet1","csvData":"Name,Age\\nAlice,30\\nBob,25","mode":"replace"}
+• Smart append: {"action":"smart_append","spreadsheetId":"1ABC...","sheet":"Sheet1","data":[{"Name":"Alice","Age":30}],"matchHeaders":true}
+• Bulk update: {"action":"bulk_update","spreadsheetId":"1ABC...","sheet":"Sheet1","updates":[{"Name":"Alice","Age":31}],"keyColumn":"Name"}
+• Deduplicate: {"action":"deduplicate","spreadsheetId":"1ABC...","sheet":"Sheet1","columns":["Name","Email"],"keepFirst":true}
+
+**When to use:**
+• import_csv: Import CSV data directly into a spreadsheet
+• smart_append: Append data with automatic column matching by header
+• bulk_update: Update multiple rows by matching a key column
+• deduplicate: Remove duplicate rows based on specific columns
+
+**Import CSV Details:**
+• Modes: "replace" (clear sheet first), "append" (add to end), "new_sheet" (create new)
+• Auto-detects headers if hasHeader:true
+• Trims whitespace with trimValues:true
+• Skips empty rows with skipEmptyRows:true
+• Custom delimiter support (default: comma)
+
+**Smart Append Details:**
+• Matches columns by header name automatically
+• Creates missing columns if createMissingColumns:true
+• Preserves existing data and formatting
+• Handles column order differences
+
+**Bulk Update Details:**
+• Updates rows by matching keyColumn value
+• Only modifies specified columns
+• Preserves other column values
+• Handles missing key values gracefully
+
+**Deduplicate Details:**
+• Removes duplicates based on specified columns
+• keepFirst:true keeps first occurrence, false keeps last
+• Preserves original row order
+• Returns count of rows removed
+
+**Performance Tips:**
+• CSV import is optimized for large datasets (10k+ rows)
+• Smart append batches column additions
+• Bulk update uses range updates, not individual cells
+• Deduplicate uses efficient in-memory processing
+
+**Common Workflows:**
+1. CSV Import → {"action":"import_csv","mode":"new_sheet"} → Create new sheet with data
+2. Data append → {"action":"smart_append","matchHeaders":true} → Add rows with column matching
+3. Update records → {"action":"bulk_update","keyColumn":"ID"} → Update by primary key
+4. Clean data → {"action":"deduplicate","columns":["Email"]} → Remove duplicate emails
+
+**Error Recovery:**
+• CSV_PARSE_ERROR → Check delimiter, ensure valid CSV format
+• SHEET_NOT_FOUND → Verify sheet name, use sheets_sheet to list
+• COLUMN_NOT_FOUND → Check column headers match data keys
+• KEY_COLUMN_NOT_FOUND → Verify keyColumn exists in sheet headers
+
+**Commonly Used With:**
+→ sheets_values (read data before composite operations)
+→ sheets_analysis (validate data quality after import)
+→ sheets_sheet (create/list sheets for operations)
+→ sheets_history (track changes from composite operations)`,
 };
 
 // Type export for other modules

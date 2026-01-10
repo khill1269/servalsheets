@@ -14,7 +14,9 @@ import {
 // This exposes all fields at top level for proper MCP client UX
 export const SheetsImpactInputSchema = z.discriminatedUnion("action", [
   z.object({
-    action: z.literal("analyze").describe("Analyze the impact of a proposed operation"),
+    action: z
+      .literal("analyze")
+      .describe("Analyze the impact of a proposed operation"),
     spreadsheetId: z.string().min(1).describe("Spreadsheet ID"),
     operation: z
       .object({
@@ -23,7 +25,7 @@ export const SheetsImpactInputSchema = z.discriminatedUnion("action", [
           .describe('Operation type (e.g., "values_write", "sheet_delete")'),
         tool: z.string().describe('Tool name (e.g., "sheets_values")'),
         action: z.string().describe('Action name (e.g., "write", "clear")'),
-        params: z.record(z.unknown()).describe("Operation parameters"),
+        params: z.record(z.string(), z.unknown()).describe("Operation parameters"),
       })
       .describe("Operation to analyze"),
   }),

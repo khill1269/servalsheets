@@ -171,7 +171,7 @@ const AnalyzeStatsSchema = z.object({
   failedRequests: z.number(),
   successRate: z.number(),
   avgResponseTime: z.number(),
-  requestsByType: z.record(z.number()),
+  requestsByType: z.record(z.string(), z.number()),
 });
 
 /**

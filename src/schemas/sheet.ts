@@ -49,32 +49,51 @@ export const SheetsSheetInputSchema = z.discriminatedUnion("action", [
       .default(26)
       .describe("Initial column count (default: 26)"),
     tabColor: ColorSchema.optional().describe("Tab color (RGB)"),
-    hidden: z.boolean().optional().default(false).describe("Hide the sheet (default: false)"),
+    hidden: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Hide the sheet (default: false)"),
   }),
 
   // DELETE
   BaseSchema.extend({
-    action: z.literal("delete").describe("Delete a sheet/tab from the spreadsheet"),
+    action: z
+      .literal("delete")
+      .describe("Delete a sheet/tab from the spreadsheet"),
     sheetId: SheetIdSchema.describe("Numeric sheet ID (not the title)"),
     allowMissing: z
       .boolean()
       .optional()
       .default(false)
-      .describe("If true, don't error when sheet doesn't exist (makes delete idempotent)"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+      .describe(
+        "If true, don't error when sheet doesn't exist (makes delete idempotent)",
+      ),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // DUPLICATE
   BaseSchema.extend({
-    action: z.literal("duplicate").describe("Duplicate/copy a sheet/tab within the same spreadsheet"),
+    action: z
+      .literal("duplicate")
+      .describe("Duplicate/copy a sheet/tab within the same spreadsheet"),
     sheetId: SheetIdSchema.describe("Sheet ID to duplicate"),
-    newTitle: z.string().optional().describe("Title for duplicated sheet (optional, auto-generated if omitted)"),
+    newTitle: z
+      .string()
+      .optional()
+      .describe(
+        "Title for duplicated sheet (optional, auto-generated if omitted)",
+      ),
     insertIndex: z
       .number()
       .int()
       .min(0)
       .optional()
-      .describe("Position to insert duplicate (0 = first, omit = after original)"),
+      .describe(
+        "Position to insert duplicate (0 = first, omit = after original)",
+      ),
   }),
 
   // UPDATE
@@ -90,24 +109,35 @@ export const SheetsSheetInputSchema = z.discriminatedUnion("action", [
       .describe("New position (0 = first)"),
     hidden: z.boolean().optional().describe("Hide/show the sheet"),
     tabColor: ColorSchema.optional().describe("New tab color (RGB)"),
-    rightToLeft: z.boolean().optional().describe("Right-to-left text direction"),
+    rightToLeft: z
+      .boolean()
+      .optional()
+      .describe("Right-to-left text direction"),
   }),
 
   // COPY_TO
   BaseSchema.extend({
-    action: z.literal("copy_to").describe("Copy a sheet/tab to a different spreadsheet"),
+    action: z
+      .literal("copy_to")
+      .describe("Copy a sheet/tab to a different spreadsheet"),
     sheetId: SheetIdSchema.describe("Sheet ID to copy"),
-    destinationSpreadsheetId: SpreadsheetIdSchema.describe("Target spreadsheet ID"),
+    destinationSpreadsheetId: SpreadsheetIdSchema.describe(
+      "Target spreadsheet ID",
+    ),
   }),
 
   // LIST
   BaseSchema.extend({
-    action: z.literal("list").describe("List all sheets/tabs in the spreadsheet"),
+    action: z
+      .literal("list")
+      .describe("List all sheets/tabs in the spreadsheet"),
   }),
 
   // GET
   BaseSchema.extend({
-    action: z.literal("get").describe("Get detailed information about a specific sheet/tab"),
+    action: z
+      .literal("get")
+      .describe("Get detailed information about a specific sheet/tab"),
     sheetId: SheetIdSchema.describe("Sheet ID to retrieve"),
   }),
 ]);

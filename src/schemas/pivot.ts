@@ -100,48 +100,94 @@ export const SheetsPivotInputSchema = z.discriminatedUnion("action", [
   // CREATE
   BaseSchema.extend({
     action: z.literal("create").describe("Create a new pivot table"),
-    sourceRange: RangeInputSchema.describe("Source data range for the pivot table (A1 notation or semantic)"),
-    destinationSheetId: SheetIdSchema.optional().describe("Sheet ID for pivot table destination (omit = new sheet)"),
-    destinationCell: z.string().optional().describe("Top-left cell for pivot table (e.g., 'A1', default: A1)"),
-    rows: z.array(PivotGroupSchema).optional().describe("Row groupings for the pivot table"),
-    columns: z.array(PivotGroupSchema).optional().describe("Column groupings for the pivot table"),
-    values: z.array(PivotValueSchema).describe("Value aggregations (at least one required)"),
-    filters: z.array(PivotFilterSchema).optional().describe("Filter criteria for the pivot table"),
+    sourceRange: RangeInputSchema.describe(
+      "Source data range for the pivot table (A1 notation or semantic)",
+    ),
+    destinationSheetId: SheetIdSchema.optional().describe(
+      "Sheet ID for pivot table destination (omit = new sheet)",
+    ),
+    destinationCell: z
+      .string()
+      .optional()
+      .describe("Top-left cell for pivot table (e.g., 'A1', default: A1)"),
+    rows: z
+      .array(PivotGroupSchema)
+      .optional()
+      .describe("Row groupings for the pivot table"),
+    columns: z
+      .array(PivotGroupSchema)
+      .optional()
+      .describe("Column groupings for the pivot table"),
+    values: z
+      .array(PivotValueSchema)
+      .describe("Value aggregations (at least one required)"),
+    filters: z
+      .array(PivotFilterSchema)
+      .optional()
+      .describe("Filter criteria for the pivot table"),
   }),
 
   // UPDATE
   BaseSchema.extend({
-    action: z.literal("update").describe("Update an existing pivot table configuration"),
+    action: z
+      .literal("update")
+      .describe("Update an existing pivot table configuration"),
     sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table"),
-    rows: z.array(PivotGroupSchema).optional().describe("New row groupings (omit to keep current)"),
-    columns: z.array(PivotGroupSchema).optional().describe("New column groupings (omit to keep current)"),
-    values: z.array(PivotValueSchema).optional().describe("New value aggregations (omit to keep current)"),
-    filters: z.array(PivotFilterSchema).optional().describe("New filter criteria (omit to keep current)"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    rows: z
+      .array(PivotGroupSchema)
+      .optional()
+      .describe("New row groupings (omit to keep current)"),
+    columns: z
+      .array(PivotGroupSchema)
+      .optional()
+      .describe("New column groupings (omit to keep current)"),
+    values: z
+      .array(PivotValueSchema)
+      .optional()
+      .describe("New value aggregations (omit to keep current)"),
+    filters: z
+      .array(PivotFilterSchema)
+      .optional()
+      .describe("New filter criteria (omit to keep current)"),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // DELETE
   BaseSchema.extend({
     action: z.literal("delete").describe("Delete a pivot table"),
-    sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table to delete"),
-    safety: SafetyOptionsSchema.optional().describe("Safety options (dryRun, createSnapshot, etc.)"),
+    sheetId: SheetIdSchema.describe(
+      "Sheet ID containing the pivot table to delete",
+    ),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.)",
+    ),
   }),
 
   // LIST
   BaseSchema.extend({
-    action: z.literal("list").describe("List all pivot tables in the spreadsheet"),
+    action: z
+      .literal("list")
+      .describe("List all pivot tables in the spreadsheet"),
   }),
 
   // GET
   BaseSchema.extend({
-    action: z.literal("get").describe("Get detailed information about a specific pivot table"),
+    action: z
+      .literal("get")
+      .describe("Get detailed information about a specific pivot table"),
     sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table"),
   }),
 
   // REFRESH
   BaseSchema.extend({
-    action: z.literal("refresh").describe("Refresh a pivot table (re-calculate values from source data)"),
-    sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table to refresh"),
+    action: z
+      .literal("refresh")
+      .describe("Refresh a pivot table (re-calculate values from source data)"),
+    sheetId: SheetIdSchema.describe(
+      "Sheet ID containing the pivot table to refresh",
+    ),
   }),
 
   // Note: add_calculated_field and remove_calculated_field actions are not supported
