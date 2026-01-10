@@ -46,6 +46,7 @@ export * from "./prompts.js";
 export * from "./confirm.js"; // Uses Elicitation (SEP-1036)
 export * from "./analyze.js"; // Uses Sampling (SEP-1577)
 export * from "./fix.js"; // Automated issue resolution
+export * from "./composite.js"; // High-level composite operations
 
 // Tool metadata for registration
 export const TOOL_REGISTRY = {
@@ -62,7 +63,8 @@ export const TOOL_REGISTRY = {
   sheets_spreadsheet: {
     name: "sheets_spreadsheet",
     title: "Spreadsheet",
-    description: "Spreadsheet operations: create, get, copy, update properties",
+    description:
+      "Spreadsheet operations: create, get, copy, update properties, list spreadsheets, get comprehensive metadata, batch operations",
     schema: "SheetSpreadsheetInputSchema",
     output: "SheetsSpreadsheetOutputSchema",
     annotations: "SHEETS_SPREADSHEET_ANNOTATIONS",
@@ -73,6 +75,8 @@ export const TOOL_REGISTRY = {
       "update_properties",
       "get_url",
       "batch_get",
+      "get_comprehensive",
+      "list",
     ],
   },
   sheets_sheet: {
@@ -435,12 +439,22 @@ export const TOOL_REGISTRY = {
     schema: "SheetsFixInputSchema",
     output: "SheetsFixOutputSchema",
     annotations: "SHEETS_FIX_ANNOTATIONS",
-    actions: [], // No actions - single request mode
+    actions: ["fix"],
+  },
+  sheets_composite: {
+    name: "sheets_composite",
+    title: "Composite Operations",
+    description:
+      "High-level composite operations: import_csv (parse and write CSV), smart_append (match columns by header), bulk_update (update rows by key), deduplicate (remove duplicate rows).",
+    schema: "CompositeInputSchema",
+    output: "CompositeOutputSchema",
+    annotations: "SHEETS_COMPOSITE_ANNOTATIONS",
+    actions: ["import_csv", "smart_append", "bulk_update", "deduplicate"],
   },
 } as const;
 
 // Tool count
-export const TOOL_COUNT = 24;
+export const TOOL_COUNT = 25;
 
 // Action count
-export const ACTION_COUNT = 70;
+export const ACTION_COUNT = 195;

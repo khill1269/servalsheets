@@ -182,6 +182,13 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
+  sheets_composite: {
+    title: "Composite Operations",
+    readOnlyHint: false,
+    destructiveHint: true, // Can overwrite/modify data
+    idempotentHint: false, // Import/append operations are not idempotent
+    openWorldHint: true,
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -192,7 +199,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
  */
 export const ACTION_COUNTS: Record<string, number> = {
   sheets_auth: 4,
-  sheets_spreadsheet: 6,
+  sheets_spreadsheet: 8, // get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list
   sheets_sheet: 7,
   sheets_values: 9,
   sheets_cells: 12,
@@ -216,7 +223,9 @@ export const ACTION_COUNTS: Record<string, number> = {
   // MCP-Native Tools
   sheets_confirm: 2, // request, get_stats (via Elicitation)
   sheets_analyze: 4, // analyze, generate_formula, suggest_chart, get_stats (via Sampling)
-  sheets_fix: 0, // No actions - single request mode (automated issue resolution)
+  sheets_fix: 1, // fix action (automated issue resolution)
+  // Composite Operations
+  sheets_composite: 4, // import_csv, smart_append, bulk_update, deduplicate
 };
 
 /**
