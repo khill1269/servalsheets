@@ -1,0 +1,59 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AnalysisHandler Snapshots > matches snapshot for statistics response 1`] = `
+{
+  "_meta": {
+    "costEstimate": {
+      "apiCalls": 1,
+      "cellsAffected": undefined,
+      "estimatedLatencyMs": 500,
+      "quotaImpact": {
+        "current": 0,
+        "limit": 60,
+        "remaining": 59,
+      },
+    },
+    "nextSteps": [
+      "Create charts to visualize the data patterns",
+      "Use insights to clean or transform the data",
+    ],
+    "relatedTools": [
+      "sheets_charts:create",
+      "sheets_values:read",
+    ],
+    "suggestions": undefined,
+  },
+  "action": "statistics",
+  "statistics": {
+    "columns": [
+      {
+        "count": 3,
+        "index": 0,
+        "max": undefined,
+        "mean": undefined,
+        "median": undefined,
+        "min": undefined,
+        "name": "Name",
+        "nullCount": 0,
+        "stdDev": undefined,
+        "sum": undefined,
+        "uniqueCount": 3,
+      },
+      {
+        "count": 3,
+        "index": 1,
+        "max": 5,
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "name": "Score",
+        "nullCount": 0,
+        "stdDev": 0,
+        "sum": 15,
+        "uniqueCount": 1,
+      },
+    ],
+  },
+  "success": true,
+}
+`;

@@ -54,7 +54,6 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "suggest_chart",
   ],
   sheets_analyze: ["analyze", "generate_formula", "suggest_chart", "get_stats"],
-  sheets_auth: ["status", "login", "callback", "logout"],
   sheets_cells: [
     "add_note",
     "get_note",
@@ -205,16 +204,6 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "copy_to",
     "list",
     "get",
-  ],
-  sheets_spreadsheet: [
-    "get",
-    "create",
-    "copy",
-    "update_properties",
-    "get_url",
-    "batch_get",
-    "get_comprehensive",
-    "list",
   ],
   sheets_transaction: [
     "begin",

@@ -1,0 +1,143 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ValuesHandler Snapshots > matches snapshot for error response 1`] = `
+{
+  "error": {
+    "category": "client",
+    "code": "SPREADSHEET_NOT_FOUND",
+    "details": {
+      "parentResourceId": undefined,
+      "resourceId": "missing-sheet-id",
+      "resourceType": "spreadsheet",
+      "searchSuggestion": "Verify the spreadsheet URL and your access permissions",
+    },
+    "message": "Spreadsheet not found: missing-sheet-id",
+    "resolution": "Verify the spreadsheet ID is correct and you have access to it",
+    "resolutionSteps": [
+      "1. Verify the spreadsheet ID is correct: missing-sheet-id",
+      "2. Verify you have access to the spreadsheet",
+      "3. Check if the spreadsheet was deleted or moved to trash",
+      "4. Confirm the URL is correct: https://docs.google.com/spreadsheets/d/missing-sheet-id",
+      "5. Suggestion: Verify the spreadsheet URL and your access permissions",
+    ],
+    "retryStrategy": "none",
+    "retryable": false,
+    "severity": "medium",
+    "suggestedTools": [
+      "sheets_spreadsheet",
+    ],
+  },
+  "success": false,
+}
+`;
+
+exports[`ValuesHandler Snapshots > matches snapshot for read response 1`] = `
+{
+  "_meta": {
+    "costEstimate": {
+      "apiCalls": 1,
+      "cellsAffected": 6,
+      "estimatedLatencyMs": 500,
+      "quotaImpact": {
+        "current": 0,
+        "limit": 60,
+        "remaining": 59,
+      },
+    },
+    "nextSteps": [
+      "Analyze data with sheets_analysis:statistics for statistical insights",
+      "Format the range with sheets_format:apply_preset for better readability",
+    ],
+    "relatedTools": [
+      "sheets_values:batch_read",
+      "sheets_analysis:data_quality",
+      "sheets_analysis:statistics",
+    ],
+    "suggestions": [
+      {
+        "action": "batch_read",
+        "message": "For multiple reads, use batch_read to reduce API calls",
+        "priority": "medium",
+        "reason": "Batch operations are ~80% faster and use fewer API calls",
+        "tool": "sheets_values",
+        "type": "optimization",
+      },
+    ],
+  },
+  "action": "read",
+  "majorDimension": "ROWS",
+  "range": "Sheet1!A1:B3",
+  "success": true,
+  "values": [
+    [
+      "Name",
+      "Age",
+    ],
+    [
+      "Alice",
+      "30",
+    ],
+    [
+      "Bob",
+      "25",
+    ],
+  ],
+}
+`;
+
+exports[`ValuesHandler Snapshots > matches snapshot for write response 1`] = `
+{
+  "_meta": {
+    "costEstimate": {
+      "apiCalls": 1,
+      "cellsAffected": 6,
+      "estimatedLatencyMs": 500,
+      "quotaImpact": {
+        "current": 0,
+        "limit": 60,
+        "remaining": 59,
+      },
+    },
+    "nextSteps": [
+      "Verify the data was written correctly by reading the range back",
+      "Apply formatting to improve visual presentation",
+      "Create a snapshot to enable easy rollback if needed",
+    ],
+    "relatedTools": [
+      "sheets_format:apply_preset",
+      "sheets_values:batch_write",
+      "sheets_versions:create_snapshot",
+    ],
+    "suggestions": [
+      {
+        "action": "data_quality",
+        "message": "Consider using analysis tools before modifying data",
+        "priority": "medium",
+        "reason": "Prevents accidental data corruption by understanding structure first",
+        "tool": "sheets_analysis",
+        "type": "warning",
+      },
+      {
+        "action": "apply_preset",
+        "message": "Data written successfully. Consider formatting the range",
+        "priority": "low",
+        "reason": "Formatting improves readability and data consistency",
+        "tool": "sheets_format",
+        "type": "follow_up",
+      },
+    ],
+  },
+  "action": "write",
+  "mutation": {
+    "cellsAffected": 0,
+    "diff": undefined,
+    "reversible": false,
+    "revertSnapshotId": undefined,
+  },
+  "success": true,
+  "updatedCells": 6,
+  "updatedColumns": 2,
+  "updatedRange": "Sheet1!A1:B3",
+  "updatedRows": 3,
+}
+`;

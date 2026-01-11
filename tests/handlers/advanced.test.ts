@@ -66,11 +66,9 @@ describe('AdvancedHandler', () => {
 
   it('returns feature unavailable for create_table', async () => {
     const result = await handler.handle({
-      request: {
-        action: 'create_table',
-        spreadsheetId: 'sheet-id',
-        range: { a1: 'Sheet1!A1:B2' },
-      },
+      action: 'create_table' as const,
+      spreadsheetId: 'sheet-id',
+      range: { a1: 'Sheet1!A1:B2' },
     } as any);
 
     expect(result.response.success).toBe(false);

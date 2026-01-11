@@ -1,7 +1,7 @@
 {
   "name": "servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server with 26 tools, 208 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server with 26 tools, 196 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -45,6 +45,9 @@
     "gen:metadata": "tsx scripts/generate-metadata.ts",
     "check:drift": "bash scripts/check-metadata-drift.sh",
     "check:placeholders": "bash scripts/no-placeholders.sh",
+    "check:silent-fallbacks": "bash scripts/check-silent-fallbacks.sh",
+    "check:debug-prints": "bash scripts/check-debug-prints.sh",
+    "check:commit-size": "bash scripts/check-commit-size.sh",
     "build": "npm run gen:metadata && tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:copy-assets": "cp -r src/knowledge dist/",
     "build:clean": "npm run clean && npm run build",
