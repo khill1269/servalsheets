@@ -69,3 +69,16 @@ temp/
 
 # Documentation
 docs/api/
+
+# Temporary/experimental files
+scripts/agent-prompts/
+scripts/manual/
+scripts/collect-evidence.sh
+scripts/diagnose-all.sh
+scripts/integrate-inference.sh
+DEPLOYMENT_READY.md
+INVARIANT_TEST_SUITE.md
+REALITY_MAP_EXECUTION_PATHS.md
+RESOURCE_ARCHITECTURE_DIAGRAM.md
+docs/MASTER_ANALYSIS_PROMPT.md
+docs/NL_EXCELLENCE_PLAN.md
