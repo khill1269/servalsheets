@@ -966,6 +966,47 @@ Result: 1 API call, 99% quota saved, atomic execution
 → sheets_analysis (validate data quality after import)
 → sheets_sheet (create/list sheets for operations)
 → sheets_history (track changes from composite operations)`,
+
+  sheets_session: `📋 Session context management for natural language interactions. Enables references like "the spreadsheet", "undo that", "continue where we left off". Actions: set_active, get_active, get_context, record_operation, get_last_operation, get_history, find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending, reset.
+
+**⚡ WHEN TO USE:**
+• Track active spreadsheet for natural references ("the spreadsheet")
+• Record operations for undo/history support
+• Find spreadsheets/operations by natural reference
+• Learn user preferences (confirmation level, dry-run defaults)
+• Manage multi-step operation state
+
+**Quick Examples:**
+• Set active: {"action":"set_active","spreadsheetId":"1ABC...","title":"Budget 2025","sheetNames":["Q1","Q2","Q3","Q4"]}
+• Get context: {"action":"get_context"}
+• Find by reference: {"action":"find_by_reference","reference":"the budget spreadsheet","type":"spreadsheet"}
+• Record operation: {"action":"record_operation","tool":"sheets_values","toolAction":"write","spreadsheetId":"1ABC...","description":"Updated Q1 sales","undoable":true}
+• Get last: {"action":"get_last_operation"}
+• Get history: {"action":"get_history","limit":10}
+• Update preferences: {"action":"update_preferences","confirmationLevel":"destructive"}
+
+**Context Summary:**
+The get_context action returns:
+• Active spreadsheet with metadata
+• Last operation with undo info
+• Pending operation state (for multi-step flows)
+• Suggested next actions based on context
+
+**Natural Language Support:**
+• find_by_reference: Translates "that", "the budget", "last write" to specific IDs
+• Maintains recency list for "the spreadsheet" resolution
+• Learns naming patterns from user interactions
+
+**Preferences Learned:**
+• confirmationLevel: "always" | "destructive" | "never"
+• dryRunDefault: true/false
+• snapshotDefault: true/false
+
+**Commonly Used With:**
+→ All sheets_* tools (records operations automatically)
+→ sheets_confirm (respects confirmation preferences)
+→ sheets_history (undo via recorded operations)
+→ sheets_versions (snapshots from recorded operations)`,
 };
 
 // Type export for other modules

@@ -227,6 +227,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       }, 0);
     }
 
+    // OK: Explicit empty - typed as optional, cells count cannot be inferred
     return undefined;
   }
 
@@ -443,9 +444,11 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected createMutationSummary(
     results: ExecutionResult[],
   ): MutationSummary | undefined {
+    // OK: Explicit empty - typed as optional, no results to summarize
     if (results.length === 0) return undefined;
 
     const firstResult = results[0];
+    // OK: Explicit empty - typed as optional, invalid result
     if (!firstResult) return undefined;
 
     return {

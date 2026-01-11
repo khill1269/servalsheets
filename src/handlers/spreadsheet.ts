@@ -13,6 +13,14 @@ import type {
   SheetsSpreadsheetOutput,
   SheetInfo,
   SpreadsheetResponse,
+  SpreadsheetGetInput,
+  SpreadsheetCreateInput,
+  SpreadsheetCopyInput,
+  SpreadsheetUpdatePropertiesInput,
+  SpreadsheetGetUrlInput,
+  SpreadsheetBatchGetInput,
+  SpreadsheetGetComprehensiveInput,
+  SpreadsheetListInput,
 } from "../schemas/index.js";
 import { cacheManager, createCacheKey } from "../utils/cache-manager.js";
 import { CACHE_TTL_SPREADSHEET } from "../config/constants.js";
@@ -49,35 +57,33 @@ export class SpreadsheetHandler extends BaseHandler<
 
     try {
       // Phase 1, Task 1.4: Infer missing parameters from context
-      const req = this.inferRequestParameters(
-        input,
-      ) as SheetsSpreadsheetInput;
+      const req = this.inferRequestParameters(input) as SheetsSpreadsheetInput;
 
       let response: SpreadsheetResponse;
       switch (req.action) {
         case "get":
-          response = await this.handleGet(req);
+          response = await this.handleGet(req as SpreadsheetGetInput);
           break;
         case "create":
-          response = await this.handleCreate(req);
+          response = await this.handleCreate(req as SpreadsheetCreateInput);
           break;
         case "copy":
-          response = await this.handleCopy(req);
+          response = await this.handleCopy(req as SpreadsheetCopyInput);
           break;
         case "update_properties":
-          response = await this.handleUpdateProperties(req);
+          response = await this.handleUpdateProperties(req as SpreadsheetUpdatePropertiesInput);
           break;
         case "get_url":
-          response = await this.handleGetUrl(req);
+          response = await this.handleGetUrl(req as SpreadsheetGetUrlInput);
           break;
         case "batch_get":
-          response = await this.handleBatchGet(req);
+          response = await this.handleBatchGet(req as SpreadsheetBatchGetInput);
           break;
         case "get_comprehensive":
-          response = await this.handleGetComprehensive(req);
+          response = await this.handleGetComprehensive(req as SpreadsheetGetComprehensiveInput);
           break;
         case "list":
-          response = await this.handleList(req);
+          response = await this.handleList(req as SpreadsheetListInput);
           break;
         default:
           response = this.error({
@@ -104,7 +110,7 @@ export class SpreadsheetHandler extends BaseHandler<
    * List user's spreadsheets
    */
   private async handleList(
-    input: Extract<SheetsSpreadsheetInput, { action: "list" }>,
+    input: SpreadsheetListInput,
   ): Promise<SpreadsheetResponse> {
     if (!this.driveApi) {
       return this.error({
@@ -165,7 +171,7 @@ export class SpreadsheetHandler extends BaseHandler<
     // Input is now the action directly (no request wrapper)
     // Most spreadsheet operations don't go through batch compiler
     // Only update_properties uses batchUpdate
-    if (input.action === "update_properties") {
+    if (input.action === "update_properties" && input.spreadsheetId) {
       return [
         {
           type: "UPDATE_SHEET_PROPERTIES",
@@ -189,11 +195,13 @@ export class SpreadsheetHandler extends BaseHandler<
   }
 
   private async handleGet(
-    input: Extract<SheetsSpreadsheetInput, { action: "get" }>,
+    input: SpreadsheetGetInput,
   ): Promise<SpreadsheetResponse> {
     const params: sheets_v4.Params$Resource$Spreadsheets$Get = {
       spreadsheetId: input.spreadsheetId,
       includeGridData: input.includeGridData ?? false,
+      fields:
+        "spreadsheetId,properties,spreadsheetUrl,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))",
     };
     if (input.ranges && input.ranges.length > 0) {
       params.ranges = input.ranges;
@@ -254,7 +262,7 @@ export class SpreadsheetHandler extends BaseHandler<
   }
 
   private async handleCreate(
-    input: Extract<SheetsSpreadsheetInput, { action: "create" }>,
+    input: SpreadsheetCreateInput,
   ): Promise<SpreadsheetResponse> {
     // Check if create operation has required scopes
     // IMPORTANT: Creating a spreadsheet should NOT require elevated Drive scope.
@@ -359,7 +367,7 @@ export class SpreadsheetHandler extends BaseHandler<
   }
 
   private async handleCopy(
-    input: Extract<SheetsSpreadsheetInput, { action: "copy" }>,
+    input: SpreadsheetCopyInput,
   ): Promise<SpreadsheetResponse> {
     if (!this.driveApi) {
       return this.error({
@@ -414,7 +422,7 @@ export class SpreadsheetHandler extends BaseHandler<
   }
 
   private async handleUpdateProperties(
-    input: Extract<SheetsSpreadsheetInput, { action: "update_properties" }>,
+    input: SpreadsheetUpdatePropertiesInput,
   ): Promise<SpreadsheetResponse> {
     // Build fields mask
     const fields: string[] = [];
@@ -477,14 +485,14 @@ export class SpreadsheetHandler extends BaseHandler<
   }
 
   private async handleGetUrl(
-    input: Extract<SheetsSpreadsheetInput, { action: "get_url" }>,
+    input: SpreadsheetGetUrlInput,
   ): Promise<SpreadsheetResponse> {
     const url = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     return this.success("get_url", { url });
   }
 
   private async handleBatchGet(
-    input: Extract<SheetsSpreadsheetInput, { action: "batch_get" }>,
+    input: SpreadsheetBatchGetInput,
   ): Promise<SpreadsheetResponse> {
     const results = await Promise.all(
       input.spreadsheetIds.map(async (id) => {
@@ -563,7 +571,7 @@ export class SpreadsheetHandler extends BaseHandler<
    * instead of making 4-15 separate API calls.
    */
   private async handleGetComprehensive(
-    input: Extract<SheetsSpreadsheetInput, { action: "get_comprehensive" }>,
+    input: SpreadsheetGetComprehensiveInput,
   ): Promise<SpreadsheetResponse> {
     const startTime = Date.now();
 

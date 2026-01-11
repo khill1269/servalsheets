@@ -11,8 +11,15 @@ import type { Intent } from "../core/intent.js";
 import type {
   SheetsSharingInput,
   SheetsSharingOutput,
-  
   SharingResponse,
+  SharingShareInput,
+  SharingUpdatePermissionInput,
+  SharingRemovePermissionInput,
+  SharingListPermissionsInput,
+  SharingGetPermissionInput,
+  SharingTransferOwnershipInput,
+  SharingSetLinkSharingInput,
+  SharingGetSharingLinkInput,
 } from "../schemas/index.js";
 import { logger } from "../utils/logger.js";
 import {
@@ -121,28 +128,28 @@ export class SharingHandler extends BaseHandler<
       let response: SharingResponse;
       switch (req.action) {
         case "share":
-          response = await this.handleShare(req);
+          response = await this.handleShare(req as SharingShareInput);
           break;
         case "update_permission":
-          response = await this.handleUpdatePermission(req);
+          response = await this.handleUpdatePermission(req as SharingUpdatePermissionInput);
           break;
         case "remove_permission":
-          response = await this.handleRemovePermission(req);
+          response = await this.handleRemovePermission(req as SharingRemovePermissionInput);
           break;
         case "list_permissions":
-          response = await this.handleListPermissions(req);
+          response = await this.handleListPermissions(req as SharingListPermissionsInput);
           break;
         case "get_permission":
-          response = await this.handleGetPermission(req);
+          response = await this.handleGetPermission(req as SharingGetPermissionInput);
           break;
         case "transfer_ownership":
-          response = await this.handleTransferOwnership(req);
+          response = await this.handleTransferOwnership(req as SharingTransferOwnershipInput);
           break;
         case "set_link_sharing":
-          response = await this.handleSetLinkSharing(req);
+          response = await this.handleSetLinkSharing(req as SharingSetLinkSharingInput);
           break;
         case "get_sharing_link":
-          response = await this.handleGetSharingLink(req);
+          response = await this.handleGetSharingLink(req as SharingGetSharingLinkInput);
           break;
         default:
           response = this.error({
@@ -166,7 +173,7 @@ export class SharingHandler extends BaseHandler<
   // ============================================================
 
   private async handleShare(
-    input: Extract<SheetsSharingInput, { action: "share" }>,
+    input: SharingShareInput,
   ): Promise<SharingResponse> {
     const requestBody: drive_v3.Schema$Permission = {
       type: input.type,
@@ -190,7 +197,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleUpdatePermission(
-    input: Extract<SheetsSharingInput, { action: "update_permission" }>,
+    input: SharingUpdatePermissionInput,
   ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success("update_permission", {}, undefined, true);
@@ -213,7 +220,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleRemovePermission(
-    input: Extract<SheetsSharingInput, { action: "remove_permission" }>,
+    input: SharingRemovePermissionInput,
   ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success("remove_permission", {}, undefined, true);
@@ -229,7 +236,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleListPermissions(
-    input: Extract<SheetsSharingInput, { action: "list_permissions" }>,
+    input: SharingListPermissionsInput,
   ): Promise<SharingResponse> {
     const response = await this.driveApi!.permissions.list({
       fileId: input.spreadsheetId,
@@ -245,7 +252,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleGetPermission(
-    input: Extract<SheetsSharingInput, { action: "get_permission" }>,
+    input: SharingGetPermissionInput,
   ): Promise<SharingResponse> {
     const response = await this.driveApi!.permissions.get({
       fileId: input.spreadsheetId,
@@ -260,7 +267,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleTransferOwnership(
-    input: Extract<SheetsSharingInput, { action: "transfer_ownership" }>,
+    input: SharingTransferOwnershipInput,
   ): Promise<SharingResponse> {
     if (input.safety?.dryRun) {
       return this.success("transfer_ownership", {}, undefined, true);
@@ -284,7 +291,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleSetLinkSharing(
-    input: Extract<SheetsSharingInput, { action: "set_link_sharing" }>,
+    input: SharingSetLinkSharingInput,
   ): Promise<SharingResponse> {
     if (!input.enabled) {
       // Disable: delete existing anyone permission if present
@@ -326,7 +333,7 @@ export class SharingHandler extends BaseHandler<
   }
 
   private async handleGetSharingLink(
-    input: Extract<SheetsSharingInput, { action: "get_sharing_link" }>,
+    input: SharingGetSharingLinkInput,
   ): Promise<SharingResponse> {
     const baseUrl = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
     const sharingLink = `${baseUrl}/edit?usp=sharing`;

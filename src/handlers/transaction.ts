@@ -31,6 +31,11 @@ export class TransactionHandler {
 
       switch (input.action) {
         case "begin": {
+          // Type assertion after validation
+          if (!input.spreadsheetId) {
+            throw new Error("spreadsheetId is required for begin action");
+          }
+
           // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
           // The input.autoSnapshot parameter is currently ignored (design limitation)
           const txId = await transactionManager.begin(input.spreadsheetId, {
@@ -56,6 +61,11 @@ export class TransactionHandler {
         }
 
         case "queue": {
+          // Type assertion after validation
+          if (!input.transactionId || !input.operation) {
+            throw new Error("transactionId and operation are required for queue action");
+          }
+
           await transactionManager.queue(input.transactionId, {
             type: "custom",
             tool: input.operation.tool,
@@ -89,6 +99,11 @@ export class TransactionHandler {
         }
 
         case "commit": {
+          // Type assertion after validation
+          if (!input.transactionId) {
+            throw new Error("transactionId is required for commit action");
+          }
+
           const result = await transactionManager.commit(input.transactionId);
 
           if (result.success) {
@@ -119,6 +134,11 @@ export class TransactionHandler {
         }
 
         case "rollback": {
+          // Type assertion after validation
+          if (!input.transactionId) {
+            throw new Error("transactionId is required for rollback action");
+          }
+
           await transactionManager.rollback(input.transactionId);
 
           response = {
@@ -132,6 +152,11 @@ export class TransactionHandler {
         }
 
         case "status": {
+          // Type assertion after validation
+          if (!input.transactionId) {
+            throw new Error("transactionId is required for status action");
+          }
+
           const tx = transactionManager.getTransaction(input.transactionId);
 
           response = {
@@ -159,13 +184,11 @@ export class TransactionHandler {
         }
 
         default: {
-          // TypeScript exhaustiveness check
-          const exhaustiveCheck: never = input;
           response = {
             success: false,
             error: {
               code: "INVALID_PARAMS",
-              message: `Unsupported action: ${(exhaustiveCheck as { action: string }).action}`,
+              message: `Unsupported action: ${input.action}`,
               retryable: false,
             },
           };

@@ -246,6 +246,7 @@ export function shouldReturnPreview(safetyOptions?: SafetyOptions): boolean {
 export function buildSnapshotInfo(
   snapshot: SnapshotResult | null,
 ): Record<string, unknown> | undefined {
+  // OK: Explicit empty - typed as optional, no snapshot provided
   if (!snapshot) return undefined;
 
   return {

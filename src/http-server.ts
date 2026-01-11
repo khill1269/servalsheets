@@ -57,7 +57,6 @@ import {
   registerServalSheetsTools,
 } from './mcp/registration.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
-import { patchMcpServerRequestHandler, patchToJsonSchemaCompat } from './mcp/sdk-compat.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,

@@ -10,26 +10,31 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsImpactInputSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z
-      .literal("analyze")
-      .describe("Analyze the impact of a proposed operation"),
-    spreadsheetId: z.string().min(1).describe("Spreadsheet ID"),
-    operation: z
-      .object({
-        type: z
-          .string()
-          .describe('Operation type (e.g., "values_write", "sheet_delete")'),
-        tool: z.string().describe('Tool name (e.g., "sheets_values")'),
-        action: z.string().describe('Action name (e.g., "write", "clear")'),
-        params: z.record(z.string(), z.unknown()).describe("Operation parameters"),
-      })
-      .describe("Operation to analyze"),
-  }),
-]);
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsImpactInputSchema = z.object({
+  action: z.enum(["analyze"]).describe("The impact analysis operation to perform"),
+  spreadsheetId: z.string().min(1).optional().describe("Spreadsheet ID (required for: analyze)"),
+  operation: z
+    .object({
+      type: z
+        .string()
+        .describe('Operation type (e.g., "values_write", "sheet_delete")'),
+      tool: z.string().describe('Tool name (e.g., "sheets_values")'),
+      action: z.string().describe('Action name (e.g., "write", "clear")'),
+      params: z.record(z.string(), z.unknown()).describe("Operation parameters"),
+    })
+    .optional()
+    .describe("Operation to analyze (required for: analyze)"),
+}).refine((data) => {
+  if (data.action === "analyze") {
+    return !!data.spreadsheetId && !!data.operation;
+  }
+  return true;
+}, {
+  message: "spreadsheetId and operation are required for analyze action",
+});
 
 const ImpactResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -93,3 +98,15 @@ export const SHEETS_IMPACT_ANNOTATIONS: ToolAnnotations = {
 export type SheetsImpactInput = z.infer<typeof SheetsImpactInputSchema>;
 export type SheetsImpactOutput = z.infer<typeof SheetsImpactOutputSchema>;
 export type ImpactResponse = z.infer<typeof ImpactResponseSchema>;
+
+// Type narrowing helpers for handler methods
+export type ImpactAnalyzeInput = SheetsImpactInput & {
+  action: "analyze";
+  spreadsheetId: string;
+  operation: {
+    type: string;
+    tool: string;
+    action: string;
+    params: Record<string, unknown>;
+  };
+};

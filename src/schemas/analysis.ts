@@ -64,14 +64,31 @@ const FormulaIssueSchema = z.object({
   suggestion: z.string().optional(),
 });
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
+// INPUT SCHEMA: Flattened z.object() pattern (Zod v4 compatible)
 // This exposes all fields at top level for proper MCP client UX
-export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
-  // DATA_QUALITY
-  BaseSchema.extend({
-    action: z.literal("data_quality"),
-    range: RangeInputSchema.optional(),
+export const SheetsAnalysisInputSchema = z
+  .object({
+    // Common fields
+    action: z.enum([
+      "data_quality",
+      "formula_audit",
+      "structure_analysis",
+      "statistics",
+      "correlations",
+      "summary",
+      "dependencies",
+      "compare_ranges",
+      "detect_patterns",
+      "column_analysis",
+      "suggest_templates",
+      "generate_formula",
+      "suggest_chart",
+    ]),
+    spreadsheetId: SpreadsheetIdSchema.optional(),
     sheetId: SheetIdSchema.optional(),
+    range: RangeInputSchema.optional(),
+
+    // data_quality specific
     checks: z
       .array(
         z.enum([
@@ -82,6 +99,13 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
           "outliers",
           "formatting",
           "validation",
+          "circular",
+          "broken",
+          "volatile",
+          "complex",
+          "hardcoded",
+          "inconsistent",
+          "performance",
         ]),
       )
       .optional(),
@@ -94,83 +118,36 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
       .boolean()
       .optional()
       .describe("Use AI-powered analysis via sampling (SEP-1577)"),
-  }),
 
-  // FORMULA_AUDIT
-  BaseSchema.extend({
-    action: z.literal("formula_audit"),
-    range: RangeInputSchema.optional(),
-    sheetId: SheetIdSchema.optional(),
-    checks: z
-      .array(
-        z.enum([
-          "circular",
-          "broken",
-          "volatile",
-          "complex",
-          "hardcoded",
-          "inconsistent",
-          "performance",
-        ]),
-      )
-      .optional(),
+    // formula_audit specific
     complexityThreshold: z.number().int().optional().default(10),
-  }),
 
-  // STRUCTURE_ANALYSIS
-  BaseSchema.extend({
-    action: z.literal("structure_analysis"),
-    sheetId: SheetIdSchema.optional(),
+    // structure_analysis specific
     detectTables: z.boolean().optional().default(true),
     detectHeaders: z.boolean().optional().default(true),
-  }),
 
-  // STATISTICS
-  BaseSchema.extend({
-    action: z.literal("statistics"),
-    range: RangeInputSchema,
+    // statistics specific
     columns: z.array(z.number().int().min(0)).optional(),
-  }),
 
-  // CORRELATIONS
-  BaseSchema.extend({
-    action: z.literal("correlations"),
-    range: RangeInputSchema,
+    // correlations specific
     method: z.enum(["pearson", "spearman"]).optional().default("pearson"),
-  }),
 
-  // SUMMARY
-  BaseSchema.extend({
-    action: z.literal("summary"),
-    sheetId: SheetIdSchema.optional(),
-  }),
-
-  // DEPENDENCIES
-  BaseSchema.extend({
-    action: z.literal("dependencies"),
+    // dependencies specific
     cell: z.string().optional(),
-    sheetId: SheetIdSchema.optional(),
     direction: z
       .enum(["precedents", "dependents", "both"])
       .optional()
       .default("both"),
-  }),
 
-  // COMPARE_RANGES
-  BaseSchema.extend({
-    action: z.literal("compare_ranges"),
-    range1: RangeInputSchema,
-    range2: RangeInputSchema,
+    // compare_ranges specific
+    range1: RangeInputSchema.optional(),
+    range2: RangeInputSchema.optional(),
     compareType: z
       .enum(["values", "structure", "both"])
       .optional()
       .default("values"),
-  }),
 
-  // DETECT_PATTERNS
-  BaseSchema.extend({
-    action: z.literal("detect_patterns"),
-    range: RangeInputSchema,
+    // detect_patterns specific
     includeCorrelations: z
       .boolean()
       .optional()
@@ -191,15 +168,8 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
       .optional()
       .default(true)
       .describe("Include anomaly detection"),
-    useAI: z.boolean().optional().describe("Use AI for pattern explanation"),
-  }),
 
-  // COLUMN_ANALYSIS
-  BaseSchema.extend({
-    action: z.literal("column_analysis"),
-    range: RangeInputSchema.describe(
-      "Single column range (e.g., Sheet1!D2:D100)",
-    ),
+    // column_analysis specific
     analyzeDistribution: z
       .boolean()
       .optional()
@@ -220,14 +190,11 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
       .optional()
       .default(true)
       .describe("Count unique values"),
-    useAI: z.boolean().optional().describe("Use AI for insights"),
-  }),
 
-  // SUGGEST_TEMPLATES (AI-powered - SEP-1577)
-  BaseSchema.extend({
-    action: z.literal("suggest_templates"),
+    // suggest_templates specific
     description: z
       .string()
+      .optional()
       .describe(
         'Natural language description of needed template (e.g., "project tracker", "budget planner")',
       ),
@@ -243,51 +210,115 @@ export const SheetsAnalysisInputSchema = z.discriminatedUnion("action", [
       .max(5)
       .optional()
       .default(3)
-      .describe("Number of template suggestions"),
-  }),
+      .describe("Number of chart/template suggestions"),
 
-  // GENERATE_FORMULA (AI-powered - SEP-1577)
-  BaseSchema.extend({
-    action: z.literal("generate_formula"),
-    description: z
-      .string()
-      .describe(
-        'Natural language description of formula logic (e.g., "sum all values in column A")',
-      ),
+    // generate_formula specific
     targetCell: z
       .string()
       .optional()
       .describe('Target cell for formula context (e.g., "Sheet1!C2")'),
-    range: RangeInputSchema.optional().describe(
-      "Optional range for context understanding",
-    ),
     includeExplanation: z
       .boolean()
       .optional()
       .default(true)
       .describe("Include formula explanation"),
-  }),
 
-  // SUGGEST_CHART (AI-powered - SEP-1577)
-  BaseSchema.extend({
-    action: z.literal("suggest_chart"),
-    range: RangeInputSchema.describe("Data range for chart analysis"),
+    // suggest_chart specific
     goal: z
       .string()
       .optional()
       .describe(
         'Optional visualization goal (e.g., "show trends", "compare categories")',
       ),
-    maxSuggestions: z
-      .number()
-      .int()
-      .min(1)
-      .max(5)
-      .optional()
-      .default(3)
-      .describe("Number of chart suggestions"),
-  }),
-]);
+  })
+  .refine(
+    (data) => {
+      switch (data.action) {
+        case "data_quality":
+        case "formula_audit":
+        case "structure_analysis":
+        case "summary":
+          return !!data.spreadsheetId;
+
+        case "statistics":
+        case "correlations":
+        case "detect_patterns":
+        case "column_analysis":
+        case "suggest_chart":
+          return !!data.spreadsheetId && !!data.range;
+
+        case "compare_ranges":
+          return !!data.spreadsheetId && !!data.range1 && !!data.range2;
+
+        case "dependencies":
+          return !!data.spreadsheetId;
+
+        case "suggest_templates":
+          return !!data.spreadsheetId && !!data.description;
+
+        case "generate_formula":
+          return !!data.spreadsheetId && !!data.description;
+
+        default:
+          return false;
+      }
+    },
+    {
+      message:
+        "Missing required fields for the specified action. Check action-specific requirements.",
+    },
+  );
+
+// Type narrowing helpers for each action
+export type DataQualityInput = Extract<
+  SheetsAnalysisInput,
+  { action: "data_quality" }
+>;
+export type FormulaAuditInput = Extract<
+  SheetsAnalysisInput,
+  { action: "formula_audit" }
+>;
+export type StructureAnalysisInput = Extract<
+  SheetsAnalysisInput,
+  { action: "structure_analysis" }
+>;
+export type StatisticsInput = Extract<
+  SheetsAnalysisInput,
+  { action: "statistics" }
+>;
+export type CorrelationsInput = Extract<
+  SheetsAnalysisInput,
+  { action: "correlations" }
+>;
+export type SummaryInput = Extract<SheetsAnalysisInput, { action: "summary" }>;
+export type DependenciesInput = Extract<
+  SheetsAnalysisInput,
+  { action: "dependencies" }
+>;
+export type CompareRangesInput = Extract<
+  SheetsAnalysisInput,
+  { action: "compare_ranges" }
+>;
+export type DetectPatternsInput = Extract<
+  SheetsAnalysisInput,
+  { action: "detect_patterns" }
+>;
+export type ColumnAnalysisInput = Extract<
+  SheetsAnalysisInput,
+  { action: "column_analysis" }
+>;
+export type SuggestTemplatesInput = Extract<
+  SheetsAnalysisInput,
+  { action: "suggest_templates" }
+>;
+export type AnalysisGenerateFormulaInput = Extract<
+  SheetsAnalysisInput,
+  { action: "generate_formula" }
+>;
+export type AnalysisSuggestChartInput = Extract<
+  SheetsAnalysisInput,
+  { action: "suggest_chart" }
+>;
 
 const AnalysisResponseSchema = z.discriminatedUnion("success", [
   z.object({

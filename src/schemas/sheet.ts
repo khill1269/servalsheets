@@ -17,74 +17,92 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
-  spreadsheetId: SpreadsheetIdSchema,
-});
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsSheetInputSchema = z
+  .object({
+    // Required action discriminator
+    action: z
+      .enum([
+        "add",
+        "delete",
+        "duplicate",
+        "update",
+        "copy_to",
+        "list",
+        "get",
+      ])
+      .describe("The operation to perform on the sheet/tab"),
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsSheetInputSchema = z.discriminatedUnion("action", [
-  // ADD
-  BaseSchema.extend({
-    action: z.literal("add").describe("Add a new sheet/tab to the spreadsheet"),
-    title: z.string().min(1).max(255).describe("Sheet title (must be unique)"),
+    // Required for all actions
+    spreadsheetId: SpreadsheetIdSchema.describe(
+      "Spreadsheet ID from URL (required for all actions)",
+    ),
+
+    // Fields for ADD action
+    title: z
+      .string()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe(
+        "Sheet title (required for: add; optional for: update) - must be unique",
+      ),
     index: z
       .number()
       .int()
       .min(0)
       .optional()
-      .describe("Position to insert (0 = first, omit = last)"),
+      .describe(
+        "Position to insert (0 = first, omit = last) (add, update actions)",
+      ),
     rowCount: z
       .number()
       .int()
       .positive()
       .optional()
       .default(1000)
-      .describe("Initial row count (default: 1000)"),
+      .describe("Initial row count (default: 1000) (add action)"),
     columnCount: z
       .number()
       .int()
       .positive()
       .optional()
       .default(26)
-      .describe("Initial column count (default: 26)"),
-    tabColor: ColorSchema.optional().describe("Tab color (RGB)"),
+      .describe("Initial column count (default: 26) (add action)"),
+    tabColor: ColorSchema.optional().describe(
+      "Tab color (RGB) (add, update actions)",
+    ),
     hidden: z
       .boolean()
       .optional()
       .default(false)
-      .describe("Hide the sheet (default: false)"),
-  }),
+      .describe("Hide the sheet (default: false) (add, update actions)"),
 
-  // DELETE
-  BaseSchema.extend({
-    action: z
-      .literal("delete")
-      .describe("Delete a sheet/tab from the spreadsheet"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID (not the title)"),
+    // Fields for DELETE, DUPLICATE, UPDATE, COPY_TO, GET actions
+    sheetId: SheetIdSchema.optional().describe(
+      "Numeric sheet ID (required for: delete, duplicate, update, copy_to, get)",
+    ),
+
+    // Fields for DELETE action
     allowMissing: z
       .boolean()
       .optional()
       .default(false)
       .describe(
-        "If true, don't error when sheet doesn't exist (makes delete idempotent)",
+        "If true, don't error when sheet doesn't exist - makes delete idempotent (delete action)",
       ),
     safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
+      "Safety options (dryRun, createSnapshot, etc.) (delete action)",
     ),
-  }),
 
-  // DUPLICATE
-  BaseSchema.extend({
-    action: z
-      .literal("duplicate")
-      .describe("Duplicate/copy a sheet/tab within the same spreadsheet"),
-    sheetId: SheetIdSchema.describe("Sheet ID to duplicate"),
+    // Fields for DUPLICATE action
     newTitle: z
       .string()
       .optional()
       .describe(
-        "Title for duplicated sheet (optional, auto-generated if omitted)",
+        "Title for duplicated sheet (optional, auto-generated if omitted) (duplicate action)",
       ),
     insertIndex: z
       .number()
@@ -92,55 +110,45 @@ export const SheetsSheetInputSchema = z.discriminatedUnion("action", [
       .min(0)
       .optional()
       .describe(
-        "Position to insert duplicate (0 = first, omit = after original)",
+        "Position to insert duplicate (0 = first, omit = after original) (duplicate action)",
       ),
-  }),
 
-  // UPDATE
-  BaseSchema.extend({
-    action: z.literal("update").describe("Update sheet/tab properties"),
-    sheetId: SheetIdSchema.describe("Sheet ID to update"),
-    title: z.string().min(1).max(255).optional().describe("New sheet title"),
-    index: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe("New position (0 = first)"),
-    hidden: z.boolean().optional().describe("Hide/show the sheet"),
-    tabColor: ColorSchema.optional().describe("New tab color (RGB)"),
+    // Fields for UPDATE action
     rightToLeft: z
       .boolean()
       .optional()
-      .describe("Right-to-left text direction"),
-  }),
+      .describe("Right-to-left text direction (update action)"),
 
-  // COPY_TO
-  BaseSchema.extend({
-    action: z
-      .literal("copy_to")
-      .describe("Copy a sheet/tab to a different spreadsheet"),
-    sheetId: SheetIdSchema.describe("Sheet ID to copy"),
-    destinationSpreadsheetId: SpreadsheetIdSchema.describe(
-      "Target spreadsheet ID",
+    // Fields for COPY_TO action
+    destinationSpreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Target spreadsheet ID (required for: copy_to)",
     ),
-  }),
-
-  // LIST
-  BaseSchema.extend({
-    action: z
-      .literal("list")
-      .describe("List all sheets/tabs in the spreadsheet"),
-  }),
-
-  // GET
-  BaseSchema.extend({
-    action: z
-      .literal("get")
-      .describe("Get detailed information about a specific sheet/tab"),
-    sheetId: SheetIdSchema.describe("Sheet ID to retrieve"),
-  }),
-]);
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "add":
+          return !!data.title;
+        case "delete":
+        case "duplicate":
+        case "update":
+        case "get":
+          return typeof data.sheetId === "number";
+        case "copy_to":
+          return (
+            typeof data.sheetId === "number" && !!data.destinationSpreadsheetId
+          );
+        case "list":
+          return true; // Only spreadsheetId required (handled by schema)
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 const SheetResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -185,3 +193,32 @@ export const SHEETS_SHEET_ANNOTATIONS: ToolAnnotations = {
 export type SheetsSheetInput = z.infer<typeof SheetsSheetInputSchema>;
 export type SheetsSheetOutput = z.infer<typeof SheetsSheetOutputSchema>;
 export type SheetResponse = z.infer<typeof SheetResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type SheetAddInput = SheetsSheetInput & {
+  action: "add";
+  title: string;
+};
+export type SheetDeleteInput = SheetsSheetInput & {
+  action: "delete";
+  sheetId: number;
+};
+export type SheetDuplicateInput = SheetsSheetInput & {
+  action: "duplicate";
+  sheetId: number;
+};
+export type SheetUpdateInput = SheetsSheetInput & {
+  action: "update";
+  sheetId: number;
+};
+export type SheetCopyToInput = SheetsSheetInput & {
+  action: "copy_to";
+  sheetId: number;
+  destinationSpreadsheetId: string;
+};
+export type SheetListInput = SheetsSheetInput & { action: "list" };
+export type SheetGetInput = SheetsSheetInput & {
+  action: "get";
+  sheetId: number;
+};

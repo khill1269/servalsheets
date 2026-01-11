@@ -27,7 +27,9 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   async handle(input: SheetsFixInput): Promise<SheetsFixOutput> {
     // Input is now the action directly (no request wrapper)
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(input) as SheetsFixInput;
+    const inferredRequest = this.inferRequestParameters(
+      input,
+    ) as SheetsFixInput;
 
     try {
       // Filter issues based on user preferences
@@ -431,6 +433,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       // Versions are auto-created. We'd use sheets_versions tool here in real implementation
       return { revisionId: `auto_${Date.now()}` };
     } catch {
+      // OK: Explicit empty - typed as optional, snapshot creation failed (versions API not available)
       return undefined;
     }
   }

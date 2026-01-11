@@ -15,414 +15,168 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
-  spreadsheetId: SpreadsheetIdSchema,
-  sheetId: SheetIdSchema,
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsDimensionsInputSchema = z.object({
+  // Required action discriminator
+  action: z.enum([
+    "insert_rows",
+    "insert_columns",
+    "delete_rows",
+    "delete_columns",
+    "move_rows",
+    "move_columns",
+    "resize_rows",
+    "resize_columns",
+    "auto_resize",
+    "hide_rows",
+    "hide_columns",
+    "show_rows",
+    "show_columns",
+    "freeze_rows",
+    "freeze_columns",
+    "group_rows",
+    "group_columns",
+    "ungroup_rows",
+    "ungroup_columns",
+    "append_rows",
+    "append_columns",
+  ]).describe("The dimension operation to perform"),
+
+  // Common fields (required for most actions)
+  spreadsheetId: SpreadsheetIdSchema.optional().describe("Spreadsheet ID from URL (required for all actions)"),
+  sheetId: SheetIdSchema.optional().describe("Sheet ID (required for all actions)"),
+
+  // Safety options (for destructive operations)
+  safety: SafetyOptionsSchema.optional().describe("Safety options for destructive operations (delete_rows, delete_columns, move_rows, move_columns)"),
+
+  // Index fields (used by most actions)
+  startIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Zero-based index of first row/column (required for: insert_rows, insert_columns, delete_rows, delete_columns, move_rows, move_columns, resize_rows, resize_columns, auto_resize, hide_rows, hide_columns, show_rows, show_columns, group_rows, group_columns, ungroup_rows, ungroup_columns)"),
+  endIndex: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("Zero-based index after last row/column, exclusive (required for: delete_rows, delete_columns, move_rows, move_columns, resize_rows, resize_columns, auto_resize, hide_rows, hide_columns, show_rows, show_columns, group_rows, group_columns, ungroup_rows, ungroup_columns)"),
+
+  // Count field (for insert and append operations)
+  count: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Number of rows/columns to insert or append (optional for: insert_rows, insert_columns with default 1; required for: append_rows, append_columns)"),
+
+  // Formatting inheritance (for insert operations)
+  inheritFromBefore: z
+    .boolean()
+    .optional()
+    .describe("Inherit formatting from row/column before (false = inherit from after) (optional for: insert_rows, insert_columns)"),
+
+  // Destination index (for move operations)
+  destinationIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Zero-based index where rows/columns should be moved to (required for: move_rows, move_columns)"),
+
+  // Pixel size (for resize operations)
+  pixelSize: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Height/width in pixels, must be positive (required for: resize_rows, resize_columns)"),
+
+  // Dimension (for auto_resize)
+  dimension: DimensionSchema.optional().describe("Which dimension to resize: ROWS or COLUMNS (required for: auto_resize)"),
+
+  // Frozen count (for freeze operations)
+  frozenRowCount: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Number of rows to freeze from the top, 0 = unfreeze all (required for: freeze_rows)"),
+  frozenColumnCount: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Number of columns to freeze from the left, 0 = unfreeze all (required for: freeze_columns)"),
+
+  // Depth (for group operations)
+  depth: z
+    .number()
+    .int()
+    .min(1)
+    .max(8)
+    .optional()
+    .describe("Nesting depth level, 1-8 (optional for: group_rows, group_columns, default: 1)"),
+
+  // Allow missing (for delete operations)
+  allowMissing: z
+    .boolean()
+    .optional()
+    .describe("If true, don't error when rows/columns don't exist, makes delete idempotent (optional for: delete_rows, delete_columns)"),
+}).refine((data) => {
+  // Validate required fields based on action
+  if (!data.spreadsheetId || data.sheetId === undefined) {
+    return false;
+  }
+
+  switch (data.action) {
+    case "insert_rows":
+    case "insert_columns":
+      return data.startIndex !== undefined;
+
+    case "delete_rows":
+    case "delete_columns":
+      return data.startIndex !== undefined && data.endIndex !== undefined;
+
+    case "move_rows":
+    case "move_columns":
+      return data.startIndex !== undefined && data.endIndex !== undefined && data.destinationIndex !== undefined;
+
+    case "resize_rows":
+    case "resize_columns":
+      return data.startIndex !== undefined && data.endIndex !== undefined && data.pixelSize !== undefined;
+
+    case "auto_resize":
+      return data.startIndex !== undefined && data.endIndex !== undefined && !!data.dimension;
+
+    case "hide_rows":
+    case "hide_columns":
+    case "show_rows":
+    case "show_columns":
+    case "group_rows":
+    case "group_columns":
+    case "ungroup_rows":
+    case "ungroup_columns":
+      return data.startIndex !== undefined && data.endIndex !== undefined;
+
+    case "freeze_rows":
+      return data.frozenRowCount !== undefined;
+
+    case "freeze_columns":
+      return data.frozenColumnCount !== undefined;
+
+    case "append_rows":
+    case "append_columns":
+      return data.count !== undefined;
+
+    default:
+      return false;
+  }
+}, {
+  message: "Missing required fields for the specified action",
 });
-
-const DestructiveBaseSchema = BaseSchema.extend({
-  safety: SafetyOptionsSchema.optional(),
-});
-
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsDimensionsInputSchema = z.discriminatedUnion("action", [
-  // INSERT_ROWS
-  BaseSchema.extend({
-    action: z.literal("insert_rows").describe("Insert new rows into the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based row index to insert at (0 = before first row)"),
-    count: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(1)
-      .describe("Number of rows to insert (default: 1)"),
-    inheritFromBefore: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Inherit formatting from row before (false = inherit from row after)",
-      ),
-  }),
-
-  // INSERT_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("insert_columns")
-      .describe("Insert new columns into the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe(
-        "Zero-based column index to insert at (0 = before first column)",
-      ),
-    count: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(1)
-      .describe("Number of columns to insert (default: 1)"),
-    inheritFromBefore: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Inherit formatting from column before (false = inherit from column after)",
-      ),
-  }),
-
-  // DELETE_ROWS
-  DestructiveBaseSchema.extend({
-    action: z.literal("delete_rows").describe("Delete rows from the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to delete"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe(
-        "Zero-based index after last row to delete (exclusive, e.g., startIndex=0, endIndex=5 deletes rows 0-4)",
-      ),
-    allowMissing: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "If true, don't error when rows don't exist (makes delete idempotent)",
-      ),
-  }),
-
-  // DELETE_COLUMNS
-  DestructiveBaseSchema.extend({
-    action: z
-      .literal("delete_columns")
-      .describe("Delete columns from the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to delete"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to delete (exclusive)"),
-    allowMissing: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "If true, don't error when columns don't exist (makes delete idempotent)",
-      ),
-  }),
-
-  // MOVE_ROWS
-  DestructiveBaseSchema.extend({
-    action: z
-      .literal("move_rows")
-      .describe("Move rows to a different position in the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to move"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to move (exclusive)"),
-    destinationIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index where rows should be moved to"),
-  }),
-
-  // MOVE_COLUMNS
-  DestructiveBaseSchema.extend({
-    action: z
-      .literal("move_columns")
-      .describe("Move columns to a different position in the sheet"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to move"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to move (exclusive)"),
-    destinationIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index where columns should be moved to"),
-  }),
-
-  // RESIZE_ROWS
-  BaseSchema.extend({
-    action: z
-      .literal("resize_rows")
-      .describe("Set row height to a specific pixel size"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to resize"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to resize (exclusive)"),
-    pixelSize: z
-      .number()
-      .positive()
-      .describe("Height in pixels (must be positive)"),
-  }),
-
-  // RESIZE_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("resize_columns")
-      .describe("Set column width to a specific pixel size"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to resize"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to resize (exclusive)"),
-    pixelSize: z
-      .number()
-      .positive()
-      .describe("Width in pixels (must be positive)"),
-  }),
-
-  // AUTO_RESIZE
-  BaseSchema.extend({
-    action: z
-      .literal("auto_resize")
-      .describe("Auto-resize rows or columns to fit content"),
-    dimension: DimensionSchema.describe(
-      "Which dimension to resize: ROWS or COLUMNS",
-    ),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first dimension to auto-resize"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe(
-        "Zero-based index after last dimension to auto-resize (exclusive)",
-      ),
-  }),
-
-  // HIDE_ROWS
-  BaseSchema.extend({
-    action: z
-      .literal("hide_rows")
-      .describe("Hide rows (they remain but are not visible)"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to hide"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to hide (exclusive)"),
-  }),
-
-  // HIDE_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("hide_columns")
-      .describe("Hide columns (they remain but are not visible)"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to hide"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to hide (exclusive)"),
-  }),
-
-  // SHOW_ROWS
-  BaseSchema.extend({
-    action: z.literal("show_rows").describe("Show previously hidden rows"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to show"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to show (exclusive)"),
-  }),
-
-  // SHOW_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("show_columns")
-      .describe("Show previously hidden columns"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to show"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to show (exclusive)"),
-  }),
-
-  // FREEZE_ROWS
-  BaseSchema.extend({
-    action: z
-      .literal("freeze_rows")
-      .describe("Freeze top rows (they stay visible when scrolling down)"),
-    frozenRowCount: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Number of rows to freeze from the top (0 = unfreeze all)"),
-  }),
-
-  // FREEZE_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("freeze_columns")
-      .describe("Freeze left columns (they stay visible when scrolling right)"),
-    frozenColumnCount: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Number of columns to freeze from the left (0 = unfreeze all)"),
-  }),
-
-  // GROUP_ROWS
-  BaseSchema.extend({
-    action: z
-      .literal("group_rows")
-      .describe("Group rows together (allows collapsing/expanding)"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to group"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to group (exclusive)"),
-    depth: z
-      .number()
-      .int()
-      .min(1)
-      .max(8)
-      .optional()
-      .default(1)
-      .describe("Nesting depth level (1-8, default: 1)"),
-  }),
-
-  // GROUP_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("group_columns")
-      .describe("Group columns together (allows collapsing/expanding)"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to group"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to group (exclusive)"),
-    depth: z
-      .number()
-      .int()
-      .min(1)
-      .max(8)
-      .optional()
-      .default(1)
-      .describe("Nesting depth level (1-8, default: 1)"),
-  }),
-
-  // UNGROUP_ROWS
-  BaseSchema.extend({
-    action: z.literal("ungroup_rows").describe("Remove grouping from rows"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first row to ungroup"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last row to ungroup (exclusive)"),
-  }),
-
-  // UNGROUP_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("ungroup_columns")
-      .describe("Remove grouping from columns"),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of first column to ungroup"),
-    endIndex: z
-      .number()
-      .int()
-      .min(1)
-      .describe("Zero-based index after last column to ungroup (exclusive)"),
-  }),
-
-  // APPEND_ROWS
-  BaseSchema.extend({
-    action: z
-      .literal("append_rows")
-      .describe("Add new rows at the end of the sheet"),
-    count: z.number().int().positive().describe("Number of rows to append"),
-  }),
-
-  // APPEND_COLUMNS
-  BaseSchema.extend({
-    action: z
-      .literal("append_columns")
-      .describe("Add new columns at the end of the sheet"),
-    count: z.number().int().positive().describe("Number of columns to append"),
-  }),
-]);
 
 const DimensionsResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -464,3 +218,27 @@ export type SheetsDimensionsOutput = z.infer<
   typeof SheetsDimensionsOutputSchema
 >;
 export type DimensionsResponse = z.infer<typeof DimensionsResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type DimensionsInsertRowsInput = SheetsDimensionsInput & { action: "insert_rows"; spreadsheetId: string; sheetId: number; startIndex: number };
+export type DimensionsInsertColumnsInput = SheetsDimensionsInput & { action: "insert_columns"; spreadsheetId: string; sheetId: number; startIndex: number };
+export type DimensionsDeleteRowsInput = SheetsDimensionsInput & { action: "delete_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsDeleteColumnsInput = SheetsDimensionsInput & { action: "delete_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsMoveRowsInput = SheetsDimensionsInput & { action: "move_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number; destinationIndex: number };
+export type DimensionsMoveColumnsInput = SheetsDimensionsInput & { action: "move_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number; destinationIndex: number };
+export type DimensionsResizeRowsInput = SheetsDimensionsInput & { action: "resize_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number; pixelSize: number };
+export type DimensionsResizeColumnsInput = SheetsDimensionsInput & { action: "resize_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number; pixelSize: number };
+export type DimensionsAutoResizeInput = SheetsDimensionsInput & { action: "auto_resize"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number; dimension: "ROWS" | "COLUMNS" };
+export type DimensionsHideRowsInput = SheetsDimensionsInput & { action: "hide_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsHideColumnsInput = SheetsDimensionsInput & { action: "hide_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsShowRowsInput = SheetsDimensionsInput & { action: "show_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsShowColumnsInput = SheetsDimensionsInput & { action: "show_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsFreezeRowsInput = SheetsDimensionsInput & { action: "freeze_rows"; spreadsheetId: string; sheetId: number; frozenRowCount: number };
+export type DimensionsFreezeColumnsInput = SheetsDimensionsInput & { action: "freeze_columns"; spreadsheetId: string; sheetId: number; frozenColumnCount: number };
+export type DimensionsGroupRowsInput = SheetsDimensionsInput & { action: "group_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsGroupColumnsInput = SheetsDimensionsInput & { action: "group_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsUngroupRowsInput = SheetsDimensionsInput & { action: "ungroup_rows"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsUngroupColumnsInput = SheetsDimensionsInput & { action: "ungroup_columns"; spreadsheetId: string; sheetId: number; startIndex: number; endIndex: number };
+export type DimensionsAppendRowsInput = SheetsDimensionsInput & { action: "append_rows"; spreadsheetId: string; sheetId: number; count: number };
+export type DimensionsAppendColumnsInput = SheetsDimensionsInput & { action: "append_columns"; spreadsheetId: string; sheetId: number; count: number };

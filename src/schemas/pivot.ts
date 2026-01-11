@@ -16,6 +16,7 @@ import {
   MutationSummarySchema,
   ResponseMetaSchema,
   type ToolAnnotations,
+  type RangeInput,
 } from "./shared.js";
 
 const BaseSchema = z.object({
@@ -94,105 +95,87 @@ const PivotFilterSchema = z.object({
   }),
 });
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsPivotInputSchema = z.discriminatedUnion("action", [
-  // CREATE
-  BaseSchema.extend({
-    action: z.literal("create").describe("Create a new pivot table"),
-    sourceRange: RangeInputSchema.describe(
-      "Source data range for the pivot table (A1 notation or semantic)",
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsPivotInputSchema = z
+  .object({
+    // Required action discriminator
+    action: z
+      .enum(["create", "update", "delete", "list", "get", "refresh"])
+      .describe("The operation to perform on the pivot table"),
+
+    // Common field
+    spreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Spreadsheet ID from URL (required for all actions)",
+    ),
+
+    // Fields for CREATE action
+    sourceRange: RangeInputSchema.optional().describe(
+      "Source data range for the pivot table (A1 notation or semantic) (required for: create)",
     ),
     destinationSheetId: SheetIdSchema.optional().describe(
-      "Sheet ID for pivot table destination (omit = new sheet)",
+      "Sheet ID for pivot table destination (omit = new sheet) (create only)",
     ),
     destinationCell: z
       .string()
       .optional()
-      .describe("Top-left cell for pivot table (e.g., 'A1', default: A1)"),
+      .describe("Top-left cell for pivot table (e.g., 'A1', default: A1) (create only)"),
+
+    // Fields for CREATE and UPDATE actions
     rows: z
       .array(PivotGroupSchema)
       .optional()
-      .describe("Row groupings for the pivot table"),
+      .describe("Row groupings for the pivot table (create, update)"),
     columns: z
       .array(PivotGroupSchema)
       .optional()
-      .describe("Column groupings for the pivot table"),
-    values: z
-      .array(PivotValueSchema)
-      .describe("Value aggregations (at least one required)"),
-    filters: z
-      .array(PivotFilterSchema)
-      .optional()
-      .describe("Filter criteria for the pivot table"),
-  }),
-
-  // UPDATE
-  BaseSchema.extend({
-    action: z
-      .literal("update")
-      .describe("Update an existing pivot table configuration"),
-    sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table"),
-    rows: z
-      .array(PivotGroupSchema)
-      .optional()
-      .describe("New row groupings (omit to keep current)"),
-    columns: z
-      .array(PivotGroupSchema)
-      .optional()
-      .describe("New column groupings (omit to keep current)"),
+      .describe("Column groupings for the pivot table (create, update)"),
     values: z
       .array(PivotValueSchema)
       .optional()
-      .describe("New value aggregations (omit to keep current)"),
+      .describe("Value aggregations (required for create; optional for update)"),
     filters: z
       .array(PivotFilterSchema)
       .optional()
-      .describe("New filter criteria (omit to keep current)"),
+      .describe("Filter criteria for the pivot table (create, update)"),
+
+    // Fields for UPDATE, DELETE, GET, and REFRESH actions
+    sheetId: SheetIdSchema.optional().describe(
+      "Sheet ID containing the pivot table (required for: update, delete, get, refresh)",
+    ),
+
+    // Fields for UPDATE and DELETE actions
     safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
+      "Safety options (dryRun, createSnapshot, etc.) (update, delete only)",
     ),
-  }),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "create":
+          return (
+            !!data.spreadsheetId && !!data.sourceRange && !!data.values && data.values.length > 0
+          );
+        case "update":
+        case "delete":
+        case "get":
+        case "refresh":
+          return !!data.spreadsheetId && data.sheetId !== undefined;
+        case "list":
+          return !!data.spreadsheetId;
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
-  // DELETE
-  BaseSchema.extend({
-    action: z.literal("delete").describe("Delete a pivot table"),
-    sheetId: SheetIdSchema.describe(
-      "Sheet ID containing the pivot table to delete",
-    ),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
-
-  // LIST
-  BaseSchema.extend({
-    action: z
-      .literal("list")
-      .describe("List all pivot tables in the spreadsheet"),
-  }),
-
-  // GET
-  BaseSchema.extend({
-    action: z
-      .literal("get")
-      .describe("Get detailed information about a specific pivot table"),
-    sheetId: SheetIdSchema.describe("Sheet ID containing the pivot table"),
-  }),
-
-  // REFRESH
-  BaseSchema.extend({
-    action: z
-      .literal("refresh")
-      .describe("Refresh a pivot table (re-calculate values from source data)"),
-    sheetId: SheetIdSchema.describe(
-      "Sheet ID containing the pivot table to refresh",
-    ),
-  }),
-
-  // Note: add_calculated_field and remove_calculated_field actions are not supported
-  // by Google Sheets API v4. These must be done through the Sheets UI or Apps Script.
-]);
+// Note: add_calculated_field and remove_calculated_field actions are not supported
+// by Google Sheets API v4. These must be done through the Sheets UI or Apps Script.
 
 const PivotResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -240,3 +223,36 @@ export const SHEETS_PIVOT_ANNOTATIONS: ToolAnnotations = {
 export type SheetsPivotInput = z.infer<typeof SheetsPivotInputSchema>;
 export type SheetsPivotOutput = z.infer<typeof SheetsPivotOutputSchema>;
 export type PivotResponse = z.infer<typeof PivotResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type PivotCreateInput = SheetsPivotInput & {
+  action: "create";
+  spreadsheetId: string;
+  sourceRange: RangeInput;
+  values: NonNullable<SheetsPivotInput["values"]>;
+};
+export type PivotUpdateInput = SheetsPivotInput & {
+  action: "update";
+  spreadsheetId: string;
+  sheetId: number;
+};
+export type PivotDeleteInput = SheetsPivotInput & {
+  action: "delete";
+  spreadsheetId: string;
+  sheetId: number;
+};
+export type PivotListInput = SheetsPivotInput & {
+  action: "list";
+  spreadsheetId: string;
+};
+export type PivotGetInput = SheetsPivotInput & {
+  action: "get";
+  spreadsheetId: string;
+  sheetId: number;
+};
+export type PivotRefreshInput = SheetsPivotInput & {
+  action: "refresh";
+  spreadsheetId: string;
+  sheetId: number;
+};

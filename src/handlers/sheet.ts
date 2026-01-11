@@ -13,6 +13,13 @@ import type {
   SheetsSheetOutput,
   SheetInfo,
   SheetResponse,
+  SheetAddInput,
+  SheetDeleteInput,
+  SheetDuplicateInput,
+  SheetUpdateInput,
+  SheetCopyToInput,
+  SheetListInput,
+  SheetGetInput,
 } from "../schemas/index.js";
 import { confirmDestructiveAction } from "../mcp/elicitation.js";
 import { getRequestLogger } from "../utils/request-context.js";
@@ -111,7 +118,10 @@ export class SheetHandler extends BaseHandler<
         return [
           {
             type: "DELETE_SHEET",
-            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            target: {
+              spreadsheetId: input.spreadsheetId,
+              sheetId: input.sheetId,
+            },
             payload: {},
             metadata: {
               sourceTool: this.toolName,
@@ -125,7 +135,10 @@ export class SheetHandler extends BaseHandler<
         return [
           {
             type: "DUPLICATE_SHEET",
-            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            target: {
+              spreadsheetId: input.spreadsheetId,
+              sheetId: input.sheetId,
+            },
             payload: { newTitle: input.newTitle },
             metadata: {
               sourceTool: this.toolName,
@@ -139,7 +152,10 @@ export class SheetHandler extends BaseHandler<
         return [
           {
             type: "UPDATE_SHEET_PROPERTIES",
-            target: { spreadsheetId: input.spreadsheetId, sheetId: input.sheetId },
+            target: {
+              spreadsheetId: input.spreadsheetId,
+              sheetId: input.sheetId,
+            },
             payload: { title: input.title, hidden: input.hidden },
             metadata: {
               sourceTool: this.toolName,
@@ -154,9 +170,7 @@ export class SheetHandler extends BaseHandler<
     }
   }
 
-  private async handleAdd(
-    input: Extract<SheetsSheetInput, { action: "add" }>,
-  ): Promise<SheetResponse> {
+  private async handleAdd(input: SheetAddInput): Promise<SheetResponse> {
     const sheetProperties: sheets_v4.Schema$SheetProperties = {
       title: input.title,
       hidden: input.hidden ?? false,
@@ -205,9 +219,7 @@ export class SheetHandler extends BaseHandler<
     return this.success("add", { sheet });
   }
 
-  private async handleDelete(
-    input: Extract<SheetsSheetInput, { action: "delete" }>,
-  ): Promise<SheetResponse> {
+  private async handleDelete(input: SheetDeleteInput): Promise<SheetResponse> {
     // Check if sheet exists when allowMissing is true
     if (input.allowMissing) {
       const exists = await this.sheetExists(input.spreadsheetId, input.sheetId);
@@ -265,7 +277,7 @@ export class SheetHandler extends BaseHandler<
   }
 
   private async handleDuplicate(
-    input: Extract<SheetsSheetInput, { action: "duplicate" }>,
+    input: SheetDuplicateInput,
   ): Promise<SheetResponse> {
     const duplicateRequest: sheets_v4.Schema$DuplicateSheetRequest = {
       sourceSheetId: input.sheetId,
@@ -298,9 +310,7 @@ export class SheetHandler extends BaseHandler<
     return this.success("duplicate", { sheet });
   }
 
-  private async handleUpdate(
-    input: Extract<SheetsSheetInput, { action: "update" }>,
-  ): Promise<SheetResponse> {
+  private async handleUpdate(input: SheetUpdateInput): Promise<SheetResponse> {
     // Build properties and fields mask
     const properties: sheets_v4.Schema$SheetProperties = {
       sheetId: input.sheetId,
@@ -385,9 +395,7 @@ export class SheetHandler extends BaseHandler<
     return this.success("update", { sheet });
   }
 
-  private async handleCopyTo(
-    input: Extract<SheetsSheetInput, { action: "copy_to" }>,
-  ): Promise<SheetResponse> {
+  private async handleCopyTo(input: SheetCopyToInput): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.sheets.copyTo({
       spreadsheetId: input.spreadsheetId,
       sheetId: input.sheetId,
@@ -411,9 +419,7 @@ export class SheetHandler extends BaseHandler<
     });
   }
 
-  private async handleList(
-    input: Extract<SheetsSheetInput, { action: "list" }>,
-  ): Promise<SheetResponse> {
+  private async handleList(input: SheetListInput): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: "sheets.properties",
@@ -432,9 +438,7 @@ export class SheetHandler extends BaseHandler<
     return this.success("list", { sheets });
   }
 
-  private async handleGet(
-    input: Extract<SheetsSheetInput, { action: "get" }>,
-  ): Promise<SheetResponse> {
+  private async handleGet(input: SheetGetInput): Promise<SheetResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: "sheets.properties",
@@ -470,6 +474,7 @@ export class SheetHandler extends BaseHandler<
   private convertTabColor(
     tabColor: sheets_v4.Schema$Color | null | undefined,
   ): SheetInfo["tabColor"] {
+    // OK: Explicit empty - typed as optional, no tab color set
     if (!tabColor) return undefined;
     return {
       red: tabColor.red ?? 0,

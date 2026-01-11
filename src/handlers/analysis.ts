@@ -11,7 +11,6 @@ import type { Intent } from "../core/intent.js";
 import type {
   SheetsAnalysisInput,
   SheetsAnalysisOutput,
-  
   AnalysisResponse,
 } from "../schemas/index.js";
 import type { RangeInput } from "../schemas/shared.js";
@@ -77,7 +76,7 @@ export class AnalysisHandler extends BaseHandler<
    * Execute action and return response
    */
   private async executeAction(
-    request: SheetsAnalysisInput
+    request: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
     switch (request.action) {
       case "data_quality":
@@ -120,9 +119,22 @@ export class AnalysisHandler extends BaseHandler<
   // ============================================================
 
   private async handleDataQuality(
-    input: Extract<SheetsAnalysisInput, { action: "data_quality" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId is required",
+        retryable: false,
+      });
+    }
+
+    const { sendProgress } = await import("../utils/request-context.js");
+
     const range = input.range ?? { a1: "A1:Z200" };
+
+    // Progress: Reading data
+    await sendProgress(0, 5, "Reading data...");
     const values = await this.fetchValues(input.spreadsheetId, range);
 
     // If AI-powered analysis is requested and sampling is supported
@@ -180,6 +192,9 @@ export class AnalysisHandler extends BaseHandler<
       }
     }
 
+    // Progress: Checking headers
+    await sendProgress(1, 5, "Checking for empty headers...");
+
     const headers = (values[0] ?? []) as string[];
     const issues: Array<{
       type:
@@ -231,6 +246,9 @@ export class AnalysisHandler extends BaseHandler<
       headerSet.add(name);
     });
 
+    // Progress: Checking for empty rows
+    await sendProgress(2, 5, "Checking for empty rows...");
+
     // Empty rows detection
     for (let i = 1; i < values.length; i++) {
       const row = values[i] ?? [];
@@ -246,6 +264,9 @@ export class AnalysisHandler extends BaseHandler<
         });
       }
     }
+
+    // Progress: Analyzing columns
+    await sendProgress(3, 5, "Analyzing column data types...");
 
     // Mixed data types and missing values per column
     const bodyRows = values.slice(1);
@@ -293,6 +314,9 @@ export class AnalysisHandler extends BaseHandler<
       }
     }
 
+    // Progress: Complete
+    await sendProgress(5, 5, "Data quality analysis complete");
+
     const score = Math.max(0, 100 - issues.length * 5);
     return this.success("data_quality", {
       dataQuality: {
@@ -310,8 +334,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleFormulaAudit(
-    input: Extract<SheetsAnalysisInput, { action: "formula_audit" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId is required",
+        retryable: false,
+      });
+    }
     const range = input.range ?? { a1: "A1:Z200" };
     const a1 = await this.resolveRange(input.spreadsheetId, range);
     const response = await this.sheetsApi.spreadsheets.values.get({
@@ -527,8 +558,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleStructure(
-    input: Extract<SheetsAnalysisInput, { action: "structure_analysis" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId is required",
+        retryable: false,
+      });
+    }
     // Phase 2: Use comprehensive metadata (single API call)
     const metadata = await this.fetchComprehensiveMetadata(
       input.spreadsheetId,
@@ -676,8 +714,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleStatistics(
-    input: Extract<SheetsAnalysisInput, { action: "statistics" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId || !input.range) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and range are required for statistics action",
+        retryable: false,
+      });
+    }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     if (values.length === 0) {
       return this.success("statistics", { statistics: { columns: [] } });
@@ -741,8 +786,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleCorrelations(
-    input: Extract<SheetsAnalysisInput, { action: "correlations" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId || !input.range) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and range are required for correlations action",
+        retryable: false,
+      });
+    }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     const rows = values.slice(1);
     const colCount = Math.max(...rows.map((r) => r.length), 0);
@@ -773,8 +825,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleSummary(
-    input: Extract<SheetsAnalysisInput, { action: "summary" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId is required",
+        retryable: false,
+      });
+    }
     // Phase 2: Use comprehensive metadata (single API call)
     const metadata = await this.fetchComprehensiveMetadata(
       input.spreadsheetId,
@@ -830,7 +889,7 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleDependencies(
-    _input: Extract<SheetsAnalysisInput, { action: "dependencies" }>,
+    _input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
     /**
      * Dependency tracing is not yet implemented.
@@ -852,8 +911,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleCompareRanges(
-    input: Extract<SheetsAnalysisInput, { action: "compare_ranges" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId || !input.range1 || !input.range2) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId, range1 and range2 are required for compare_ranges action",
+        retryable: false,
+      });
+    }
     const values1 = await this.fetchValues(input.spreadsheetId, input.range1);
     const values2 = await this.fetchValues(input.spreadsheetId, input.range2);
 
@@ -902,8 +968,15 @@ export class AnalysisHandler extends BaseHandler<
   }
 
   private async handleDetectPatterns(
-    input: Extract<SheetsAnalysisInput, { action: "detect_patterns" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId || !input.range) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and range are required for detect_patterns action",
+        retryable: false,
+      });
+    }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     const logger = getRequestLogger();
 
@@ -998,8 +1071,15 @@ Keep response concise and actionable.`,
   }
 
   private async handleColumnAnalysis(
-    input: Extract<SheetsAnalysisInput, { action: "column_analysis" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
+    if (!input.spreadsheetId || !input.range) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and range are required for column_analysis action",
+        retryable: false,
+      });
+    }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     const logger = getRequestLogger();
 
@@ -1519,9 +1599,17 @@ Keep response concise and actionable.`,
   // ============================================================
 
   private async handleSuggestTemplates(
-    input: Extract<SheetsAnalysisInput, { action: "suggest_templates" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
+
+    if (!input.spreadsheetId || !input.description) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and description are required for suggest_templates action",
+        retryable: false,
+      });
+    }
 
     // Check sampling support
     if (!this.context.samplingServer) {
@@ -1642,9 +1730,17 @@ Format as JSON array with this structure:
   }
 
   private async handleGenerateFormula(
-    input: Extract<SheetsAnalysisInput, { action: "generate_formula" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
+
+    if (!input.spreadsheetId || !input.description) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and description are required for generate_formula action",
+        retryable: false,
+      });
+    }
 
     // Check sampling support
     if (!this.context.samplingServer) {
@@ -1768,9 +1864,17 @@ Format as JSON:
   }
 
   private async handleSuggestChart(
-    input: Extract<SheetsAnalysisInput, { action: "suggest_chart" }>,
+    input: SheetsAnalysisInput,
   ): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
+
+    if (!input.spreadsheetId || !input.range) {
+      return this.error({
+        code: "INVALID_PARAMS",
+        message: "spreadsheetId and range are required for suggest_chart action",
+        retryable: false,
+      });
+    }
 
     // Check sampling support
     if (!this.context.samplingServer) {

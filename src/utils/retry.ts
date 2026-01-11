@@ -148,17 +148,20 @@ function isRetryableError(error: unknown): boolean {
 
 function parseRetryAfter(error: unknown): number | undefined {
   if (!error || typeof error !== "object") {
+    // OK: Explicit empty - typed as optional, invalid error object
     return undefined;
   }
   const headers = (
     error as { response?: { headers?: Record<string, string | string[]> } }
   ).response?.headers;
   if (!headers) {
+    // OK: Explicit empty - typed as optional, no response headers
     return undefined;
   }
 
   const headerValue = headers["retry-after"] ?? headers["Retry-After"];
   if (!headerValue) {
+    // OK: Explicit empty - typed as optional, no Retry-After header
     return undefined;
   }
 
@@ -173,6 +176,7 @@ function parseRetryAfter(error: unknown): number | undefined {
     return Math.max(0, parsedDate - Date.now());
   }
 
+  // OK: Explicit empty - typed as optional, unparseable Retry-After value
   return undefined;
 }
 

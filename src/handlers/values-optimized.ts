@@ -48,6 +48,7 @@ export function fastCacheGet<T>(
     return hotResult;
   }
 
+  // OK: Explicit empty - typed as optional, hot cache miss
   return undefined;
 }
 

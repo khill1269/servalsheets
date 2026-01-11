@@ -12,6 +12,15 @@ import type {
   SheetsChartsInput,
   SheetsChartsOutput,
   ChartsResponse,
+  ChartsCreateInput,
+  ChartsUpdateInput,
+  ChartsDeleteInput,
+  ChartsListInput,
+  ChartsGetInput,
+  ChartsMoveInput,
+  ChartsResizeInput,
+  ChartsUpdateDataRangeInput,
+  ChartsExportInput,
 } from "../schemas/charts.js";
 import type { RangeInput } from "../schemas/shared.js";
 import {
@@ -45,31 +54,31 @@ export class ChartsHandler extends BaseHandler<
       let response: ChartsResponse;
       switch (req.action) {
         case "create":
-          response = await this.handleCreate(req);
+          response = await this.handleCreate(req as ChartsCreateInput);
           break;
         case "update":
-          response = await this.handleUpdate(req);
+          response = await this.handleUpdate(req as ChartsUpdateInput);
           break;
         case "delete":
-          response = await this.handleDelete(req);
+          response = await this.handleDelete(req as ChartsDeleteInput);
           break;
         case "list":
-          response = await this.handleList(req);
+          response = await this.handleList(req as ChartsListInput);
           break;
         case "get":
-          response = await this.handleGet(req);
+          response = await this.handleGet(req as ChartsGetInput);
           break;
         case "move":
-          response = await this.handleMove(req);
+          response = await this.handleMove(req as ChartsMoveInput);
           break;
         case "resize":
-          response = await this.handleResize(req);
+          response = await this.handleResize(req as ChartsResizeInput);
           break;
         case "update_data_range":
-          response = await this.handleUpdateDataRange(req);
+          response = await this.handleUpdateDataRange(req as ChartsUpdateDataRangeInput);
           break;
         case "export":
-          response = await this.handleExport(req);
+          response = await this.handleExport(req as ChartsExportInput);
           break;
         default:
           response = this.error({
@@ -101,7 +110,7 @@ export class ChartsHandler extends BaseHandler<
   protected createIntents(input: SheetsChartsInput): Intent[] {
     // Input is now the action directly (no request wrapper)
     const req = input;
-    if ("spreadsheetId" in req) {
+    if ("spreadsheetId" in req && req.spreadsheetId) {
       const destructive = req.action === "delete";
       const type =
         req.action === "create"
@@ -132,7 +141,7 @@ export class ChartsHandler extends BaseHandler<
   // ============================================================
 
   private async handleCreate(
-    input: Extract<SheetsChartsInput, { action: "create" }>,
+    input: ChartsCreateInput,
   ): Promise<ChartsResponse> {
     const dataRange = await this.toGridRange(
       input.spreadsheetId,
@@ -174,7 +183,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleUpdate(
-    input: Extract<SheetsChartsInput, { action: "update" }>,
+    input: ChartsUpdateInput,
   ): Promise<ChartsResponse> {
     const requests: sheets_v4.Schema$Request[] = [];
     const specUpdates: sheets_v4.Schema$ChartSpec = {};
@@ -223,7 +232,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleDelete(
-    input: Extract<SheetsChartsInput, { action: "delete" }>,
+    input: ChartsDeleteInput,
   ): Promise<ChartsResponse> {
     if (input.safety?.dryRun) {
       return this.success("delete", {}, undefined, true);
@@ -246,7 +255,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleList(
-    input: Extract<SheetsChartsInput, { action: "list" }>,
+    input: ChartsListInput,
   ): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -295,7 +304,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleGet(
-    input: Extract<SheetsChartsInput, { action: "get" }>,
+    input: ChartsGetInput,
   ): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -337,7 +346,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleMove(
-    input: Extract<SheetsChartsInput, { action: "move" }>,
+    input: ChartsMoveInput,
   ): Promise<ChartsResponse> {
     const position = await this.toOverlayPosition(
       input.spreadsheetId,
@@ -364,7 +373,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleResize(
-    input: Extract<SheetsChartsInput, { action: "resize" }>,
+    input: ChartsResizeInput,
   ): Promise<ChartsResponse> {
     const currentPosition = await this.fetchChartPosition(
       input.spreadsheetId,
@@ -398,7 +407,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleUpdateDataRange(
-    input: Extract<SheetsChartsInput, { action: "update_data_range" }>,
+    input: ChartsUpdateDataRangeInput,
   ): Promise<ChartsResponse> {
     const dataRange = await this.toGridRange(
       input.spreadsheetId,
@@ -433,7 +442,7 @@ export class ChartsHandler extends BaseHandler<
   }
 
   private async handleExport(
-    _input: Extract<SheetsChartsInput, { action: "export" }>,
+    _input: ChartsExportInput,
   ): Promise<ChartsResponse> {
     // Exporting charts requires Drive export endpoints which are not wired here.
     return this.error({
@@ -495,11 +504,8 @@ export class ChartsHandler extends BaseHandler<
   private buildBasicChartSpec(
     dataRange: GridRangeInput,
     chartType: sheets_v4.Schema$BasicChartSpec["chartType"] | undefined,
-    data: Extract<
-      SheetsChartsInput,
-      { action: "create" | "update_data_range" }
-    >["data"],
-    options?: Extract<SheetsChartsInput, { action: "create" | "update" }>["options"],
+    data: ChartsCreateInput["data"],
+    options?: ChartsCreateInput["options"],
   ): sheets_v4.Schema$ChartSpec {
     const domainColumn = data.categories ?? 0;
     const domainRange: sheets_v4.Schema$GridRange = {
@@ -555,11 +561,8 @@ export class ChartsHandler extends BaseHandler<
   private buildChartSpec(
     dataRange: GridRangeInput,
     chartType: string | undefined,
-    data: Extract<
-      SheetsChartsInput,
-      { action: "create" | "update_data_range" }
-    >["data"],
-    options?: Extract<SheetsChartsInput, { action: "create" | "update" }>["options"],
+    data: ChartsCreateInput["data"],
+    options?: ChartsCreateInput["options"],
   ): sheets_v4.Schema$ChartSpec {
     const title = options?.title;
     const gridRange = toGridRange(dataRange);

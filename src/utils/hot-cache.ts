@@ -139,6 +139,7 @@ export class HotCache<T = unknown> {
     }
 
     if (this.config.trackStats) this.stats.misses++;
+    // OK: Explicit empty - typed as optional, cache miss in hot-cache tiers
     return undefined;
   }
 

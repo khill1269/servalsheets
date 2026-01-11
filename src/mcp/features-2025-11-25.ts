@@ -181,6 +181,13 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
       sizes: ["24x24"],
     },
   ],
+  sheets_session: [
+    {
+      src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJNMjAgMjFWMTlBNCA0IDAgMCAwIDE2IDE1SDhBNCA0IDAgMCAwIDQgMTlWMjEiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiLz48L3N2Zz4=",
+      mimeType: "image/svg+xml",
+      sizes: ["24x24"],
+    },
+  ],
 };
 
 // ============================================================================
@@ -226,6 +233,7 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_sharing: { taskSupport: "forbidden" },
   sheets_comments: { taskSupport: "forbidden" },
   sheets_advanced: { taskSupport: "forbidden" },
+  sheets_session: { taskSupport: "forbidden" },
 };
 
 // ============================================================================

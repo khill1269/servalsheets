@@ -211,7 +211,9 @@ export class ValuesHandler extends BaseHandler<
   /**
    * Execute action and return response (extracted for task/non-task paths)
    */
-  private async executeAction(request: SheetsValuesInput): Promise<ValuesResponse> {
+  private async executeAction(
+    request: SheetsValuesInput,
+  ): Promise<ValuesResponse> {
     switch (request.action) {
       case "read":
         return await this.handleRead(request);
@@ -272,7 +274,7 @@ export class ValuesHandler extends BaseHandler<
    * This ensures graceful degradation and system resilience.
    */
   private async handleRead(
-    input: Extract<SheetsValuesInput, { action: "read" }>,
+    input: SheetsValuesInput & { action: "read" },
   ): Promise<ValuesResponse> {
     // Use streaming mode for large reads if requested
     if (input.streaming) {
@@ -285,6 +287,7 @@ export class ValuesHandler extends BaseHandler<
     const params: sheets_v4.Params$Resource$Spreadsheets$Values$Get = {
       spreadsheetId: input.spreadsheetId,
       range,
+      fields: "range,majorDimension,values",
     };
     if (input.valueRenderOption)
       params.valueRenderOption = input.valueRenderOption;
@@ -391,7 +394,7 @@ export class ValuesHandler extends BaseHandler<
    * Chunks data to respect request deadlines and memory limits
    */
   private async handleStreamingRead(
-    input: Extract<SheetsValuesInput, { action: "read" }>,
+    input: SheetsValuesInput & { action: "read" },
   ): Promise<ValuesResponse> {
     const chunkSize = input.chunkSize ?? 1000;
     const range = await this.resolveRange(input.spreadsheetId, input.range);
@@ -435,6 +438,7 @@ export class ValuesHandler extends BaseHandler<
       const params: sheets_v4.Params$Resource$Spreadsheets$Values$Get = {
         spreadsheetId: input.spreadsheetId,
         range: chunkRange,
+        fields: "range,majorDimension,values",
       };
       if (input.valueRenderOption)
         params.valueRenderOption = input.valueRenderOption;
@@ -477,7 +481,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleWrite(
-    input: Extract<SheetsValuesInput, { action: "write" }>,
+    input: SheetsValuesInput & { action: "write" },
   ): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
@@ -502,6 +506,8 @@ export class ValuesHandler extends BaseHandler<
           valueInputOption: input.valueInputOption ?? "USER_ENTERED",
           includeValuesInResponse: input.includeValuesInResponse ?? false,
           requestBody: { values: input.values },
+          fields:
+            "spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange",
         });
         updateResult = response.data;
       },
@@ -563,7 +569,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleAppend(
-    input: Extract<SheetsValuesInput, { action: "append" }>,
+    input: SheetsValuesInput & { action: "append" },
   ): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
@@ -610,6 +616,8 @@ export class ValuesHandler extends BaseHandler<
             valueInputOption: input.valueInputOption ?? "USER_ENTERED",
             insertDataOption: input.insertDataOption ?? "INSERT_ROWS",
             requestBody: { values: input.values },
+            fields:
+              "spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)",
           });
           updates = response.data.updates;
         }
@@ -664,7 +672,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleClear(
-    input: Extract<SheetsValuesInput, { action: "clear" }>,
+    input: SheetsValuesInput & { action: "clear" },
   ): Promise<ValuesResponse> {
     const resolved = await this.context.rangeResolver.resolve(
       input.spreadsheetId,
@@ -755,7 +763,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchRead(
-    input: Extract<SheetsValuesInput, { action: "batch_read" }>,
+    input: SheetsValuesInput & { action: "batch_read" },
   ): Promise<ValuesResponse> {
     const ranges = await Promise.all(
       input.ranges.map((r) => this.resolveRange(input.spreadsheetId, r)),
@@ -769,7 +777,42 @@ export class ValuesHandler extends BaseHandler<
       params.valueRenderOption = input.valueRenderOption;
     if (input.majorDimension) params.majorDimension = input.majorDimension;
 
-    // Create deduplication key for batch read
+    // For large batch reads (>10 ranges), chunk and report progress
+    if (ranges.length > 10) {
+      const { sendProgress } = await import("../utils/request-context.js");
+      await sendProgress(0, ranges.length, "Starting batch read...");
+
+      const chunkSize = 10;
+      const allValueRanges: sheets_v4.Schema$ValueRange[] = [];
+
+      for (let i = 0; i < ranges.length; i += chunkSize) {
+        const chunk = ranges.slice(i, Math.min(i + chunkSize, ranges.length));
+
+        const response = await this.sheetsApi.spreadsheets.values.batchGet({
+          ...params,
+          ranges: chunk,
+        });
+
+        allValueRanges.push(...(response.data.valueRanges ?? []));
+
+        // Report progress
+        const completed = Math.min(i + chunkSize, ranges.length);
+        await sendProgress(
+          completed,
+          ranges.length,
+          `Read ${completed}/${ranges.length} ranges`,
+        );
+      }
+
+      return this.success("batch_read", {
+        valueRanges: allValueRanges.map((vr) => ({
+          range: vr.range ?? "",
+          values: (vr.values ?? []) as ValuesArray,
+        })),
+      });
+    }
+
+    // Original single-call implementation for small batches
     const requestKey = createRequestKey("values.batchGet", {
       spreadsheetId: input.spreadsheetId,
       ranges,
@@ -777,7 +820,6 @@ export class ValuesHandler extends BaseHandler<
       majorDimension: input.majorDimension,
     });
 
-    // Deduplicate the API call
     const fetchFn = async (): Promise<unknown> =>
       this.sheetsApi.spreadsheets.values.batchGet(params);
     const response = (
@@ -800,8 +842,13 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchWrite(
-    input: Extract<SheetsValuesInput, { action: "batch_write" }>,
+    input: SheetsValuesInput & { action: "batch_write" },
   ): Promise<ValuesResponse> {
+    const { sendProgress } = await import("../utils/request-context.js");
+
+    // Progress: Preparing data
+    await sendProgress(0, 3, "Preparing batch write data...");
+
     const data = await Promise.all(
       input.data.map(async (d) => ({
         range: await this.resolveRange(input.spreadsheetId, d.range),
@@ -813,6 +860,10 @@ export class ValuesHandler extends BaseHandler<
       (sum, d) => sum + d.values.reduce((s, row) => s + row.length, 0),
       0,
     );
+
+    // Progress: Executing
+    await sendProgress(1, 3, `Writing ${totalCells.toLocaleString()} cells...`);
+
     let batchResult: sheets_v4.Schema$BatchUpdateValuesResponse | undefined;
 
     const execution = await this.context.batchCompiler.executeWithSafety({
@@ -833,6 +884,9 @@ export class ValuesHandler extends BaseHandler<
         batchResult = response.data;
       },
     });
+
+    // Progress: Complete
+    await sendProgress(3, 3, "Batch write complete");
 
     if (!execution.success) {
       return this.error(
@@ -886,7 +940,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchClear(
-    input: Extract<SheetsValuesInput, { action: "batch_clear" }>,
+    input: SheetsValuesInput & { action: "batch_clear" },
   ): Promise<ValuesResponse> {
     const resolvedRanges = await Promise.all(
       input.ranges.map((r) =>
@@ -982,7 +1036,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleFind(
-    input: Extract<SheetsValuesInput, { action: "find" }>,
+    input: SheetsValuesInput & { action: "find" },
   ): Promise<ValuesResponse> {
     // Get all values in range
     const range = input.range
@@ -993,6 +1047,7 @@ export class ValuesHandler extends BaseHandler<
       spreadsheetId: input.spreadsheetId,
       range: range ?? "A:ZZ",
       valueRenderOption: input.includeFormulas ? "FORMULA" : "FORMATTED_VALUE",
+      fields: "range,values",
     };
 
     const response = await this.sheetsApi.spreadsheets.values.get(params);
@@ -1036,7 +1091,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleReplace(
-    input: Extract<SheetsValuesInput, { action: "replace" }>,
+    input: SheetsValuesInput & { action: "replace" },
   ): Promise<ValuesResponse> {
     const resolvedRange = input.range
       ? await this.resolveRange(input.spreadsheetId, input.range)
@@ -1166,6 +1221,7 @@ export class ValuesHandler extends BaseHandler<
         range,
         valueRenderOption: options?.valueRenderOption,
         majorDimension: options?.majorDimension,
+        fields: "range,values",
       });
       return (response.data.values ?? []) as ValuesArray;
     }
@@ -1198,6 +1254,7 @@ export class ValuesHandler extends BaseHandler<
           range: chunk.range,
           valueRenderOption: options?.valueRenderOption,
           majorDimension: options?.majorDimension,
+          fields: "range,values",
         });
         return response.data.values ?? [];
       },

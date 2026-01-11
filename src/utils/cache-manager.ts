@@ -155,6 +155,7 @@ export class CacheManager {
   get<T>(key: string, namespace?: string): T | undefined {
     if (!this.enabled) {
       this.misses++;
+      // OK: Explicit empty - typed as optional, cache disabled
       return undefined;
     }
 
@@ -163,6 +164,7 @@ export class CacheManager {
 
     if (!entry) {
       this.misses++;
+      // OK: Explicit empty - typed as optional, cache miss
       return undefined;
     }
 

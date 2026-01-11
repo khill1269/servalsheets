@@ -47,72 +47,89 @@ const RangeRefSchema = z.union([
 ]);
 
 /**
- * Input schema - discriminated union for actions
- * Direct export (no wrapper) exposes all fields at top level for proper MCP client UX
+ * Input schema - flattened union for MCP SDK compatibility
+ * The MCP SDK has issues with z.discriminatedUnion() that can cause validation problems
+ * Workaround: Use a single object with all fields optional, validate with refine()
  */
-export const SheetsAnalyzeInputSchema = z.discriminatedUnion("action", [
-  z.object({
+export const SheetsAnalyzeInputSchema = z
+  .object({
+    // Required action discriminator
     action: z
-      .literal("analyze")
-      .describe("Analyze spreadsheet data using AI sampling"),
-    spreadsheetId: SpreadsheetIdSchema,
+      .enum(["analyze", "generate_formula", "suggest_chart", "get_stats"])
+      .describe("The analysis operation to perform"),
+
+    // Fields for ANALYZE action
+    spreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Spreadsheet ID from URL (required for: analyze, generate_formula, suggest_chart)",
+    ),
     range: RangeRefSchema.optional().describe(
-      "Range to analyze (entire sheet if omitted)",
+      "Range to analyze or use for context (analyze, generate_formula, suggest_chart)",
     ),
     analysisTypes: z
       .array(AnalysisTypeSchema)
       .min(1)
+      .optional()
       .default(["summary", "quality"])
-      .describe("Types of analysis to perform"),
+      .describe("Types of analysis to perform (analyze only)"),
     context: z
       .string()
       .optional()
-      .describe("Additional context for the analysis"),
+      .describe("Additional context for the analysis (analyze only)"),
     maxTokens: z
       .number()
       .int()
       .positive()
       .max(8192)
       .optional()
-      .describe("Maximum tokens for AI response (default: 4096)"),
-  }),
-  z.object({
-    action: z
-      .literal("generate_formula")
-      .describe(
-        "Generate a spreadsheet formula from natural language description",
-      ),
-    spreadsheetId: SpreadsheetIdSchema,
+      .describe("Maximum tokens for AI response, default: 4096 (analyze only)"),
+
+    // Fields for GENERATE_FORMULA action
     description: z
       .string()
       .min(1)
-      .describe("Natural language description of the formula"),
-    range: RangeRefSchema.optional().describe("Range context for the formula"),
-    targetCell: z.string().optional().describe("Target cell for the formula"),
-  }),
-  z.object({
-    action: z
-      .literal("suggest_chart")
+      .optional()
       .describe(
-        "Suggest chart types and configurations for data visualization",
+        "Natural language description of the formula (required for: generate_formula)",
       ),
-    spreadsheetId: SpreadsheetIdSchema,
-    range: RangeRefSchema.describe("Data range to visualize"),
+    targetCell: z
+      .string()
+      .optional()
+      .describe("Target cell for the formula (generate_formula only)"),
+
+    // Fields for SUGGEST_CHART action
     goal: z
       .string()
       .optional()
       .describe(
-        'Visualization goal (e.g., "show trends", "compare categories")',
+        'Visualization goal, e.g., "show trends", "compare categories" (suggest_chart only)',
       ),
     preferredTypes: z
       .array(z.string())
       .optional()
-      .describe("Preferred chart types"),
-  }),
-  z.object({
-    action: z.literal("get_stats").describe("Get analysis request statistics"),
-  }),
-]);
+      .describe("Preferred chart types (suggest_chart only)"),
+
+    // GET_STATS action has no additional fields
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "analyze":
+          return !!data.spreadsheetId;
+        case "generate_formula":
+          return !!data.spreadsheetId && !!data.description;
+        case "suggest_chart":
+          return !!data.spreadsheetId && !!data.range;
+        case "get_stats":
+          return true; // No required fields beyond action
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 /**
  * Analysis finding schema
@@ -232,3 +249,25 @@ export type SheetsAnalyzeOutput = z.infer<typeof SheetsAnalyzeOutputSchema>;
 export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
 export type AnalysisType = z.infer<typeof AnalysisTypeSchema>;
 export type AnalysisFinding = z.infer<typeof AnalysisFindingSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type AnalyzeActionInput = SheetsAnalyzeInput & {
+  action: "analyze";
+  spreadsheetId: string;
+};
+export type AnalyzeGenerateFormulaInput = SheetsAnalyzeInput & {
+  action: "generate_formula";
+  spreadsheetId: string;
+  description: string;
+};
+export type AnalyzeSuggestChartInput = SheetsAnalyzeInput & {
+  action: "suggest_chart";
+  spreadsheetId: string;
+  range:
+    | { a1: string }
+    | { sheetName: string; range?: string };
+};
+export type AnalyzeGetStatsInput = SheetsAnalyzeInput & {
+  action: "get_stats";
+};

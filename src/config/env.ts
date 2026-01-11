@@ -80,12 +80,15 @@ const EnvSchema = z.object({
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_ISSUER: z.string().default("https://servalsheets.example.com"),
   OAUTH_CLIENT_ID: z.string().default("servalsheets"),
-  ALLOWED_REDIRECT_URIS: z
-    .string()
-    .default("http://localhost:3000/callback"),
+  ALLOWED_REDIRECT_URIS: z.string().default("http://localhost:3000/callback"),
   CORS_ORIGINS: z.string().default("https://claude.ai,https://claude.com"),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days
+
+  // Google Cloud Managed Auth Mode
+  // When true: Uses Application Default Credentials, disables sheets_auth tool
+  // Set to true when deploying to Cloud Run, GKE, or Cloud Functions
+  MANAGED_AUTH: z.coerce.boolean().default(false),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -168,6 +171,24 @@ export function hasGoogleCredentials(): boolean {
     current.GOOGLE_CLIENT_SECRET &&
     current.GOOGLE_REDIRECT_URI
   );
+}
+
+/**
+ * Check if managed authentication mode is enabled
+ * 
+ * When true:
+ * - Uses Google Cloud Application Default Credentials (ADC)
+ * - Disables sheets_auth tool (not needed)
+ * - Skips OAuth infrastructure initialization
+ * 
+ * Set MANAGED_AUTH=true when deploying to:
+ * - Google Cloud Run
+ * - Google Kubernetes Engine (GKE)
+ * - Google Cloud Functions
+ * - Any environment with GOOGLE_APPLICATION_CREDENTIALS set
+ */
+export function isManagedAuth(): boolean {
+  return ensureEnv().MANAGED_AUTH;
 }
 
 /**

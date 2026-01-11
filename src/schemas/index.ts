@@ -461,4 +461,4 @@ export const TOOL_REGISTRY = {
 export const TOOL_COUNT = 26;
 
 // Action count
-export const ACTION_COUNT = 196;
+export const ACTION_COUNT = 53;

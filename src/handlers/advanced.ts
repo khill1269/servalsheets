@@ -192,7 +192,7 @@ export class AdvancedHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddNamedRange(
-    req: Extract<SheetsAdvancedInput, { action: "add_named_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "add_named_range" }>,
   ): Promise<AdvancedResponse> {
     const gridRange = await this.toGridRange(req.spreadsheetId, req.range);
 
@@ -219,7 +219,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleUpdateNamedRange(
-    req: Extract<SheetsAdvancedInput, { action: "update_named_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "update_named_range" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("update_named_range", {}, undefined, true);
@@ -230,10 +230,7 @@ export class AdvancedHandler extends BaseHandler<
       name: req.name,
     };
     if (req.range) {
-      const gridRange = await this.toGridRange(
-        req.spreadsheetId,
-        req.range,
-      );
+      const gridRange = await this.toGridRange(req.spreadsheetId, req.range);
       update.range = toGridRange(gridRange);
     }
 
@@ -255,7 +252,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleDeleteNamedRange(
-    req: Extract<SheetsAdvancedInput, { action: "delete_named_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "delete_named_range" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("delete_named_range", {}, undefined, true);
@@ -276,7 +273,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleListNamedRanges(
-    req: Extract<SheetsAdvancedInput, { action: "list_named_ranges" }>
+    req: Extract<SheetsAdvancedInput, { action: "list_named_ranges" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId,
@@ -289,7 +286,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleGetNamedRange(
-    req: Extract<SheetsAdvancedInput, { action: "get_named_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "get_named_range" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId,
@@ -315,7 +312,7 @@ export class AdvancedHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddProtectedRange(
-    req: Extract<SheetsAdvancedInput, { action: "add_protected_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "add_protected_range" }>,
   ): Promise<AdvancedResponse> {
     const gridRange = await this.toGridRange(req.spreadsheetId, req.range);
     const request: sheets_v4.Schema$ProtectedRange = {
@@ -346,7 +343,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleUpdateProtectedRange(
-    req: Extract<SheetsAdvancedInput, { action: "update_protected_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "update_protected_range" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("update_protected_range", {}, undefined, true);
@@ -363,10 +360,7 @@ export class AdvancedHandler extends BaseHandler<
     if (req.warningOnly !== undefined) fields.push("warningOnly");
     if (req.editors !== undefined) fields.push("editors");
     if (req.range) {
-      const gridRange = await this.toGridRange(
-        req.spreadsheetId,
-        req.range,
-      );
+      const gridRange = await this.toGridRange(req.spreadsheetId, req.range);
       update.range = toGridRange(gridRange);
       fields.push("range");
     }
@@ -389,7 +383,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleDeleteProtectedRange(
-    req: Extract<SheetsAdvancedInput, { action: "delete_protected_range" }>
+    req: Extract<SheetsAdvancedInput, { action: "delete_protected_range" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("delete_protected_range", {}, undefined, true);
@@ -410,7 +404,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleListProtectedRanges(
-    req: Extract<SheetsAdvancedInput, { action: "list_protected_ranges" }>
+    req: Extract<SheetsAdvancedInput, { action: "list_protected_ranges" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId,
@@ -437,7 +431,7 @@ export class AdvancedHandler extends BaseHandler<
   // ============================================================
 
   private async handleSetMetadata(
-    req: Extract<SheetsAdvancedInput, { action: "set_metadata" }>
+    req: Extract<SheetsAdvancedInput, { action: "set_metadata" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId,
@@ -464,7 +458,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleGetMetadata(
-    req: Extract<SheetsAdvancedInput, { action: "get_metadata" }>
+    req: Extract<SheetsAdvancedInput, { action: "get_metadata" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.developerMetadata.search(
       {
@@ -502,7 +496,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleDeleteMetadata(
-    req: Extract<SheetsAdvancedInput, { action: "delete_metadata" }>
+    req: Extract<SheetsAdvancedInput, { action: "delete_metadata" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("delete_metadata", {}, undefined, true);
@@ -531,7 +525,7 @@ export class AdvancedHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddBanding(
-    req: Extract<SheetsAdvancedInput, { action: "add_banding" }>
+    req: Extract<SheetsAdvancedInput, { action: "add_banding" }>,
   ): Promise<AdvancedResponse> {
     const gridRange = await this.toGridRange(req.spreadsheetId, req.range);
 
@@ -560,7 +554,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleUpdateBanding(
-    req: Extract<SheetsAdvancedInput, { action: "update_banding" }>
+    req: Extract<SheetsAdvancedInput, { action: "update_banding" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("update_banding", {}, undefined, true);
@@ -592,7 +586,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleDeleteBanding(
-    req: Extract<SheetsAdvancedInput, { action: "delete_banding" }>
+    req: Extract<SheetsAdvancedInput, { action: "delete_banding" }>,
   ): Promise<AdvancedResponse> {
     if (req.safety?.dryRun) {
       return this.success("delete_banding", {}, undefined, true);
@@ -613,7 +607,7 @@ export class AdvancedHandler extends BaseHandler<
   }
 
   private async handleListBanding(
-    req: Extract<SheetsAdvancedInput, { action: "list_banding" }>
+    req: Extract<SheetsAdvancedInput, { action: "list_banding" }>,
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId,

@@ -56,7 +56,7 @@ export class HealthService {
       status: "healthy",
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env["npm_package_version"] || "1.3.0",
+      version: process.env["npm_package_version"] || "1.4.0",
       checks: [
         {
           name: "process",
@@ -120,7 +120,7 @@ export class HealthService {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env["npm_package_version"] || "1.3.0",
+      version: process.env["npm_package_version"] || "1.4.0",
       checks,
     };
   }

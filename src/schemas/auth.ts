@@ -10,29 +10,21 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsAuthInputSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("status").describe("Check authentication status"),
-  }),
-  z.object({
-    action: z.literal("login").describe("Initiate OAuth login flow"),
-    scopes: z
-      .array(z.string())
-      .optional()
-      .describe("Optional additional OAuth scopes to request"),
-  }),
-  z.object({
-    action: z
-      .literal("callback")
-      .describe("Complete OAuth flow with authorization code"),
-    code: z.string().min(1).describe("Authorization code returned by Google"),
-  }),
-  z.object({
-    action: z.literal("logout").describe("Clear stored credentials"),
-  }),
-]);
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsAuthInputSchema = z.object({
+  action: z.enum(["status", "login", "callback", "logout"]).describe("The authentication operation to perform"),
+  scopes: z.array(z.string()).optional().describe("Additional OAuth scopes to request (login only)"),
+  code: z.string().min(1).optional().describe("Authorization code from Google (required for: callback)"),
+}).refine((data) => {
+  if (data.action === "callback") {
+    return !!data.code;
+  }
+  return true;
+}, {
+  message: "Authorization code is required for callback action",
+});
 
 const AuthResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -70,3 +62,9 @@ export const SHEETS_AUTH_ANNOTATIONS: ToolAnnotations = {
 export type SheetsAuthInput = z.infer<typeof SheetsAuthInputSchema>;
 export type SheetsAuthOutput = z.infer<typeof SheetsAuthOutputSchema>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
+
+// Type narrowing helpers for handler methods
+export type AuthStatusInput = SheetsAuthInput & { action: "status" };
+export type AuthLoginInput = SheetsAuthInput & { action: "login" };
+export type AuthCallbackInput = SheetsAuthInput & { action: "callback"; code: string };
+export type AuthLogoutInput = SheetsAuthInput & { action: "logout" };

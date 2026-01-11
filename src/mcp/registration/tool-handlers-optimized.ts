@@ -446,12 +446,13 @@ export function getAction(args: unknown): string {
  * Extract spreadsheetId from args (inline for performance)
  */
 export function getSpreadsheetId(args: unknown): string | undefined {
+  // OK: Explicit empty - typed as optional, invalid args object
   if (!args || typeof args !== "object") return undefined;
   const obj = args as Record<string, unknown>;
-  
+
   // Direct field
   if (typeof obj["spreadsheetId"] === "string") return obj["spreadsheetId"];
-  
+
   // Nested in request.params
   const request = obj["request"];
   if (request && typeof request === "object") {
@@ -463,6 +464,7 @@ export function getSpreadsheetId(args: unknown): string | undefined {
       }
     }
   }
-  
+
+  // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
   return undefined;
 }

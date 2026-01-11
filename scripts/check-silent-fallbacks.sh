@@ -17,12 +17,12 @@ rg -n "return \{\}|return undefined" src/ --type ts \
   --glob '!*.test.ts' \
   -B 3 2>/dev/null > "$TEMP_FILE" || true
 
-# Filter out blocks that contain logger calls or explicit OK comments
+# Filter out blocks that contain logger calls, explicit OK comments, or JSDoc comments
 # Process in blocks separated by --
 awk '
 BEGIN { block = "" }
 /^--$/ {
-  if (block != "" && block !~ /logger\./ && block !~ /\/\/ OK: Explicit empty/ && block !~ /\/\/ Acceptable empty return/) {
+  if (block != "" && block !~ /logger\./ && block !~ /\/\/ OK: Explicit empty/ && block !~ /\/\/ Acceptable empty return/ && block !~ / \* /) {
     print block
     print ""
   }
@@ -31,7 +31,7 @@ BEGIN { block = "" }
 }
 { block = block $0 "\n" }
 END {
-  if (block != "" && block !~ /logger\./ && block !~ /\/\/ OK: Explicit empty/ && block !~ /\/\/ Acceptable empty return/) {
+  if (block != "" && block !~ /logger\./ && block !~ /\/\/ OK: Explicit empty/ && block !~ /\/\/ Acceptable empty return/ && block !~ / \* /) {
     print block
   }
 }

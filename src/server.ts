@@ -70,11 +70,6 @@ import { recordSpreadsheetId } from './mcp/completions.js';
 import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources, registerReferenceResources } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
-import { patchMcpServerRequestHandler, patchToJsonSchemaCompat } from './mcp/sdk-compat.js';
-
-// Apply SDK compatibility patches before server initialization
-patchMcpServerRequestHandler();  // PATCH 1: Zod v4 method literal extraction
-patchToJsonSchemaCompat();        // PATCH 2: Discriminated union JSON Schema conversion
 
 export interface ServalSheetsServerOptions {
   name?: string;

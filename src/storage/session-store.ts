@@ -97,12 +97,14 @@ export class InMemorySessionStore implements SessionStore {
     const entry = this.store.get(key);
 
     if (!entry) {
+      // OK: Explicit empty - typed as optional, cache miss
       return undefined;
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
       this.store.delete(key);
+      // OK: Explicit empty - typed as optional, expired entry
       return undefined;
     }
 
@@ -252,6 +254,7 @@ export class RedisSessionStore implements SessionStore {
     const data = await this.client.get(key);
 
     if (!data) {
+      // OK: Explicit empty - typed as optional, cache miss (Redis)
       return undefined;
     }
 
@@ -378,12 +381,14 @@ export class MemorySessionStore implements SessionStore {
     const entry = this.store.get(key);
 
     if (!entry) {
+      // OK: Explicit empty - typed as optional, cache miss
       return undefined;
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
       this.store.delete(key);
+      // OK: Explicit empty - typed as optional, expired entry
       return undefined;
     }
 

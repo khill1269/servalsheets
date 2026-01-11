@@ -93,7 +93,9 @@ export class FormatHandler extends BaseHandler<
   /**
    * Execute action and return response (extracted for task/non-task paths)
    */
-  private async executeAction(request: SheetsFormatInput): Promise<FormatResponse> {
+  private async executeAction(
+    request: SheetsFormatInput,
+  ): Promise<FormatResponse> {
     switch (request.action) {
       case "set_format":
         return await this.handleSetFormat(request);
@@ -127,7 +129,7 @@ export class FormatHandler extends BaseHandler<
   // ============================================================
 
   private async handleSetFormat(
-    input: Extract<SheetsFormatInput, { action: "set_format" }>,
+    input: SheetsFormatInput & { action: "set_format" },
   ): Promise<FormatResponse> {
     if (input.safety?.dryRun) {
       return this.success("set_format", { cellsFormatted: 0 }, undefined, true);
@@ -191,7 +193,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleSetBackground(
-    input: Extract<SheetsFormatInput, { action: "set_background" }>,
+    input: SheetsFormatInput & { action: "set_background" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -222,7 +224,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleSetTextFormat(
-    input: Extract<SheetsFormatInput, { action: "set_text_format" }>,
+    input: SheetsFormatInput & { action: "set_text_format" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -253,7 +255,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleSetNumberFormat(
-    input: Extract<SheetsFormatInput, { action: "set_number_format" }>,
+    input: SheetsFormatInput & { action: "set_number_format" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -284,7 +286,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleSetAlignment(
-    input: Extract<SheetsFormatInput, { action: "set_alignment" }>,
+    input: SheetsFormatInput & { action: "set_alignment" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -335,7 +337,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleSetBorders(
-    input: Extract<SheetsFormatInput, { action: "set_borders" }>,
+    input: SheetsFormatInput & { action: "set_borders" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -364,7 +366,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleClearFormat(
-    input: Extract<SheetsFormatInput, { action: "clear_format" }>,
+    input: SheetsFormatInput & { action: "clear_format" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -426,7 +428,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleApplyPreset(
-    input: Extract<SheetsFormatInput, { action: "apply_preset" }>,
+    input: SheetsFormatInput & { action: "apply_preset" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -583,7 +585,7 @@ export class FormatHandler extends BaseHandler<
   }
 
   private async handleAutoFit(
-    input: Extract<SheetsFormatInput, { action: "auto_fit" }>,
+    input: SheetsFormatInput & { action: "auto_fit" },
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);

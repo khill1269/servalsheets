@@ -170,7 +170,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleInsertRows(
-    input: Extract<SheetsDimensionsInput, { action: "insert_rows" }>,
+    input: SheetsDimensionsInput & { action: "insert_rows" },
   ): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
 
@@ -197,7 +197,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleInsertColumns(
-    input: Extract<SheetsDimensionsInput, { action: "insert_columns" }>,
+    input: SheetsDimensionsInput & { action: "insert_columns" },
   ): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
 
@@ -228,7 +228,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleDeleteRows(
-    input: Extract<SheetsDimensionsInput, { action: "delete_rows" }>,
+    input: SheetsDimensionsInput & { action: "delete_rows" },
   ): Promise<DimensionsResponse> {
     const rowCount = input.endIndex - input.startIndex;
 
@@ -333,7 +333,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleDeleteColumns(
-    input: Extract<SheetsDimensionsInput, { action: "delete_columns" }>,
+    input: SheetsDimensionsInput & { action: "delete_columns" },
   ): Promise<DimensionsResponse> {
     const columnCount = input.endIndex - input.startIndex;
 
@@ -399,7 +399,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleMoveRows(
-    input: Extract<SheetsDimensionsInput, { action: "move_rows" }>,
+    input: SheetsDimensionsInput & { action: "move_rows" },
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -435,7 +435,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleMoveColumns(
-    input: Extract<SheetsDimensionsInput, { action: "move_columns" }>,
+    input: SheetsDimensionsInput & { action: "move_columns" },
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -475,7 +475,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleResizeRows(
-    input: Extract<SheetsDimensionsInput, { action: "resize_rows" }>,
+    input: SheetsDimensionsInput & { action: "resize_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -505,7 +505,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleResizeColumns(
-    input: Extract<SheetsDimensionsInput, { action: "resize_columns" }>,
+    input: SheetsDimensionsInput & { action: "resize_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -535,7 +535,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleAutoResize(
-    input: Extract<SheetsDimensionsInput, { action: "auto_resize" }>,
+    input: SheetsDimensionsInput & { action: "auto_resize" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -569,7 +569,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleHideRows(
-    input: Extract<SheetsDimensionsInput, { action: "hide_rows" }>,
+    input: SheetsDimensionsInput & { action: "hide_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -599,7 +599,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleHideColumns(
-    input: Extract<SheetsDimensionsInput, { action: "hide_columns" }>,
+    input: SheetsDimensionsInput & { action: "hide_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -629,7 +629,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleShowRows(
-    input: Extract<SheetsDimensionsInput, { action: "show_rows" }>,
+    input: SheetsDimensionsInput & { action: "show_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -659,7 +659,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleShowColumns(
-    input: Extract<SheetsDimensionsInput, { action: "show_columns" }>,
+    input: SheetsDimensionsInput & { action: "show_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -693,7 +693,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleFreezeRows(
-    input: Extract<SheetsDimensionsInput, { action: "freeze_rows" }>,
+    input: SheetsDimensionsInput & { action: "freeze_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -718,7 +718,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleFreezeColumns(
-    input: Extract<SheetsDimensionsInput, { action: "freeze_columns" }>,
+    input: SheetsDimensionsInput & { action: "freeze_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -749,7 +749,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleGroupRows(
-    input: Extract<SheetsDimensionsInput, { action: "group_rows" }>,
+    input: SheetsDimensionsInput & { action: "group_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -775,7 +775,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleGroupColumns(
-    input: Extract<SheetsDimensionsInput, { action: "group_columns" }>,
+    input: SheetsDimensionsInput & { action: "group_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -801,7 +801,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleUngroupRows(
-    input: Extract<SheetsDimensionsInput, { action: "ungroup_rows" }>,
+    input: SheetsDimensionsInput & { action: "ungroup_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -827,7 +827,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleUngroupColumns(
-    input: Extract<SheetsDimensionsInput, { action: "ungroup_columns" }>,
+    input: SheetsDimensionsInput & { action: "ungroup_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -857,7 +857,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleAppendRows(
-    input: Extract<SheetsDimensionsInput, { action: "append_rows" }>,
+    input: SheetsDimensionsInput & { action: "append_rows" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -878,7 +878,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleAppendColumns(
-    input: Extract<SheetsDimensionsInput, { action: "append_columns" }>,
+    input: SheetsDimensionsInput & { action: "append_columns" },
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,

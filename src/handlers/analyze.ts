@@ -57,6 +57,7 @@ export class AnalyzeHandler {
     sheetName?: string;
     range?: string;
   }): string | undefined {
+    // OK: Explicit empty - typed as optional, no range specified
     if (!range) return undefined;
     if ("a1" in range && range.a1) return range.a1;
     if ("sheetName" in range && range.sheetName) {
@@ -64,6 +65,7 @@ export class AnalyzeHandler {
         ? `${range.sheetName}!${range.range}`
         : range.sheetName;
     }
+    // OK: Explicit empty - typed as optional, invalid range format
     return undefined;
   }
 
@@ -94,6 +96,9 @@ export class AnalyzeHandler {
 
       switch (input.action) {
         case "analyze": {
+          // Type assertion: refine() ensures spreadsheetId is present for 'analyze' action
+          const analyzeInput = input as typeof input & { spreadsheetId: string };
+
           // Check if server is available
           if (!this.context.server) {
             response = {
@@ -130,8 +135,8 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const rangeStr = this.resolveRange(input.range);
-          const data = await this.readData(input.spreadsheetId, rangeStr);
+          const rangeStr = this.resolveRange(analyzeInput.range);
+          const data = await this.readData(analyzeInput.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
             response = {
@@ -147,15 +152,15 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const samplingRequest = buildAnalysisSamplingRequest(data, {
-            spreadsheetId: input.spreadsheetId,
+            spreadsheetId: analyzeInput.spreadsheetId,
             sheetName:
-              input.range && "sheetName" in input.range
-                ? input.range.sheetName
+              analyzeInput.range && "sheetName" in analyzeInput.range
+                ? analyzeInput.range.sheetName
                 : undefined,
             range: rangeStr,
-            analysisTypes: input.analysisTypes as AnalysisType[],
-            context: input.context,
-            maxTokens: input.maxTokens,
+            analysisTypes: analyzeInput.analysisTypes as AnalysisType[],
+            context: analyzeInput.context,
+            maxTokens: analyzeInput.maxTokens,
           });
 
           // Call LLM via MCP Sampling
@@ -174,7 +179,7 @@ export class AnalyzeHandler {
 
           if (!parsed.success || !parsed.result) {
             analysisService.recordFailure(
-              input.analysisTypes as AnalysisType[],
+              analyzeInput.analysisTypes as AnalysisType[],
             );
             response = {
               success: false,
@@ -188,7 +193,7 @@ export class AnalyzeHandler {
           }
 
           analysisService.recordSuccess(
-            input.analysisTypes as AnalysisType[],
+            analyzeInput.analysisTypes as AnalysisType[],
             duration,
           );
 
@@ -213,6 +218,9 @@ export class AnalyzeHandler {
         }
 
         case "generate_formula": {
+          // Type assertion: refine() ensures spreadsheetId and description are present
+          const formulaInput = input as typeof input & { spreadsheetId: string; description: string };
+
           // Check if server is available
           if (!this.context.server) {
             response = {
@@ -252,9 +260,9 @@ export class AnalyzeHandler {
           let headers: string[] | undefined;
           let sampleData: unknown[][] | undefined;
 
-          if (input.range) {
-            const rangeStr = this.resolveRange(input.range);
-            const data = await this.readData(input.spreadsheetId, rangeStr);
+          if (formulaInput.range) {
+            const rangeStr = this.resolveRange(formulaInput.range);
+            const data = await this.readData(formulaInput.spreadsheetId, rangeStr);
             if (data.length > 0) {
               headers = data[0]?.map(String);
               sampleData = data.slice(0, 10);
@@ -263,14 +271,14 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const samplingRequest = buildFormulaSamplingRequest(
-            input.description,
+            formulaInput.description,
             {
               headers,
               sampleData,
-              targetCell: input.targetCell,
+              targetCell: formulaInput.targetCell,
               sheetName:
-                input.range && "sheetName" in input.range
-                  ? input.range.sheetName
+                formulaInput.range && "sheetName" in formulaInput.range
+                  ? formulaInput.range.sheetName
                   : undefined,
             },
           );
@@ -320,6 +328,12 @@ export class AnalyzeHandler {
         }
 
         case "suggest_chart": {
+          // Type assertion: refine() ensures spreadsheetId and range are present
+          const chartInput = input as typeof input & {
+            spreadsheetId: string;
+            range: { a1: string } | { sheetName: string; range?: string };
+          };
+
           // Check if server is available
           if (!this.context.server) {
             response = {
@@ -356,8 +370,8 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const rangeStr = this.resolveRange(input.range);
-          const data = await this.readData(input.spreadsheetId, rangeStr);
+          const rangeStr = this.resolveRange(chartInput.range);
+          const data = await this.readData(chartInput.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
             response = {
@@ -373,8 +387,8 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const samplingRequest = buildChartSamplingRequest(data, {
-            goal: input.goal,
-            preferredTypes: input.preferredTypes,
+            goal: chartInput.goal,
+            preferredTypes: chartInput.preferredTypes,
           });
 
           // Call LLM via MCP Sampling

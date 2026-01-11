@@ -9,6 +9,8 @@ import type {
   SheetsConflictInput,
   SheetsConflictOutput,
   ConflictResponse,
+  ConflictDetectInput,
+  ConflictResolveInput,
 } from "../schemas/conflict.js";
 
 export interface ConflictHandlerOptions {
@@ -29,6 +31,7 @@ export class ConflictHandler {
 
       switch (input.action) {
         case "detect": {
+          const detectInput = input as ConflictDetectInput;
           // For now, return empty conflicts list as detectConflict is designed
           // for pre-write checks with expected versions
           // In production, this would query active conflicts from the detector
@@ -43,6 +46,7 @@ export class ConflictHandler {
         }
 
         case "resolve": {
+          const resolveInput = input as ConflictResolveInput;
           // Map schema strategy to actual ResolutionStrategy type
           const strategyMap: Record<
             string,
@@ -60,23 +64,23 @@ export class ConflictHandler {
           };
 
           const result = await conflictDetector.resolveConflict({
-            conflictId: input.conflictId,
-            strategy: strategyMap[input.strategy] || "manual",
-            mergeData: input.mergedValue,
+            conflictId: resolveInput.conflictId,
+            strategy: strategyMap[resolveInput.strategy] || "manual",
+            mergeData: resolveInput.mergedValue,
           });
 
           if (result.success) {
             response = {
               success: true,
               action: "resolve",
-              conflictId: input.conflictId,
+              conflictId: resolveInput.conflictId,
               resolved: true,
               resolution: {
-                strategy: input.strategy,
+                strategy: resolveInput.strategy,
                 finalValue: result.changesApplied,
                 version: result.finalVersion?.version || 0,
               },
-              message: `Conflict resolved using strategy: ${input.strategy}`,
+              message: `Conflict resolved using strategy: ${resolveInput.strategy}`,
             };
           } else {
             response = {

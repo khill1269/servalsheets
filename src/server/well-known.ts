@@ -181,20 +181,48 @@ export function getMcpConfiguration(): McpServerConfiguration {
 
 /**
  * Get OAuth Authorization Server Metadata
- * Points to Google's OAuth server
+ * Points to Google's OAuth server or custom issuer
  */
-export function getOAuthAuthorizationServerMetadata(): OAuthAuthorizationServerMetadata {
+export function getOAuthAuthorizationServerMetadata(issuer?: string): OAuthAuthorizationServerMetadata {
+  const serverIssuer = issuer || "https://accounts.google.com";
+
+  // Use Google endpoints if no issuer provided or if issuer is Google
+  const isGoogleIssuer = !issuer || issuer.includes("google.com") || issuer.includes("accounts.google.com");
+
+  if (isGoogleIssuer) {
+    return {
+      issuer: "https://accounts.google.com",
+      authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+      token_endpoint: "https://oauth2.googleapis.com/token",
+      revocation_endpoint: "https://oauth2.googleapis.com/revoke",
+      jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
+      scopes_supported: [
+        ...DEFAULT_SCOPES,
+        ...ELEVATED_SCOPES,
+        ...READONLY_SCOPES,
+      ].filter((v, i, a) => a.indexOf(v) === i), // Deduplicate
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      token_endpoint_auth_methods_supported: [
+        "client_secret_post",
+        "client_secret_basic",
+      ],
+      code_challenge_methods_supported: ["S256"],
+    };
+  }
+
+  // Custom issuer - build endpoints based on issuer URL
   return {
-    issuer: "https://accounts.google.com",
-    authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-    token_endpoint: "https://oauth2.googleapis.com/token",
-    revocation_endpoint: "https://oauth2.googleapis.com/revoke",
-    jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
+    issuer: serverIssuer,
+    authorization_endpoint: `${serverIssuer}/oauth/authorize`,
+    token_endpoint: `${serverIssuer}/oauth/token`,
+    revocation_endpoint: `${serverIssuer}/oauth/revoke`,
+    jwks_uri: `${serverIssuer}/.well-known/jwks.json`,
     scopes_supported: [
       ...DEFAULT_SCOPES,
       ...ELEVATED_SCOPES,
       ...READONLY_SCOPES,
-    ].filter((v, i, a) => a.indexOf(v) === i), // Deduplicate
+    ].filter((v, i, a) => a.indexOf(v) === i),
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     token_endpoint_auth_methods_supported: [
@@ -229,9 +257,9 @@ export function getOAuthProtectedResourceMetadata(
  * Express handler for /.well-known/mcp-configuration
  */
 export function mcpConfigurationHandler(_req: Request, res: Response): void {
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
-  res.setHeader("Access-Control-Allow-Origin", "*"); // Allow discovery from any origin
+  res.set("Content-Type", "application/json");
+  res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+  res.set("Access-Control-Allow-Origin", "*"); // Allow discovery from any origin
   res.json(getMcpConfiguration());
 }
 
@@ -242,9 +270,9 @@ export function oauthAuthorizationServerHandler(
   _req: Request,
   res: Response,
 ): void {
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.set("Content-Type", "application/json");
+  res.set("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
+  res.set("Access-Control-Allow-Origin", "*");
   res.json(getOAuthAuthorizationServerMetadata());
 }
 
@@ -264,9 +292,9 @@ export function oauthProtectedResourceHandler(
     req.headers["x-forwarded-host"] || req.headers.host || "localhost:3000";
   const serverUrl = `${protocol}://${host}`;
 
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.set("Content-Type", "application/json");
+  res.set("Cache-Control", "public, max-age=86400");
+  res.set("Access-Control-Allow-Origin", "*");
   res.json(getOAuthProtectedResourceMetadata(serverUrl));
 }
 
@@ -286,3 +314,22 @@ export function registerWellKnownHandlers(app: {
     oauthProtectedResourceHandler,
   );
 }
+
+// Aliases for backward compatibility with tests
+/** @deprecated Use getMcpConfiguration instead */
+export const buildMcpConfiguration = getMcpConfiguration;
+
+/** @deprecated Use getOAuthAuthorizationServerMetadata instead */
+export const buildOAuthAuthorizationServerMetadata = getOAuthAuthorizationServerMetadata;
+
+/** @deprecated Use getOAuthProtectedResourceMetadata instead */
+export const buildOAuthProtectedResourceMetadata = getOAuthProtectedResourceMetadata;
+
+/** @deprecated Use mcpConfigurationHandler instead */
+export const handleMcpConfiguration = mcpConfigurationHandler;
+
+/** @deprecated Use oauthAuthorizationServerHandler instead */
+export const handleOAuthAuthorizationServer = oauthAuthorizationServerHandler;
+
+/** @deprecated Use oauthProtectedResourceHandler instead */
+export const handleOAuthProtectedResource = oauthProtectedResourceHandler;

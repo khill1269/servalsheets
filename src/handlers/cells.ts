@@ -13,6 +13,18 @@ import type {
   SheetsCellsInput,
   SheetsCellsOutput,
   CellsResponse,
+  CellsAddNoteInput,
+  CellsGetNoteInput,
+  CellsClearNoteInput,
+  CellsSetValidationInput,
+  CellsClearValidationInput,
+  CellsSetHyperlinkInput,
+  CellsClearHyperlinkInput,
+  CellsMergeInput,
+  CellsUnmergeInput,
+  CellsGetMergesInput,
+  CellsCutInput,
+  CellsCopyInput,
 } from "../schemas/index.js";
 import {
   parseA1Notation,
@@ -44,40 +56,40 @@ export class CellsHandler extends BaseHandler<
       let response: CellsResponse;
       switch (req.action) {
         case "add_note":
-          response = await this.handleAddNote(req);
+          response = await this.handleAddNote(req as CellsAddNoteInput);
           break;
         case "get_note":
-          response = await this.handleGetNote(req);
+          response = await this.handleGetNote(req as CellsGetNoteInput);
           break;
         case "clear_note":
-          response = await this.handleClearNote(req);
+          response = await this.handleClearNote(req as CellsClearNoteInput);
           break;
         case "set_validation":
-          response = await this.handleSetValidation(req);
+          response = await this.handleSetValidation(req as CellsSetValidationInput);
           break;
         case "clear_validation":
-          response = await this.handleClearValidation(req);
+          response = await this.handleClearValidation(req as CellsClearValidationInput);
           break;
         case "set_hyperlink":
-          response = await this.handleSetHyperlink(req);
+          response = await this.handleSetHyperlink(req as CellsSetHyperlinkInput);
           break;
         case "clear_hyperlink":
-          response = await this.handleClearHyperlink(req);
+          response = await this.handleClearHyperlink(req as CellsClearHyperlinkInput);
           break;
         case "merge":
-          response = await this.handleMerge(req);
+          response = await this.handleMerge(req as CellsMergeInput);
           break;
         case "unmerge":
-          response = await this.handleUnmerge(req);
+          response = await this.handleUnmerge(req as CellsUnmergeInput);
           break;
         case "get_merges":
-          response = await this.handleGetMerges(req);
+          response = await this.handleGetMerges(req as CellsGetMergesInput);
           break;
         case "cut":
-          response = await this.handleCut(req);
+          response = await this.handleCut(req as CellsCutInput);
           break;
         case "copy":
-          response = await this.handleCopy(req);
+          response = await this.handleCopy(req as CellsCopyInput);
           break;
         default:
           response = this.error({
@@ -127,7 +139,7 @@ export class CellsHandler extends BaseHandler<
       ].includes(req.action),
     };
 
-    if ("spreadsheetId" in req) {
+    if ("spreadsheetId" in req && req.spreadsheetId) {
       return [
         {
           type: "UPDATE_CELLS",
@@ -145,7 +157,7 @@ export class CellsHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddNote(
-    input: Extract<SheetsCellsInput, { action: "add_note" }>,
+    input: CellsAddNoteInput,
   ): Promise<CellsResponse> {
     const gridRange = await this.cellToGridRange(
       input.spreadsheetId,
@@ -171,7 +183,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleGetNote(
-    input: Extract<SheetsCellsInput, { action: "get_note" }>,
+    input: CellsGetNoteInput,
   ): Promise<CellsResponse> {
     // Create deduplication key
     const requestKey = createRequestKey("spreadsheets.get", {
@@ -213,7 +225,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleClearNote(
-    input: Extract<SheetsCellsInput, { action: "clear_note" }>,
+    input: CellsClearNoteInput,
   ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success("clear_note", {}, undefined, true);
@@ -247,7 +259,7 @@ export class CellsHandler extends BaseHandler<
   // ============================================================
 
   private async handleSetValidation(
-    input: Extract<SheetsCellsInput, { action: "set_validation" }>,
+    input: CellsSetValidationInput,
   ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success("set_validation", {}, undefined, true);
@@ -294,7 +306,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleClearValidation(
-    input: Extract<SheetsCellsInput, { action: "clear_validation" }>,
+    input: CellsClearValidationInput,
   ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success("clear_validation", {}, undefined, true);
@@ -325,7 +337,7 @@ export class CellsHandler extends BaseHandler<
   // ============================================================
 
   private async handleSetHyperlink(
-    input: Extract<SheetsCellsInput, { action: "set_hyperlink" }>,
+    input: CellsSetHyperlinkInput,
   ): Promise<CellsResponse> {
     const validation = validateHyperlinkUrl(input.url);
     if (!validation.ok) {
@@ -380,7 +392,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleClearHyperlink(
-    input: Extract<SheetsCellsInput, { action: "clear_hyperlink" }>,
+    input: CellsClearHyperlinkInput,
   ): Promise<CellsResponse> {
     if (input.safety?.dryRun) {
       return this.success("clear_hyperlink", {}, undefined, true);
@@ -431,7 +443,7 @@ export class CellsHandler extends BaseHandler<
   // ============================================================
 
   private async handleMerge(
-    input: Extract<SheetsCellsInput, { action: "merge" }>,
+    input: CellsMergeInput,
   ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -454,7 +466,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleUnmerge(
-    input: Extract<SheetsCellsInput, { action: "unmerge" }>,
+    input: CellsUnmergeInput,
   ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -476,7 +488,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleGetMerges(
-    input: Extract<SheetsCellsInput, { action: "get_merges" }>,
+    input: CellsGetMergesInput,
   ): Promise<CellsResponse> {
     // Create deduplication key
     const requestKey = createRequestKey("spreadsheets.get", {
@@ -539,7 +551,7 @@ export class CellsHandler extends BaseHandler<
   // ============================================================
 
   private async handleCut(
-    input: Extract<SheetsCellsInput, { action: "cut" }>,
+    input: CellsCutInput,
   ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -603,7 +615,7 @@ export class CellsHandler extends BaseHandler<
   }
 
   private async handleCopy(
-    input: Extract<SheetsCellsInput, { action: "copy" }>,
+    input: CellsCopyInput,
   ): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);

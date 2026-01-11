@@ -269,6 +269,7 @@ export class HistoryService {
   getLastUndoable(spreadsheetId: string): OperationHistory | undefined {
     const stack = this.undoStacks.get(spreadsheetId);
     if (!stack || stack.length === 0) {
+      // OK: Explicit empty - typed as optional, no undoable operations available
       return undefined;
     }
 
@@ -282,6 +283,7 @@ export class HistoryService {
   getLastRedoable(spreadsheetId: string): OperationHistory | undefined {
     const stack = this.redoStacks.get(spreadsheetId);
     if (!stack || stack.length === 0) {
+      // OK: Explicit empty - typed as optional, no redoable operations available
       return undefined;
     }
 
@@ -454,6 +456,7 @@ export class HistoryService {
     if (operation && operation.spreadsheetId === spreadsheetId) {
       return operation;
     }
+    // OK: Explicit empty - typed as optional, operation not found
     return undefined;
   }
 

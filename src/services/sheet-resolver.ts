@@ -457,6 +457,7 @@ export class SheetResolver {
     );
 
     if (!sheet) {
+      // OK: Explicit empty - typed as optional, sheet not found by name
       return undefined;
     }
 
@@ -481,6 +482,7 @@ export class SheetResolver {
     const sheet = sheets.find((s) => s.sheetId === sheetId);
 
     if (!sheet) {
+      // OK: Explicit empty - typed as optional, sheet not found by ID
       return undefined;
     }
 

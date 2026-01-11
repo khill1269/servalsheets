@@ -13,6 +13,11 @@
 // Re-export base types
 export * from "./base.js";
 
+// Re-export optimization utilities (Phase 2)
+export * from "./optimization.js";
+export * from "./values-optimized.js";
+export { OptimizedBaseHandler } from "./base-optimized.js";
+
 // Re-export handler types for backwards compatibility
 export type { ValuesHandler } from "./values.js";
 export type { SpreadsheetHandler } from "./spreadsheet.js";
@@ -34,9 +39,12 @@ export type { ValidationHandler } from "./validation.js";
 export type { ConflictHandler } from "./conflict.js";
 export type { ImpactHandler } from "./impact.js";
 export type { HistoryHandler } from "./history.js";
-// New MCP-native handlers
+// MCP-native handlers (Elicitation & Sampling)
 export type { ConfirmHandler } from "./confirm.js";
 export type { AnalyzeHandler } from "./analyze.js";
+export type { CompositeHandler } from "./composite.js";
+// Session context handler for NL excellence
+export type { SessionHandler } from "./session.js";
 
 import type { sheets_v4, drive_v3 } from "googleapis";
 import type { HandlerContext } from "./base.js";
@@ -70,10 +78,14 @@ export interface Handlers {
   conflict: import("./conflict.js").ConflictHandler;
   impact: import("./impact.js").ImpactHandler;
   history: import("./history.js").HistoryHandler;
-  // New MCP-native handlers
+  // MCP-native handlers (Elicitation & Sampling)
   confirm: import("./confirm.js").ConfirmHandler;
   analyze: import("./analyze.js").AnalyzeHandler;
   fix: import("./fix.js").FixHandler;
+  // Composite operations handler
+  composite: import("./composite.js").CompositeHandler;
+  // Session context handler for NL excellence
+  session: import("./session.js").SessionHandler;
 }
 
 /**
@@ -183,6 +195,14 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async fix() {
       const { FixHandler } = await import("./fix.js");
       return new FixHandler(options.context, options.sheetsApi);
+    },
+    async composite() {
+      const { CompositeHandler } = await import("./composite.js");
+      return new CompositeHandler(options.context, options.sheetsApi);
+    },
+    async session() {
+      const { SessionHandler } = await import("./session.js");
+      return new SessionHandler();
     },
   };
 

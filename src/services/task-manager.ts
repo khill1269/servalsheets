@@ -336,6 +336,7 @@ export class TaskManager {
   getTaskStatus(taskId: string): ManagedTaskInfo | undefined {
     const task = this.tasks.get(taskId);
     if (!task) {
+      // OK: Explicit empty - typed as optional, task not found
       return undefined;
     }
 

@@ -126,6 +126,7 @@ export class SnapshotService {
       const found = snapshots.find((s) => s.id === snapshotId);
       if (found) return found;
     }
+    // OK: Explicit empty - typed as optional, snapshot not found
     return undefined;
   }
 
@@ -193,6 +194,7 @@ export class SnapshotService {
    */
   getUrl(snapshotId: string): string | undefined {
     const snapshot = this.get(snapshotId);
+    // OK: Explicit empty - typed as optional, snapshot not found
     if (!snapshot) return undefined;
     return `https://docs.google.com/spreadsheets/d/${snapshot.copySpreadsheetId}`;
   }

@@ -10,61 +10,55 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsHistoryInputSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("list"),
-    spreadsheetId: z.string().optional().describe("Filter by spreadsheet ID"),
-    count: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe("Number of operations to return (default: 10)"),
-    failuresOnly: z
-      .boolean()
-      .optional()
-      .describe("Show only failed operations (default: false)"),
-  }),
-  z.object({
-    action: z.literal("get"),
-    operationId: z.string().min(1).describe("Operation ID to retrieve"),
-  }),
-  z.object({
-    action: z.literal("stats"),
-  }),
-  z.object({
-    action: z.literal("undo"),
-    spreadsheetId: z
-      .string()
-      .min(1)
-      .describe("Spreadsheet ID to undo last operation on"),
-  }),
-  z.object({
-    action: z.literal("redo"),
-    spreadsheetId: z
-      .string()
-      .min(1)
-      .describe("Spreadsheet ID to redo previously undone operation on"),
-  }),
-  z.object({
-    action: z.literal("revert_to"),
-    operationId: z
-      .string()
-      .min(1)
-      .describe(
-        "Operation ID to revert to (restores state before this operation)",
-      ),
-  }),
-  z.object({
-    action: z.literal("clear"),
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe("Clear history for specific spreadsheet (or all if omitted)"),
-  }),
-]);
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsHistoryInputSchema = z.object({
+  // Required action discriminator
+  action: z.enum([
+    "list",
+    "get",
+    "stats",
+    "undo",
+    "redo",
+    "revert_to",
+    "clear"
+  ]).describe("The operation to perform on history"),
+
+  // Fields for LIST action
+  spreadsheetId: z.string().optional().describe("Filter by spreadsheet ID (list, undo, redo, clear)"),
+  count: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Number of operations to return (default: 10) (list only)"),
+  failuresOnly: z
+    .boolean()
+    .optional()
+    .describe("Show only failed operations (default: false) (list only)"),
+
+  // Fields for GET and REVERT_TO actions
+  operationId: z.string().min(1).optional().describe("Operation ID to retrieve or revert to (required for: get, revert_to)"),
+}).refine((data) => {
+  // Validate required fields based on action
+  switch (data.action) {
+    case "get":
+    case "revert_to":
+      return !!data.operationId;
+    case "undo":
+    case "redo":
+      return !!data.spreadsheetId;
+    case "list":
+    case "stats":
+    case "clear":
+      return true; // No required fields beyond action
+    default:
+      return false;
+  }
+}, {
+  message: "Missing required fields for the specified action",
+});
 
 const HistoryResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -160,3 +154,13 @@ export type SheetsHistoryInput = z.infer<typeof SheetsHistoryInputSchema>;
 export type SheetsHistoryOutput = z.infer<typeof SheetsHistoryOutputSchema>;
 
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type HistoryListInput = SheetsHistoryInput & { action: "list" };
+export type HistoryGetInput = SheetsHistoryInput & { action: "get"; operationId: string };
+export type HistoryStatsInput = SheetsHistoryInput & { action: "stats" };
+export type HistoryUndoInput = SheetsHistoryInput & { action: "undo"; spreadsheetId: string };
+export type HistoryRedoInput = SheetsHistoryInput & { action: "redo"; spreadsheetId: string };
+export type HistoryRevertToInput = SheetsHistoryInput & { action: "revert_to"; operationId: string };
+export type HistoryClearInput = SheetsHistoryInput & { action: "clear" };

@@ -383,6 +383,52 @@ export class ResourceIndicatorValidator {
 
     return result;
   }
+
+  /**
+   * Validate token (alias for validateAndLog for backward compatibility)
+   * Tries JWT validation first, falls back to opaque token validation
+   */
+  async validateToken(token: string): Promise<TokenValidationResult> {
+    return this.validateAndLog(token, "validate_token");
+  }
+
+  /**
+   * Introspect token via Google's tokeninfo endpoint
+   * Returns result with 'active' field for OAuth introspection compatibility
+   */
+  async introspectToken(token: string): Promise<{
+    active: boolean;
+    aud?: string;
+    scope?: string;
+    exp?: number;
+    email?: string;
+    error?: string;
+  }> {
+    const result = await this.validateOpaqueToken(token);
+
+    return {
+      active: result.valid,
+      aud: typeof result.audience === "string" ? result.audience : result.audience?.[0],
+      scope: result.scopes?.join(" "),
+      exp: result.expiresAt,
+      email: result.email,
+      error: result.valid ? undefined : result.reason,
+    };
+  }
+
+  /**
+   * Generate resource identifier from hostname and port
+   * Static utility method for creating RFC 8707 resource identifiers
+   */
+  static generateResourceIdentifier(host: string, port: number = 443): string {
+    // Standard HTTPS port - omit port number
+    if (port === 443) {
+      return `https://${host}`;
+    }
+
+    // Non-standard port - include port number
+    return `https://${host}:${port}`;
+  }
 }
 
 /**

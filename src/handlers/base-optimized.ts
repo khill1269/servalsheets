@@ -257,6 +257,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
    */
   protected createMutationSummary(results: ExecutionResult[]): MutationSummary | undefined {
     const firstResult = results[0];
+    // OK: Explicit empty - typed as optional, no execution results
     if (!firstResult) return undefined;
 
     return {

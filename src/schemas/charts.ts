@@ -69,139 +69,124 @@ const ChartOptionsSchema = z.object({
     .optional(),
 });
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsChartsInputSchema = z.discriminatedUnion("action", [
-  // CREATE
-  BaseSchema.extend({
-    action: z.literal("create").describe("Create a new chart in a sheet"),
-    sheetId: SheetIdSchema.describe(
-      "Numeric sheet ID where chart will be created",
-    ),
-    chartType: ChartTypeSchema.describe(
-      "Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.)",
-    ),
-    data: ChartDataSchema.describe(
-      "Chart data source (range, series, categories)",
-    ),
-    position: ChartPositionSchema.describe(
-      "Chart position and size on the sheet",
-    ),
-    options: ChartOptionsSchema.optional().describe(
-      "Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)",
-    ),
-  }),
-
-  // UPDATE
-  BaseSchema.extend({
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsChartsInputSchema = z
+  .object({
+    // Required action discriminator
     action: z
-      .literal("update")
-      .describe("Update an existing chart's properties"),
-    chartId: z.number().int().describe("Numeric chart ID to update"),
-    chartType: ChartTypeSchema.optional().describe(
-      "New chart type (omit to keep current)",
+      .enum([
+        "create",
+        "update",
+        "delete",
+        "list",
+        "get",
+        "move",
+        "resize",
+        "update_data_range",
+        "export",
+      ])
+      .describe("The operation to perform on the chart"),
+
+    // Fields used by multiple actions
+    spreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Spreadsheet ID from URL (required for all actions)",
+    ),
+    chartId: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "Numeric chart ID (required for: update, delete, get, move, resize, update_data_range, export)",
+      ),
+    position: ChartPositionSchema.optional().describe(
+      "Chart position and size on the sheet (required for: create, move; optional for: update)",
     ),
     data: ChartDataSchema.optional().describe(
-      "New data source (omit to keep current)",
-    ),
-    position: ChartPositionSchema.optional().describe(
-      "New position/size (omit to keep current)",
+      "Chart data source (range, series, categories) (required for: create, update_data_range; optional for: update)",
     ),
     options: ChartOptionsSchema.optional().describe(
-      "New chart options (omit to keep current)",
+      "Chart options (title, subtitle, legend, colors, 3D, stacking, etc.) (optional for: create, update)",
     ),
     safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
+      "Safety options (dryRun, createSnapshot, etc.) (optional for: update, delete, update_data_range)",
     ),
-  }),
 
-  // DELETE
-  BaseSchema.extend({
-    action: z.literal("delete").describe("Delete a chart from the spreadsheet"),
-    chartId: z.number().int().describe("Numeric chart ID to delete"),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
-
-  // LIST
-  BaseSchema.extend({
-    action: z
-      .literal("list")
-      .describe("List all charts in the spreadsheet or a specific sheet"),
+    // CREATE action fields
     sheetId: SheetIdSchema.optional().describe(
-      "Optional sheet ID to filter charts (omit = all sheets)",
+      "Numeric sheet ID where chart will be created (required for: create; optional for: list)",
     ),
-  }),
-
-  // GET
-  BaseSchema.extend({
-    action: z
-      .literal("get")
-      .describe("Get detailed information about a specific chart"),
-    chartId: z.number().int().describe("Numeric chart ID to retrieve"),
-  }),
-
-  // MOVE
-  BaseSchema.extend({
-    action: z.literal("move").describe("Move a chart to a new position"),
-    chartId: z.number().int().describe("Numeric chart ID to move"),
-    position: ChartPositionSchema.describe(
-      "New position and size for the chart",
+    chartType: ChartTypeSchema.optional().describe(
+      "Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.) (required for: create; optional for: update)",
     ),
-  }),
 
-  // RESIZE
-  BaseSchema.extend({
-    action: z
-      .literal("resize")
-      .describe("Resize a chart to specific dimensions"),
-    chartId: z.number().int().describe("Numeric chart ID to resize"),
+    // RESIZE action fields
     width: z
       .number()
       .positive()
-      .describe("New width in pixels (must be positive)"),
+      .optional()
+      .describe(
+        "Width in pixels (must be positive) (required for: resize; optional for: export)",
+      ),
     height: z
       .number()
       .positive()
-      .describe("New height in pixels (must be positive)"),
-  }),
+      .optional()
+      .describe(
+        "Height in pixels (must be positive) (required for: resize; optional for: export)",
+      ),
 
-  // UPDATE_DATA_RANGE
-  BaseSchema.extend({
-    action: z
-      .literal("update_data_range")
-      .describe("Update the data source range for a chart"),
-    chartId: z.number().int().describe("Numeric chart ID to update"),
-    data: ChartDataSchema.describe("New data source specification"),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
-
-  // EXPORT
-  BaseSchema.extend({
-    action: z
-      .literal("export")
-      .describe("Export a chart as an image (PNG or PDF)"),
-    chartId: z.number().int().describe("Numeric chart ID to export"),
+    // EXPORT action fields
     format: z
       .enum(["PNG", "PDF"])
       .optional()
       .default("PNG")
-      .describe("Export format (PNG or PDF, default: PNG)"),
-    width: z
-      .number()
-      .positive()
-      .optional()
-      .describe("Optional custom width in pixels"),
-    height: z
-      .number()
-      .positive()
-      .optional()
-      .describe("Optional custom height in pixels"),
-  }),
-]);
+      .describe("Export format (PNG or PDF, default: PNG) (optional for: export)"),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "create":
+          return (
+            !!data.spreadsheetId &&
+            data.sheetId !== undefined &&
+            !!data.chartType &&
+            !!data.data &&
+            !!data.position
+          );
+        case "update":
+          return !!data.spreadsheetId && data.chartId !== undefined;
+        case "delete":
+          return !!data.spreadsheetId && data.chartId !== undefined;
+        case "list":
+          return !!data.spreadsheetId;
+        case "get":
+          return !!data.spreadsheetId && data.chartId !== undefined;
+        case "move":
+          return (
+            !!data.spreadsheetId && data.chartId !== undefined && !!data.position
+          );
+        case "resize":
+          return (
+            !!data.spreadsheetId &&
+            data.chartId !== undefined &&
+            data.width !== undefined &&
+            data.height !== undefined
+          );
+        case "update_data_range":
+          return !!data.spreadsheetId && data.chartId !== undefined && !!data.data;
+        case "export":
+          return !!data.spreadsheetId && data.chartId !== undefined;
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 const ChartsResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -246,3 +231,57 @@ export const SHEETS_CHARTS_ANNOTATIONS: ToolAnnotations = {
 export type SheetsChartsInput = z.infer<typeof SheetsChartsInputSchema>;
 export type SheetsChartsOutput = z.infer<typeof SheetsChartsOutputSchema>;
 export type ChartsResponse = z.infer<typeof ChartsResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type ChartsCreateInput = SheetsChartsInput & {
+  action: "create";
+  spreadsheetId: string;
+  sheetId: number;
+  chartType: string;
+  data: z.infer<typeof ChartDataSchema>;
+  position: z.infer<typeof ChartPositionSchema>;
+};
+export type ChartsUpdateInput = SheetsChartsInput & {
+  action: "update";
+  spreadsheetId: string;
+  chartId: number;
+};
+export type ChartsDeleteInput = SheetsChartsInput & {
+  action: "delete";
+  spreadsheetId: string;
+  chartId: number;
+};
+export type ChartsListInput = SheetsChartsInput & {
+  action: "list";
+  spreadsheetId: string;
+};
+export type ChartsGetInput = SheetsChartsInput & {
+  action: "get";
+  spreadsheetId: string;
+  chartId: number;
+};
+export type ChartsMoveInput = SheetsChartsInput & {
+  action: "move";
+  spreadsheetId: string;
+  chartId: number;
+  position: z.infer<typeof ChartPositionSchema>;
+};
+export type ChartsResizeInput = SheetsChartsInput & {
+  action: "resize";
+  spreadsheetId: string;
+  chartId: number;
+  width: number;
+  height: number;
+};
+export type ChartsUpdateDataRangeInput = SheetsChartsInput & {
+  action: "update_data_range";
+  spreadsheetId: string;
+  chartId: number;
+  data: z.infer<typeof ChartDataSchema>;
+};
+export type ChartsExportInput = SheetsChartsInput & {
+  action: "export";
+  spreadsheetId: string;
+  chartId: number;
+};

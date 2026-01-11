@@ -9,6 +9,7 @@ import type {
   SheetsImpactInput,
   SheetsImpactOutput,
   ImpactResponse,
+  ImpactAnalyzeInput,
 } from "../schemas/impact.js";
 
 export interface ImpactHandlerOptions {
@@ -25,7 +26,9 @@ export class ImpactHandler {
     const impactAnalyzer = getImpactAnalyzer();
 
     try {
-      const analysis = await impactAnalyzer.analyzeOperation(input.operation);
+      // Type narrowing: after schema validation, we know operation exists for analyze action
+      const analyzeInput = input as ImpactAnalyzeInput;
+      const analysis = await impactAnalyzer.analyzeOperation(analyzeInput.operation);
 
       const response: ImpactResponse = {
         success: true,

@@ -529,6 +529,7 @@ export class MetricsService {
    */
   getOperationMetrics(name: string): OperationMetrics | undefined {
     const op = this.operations.get(name);
+    // OK: Explicit empty - typed as optional, lookup pattern
     if (!op) return undefined;
 
     return this.calculateOperationMetrics(name, op);

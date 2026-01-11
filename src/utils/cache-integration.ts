@@ -61,6 +61,7 @@ export function integratedGet<T>(
     return coldResult;
   }
 
+  // OK: Explicit empty - typed as optional, cache miss across all tiers
   return undefined;
 }
 

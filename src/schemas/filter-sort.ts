@@ -37,124 +37,152 @@ const SortSpecSchema = z.object({
   backgroundColor: ColorSchema.optional(),
 });
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsFilterSortInputSchema = z.discriminatedUnion("action", [
-  // SET_BASIC_FILTER
-  BaseSchema.extend({
-    action: z.literal("set_basic_filter"),
-    sheetId: SheetIdSchema,
-    range: RangeInputSchema.optional(),
-    criteria: z.record(z.number(), FilterCriteriaSchema).optional(),
-  }),
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsFilterSortInputSchema = z
+  .object({
+    // Common fields
+    spreadsheetId: SpreadsheetIdSchema,
+    action: z
+      .enum([
+        "set_basic_filter",
+        "clear_basic_filter",
+        "get_basic_filter",
+        "update_filter_criteria",
+        "sort_range",
+        "create_filter_view",
+        "update_filter_view",
+        "delete_filter_view",
+        "list_filter_views",
+        "get_filter_view",
+        "create_slicer",
+        "update_slicer",
+        "delete_slicer",
+        "list_slicers",
+      ])
+      .describe("The filter/sort operation to perform"),
 
-  // CLEAR_BASIC_FILTER
-  BaseSchema.extend({
-    action: z.literal("clear_basic_filter"),
-    sheetId: SheetIdSchema,
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // GET_BASIC_FILTER
-  BaseSchema.extend({
-    action: z.literal("get_basic_filter"),
-    sheetId: SheetIdSchema,
-  }),
-
-  // UPDATE_FILTER_CRITERIA
-  BaseSchema.extend({
-    action: z.literal("update_filter_criteria"),
-    sheetId: SheetIdSchema,
-    columnIndex: z.number().int().min(0),
-    criteria: FilterCriteriaSchema,
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // SORT_RANGE
-  BaseSchema.extend({
-    action: z.literal("sort_range"),
-    range: RangeInputSchema,
-    sortSpecs: z.array(SortSpecSchema).min(1),
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // CREATE_FILTER_VIEW
-  BaseSchema.extend({
-    action: z.literal("create_filter_view"),
-    sheetId: SheetIdSchema,
-    title: z.string(),
-    range: RangeInputSchema.optional(),
-    criteria: z.record(z.number(), FilterCriteriaSchema).optional(),
-    sortSpecs: z.array(SortSpecSchema).optional(),
-  }),
-
-  // UPDATE_FILTER_VIEW
-  BaseSchema.extend({
-    action: z.literal("update_filter_view"),
-    filterViewId: z.number().int(),
-    title: z.string().optional(),
-    criteria: z.record(z.number(), FilterCriteriaSchema).optional(),
-    sortSpecs: z.array(SortSpecSchema).optional(),
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // DELETE_FILTER_VIEW
-  BaseSchema.extend({
-    action: z.literal("delete_filter_view"),
-    filterViewId: z.number().int(),
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // LIST_FILTER_VIEWS
-  BaseSchema.extend({
-    action: z.literal("list_filter_views"),
-    sheetId: SheetIdSchema.optional(),
-  }),
-
-  // GET_FILTER_VIEW
-  BaseSchema.extend({
-    action: z.literal("get_filter_view"),
-    filterViewId: z.number().int(),
-  }),
-
-  // CREATE_SLICER
-  BaseSchema.extend({
-    action: z.literal("create_slicer"),
-    sheetId: SheetIdSchema,
-    dataRange: RangeInputSchema,
-    filterColumn: z.number().int().min(0),
-    position: z.object({
-      anchorCell: z.string(),
-      offsetX: z.number().optional().default(0),
-      offsetY: z.number().optional().default(0),
-      width: z.number().optional().default(200),
-      height: z.number().optional().default(150),
-    }),
-    title: z.string().optional(),
-  }),
-
-  // UPDATE_SLICER
-  BaseSchema.extend({
-    action: z.literal("update_slicer"),
-    slicerId: z.number().int(),
-    filterColumn: z.number().int().min(0).optional(),
-    title: z.string().optional(),
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // DELETE_SLICER
-  BaseSchema.extend({
-    action: z.literal("delete_slicer"),
-    slicerId: z.number().int(),
-    safety: SafetyOptionsSchema.optional(),
-  }),
-
-  // LIST_SLICERS
-  BaseSchema.extend({
-    action: z.literal("list_slicers"),
-    sheetId: SheetIdSchema.optional(),
-  }),
-]);
+    // Fields for various actions (all optional, validated in refine)
+    sheetId: SheetIdSchema.optional().describe(
+      "Sheet ID (required for: set_basic_filter, clear_basic_filter, get_basic_filter, update_filter_criteria, create_filter_view, create_slicer, list_filter_views, list_slicers)",
+    ),
+    range: RangeInputSchema.optional().describe(
+      "Range to operate on (required for: sort_range, optional for: set_basic_filter, create_filter_view)",
+    ),
+    criteria: z
+      .record(z.number(), FilterCriteriaSchema)
+      .optional()
+      .describe(
+        "Filter criteria by column index (optional for: set_basic_filter, create_filter_view, update_filter_view)",
+      ),
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (optional for: clear_basic_filter, update_filter_criteria, sort_range, update_filter_view, delete_filter_view, update_slicer, delete_slicer)",
+    ),
+    columnIndex: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "Column index for filter criteria (required for: update_filter_criteria)",
+      ),
+    sortSpecs: z
+      .array(SortSpecSchema)
+      .optional()
+      .describe(
+        "Sort specifications (required for: sort_range, optional for: create_filter_view, update_filter_view)",
+      ),
+    title: z
+      .string()
+      .optional()
+      .describe(
+        "Title (required for: create_filter_view, optional for: update_filter_view, create_slicer, update_slicer)",
+      ),
+    filterViewId: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "Filter view ID (required for: update_filter_view, delete_filter_view, get_filter_view)",
+      ),
+    slicerId: z
+      .number()
+      .int()
+      .optional()
+      .describe("Slicer ID (required for: update_slicer, delete_slicer)"),
+    dataRange: RangeInputSchema.optional().describe(
+      "Data range for slicer (required for: create_slicer)",
+    ),
+    filterColumn: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "Filter column index (required for: create_slicer, optional for: update_slicer)",
+      ),
+    position: z
+      .object({
+        anchorCell: z.string(),
+        offsetX: z.number().optional().default(0),
+        offsetY: z.number().optional().default(0),
+        width: z.number().optional().default(200),
+        height: z.number().optional().default(150),
+      })
+      .optional()
+      .describe("Slicer position (required for: create_slicer)"),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields per action
+      switch (data.action) {
+        case "set_basic_filter":
+          return !!data.sheetId;
+        case "clear_basic_filter":
+          return !!data.sheetId;
+        case "get_basic_filter":
+          return !!data.sheetId;
+        case "update_filter_criteria":
+          return (
+            !!data.sheetId &&
+            data.columnIndex !== undefined &&
+            !!data.criteria
+          );
+        case "sort_range":
+          return !!data.range && !!data.sortSpecs && data.sortSpecs.length > 0;
+        case "create_filter_view":
+          return !!data.sheetId && !!data.title;
+        case "update_filter_view":
+          return data.filterViewId !== undefined;
+        case "delete_filter_view":
+          return data.filterViewId !== undefined;
+        case "list_filter_views":
+          return true; // No required fields
+        case "get_filter_view":
+          return data.filterViewId !== undefined;
+        case "create_slicer":
+          return (
+            !!data.sheetId &&
+            !!data.dataRange &&
+            data.filterColumn !== undefined &&
+            !!data.position
+          );
+        case "update_slicer":
+          return data.slicerId !== undefined;
+        case "delete_slicer":
+          return data.slicerId !== undefined;
+        case "list_slicers":
+          return true; // No required fields
+        default:
+          return false;
+      }
+    },
+    {
+      message:
+        "Missing required fields for the specified action. Check field descriptions for requirements.",
+    },
+  );
 
 const FilterSortResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -214,3 +242,72 @@ export type SheetsFilterSortOutput = z.infer<
 >;
 
 export type FilterSortResponse = z.infer<typeof FilterSortResponseSchema>;
+
+// Type narrowing helpers for handler methods
+export type SetBasicFilterInput = SheetsFilterSortInput & {
+  action: "set_basic_filter";
+  sheetId: number;
+};
+export type ClearBasicFilterInput = SheetsFilterSortInput & {
+  action: "clear_basic_filter";
+  sheetId: number;
+};
+export type GetBasicFilterInput = SheetsFilterSortInput & {
+  action: "get_basic_filter";
+  sheetId: number;
+};
+export type UpdateFilterCriteriaInput = SheetsFilterSortInput & {
+  action: "update_filter_criteria";
+  sheetId: number;
+  columnIndex: number;
+  criteria: Record<number, z.infer<typeof FilterCriteriaSchema>>;
+};
+export type SortRangeInput = SheetsFilterSortInput & {
+  action: "sort_range";
+  range: z.infer<typeof RangeInputSchema>;
+  sortSpecs: Array<z.infer<typeof SortSpecSchema>>;
+};
+export type CreateFilterViewInput = SheetsFilterSortInput & {
+  action: "create_filter_view";
+  sheetId: number;
+  title: string;
+};
+export type UpdateFilterViewInput = SheetsFilterSortInput & {
+  action: "update_filter_view";
+  filterViewId: number;
+};
+export type DeleteFilterViewInput = SheetsFilterSortInput & {
+  action: "delete_filter_view";
+  filterViewId: number;
+};
+export type ListFilterViewsInput = SheetsFilterSortInput & {
+  action: "list_filter_views";
+};
+export type GetFilterViewInput = SheetsFilterSortInput & {
+  action: "get_filter_view";
+  filterViewId: number;
+};
+export type CreateSlicerInput = SheetsFilterSortInput & {
+  action: "create_slicer";
+  sheetId: number;
+  dataRange: z.infer<typeof RangeInputSchema>;
+  filterColumn: number;
+  position: {
+    anchorCell: string;
+    offsetX?: number;
+    offsetY?: number;
+    width?: number;
+    height?: number;
+  };
+};
+export type UpdateSlicerInput = SheetsFilterSortInput & {
+  action: "update_slicer";
+  slicerId: number;
+};
+export type DeleteSlicerInput = SheetsFilterSortInput & {
+  action: "delete_slicer";
+  slicerId: number;
+};
+export type ListSlicersInput = SheetsFilterSortInput & {
+  action: "list_slicers";
+};

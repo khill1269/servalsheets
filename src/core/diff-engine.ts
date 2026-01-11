@@ -147,6 +147,7 @@ export class DiffEngine {
             // Full values fetch
             (async (): Promise<CellValue[][] | undefined> => {
               if (!shouldCaptureFull) {
+                // OK: Explicit empty - typed as optional, full diff not requested
                 return undefined;
               }
 

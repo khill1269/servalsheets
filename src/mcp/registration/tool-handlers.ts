@@ -267,6 +267,7 @@ function extractSpreadsheetId(
   if (typeof args["spreadsheetId"] === "string") {
     return args["spreadsheetId"];
   }
+  // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
   return undefined;
 }
 
@@ -282,6 +283,7 @@ function extractSheetId(args: Record<string, unknown>): number | undefined {
   if (typeof args["sheetId"] === "number") {
     return args["sheetId"];
   }
+  // OK: Explicit empty - typed as optional, sheetId field not found in args
   return undefined;
 }
 
@@ -304,6 +306,7 @@ function isSuccessResult(result: unknown): boolean {
  */
 function extractCellsAffected(result: unknown): number | undefined {
   if (typeof result !== "object" || result === null) {
+    // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
   const response = (result as Record<string, unknown>)["response"];
@@ -324,6 +327,7 @@ function extractCellsAffected(result: unknown): number | undefined {
     return mutation["cellsAffected"];
   }
 
+  // OK: Explicit empty - typed as optional, cellsAffected field not found in result
   return undefined;
 }
 
@@ -332,6 +336,7 @@ function extractCellsAffected(result: unknown): number | undefined {
  */
 function extractSnapshotId(result: unknown): string | undefined {
   if (typeof result !== "object" || result === null) {
+    // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
   const response = (result as Record<string, unknown>)["response"];
@@ -344,6 +349,7 @@ function extractSnapshotId(result: unknown): string | undefined {
     return mutation["revertSnapshotId"];
   }
 
+  // OK: Explicit empty - typed as optional, revertSnapshotId field not found in result
   return undefined;
 }
 
@@ -352,6 +358,7 @@ function extractSnapshotId(result: unknown): string | undefined {
  */
 function extractErrorMessage(result: unknown): string | undefined {
   if (typeof result !== "object" || result === null) {
+    // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
   const response = (result as Record<string, unknown>)["response"];
@@ -363,6 +370,7 @@ function extractErrorMessage(result: unknown): string | undefined {
       return error["message"];
     }
   }
+  // OK: Explicit empty - typed as optional, error message field not found in result
   return undefined;
 }
 
@@ -371,6 +379,7 @@ function extractErrorMessage(result: unknown): string | undefined {
  */
 function extractErrorCode(result: unknown): string | undefined {
   if (typeof result !== "object" || result === null) {
+    // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
   const response = (result as Record<string, unknown>)["response"];
@@ -382,6 +391,7 @@ function extractErrorCode(result: unknown): string | undefined {
       return error["code"];
     }
   }
+  // OK: Explicit empty - typed as optional, error code field not found in result
   return undefined;
 }
 

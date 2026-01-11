@@ -22,6 +22,7 @@ import type {
   SheetsConfirmOutput,
   ConfirmResponse,
   PlanStep,
+  ConfirmRequestInput,
 } from "../schemas/confirm.js";
 import { getCapabilitiesWithCache } from "../services/capability-cache.js";
 
@@ -69,6 +70,9 @@ export class ConfirmHandler {
 
       switch (input.action) {
         case "request": {
+          // Type assertion for flattened union pattern
+          const requestInput = input as ConfirmRequestInput;
+
           // Check if server is available
           if (!this.context.server) {
             response = {
@@ -104,12 +108,12 @@ export class ConfirmHandler {
 
           // Convert input plan to service plan
           const plan: ServicePlan = confirmService.createPlan(
-            input.plan.title,
-            input.plan.description,
-            input.plan.steps.map(this.toServiceStep),
+            requestInput.plan.title,
+            requestInput.plan.description,
+            requestInput.plan.steps.map(this.toServiceStep),
             {
-              willCreateSnapshot: input.plan.willCreateSnapshot,
-              additionalWarnings: input.plan.additionalWarnings,
+              willCreateSnapshot: requestInput.plan.willCreateSnapshot,
+              additionalWarnings: requestInput.plan.additionalWarnings,
             },
           );
 

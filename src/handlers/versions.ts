@@ -11,7 +11,6 @@ import type { Intent } from "../core/intent.js";
 import type {
   SheetsVersionsInput,
   SheetsVersionsOutput,
-  
   VersionsResponse,
 } from "../schemas/index.js";
 
@@ -72,7 +71,7 @@ export class VersionsHandler extends BaseHandler<
    * Execute action and return response (extracted for task/non-task paths)
    */
   private async executeAction(
-    request: SheetsVersionsInput
+    request: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     switch (request.action) {
       case "list_revisions":
@@ -109,10 +108,10 @@ export class VersionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleListRevisions(
-    input: Extract<SheetsVersionsInput, { action: "list_revisions" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const response = await this.driveApi!.revisions.list({
-      fileId: input.spreadsheetId,
+      fileId: input.spreadsheetId!,
       pageSize: input.pageSize ?? 100,
       pageToken: input.pageToken,
       fields:
@@ -127,11 +126,11 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleGetRevision(
-    input: Extract<SheetsVersionsInput, { action: "get_revision" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const response = await this.driveApi!.revisions.get({
-      fileId: input.spreadsheetId,
-      revisionId: input.revisionId,
+      fileId: input.spreadsheetId!,
+      revisionId: input.revisionId!,
       fields:
         "id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever",
     });
@@ -142,7 +141,7 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleRestoreRevision(
-    input: Extract<SheetsVersionsInput, { action: "restore_revision" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     if (input.safety?.dryRun) {
       return this.success("restore_revision", {}, undefined, true);
@@ -153,12 +152,12 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleKeepRevision(
-    input: Extract<SheetsVersionsInput, { action: "keep_revision" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const response = await this.driveApi!.revisions.update({
-      fileId: input.spreadsheetId,
-      revisionId: input.revisionId,
-      requestBody: { keepForever: input.keepForever },
+      fileId: input.spreadsheetId!,
+      revisionId: input.revisionId!,
+      requestBody: { keepForever: input.keepForever! },
       fields:
         "id,modifiedTime,lastModifyingUser/displayName,lastModifyingUser/emailAddress,size,keepForever",
     });
@@ -169,11 +168,11 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleCreateSnapshot(
-    input: Extract<SheetsVersionsInput, { action: "create_snapshot" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const name = input.name ?? `Snapshot - ${new Date().toISOString()}`;
     const response = await this.driveApi!.files.copy({
-      fileId: input.spreadsheetId,
+      fileId: input.spreadsheetId!,
       requestBody: {
         name,
         parents: input.destinationFolderId
@@ -190,7 +189,7 @@ export class VersionsHandler extends BaseHandler<
         id: response.data.id ?? "",
         name: response.data.name ?? name,
         createdAt: response.data.createdTime ?? new Date().toISOString(),
-        spreadsheetId: input.spreadsheetId,
+        spreadsheetId: input.spreadsheetId!,
         copyId: response.data.id ?? "",
         size: response.data.size ? Number(response.data.size) : undefined,
       },
@@ -198,7 +197,7 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleListSnapshots(
-    input: Extract<SheetsVersionsInput, { action: "list_snapshots" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const response = await this.driveApi!.files.list({
       q: "mimeType='application/vnd.google-apps.spreadsheet' and name contains 'Snapshot' and trashed=false",
@@ -211,7 +210,7 @@ export class VersionsHandler extends BaseHandler<
       id: f.id ?? "",
       name: f.name ?? "",
       createdAt: f.createdTime ?? "",
-      spreadsheetId: input.spreadsheetId,
+      spreadsheetId: input.spreadsheetId!,
       copyId: f.id ?? "",
       size: f.size ? Number(f.size) : undefined,
     }));
@@ -223,7 +222,7 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleRestoreSnapshot(
-    input: Extract<SheetsVersionsInput, { action: "restore_snapshot" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     if (input.safety?.dryRun) {
       return this.success("restore_snapshot", {}, undefined, true);
@@ -231,13 +230,13 @@ export class VersionsHandler extends BaseHandler<
 
     // Copy the snapshot file to a new spreadsheet as a restored version
     const original = await this.driveApi!.files.get({
-      fileId: input.spreadsheetId,
+      fileId: input.spreadsheetId!,
       fields: "name",
       supportsAllDrives: true,
     });
 
     const response = await this.driveApi!.files.copy({
-      fileId: input.snapshotId,
+      fileId: input.snapshotId!,
       supportsAllDrives: true,
       requestBody: {
         name: `${original.data.name ?? "Restored Spreadsheet"} (restored from snapshot)`,
@@ -248,10 +247,10 @@ export class VersionsHandler extends BaseHandler<
     return this.success("restore_snapshot", {
       snapshot: response.data.id
         ? {
-            id: input.snapshotId,
+            id: input.snapshotId!,
             name: response.data.name ?? "",
             createdAt: response.data.createdTime ?? "",
-            spreadsheetId: input.spreadsheetId,
+            spreadsheetId: input.spreadsheetId!,
             copyId: response.data.id,
             size: response.data.size ? Number(response.data.size) : undefined,
           }
@@ -260,14 +259,14 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleDeleteSnapshot(
-    input: Extract<SheetsVersionsInput, { action: "delete_snapshot" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     if (input.safety?.dryRun) {
       return this.success("delete_snapshot", {}, undefined, true);
     }
 
     await this.driveApi!.files.delete({
-      fileId: input.snapshotId,
+      fileId: input.snapshotId!,
       supportsAllDrives: true,
     });
 
@@ -275,7 +274,7 @@ export class VersionsHandler extends BaseHandler<
   }
 
   private async handleExportVersion(
-    input: Extract<SheetsVersionsInput, { action: "export_version" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     const format = input.format ?? "xlsx";
     const mimeMap: Record<string, string> = {
@@ -309,7 +308,7 @@ export class VersionsHandler extends BaseHandler<
     try {
       const response = await this.driveApi!.files.export(
         {
-          fileId: input.spreadsheetId,
+          fileId: input.spreadsheetId!,
           mimeType,
         },
         { responseType: "arraybuffer" },
@@ -328,9 +327,9 @@ export class VersionsHandler extends BaseHandler<
       if (error.code === 404) {
         return this.error({
           code: "NOT_FOUND",
-          message: `Spreadsheet not found: ${input.spreadsheetId}`,
+          message: `Spreadsheet not found: ${input.spreadsheetId!}`,
           details: {
-            spreadsheetId: input.spreadsheetId,
+            spreadsheetId: input.spreadsheetId!,
           },
           retryable: false,
           resolution:
@@ -342,7 +341,7 @@ export class VersionsHandler extends BaseHandler<
         code: "INTERNAL_ERROR",
         message: `Failed to export spreadsheet: ${error?.message ?? "unknown error"}`,
         details: {
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: input.spreadsheetId!,
           format: input.format,
           errorType: error?.name,
           errorCode: error?.code,
@@ -360,7 +359,7 @@ export class VersionsHandler extends BaseHandler<
    * Returns metadata comparison - full content diff requires export
    */
   private async handleCompare(
-    input: Extract<SheetsVersionsInput, { action: "compare" }>,
+    input: SheetsVersionsInput,
   ): Promise<VersionsResponse> {
     if (!this.driveApi) {
       return this.error({
@@ -374,12 +373,12 @@ export class VersionsHandler extends BaseHandler<
       // Fetch both revisions
       const [rev1Response, rev2Response] = await Promise.all([
         this.driveApi.revisions.get({
-          fileId: input.spreadsheetId,
+          fileId: input.spreadsheetId!,
           revisionId: input.revisionId1 ?? "head~1", // Default to previous revision
           fields: "id,modifiedTime,lastModifyingUser,size",
         }),
         this.driveApi.revisions.get({
-          fileId: input.spreadsheetId,
+          fileId: input.spreadsheetId!,
           revisionId: input.revisionId2 ?? "head", // Default to current
           fields: "id,modifiedTime,lastModifyingUser,size",
         }),
