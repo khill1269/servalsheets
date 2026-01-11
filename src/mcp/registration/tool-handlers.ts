@@ -391,6 +391,7 @@ function extractErrorCode(result: unknown): string | undefined {
 
 function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== "object") {
+    // OK: Explicit empty - invalid args will be caught by Zod validation downstream
     return {};
   }
   const record = args as Record<string, unknown>;

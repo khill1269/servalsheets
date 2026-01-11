@@ -63,9 +63,11 @@ import {
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { sessionLimiter } from './utils/session-limiter.js';
-import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
+import { patchMcpServerRequestHandler, patchToJsonSchemaCompat } from './mcp/sdk-compat.js';
 
-patchMcpServerRequestHandler();
+// Apply SDK compatibility patches before server initialization
+patchMcpServerRequestHandler();  // PATCH 1: Zod v4 method literal extraction
+patchToJsonSchemaCompat();        // PATCH 2: Discriminated union JSON Schema conversion
 
 export interface RemoteServerConfig {
   port: number;
@@ -432,6 +434,7 @@ async function main(): Promise<void> {
           previousLevel: response.previousLevel,
           newLevel: response.newLevel,
         });
+        // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
         return {};
       });
       logger.info('Remote Server: Logging handler registered (logging/setLevel)');

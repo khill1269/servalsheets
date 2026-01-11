@@ -57,7 +57,7 @@ import {
   registerServalSheetsTools,
 } from './mcp/registration.js';
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
-import { patchMcpServerRequestHandler } from './mcp/sdk-compat.js';
+import { patchMcpServerRequestHandler, patchToJsonSchemaCompat } from './mcp/sdk-compat.js';
 import {
   startBackgroundTasks,
   registerSignalHandlers,
@@ -92,7 +92,9 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000;
 const DEFAULT_RATE_LIMIT_MAX = 100;
 
-patchMcpServerRequestHandler();
+// Apply SDK compatibility patches before server initialization
+patchMcpServerRequestHandler();  // PATCH 1: Zod v4 method literal extraction
+patchToJsonSchemaCompat();        // PATCH 2: Discriminated union JSON Schema conversion
 
 async function createMcpServerInstance(googleToken?: string, googleRefreshToken?: string): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
   // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
@@ -203,6 +205,7 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
       previousLevel: response.previousLevel,
       newLevel: response.newLevel,
     });
+    // OK: Explicit empty - MCP logging/setLevel returns empty object per protocol
     return {};
   });
   logger.info('HTTP Server: Logging handler registered (logging/setLevel)');
