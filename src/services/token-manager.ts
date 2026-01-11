@@ -431,3 +431,19 @@ export function getTokenManager(options?: TokenManagerOptions): TokenManager {
 export function setTokenManager(manager: TokenManager): void {
   globalTokenManager = manager;
 }
+
+/**
+ * Reset global token manager (for testing only)
+ * @internal
+ */
+export function resetTokenManager(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetTokenManager() can only be called in test environment",
+    );
+  }
+  if (globalTokenManager) {
+    globalTokenManager.stop();
+  }
+  globalTokenManager = null;
+}

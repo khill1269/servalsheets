@@ -456,3 +456,16 @@ export function getPrefetchPredictor(): PrefetchPredictor {
 export function setPrefetchPredictor(predictor: PrefetchPredictor): void {
   prefetchPredictor = predictor;
 }
+
+/**
+ * Reset the prefetch predictor (for testing only)
+ * @internal
+ */
+export function resetPrefetchPredictor(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetPrefetchPredictor() can only be called in test environment",
+    );
+  }
+  prefetchPredictor = null;
+}

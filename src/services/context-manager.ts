@@ -286,3 +286,16 @@ export function getContextManager(): ContextManager {
 export function setContextManager(manager: ContextManager): void {
   contextManager = manager;
 }
+
+/**
+ * Reset the context manager (for testing only)
+ * @internal
+ */
+export function resetContextManager(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetContextManager() can only be called in test environment",
+    );
+  }
+  contextManager = null;
+}

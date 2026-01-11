@@ -591,15 +591,15 @@ export class SheetResolver {
   async getNamedRanges(
     spreadsheetId: string,
     _auth: unknown, // For test compatibility
-  ): Promise<Array<{ name: string; range: sheets_v4.Schema$GridRange | null | undefined }>> {
+  ): Promise<Array<sheets_v4.Schema$NamedRange>> {
     const api = this.getSheetsApi();
     const response = await api.spreadsheets.get({
       spreadsheetId,
       fields: "namedRanges",
     });
 
-    // Filter out named ranges without names and cast to expected type
-    return (response.data.namedRanges || []).filter((nr): nr is { name: string; range: sheets_v4.Schema$GridRange | null | undefined } => !!nr.name);
+    // Filter out named ranges without names
+    return (response.data.namedRanges || []).filter((nr): nr is sheets_v4.Schema$NamedRange => !!nr.name);
   }
 
   /**

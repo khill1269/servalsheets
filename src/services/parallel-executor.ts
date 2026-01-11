@@ -96,7 +96,8 @@ export class ParallelExecutor {
       : undefined;
 
     // Use options.concurrency, then env var, then default
-    this.concurrency = options.concurrency ?? envConcurrency ?? DEFAULT_CONCURRENCY;
+    this.concurrency =
+      options.concurrency ?? envConcurrency ?? DEFAULT_CONCURRENCY;
 
     // Ensure reasonable bounds: minimum 1, maximum 100
     this.concurrency = Math.max(1, Math.min(100, this.concurrency));
@@ -373,4 +374,17 @@ export function getParallelExecutor(): ParallelExecutor {
  */
 export function setParallelExecutor(executor: ParallelExecutor): void {
   parallelExecutor = executor;
+}
+
+/**
+ * Reset the parallel executor (for testing only)
+ * @internal
+ */
+export function resetParallelExecutor(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetParallelExecutor() can only be called in test environment",
+    );
+  }
+  parallelExecutor = null;
 }

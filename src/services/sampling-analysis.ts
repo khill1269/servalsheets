@@ -501,8 +501,14 @@ export function getSamplingAnalysisService(): SamplingAnalysisService {
 }
 
 /**
- * Reset the sampling analysis service (for testing)
+ * Reset the sampling analysis service (for testing only)
+ * @internal
  */
 export function resetSamplingAnalysisService(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetSamplingAnalysisService() can only be called in test environment",
+    );
+  }
   samplingAnalysisService = null;
 }

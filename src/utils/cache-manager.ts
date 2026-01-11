@@ -535,9 +535,7 @@ export class CacheManager {
         }
         this.rangeDependencies.delete(depKey);
         if (keysInvalidated > 0) {
-          invalidatedRanges.push(
-            `${affectedRange} (${keysInvalidated} keys)`,
-          );
+          invalidatedRanges.push(`${affectedRange} (${keysInvalidated} keys)`);
         }
       }
     }

@@ -430,8 +430,14 @@ export function getConfirmationService(): ConfirmationService {
 }
 
 /**
- * Reset the confirmation service (for testing)
+ * Reset the confirmation service (for testing only)
+ * @internal
  */
 export function resetConfirmationService(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetConfirmationService() can only be called in test environment",
+    );
+  }
   confirmationService = null;
 }

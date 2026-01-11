@@ -831,8 +831,14 @@ export function getConflictDetector(): ConflictDetector {
 }
 
 /**
- * Reset conflict detector (for testing)
+ * Reset conflict detector (for testing only)
+ * @internal
  */
 export function resetConflictDetector(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetConflictDetector() can only be called in test environment",
+    );
+  }
   conflictDetectorInstance = null;
 }

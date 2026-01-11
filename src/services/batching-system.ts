@@ -529,7 +529,10 @@ export class BatchingSystem {
 
     // Convert append operations to batchUpdate requests
     const requests: sheets_v4.Schema$Request[] = [];
-    const operationRangeMap: Array<{ operation: BatchableOperation; requestIndex: number }> = [];
+    const operationRangeMap: Array<{
+      operation: BatchableOperation;
+      requestIndex: number;
+    }> = [];
 
     for (const op of operations) {
       // Parse range to extract sheet name
@@ -539,34 +542,45 @@ export class BatchingSystem {
 
       if (sheetId === undefined) {
         // If we can't resolve sheet ID, fall back to individual append
-        op.reject(new Error(`Could not resolve sheet ID for range: ${op.params.range}`));
+        op.reject(
+          new Error(`Could not resolve sheet ID for range: ${op.params.range}`),
+        );
         continue;
       }
 
       // Create appendCells request with the values
-      const rows: sheets_v4.Schema$RowData[] = op.params.values.map((rowValues: unknown[]) => ({
-        values: rowValues.map((cellValue: unknown) => {
-          // Determine if value should be parsed as formula or literal
-          const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
-          const valueInputOption = op.params.valueInputOption || "USER_ENTERED";
+      const rows: sheets_v4.Schema$RowData[] = op.params.values.map(
+        (rowValues: unknown[]) => ({
+          values: rowValues.map((cellValue: unknown) => {
+            // Determine if value should be parsed as formula or literal
+            const isFormula =
+              typeof cellValue === "string" && cellValue.startsWith("=");
+            const valueInputOption =
+              op.params.valueInputOption || "USER_ENTERED";
 
-          if (valueInputOption === "USER_ENTERED" || valueInputOption === "RAW") {
-            // For USER_ENTERED or RAW, store as userEnteredValue
-            if (isFormula) {
-              return { userEnteredValue: { formulaValue: cellValue as string } };
-            } else if (typeof cellValue === 'number') {
-              return { userEnteredValue: { numberValue: cellValue } };
-            } else if (typeof cellValue === 'boolean') {
-              return { userEnteredValue: { boolValue: cellValue } };
+            if (
+              valueInputOption === "USER_ENTERED" ||
+              valueInputOption === "RAW"
+            ) {
+              // For USER_ENTERED or RAW, store as userEnteredValue
+              if (isFormula) {
+                return {
+                  userEnteredValue: { formulaValue: cellValue as string },
+                };
+              } else if (typeof cellValue === "number") {
+                return { userEnteredValue: { numberValue: cellValue } };
+              } else if (typeof cellValue === "boolean") {
+                return { userEnteredValue: { boolValue: cellValue } };
+              } else {
+                return { userEnteredValue: { stringValue: String(cellValue) } };
+              }
             } else {
+              // For INPUT_VALUE_OPTION_UNSPECIFIED, store as formatted string
               return { userEnteredValue: { stringValue: String(cellValue) } };
             }
-          } else {
-            // For INPUT_VALUE_OPTION_UNSPECIFIED, store as formatted string
-            return { userEnteredValue: { stringValue: String(cellValue) } };
-          }
+          }),
         }),
-      }));
+      );
 
       const requestIndex = requests.length;
       requests.push({
@@ -586,7 +600,9 @@ export class BatchingSystem {
     }
 
     // Execute single batchUpdate with all append operations
-    const response = await this.sheetsApi.spreadsheets.batchUpdate({
+    // Note: appendCells in batchUpdate doesn't return UpdateValuesResponse format,
+    // so we construct compatible responses for API consistency with callers
+    await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
         requests,
@@ -594,12 +610,13 @@ export class BatchingSystem {
       },
     });
 
-    // Resolve each operation's promise with simulated append response
-    operationRangeMap.forEach(({ operation, requestIndex }) => {
-      const reply = response.data.replies?.[requestIndex];
+    // Resolve each operation's promise with constructed append response
+    operationRangeMap.forEach(({ operation }) => {
+      // Note: appendCells doesn't return UpdateValuesResponse format, so we
+      // construct a compatible response that matches what callers expect.
 
-      // Simulate UpdateValuesResponse format that append() normally returns
-      const simulatedResponse = {
+      // Construct UpdateValuesResponse format that append() normally returns
+      const constructedResponse = {
         updates: {
           spreadsheetId,
           updatedRange: operation.params.range,
@@ -613,7 +630,7 @@ export class BatchingSystem {
         tableRange: operation.params.range,
       };
 
-      operation.resolve(simulatedResponse);
+      operation.resolve(constructedResponse);
     });
   }
 
@@ -762,7 +779,9 @@ export class BatchingSystem {
       baseStats.currentWindowMs = Math.round(
         this.adaptiveWindow.getCurrentWindow(),
       );
-      baseStats.avgWindowMs = Math.round(this.adaptiveWindow.getAverageWindow());
+      baseStats.avgWindowMs = Math.round(
+        this.adaptiveWindow.getAverageWindow(),
+      );
     }
 
     return baseStats;
@@ -834,4 +853,20 @@ export function initBatchingSystem(
  */
 export function getBatchingSystem(): BatchingSystem | null {
   return batchingSystem;
+}
+
+/**
+ * Reset batching system (for testing only)
+ * @internal
+ */
+export function resetBatchingSystem(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetBatchingSystem() can only be called in test environment",
+    );
+  }
+  if (batchingSystem) {
+    batchingSystem.destroy();
+  }
+  batchingSystem = null;
 }

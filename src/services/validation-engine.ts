@@ -681,8 +681,14 @@ export function getValidationEngine(): ValidationEngine {
 }
 
 /**
- * Reset validation engine (for testing)
+ * Reset validation engine (for testing only)
+ * @internal
  */
 export function resetValidationEngine(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetValidationEngine() can only be called in test environment",
+    );
+  }
   validationEngineInstance = null;
 }

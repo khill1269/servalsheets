@@ -557,7 +557,13 @@ export class PrefetchingSystem {
 
     // Urgency score: higher for entries expiring sooner
     const urgencyScore =
-      expiresIn < 30000 ? 2 : expiresIn < 60000 ? 1 : expiresIn < 120000 ? 0.5 : 0;
+      expiresIn < 30000
+        ? 2
+        : expiresIn < 60000
+          ? 1
+          : expiresIn < 120000
+            ? 0.5
+            : 0;
 
     // Combine scores (max 10)
     const priority = Math.min(10, frequencyScore + recencyScore + urgencyScore);
@@ -834,4 +840,20 @@ export function initPrefetchingSystem(
  */
 export function getPrefetchingSystem(): PrefetchingSystem | null {
   return prefetchingSystem;
+}
+
+/**
+ * Reset the prefetching system (for testing only)
+ * @internal
+ */
+export function resetPrefetchingSystem(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetPrefetchingSystem() can only be called in test environment",
+    );
+  }
+  if (prefetchingSystem) {
+    prefetchingSystem.destroy();
+  }
+  prefetchingSystem = null;
 }

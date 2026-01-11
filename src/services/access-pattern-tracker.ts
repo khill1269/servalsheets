@@ -428,3 +428,16 @@ export function getAccessPatternTracker(): AccessPatternTracker {
   }
   return accessPatternTracker;
 }
+
+/**
+ * Reset access pattern tracker (for testing only)
+ * @internal
+ */
+export function resetAccessPatternTracker(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetAccessPatternTracker() can only be called in test environment",
+    );
+  }
+  accessPatternTracker = null;
+}

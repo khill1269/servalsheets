@@ -986,8 +986,14 @@ export function getImpactAnalyzer(): ImpactAnalyzer {
 }
 
 /**
- * Reset impact analyzer (for testing)
+ * Reset impact analyzer (for testing only)
+ * @internal
  */
 export function resetImpactAnalyzer(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetImpactAnalyzer() can only be called in test environment",
+    );
+  }
   impactAnalyzerInstance = null;
 }

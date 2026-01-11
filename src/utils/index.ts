@@ -52,3 +52,8 @@ export * from "./schema-compat.js";
 
 // URL Utilities
 export * from "./url.js";
+
+// Performance Optimizations
+export * from "./hot-cache.js";
+export * from "./cache-integration.js";
+// Fast validators are exported from schemas/fast-validators.js
