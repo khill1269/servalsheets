@@ -172,6 +172,68 @@ ServalSheets has comprehensive documentation organized by use case:
 
 **Need help?** Start with [USAGE_GUIDE.md](./USAGE_GUIDE.md) for a complete walkthrough.
 
+## Contributing
+
+We welcome contributions! ServalSheets follows strict quality standards to maintain production-grade reliability.
+
+### Quick Links
+- **[Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md)** - Step-by-step guide for contributors
+- **[Claude Code Rules](./docs/development/CLAUDE_CODE_RULES.md)** - Required rules for all contributions
+- **[Codebase Audit Report](./docs/development/AUDIT_REPORT_2026-01-11.md)** - Current state and best practices
+
+### Quick Start for Contributors
+
+```bash
+# 1. Clone and install
+git clone https://github.com/khill1269/servalsheets.git
+cd servalsheets
+npm install
+
+# 2. Create feature branch
+git checkout -b fix/your-bug-name
+
+# 3. Make changes (≤3 src/ files recommended)
+# Edit src/handlers/values.ts
+
+# 4. Verify (must pass before PR)
+npm run verify
+
+# 5. Commit and push
+git commit -m "fix(values): handle empty arrays gracefully"
+git push origin fix/your-bug-name
+```
+
+### Core Principles
+
+All contributions must follow these [Claude Code Rules](./docs/development/CLAUDE_CODE_RULES.md):
+
+1. **Verify Before Claiming** - Provide file paths + line ranges for all claims
+2. **Trace Execution Paths** - Document the full call stack
+3. **No "Fixes" Without Proof** - Write failing test first, then fix
+4. **Minimal Change Policy** - ≤3 files in `src/` per commit
+5. **No Silent Fallbacks** - Log errors, never return `{}` silently
+
+### Verification Commands
+
+```bash
+npm run verify              # Full verification pipeline
+npm run check:drift         # Metadata synchronization
+npm run check:placeholders  # No TODO/FIXME in src/
+npm run check:silent-fallbacks  # No silent {} returns
+npm run check:debug-prints  # No console.log in src/
+npm test                    # Run 1761 tests
+```
+
+### Before Creating a PR
+
+- [ ] All tests pass (`npm test`)
+- [ ] Verification passes (`npm run verify`)
+- [ ] ≤3 `src/` files modified (or documented exception)
+- [ ] Evidence provided in commit message
+- [ ] Follows [Claude Code Rules](./docs/development/CLAUDE_CODE_RULES.md)
+
+See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for detailed instructions.
+
 ## Tools Reference
 
 ### Core Operations (16 tools, 165 actions)
