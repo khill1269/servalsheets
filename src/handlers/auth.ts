@@ -15,6 +15,8 @@ import type {
   SheetsAuthInput,
   SheetsAuthOutput,
   AuthResponse,
+  AuthLoginInput,
+  AuthCallbackInput,
 } from "../schemas/auth.js";
 import { initiateOAuthFlow } from "../mcp/elicitation.js";
 import type { ElicitationServer } from "../mcp/elicitation.js";
@@ -74,17 +76,17 @@ export class AuthHandler {
           response = await this.handleStatus();
           break;
         case "login":
-          response = await this.handleLogin(input);
+          response = await this.handleLogin(input as AuthLoginInput);
           break;
         case "callback":
-          response = await this.handleCallback(input);
+          response = await this.handleCallback(input as AuthCallbackInput);
           break;
         case "logout":
           response = await this.handleLogout();
           break;
         default: {
           // TypeScript exhaustiveness check - this should never be reached
-          const exhaustiveCheck: never = input;
+          const exhaustiveCheck: never = input as never;
           response = {
             success: false,
             error: {
@@ -158,7 +160,7 @@ export class AuthHandler {
   }
 
   private async handleLogin(
-    request: Extract<SheetsAuthInput, { action: "login" }>,
+    request: AuthLoginInput,
   ): Promise<AuthResponse> {
     const oauthClient = this.createOAuthClient();
     if (!oauthClient) {
@@ -226,10 +228,9 @@ export class AuthHandler {
           try {
             await open(authUrl);
           } catch (error) {
-            console.error(
-              "Failed to open browser:",
-              error instanceof Error ? error.message : String(error),
-            );
+            logger.error("Failed to open browser", {
+              error: error instanceof Error ? error.message : String(error),
+            });
           }
         }
 
@@ -308,7 +309,10 @@ export class AuthHandler {
             : "Authentication successful! You can now use sheets_* tools.",
         };
       } catch (error) {
-        console.error("Callback server error:", error);
+        logger.error("Callback server error", {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         // Fall back to manual flow
       }
     }
@@ -332,10 +336,9 @@ export class AuthHandler {
         await open(authUrl);
         browserOpened = true;
       } catch (error) {
-        console.error(
-          "Failed to open browser:",
-          error instanceof Error ? error.message : String(error),
-        );
+        logger.error("Failed to open browser", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -365,7 +368,7 @@ export class AuthHandler {
   }
 
   private async handleCallback(
-    request: Extract<SheetsAuthInput, { action: "callback" }>,
+    request: AuthCallbackInput,
   ): Promise<AuthResponse> {
     const oauthClient = this.createOAuthClient();
     if (!oauthClient) {

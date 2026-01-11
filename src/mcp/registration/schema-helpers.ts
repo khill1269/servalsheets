@@ -8,11 +8,7 @@
 
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { z, type ZodTypeAny } from "zod";
-import {
-  verifyJsonSchema,
-  zodSchemaToJsonSchema,
-  isZodObject,
-} from "../../utils/schema-compat.js";
+import { verifyJsonSchema } from "../../utils/schema-compat.js";
 
 // ============================================================================
 // SCHEMA PREPARATION
@@ -21,28 +17,27 @@ import {
 /**
  * Prepares a schema for MCP SDK registration
  *
- * CRITICAL: MCP SDK v1.25.1 uses zod-to-json-schema@3.25.0 which is NOT compatible
- * with Zod v4's discriminated unions. It returns empty schemas for them.
+ * CRITICAL FIX (2025-01-10): The MCP SDK v1.25.x requires Zod schemas for runtime
+ * validation (safeParseAsync). Converting to JSON Schema breaks validation because
+ * JSON Schema objects don't have .safeParseAsync() method.
  *
- * Solution: We pre-convert Zod v4 schemas to JSON Schema using Zod v4's native
- * .toJSONSchema() method before passing to the SDK.
+ * The SDK handles JSON Schema conversion internally:
+ * - For tools/list: Uses toJsonSchemaCompat() to convert Zod → JSON Schema
+ * - For CallTool: Uses safeParseAsync() directly on Zod schema
+ *
+ * Previous code was converting discriminated unions to JSON Schema, which caused:
+ * "v3Schema.safeParseAsync is not a function" error
  *
  * @param schema - Zod schema to prepare
- * @returns JSON Schema object ready for MCP SDK
+ * @returns The same Zod schema (SDK handles conversion internally)
  */
 export function prepareSchemaForRegistration(
   schema: ZodTypeAny,
-): AnySchema | Record<string, unknown> {
-  // For z.object() schemas, the SDK can handle them natively
-  // For everything else (discriminated unions, regular unions, etc.),
-  // we need to convert to JSON Schema first
-  if (isZodObject(schema)) {
-    return schema as unknown as AnySchema;
-  }
-
-  // Convert to JSON Schema using Zod v4's native method
-  // This ensures discriminated unions are properly converted
-  return zodSchemaToJsonSchema(schema);
+): AnySchema {
+  // ALWAYS return the Zod schema as-is
+  // The SDK needs Zod schemas for runtime validation via safeParseAsync()
+  // JSON Schema conversion happens internally in the SDK for tools/list
+  return schema as unknown as AnySchema;
 }
 
 /**

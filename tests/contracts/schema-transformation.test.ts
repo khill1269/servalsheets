@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import {
   isDiscriminatedUnion,
   isZodObject,
@@ -38,19 +39,29 @@ const hasField = (shape: Record<string, unknown> | undefined, field: string): bo
 describe('Schema Transformation', () => {
   describe('Schema Structure (Refactored)', () => {
     for (const tool of TOOL_DEFINITIONS) {
-      it(`${tool.name}: input schema should be a discriminated union (action-based router)`, () => {
-        // NEW: All input schemas are now direct discriminated unions
-        // No wrapper object with 'request' field
-        expect(isDiscriminatedUnion(tool.inputSchema)).toBe(true);
+      it(`${tool.name}: input schema should be action-based (discriminated union or flattened with enum)`, () => {
+        // Schemas can be:
+        // 1. Discriminated union (old approach, most tools still use this)
+        // 2. Flattened object with action enum (MCP SDK workaround for sheets_auth and sheets_spreadsheet)
+        const isDiscUnion = isDiscriminatedUnion(tool.inputSchema);
+
+        // Check if it's a flattened schema with action enum
+        // ✅ FIXED: Using stable instanceof checks instead of brittle ._zod.constr.name
+        const shape = getZodShape(tool.inputSchema);
+        const actionField = shape?.['action'] as any;
+        // Note: In Zod v4, both z.enum() and z.nativeEnum() use ZodEnum class
+        const isFlattened = actionField && actionField instanceof z.ZodEnum;
+
+        expect(isDiscUnion || isFlattened).toBe(true);
       });
 
       it(`${tool.name}: output schema should be a Zod object with response union`, () => {
         expect(isZodObject(tool.outputSchema)).toBe(true);
         const shape = getZodShape(tool.outputSchema);
         expect(shape?.['response']).toBeDefined();
-        // Special case: sheets_composite uses z.union instead of z.discriminatedUnion
-        // because it contains nested discriminated unions
-        if (tool.name === 'sheets_composite') {
+        // Special case: sheets_composite and sheets_session use z.union instead of z.discriminatedUnion
+        // because they contain multiple success types with different action fields
+        if (tool.name === 'sheets_composite' || tool.name === 'sheets_session') {
           expect(isZodUnion(shape?.['response'])).toBe(true);
         } else {
           expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
@@ -96,21 +107,27 @@ describe('Schema Transformation', () => {
           expect(jsonSchema).not.toHaveProperty('safeParseAsync');
         });
 
-        it('should represent discriminated union (anyOf, oneOf, or array)', () => {
+        it('should represent discriminated union (anyOf, oneOf, array, or flattened with enum action)', () => {
           jsonSchema = zodToJsonSchemaCompat(tool.inputSchema);
 
-          // NEW: All tools now use direct discriminated unions
           // JSON Schema may be represented as:
-          // 1. Object with anyOf property
-          // 2. Object with oneOf property
+          // 1. Object with anyOf property (old discriminated union)
+          // 2. Object with oneOf property (old discriminated union)
           // 3. Array of schema objects (direct union branches)
+          // 4. Flattened object with enum action field (MCP SDK workaround for discriminated unions)
           const isArray = Array.isArray(jsonSchema) && jsonSchema.length > 0;
           const anyOf = jsonSchema['anyOf'];
           const hasAnyOf = Array.isArray(anyOf) && anyOf.length > 0;
           const oneOf = jsonSchema['oneOf'];
           const hasOneOf = Array.isArray(oneOf) && oneOf.length > 0;
 
-          expect(isArray || hasAnyOf || hasOneOf).toBe(true);
+          // Flattened schema: object with properties.action.enum
+          const properties = jsonSchema['properties'] as Record<string, unknown> | undefined;
+          const actionField = properties?.['action'] as Record<string, unknown> | undefined;
+          const actionEnum = actionField?.['enum'];
+          const isFlattenedWithEnum = Array.isArray(actionEnum) && actionEnum.length > 0;
+
+          expect(isArray || hasAnyOf || hasOneOf || isFlattenedWithEnum).toBe(true);
         });
 
         it('should pass verifyJsonSchema safety check', () => {

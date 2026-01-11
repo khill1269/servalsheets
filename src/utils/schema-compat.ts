@@ -1,10 +1,10 @@
 /**
  * ServalSheets - MCP SDK Compatibility Layer
  *
- * PRODUCTION-GRADE | MCP 2025-11-25 COMPLIANT
+ * PRODUCTION-GRADE | MCP 2025-11-25 COMPLIANT | ZOD v4.3.5 COMPATIBLE
  *
- * This module provides compatibility between Zod discriminated unions
- * and the MCP SDK's schema handling for the tools/list response.
+ * This module provides compatibility between Zod schemas and JSON Schema
+ * for the MCP SDK's tools/list response.
  *
  * ## Background
  *
@@ -20,99 +20,68 @@
  *
  * ## Solution
  *
- * We convert Zod discriminated unions to JSON Schema objects BEFORE
- * registration. This uses the same `zod-to-json-schema` library that
- * the SDK uses internally, ensuring consistent output.
+ * We use Zod v4's native JSON Schema conversion (z.toJSONSchema()) to convert
+ * Zod schemas to JSON Schema format. Zod v4.0+ has first-party JSON Schema
+ * support that handles discriminated unions, objects, unions, and other types correctly.
  *
  * ## Request/Response Envelopes
  *
- * ServalSheets now wraps tool inputs/outputs in `{ request: ... }` and `{ response: ... }`
- * for strict MCP compliance. The compatibility layer remains for any non-object schemas
- * that still need conversion to JSON Schema (e.g., prompts or legacy shapes).
+ * ServalSheets wraps tool inputs/outputs in `{ request: ... }` and `{ response: ... }`
+ * for strict MCP compliance. The compatibility layer provides JSON Schema conversion
+ * for tools/list while preserving Zod schemas for runtime validation.
  *
  * @module utils/schema-compat
  */
 
-import type { ZodTypeAny } from "zod";
+import { z, type ZodTypeAny } from "zod";
+import { logger } from "./logger.js";
 
 /**
  * Detects if a Zod schema is a discriminated union
  *
- * Supports:
- * - Zod v3: `_def.typeName === 'ZodDiscriminatedUnion'`
- * - Zod v3.25+/v4: `_def.type === 'union'` with discriminator
+ * Uses stable instanceof check instead of internal _def property.
+ * This is future-proof and works with minification/bundling.
  *
  * @param schema - Any Zod schema
  * @returns true if the schema is a discriminated union
  */
-export function isZodDiscriminatedUnion(schema: unknown): boolean {
-  if (!schema || typeof schema !== "object") return false;
-
-  const zodSchema = schema as { _def?: Record<string, unknown> };
-  const def = zodSchema._def;
-
-  if (!def) return false;
-
-  // Zod v3 style
-  if (def["typeName"] === "ZodDiscriminatedUnion") return true;
-
-  // Zod v3.25+ / v4 style
-  if (def["type"] === "union" && def["discriminator"]) return true;
-
-  // Alternative check for discriminator with options
-  if (def["discriminator"] && Array.isArray(def["options"])) return true;
-
-  return false;
+export function isZodDiscriminatedUnion(
+  schema: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
+): schema is z.ZodDiscriminatedUnion<any, any> {
+  // ✅ STABLE API: instanceof check instead of _def property access
+  return schema instanceof z.ZodDiscriminatedUnion;
 }
 
 /**
  * Detects if a Zod schema is a regular union (z.union())
  *
+ * Uses stable instanceof check instead of internal _def property.
+ *
  * @param schema - Any Zod schema
  * @returns true if the schema is a z.union()
  */
-export function isZodUnion(schema: unknown): boolean {
-  if (!schema || typeof schema !== "object") return false;
-
-  const zodSchema = schema as { _def?: Record<string, unknown> };
-  const def = zodSchema._def;
-
-  if (!def) return false;
-
-  // Zod v3 and v4: Check for ZodUnion typeName
-  if (def["typeName"] === "ZodUnion") return true;
-
-  // Alternative check: union without discriminator (regular union)
-  if (def["type"] === "union" && !def["discriminator"]) return true;
-
-  return false;
+export function isZodUnion(
+  schema: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
+): schema is z.ZodUnion<any> {
+  // ✅ STABLE API: instanceof check instead of _def property access
+  return schema instanceof z.ZodUnion;
 }
 
 /**
  * Detects if a Zod schema is an object type (z.object())
  *
+ * Uses stable instanceof check instead of internal _def property.
+ *
  * @param schema - Any Zod schema
  * @returns true if the schema is a z.object()
  */
-export function isZodObject(schema: unknown): boolean {
-  if (!schema || typeof schema !== "object") return false;
-
-  const zodSchema = schema as {
-    _def?: Record<string, unknown>;
-    shape?: unknown;
-  };
-
-  // Check for ZodObject typeName
-  if (zodSchema._def?.["typeName"] === "ZodObject") return true;
-
-  // Check for shape property (ZodObject has this)
-  if (
-    typeof zodSchema.shape === "function" ||
-    typeof zodSchema.shape === "object"
-  )
-    return true;
-
-  return false;
+export function isZodObject(
+  schema: unknown,
+): schema is z.ZodObject<z.ZodRawShape> {
+  // ✅ STABLE API: instanceof check instead of _def property access
+  return schema instanceof z.ZodObject;
 }
 
 /**
@@ -130,77 +99,51 @@ export interface JsonSchemaOptions {
 /**
  * Converts a Zod schema to JSON Schema format
  *
- * This is the core compatibility function. It handles:
- * - z.discriminatedUnion() → JSON Schema with oneOf/anyOf
+ * Uses Zod v4's native toJSONSchema() method for conversion.
+ * Zod v4.0+ has first-party JSON Schema support via z.toJSONSchema().
+ *
+ * Handles:
+ * - z.discriminatedUnion() → JSON Schema with oneOf
  * - z.object() → JSON Schema object
+ * - z.union() → JSON Schema with oneOf
  * - Other Zod types → Appropriate JSON Schema
  *
  * @param schema - Any Zod schema
- * @param options - Conversion options
+ * @param options - Conversion options (currently unused, kept for API compatibility)
  * @returns JSON Schema object (without $schema property)
  */
 export function zodSchemaToJsonSchema(
   schema: ZodTypeAny,
-  options: JsonSchemaOptions = {},
+  _options: JsonSchemaOptions = {},
 ): Record<string, unknown> {
-  const { target = "jsonSchema7" } = options;
-
   try {
-    // Zod v4 native JSON schema support
-    // Using `.toJSONSchema()` method available in Zod v4
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toJSONSchema = (schema as any).toJSONSchema;
+    // ✅ Use Zod v4's native JSON Schema conversion
+    // This works correctly with discriminated unions, objects, unions, etc.
+    const jsonSchema = z.toJSONSchema(schema);
 
-    if (typeof toJSONSchema === "function") {
-      const jsonSchema = toJSONSchema.call(schema, {
-        target: target,
-        // Zod v4 native options
-      }) as Record<string, unknown>;
-
-      if (typeof jsonSchema === "object" && jsonSchema !== null) {
-        // Remove $schema property (MCP doesn't need it)
-        const { $schema: _$schema, ...rest } = jsonSchema;
-        return rest;
-      }
+    // Remove $schema property (MCP doesn't need it)
+    if (typeof jsonSchema === "object" && jsonSchema !== null) {
+      const { $schema: _$schema, ...rest } = jsonSchema as Record<string, unknown>;
+      return rest;
     }
 
-    // Fallback: If toJSONSchema not available, return basic object schema
-    console.warn("[schema-compat] toJSONSchema not available on schema, using fallback");
+    // Unexpected format from Zod
+    logger.warn("Unexpected JSON Schema format from z.toJSONSchema", {
+      component: "schema-compat",
+      schemaType: typeof jsonSchema,
+    });
+    return { type: "object", properties: {} };
   } catch (error) {
-    console.error("[schema-compat] JSON Schema conversion failed:", error);
+    logger.error("JSON Schema conversion failed", {
+      component: "schema-compat",
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    // Fallback for conversion failures
+    return { type: "object", properties: {} };
   }
-
-  // Fallback for conversion failures
-  return { type: "object", properties: {} };
 }
 
-/**
- * Prepares a Zod schema for MCP SDK registration
- *
- * If the schema is a discriminated union or other non-object type,
- * converts it to JSON Schema format. Otherwise, returns as-is for
- * the SDK's native handling.
- *
- * @param schema - Zod schema to prepare
- * @returns Schema ready for registerTool()
- */
-export function prepareSchemaForMcp(
-  schema: ZodTypeAny,
-): ZodTypeAny | Record<string, unknown> {
-  // z.object() schemas work natively with the SDK
-  if (isZodObject(schema)) {
-    return schema;
-  }
-
-  // Discriminated unions and other types need conversion
-  if (isZodDiscriminatedUnion(schema)) {
-    return zodSchemaToJsonSchema(schema);
-  }
-
-  // For any other schema type, convert to JSON Schema
-  // This handles z.union(), z.intersection(), etc.
-  return zodSchemaToJsonSchema(schema);
-}
 
 /**
  * Validates that a schema is properly formatted for MCP
@@ -222,8 +165,8 @@ export function validateMcpSchema(schema: unknown, name: string): void {
 
   // Check if it's a Zod schema (has _def)
   if ("_def" in obj) {
-    // Zod schema - should be z.object() for optimal SDK handling
-    // Discriminated unions will be converted by prepareSchemaForMcp
+    // Zod schema - acceptable for MCP SDK registration
+    // The SDK handles both runtime validation and JSON Schema conversion
     return;
   }
 

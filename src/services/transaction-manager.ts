@@ -11,6 +11,7 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "../utils/logger.js";
 import type { sheets_v4 } from "googleapis";
 import {
   Transaction,
@@ -463,37 +464,33 @@ export class TransactionManager {
   }
 
   /**
-   * Restore snapshot
+   * Restore snapshot (Design Decision: Manual Recovery Path)
    *
-   * PRODUCTION LIMITATION: True snapshot restoration requires complex Google Sheets API operations
-   * that are not yet implemented. Current implementation only logs the restoration attempt.
+   * Automatic in-place restoration is intentionally deferred because:
+   * 1. It risks data corruption if the spreadsheet was modified externally
+   * 2. Comparing and merging states is complex and error-prone
+   * 3. Manual recovery via sheets_versions.restore_snapshot is safer
    *
-   * Full implementation would require:
+   * Recovery options available to users:
+   * - Use sheets_versions action="restore_snapshot" to create a recovery file
+   * - Use sheets_history to review and manually undo operations
+   * - Implement compensating transactions for automated recovery
+   *
+   * Full in-place restoration would require:
    * 1. Comparing current state with snapshot state
    * 2. Generating compensating batchUpdate requests to revert changes
    * 3. Handling cases where sheets were added/deleted
    * 4. Managing potential conflicts if spreadsheet was modified externally
-   *
-   * Alternative approaches:
-   * - Use Drive API to revert to previous file revision (affects entire file)
-   * - Implement compensating transactions (reverse each operation individually)
-   * - Use version control at the Drive level
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
     this.log(
-      `WARNING: Snapshot restoration not fully implemented. Snapshot ${snapshot.id} was created but cannot be restored automatically.`,
+      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_versions to restore.`,
     );
 
-    /**
-     * CRITICAL: This is a known limitation in the current implementation.
-     * Rollback will fail to restore the actual spreadsheet state.
-     * Consider using the history/undo functionality instead, or implementing
-     * compensating transactions for production use.
-     */
-
     throw new Error(
-      "Snapshot restoration is not available yet. Transaction rollback requires manual recovery. " +
-        "Use sheets_history tool to undo operations, or implement compensating transactions.",
+      "Automatic in-place snapshot restoration is not supported. " +
+        "Use sheets_versions action='restore_snapshot' to create a recovery file, " +
+        "or use sheets_history to review and manually undo operations.",
     );
   }
 
@@ -741,7 +738,12 @@ export class TransactionManager {
       try {
         listener(event);
       } catch (error) {
-        console.error("Error in transaction event listener:", error);
+        logger.error("Error in transaction event listener", {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          transactionId: event.transactionId,
+          eventType: event.type,
+        });
       }
     }
   }
@@ -862,8 +864,14 @@ export function getTransactionManager(): TransactionManager {
 }
 
 /**
- * Reset transaction manager (for testing)
+ * Reset transaction manager (for testing only)
+ * @internal
  */
 export function resetTransactionManager(): void {
+  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
+    throw new Error(
+      "resetTransactionManager() can only be called in test environment",
+    );
+  }
   transactionManagerInstance = null;
 }
