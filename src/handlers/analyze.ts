@@ -700,8 +700,10 @@ export class AnalyzeHandler {
                     spreadsheetId: chartInput.spreadsheetId,
                     chartType: String(r["chartType"] || "LINE"),
                     dataRange: rangeStr,
-                    title: String(config?.title || `${r["chartType"]} Chart`),
-                    xAxisTitle: String(config?.categories || ""),
+                    title: String(
+                      config?.["title"] || `${r["chartType"]} Chart`,
+                    ),
+                    xAxisTitle: String(config?.["categories"] || ""),
                     yAxisTitle: "Values",
                     legendPosition: "BOTTOM_LEGEND",
                   },
@@ -1211,33 +1213,48 @@ export class AnalyzeHandler {
               sheetsApi: this.sheetsApi,
             });
 
-            // Get structure to find formulas
-            const structure = await tieredRetrieval.getStructure(
+            // Get metadata to know which sheets to analyze
+            const metadata = await tieredRetrieval.getMetadata(
               formulaInput.spreadsheetId,
             );
 
-            // Extract all formulas from sheets
+            // Extract all formulas from sheets using Google Sheets API
             const formulas: Array<{ cell: string; formula: string }> = [];
 
-            // Fetch formulas from each sheet
-            for (const sheet of structure.sheets) {
-              if (sheet.data && sheet.data[0]?.rowData) {
-                for (
-                  let rowIdx = 0;
-                  rowIdx < sheet.data[0].rowData.length;
-                  rowIdx++
-                ) {
-                  const row = sheet.data[0].rowData[rowIdx];
-                  if (!row.values) continue;
+            // Fetch formulas from each sheet using includeGridData with fields filter
+            for (const sheet of metadata.sheets) {
+              const response = await this.sheetsApi.spreadsheets.get({
+                spreadsheetId: formulaInput.spreadsheetId,
+                ranges: [`'${sheet.title}'`],
+                includeGridData: true,
+                fields:
+                  "sheets(data(rowData(values(userEnteredValue))),properties(title))",
+              });
 
-                  for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
-                    const cell = row.values[colIdx];
-                    if (cell.userEnteredValue?.formulaValue) {
-                      const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
-                      formulas.push({
-                        cell: `${sheet.properties?.title}!${cellA1}`,
-                        formula: cell.userEnteredValue.formulaValue,
-                      });
+              if (response.data.sheets && response.data.sheets[0]?.data) {
+                const sheetData = response.data.sheets[0];
+                const sheetTitle = sheetData.properties?.title || sheet.title;
+
+                for (const gridData of sheetData.data || []) {
+                  if (!gridData.rowData) continue;
+
+                  for (
+                    let rowIdx = 0;
+                    rowIdx < gridData.rowData.length;
+                    rowIdx++
+                  ) {
+                    const row = gridData.rowData[rowIdx];
+                    if (!row?.values) continue;
+
+                    for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
+                      const cell = row.values[colIdx];
+                      if (cell?.userEnteredValue?.formulaValue) {
+                        const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
+                        formulas.push({
+                          cell: `${sheetTitle}!${cellA1}`,
+                          formula: cell.userEnteredValue.formulaValue,
+                        });
+                      }
                     }
                   }
                 }
@@ -1446,7 +1463,7 @@ export class AnalyzeHandler {
               response = {
                 success: false,
                 error: {
-                  code: "INVALID_QUERY",
+                  code: "VALIDATION_ERROR",
                   message: validation.reason || "Invalid query",
                   retryable: false,
                 },

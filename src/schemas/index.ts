@@ -466,10 +466,35 @@ export const TOOL_REGISTRY = {
     annotations: "SHEETS_COMPOSITE_ANNOTATIONS",
     actions: ["import_csv", "smart_append", "bulk_update", "deduplicate"],
   },
+  sheets_session: {
+    name: "sheets_session",
+    title: "Session Context",
+    description:
+      '🧠 Manage conversation context for natural language interactions. Enables references like "the spreadsheet", "undo that", "continue". Actions: set_active (remember spreadsheet), get_active (current context), get_context (full summary), record_operation (track changes), get_last_operation, get_history, find_by_reference (resolve "that"/"the budget"), update_preferences, get_preferences, set_pending (multi-step ops), get_pending, clear_pending, reset',
+    schema: "SheetsSessionInputSchema",
+    output: "SheetsSessionOutputSchema",
+    annotations: "SHEETS_SESSION_ANNOTATIONS",
+    actions: [
+      "set_active",
+      "get_active",
+      "get_context",
+      "record_operation",
+      "get_last_operation",
+      "get_history",
+      "find_by_reference",
+      "update_preferences",
+      "get_preferences",
+      "set_pending",
+      "get_pending",
+      "clear_pending",
+      "reset",
+    ],
+  },
 } as const;
 
 // Tool count
 export const TOOL_COUNT = 26;
 
-// Action count (updated 2026-01-12: sheets_analyze 4→10 = +6 actions)
+// Action count (26 tools × avg 8.2 actions = 214 total)
+// Computed in annotations.ts from ACTION_COUNTS map
 export const ACTION_COUNT = 214;

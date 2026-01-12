@@ -158,7 +158,11 @@ function extractValues(query: string): string[] {
   // Extract quoted strings
   const quotedPattern = /"([^"]+)"|'([^']+)'/g;
   const quotedMatches = Array.from(query.matchAll(quotedPattern));
-  values.push(...quotedMatches.map((m) => m[1] || m[2]));
+  values.push(
+    ...quotedMatches
+      .map((m) => m[1] ?? m[2])
+      .filter((v): v is string => v !== undefined),
+  );
 
   // Extract numbers
   const numberPattern = /\b\d+(?:\.\d+)?\b/g;
@@ -351,6 +355,7 @@ export function resolveHistoryReferences(
   if (context.previousQueries.length === 0) return query;
 
   const lastQuery = context.previousQueries[context.previousQueries.length - 1];
+  if (!lastQuery) return query;
 
   // Simple resolution: append context if query is too short or has references
   if (query.length < 20 || referencesHistory(query)) {
