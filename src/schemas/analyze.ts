@@ -1,17 +1,31 @@
 /**
- * Tool: sheets_analyze
+ * Tool: sheets_analyze (CONSOLIDATED - PURE ANALYSIS)
  *
- * AI-powered data analysis using MCP Sampling (SEP-1577).
- * Instead of implementing custom ML/statistics, we leverage the LLM
- * via the Sampling capability for intelligent analysis.
+ * Ultimate analysis tool combining traditional statistics + AI-powered insights.
+ * Consolidates former sheets_analysis (13 actions) + sheets_analyze (4 actions)
+ * into a single intelligent tool with 8 actions and smart routing.
  *
- * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Sampling section
+ * DESIGN PRINCIPLE: This tool ANALYZES data and provides recommendations.
+ * It does NOT create or modify spreadsheets. Recommendations include executable
+ * parameters that other tools (sheets_charts, sheets_pivot) can use directly.
+ *
+ * Features:
+ * - Fast path: Traditional statistics for <10K rows (0.5-2s)
+ * - AI path: LLM-powered insights via MCP Sampling for complex analysis (3-15s)
+ * - Streaming path: Task-enabled chunked processing for >50K rows (async)
+ * - Tiered retrieval: 4-level data fetching (metadata/structure/sample/full)
+ * - 43-category extraction: Systematic feature extraction
+ * - Executable recommendations: Ready-to-use params for creation tools
+ *
+ * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Sampling, Tasks
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
 import { z } from "zod";
 import {
   SpreadsheetIdSchema,
+  SheetIdSchema,
+  RangeInputSchema,
   ErrorDetailSchema,
   ResponseMetaSchema,
   type ToolAnnotations,
@@ -31,20 +45,52 @@ const AnalysisTypeSchema = z.enum([
 ]);
 
 /**
- * Range reference schema (simplified)
+ * Data quality issue schema (from sheets_analysis)
  */
-const RangeRefSchema = z.union([
-  z.object({
-    a1: z.string().min(1).describe('A1 notation (e.g., "Sheet1!A1:C10")'),
-  }),
-  z.object({
-    sheetName: z.string().describe("Sheet name"),
-    range: z
-      .string()
-      .optional()
-      .describe('Range within sheet (e.g., "A1:Z100")'),
-  }),
-]);
+const DataQualityIssueSchema = z.object({
+  type: z.enum([
+    "EMPTY_HEADER",
+    "DUPLICATE_HEADER",
+    "MIXED_DATA_TYPES",
+    "EMPTY_ROW",
+    "EMPTY_COLUMN",
+    "TRAILING_WHITESPACE",
+    "LEADING_WHITESPACE",
+    "INCONSISTENT_FORMAT",
+    "STATISTICAL_OUTLIER",
+    "MISSING_VALUE",
+    "DUPLICATE_ROW",
+    "INVALID_EMAIL",
+    "INVALID_URL",
+    "INVALID_DATE",
+    "FORMULA_ERROR",
+  ]),
+  severity: z.enum(["low", "medium", "high"]),
+  location: z.string(),
+  description: z.string(),
+  autoFixable: z.boolean(),
+  fixTool: z.string().optional(),
+  fixAction: z.string().optional(),
+  fixParams: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Performance recommendation schema (NEW)
+ */
+const PerformanceRecommendationSchema = z.object({
+  type: z.enum([
+    "VOLATILE_FORMULAS",
+    "EXCESSIVE_FORMULAS",
+    "LARGE_RANGES",
+    "CIRCULAR_REFERENCES",
+    "INEFFICIENT_STRUCTURE",
+    "TOO_MANY_SHEETS",
+  ]),
+  severity: z.enum(["low", "medium", "high"]),
+  description: z.string(),
+  estimatedImpact: z.string(),
+  recommendation: z.string(),
+});
 
 /**
  * Input schema - flattened union for MCP SDK compatibility
@@ -55,35 +101,73 @@ export const SheetsAnalyzeInputSchema = z
   .object({
     // Required action discriminator
     action: z
-      .enum(["analyze", "generate_formula", "suggest_chart", "get_stats"])
+      .enum([
+        "analyze_data", // Core: Smart routing (stats OR AI)
+        "suggest_visualization", // Core: Unified chart/pivot recommendations with executable params
+        "generate_formula", // Core: Formula generation with context
+        "detect_patterns", // Core: Anomalies, trends, correlations
+        "analyze_structure", // Specialized: Schema, types, relationships
+        "analyze_quality", // Specialized: Nulls, duplicates, outliers
+        "analyze_performance", // Specialized: Optimization suggestions
+        "explain_analysis", // Utility: Conversational explanations
+      ])
       .describe("The analysis operation to perform"),
 
-    // Fields for ANALYZE action
+    // Common fields
     spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      "Spreadsheet ID from URL (required for: analyze, generate_formula, suggest_chart)",
+      "Spreadsheet ID from URL (required for most actions)",
     ),
-    range: RangeRefSchema.optional().describe(
-      "Range to analyze or use for context (analyze, generate_formula, suggest_chart)",
+    sheetId: SheetIdSchema.optional().describe("Sheet ID for analysis"),
+    range: RangeInputSchema.optional().describe(
+      "Range to analyze or use for context",
     ),
+
+    // analyze_data specific fields
     analysisTypes: z
       .array(AnalysisTypeSchema)
       .min(1)
       .optional()
       .default(["summary", "quality"])
-      .describe("Types of analysis to perform (analyze only)"),
+      .describe("Types of analysis to perform (analyze_data)"),
+    useAI: z
+      .boolean()
+      .optional()
+      .describe("Force AI-powered analysis via MCP Sampling"),
     context: z
       .string()
       .optional()
-      .describe("Additional context for the analysis (analyze only)"),
+      .describe("Additional context for the analysis"),
     maxTokens: z
       .number()
       .int()
       .positive()
       .max(8192)
       .optional()
-      .describe("Maximum tokens for AI response, default: 4096 (analyze only)"),
+      .describe("Maximum tokens for AI response, default: 4096"),
 
-    // Fields for GENERATE_FORMULA action
+    // suggest_visualization specific fields
+    goal: z
+      .string()
+      .optional()
+      .describe(
+        'Visualization goal, e.g., "show trends", "compare categories"',
+      ),
+    preferredTypes: z
+      .array(z.string())
+      .optional()
+      .describe("Preferred chart/pivot types"),
+    includeCharts: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include chart recommendations"),
+    includePivots: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include pivot table recommendations"),
+
+    // generate_formula specific fields
     description: z
       .string()
       .min(1)
@@ -94,34 +178,94 @@ export const SheetsAnalyzeInputSchema = z
     targetCell: z
       .string()
       .optional()
-      .describe("Target cell for the formula (generate_formula only)"),
+      .describe("Target cell for formula context"),
+    includeExplanation: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include formula explanation"),
 
-    // Fields for SUGGEST_CHART action
-    goal: z
+    // detect_patterns specific fields
+    includeCorrelations: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include correlation analysis"),
+    includeTrends: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include trend detection"),
+    includeSeasonality: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Include seasonality patterns"),
+    includeAnomalies: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include anomaly detection"),
+
+    // analyze_structure specific fields
+    detectTables: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Detect table structures"),
+    detectHeaders: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Detect header rows"),
+
+    // analyze_quality specific fields
+    checks: z
+      .array(
+        z.enum([
+          "headers",
+          "data_types",
+          "empty_cells",
+          "duplicates",
+          "outliers",
+          "formatting",
+          "validation",
+        ]),
+      )
+      .optional()
+      .describe("Quality checks to perform"),
+    outlierMethod: z
+      .enum(["iqr", "zscore", "modified_zscore"])
+      .optional()
+      .default("iqr"),
+    outlierThreshold: z.number().optional().default(1.5),
+
+    // explain_analysis specific fields
+    analysisResult: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("Previous analysis result to explain"),
+    question: z
       .string()
       .optional()
-      .describe(
-        'Visualization goal, e.g., "show trends", "compare categories" (suggest_chart only)',
-      ),
-    preferredTypes: z
-      .array(z.string())
-      .optional()
-      .describe("Preferred chart types (suggest_chart only)"),
-
-    // GET_STATS action has no additional fields
+      .describe("Specific question about the analysis"),
   })
   .refine(
     (data) => {
       // Validate required fields based on action
       switch (data.action) {
-        case "analyze":
+        case "analyze_data":
+        case "analyze_structure":
+        case "analyze_quality":
+        case "analyze_performance":
           return !!data.spreadsheetId;
+        case "suggest_visualization":
+        case "detect_patterns":
+          return !!data.spreadsheetId && !!data.range;
         case "generate_formula":
           return !!data.spreadsheetId && !!data.description;
-        case "suggest_chart":
-          return !!data.spreadsheetId && !!data.range;
-        case "get_stats":
-          return true; // No required fields beyond action
+        case "explain_analysis":
+          return !!data.analysisResult || !!data.question;
         default:
           return false;
       }
@@ -162,7 +306,7 @@ const FormulaSuggestionSchema = z.object({
 });
 
 /**
- * Chart recommendation schema
+ * Chart recommendation schema with executable parameters
  */
 const ChartRecommendationSchema = z.object({
   chartType: z.string(),
@@ -177,36 +321,151 @@ const ChartRecommendationSchema = z.object({
     })
     .optional(),
   insights: z.array(z.string()).optional(),
+  // NEW: Executable parameters for sheets_charts tool
+  executionParams: z
+    .object({
+      tool: z.literal("sheets_charts"),
+      action: z.literal("create"),
+      params: z.object({
+        spreadsheetId: z.string(),
+        sheetId: z.number().optional(),
+        chartType: z.string(),
+        dataRange: z.string(),
+        title: z.string().optional(),
+        xAxisTitle: z.string().optional(),
+        yAxisTitle: z.string().optional(),
+        legendPosition: z.string().optional(),
+      }),
+    })
+    .describe("Ready-to-execute parameters for sheets_charts:create action"),
 });
 
 /**
- * Stats schema
+ * Pivot table recommendation schema with executable parameters
  */
-const AnalyzeStatsSchema = z.object({
-  totalRequests: z.number(),
-  successfulRequests: z.number(),
-  failedRequests: z.number(),
-  successRate: z.number(),
-  avgResponseTime: z.number(),
-  requestsByType: z.record(z.string(), z.number()),
+const PivotRecommendationSchema = z.object({
+  confidence: z.number().min(0).max(100),
+  reasoning: z.string(),
+  configuration: z.object({
+    rows: z.array(z.string()),
+    columns: z.array(z.string()),
+    values: z.array(
+      z.object({
+        field: z.string(),
+        aggregation: z.enum(["SUM", "AVERAGE", "COUNT", "MIN", "MAX"]),
+      }),
+    ),
+  }),
+  sourceRange: z.string(),
+  // NEW: Executable parameters for sheets_pivot tool
+  executionParams: z
+    .object({
+      tool: z.literal("sheets_pivot"),
+      action: z.literal("create"),
+      params: z.object({
+        spreadsheetId: z.string(),
+        sourceSheetId: z.number().optional(),
+        sourceRange: z.string(),
+        rows: z.array(z.string()),
+        columns: z.array(z.string()),
+        values: z.array(
+          z.object({
+            sourceColumn: z.string(),
+            summarizeFunction: z.string(),
+          }),
+        ),
+      }),
+    })
+    .describe("Ready-to-execute parameters for sheets_pivot:create action"),
 });
 
 /**
- * Response schema
+ * Structure analysis result (from sheets_analysis)
+ */
+const StructureAnalysisSchema = z.object({
+  sheets: z.number().int(),
+  totalRows: z.number().int(),
+  totalColumns: z.number().int(),
+  tables: z
+    .array(
+      z.object({
+        sheetId: z.number().int(),
+        range: z.string(),
+        headers: z.array(z.string()),
+        rowCount: z.number().int(),
+      }),
+    )
+    .optional(),
+  namedRanges: z
+    .array(
+      z.object({
+        name: z.string(),
+        range: z.string(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * Pattern detection result (from sheets_analysis + AI)
+ */
+const PatternDetectionSchema = z.object({
+  correlations: z
+    .object({
+      matrix: z.array(z.array(z.number())),
+      columns: z.array(z.string()),
+    })
+    .optional(),
+  trends: z
+    .array(
+      z.object({
+        column: z.string(),
+        direction: z.enum(["increasing", "decreasing", "stable", "seasonal"]),
+        confidence: z.number().min(0).max(100),
+        description: z.string(),
+      }),
+    )
+    .optional(),
+  anomalies: z
+    .array(
+      z.object({
+        location: z.string(),
+        value: z.union([z.string(), z.number()]),
+        expectedRange: z.string().optional(),
+        severity: z.enum(["low", "medium", "high"]),
+      }),
+    )
+    .optional(),
+  seasonality: z
+    .object({
+      detected: z.boolean(),
+      period: z.number().optional(),
+      confidence: z.number().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Response schema (consolidated)
  */
 const AnalyzeResponseSchema = z.discriminatedUnion("success", [
   z.object({
     success: z.literal(true),
     action: z.string(),
-    // For analyze action
+
+    // analyze_data results
     summary: z.string().optional(),
     analyses: z.array(AnalysisFindingSchema).optional(),
     overallQualityScore: z.number().min(0).max(100).optional(),
     topInsights: z.array(z.string()).optional(),
-    // For generate_formula action
-    formula: FormulaSuggestionSchema.optional(),
-    // For suggest_chart action
+    executionPath: z
+      .enum(["fast", "ai", "streaming"])
+      .optional()
+      .describe("Path used for analysis"),
+
+    // suggest_visualization results
     chartRecommendations: z.array(ChartRecommendationSchema).optional(),
+    pivotRecommendations: z.array(PivotRecommendationSchema).optional(),
     dataAssessment: z
       .object({
         dataType: z.string(),
@@ -215,8 +474,40 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
         hasHeaders: z.boolean(),
       })
       .optional(),
-    // For get_stats action
-    stats: AnalyzeStatsSchema.optional(),
+
+    // generate_formula results
+    formula: FormulaSuggestionSchema.optional(),
+
+    // detect_patterns results
+    patterns: PatternDetectionSchema.optional(),
+
+    // analyze_structure results
+    structure: StructureAnalysisSchema.optional(),
+
+    // analyze_quality results
+    dataQuality: z
+      .object({
+        score: z.number().min(0).max(100),
+        completeness: z.number().min(0).max(100),
+        consistency: z.number().min(0).max(100),
+        accuracy: z.number().min(0).max(100),
+        issues: z.array(DataQualityIssueSchema),
+        summary: z.string(),
+      })
+      .optional(),
+
+    // analyze_performance results
+    performance: z
+      .object({
+        overallScore: z.number().min(0).max(100),
+        recommendations: z.array(PerformanceRecommendationSchema),
+        estimatedImprovementPotential: z.string(),
+      })
+      .optional(),
+
+    // explain_analysis results
+    explanation: z.string().optional(),
+
     // Common
     duration: z.number().optional(),
     message: z.string().optional(),
@@ -236,11 +527,11 @@ export const SheetsAnalyzeOutputSchema = z.object({
  * Tool annotations following MCP 2025-11-25
  */
 export const SHEETS_ANALYZE_ANNOTATIONS: ToolAnnotations = {
-  title: "AI Data Analysis",
-  readOnlyHint: true, // Analysis doesn't modify data
-  destructiveHint: false, // No data changes
+  title: "Ultimate Data Analysis",
+  readOnlyHint: true, // Pure analysis - does not modify spreadsheets
+  destructiveHint: false, // Analysis is non-destructive
   idempotentHint: false, // AI responses may vary
-  openWorldHint: true, // Uses MCP Sampling to call LLM
+  openWorldHint: true, // Uses MCP Sampling + Google API
 };
 
 // Type exports
@@ -249,25 +540,43 @@ export type SheetsAnalyzeOutput = z.infer<typeof SheetsAnalyzeOutputSchema>;
 export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
 export type AnalysisType = z.infer<typeof AnalysisTypeSchema>;
 export type AnalysisFinding = z.infer<typeof AnalysisFindingSchema>;
+export type DataQualityIssue = z.infer<typeof DataQualityIssueSchema>;
+export type PerformanceRecommendation = z.infer<
+  typeof PerformanceRecommendationSchema
+>;
 
 // Type narrowing helpers for handler methods
-// These provide type safety similar to discriminated union Extract<>
-export type AnalyzeActionInput = SheetsAnalyzeInput & {
-  action: "analyze";
+export type AnalyzeDataInput = SheetsAnalyzeInput & {
+  action: "analyze_data";
   spreadsheetId: string;
 };
-export type AnalyzeGenerateFormulaInput = SheetsAnalyzeInput & {
+export type SuggestVisualizationInput = SheetsAnalyzeInput & {
+  action: "suggest_visualization";
+  spreadsheetId: string;
+  range: string;
+};
+export type GenerateFormulaInput = SheetsAnalyzeInput & {
   action: "generate_formula";
   spreadsheetId: string;
   description: string;
 };
-export type AnalyzeSuggestChartInput = SheetsAnalyzeInput & {
-  action: "suggest_chart";
+export type DetectPatternsInput = SheetsAnalyzeInput & {
+  action: "detect_patterns";
   spreadsheetId: string;
-  range:
-    | { a1: string }
-    | { sheetName: string; range?: string };
+  range: string;
 };
-export type AnalyzeGetStatsInput = SheetsAnalyzeInput & {
-  action: "get_stats";
+export type AnalyzeStructureInput = SheetsAnalyzeInput & {
+  action: "analyze_structure";
+  spreadsheetId: string;
+};
+export type AnalyzeQualityInput = SheetsAnalyzeInput & {
+  action: "analyze_quality";
+  spreadsheetId: string;
+};
+export type AnalyzePerformanceInput = SheetsAnalyzeInput & {
+  action: "analyze_performance";
+  spreadsheetId: string;
+};
+export type ExplainAnalysisInput = SheetsAnalyzeInput & {
+  action: "explain_analysis";
 };

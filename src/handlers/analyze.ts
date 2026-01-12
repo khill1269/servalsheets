@@ -685,21 +685,46 @@ export class AnalyzeHandler {
             if (!jsonMatch) throw new Error("No JSON in response");
             const parsed = JSON.parse(jsonMatch[0]);
 
-            response = {
-              success: true,
-              action: "suggest_chart",
-              chartRecommendations: parsed.recommendations?.map(
-                (r: Record<string, unknown>) => ({
+            // Build chart recommendations with executable params
+            const chartRecommendations = parsed.recommendations?.map(
+              (r: Record<string, unknown>) => {
+                const config = r["configuration"] as
+                  | Record<string, unknown>
+                  | undefined;
+
+                // Build executable params for sheets_charts:create
+                const executionParams = {
+                  tool: "sheets_charts" as const,
+                  action: "create" as const,
+                  params: {
+                    spreadsheetId: chartInput.spreadsheetId,
+                    chartType: String(r["chartType"] || "LINE"),
+                    dataRange: rangeStr,
+                    title: String(config?.title || `${r["chartType"]} Chart`),
+                    xAxisTitle: String(config?.categories || ""),
+                    yAxisTitle: "Values",
+                    legendPosition: "BOTTOM_LEGEND",
+                  },
+                };
+
+                return {
                   chartType: r["chartType"],
                   suitabilityScore: r["suitabilityScore"],
                   reasoning: r["reasoning"],
                   configuration: r["configuration"],
                   insights: r["insights"],
-                }),
-              ),
+                  executionParams,
+                };
+              },
+            );
+
+            response = {
+              success: true,
+              action: "suggest_chart",
+              chartRecommendations,
               dataAssessment: parsed.dataAssessment,
               duration,
-              message: `${parsed.recommendations?.length ?? 0} chart type(s) recommended`,
+              message: `${chartRecommendations?.length ?? 0} chart type(s) recommended with executable params`,
             };
           } catch (error) {
             logger.error("Failed to parse chart recommendation response", {
@@ -1161,375 +1186,6 @@ export class AnalyzeHandler {
               error: {
                 code: "INTERNAL_ERROR",
                 message: "Failed to analyze performance",
-                retryable: true,
-              },
-            };
-          }
-          break;
-        }
-
-        case "create_recommended_chart": {
-          // Type assertion: refine() ensures spreadsheetId and range are present
-          const createChartInput = input as typeof input & {
-            spreadsheetId: string;
-            range?: {
-              a1?: string;
-              sheetName?: string;
-              namedRange?: string;
-              semantic?: unknown;
-              grid?: unknown;
-            };
-            recommendationId?: string;
-            chartType?: string;
-          };
-
-          const startTime = Date.now();
-
-          // PHASE 1 P0: Elicitation for chart creation
-          // Request user confirmation before creating chart
-          if (this.context.elicitationServer) {
-            const { confirmDestructiveAction } =
-              await import("../mcp/elicitation.js");
-
-            const chartTypeStr = createChartInput.chartType ?? "recommended";
-            const rangeStr =
-              createChartInput.range && "a1" in createChartInput.range
-                ? createChartInput.range.a1
-                : "A:Z";
-
-            const confirmation = await confirmDestructiveAction(
-              this.context.elicitationServer,
-              "Create Chart",
-              `You are about to create a ${chartTypeStr} chart in spreadsheet ${createChartInput.spreadsheetId}.\n\nThe chart will use data from range ${rangeStr}.\n\nThis will modify the spreadsheet by adding a new chart object.`,
-            );
-
-            if (!confirmation.confirmed) {
-              response = {
-                success: false,
-                error: {
-                  code: "PRECONDITION_FAILED",
-                  message: "Chart creation cancelled by user",
-                  retryable: false,
-                },
-              };
-              break;
-            }
-          }
-
-          // Get metadata to determine target sheet
-          const tieredRetrieval = new TieredRetrieval({
-            cache: getHotCache(),
-            sheetsApi: this.sheetsApi,
-          });
-
-          const metadata = await tieredRetrieval.getMetadata(
-            createChartInput.spreadsheetId,
-          );
-          const targetSheet = metadata.sheets[0]; // Use first sheet for now
-
-          if (!targetSheet) {
-            response = {
-              success: false,
-              error: {
-                code: "SHEET_NOT_FOUND",
-                message: "No sheets found in spreadsheet",
-                retryable: false,
-              },
-            };
-            break;
-          }
-
-          // Create basic chart using Google Sheets API
-          const chartSpec: sheets_v4.Schema$ChartSpec = {
-            title: `Auto-generated ${createChartInput.chartType ?? "LINE"} Chart`,
-            basicChart: {
-              chartType: (createChartInput.chartType ??
-                "LINE") as sheets_v4.Schema$BasicChartSpec["chartType"],
-              legendPosition: "BOTTOM_LEGEND",
-              axis: [
-                {
-                  position: "BOTTOM_AXIS",
-                  title: "Categories",
-                },
-                {
-                  position: "LEFT_AXIS",
-                  title: "Values",
-                },
-              ],
-              domains: [
-                {
-                  domain: {
-                    sourceRange: {
-                      sources: [
-                        {
-                          sheetId: targetSheet.sheetId,
-                          startRowIndex: 0,
-                          endRowIndex: Math.min(targetSheet.rowCount, 100),
-                          startColumnIndex: 0,
-                          endColumnIndex: 1,
-                        },
-                      ],
-                    },
-                  },
-                },
-              ],
-              series: [
-                {
-                  series: {
-                    sourceRange: {
-                      sources: [
-                        {
-                          sheetId: targetSheet.sheetId,
-                          startRowIndex: 0,
-                          endRowIndex: Math.min(targetSheet.rowCount, 100),
-                          startColumnIndex: 1,
-                          endColumnIndex: 2,
-                        },
-                      ],
-                    },
-                  },
-                  targetAxis: "LEFT_AXIS",
-                },
-              ],
-            },
-          };
-
-          // Create chart
-          const batchUpdateResponse =
-            await this.sheetsApi.spreadsheets.batchUpdate({
-              spreadsheetId: createChartInput.spreadsheetId,
-              requestBody: {
-                requests: [
-                  {
-                    addChart: {
-                      chart: {
-                        spec: chartSpec,
-                        position: {
-                          overlayPosition: {
-                            anchorCell: {
-                              sheetId: targetSheet.sheetId,
-                              rowIndex: 2,
-                              columnIndex: 4,
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                ],
-              },
-            });
-
-          const chartId =
-            batchUpdateResponse.data.replies?.[0]?.addChart?.chart?.chartId;
-
-          const duration = Date.now() - startTime;
-
-          if (chartId) {
-            response = {
-              success: true,
-              action: "create_recommended_chart",
-              createdChart: {
-                chartId: chartId,
-                position: {
-                  sheetId: targetSheet.sheetId,
-                  row: 2,
-                  col: 4,
-                },
-              },
-              message: `Chart created successfully (chartId: ${chartId}) in ${duration}ms`,
-              duration,
-            };
-          } else {
-            response = {
-              success: false,
-              error: {
-                code: "INTERNAL_ERROR",
-                message: "Chart creation failed - no chartId returned",
-                retryable: true,
-              },
-            };
-          }
-          break;
-        }
-
-        case "create_recommended_pivot": {
-          // Type assertion: refine() ensures spreadsheetId and range are present
-          const createPivotInput = input as typeof input & {
-            spreadsheetId: string;
-            range?: {
-              a1?: string;
-              sheetName?: string;
-              namedRange?: string;
-              semantic?: unknown;
-              grid?: unknown;
-            };
-            recommendationId?: string;
-            pivotFields?: unknown;
-          };
-
-          const startTime = Date.now();
-
-          // PHASE 1 P0: Elicitation for pivot creation
-          // Request user confirmation before creating pivot table
-          if (this.context.elicitationServer) {
-            const { confirmDestructiveAction } =
-              await import("../mcp/elicitation.js");
-
-            const rangeStr =
-              createPivotInput.range && "a1" in createPivotInput.range
-                ? createPivotInput.range.a1
-                : "A:Z";
-
-            const confirmation = await confirmDestructiveAction(
-              this.context.elicitationServer,
-              "Create Pivot Table",
-              `You are about to create a pivot table in spreadsheet ${createPivotInput.spreadsheetId}.\n\nThe pivot table will use data from range ${rangeStr}.\n\nThis will modify the spreadsheet by adding a new sheet with the pivot table.`,
-            );
-
-            if (!confirmation.confirmed) {
-              response = {
-                success: false,
-                error: {
-                  code: "PRECONDITION_FAILED",
-                  message: "Pivot table creation cancelled by user",
-                  retryable: false,
-                },
-              };
-              break;
-            }
-          }
-
-          // Get metadata to determine source sheet
-          const tieredRetrieval = new TieredRetrieval({
-            cache: getHotCache(),
-            sheetsApi: this.sheetsApi,
-          });
-
-          const metadata = await tieredRetrieval.getMetadata(
-            createPivotInput.spreadsheetId,
-          );
-          const sourceSheet = metadata.sheets[0]; // Use first sheet as source
-
-          if (!sourceSheet) {
-            response = {
-              success: false,
-              error: {
-                code: "SHEET_NOT_FOUND",
-                message: "No sheets found in spreadsheet",
-                retryable: false,
-              },
-            };
-            break;
-          }
-
-          // Create pivot table using Google Sheets API
-          // First, add a new sheet for the pivot
-          const addSheetResponse =
-            await this.sheetsApi.spreadsheets.batchUpdate({
-              spreadsheetId: createPivotInput.spreadsheetId,
-              requestBody: {
-                requests: [
-                  {
-                    addSheet: {
-                      properties: {
-                        title: `Pivot Table ${Date.now()}`,
-                      },
-                    },
-                  },
-                ],
-              },
-            });
-
-          const pivotSheetId =
-            addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId;
-
-          if (!pivotSheetId) {
-            response = {
-              success: false,
-              error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to create pivot sheet",
-                retryable: true,
-              },
-            };
-            break;
-          }
-
-          // Create basic pivot table
-          const pivotResponse = await this.sheetsApi.spreadsheets.batchUpdate({
-            spreadsheetId: createPivotInput.spreadsheetId,
-            requestBody: {
-              requests: [
-                {
-                  updateCells: {
-                    rows: [
-                      {
-                        values: [
-                          {
-                            pivotTable: {
-                              source: {
-                                sheetId: sourceSheet.sheetId,
-                                startRowIndex: 0,
-                                endRowIndex: Math.min(
-                                  sourceSheet.rowCount,
-                                  1000,
-                                ),
-                                startColumnIndex: 0,
-                                endColumnIndex: Math.min(
-                                  sourceSheet.columnCount,
-                                  10,
-                                ),
-                              },
-                              rows: [
-                                {
-                                  sourceColumnOffset: 0,
-                                  showTotals: true,
-                                  sortOrder: "ASCENDING",
-                                },
-                              ],
-                              values: [
-                                {
-                                  summarizeFunction: "COUNTA",
-                                  sourceColumnOffset: 1,
-                                },
-                              ],
-                            },
-                          },
-                        ],
-                      },
-                    ],
-                    fields: "pivotTable",
-                    start: {
-                      sheetId: pivotSheetId,
-                      rowIndex: 0,
-                      columnIndex: 0,
-                    },
-                  },
-                },
-              ],
-            },
-          });
-
-          const duration = Date.now() - startTime;
-
-          if (pivotResponse.data.spreadsheetId) {
-            response = {
-              success: true,
-              action: "create_recommended_pivot",
-              createdPivot: {
-                sheetId: pivotSheetId,
-                range: `Sheet${pivotSheetId}!A1`,
-              },
-              message: `Pivot table created successfully (sheetId: ${pivotSheetId}) in ${duration}ms`,
-              duration,
-            };
-          } else {
-            response = {
-              success: false,
-              error: {
-                code: "INTERNAL_ERROR",
-                message: "Pivot table creation failed",
                 retryable: true,
               },
             };

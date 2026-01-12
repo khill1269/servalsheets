@@ -1,7 +1,7 @@
 {
   "name": "servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server with 26 tools, 214 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server with 26 tools, 212 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

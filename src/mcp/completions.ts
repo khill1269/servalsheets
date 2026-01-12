@@ -61,8 +61,6 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "analyze_structure",
     "analyze_quality",
     "analyze_performance",
-    "create_recommended_chart",
-    "create_recommended_pivot",
     "explain_analysis",
   ],
   sheets_auth: ["status", "login", "callback", "logout"],
