@@ -111,7 +111,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: true,
   },
   sheets_analysis: {
-    title: "Data Analysis",
+    title: "Data Analysis (DEPRECATED)",
     readOnlyHint: true, // READ-ONLY tool
     destructiveHint: false,
     idempotentHint: true, // Same input = same output
@@ -169,11 +169,11 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: false, // MCP Elicitation
   },
   sheets_analyze: {
-    title: "AI-Powered Analysis",
-    readOnlyHint: true,
-    destructiveHint: false,
+    title: "Ultimate Data Analysis",
+    readOnlyHint: false, // Can create charts/pivots
+    destructiveHint: false, // Creating charts/pivots is not destructive
     idempotentHint: false, // AI output varies
-    openWorldHint: true, // MCP Sampling
+    openWorldHint: true, // MCP Sampling + Google API
   },
   sheets_fix: {
     title: "Automated Issue Fixing",
@@ -219,7 +219,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_sharing: 8,
   sheets_comments: 10,
   sheets_versions: 10,
-  sheets_analysis: 13, // data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
+  sheets_analysis: 13, // DEPRECATED (remove after 2026-04-12) - data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
   sheets_advanced: 19,
   // Enterprise Tools
   sheets_transaction: 6, // begin, queue, commit, rollback, status, list
@@ -229,10 +229,11 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_history: 7, // list, get, stats, undo, redo, revert_to, clear
   // MCP-Native Tools
   sheets_confirm: 2, // request, get_stats (via Elicitation)
-  sheets_analyze: 4, // analyze, generate_formula, suggest_chart, get_stats (via Sampling)
+  sheets_analyze: 10, // CONSOLIDATED (2026-01-12) - analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, create_recommended_chart, create_recommended_pivot, explain_analysis
   sheets_fix: 1, // fix action (automated issue resolution)
   // Composite Operations
   sheets_composite: 4, // import_csv, smart_append, bulk_update, deduplicate
+  sheets_session: 13, // set_active, get_active, get_context, record_operation, get_last_operation, get_history, find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending, reset
 };
 
 /**

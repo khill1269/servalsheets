@@ -427,13 +427,24 @@ export const TOOL_REGISTRY = {
   },
   sheets_analyze: {
     name: "sheets_analyze",
-    title: "AI Analysis",
+    title: "Ultimate Data Analysis",
     description:
-      "AI-powered data analysis using MCP Sampling (SEP-1577). Analyze patterns, anomalies, trends, generate formulas, suggest charts.",
+      "Consolidated analysis tool with intelligent routing (fast/AI/streaming paths). Features: analyze_data (smart routing), suggest_visualization (charts + pivots), generate_formula (NL → formula), detect_patterns (correlations/trends/anomalies), analyze_structure (schema analysis), analyze_quality (data quality checks), analyze_performance (optimization suggestions), create_recommended_chart (auto-create), create_recommended_pivot (auto-create), explain_analysis (conversational). Uses MCP Sampling (SEP-1577) for AI-powered insights.",
     schema: "SheetsAnalyzeInputSchema",
     output: "SheetsAnalyzeOutputSchema",
     annotations: "SHEETS_ANALYZE_ANNOTATIONS",
-    actions: ["analyze", "generate_formula", "suggest_chart", "get_stats"],
+    actions: [
+      "analyze_data",
+      "suggest_visualization",
+      "generate_formula",
+      "detect_patterns",
+      "analyze_structure",
+      "analyze_quality",
+      "analyze_performance",
+      "create_recommended_chart",
+      "create_recommended_pivot",
+      "explain_analysis",
+    ],
   },
   sheets_fix: {
     name: "sheets_fix",
@@ -460,5 +471,5 @@ export const TOOL_REGISTRY = {
 // Tool count
 export const TOOL_COUNT = 26;
 
-// Action count
-export const ACTION_COUNT = 53;
+// Action count (updated 2026-01-12: sheets_analyze 4→10 = +6 actions)
+export const ACTION_COUNT = 214;
