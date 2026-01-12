@@ -563,9 +563,9 @@ export interface FormatInconsistency {
  * // Returns: [{
  * //   column: 1,
  * //   patterns: [
- * //     { pattern: 'XXX-XXXX', count: 1, examples: [...] },
- * //     { pattern: '(XXX) XXXX', count: 1, examples: [...] },
- * //     { pattern: 'XXX.XXXX', count: 1, examples: [...] }
+ * //     { pattern: 'DDD-DDDD', count: 1, examples: [...] },
+ * //     { pattern: '(DDD) DDDD', count: 1, examples: [...] },
+ * //     { pattern: 'DDD.DDDD', count: 1, examples: [...] }
  * //   ],
  * //   dominantPattern: 'Mixed',
  * //   inconsistencyRate: 66
@@ -582,10 +582,7 @@ export function findFormatInconsistencies(
   const results: FormatInconsistency[] = [];
 
   for (let col = 0; col < columnCount; col++) {
-    const patterns = new Map<
-      string,
-      Array<{ row: number; value: string }>
-    >();
+    const patterns = new Map<string, Array<{ row: number; value: string }>>();
 
     for (let row = 0; row < data.length; row++) {
       const value = data[row]?.[col];

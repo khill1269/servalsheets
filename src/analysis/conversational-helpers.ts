@@ -80,7 +80,10 @@ export interface QueryResult {
 /**
  * Detect the intent of a natural language query
  */
-export function detectQueryIntent(query: string, schema: ColumnSchema[]): QueryIntent {
+export function detectQueryIntent(
+  query: string,
+  schema: ColumnSchema[],
+): QueryIntent {
   const columnNames = schema.map((col) => col.columnName.toLowerCase());
 
   // Pattern matching for different intents
@@ -104,9 +107,10 @@ export function detectQueryIntent(query: string, schema: ColumnSchema[]): QueryI
 
   // Find highest scoring intent
   const maxScore = Math.max(...Object.values(scores));
-  const detectedIntent = Object.keys(scores).find(
-    (key) => scores[key] === maxScore,
-  ) as QueryIntent["type"] || "EXPLAIN";
+  const detectedIntent =
+    (Object.keys(scores).find(
+      (key) => scores[key] === maxScore,
+    ) as QueryIntent["type"]) || "EXPLAIN";
 
   // Extract entities
   const entities = {
@@ -231,11 +235,7 @@ export function buildNLQuerySamplingRequest(
     .join("\n");
 
   const sampleData = context.dataSnapshot
-    ? JSON.stringify(
-        context.dataSnapshot.sampleRows.slice(0, 10),
-        null,
-        2,
-      )
+    ? JSON.stringify(context.dataSnapshot.sampleRows.slice(0, 10), null, 2)
     : "No sample data available";
 
   // Build conversation history
@@ -390,7 +390,8 @@ export function validateQuery(
   ) {
     return {
       valid: false,
-      reason: "No data available to answer this query. Please provide data context.",
+      reason:
+        "No data available to answer this query. Please provide data context.",
     };
   }
 
@@ -416,7 +417,9 @@ export function generateQuickInsights(
   // Numeric columns summary
   const numericCols = schema.filter((col) => col.inferredType === "number");
   if (numericCols.length > 0) {
-    insights.push(`${numericCols.length} numeric columns available for calculations`);
+    insights.push(
+      `${numericCols.length} numeric columns available for calculations`,
+    );
   }
 
   // High cardinality columns (potential categories)
@@ -432,7 +435,9 @@ export function generateQuickInsights(
   // Date columns (time series potential)
   const dateCols = schema.filter((col) => col.inferredType === "date");
   if (dateCols.length > 0) {
-    insights.push(`Time series analysis available for: ${dateCols.map((c) => c.columnName).join(", ")}`);
+    insights.push(
+      `Time series analysis available for: ${dateCols.map((c) => c.columnName).join(", ")}`,
+    );
   }
 
   return insights;

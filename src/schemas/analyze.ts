@@ -258,7 +258,9 @@ export const SheetsAnalyzeInputSchema = z
     query: z
       .string()
       .optional()
-      .describe("Natural language query (required for: query_natural_language)"),
+      .describe(
+        "Natural language query (required for: query_natural_language)",
+      ),
     conversationId: z
       .string()
       .optional()

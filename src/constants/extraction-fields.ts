@@ -153,7 +153,7 @@ export const TIER_STRUCTURAL: TierConfig = {
     FIELD_MASKS.MERGES,
     FIELD_MASKS.FILTER_VIEWS,
     "sheets(properties,merges,filterViews,basicFilter)",
-    "sheets(rowMetadata(hiddenByUser,pixelSize),columnMetadata(hiddenByUser,pixelSize))"
+    "sheets(rowMetadata(hiddenByUser,pixelSize),columnMetadata(hiddenByUser,pixelSize))",
   ),
   cacheTTL: 300_000, // 5 minutes
   expectedSize: { min: "10KB", max: "200KB" },
@@ -189,7 +189,7 @@ export const TIER_FORMATTING: TierConfig = {
     FIELD_MASKS.CELL_FORMAT,
     FIELD_MASKS.CONDITIONAL_FORMATS,
     "sheets(bandedRanges)",
-    "sheets(data(rowData(values(userEnteredFormat,effectiveFormat,textFormatRuns))))"
+    "sheets(data(rowData(values(userEnteredFormat,effectiveFormat,textFormatRuns))))",
   ),
   cacheTTL: 180_000, // 3 minutes - formats change less frequently
   expectedSize: { min: "50KB", max: "2MB" },
@@ -220,7 +220,7 @@ export const TIER_DATA_COMPLETE: TierConfig = {
   fieldMask: combineFieldMasks(
     FIELD_MASKS.DATA_VALIDATION,
     "sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue,hyperlink,note,dataValidation,pivotTable))))",
-    "sheets(charts)"
+    "sheets(charts)",
   ),
   cacheTTL: 120_000, // 2 minutes - data changes frequently
   expectedSize: { min: "100KB", max: "10MB" },
@@ -253,7 +253,7 @@ export const TIER_COLLABORATION: TierConfig = {
   fieldMask: combineFieldMasks(
     FIELD_MASKS.PROTECTED_RANGES,
     "sheets(protectedRanges)",
-    "sheets(properties(sheetId,title))"
+    "sheets(properties(sheetId,title))",
   ),
   cacheTTL: 60_000, // 1 minute - permissions can change
   expectedSize: { min: "5KB", max: "100KB" },
@@ -477,7 +477,9 @@ export const DOMAIN_CATEGORIES: Record<TestDomain, TestCategory[]> = {
  * Get the optimal tiers needed for a set of test categories
  * Returns tiers in priority order (lowest priority first for efficient fetching)
  */
-export function getTiersForCategories(categories: TestCategory[]): ExtractionTier[] {
+export function getTiersForCategories(
+  categories: TestCategory[],
+): ExtractionTier[] {
   const tiersNeeded = new Set<ExtractionTier>();
 
   for (const category of categories) {
@@ -486,7 +488,7 @@ export function getTiersForCategories(categories: TestCategory[]): ExtractionTie
 
   // Sort by priority
   return Array.from(tiersNeeded).sort(
-    (a, b) => EXTRACTION_TIERS[a].priority - EXTRACTION_TIERS[b].priority
+    (a, b) => EXTRACTION_TIERS[a].priority - EXTRACTION_TIERS[b].priority,
   );
 }
 
@@ -547,7 +549,7 @@ export function requiresGridData(tiers: ExtractionTier[]): boolean {
  */
 export function requiresDriveApi(tiers: ExtractionTier[]): boolean {
   return tiers.some(
-    (tier) => EXTRACTION_TIERS[tier].apiParams?.['requiresDriveApi'] === true
+    (tier) => EXTRACTION_TIERS[tier].apiParams?.["requiresDriveApi"] === true,
   );
 }
 

@@ -35,7 +35,7 @@ export function storeAnalysisResult(
   const id = `analysis-${nextAnalysisId++}`;
   const summary =
     result.success && "summary" in result
-      ? result.summary ?? "Analysis completed"
+      ? (result.summary ?? "Analysis completed")
       : "Analysis failed";
 
   analysisResultsStore.set(id, {

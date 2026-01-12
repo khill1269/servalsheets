@@ -91,10 +91,7 @@ function assertArray(
  */
 function assertRange(value: unknown, field: string): void {
   if (value === undefined || value === null) {
-    throw new FastValidationError(
-      "MISSING_FIELD",
-      `${field} is required`,
-    );
+    throw new FastValidationError("MISSING_FIELD", `${field} is required`);
   }
 
   // Accept string format (A1 notation)

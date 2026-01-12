@@ -164,7 +164,8 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
       for (let i = 0; i < Math.min(rowTypes.length, nextRowTypes.length); i++) {
         if (rowTypes[i] !== nextRowTypes[i]) typeChanges++;
       }
-      const changeRatio = typeChanges / Math.min(rowTypes.length, nextRowTypes.length);
+      const changeRatio =
+        typeChanges / Math.min(rowTypes.length, nextRowTypes.length);
       score += changeRatio * 20;
     }
 
@@ -177,7 +178,9 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
 
   const hasHeaders = maxScore > 50; // Threshold
   const headers = hasHeaders
-    ? data[headerRowIndex].map((cell) => String(cell || `Column ${data[headerRowIndex].indexOf(cell) + 1}`))
+    ? data[headerRowIndex].map((cell) =>
+        String(cell || `Column ${data[headerRowIndex].indexOf(cell) + 1}`),
+      )
     : data[0].map((_, idx) => `Column ${idx + 1}`);
 
   return {
@@ -217,7 +220,9 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find first non-empty row
   let startRow = 0;
   for (let r = 0; r < data.length; r++) {
-    if (data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)) {
+    if (
+      data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)
+    ) {
       startRow = r;
       break;
     }
@@ -226,7 +231,9 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find last non-empty row
   let endRow = data.length - 1;
   for (let r = data.length - 1; r >= 0; r--) {
-    if (data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)) {
+    if (
+      data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)
+    ) {
       endRow = r;
       break;
     }
@@ -235,7 +242,11 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find first non-empty column
   let startCol = 0;
   for (let c = 0; c < data[0].length; c++) {
-    if (data.some((row) => row[c] !== null && row[c] !== "" && row[c] !== undefined)) {
+    if (
+      data.some(
+        (row) => row[c] !== null && row[c] !== "" && row[c] !== undefined,
+      )
+    ) {
       startCol = c;
       break;
     }
@@ -244,7 +255,11 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find last non-empty column
   let endCol = data[0].length - 1;
   for (let c = data[0].length - 1; c >= 0; c--) {
-    if (data.some((row) => row[c] !== null && row[c] !== "" && row[c] !== undefined)) {
+    if (
+      data.some(
+        (row) => row[c] !== null && row[c] !== "" && row[c] !== undefined,
+      )
+    ) {
       endCol = c;
       break;
     }
@@ -329,7 +344,10 @@ export function inferSchema(
     }
 
     // If no clear dominant type, mark as mixed
-    const totalTyped = Object.values(types).reduce((sum, count) => sum + count, 0);
+    const totalTyped = Object.values(types).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
     const dominantRatio = maxCount / totalTyped;
     if (dominantRatio < 0.8 && totalTyped > 0) {
       inferredType = "mixed";
@@ -338,7 +356,8 @@ export function inferSchema(
     // Cardinality and uniqueness
     const uniqueValues = new Set(columnValues.map(String));
     const cardinality = uniqueValues.size;
-    const uniqueRatio = columnValues.length > 0 ? cardinality / columnValues.length : 0;
+    const uniqueRatio =
+      columnValues.length > 0 ? cardinality / columnValues.length : 0;
 
     // Nulls
     const totalRows = data.length - dataStartRow;
@@ -417,8 +436,11 @@ export function detectForeignKeys(
           );
 
           // Calculate match ratio
-          const intersection = new Set([...values1].filter((x) => values2.has(x)));
-          const matchRatio = intersection.size / Math.min(values1.size, values2.size);
+          const intersection = new Set(
+            [...values1].filter((x) => values2.has(x)),
+          );
+          const matchRatio =
+            intersection.size / Math.min(values1.size, values2.size);
 
           // If significant overlap, it's a candidate
           if (matchRatio > 0.5) {
@@ -457,7 +479,12 @@ export function findMergedCells(
   if (!sheetData.merges) return mergedCells;
 
   for (const merge of sheetData.merges) {
-    if (!merge.startRowIndex || !merge.endRowIndex || !merge.startColumnIndex || !merge.endColumnIndex) {
+    if (
+      !merge.startRowIndex ||
+      !merge.endRowIndex ||
+      !merge.startColumnIndex ||
+      !merge.endColumnIndex
+    ) {
       continue;
     }
 
@@ -466,9 +493,19 @@ export function findMergedCells(
 
     // Get value from merged cell (top-left corner)
     let value: unknown = null;
-    if (sheetData.data?.[0]?.rowData?.[merge.startRowIndex]?.values?.[merge.startColumnIndex]) {
-      const cellData = sheetData.data[0].rowData[merge.startRowIndex].values[merge.startColumnIndex];
-      value = cellData.formattedValue || cellData.effectiveValue?.stringValue || cellData.effectiveValue?.numberValue;
+    if (
+      sheetData.data?.[0]?.rowData?.[merge.startRowIndex]?.values?.[
+        merge.startColumnIndex
+      ]
+    ) {
+      const cellData =
+        sheetData.data[0].rowData[merge.startRowIndex].values[
+          merge.startColumnIndex
+        ];
+      value =
+        cellData.formattedValue ||
+        cellData.effectiveValue?.stringValue ||
+        cellData.effectiveValue?.numberValue;
     }
 
     // Convert to A1 notation
@@ -506,8 +543,7 @@ export function findProtectedRanges(
       ? `${String.fromCharCode(65 + (protection.range.startColumnIndex || 0))}${(protection.range.startRowIndex || 0) + 1}:${String.fromCharCode(65 + ((protection.range.endColumnIndex || 1) - 1))}${protection.range.endRowIndex || 1}`
       : "Entire Sheet";
 
-    const editors =
-      protection.editors?.users?.map((user) => user) || [];
+    const editors = protection.editors?.users?.map((user) => user) || [];
 
     protectedRanges.push({
       range,

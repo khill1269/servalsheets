@@ -65,12 +65,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "query_natural_language",
     "explain_analysis",
   ],
-  sheets_auth: [
-    "status",
-    "login",
-    "callback",
-    "logout",
-  ],
+  sheets_auth: ["status", "login", "callback", "logout"],
   sheets_cells: [
     "add_note",
     "get_note",
@@ -114,14 +109,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "bulk_update",
     "deduplicate",
   ],
-  sheets_confirm: [
-    "request",
-    "get_stats",
-  ],
-  sheets_conflict: [
-    "detect",
-    "resolve",
-  ],
+  sheets_confirm: ["request", "get_stats"],
+  sheets_conflict: ["detect", "resolve"],
   sheets_dimensions: [
     "insert_rows",
     "insert_columns",
@@ -161,9 +150,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "delete_slicer",
     "list_slicers",
   ],
-  sheets_fix: [
-    "fix",
-  ],
+  sheets_fix: ["fix"],
   sheets_format: [
     "set_format",
     "set_background",
@@ -184,17 +171,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "revert_to",
     "clear",
   ],
-  sheets_impact: [
-    "analyze",
-  ],
-  sheets_pivot: [
-    "create",
-    "update",
-    "delete",
-    "list",
-    "get",
-    "refresh",
-  ],
+  sheets_impact: ["analyze"],
+  sheets_pivot: ["create", "update", "delete", "list", "get", "refresh"],
   sheets_rules: [
     "add_conditional_format",
     "update_conditional_format",
@@ -257,9 +235,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     "status",
     "list",
   ],
-  sheets_validation: [
-    "validate",
-  ],
+  sheets_validation: ["validate"],
   sheets_values: [
     "read",
     "write",

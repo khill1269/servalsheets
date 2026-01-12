@@ -1193,6 +1193,328 @@ export class AnalyzeHandler {
           break;
         }
 
+        case "analyze_formulas": {
+          // Type assertion: refine() ensures spreadsheetId is present
+          const formulaInput = input as typeof input & {
+            spreadsheetId: string;
+            sheetId?: number;
+            includeOptimizations?: boolean;
+            includeComplexity?: boolean;
+          };
+
+          const startTime = Date.now();
+
+          try {
+            // Get metadata
+            const tieredRetrieval = new TieredRetrieval({
+              cache: getHotCache(),
+              sheetsApi: this.sheetsApi,
+            });
+
+            // Get structure to find formulas
+            const structure = await tieredRetrieval.getStructure(
+              formulaInput.spreadsheetId,
+            );
+
+            // Extract all formulas from sheets
+            const formulas: Array<{ cell: string; formula: string }> = [];
+
+            // Fetch formulas from each sheet
+            for (const sheet of structure.sheets) {
+              if (sheet.data && sheet.data[0]?.rowData) {
+                for (
+                  let rowIdx = 0;
+                  rowIdx < sheet.data[0].rowData.length;
+                  rowIdx++
+                ) {
+                  const row = sheet.data[0].rowData[rowIdx];
+                  if (!row.values) continue;
+
+                  for (let colIdx = 0; colIdx < row.values.length; colIdx++) {
+                    const cell = row.values[colIdx];
+                    if (cell.userEnteredValue?.formulaValue) {
+                      const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
+                      formulas.push({
+                        cell: `${sheet.properties?.title}!${cellA1}`,
+                        formula: cell.userEnteredValue.formulaValue,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            // Import formula analysis functions
+            const {
+              findVolatileFormulas,
+              analyzeFormulaComplexity,
+              detectCircularRefs,
+              generateOptimizations,
+            } = await import("../analysis/formula-helpers.js");
+
+            // Analyze formulas
+            const volatileFormulas = findVolatileFormulas(formulas);
+            const circularRefs = detectCircularRefs(formulas);
+
+            // Complexity analysis
+            const complexityScores = formulas.map((f) =>
+              analyzeFormulaComplexity(f.cell, f.formula),
+            );
+
+            const complexityDistribution = {
+              simple: complexityScores.filter((c) => c.category === "simple")
+                .length,
+              moderate: complexityScores.filter(
+                (c) => c.category === "moderate",
+              ).length,
+              complex: complexityScores.filter((c) => c.category === "complex")
+                .length,
+              very_complex: complexityScores.filter(
+                (c) => c.category === "very_complex",
+              ).length,
+            };
+
+            // Optimization suggestions
+            const optimizationOpportunities =
+              formulaInput.includeOptimizations !== false
+                ? generateOptimizations(formulas)
+                : [];
+
+            const duration = Date.now() - startTime;
+
+            response = {
+              success: true,
+              action: "analyze_formulas",
+              formulaAnalysis: {
+                totalFormulas: formulas.length,
+                complexityDistribution,
+                volatileFormulas: volatileFormulas.map((v) => ({
+                  cell: v.cell,
+                  formula: v.formula,
+                  volatileFunctions: v.volatileFunctions,
+                  impact: v.impact,
+                  suggestion: v.suggestion,
+                })),
+                optimizationOpportunities: optimizationOpportunities.map(
+                  (o) => ({
+                    type: o.type,
+                    priority: o.priority,
+                    affectedCells: o.affectedCells,
+                    currentFormula: o.currentFormula,
+                    suggestedFormula: o.suggestedFormula,
+                    reasoning: o.reasoning,
+                  }),
+                ),
+                circularReferences:
+                  circularRefs.length > 0
+                    ? circularRefs.map((c) => ({
+                        cells: c.cells,
+                        chain: c.chain,
+                      }))
+                    : undefined,
+              },
+              duration,
+              message: `Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations available`,
+            };
+          } catch (error) {
+            logger.error("Failed to analyze formulas", {
+              component: "analyze-handler",
+              action: "analyze_formulas",
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: "INTERNAL_ERROR",
+                message: "Failed to analyze formulas",
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case "query_natural_language": {
+          // Type assertion: refine() ensures spreadsheetId and query are present
+          const nlInput = input as typeof input & {
+            spreadsheetId: string;
+            query: string;
+            sheetId?: number;
+            conversationId?: string;
+          };
+
+          // Check if server is available
+          if (!this.context.server) {
+            response = {
+              success: false,
+              error: {
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Server instance not available. Cannot perform sampling.",
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          // Check if client supports sampling
+          const sessionId = this.context.requestId || "default";
+          const clientCapabilities = await getCapabilitiesWithCache(
+            sessionId,
+            this.context.server,
+          );
+          if (!clientCapabilities?.sampling) {
+            response = {
+              success: false,
+              error: {
+                code: "SAMPLING_UNAVAILABLE",
+                message:
+                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
+                retryable: false,
+              },
+            };
+            break;
+          }
+
+          const startTime = Date.now();
+
+          try {
+            // Get metadata and sample data
+            const tieredRetrieval = new TieredRetrieval({
+              cache: getHotCache(),
+              sheetsApi: this.sheetsApi,
+            });
+
+            const metadata = await tieredRetrieval.getMetadata(
+              nlInput.spreadsheetId,
+            );
+            const sampleData = await tieredRetrieval.getSample(
+              nlInput.spreadsheetId,
+            );
+
+            // Get target sheet
+            const targetSheet = nlInput.sheetId
+              ? metadata.sheets.find((s) => s.sheetId === nlInput.sheetId)
+              : metadata.sheets[0];
+
+            if (!targetSheet) {
+              response = {
+                success: false,
+                error: {
+                  code: "SHEET_NOT_FOUND",
+                  message: "Target sheet not found",
+                  retryable: false,
+                },
+              };
+              break;
+            }
+
+            // Import conversational helpers
+            const {
+              detectQueryIntent,
+              buildNLQuerySamplingRequest,
+              validateQuery,
+            } = await import("../analysis/conversational-helpers.js");
+            const { inferSchema } =
+              await import("../analysis/structure-helpers.js");
+
+            // Get sample data for target sheet
+            const sheetSample = sampleData.sampleData.rows || [];
+            const schema = inferSchema(sheetSample, 0);
+
+            // Build conversation context
+            // For first query, previousQueries is empty. Multi-turn conversation support
+            // will be added when conversationId is provided via session storage integration.
+            const context = {
+              spreadsheetId: nlInput.spreadsheetId,
+              sheetName: targetSheet.title,
+              schema,
+              previousQueries: [],
+              dataSnapshot: {
+                sampleRows: sheetSample,
+                rowCount: targetSheet.rowCount,
+                columnCount: targetSheet.columnCount,
+              },
+            };
+
+            // Detect intent
+            const intent = detectQueryIntent(nlInput.query, schema);
+
+            // Validate query
+            const validation = validateQuery(nlInput.query, context);
+            if (!validation.valid) {
+              response = {
+                success: false,
+                error: {
+                  code: "INVALID_QUERY",
+                  message: validation.reason || "Invalid query",
+                  retryable: false,
+                },
+              };
+              break;
+            }
+
+            // Build sampling request
+            const samplingRequest = buildNLQuerySamplingRequest(
+              nlInput.query,
+              context,
+            );
+
+            // Call LLM via MCP Sampling
+            const samplingResult =
+              await this.context.server.createMessage(samplingRequest);
+
+            // Parse response
+            const contentText =
+              typeof samplingResult.content === "string"
+                ? samplingResult.content
+                : samplingResult.content.type === "text"
+                  ? samplingResult.content.text
+                  : "";
+
+            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              throw new Error("No JSON in response");
+            }
+            const parsed = JSON.parse(jsonMatch[0]);
+
+            const duration = Date.now() - startTime;
+
+            response = {
+              success: true,
+              action: "query_natural_language",
+              queryResult: {
+                query: nlInput.query,
+                answer: parsed.answer || "No answer provided",
+                intent: {
+                  type: intent.type,
+                  confidence: intent.confidence,
+                },
+                data: parsed.data,
+                visualizationSuggestion: parsed.visualizationSuggestion,
+                followUpQuestions: parsed.followUpQuestions || [],
+              },
+              duration,
+              message: `Query processed: ${intent.type} (${intent.confidence}% confidence)`,
+            };
+          } catch (error) {
+            logger.error("Failed to process natural language query", {
+              component: "analyze-handler",
+              action: "query_natural_language",
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: "INTERNAL_ERROR",
+                message: "Failed to process natural language query",
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
         case "explain_analysis": {
           // Type assertion: analysisResult should be present
           const explainInput = input as typeof input & {

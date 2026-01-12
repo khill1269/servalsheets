@@ -140,10 +140,16 @@ export function findVolatileFormulas(
       if (foundVolatile.includes("NOW") || foundVolatile.includes("TODAY")) {
         suggestion =
           "Consider calculating these once in a helper cell and referencing that cell instead.";
-      } else if (foundVolatile.includes("RAND") || foundVolatile.includes("RANDBETWEEN")) {
+      } else if (
+        foundVolatile.includes("RAND") ||
+        foundVolatile.includes("RANDBETWEEN")
+      ) {
         suggestion =
           "Random functions are inherently volatile. Use sparingly or calculate once and copy values.";
-      } else if (foundVolatile.includes("INDIRECT") || foundVolatile.includes("OFFSET")) {
+      } else if (
+        foundVolatile.includes("INDIRECT") ||
+        foundVolatile.includes("OFFSET")
+      ) {
         suggestion =
           "INDIRECT and OFFSET are volatile. Consider using INDEX/MATCH or direct references when possible.";
       }
@@ -303,7 +309,9 @@ export function analyzeFormulaComplexity(
     suggestions.push("Many cell references - consider using named ranges");
   }
   if (formula.length > 200) {
-    suggestions.push("Very long formula - break into intermediate calculations");
+    suggestions.push(
+      "Very long formula - break into intermediate calculations",
+    );
   }
 
   return {
@@ -418,7 +426,8 @@ export function findIndirectUsage(
         impact,
         reasoning:
           "INDIRECT is volatile and cannot be optimized by the calculation engine",
-        suggestion: "Consider using INDEX/MATCH or direct cell references when possible",
+        suggestion:
+          "Consider using INDEX/MATCH or direct cell references when possible",
       });
     }
 
@@ -455,14 +464,13 @@ export function findArrayFormulas(
   const arrayFormulas: ArrayFormula[] = [];
 
   for (const { cell, formula, isArrayFormula } of formulas) {
-    if (isArrayFormula || formula.startsWith("{") && formula.endsWith("}")) {
+    if (isArrayFormula || (formula.startsWith("{") && formula.endsWith("}"))) {
       // Parse range from cell (e.g., "A1:B10")
       const rangeMatch = cell.match(/([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)/);
       if (rangeMatch) {
         const [, startCol, startRow, endCol, endRow] = rangeMatch;
         const outputRows = parseInt(endRow) - parseInt(startRow) + 1;
-        const outputCols =
-          endCol.charCodeAt(0) - startCol.charCodeAt(0) + 1;
+        const outputCols = endCol.charCodeAt(0) - startCol.charCodeAt(0) + 1;
 
         const complexity = scoreFormulaComplexity(formula);
         const complexityCategory: "simple" | "moderate" | "complex" =
@@ -507,7 +515,8 @@ export function findOrphanedRefs(
         formula,
         brokenRefs: ["#REF!"],
         errorType: "#REF!",
-        suggestion: "Cell or range was deleted. Update formula with correct reference.",
+        suggestion:
+          "Cell or range was deleted. Update formula with correct reference.",
       });
       continue;
     }
@@ -570,7 +579,8 @@ export function generateOptimizations(
         affectedCells: [cell],
         currentFormula: formula,
         suggestedFormula: "SUMIFS(sum_range, criteria_range1, criterion1, ...)",
-        reasoning: "SUMIFS is designed for multiple criteria and is more readable",
+        reasoning:
+          "SUMIFS is designed for multiple criteria and is more readable",
         estimatedSpeedup: "Slightly faster, more maintainable",
       });
     }
