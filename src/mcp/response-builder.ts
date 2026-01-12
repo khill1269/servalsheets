@@ -90,8 +90,10 @@ export function createLazyResponse(
   let cachedStructured: Record<string, unknown> | null = null;
   let cachedSize: number | null = null;
 
-  const isErrorResponse = data["success"] === false ||
-    (data["response"] as Record<string, unknown> | undefined)?.["success"] === false;
+  const isErrorResponse =
+    data["success"] === false ||
+    (data["response"] as Record<string, unknown> | undefined)?.["success"] ===
+      false;
 
   return {
     toResult(): CallToolResult {
@@ -99,9 +101,7 @@ export function createLazyResponse(
 
       const structured = this.getStructuredContent();
       cachedResult = {
-        content: [
-          { type: "text", text: JSON.stringify(structured, null, 2) },
-        ],
+        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
         structuredContent: structured,
         isError: isErrorResponse ? true : undefined,
       };
@@ -165,9 +165,7 @@ export function buildSuccessResponse<T extends Record<string, unknown>>(
   const structured = { response };
 
   return {
-    content: [
-      { type: "text", text: JSON.stringify(structured, null, 2) },
-    ],
+    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
 }
@@ -198,9 +196,7 @@ export function buildErrorResponse(
   const structured = { response };
 
   return {
-    content: [
-      { type: "text", text: JSON.stringify(structured, null, 2) },
-    ],
+    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
     isError: true,
   };
@@ -237,16 +233,15 @@ function buildTruncatedResponse<T extends Record<string, unknown>>(
   if (options.includeResourceUri !== false && options.spreadsheetId) {
     const range = options.range ?? (data["range"] as string);
     if (range) {
-      response["resourceUri"] = `sheets:///${options.spreadsheetId}/${encodeURIComponent(range)}`;
+      response["resourceUri"] =
+        `sheets:///${options.spreadsheetId}/${encodeURIComponent(range)}`;
     }
   }
 
   const structured = { response };
 
   return {
-    content: [
-      { type: "text", text: JSON.stringify(structured, null, 2) },
-    ],
+    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
 }
@@ -442,7 +437,10 @@ function countCellsFast(values: unknown[][]): number {
 /**
  * Check if values should be truncated
  */
-function shouldTruncate(values: unknown[][], options: ResponseOptions): boolean {
+function shouldTruncate(
+  values: unknown[][],
+  options: ResponseOptions,
+): boolean {
   const maxCells = options.maxInlineCells ?? MAX_INLINE_CELLS;
   const cellCount = countCellsFast(values);
   return cellCount > maxCells;
@@ -549,9 +547,7 @@ export function buildFromTemplate<K extends keyof typeof RESPONSE_TEMPLATES>(
   const isError = response?.["success"] === false;
 
   return {
-    content: [
-      { type: "text", text: JSON.stringify(structured, null, 2) },
-    ],
+    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
     isError: isError ? true : undefined,
   };

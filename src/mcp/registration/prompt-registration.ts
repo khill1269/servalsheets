@@ -2685,4 +2685,313 @@ Ready to optimize! Convert your operations now. 🚀`,
       };
     },
   );
+
+  // === ULTIMATE ANALYSIS TOOL PROMPTS (P2) ===
+
+  server.registerPrompt(
+    "ultimate_analysis",
+    {
+      description:
+        "🧠 Ultimate Analysis Tool - Intelligent routing for data analysis",
+      argsSchema: {
+        spreadsheetId: z
+          .string()
+          .describe("Spreadsheet ID from URL (required)"),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `🧠 Ultimate Analysis Tool
+
+Spreadsheet: ${args["spreadsheetId"]}
+
+## 🎯 INTELLIGENT ROUTING
+
+The analysis tool automatically selects the optimal execution path:
+
+**Fast Path** (<10K cells)
+• Traditional statistics
+• Completes in <2s
+• Best for: Quick summaries, small datasets
+
+**AI Path** (10K-50K cells)
+• LLM-powered insights via MCP Sampling
+• Completes in <15s
+• Best for: Deep insights, pattern detection, recommendations
+
+**Streaming Path** (>50K cells)
+• Task-based chunked processing
+• Async execution with progress tracking
+• Best for: Large datasets, comprehensive analysis
+
+## 📊 USAGE
+
+Basic Analysis:
+\`\`\`json
+{
+  "tool": "sheets_analyze",
+  "action": "analyze_data",
+  "spreadsheetId": "${args["spreadsheetId"]}",
+  "analysisTypes": ["summary", "quality", "patterns"]
+}
+\`\`\`
+
+The router will:
+1. Fetch metadata (tier 1, ~0.3s)
+2. Determine dataset size
+3. Select optimal path (fast/AI/streaming)
+4. Execute analysis
+5. Store result as \`analyze://results/{id}\`
+
+## 🔍 ANALYSIS TYPES
+
+• **summary**: Overall data summary
+• **patterns**: Pattern recognition
+• **anomalies**: Outlier detection
+• **trends**: Trend analysis
+• **quality**: Data quality assessment
+• **correlations**: Relationship discovery
+• **recommendations**: Actionable suggestions
+
+## 💡 TIPS
+
+1. **Small datasets (<10K)**: Fast path is sufficient
+2. **Medium datasets (10K-50K)**: AI path provides best insights
+3. **Large datasets (>50K)**: Streaming path handles without timeout
+4. **Follow-up analysis**: Reference previous results via \`analyze://results/{id}\`
+
+Ready to analyze! What insights do you need? 🚀`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    "create_visualization",
+    {
+      description:
+        "📊 Create charts/pivots with AI recommendations and user confirmation",
+      argsSchema: {
+        spreadsheetId: z
+          .string()
+          .describe("Spreadsheet ID from URL (required)"),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `📊 Create Visualization with AI
+
+Spreadsheet: ${args["spreadsheetId"]}
+
+## 🎨 WORKFLOW (3 Steps)
+
+**Step 1: Get Recommendations**
+\`\`\`json
+{
+  "tool": "sheets_analyze",
+  "action": "suggest_visualization",
+  "spreadsheetId": "${args["spreadsheetId"]}",
+  "range": { "a1": "Sheet1!A1:D100" }
+}
+\`\`\`
+
+AI will analyze your data and suggest:
+• Best chart types (LINE, BAR, PIE, SCATTER, etc.)
+• Optimal data ranges
+• Axis configurations
+• Pivot table dimensions
+
+**Step 2: User Confirmation (Automatic)**
+
+When you create a chart/pivot, MCP Elicitation will prompt:
+\`\`\`
+⚠️ Create Chart
+
+You are about to create a LINE chart in spreadsheet ${args["spreadsheetId"]}.
+
+The chart will use data from range A1:D100.
+
+This will modify the spreadsheet by adding a new chart object.
+
+[ Confirm ] [ Cancel ]
+\`\`\`
+
+**Step 3: Create**
+\`\`\`json
+{
+  "tool": "sheets_analyze",
+  "action": "create_recommended_chart",
+  "spreadsheetId": "${args["spreadsheetId"]}",
+  "chartType": "LINE",
+  "range": { "a1": "Sheet1!A1:D100" }
+}
+\`\`\`
+
+## 📈 CHART TYPES AVAILABLE
+
+• LINE: Time series, trends
+• BAR: Comparisons, rankings
+• COLUMN: Category comparisons
+• PIE: Part-to-whole relationships
+• SCATTER: Correlation analysis
+• AREA: Volume over time
+• COMBO: Multiple metrics
+• STEPPED_AREA: Staged progress
+
+## 🔄 PIVOT TABLES
+
+For pivot tables:
+\`\`\`json
+{
+  "tool": "sheets_analyze",
+  "action": "create_recommended_pivot",
+  "spreadsheetId": "${args["spreadsheetId"]}",
+  "range": { "a1": "Data!A1:F1000" }
+}
+\`\`\`
+
+Creates a new sheet with pivot table automatically!
+
+## 🛡️ SAFETY FEATURES
+
+• User confirmation via MCP Elicitation (SEP-1036)
+• Rollback support if creation fails
+• Validation before modification
+• Clear error messages
+
+Ready to visualize your data! 🎨`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    "analyze_with_history",
+    {
+      description:
+        "🔗 Reference previous analysis results via MCP Resources",
+      argsSchema: {
+        spreadsheetId: z
+          .string()
+          .describe("Spreadsheet ID from URL (required)"),
+      },
+    },
+    async (args: Record<string, unknown>) => {
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `🔗 Analysis History via MCP Resources
+
+Spreadsheet: ${args["spreadsheetId"]}
+
+## 📚 STORED ANALYSIS RESULTS
+
+Every successful \`analyze_data\` is automatically stored as an MCP Resource:
+\`analyze://results/{id}\`
+
+## 🔍 AVAILABLE RESOURCES
+
+**List all recent analyses:**
+\`\`\`
+Resource: analyze://results
+\`\`\`
+
+Returns:
+\`\`\`json
+{
+  "count": 5,
+  "results": [
+    {
+      "id": "analysis-1",
+      "spreadsheetId": "${args["spreadsheetId"]}",
+      "timestamp": "2026-01-12T10:30:00Z",
+      "summary": "Fast statistical analysis complete...",
+      "uri": "analyze://results/analysis-1"
+    }
+  ]
+}
+\`\`\`
+
+**Get specific analysis:**
+\`\`\`
+Resource: analyze://results/analysis-1
+\`\`\`
+
+Returns full analysis result with all findings.
+
+## 💬 CONVERSATIONAL WORKFLOWS
+
+**Pattern 1: Compare with Previous**
+\`\`\`
+User: "Analyze Sheet1"
+Assistant: [Runs analyze_data, stores as analysis-1]
+          "...completed (stored as analyze://results/analysis-1)"
+
+User: "How does this compare to last week?"
+Assistant: [Reads analyze://results/analysis-1]
+           "Last week's quality score was 85, now it's 92..."
+\`\`\`
+
+**Pattern 2: Explain Previous Analysis**
+\`\`\`json
+{
+  "tool": "sheets_analyze",
+  "action": "explain_analysis",
+  "analysisResult": { /* from analyze://results/analysis-1 */ },
+  "question": "Why did quality improve?"
+}
+\`\`\`
+
+**Pattern 3: Track Quality Over Time**
+\`\`\`
+1. List: analyze://results
+2. Filter: analyses for same spreadsheet
+3. Compare: quality scores over time
+4. Report: "Quality improving by 5% per week"
+\`\`\`
+
+## 📊 OTHER ANALYSIS RESOURCES
+
+• \`analyze://stats\` - Service statistics (success rate, avg time)
+• \`analyze://help\` - Full analysis documentation
+
+## 🎯 BENEFITS
+
+✅ No need to re-run analyses
+✅ Reference previous results in follow-up questions
+✅ Track data quality over time
+✅ Compare before/after cleanup
+✅ MCP-native (standard resource protocol)
+
+## 💾 STORAGE
+
+• Last 100 analyses kept in memory
+• Automatic cleanup of old results
+• No manual storage required
+• Access via standard MCP resource URIs
+
+Ready to leverage analysis history! 🔗`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }

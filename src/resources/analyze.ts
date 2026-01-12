@@ -7,6 +7,73 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getSamplingAnalysisService } from "../services/sampling-analysis.js";
+import type { AnalyzeResponse } from "../schemas/analyze.js";
+
+/**
+ * In-memory store for analysis results
+ * P1: Enable MCP Resources for analysis result referencing
+ */
+interface StoredAnalysisResult {
+  id: string;
+  spreadsheetId: string;
+  timestamp: number;
+  result: AnalyzeResponse;
+  summary: string;
+}
+
+const analysisResultsStore = new Map<string, StoredAnalysisResult>();
+let nextAnalysisId = 1;
+
+/**
+ * Store an analysis result for later retrieval via MCP Resources
+ * Returns the analysis ID for referencing
+ */
+export function storeAnalysisResult(
+  spreadsheetId: string,
+  result: AnalyzeResponse,
+): string {
+  const id = `analysis-${nextAnalysisId++}`;
+  const summary =
+    result.success && "summary" in result
+      ? result.summary ?? "Analysis completed"
+      : "Analysis failed";
+
+  analysisResultsStore.set(id, {
+    id,
+    spreadsheetId,
+    timestamp: Date.now(),
+    result,
+    summary,
+  });
+
+  // Keep only last 100 results
+  if (analysisResultsStore.size > 100) {
+    const firstKey = analysisResultsStore.keys().next().value;
+    if (firstKey) {
+      analysisResultsStore.delete(firstKey);
+    }
+  }
+
+  return id;
+}
+
+/**
+ * Get a stored analysis result by ID
+ */
+export function getAnalysisResult(
+  id: string,
+): StoredAnalysisResult | undefined {
+  return analysisResultsStore.get(id);
+}
+
+/**
+ * List all stored analysis results
+ */
+export function listAnalysisResults(): StoredAnalysisResult[] {
+  return Array.from(analysisResultsStore.values()).sort(
+    (a, b) => b.timestamp - a.timestamp,
+  );
+}
 
 /**
  * Register analyze resources with the MCP server
@@ -212,9 +279,170 @@ View analysis statistics at: analyze://stats
     },
   );
 
-  console.error("[ServalSheets] Registered 2 analyze resources:");
+  // Resource 3: analyze://results - List recent analysis results
+  server.registerResource(
+    "Analysis Results List",
+    "analyze://results",
+    {
+      description:
+        "List of recent analysis results with IDs for retrieval (P1: MCP Resources)",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      try {
+        const results = listAnalysisResults();
+
+        return {
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  count: results.length,
+                  results: results.map((r) => ({
+                    id: r.id,
+                    spreadsheetId: r.spreadsheetId,
+                    timestamp: new Date(r.timestamp).toISOString(),
+                    summary: r.summary,
+                    success: r.result.success,
+                    uri: `analyze://results/${r.id}`,
+                  })),
+                  usage: `Reference a specific result with: analyze://results/{id}`,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        return {
+          contents: [
+            {
+              uri: typeof uri === "string" ? uri : uri.toString(),
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch analysis results list",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  // Resource 4: analyze://results/{id} - Get specific analysis result
+  server.registerResource(
+    "Specific Analysis Result",
+    "analyze://results/{id}",
+    {
+      description:
+        "Retrieve a specific analysis result by ID (P1: MCP Resources)",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      try {
+        const uriStr = typeof uri === "string" ? uri : uri.toString();
+        const match = uriStr.match(/analyze:\/\/results\/(.+)/);
+        const id = match?.[1];
+
+        if (!id) {
+          return {
+            contents: [
+              {
+                uri: uriStr,
+                mimeType: "application/json",
+                text: JSON.stringify(
+                  {
+                    error: "Invalid URI format",
+                    expected: "analyze://results/{id}",
+                    received: uriStr,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        const result = getAnalysisResult(id);
+
+        if (!result) {
+          return {
+            contents: [
+              {
+                uri: uriStr,
+                mimeType: "application/json",
+                text: JSON.stringify(
+                  {
+                    error: "Analysis result not found",
+                    id,
+                    hint: "Use analyze://results to list available results",
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        return {
+          contents: [
+            {
+              uri: uriStr,
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  id: result.id,
+                  spreadsheetId: result.spreadsheetId,
+                  timestamp: new Date(result.timestamp).toISOString(),
+                  result: result.result,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const uriStr = typeof uri === "string" ? uri : uri.toString();
+        return {
+          contents: [
+            {
+              uri: uriStr,
+              mimeType: "application/json",
+              text: JSON.stringify(
+                {
+                  error: "Failed to fetch analysis result",
+                  message: errorMessage,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    },
+  );
+
+  console.error("[ServalSheets] Registered 4 analyze resources:");
   console.error("  - analyze://stats (analysis service statistics)");
   console.error("  - analyze://help (AI analysis documentation)");
+  console.error("  - analyze://results (list recent analysis results) [P1]");
+  console.error("  - analyze://results/{id} (get specific result) [P1]");
 
-  return 2;
+  return 4;
 }

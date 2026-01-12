@@ -2,7 +2,7 @@
  * ServalSheets - Semantic Range Finder
  *
  * Translates natural language range references into A1 notation.
- * 
+ *
  * Users say: "the totals row", "email column", "last month's data"
  * Claude needs: "Sheet1!A15:Z15", "Sheet1!E:E", "Sheet1!A100:Z150"
  *
@@ -10,6 +10,7 @@
  */
 
 import type { sheets_v4 } from "googleapis";
+import { logger } from "../utils/logger.js";
 
 // ============================================================================
 // TYPES
@@ -34,7 +35,12 @@ export interface SemanticRangeResult {
   /** Confidence level 0-1 */
   confidence: number;
   /** How the range was found */
-  method: "header_match" | "pattern_match" | "position_match" | "formula_detection" | "not_found";
+  method:
+    | "header_match"
+    | "pattern_match"
+    | "position_match"
+    | "formula_detection"
+    | "not_found";
   /** Additional context about the match */
   context?: string;
 }
@@ -200,7 +206,11 @@ export class SemanticRangeFinder {
     if (headerResult.found) results.push(headerResult);
 
     // 4. Try formula detection (e.g., "the formula cells")
-    const formulaResult = await this.findFormulaRange(lowerDesc, spreadsheetId, structure);
+    const formulaResult = await this.findFormulaRange(
+      lowerDesc,
+      spreadsheetId,
+      structure,
+    );
     if (formulaResult.found) results.push(formulaResult);
 
     // Return best match
@@ -268,8 +278,9 @@ export class SemanticRangeFinder {
         // Find matching header
         const headerIndex = structure.headers.findIndex((h) =>
           pattern.headers.some(
-            (ph) => h.toLowerCase().includes(ph) || ph.includes(h.toLowerCase())
-          )
+            (ph) =>
+              h.toLowerCase().includes(ph) || ph.includes(h.toLowerCase()),
+          ),
         );
 
         if (headerIndex >= 0) {
@@ -297,7 +308,7 @@ export class SemanticRangeFinder {
   ): SemanticRangeResult {
     // Extract potential header name from description
     const headerMatch = description.match(
-      /(?:the\s+)?["']?([^"']+)["']?\s*(?:column|col|field)?/i
+      /(?:the\s+)?["']?([^"']+)["']?\s*(?:column|col|field)?/i,
     );
     if (!headerMatch) {
       return { found: false, confidence: 0, method: "not_found" };
@@ -311,7 +322,7 @@ export class SemanticRangeFinder {
 
     for (let i = 0; i < structure.headers.length; i++) {
       const header = structure.headers[i]!.toLowerCase();
-      
+
       // Exact match
       if (header === searchTerm) {
         bestMatch = i;
@@ -321,8 +332,9 @@ export class SemanticRangeFinder {
 
       // Contains match
       if (header.includes(searchTerm) || searchTerm.includes(header)) {
-        const score = Math.min(searchTerm.length, header.length) /
-                     Math.max(searchTerm.length, header.length);
+        const score =
+          Math.min(searchTerm.length, header.length) /
+          Math.max(searchTerm.length, header.length);
         if (score > bestScore) {
           bestMatch = i;
           bestScore = score;
@@ -356,8 +368,8 @@ export class SemanticRangeFinder {
       return { found: false, confidence: 0, method: "not_found" };
     }
 
-    // TODO: Implement formula detection via API
-    // This would require fetching formulas and finding cells with =
+    // Formula detection not yet implemented - requires Sheets API formula introspection
+    // Would need to fetch cell formulas and identify cells starting with '='
     return { found: false, confidence: 0, method: "not_found" };
   }
 
@@ -369,7 +381,7 @@ export class SemanticRangeFinder {
     sheetName?: string,
   ): Promise<SheetStructure | null> {
     const cacheKey = `${spreadsheetId}:${sheetName ?? "default"}`;
-    
+
     if (this.structureCache.has(cacheKey)) {
       return this.structureCache.get(cacheKey)!;
     }
@@ -424,7 +436,13 @@ export class SemanticRangeFinder {
       this.structureCache.set(cacheKey, structure);
       return structure;
     } catch (error) {
-      console.error("Failed to get sheet structure:", error);
+      logger.error("Failed to get sheet structure", {
+        component: "semantic-range",
+        spreadsheetId,
+        sheetName,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return null;
     }
   }
@@ -432,7 +450,9 @@ export class SemanticRangeFinder {
   /**
    * Detect special rows like totals, averages
    */
-  private detectSpecialRows(values: unknown[][]): SheetStructure["specialRows"] {
+  private detectSpecialRows(
+    values: unknown[][],
+  ): SheetStructure["specialRows"] {
     const special: SheetStructure["specialRows"] = {};
 
     for (let i = values.length - 1; i >= 0; i--) {
@@ -501,7 +521,7 @@ export class SemanticRangeFinder {
 
 /**
  * Parse natural language range references
- * 
+ *
  * Examples:
  * - "A1:B10" → "A1:B10" (passthrough)
  * - "the email column" → needs semantic finder
@@ -528,7 +548,9 @@ export function parseNaturalRange(input: string): {
   }
 
   // Check for column reference "C:C" or "column C"
-  const colMatch = trimmed.match(/^(?:col(?:umn)?\s*)?([A-Z]+)(?::([A-Z]+))?$/i);
+  const colMatch = trimmed.match(
+    /^(?:col(?:umn)?\s*)?([A-Z]+)(?::([A-Z]+))?$/i,
+  );
   if (colMatch) {
     const start = colMatch[1]!.toUpperCase();
     const end = colMatch[2]?.toUpperCase() ?? start;

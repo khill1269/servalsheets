@@ -69,7 +69,10 @@ export function fastCacheSet<T>(
 /**
  * Fast cache invalidation for range
  */
-export function fastCacheInvalidate(spreadsheetId: string, range?: string): number {
+export function fastCacheInvalidate(
+  spreadsheetId: string,
+  range?: string,
+): number {
   if (range) {
     const key = spreadsheetCacheKey("values", spreadsheetId, range);
     hotCache.delete(key);
@@ -110,7 +113,9 @@ export async function optimizedValuesRead(
 }> {
   // Try hot cache first
   const cacheKey = spreadsheetCacheKey("values:read", spreadsheetId, range);
-  const cached = hotCache.get(cacheKey) as sheets_v4.Schema$ValueRange | undefined;
+  const cached = hotCache.get(cacheKey) as
+    | sheets_v4.Schema$ValueRange
+    | undefined;
 
   if (cached) {
     const values = cached.values ?? [];
@@ -231,7 +236,9 @@ export async function optimizedBatchRead(
   // Check cache for each range
   for (const range of ranges) {
     const cacheKey = spreadsheetCacheKey("values:read", spreadsheetId, range);
-    const cached = hotCache.get(cacheKey) as sheets_v4.Schema$ValueRange | undefined;
+    const cached = hotCache.get(cacheKey) as
+      | sheets_v4.Schema$ValueRange
+      | undefined;
 
     if (cached) {
       results.push({

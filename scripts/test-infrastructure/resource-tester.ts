@@ -1,0 +1,384 @@
+/**
+ * Resource Tester - Test all MCP resource endpoints
+ * Tests 60+ resources including knowledge, history, cache, metrics, and feature resources
+ */
+
+import type { TestDatabase } from './test-db.js';
+import type { TestLogger } from './logger.js';
+
+export interface ResourceTest {
+  uri: string;
+  category: string;
+  description: string;
+  expectedFields?: string[];
+}
+
+export interface ResourceTestResult {
+  uri: string;
+  status: 'pass' | 'fail' | 'skip';
+  accessible: boolean;
+  contentValid: boolean;
+  hasMetadata: boolean;
+  contentSize?: number;
+  mimeType?: string;
+  error?: string;
+  duration: number;
+}
+
+export class ResourceTester {
+  private resources: ResourceTest[] = [];
+
+  constructor() {
+    this.discoverResources();
+  }
+
+  /**
+   * Discover all resource URIs based on server registration
+   */
+  private discoverResources(): void {
+    // Knowledge resources (31 total)
+    const knowledgeCategories = {
+      general: 8,
+      api: 6,
+      limits: 1,
+      formulas: 6,
+      schemas: 3,
+      templates: 7,
+    };
+
+    for (const [category, count] of Object.entries(knowledgeCategories)) {
+      for (let i = 1; i <= count; i++) {
+        this.resources.push({
+          uri: `knowledge://${category}/${i}`,
+          category: 'knowledge',
+          description: `Knowledge resource: ${category} #${i}`,
+        });
+      }
+    }
+
+    // History resources (4)
+    this.resources.push(
+      {
+        uri: 'history://operations',
+        category: 'history',
+        description: 'Full history with filters',
+        expectedFields: ['operations', 'total', 'filters'],
+      },
+      {
+        uri: 'history://stats',
+        category: 'history',
+        description: 'History statistics',
+        expectedFields: ['total', 'byTool', 'byStatus'],
+      },
+      {
+        uri: 'history://recent',
+        category: 'history',
+        description: 'Last 10 operations',
+        expectedFields: ['operations', 'count'],
+      },
+      {
+        uri: 'history://failures',
+        category: 'history',
+        description: 'Failed operations only',
+        expectedFields: ['failures', 'total'],
+      },
+    );
+
+    // Cache resources (2)
+    this.resources.push(
+      {
+        uri: 'cache://stats',
+        category: 'cache',
+        description: 'Cache performance metrics',
+        expectedFields: ['hits', 'misses', 'hitRate', 'totalEntries'],
+      },
+      {
+        uri: 'cache://deduplication',
+        category: 'cache',
+        description: 'Request deduplication stats',
+        expectedFields: ['totalRequests', 'deduplicatedRequests', 'savedRequests'],
+      },
+    );
+
+    // Metrics resources (6)
+    this.resources.push(
+      {
+        uri: 'metrics://summary',
+        category: 'metrics',
+        description: 'Comprehensive metrics',
+        expectedFields: ['operations', 'cache', 'api', 'system'],
+      },
+      {
+        uri: 'metrics://operations',
+        category: 'metrics',
+        description: 'Operation performance',
+        expectedFields: ['totalOperations', 'avgDuration', 'byTool'],
+      },
+      {
+        uri: 'metrics://cache',
+        category: 'metrics',
+        description: 'Cache statistics',
+        expectedFields: ['hits', 'misses', 'hitRate'],
+      },
+      {
+        uri: 'metrics://api',
+        category: 'metrics',
+        description: 'API call statistics',
+        expectedFields: ['totalCalls', 'quotaUsage', 'errors'],
+      },
+      {
+        uri: 'metrics://system',
+        category: 'metrics',
+        description: 'System resources',
+        expectedFields: ['memory', 'cpu', 'uptime'],
+      },
+      {
+        uri: 'metrics://service',
+        category: 'metrics',
+        description: 'Service metadata',
+        expectedFields: ['version', 'environment', 'config'],
+      },
+    );
+
+    // Feature resources (12 total: 6 features × 2 each)
+    const features = [
+      'transaction',
+      'conflict',
+      'impact',
+      'validation',
+      'confirm',
+      'analyze',
+    ];
+
+    for (const feature of features) {
+      this.resources.push(
+        {
+          uri: `${feature}://stats`,
+          category: feature,
+          description: `${feature} statistics`,
+          expectedFields: ['total', 'active', 'completed'],
+        },
+        {
+          uri: `${feature}://help`,
+          category: feature,
+          description: `${feature} documentation`,
+          expectedFields: ['description', 'usage', 'examples'],
+        },
+      );
+    }
+
+    // Chart resources (2)
+    this.resources.push(
+      {
+        uri: 'chart://templates',
+        category: 'chart',
+        description: 'Chart templates',
+        expectedFields: ['templates', 'categories'],
+      },
+      {
+        uri: 'chart://types',
+        category: 'chart',
+        description: 'Supported chart types',
+        expectedFields: ['types', 'descriptions'],
+      },
+    );
+
+    // Pivot resource (1)
+    this.resources.push({
+      uri: 'pivot://guide',
+      category: 'pivot',
+      description: 'Pivot table guide',
+      expectedFields: ['overview', 'examples', 'bestPractices'],
+    });
+
+    // Quality resource (1)
+    this.resources.push({
+      uri: 'quality://metrics',
+      category: 'quality',
+      description: 'Data quality metrics',
+      expectedFields: ['checks', 'thresholds', 'recommendations'],
+    });
+  }
+
+  /**
+   * Test a single resource
+   */
+  async testResource(
+    client: any,
+    logger: TestLogger,
+    resource: ResourceTest,
+  ): Promise<ResourceTestResult> {
+    const startTime = Date.now();
+    const requestId = `resource-${Date.now()}`;
+
+    logger.info(requestId, 'resource', resource.category, 'start', `Testing: ${resource.uri}`);
+
+    try {
+      // Send resources/read request
+      const response = await client.send('resources/read', {
+        uri: resource.uri,
+      });
+
+      const duration = Date.now() - startTime;
+
+      // Validate response
+      const accessible = !response.error && response.result;
+      let contentValid = false;
+      let hasMetadata = false;
+      let contentSize = 0;
+      let mimeType: string | undefined;
+
+      if (accessible && response.result) {
+        const result = response.result;
+
+        // Check for content
+        if (result.contents && Array.isArray(result.contents)) {
+          contentValid = result.contents.length > 0;
+
+          // Get content metadata
+          const firstContent = result.contents[0];
+          if (firstContent) {
+            mimeType = firstContent.mimeType;
+            contentSize = firstContent.text?.length || firstContent.blob?.length || 0;
+          }
+        }
+
+        // Check for metadata
+        hasMetadata = Boolean(result.metadata || result.meta);
+
+        // Validate expected fields if specified
+        if (resource.expectedFields && result.contents?.[0]?.text) {
+          try {
+            const content = JSON.parse(result.contents[0].text);
+            const hasAllFields = resource.expectedFields.every((field) => field in content);
+            contentValid = contentValid && hasAllFields;
+          } catch {
+            // Not JSON, that's ok for some resources
+          }
+        }
+      }
+
+      const status: 'pass' | 'fail' = accessible && contentValid ? 'pass' : 'fail';
+
+      logger.info(
+        requestId,
+        'resource',
+        resource.category,
+        'complete',
+        `${status}: ${resource.uri}`,
+        {
+          accessible,
+          contentValid,
+          hasMetadata,
+          contentSize,
+          mimeType,
+          duration,
+        },
+      );
+
+      return {
+        uri: resource.uri,
+        status,
+        accessible,
+        contentValid,
+        hasMetadata,
+        contentSize,
+        mimeType,
+        duration,
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      logger.error(
+        requestId,
+        'resource',
+        resource.category,
+        'error',
+        `Failed: ${resource.uri}`,
+        error,
+      );
+
+      return {
+        uri: resource.uri,
+        status: 'fail',
+        accessible: false,
+        contentValid: false,
+        hasMetadata: false,
+        error: errorMessage,
+        duration,
+      };
+    }
+  }
+
+  /**
+   * Test all resources
+   */
+  async testAllResources(
+    client: any,
+    logger: TestLogger,
+    db: TestDatabase,
+  ): Promise<Map<string, ResourceTestResult>> {
+    const results = new Map<string, ResourceTestResult>();
+
+    console.log(`\n🔍 Testing ${this.resources.length} resources...\n`);
+
+    for (const resource of this.resources) {
+      const result = await this.testResource(client, logger, resource);
+      results.set(resource.uri, result);
+
+      // Add small delay between tests
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    return results;
+  }
+
+  /**
+   * Get resource statistics
+   */
+  getResourceStats(results: Map<string, ResourceTestResult>): {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    byCategory: Record<string, { total: number; passed: number; failed: number }>;
+  } {
+    const stats = {
+      total: results.size,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
+      byCategory: {} as Record<string, { total: number; passed: number; failed: number }>,
+    };
+
+    for (const [uri, result] of results) {
+      const category = uri.split('://')[0];
+
+      if (!stats.byCategory[category]) {
+        stats.byCategory[category] = { total: 0, passed: 0, failed: 0 };
+      }
+
+      stats.byCategory[category].total++;
+
+      if (result.status === 'pass') {
+        stats.passed++;
+        stats.byCategory[category].passed++;
+      } else if (result.status === 'fail') {
+        stats.failed++;
+        stats.byCategory[category].failed++;
+      } else {
+        stats.skipped++;
+      }
+    }
+
+    return stats;
+  }
+
+  /**
+   * Get all resources
+   */
+  getResources(): ResourceTest[] {
+    return this.resources;
+  }
+}

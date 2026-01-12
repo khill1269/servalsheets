@@ -91,9 +91,8 @@ const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60000;
 const DEFAULT_RATE_LIMIT_MAX = 100;
 
-// Apply SDK compatibility patches before server initialization
-patchMcpServerRequestHandler();  // PATCH 1: Zod v4 method literal extraction
-patchToJsonSchemaCompat();        // PATCH 2: Discriminated union JSON Schema conversion
+// Monkey-patches removed: All schemas now use flattened z.object() pattern
+// which works natively with MCP SDK v1.25.x - no patches required!
 
 async function createMcpServerInstance(googleToken?: string, googleRefreshToken?: string): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
   // Create task store for SEP-1686 support - uses createTaskStore() for Redis support

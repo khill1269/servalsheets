@@ -26,7 +26,6 @@ import {
   toGridRange,
   type GridRangeInput,
 } from "../utils/google-sheets-helpers.js";
-import { RangeResolutionError } from "../core/range-resolver.js";
 
 type PivotSuccess = Extract<PivotResponse, { success: true }>;
 
@@ -139,9 +138,7 @@ export class PivotHandler extends BaseHandler<
   // Actions
   // ============================================================
 
-  private async handleCreate(
-    input: PivotCreateInput,
-  ): Promise<PivotResponse> {
+  private async handleCreate(input: PivotCreateInput): Promise<PivotResponse> {
     const sourceRange = await this.toGridRange(
       input.spreadsheetId,
       input.sourceRange,
@@ -195,18 +192,12 @@ export class PivotHandler extends BaseHandler<
     });
   }
 
-  private async handleUpdate(
-    input: PivotUpdateInput,
-  ): Promise<PivotResponse> {
+  private async handleUpdate(input: PivotUpdateInput): Promise<PivotResponse> {
     const sheetId = input.sheetId;
     const pivotRange = await this.findPivotRange(input.spreadsheetId, sheetId);
 
     if (!pivotRange) {
-      return this.error({
-        code: "SHEET_NOT_FOUND",
-        message: `Pivot on sheet ${sheetId} not found`,
-        retryable: false,
-      });
+      return this.notFoundError("Pivot on sheet", sheetId);
     }
 
     const pivot: sheets_v4.Schema$PivotTable = {
@@ -251,9 +242,7 @@ export class PivotHandler extends BaseHandler<
     return this.success("update", {});
   }
 
-  private async handleDelete(
-    input: PivotDeleteInput,
-  ): Promise<PivotResponse> {
+  private async handleDelete(input: PivotDeleteInput): Promise<PivotResponse> {
     if (input.safety?.dryRun) {
       return this.success("delete", {}, undefined, true);
     }
@@ -272,9 +261,7 @@ export class PivotHandler extends BaseHandler<
     return this.success("delete", {});
   }
 
-  private async handleList(
-    input: PivotListInput,
-  ): Promise<PivotResponse> {
+  private async handleList(input: PivotListInput): Promise<PivotResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: "sheets.properties,sheets.data.rowData.values.pivotTable",
@@ -297,9 +284,7 @@ export class PivotHandler extends BaseHandler<
     return this.success("list", { pivotTables });
   }
 
-  private async handleGet(
-    input: PivotGetInput,
-  ): Promise<PivotResponse> {
+  private async handleGet(input: PivotGetInput): Promise<PivotResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       ranges: [`'${input.sheetId}'!1:1`],
@@ -334,11 +319,7 @@ export class PivotHandler extends BaseHandler<
       }
     }
 
-    return this.error({
-      code: "SHEET_NOT_FOUND",
-      message: `Pivot on sheet ${input.sheetId} not found`,
-      retryable: false,
-    });
+    return this.notFoundError("Pivot on sheet", input.sheetId);
   }
 
   private async handleRefresh(
@@ -399,7 +380,11 @@ export class PivotHandler extends BaseHandler<
   ): Promise<GridRangeInput> {
     const a1 = await this.resolveRange(spreadsheetId, rangeInput);
     const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -417,7 +402,11 @@ export class PivotHandler extends BaseHandler<
   ): Promise<sheets_v4.Schema$GridCoordinate> {
     if (destinationCell) {
       const parsed = parseCellReference(destinationCell);
-      const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+      const sheetId = await this.getSheetId(
+        spreadsheetId,
+        parsed.sheetName,
+        this.sheetsApi,
+      );
       return { sheetId, rowIndex: parsed.row, columnIndex: parsed.col };
     }
 
@@ -439,32 +428,6 @@ export class PivotHandler extends BaseHandler<
     const sheetId =
       newSheet.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0;
     return { sheetId, rowIndex: 0, columnIndex: 0 };
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    const sheets = response.data.sheets ?? [];
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const match = sheets.find((s) => s.properties?.title === sheetName);
-    if (!match) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-    return match.properties?.sheetId ?? 0;
   }
 
   private mapPivotGroup = (

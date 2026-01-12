@@ -131,25 +131,39 @@ export class SharingHandler extends BaseHandler<
           response = await this.handleShare(req as SharingShareInput);
           break;
         case "update_permission":
-          response = await this.handleUpdatePermission(req as SharingUpdatePermissionInput);
+          response = await this.handleUpdatePermission(
+            req as SharingUpdatePermissionInput,
+          );
           break;
         case "remove_permission":
-          response = await this.handleRemovePermission(req as SharingRemovePermissionInput);
+          response = await this.handleRemovePermission(
+            req as SharingRemovePermissionInput,
+          );
           break;
         case "list_permissions":
-          response = await this.handleListPermissions(req as SharingListPermissionsInput);
+          response = await this.handleListPermissions(
+            req as SharingListPermissionsInput,
+          );
           break;
         case "get_permission":
-          response = await this.handleGetPermission(req as SharingGetPermissionInput);
+          response = await this.handleGetPermission(
+            req as SharingGetPermissionInput,
+          );
           break;
         case "transfer_ownership":
-          response = await this.handleTransferOwnership(req as SharingTransferOwnershipInput);
+          response = await this.handleTransferOwnership(
+            req as SharingTransferOwnershipInput,
+          );
           break;
         case "set_link_sharing":
-          response = await this.handleSetLinkSharing(req as SharingSetLinkSharingInput);
+          response = await this.handleSetLinkSharing(
+            req as SharingSetLinkSharingInput,
+          );
           break;
         case "get_sharing_link":
-          response = await this.handleGetSharingLink(req as SharingGetSharingLinkInput);
+          response = await this.handleGetSharingLink(
+            req as SharingGetSharingLinkInput,
+          );
           break;
         default:
           response = this.error({

@@ -24,15 +24,7 @@ export const SheetsSheetInputSchema = z
   .object({
     // Required action discriminator
     action: z
-      .enum([
-        "add",
-        "delete",
-        "duplicate",
-        "update",
-        "copy_to",
-        "list",
-        "get",
-      ])
+      .enum(["add", "delete", "duplicate", "update", "copy_to", "list", "get"])
       .describe("The operation to perform on the sheet/tab"),
 
     // Required for all actions

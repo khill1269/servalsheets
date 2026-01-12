@@ -32,7 +32,6 @@ import {
   toGridRange,
   type GridRangeInput,
 } from "../utils/google-sheets-helpers.js";
-import { RangeResolutionError } from "../core/range-resolver.js";
 import { createRequestKey } from "../utils/request-deduplication.js";
 import { confirmDestructiveAction } from "../mcp/elicitation.js";
 
@@ -65,16 +64,24 @@ export class CellsHandler extends BaseHandler<
           response = await this.handleClearNote(req as CellsClearNoteInput);
           break;
         case "set_validation":
-          response = await this.handleSetValidation(req as CellsSetValidationInput);
+          response = await this.handleSetValidation(
+            req as CellsSetValidationInput,
+          );
           break;
         case "clear_validation":
-          response = await this.handleClearValidation(req as CellsClearValidationInput);
+          response = await this.handleClearValidation(
+            req as CellsClearValidationInput,
+          );
           break;
         case "set_hyperlink":
-          response = await this.handleSetHyperlink(req as CellsSetHyperlinkInput);
+          response = await this.handleSetHyperlink(
+            req as CellsSetHyperlinkInput,
+          );
           break;
         case "clear_hyperlink":
-          response = await this.handleClearHyperlink(req as CellsClearHyperlinkInput);
+          response = await this.handleClearHyperlink(
+            req as CellsClearHyperlinkInput,
+          );
           break;
         case "merge":
           response = await this.handleMerge(req as CellsMergeInput);
@@ -442,9 +449,7 @@ export class CellsHandler extends BaseHandler<
   // Merge Actions
   // ============================================================
 
-  private async handleMerge(
-    input: CellsMergeInput,
-  ): Promise<CellsResponse> {
+  private async handleMerge(input: CellsMergeInput): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
@@ -550,9 +555,7 @@ export class CellsHandler extends BaseHandler<
   // Cut/Copy Actions
   // ============================================================
 
-  private async handleCut(
-    input: CellsCutInput,
-  ): Promise<CellsResponse> {
+  private async handleCut(input: CellsCutInput): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const sourceRows =
@@ -614,9 +617,7 @@ export class CellsHandler extends BaseHandler<
     return this.success("cut", {});
   }
 
-  private async handleCopy(
-    input: CellsCopyInput,
-  ): Promise<CellsResponse> {
+  private async handleCopy(input: CellsCopyInput): Promise<CellsResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const destParsed = parseCellReference(input.destination);
@@ -659,7 +660,11 @@ export class CellsHandler extends BaseHandler<
     cell: string,
   ): Promise<GridRangeInput> {
     const parsed = parseCellReference(cell);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -675,7 +680,11 @@ export class CellsHandler extends BaseHandler<
     a1: string,
   ): Promise<GridRangeInput> {
     const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -684,33 +693,5 @@ export class CellsHandler extends BaseHandler<
       startColumnIndex: parsed.startCol,
       endColumnIndex: parsed.endCol,
     };
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    const sheets = response.data.sheets ?? [];
-
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const sheet = sheets.find((s) => s.properties?.title === sheetName);
-    if (!sheet) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-
-    return sheet.properties?.sheetId ?? 0;
   }
 }

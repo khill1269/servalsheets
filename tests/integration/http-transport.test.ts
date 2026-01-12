@@ -60,7 +60,7 @@ describe('HTTP Transport Integration Tests', () => {
       // May be 'degraded' if OAuth tokens not configured (expected in test env)
       expect(['healthy', 'degraded']).toContain(response.body.status);
       expect(response.body).toMatchObject({
-        version: '1.3.0',
+        version: '1.4.0',
       });
     });
 
@@ -72,7 +72,7 @@ describe('HTTP Transport Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '1.3.0',
+        version: '1.4.0',
         description: 'Production-grade Google Sheets MCP server',
         protocol: 'MCP 2025-11-25',
       });

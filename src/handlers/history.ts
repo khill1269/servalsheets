@@ -121,7 +121,9 @@ export class HistoryHandler {
         }
 
         case "undo": {
-          const operation = historyService.getLastUndoable(input.spreadsheetId!);
+          const operation = historyService.getLastUndoable(
+            input.spreadsheetId!,
+          );
 
           if (!operation) {
             response = {
@@ -194,7 +196,9 @@ export class HistoryHandler {
         }
 
         case "redo": {
-          const operation = historyService.getLastRedoable(input.spreadsheetId!);
+          const operation = historyService.getLastRedoable(
+            input.spreadsheetId!,
+          );
 
           if (!operation) {
             response = {

@@ -251,26 +251,36 @@ export class MetricsService {
   private activeRequests = 0;
 
   // Extended metrics storage
-  private toolMetrics: Map<string, {
-    totalCalls: number;
-    successCalls: number;
-    failedCalls: number;
-    durations: number[];
-    timestamps: number[];
-  }> = new Map();
+  private toolMetrics: Map<
+    string,
+    {
+      totalCalls: number;
+      successCalls: number;
+      failedCalls: number;
+      durations: number[];
+      timestamps: number[];
+    }
+  > = new Map();
 
-  private actionMetrics: Map<string, { // key: "tool:action"
-    totalCalls: number;
-    durations: number[];
-    timestamps: number[];
-  }> = new Map();
+  private actionMetrics: Map<
+    string,
+    {
+      // key: "tool:action"
+      totalCalls: number;
+      durations: number[];
+      timestamps: number[];
+    }
+  > = new Map();
 
   private errorMetrics: Map<string, number> = new Map(); // errorType -> count
 
-  private categoryCacheMetrics: Map<string, {
-    hits: number;
-    misses: number;
-  }> = new Map();
+  private categoryCacheMetrics: Map<
+    string,
+    {
+      hits: number;
+      misses: number;
+    }
+  > = new Map();
 
   private batchOperations: {
     totalBatches: number;
@@ -299,7 +309,7 @@ export class MetricsService {
     openEvents: 0,
     halfOpenEvents: 0,
     closedEvents: 0,
-    currentState: 'closed',
+    currentState: "closed",
   };
 
   private enabled: boolean;
@@ -336,7 +346,7 @@ export class MetricsService {
   recordOperation(
     optionsOrName: RecordOperationOptions | string,
     durationMs?: number,
-    success?: boolean
+    success?: boolean,
   ): void {
     if (!this.enabled) return;
 
@@ -425,12 +435,12 @@ export class MetricsService {
   recordApiCall(options: RecordApiCallOptions): void;
   recordApiCall(
     methodOrOptions: string | RecordApiCallOptions,
-    success: boolean = true
+    success: boolean = true,
   ): void {
     if (!this.enabled) return;
 
     // Handle both signatures
-    if (typeof methodOrOptions === 'string') {
+    if (typeof methodOrOptions === "string") {
       // Simple signature: recordApiCall(method, success)
       const method = methodOrOptions;
       this.apiCalls++;
@@ -443,7 +453,14 @@ export class MetricsService {
       }
     } else {
       // Extended signature: recordApiCall({ tool, action, duration, success, errorType, timestamp })
-      const { tool, action, duration, success: isSuccess, errorType, timestamp } = methodOrOptions;
+      const {
+        tool,
+        action,
+        duration,
+        success: isSuccess,
+        errorType,
+        timestamp,
+      } = methodOrOptions;
       const recordTimestamp = timestamp ?? Date.now();
 
       // Update basic API metrics
@@ -458,7 +475,10 @@ export class MetricsService {
 
         // Track error types
         if (errorType) {
-          this.errorMetrics.set(errorType, (this.errorMetrics.get(errorType) || 0) + 1);
+          this.errorMetrics.set(
+            errorType,
+            (this.errorMetrics.get(errorType) || 0) + 1,
+          );
         }
       }
 
@@ -694,9 +714,10 @@ export class MetricsService {
     }
 
     const durations = stats.durations;
-    const avgDuration = durations.length > 0
-      ? durations.reduce((sum, d) => sum + d, 0) / durations.length
-      : 0;
+    const avgDuration =
+      durations.length > 0
+        ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+        : 0;
     const minDuration = durations.length > 0 ? Math.min(...durations) : 0;
     const maxDuration = durations.length > 0 ? Math.max(...durations) : 0;
 
@@ -723,9 +744,11 @@ export class MetricsService {
       };
     }
 
-    const avgDuration = stats.durations.length > 0
-      ? stats.durations.reduce((sum, d) => sum + d, 0) / stats.durations.length
-      : 0;
+    const avgDuration =
+      stats.durations.length > 0
+        ? stats.durations.reduce((sum, d) => sum + d, 0) /
+          stats.durations.length
+        : 0;
 
     return {
       totalCalls: stats.totalCalls,
@@ -792,9 +815,11 @@ export class MetricsService {
    * Get batch operation metrics
    */
   getBatchMetrics(): BatchMetrics {
-    const avgEfficiency = this.batchOperations.totalRequestCount > 0
-      ? this.batchOperations.totalSavedCalls / this.batchOperations.totalRequestCount
-      : 0;
+    const avgEfficiency =
+      this.batchOperations.totalRequestCount > 0
+        ? this.batchOperations.totalSavedCalls /
+          this.batchOperations.totalRequestCount
+        : 0;
 
     return {
       totalBatches: this.batchOperations.totalBatches,
@@ -806,10 +831,10 @@ export class MetricsService {
   /**
    * Record rate limit hit
    */
-  recordRateLimitHit(type: 'read' | 'write'): void {
+  recordRateLimitHit(type: "read" | "write"): void {
     if (!this.enabled) return;
 
-    if (type === 'read') {
+    if (type === "read") {
       this.rateLimits.readLimits++;
     } else {
       this.rateLimits.writeLimits++;
@@ -830,14 +855,14 @@ export class MetricsService {
   /**
    * Record circuit breaker state change
    */
-  recordCircuitBreakerEvent(state: 'open' | 'half-open' | 'closed'): void {
+  recordCircuitBreakerEvent(state: "open" | "half-open" | "closed"): void {
     if (!this.enabled) return;
 
-    if (state === 'open') {
+    if (state === "open") {
       this.circuitBreakerEvents.openEvents++;
-    } else if (state === 'half-open') {
+    } else if (state === "half-open") {
       this.circuitBreakerEvents.halfOpenEvents++;
-    } else if (state === 'closed') {
+    } else if (state === "closed") {
       this.circuitBreakerEvents.closedEvents++;
     }
     this.circuitBreakerEvents.currentState = state;
@@ -859,14 +884,12 @@ export class MetricsService {
    */
   getOverallMetrics(): OverallMetrics {
     const totalApiCalls = this.apiCalls;
-    const successRate = totalApiCalls > 0
-      ? (totalApiCalls - this.apiErrors) / totalApiCalls
-      : 0;
+    const successRate =
+      totalApiCalls > 0 ? (totalApiCalls - this.apiErrors) / totalApiCalls : 0;
 
     const totalCacheRequests = this.cacheRequests;
-    const cacheHitRate = totalCacheRequests > 0
-      ? this.cacheHits / totalCacheRequests
-      : 0;
+    const cacheHitRate =
+      totalCacheRequests > 0 ? this.cacheHits / totalCacheRequests : 0;
 
     const batchMetrics = this.getBatchMetrics();
 
@@ -891,7 +914,7 @@ export class MetricsService {
 
     // Count API calls within window
     let totalApiCalls = 0;
-    let _successfulCalls = 0;  // Reserved for future per-call success tracking
+    let _successfulCalls = 0; // Reserved for future per-call success tracking
 
     for (const [_tool, stats] of this.toolMetrics.entries()) {
       for (let i = 0; i < stats.timestamps.length; i++) {
@@ -998,7 +1021,7 @@ export class MetricsService {
       openEvents: 0,
       halfOpenEvents: 0,
       closedEvents: 0,
-      currentState: 'closed',
+      currentState: "closed",
     };
 
     this.startTime = new Date();

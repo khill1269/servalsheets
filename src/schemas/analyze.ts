@@ -109,6 +109,8 @@ export const SheetsAnalyzeInputSchema = z
         "analyze_structure", // Specialized: Schema, types, relationships
         "analyze_quality", // Specialized: Nulls, duplicates, outliers
         "analyze_performance", // Specialized: Optimization suggestions
+        "analyze_formulas", // Intelligence: Formula analysis and optimization
+        "query_natural_language", // Intelligence: Conversational data queries
         "explain_analysis", // Utility: Conversational explanations
       ])
       .describe("The analysis operation to perform"),
@@ -240,6 +242,28 @@ export const SheetsAnalyzeInputSchema = z
       .default("iqr"),
     outlierThreshold: z.number().optional().default(1.5),
 
+    // analyze_formulas specific fields
+    includeOptimizations: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include optimization suggestions"),
+    includeComplexity: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Include complexity scoring"),
+
+    // query_natural_language specific fields
+    query: z
+      .string()
+      .optional()
+      .describe("Natural language query (required for: query_natural_language)"),
+    conversationId: z
+      .string()
+      .optional()
+      .describe("Conversation ID for multi-turn queries"),
+
     // explain_analysis specific fields
     analysisResult: z
       .record(z.string(), z.unknown())
@@ -258,12 +282,15 @@ export const SheetsAnalyzeInputSchema = z
         case "analyze_structure":
         case "analyze_quality":
         case "analyze_performance":
+        case "analyze_formulas":
           return !!data.spreadsheetId;
         case "suggest_visualization":
         case "detect_patterns":
           return !!data.spreadsheetId && !!data.range;
         case "generate_formula":
           return !!data.spreadsheetId && !!data.description;
+        case "query_natural_language":
+          return !!data.spreadsheetId && !!data.query;
         case "explain_analysis":
           return !!data.analysisResult || !!data.question;
         default:
@@ -502,6 +529,66 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
         overallScore: z.number().min(0).max(100),
         recommendations: z.array(PerformanceRecommendationSchema),
         estimatedImprovementPotential: z.string(),
+      })
+      .optional(),
+
+    // analyze_formulas results
+    formulaAnalysis: z
+      .object({
+        totalFormulas: z.number(),
+        complexityDistribution: z.record(z.string(), z.number()),
+        volatileFormulas: z.array(
+          z.object({
+            cell: z.string(),
+            formula: z.string(),
+            volatileFunctions: z.array(z.string()),
+            impact: z.enum(["low", "medium", "high"]),
+            suggestion: z.string(),
+          }),
+        ),
+        optimizationOpportunities: z.array(
+          z.object({
+            type: z.string(),
+            priority: z.enum(["low", "medium", "high"]),
+            affectedCells: z.array(z.string()),
+            currentFormula: z.string(),
+            suggestedFormula: z.string(),
+            reasoning: z.string(),
+          }),
+        ),
+        circularReferences: z
+          .array(
+            z.object({
+              cells: z.array(z.string()),
+              chain: z.string(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
+
+    // query_natural_language results
+    queryResult: z
+      .object({
+        query: z.string(),
+        answer: z.string(),
+        intent: z.object({
+          type: z.string(),
+          confidence: z.number(),
+        }),
+        data: z
+          .object({
+            headers: z.array(z.string()),
+            rows: z.array(z.array(z.unknown())),
+          })
+          .optional(),
+        visualizationSuggestion: z
+          .object({
+            chartType: z.string(),
+            reasoning: z.string(),
+          })
+          .optional(),
+        followUpQuestions: z.array(z.string()),
       })
       .optional(),
 

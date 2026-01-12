@@ -44,25 +44,25 @@ export class SheetHandler extends BaseHandler<
       let response: SheetResponse;
       switch (req.action) {
         case "add":
-          response = await this.handleAdd(req);
+          response = await this.handleAdd(req as SheetAddInput);
           break;
         case "delete":
-          response = await this.handleDelete(req);
+          response = await this.handleDelete(req as SheetDeleteInput);
           break;
         case "duplicate":
-          response = await this.handleDuplicate(req);
+          response = await this.handleDuplicate(req as SheetDuplicateInput);
           break;
         case "update":
-          response = await this.handleUpdate(req);
+          response = await this.handleUpdate(req as SheetUpdateInput);
           break;
         case "copy_to":
-          response = await this.handleCopyTo(req);
+          response = await this.handleCopyTo(req as SheetCopyToInput);
           break;
         case "list":
-          response = await this.handleList(req);
+          response = await this.handleList(req as SheetListInput);
           break;
         case "get":
-          response = await this.handleGet(req);
+          response = await this.handleGet(req as SheetGetInput);
           break;
         default:
           response = this.error({

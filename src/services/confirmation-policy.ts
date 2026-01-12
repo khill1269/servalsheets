@@ -222,7 +222,8 @@ export function analyzeOperation(params: {
         level: "critical",
         reason: "Deleting entire sheet - all data will be lost",
         requiresConfirmation: true,
-        warning: "⚠️ CRITICAL: This will permanently delete the entire sheet and all its data!",
+        warning:
+          "⚠️ CRITICAL: This will permanently delete the entire sheet and all its data!",
       };
     } else if (rowCount && rowCount > CONFIRMATION_THRESHOLDS.delete.rows) {
       risk = {
@@ -231,7 +232,10 @@ export function analyzeOperation(params: {
         requiresConfirmation: true,
         warning: `⚠️ This will delete ${rowCount} rows of data`,
       };
-    } else if (columnCount && columnCount > CONFIRMATION_THRESHOLDS.delete.columns) {
+    } else if (
+      columnCount &&
+      columnCount > CONFIRMATION_THRESHOLDS.delete.columns
+    ) {
       risk = {
         level: "high",
         reason: `Deleting ${columnCount} columns`,
@@ -240,9 +244,13 @@ export function analyzeOperation(params: {
       };
     } else if (action === "clear") {
       risk = {
-        level: estimatedCells > CONFIRMATION_THRESHOLDS.cells.high ? "high" : "medium",
+        level:
+          estimatedCells > CONFIRMATION_THRESHOLDS.cells.high
+            ? "high"
+            : "medium",
         reason: `Clearing ${estimatedCells} cells`,
-        requiresConfirmation: estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
+        requiresConfirmation:
+          estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
         warning: `⚠️ This will clear ${estimatedCells} cells`,
       };
     } else {
@@ -285,7 +293,8 @@ export function analyzeOperation(params: {
     risk = {
       level: "medium",
       reason: "Unknown operation type",
-      requiresConfirmation: estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
+      requiresConfirmation:
+        estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
     };
   }
 
@@ -298,7 +307,8 @@ export function analyzeOperation(params: {
     risk,
     suggestedSafety: {
       dryRun: risk.level === "high" || risk.level === "critical",
-      createSnapshot: isDestructive || risk.level === "high" || risk.level === "critical",
+      createSnapshot:
+        isDestructive || risk.level === "high" || risk.level === "critical",
     },
   };
 }
@@ -306,11 +316,13 @@ export function analyzeOperation(params: {
 /**
  * Analyze a multi-step operation plan
  */
-export function analyzeOperationPlan(steps: Array<{
-  tool: string;
-  action: string;
-  cellCount?: number;
-}>): {
+export function analyzeOperationPlan(
+  steps: Array<{
+    tool: string;
+    action: string;
+    cellCount?: number;
+  }>,
+): {
   totalRisk: RiskLevel;
   requiresConfirmation: boolean;
   highestRiskStep: number;
@@ -329,7 +341,9 @@ export function analyzeOperationPlan(steps: Array<{
     if (analysis.isDestructive) hasDestructive = true;
 
     const riskOrder: RiskLevel[] = ["low", "medium", "high", "critical"];
-    if (riskOrder.indexOf(analysis.risk.level) > riskOrder.indexOf(highestRisk)) {
+    if (
+      riskOrder.indexOf(analysis.risk.level) > riskOrder.indexOf(highestRisk)
+    ) {
       highestRisk = analysis.risk.level;
       highestRiskStep = i;
     }
@@ -338,7 +352,10 @@ export function analyzeOperationPlan(steps: Array<{
   // Multi-step operations get elevated risk
   const stepCount = steps.length;
   let totalRisk = highestRisk;
-  if (stepCount >= CONFIRMATION_THRESHOLDS.operations.steps && totalRisk === "low") {
+  if (
+    stepCount >= CONFIRMATION_THRESHOLDS.operations.steps &&
+    totalRisk === "low"
+  ) {
     totalRisk = "medium";
   }
 
@@ -360,7 +377,7 @@ export function analyzeOperationPlan(steps: Array<{
 
 /**
  * Should Claude confirm this operation?
- * 
+ *
  * Call this before any write operation to determine if confirmation is needed.
  */
 export function shouldConfirm(params: {
@@ -391,7 +408,10 @@ export function shouldConfirm(params: {
   const analysis = analyzeOperation(params);
 
   // User said always confirm
-  if (userPreference === "always" && !READONLY_OPERATIONS.has(`${params.tool}:${params.action}`)) {
+  if (
+    userPreference === "always" &&
+    !READONLY_OPERATIONS.has(`${params.tool}:${params.action}`)
+  ) {
     return {
       confirm: true,
       reason: "User preference: always confirm",

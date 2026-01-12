@@ -39,12 +39,12 @@ done
 # Run generator
 echo "📝 Running metadata generator..."
 
-node scripts/generate-metadata.ts --silent
+npm run gen:metadata --silent 2>/dev/null
 
 # Ensure generated files conform to repo formatting rules.
 # This avoids false-positive drift when generator output formatting differs
 # from the project's Prettier defaults (notably src/mcp/completions.ts).
-npx prettier --write src/mcp/completions.ts >/dev/null
+npx prettier --write src/mcp/completions.ts >/dev/null 2>&1
 # Check for changes in any tracked file
 CHANGED_FILES=()
 for file in "${TRACKED_FILES[@]}"; do

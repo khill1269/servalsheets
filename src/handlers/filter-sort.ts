@@ -40,7 +40,6 @@ import {
   toGridRange,
   type GridRangeInput,
 } from "../utils/google-sheets-helpers.js";
-import { RangeResolutionError } from "../core/range-resolver.js";
 
 type ApiFilterCriteria = sheets_v4.Schema$FilterCriteria;
 
@@ -66,31 +65,47 @@ export class FilterSortHandler extends BaseHandler<
       let response: FilterSortResponse;
       switch (req.action) {
         case "set_basic_filter":
-          response = await this.handleSetBasicFilter(req as SetBasicFilterInput);
+          response = await this.handleSetBasicFilter(
+            req as SetBasicFilterInput,
+          );
           break;
         case "clear_basic_filter":
-          response = await this.handleClearBasicFilter(req as ClearBasicFilterInput);
+          response = await this.handleClearBasicFilter(
+            req as ClearBasicFilterInput,
+          );
           break;
         case "get_basic_filter":
-          response = await this.handleGetBasicFilter(req as GetBasicFilterInput);
+          response = await this.handleGetBasicFilter(
+            req as GetBasicFilterInput,
+          );
           break;
         case "update_filter_criteria":
-          response = await this.handleUpdateFilterCriteria(req as UpdateFilterCriteriaInput);
+          response = await this.handleUpdateFilterCriteria(
+            req as UpdateFilterCriteriaInput,
+          );
           break;
         case "sort_range":
           response = await this.handleSortRange(req as SortRangeInput);
           break;
         case "create_filter_view":
-          response = await this.handleCreateFilterView(req as CreateFilterViewInput);
+          response = await this.handleCreateFilterView(
+            req as CreateFilterViewInput,
+          );
           break;
         case "update_filter_view":
-          response = await this.handleUpdateFilterView(req as UpdateFilterViewInput);
+          response = await this.handleUpdateFilterView(
+            req as UpdateFilterViewInput,
+          );
           break;
         case "delete_filter_view":
-          response = await this.handleDeleteFilterView(req as DeleteFilterViewInput);
+          response = await this.handleDeleteFilterView(
+            req as DeleteFilterViewInput,
+          );
           break;
         case "list_filter_views":
-          response = await this.handleListFilterViews(req as ListFilterViewsInput);
+          response = await this.handleListFilterViews(
+            req as ListFilterViewsInput,
+          );
           break;
         case "get_filter_view":
           response = await this.handleGetFilterView(req as GetFilterViewInput);
@@ -439,11 +454,7 @@ export class FilterSortHandler extends BaseHandler<
       }
     }
 
-    return this.error({
-      code: "SHEET_NOT_FOUND",
-      message: `Filter view ${input.filterViewId} not found`,
-      retryable: false,
-    });
+    return this.notFoundError("Filter view", input.filterViewId);
   }
 
   // ============================================================
@@ -607,7 +618,11 @@ export class FilterSortHandler extends BaseHandler<
   ): Promise<GridRangeInput> {
     const a1 = await this.resolveRange(spreadsheetId, range);
     const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -616,32 +631,6 @@ export class FilterSortHandler extends BaseHandler<
       startColumnIndex: parsed.startCol,
       endColumnIndex: parsed.endCol,
     };
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    const sheets = response.data.sheets ?? [];
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const match = sheets.find((s) => s.properties?.title === sheetName);
-    if (!match) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-    return match.properties?.sheetId ?? 0;
   }
 
   private mapCriteria(

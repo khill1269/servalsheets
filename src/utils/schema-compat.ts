@@ -123,7 +123,10 @@ export function zodSchemaToJsonSchema(
 
     // Remove $schema property (MCP doesn't need it)
     if (typeof jsonSchema === "object" && jsonSchema !== null) {
-      const { $schema: _$schema, ...rest } = jsonSchema as Record<string, unknown>;
+      const { $schema: _$schema, ...rest } = jsonSchema as Record<
+        string,
+        unknown
+      >;
       return rest;
     }
 
@@ -143,7 +146,6 @@ export function zodSchemaToJsonSchema(
     return { type: "object", properties: {} };
   }
 }
-
 
 /**
  * Validates that a schema is properly formatted for MCP

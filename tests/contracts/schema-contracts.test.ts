@@ -37,6 +37,7 @@ import {
   SheetsConfirmInputSchema,
   SheetsAnalyzeInputSchema,
   SheetsFixInputSchema,
+  CompositeInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
@@ -85,13 +86,14 @@ const VALID_INPUTS: Record<string, unknown> = {
     range: { a1: 'Sheet1!A1:C10' },
   },
   sheets_transaction: { action: 'begin', spreadsheetId: 'test123' },
-  sheets_validation: { action: 'validate', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:A10' }, rule: 'type', options: { type: 'NUMBER' } },
+  sheets_validation: { action: 'validate', value: 'test-value' },
   sheets_conflict: { action: 'detect', spreadsheetId: 'test123' },
   sheets_impact: { action: 'analyze', spreadsheetId: 'test123', operation: { type: 'values_write', tool: 'sheets_values', action: 'write', params: { range: 'A1:B10', values: [[1, 2]] } } },
   sheets_history: { action: 'list' },
   sheets_confirm: { action: 'request', plan: { title: 'Test Plan', description: 'Test', steps: [{ stepNumber: 1, description: 'Test step', tool: 'sheets_values', action: 'read', risk: 'low', estimatedApiCalls: 1, isDestructive: false, canUndo: false }] } },
   sheets_analyze: { action: 'generate_formula', spreadsheetId: 'test123', description: 'Sum column A' },
   sheets_fix: { action: 'fix', spreadsheetId: 'test123', issues: [{ type: 'MULTIPLE_TODAY', severity: 'medium', sheet: 'Sheet1', description: 'Multiple TODAY() calls' }] },
+  sheets_composite: { action: 'import_csv', spreadsheetId: 'test123', csvData: 'Name,Age\nAlice,30', mode: 'replace' },
 };
 
 // All tool input schemas
@@ -120,13 +122,14 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_confirm', schema: SheetsConfirmInputSchema },
   { name: 'sheets_analyze', schema: SheetsAnalyzeInputSchema },
   { name: 'sheets_fix', schema: SheetsFixInputSchema },
+  { name: 'sheets_composite', schema: CompositeInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 24 tools', () => {
-      expect(TOOL_COUNT).toBe(24);
-      expect(TOOL_SCHEMAS).toHaveLength(24);
+    it('should have exactly 26 tools', () => {
+      expect(TOOL_COUNT).toBe(26);
+      expect(TOOL_SCHEMAS).toHaveLength(25);
     });
 
     it('should have 70+ total actions across all tools', () => {

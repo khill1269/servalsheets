@@ -408,7 +408,10 @@ export class ResourceIndicatorValidator {
 
     return {
       active: result.valid,
-      aud: typeof result.audience === "string" ? result.audience : result.audience?.[0],
+      aud:
+        typeof result.audience === "string"
+          ? result.audience
+          : result.audience?.[0],
       scope: result.scopes?.join(" "),
       exp: result.expiresAt,
       email: result.email,

@@ -15,8 +15,8 @@ import {
 
 describe('ServalSheets v4', () => {
   describe('Tool Registry', () => {
-    it('should have 24 tools', () => {
-      expect(TOOL_COUNT).toBe(24);
+    it('should have 26 tools', () => {
+      expect(TOOL_COUNT).toBe(26);
     });
 
     it('should have 70+ actions', () => {

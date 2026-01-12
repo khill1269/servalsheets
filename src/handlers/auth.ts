@@ -133,17 +133,29 @@ export class AuthHandler {
         };
       }
 
+      // Validate token if present (check that it actually works)
+      let tokenValid = false;
+      let validationError: string | undefined;
+      if (hasTokens) {
+        const validation = await this.googleClient.validateToken();
+        tokenValid = validation.valid;
+        validationError = validation.error;
+      }
+
       return {
         success: true,
         action: "status",
-        authenticated: hasTokens,
+        authenticated: hasTokens && tokenValid, // Must exist AND be valid
         authType,
         hasAccessToken: tokenStatus.hasAccessToken,
         hasRefreshToken: tokenStatus.hasRefreshToken,
+        tokenValid, // NEW: Indicates if token is actually valid
         scopes: this.googleClient.scopes,
-        message: hasTokens
-          ? "OAuth credentials present. Ready to use sheets_* tools."
-          : 'Not authenticated. Call sheets_auth action "login" to start OAuth.',
+        message: tokenValid
+          ? "OAuth credentials present and valid. Ready to use sheets_* tools."
+          : hasTokens
+            ? `OAuth credentials present but invalid: ${validationError}. Call sheets_auth action "login" to re-authenticate.`
+            : 'Not authenticated. Call sheets_auth action "login" to start OAuth.',
       };
     }
 
@@ -159,9 +171,7 @@ export class AuthHandler {
     };
   }
 
-  private async handleLogin(
-    request: AuthLoginInput,
-  ): Promise<AuthResponse> {
+  private async handleLogin(request: AuthLoginInput): Promise<AuthResponse> {
     const oauthClient = this.createOAuthClient();
     if (!oauthClient) {
       return {

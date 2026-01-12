@@ -5,6 +5,8 @@ node_modules/
 dist/
 .tsbuildinfo
 .tsbuildinfo.build
+.eslintcache
+.turbo
 
 # IDE
 .idea/
@@ -67,8 +69,8 @@ temp/
 /*REPORT*.md
 /*PLAN*.md
 
-# Documentation
-docs/api/
+# Documentation - Auto-generated (TypeDoc)
+docs/generated/
 
 # Temporary/experimental files
 scripts/agent-prompts/
@@ -82,3 +84,4 @@ REALITY_MAP_EXECUTION_PATHS.md
 RESOURCE_ARCHITECTURE_DIAGRAM.md
 docs/MASTER_ANALYSIS_PROMPT.md
 docs/NL_EXCELLENCE_PLAN.md
+examples/js-compiled/

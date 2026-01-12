@@ -28,7 +28,9 @@ export class ImpactHandler {
     try {
       // Type narrowing: after schema validation, we know operation exists for analyze action
       const analyzeInput = input as ImpactAnalyzeInput;
-      const analysis = await impactAnalyzer.analyzeOperation(analyzeInput.operation);
+      const analysis = await impactAnalyzer.analyzeOperation(
+        analyzeInput.operation,
+      );
 
       const response: ImpactResponse = {
         success: true,

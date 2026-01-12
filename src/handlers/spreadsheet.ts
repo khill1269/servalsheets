@@ -47,6 +47,10 @@ export class SpreadsheetHandler extends BaseHandler<
     input: SheetsSpreadsheetInput,
   ): Promise<SheetsSpreadsheetOutput> {
     // Input is now the action directly (no request wrapper)
+
+    // Require authentication before proceeding
+    this.requireAuth();
+
     // Track spreadsheet ID for better error messages
     // Note: create requests do not have a spreadsheetId
     const spreadsheetId =
@@ -71,7 +75,9 @@ export class SpreadsheetHandler extends BaseHandler<
           response = await this.handleCopy(req as SpreadsheetCopyInput);
           break;
         case "update_properties":
-          response = await this.handleUpdateProperties(req as SpreadsheetUpdatePropertiesInput);
+          response = await this.handleUpdateProperties(
+            req as SpreadsheetUpdatePropertiesInput,
+          );
           break;
         case "get_url":
           response = await this.handleGetUrl(req as SpreadsheetGetUrlInput);
@@ -80,7 +86,9 @@ export class SpreadsheetHandler extends BaseHandler<
           response = await this.handleBatchGet(req as SpreadsheetBatchGetInput);
           break;
         case "get_comprehensive":
-          response = await this.handleGetComprehensive(req as SpreadsheetGetComprehensiveInput);
+          response = await this.handleGetComprehensive(
+            req as SpreadsheetGetComprehensiveInput,
+          );
           break;
         case "list":
           response = await this.handleList(req as SpreadsheetListInput);

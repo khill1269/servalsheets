@@ -31,7 +31,7 @@ export class ConflictHandler {
 
       switch (input.action) {
         case "detect": {
-          const detectInput = input as ConflictDetectInput;
+          const _detectInput = input as ConflictDetectInput;
           // For now, return empty conflicts list as detectConflict is designed
           // for pre-write checks with expected versions
           // In production, this would query active conflicts from the detector

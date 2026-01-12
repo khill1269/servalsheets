@@ -171,6 +171,7 @@ export class ServalSheetsServer {
           },
         }),
         rangeResolver: new RangeResolver({ sheetsApi: this.googleClient.sheets }),
+        googleClient: this.googleClient, // For authentication checks in handlers
         batchingSystem, // Time-window batching system for reducing API calls
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {

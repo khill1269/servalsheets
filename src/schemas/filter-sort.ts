@@ -19,7 +19,7 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
+const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
@@ -136,23 +136,24 @@ export const SheetsFilterSortInputSchema = z
   .refine(
     (data) => {
       // Validate required fields per action
+      // Note: Use !== undefined instead of !! for numeric fields since 0 is valid
       switch (data.action) {
         case "set_basic_filter":
-          return !!data.sheetId;
+          return data.sheetId !== undefined;
         case "clear_basic_filter":
-          return !!data.sheetId;
+          return data.sheetId !== undefined;
         case "get_basic_filter":
-          return !!data.sheetId;
+          return data.sheetId !== undefined;
         case "update_filter_criteria":
           return (
-            !!data.sheetId &&
+            data.sheetId !== undefined &&
             data.columnIndex !== undefined &&
             !!data.criteria
           );
         case "sort_range":
           return !!data.range && !!data.sortSpecs && data.sortSpecs.length > 0;
         case "create_filter_view":
-          return !!data.sheetId && !!data.title;
+          return data.sheetId !== undefined && !!data.title;
         case "update_filter_view":
           return data.filterViewId !== undefined;
         case "delete_filter_view":
@@ -163,7 +164,7 @@ export const SheetsFilterSortInputSchema = z
           return data.filterViewId !== undefined;
         case "create_slicer":
           return (
-            !!data.sheetId &&
+            data.sheetId !== undefined &&
             !!data.dataRange &&
             data.filterColumn !== undefined &&
             !!data.position

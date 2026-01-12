@@ -146,24 +146,67 @@ export function registerConfirmationResources(server: McpServer): void {
   // Resource: Quick reference for destructive operations
   server.registerResource(
     "destructive_operations",
-    new ResourceTemplate("sheets:///confirmation/destructive", { list: undefined }),
+    new ResourceTemplate("sheets:///confirmation/destructive", {
+      list: undefined,
+    }),
     {
       title: "Destructive Operations List",
-      description: "List of operations that are destructive and require confirmation",
+      description:
+        "List of operations that are destructive and require confirmation",
       mimeType: "application/json",
     },
     async () => {
       const destructive = [
-        { tool: "sheets_values", action: "clear", description: "Clear cell contents" },
-        { tool: "sheets_sheet", action: "delete", description: "Delete entire sheet" },
-        { tool: "sheets_dimensions", action: "delete_rows", description: "Delete rows" },
-        { tool: "sheets_dimensions", action: "delete_columns", description: "Delete columns" },
-        { tool: "sheets_rules", action: "remove_rule", description: "Remove validation/formatting rules" },
-        { tool: "sheets_charts", action: "delete", description: "Delete chart" },
-        { tool: "sheets_pivot", action: "delete", description: "Delete pivot table" },
-        { tool: "sheets_advanced", action: "remove_protection", description: "Remove sheet/range protection" },
-        { tool: "sheets_sharing", action: "revoke", description: "Revoke user access" },
-        { tool: "sheets_comments", action: "delete", description: "Delete comments" },
+        {
+          tool: "sheets_values",
+          action: "clear",
+          description: "Clear cell contents",
+        },
+        {
+          tool: "sheets_sheet",
+          action: "delete",
+          description: "Delete entire sheet",
+        },
+        {
+          tool: "sheets_dimensions",
+          action: "delete_rows",
+          description: "Delete rows",
+        },
+        {
+          tool: "sheets_dimensions",
+          action: "delete_columns",
+          description: "Delete columns",
+        },
+        {
+          tool: "sheets_rules",
+          action: "remove_rule",
+          description: "Remove validation/formatting rules",
+        },
+        {
+          tool: "sheets_charts",
+          action: "delete",
+          description: "Delete chart",
+        },
+        {
+          tool: "sheets_pivot",
+          action: "delete",
+          description: "Delete pivot table",
+        },
+        {
+          tool: "sheets_advanced",
+          action: "remove_protection",
+          description: "Remove sheet/range protection",
+        },
+        {
+          tool: "sheets_sharing",
+          action: "revoke",
+          description: "Revoke user access",
+        },
+        {
+          tool: "sheets_comments",
+          action: "delete",
+          description: "Delete comments",
+        },
       ];
 
       return {

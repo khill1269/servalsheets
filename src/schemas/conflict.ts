@@ -13,34 +13,58 @@ import {
 // INPUT SCHEMA: Flattened union for MCP SDK compatibility
 // The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
 // Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsConflictInputSchema = z.object({
-  action: z.enum(["detect", "resolve"]).describe("The conflict operation to perform"),
-  // detect fields
-  spreadsheetId: z.string().min(1).optional().describe("Spreadsheet ID to check for conflicts (required for: detect)"),
-  range: z.string().optional().describe("Range to check (A1 notation)"),
-  since: z.number().optional().describe("Timestamp to check conflicts since (ms)"),
-  // resolve fields
-  conflictId: z.string().min(1).optional().describe("Conflict ID to resolve (required for: resolve)"),
-  strategy: z.enum(["keep_local", "keep_remote", "merge", "manual"]).optional().describe("Resolution strategy (required for: resolve)"),
-  mergedValue: z.unknown().optional().describe("Merged value for manual strategy"),
-}).refine((data) => {
-  switch (data.action) {
-    case "detect":
-      if (!data.spreadsheetId) {
-        return false;
+export const SheetsConflictInputSchema = z
+  .object({
+    action: z
+      .enum(["detect", "resolve"])
+      .describe("The conflict operation to perform"),
+    // detect fields
+    spreadsheetId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Spreadsheet ID to check for conflicts (required for: detect)"),
+    range: z.string().optional().describe("Range to check (A1 notation)"),
+    since: z
+      .number()
+      .optional()
+      .describe("Timestamp to check conflicts since (ms)"),
+    // resolve fields
+    conflictId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Conflict ID to resolve (required for: resolve)"),
+    strategy: z
+      .enum(["keep_local", "keep_remote", "merge", "manual"])
+      .optional()
+      .describe("Resolution strategy (required for: resolve)"),
+    mergedValue: z
+      .unknown()
+      .optional()
+      .describe("Merged value for manual strategy"),
+  })
+  .refine(
+    (data) => {
+      switch (data.action) {
+        case "detect":
+          if (!data.spreadsheetId) {
+            return false;
+          }
+          return true;
+        case "resolve":
+          if (!data.conflictId || !data.strategy) {
+            return false;
+          }
+          return true;
+        default:
+          return false;
       }
-      return true;
-    case "resolve":
-      if (!data.conflictId || !data.strategy) {
-        return false;
-      }
-      return true;
-    default:
-      return false;
-  }
-}, {
-  message: "Missing required fields for the specified action",
-});
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 const ConflictResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -109,5 +133,12 @@ export type SheetsConflictOutput = z.infer<typeof SheetsConflictOutputSchema>;
 export type ConflictResponse = z.infer<typeof ConflictResponseSchema>;
 
 // Type narrowing helpers for handler methods
-export type ConflictDetectInput = SheetsConflictInput & { action: "detect"; spreadsheetId: string };
-export type ConflictResolveInput = SheetsConflictInput & { action: "resolve"; conflictId: string; strategy: "keep_local" | "keep_remote" | "merge" | "manual" };
+export type ConflictDetectInput = SheetsConflictInput & {
+  action: "detect";
+  spreadsheetId: string;
+};
+export type ConflictResolveInput = SheetsConflictInput & {
+  action: "resolve";
+  conflictId: string;
+  strategy: "keep_local" | "keep_remote" | "merge" | "manual";
+};

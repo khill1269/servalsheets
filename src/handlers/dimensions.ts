@@ -22,6 +22,27 @@ import type {
   SheetsDimensionsInput,
   SheetsDimensionsOutput,
   DimensionsResponse,
+  DimensionsInsertRowsInput,
+  DimensionsInsertColumnsInput,
+  DimensionsDeleteRowsInput,
+  DimensionsDeleteColumnsInput,
+  DimensionsMoveRowsInput,
+  DimensionsMoveColumnsInput,
+  DimensionsResizeRowsInput,
+  DimensionsResizeColumnsInput,
+  DimensionsAutoResizeInput,
+  DimensionsHideRowsInput,
+  DimensionsHideColumnsInput,
+  DimensionsShowRowsInput,
+  DimensionsShowColumnsInput,
+  DimensionsFreezeRowsInput,
+  DimensionsFreezeColumnsInput,
+  DimensionsGroupRowsInput,
+  DimensionsGroupColumnsInput,
+  DimensionsUngroupRowsInput,
+  DimensionsUngroupColumnsInput,
+  DimensionsAppendRowsInput,
+  DimensionsAppendColumnsInput,
 } from "../schemas/index.js";
 import { confirmDestructiveAction } from "../mcp/elicitation.js";
 
@@ -48,67 +69,103 @@ export class DimensionsHandler extends BaseHandler<
       let response: DimensionsResponse;
       switch (req.action) {
         case "insert_rows":
-          response = await this.handleInsertRows(req);
+          response = await this.handleInsertRows(
+            req as DimensionsInsertRowsInput,
+          );
           break;
         case "insert_columns":
-          response = await this.handleInsertColumns(req);
+          response = await this.handleInsertColumns(
+            req as DimensionsInsertColumnsInput,
+          );
           break;
         case "delete_rows":
-          response = await this.handleDeleteRows(req);
+          response = await this.handleDeleteRows(
+            req as DimensionsDeleteRowsInput,
+          );
           break;
         case "delete_columns":
-          response = await this.handleDeleteColumns(req);
+          response = await this.handleDeleteColumns(
+            req as DimensionsDeleteColumnsInput,
+          );
           break;
         case "move_rows":
-          response = await this.handleMoveRows(req);
+          response = await this.handleMoveRows(req as DimensionsMoveRowsInput);
           break;
         case "move_columns":
-          response = await this.handleMoveColumns(req);
+          response = await this.handleMoveColumns(
+            req as DimensionsMoveColumnsInput,
+          );
           break;
         case "resize_rows":
-          response = await this.handleResizeRows(req);
+          response = await this.handleResizeRows(
+            req as DimensionsResizeRowsInput,
+          );
           break;
         case "resize_columns":
-          response = await this.handleResizeColumns(req);
+          response = await this.handleResizeColumns(
+            req as DimensionsResizeColumnsInput,
+          );
           break;
         case "auto_resize":
-          response = await this.handleAutoResize(req);
+          response = await this.handleAutoResize(
+            req as DimensionsAutoResizeInput,
+          );
           break;
         case "hide_rows":
-          response = await this.handleHideRows(req);
+          response = await this.handleHideRows(req as DimensionsHideRowsInput);
           break;
         case "hide_columns":
-          response = await this.handleHideColumns(req);
+          response = await this.handleHideColumns(
+            req as DimensionsHideColumnsInput,
+          );
           break;
         case "show_rows":
-          response = await this.handleShowRows(req);
+          response = await this.handleShowRows(req as DimensionsShowRowsInput);
           break;
         case "show_columns":
-          response = await this.handleShowColumns(req);
+          response = await this.handleShowColumns(
+            req as DimensionsShowColumnsInput,
+          );
           break;
         case "freeze_rows":
-          response = await this.handleFreezeRows(req);
+          response = await this.handleFreezeRows(
+            req as DimensionsFreezeRowsInput,
+          );
           break;
         case "freeze_columns":
-          response = await this.handleFreezeColumns(req);
+          response = await this.handleFreezeColumns(
+            req as DimensionsFreezeColumnsInput,
+          );
           break;
         case "group_rows":
-          response = await this.handleGroupRows(req);
+          response = await this.handleGroupRows(
+            req as DimensionsGroupRowsInput,
+          );
           break;
         case "group_columns":
-          response = await this.handleGroupColumns(req);
+          response = await this.handleGroupColumns(
+            req as DimensionsGroupColumnsInput,
+          );
           break;
         case "ungroup_rows":
-          response = await this.handleUngroupRows(req);
+          response = await this.handleUngroupRows(
+            req as DimensionsUngroupRowsInput,
+          );
           break;
         case "ungroup_columns":
-          response = await this.handleUngroupColumns(req);
+          response = await this.handleUngroupColumns(
+            req as DimensionsUngroupColumnsInput,
+          );
           break;
         case "append_rows":
-          response = await this.handleAppendRows(req);
+          response = await this.handleAppendRows(
+            req as DimensionsAppendRowsInput,
+          );
           break;
         case "append_columns":
-          response = await this.handleAppendColumns(req);
+          response = await this.handleAppendColumns(
+            req as DimensionsAppendColumnsInput,
+          );
           break;
         default:
           response = this.error({
@@ -153,7 +210,7 @@ export class DimensionsHandler extends BaseHandler<
           : req.action.startsWith("insert") || req.action.startsWith("append")
             ? "INSERT_DIMENSION"
             : "UPDATE_DIMENSION_PROPERTIES",
-        target: { spreadsheetId: req.spreadsheetId, sheetId: req.sheetId },
+        target: { spreadsheetId: req.spreadsheetId!, sheetId: req.sheetId! },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
@@ -170,7 +227,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleInsertRows(
-    input: SheetsDimensionsInput & { action: "insert_rows" },
+    input: DimensionsInsertRowsInput,
   ): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
 
@@ -197,7 +254,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleInsertColumns(
-    input: SheetsDimensionsInput & { action: "insert_columns" },
+    input: DimensionsInsertColumnsInput,
   ): Promise<DimensionsResponse> {
     const count = input.count ?? 1;
 
@@ -228,7 +285,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleDeleteRows(
-    input: SheetsDimensionsInput & { action: "delete_rows" },
+    input: DimensionsDeleteRowsInput,
   ): Promise<DimensionsResponse> {
     const rowCount = input.endIndex - input.startIndex;
 
@@ -333,7 +390,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleDeleteColumns(
-    input: SheetsDimensionsInput & { action: "delete_columns" },
+    input: DimensionsDeleteColumnsInput,
   ): Promise<DimensionsResponse> {
     const columnCount = input.endIndex - input.startIndex;
 
@@ -399,7 +456,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleMoveRows(
-    input: SheetsDimensionsInput & { action: "move_rows" },
+    input: DimensionsMoveRowsInput,
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -435,7 +492,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleMoveColumns(
-    input: SheetsDimensionsInput & { action: "move_columns" },
+    input: DimensionsMoveColumnsInput,
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -475,7 +532,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleResizeRows(
-    input: SheetsDimensionsInput & { action: "resize_rows" },
+    input: DimensionsResizeRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -505,7 +562,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleResizeColumns(
-    input: SheetsDimensionsInput & { action: "resize_columns" },
+    input: DimensionsResizeColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -535,7 +592,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleAutoResize(
-    input: SheetsDimensionsInput & { action: "auto_resize" },
+    input: DimensionsAutoResizeInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -569,7 +626,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleHideRows(
-    input: SheetsDimensionsInput & { action: "hide_rows" },
+    input: DimensionsHideRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -599,7 +656,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleHideColumns(
-    input: SheetsDimensionsInput & { action: "hide_columns" },
+    input: DimensionsHideColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -629,7 +686,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleShowRows(
-    input: SheetsDimensionsInput & { action: "show_rows" },
+    input: DimensionsShowRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -659,7 +716,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleShowColumns(
-    input: SheetsDimensionsInput & { action: "show_columns" },
+    input: DimensionsShowColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -693,7 +750,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleFreezeRows(
-    input: SheetsDimensionsInput & { action: "freeze_rows" },
+    input: DimensionsFreezeRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -718,7 +775,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleFreezeColumns(
-    input: SheetsDimensionsInput & { action: "freeze_columns" },
+    input: DimensionsFreezeColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -749,7 +806,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleGroupRows(
-    input: SheetsDimensionsInput & { action: "group_rows" },
+    input: DimensionsGroupRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -775,7 +832,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleGroupColumns(
-    input: SheetsDimensionsInput & { action: "group_columns" },
+    input: DimensionsGroupColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -801,7 +858,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleUngroupRows(
-    input: SheetsDimensionsInput & { action: "ungroup_rows" },
+    input: DimensionsUngroupRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -827,7 +884,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleUngroupColumns(
-    input: SheetsDimensionsInput & { action: "ungroup_columns" },
+    input: DimensionsUngroupColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -857,7 +914,7 @@ export class DimensionsHandler extends BaseHandler<
   // ============================================================
 
   private async handleAppendRows(
-    input: SheetsDimensionsInput & { action: "append_rows" },
+    input: DimensionsAppendRowsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -878,7 +935,7 @@ export class DimensionsHandler extends BaseHandler<
   }
 
   private async handleAppendColumns(
-    input: SheetsDimensionsInput & { action: "append_columns" },
+    input: DimensionsAppendColumnsInput,
   ): Promise<DimensionsResponse> {
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,

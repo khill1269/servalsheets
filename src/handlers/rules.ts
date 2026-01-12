@@ -17,6 +17,14 @@ import type {
   SheetsRulesInput,
   SheetsRulesOutput,
   RulesResponse,
+  RulesAddConditionalFormatInput,
+  RulesUpdateConditionalFormatInput,
+  RulesDeleteConditionalFormatInput,
+  RulesListConditionalFormatsInput,
+  RulesAddDataValidationInput,
+  RulesClearDataValidationInput,
+  RulesListDataValidationsInput,
+  RulesAddPresetRuleInput,
 } from "../schemas/index.js";
 import {
   parseA1Notation,
@@ -80,28 +88,44 @@ export class RulesHandler extends BaseHandler<
       let response: RulesResponse;
       switch (req.action) {
         case "add_conditional_format":
-          response = await this.handleAddConditionalFormat(req);
+          response = await this.handleAddConditionalFormat(
+            req as RulesAddConditionalFormatInput,
+          );
           break;
         case "update_conditional_format":
-          response = await this.handleUpdateConditionalFormat(req);
+          response = await this.handleUpdateConditionalFormat(
+            req as RulesUpdateConditionalFormatInput,
+          );
           break;
         case "delete_conditional_format":
-          response = await this.handleDeleteConditionalFormat(req);
+          response = await this.handleDeleteConditionalFormat(
+            req as RulesDeleteConditionalFormatInput,
+          );
           break;
         case "list_conditional_formats":
-          response = await this.handleListConditionalFormats(req);
+          response = await this.handleListConditionalFormats(
+            req as RulesListConditionalFormatsInput,
+          );
           break;
         case "add_data_validation":
-          response = await this.handleAddDataValidation(req);
+          response = await this.handleAddDataValidation(
+            req as RulesAddDataValidationInput,
+          );
           break;
         case "clear_data_validation":
-          response = await this.handleClearDataValidation(req);
+          response = await this.handleClearDataValidation(
+            req as RulesClearDataValidationInput,
+          );
           break;
         case "list_data_validations":
-          response = await this.handleListDataValidations(req);
+          response = await this.handleListDataValidations(
+            req as RulesListDataValidationsInput,
+          );
           break;
         case "add_preset_rule":
-          response = await this.handleAddPresetRule(req);
+          response = await this.handleAddPresetRule(
+            req as RulesAddPresetRuleInput,
+          );
           break;
         default:
           response = this.error({
@@ -147,7 +171,7 @@ export class RulesHandler extends BaseHandler<
     return [
       {
         type: "UPDATE_CONDITIONAL_FORMAT",
-        target: { spreadsheetId: req.spreadsheetId },
+        target: { spreadsheetId: req.spreadsheetId! },
         payload: {},
         metadata: {
           sourceTool: this.toolName,
@@ -164,7 +188,7 @@ export class RulesHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: "add_conditional_format" }>,
+    input: RulesAddConditionalFormatInput,
   ): Promise<RulesResponse> {
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
@@ -236,7 +260,7 @@ export class RulesHandler extends BaseHandler<
   }
 
   private async handleUpdateConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: "update_conditional_format" }>,
+    input: RulesUpdateConditionalFormatInput,
   ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -325,7 +349,7 @@ export class RulesHandler extends BaseHandler<
   }
 
   private async handleDeleteConditionalFormat(
-    input: Extract<SheetsRulesInput, { action: "delete_conditional_format" }>,
+    input: RulesDeleteConditionalFormatInput,
   ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success("delete_conditional_format", {}, undefined, true);
@@ -349,7 +373,7 @@ export class RulesHandler extends BaseHandler<
   }
 
   private async handleListConditionalFormats(
-    input: Extract<SheetsRulesInput, { action: "list_conditional_formats" }>,
+    input: RulesListConditionalFormatsInput,
   ): Promise<RulesResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -392,7 +416,7 @@ export class RulesHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddDataValidation(
-    input: Extract<SheetsRulesInput, { action: "add_data_validation" }>,
+    input: RulesAddDataValidationInput,
   ): Promise<RulesResponse> {
     const gridRange = await this.resolveRangeInput(
       input.spreadsheetId,
@@ -432,7 +456,7 @@ export class RulesHandler extends BaseHandler<
   }
 
   private async handleClearDataValidation(
-    input: Extract<SheetsRulesInput, { action: "clear_data_validation" }>,
+    input: RulesClearDataValidationInput,
   ): Promise<RulesResponse> {
     if (input.safety?.dryRun) {
       return this.success("clear_data_validation", {}, undefined, true);
@@ -461,7 +485,7 @@ export class RulesHandler extends BaseHandler<
   }
 
   private async handleListDataValidations(
-    input: Extract<SheetsRulesInput, { action: "list_data_validations" }>,
+    input: RulesListDataValidationsInput,
   ): Promise<RulesResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -533,7 +557,7 @@ export class RulesHandler extends BaseHandler<
   // ============================================================
 
   private async handleAddPresetRule(
-    input: Extract<SheetsRulesInput, { action: "add_preset_rule" }>,
+    input: RulesAddPresetRuleInput,
   ): Promise<RulesResponse> {
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
@@ -824,7 +848,11 @@ export class RulesHandler extends BaseHandler<
   ): Promise<GridRangeInput> {
     if ("a1" in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
-      const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+      const sheetId = await this.getSheetId(
+        spreadsheetId,
+        parsed.sheetName,
+        this.sheetsApi,
+      );
       return {
         sheetId,
         startRowIndex: parsed.startRow,
@@ -878,33 +906,5 @@ export class RulesHandler extends BaseHandler<
       { input: range, spreadsheetId },
       false,
     );
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    const sheets = response.data.sheets ?? [];
-
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const sheet = sheets.find((s) => s.properties?.title === sheetName);
-    if (!sheet) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-
-    return sheet.properties?.sheetId ?? 0;
   }
 }

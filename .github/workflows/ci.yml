@@ -7,8 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Test
+  # Fast checks that don't require test sharding
+  quick-checks:
+    name: Quick Checks
     runs-on: ubuntu-latest
 
     steps:
@@ -24,20 +25,100 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Run tests
-        run: npm test -- --run
-
-      - name: Build
-        run: npm run build
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
 
       - name: Check metadata drift
-        run: npm run check:drift
+        run: npx turbo run check:drift
+
+      - name: Check placeholders
+        run: npx turbo run check:placeholders
+
+      - name: Type check
+        run: npx turbo run typecheck
+
+      - name: Lint
+        run: npx turbo run lint
+
+      - name: Format check
+        run: npx turbo run format:check
+
+  # Parallel test execution with sharding
+  test:
+    name: Test (Shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    needs: quick-checks
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+        total_shards: [4]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-test-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-test-${{ matrix.shard }}-
+            ${{ runner.os }}-turbo-test-
+            ${{ runner.os }}-turbo-
+
+      - name: Run tests (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
+        run: npm test -- --run --shard=${{ matrix.shard }}/${{ matrix.total_shards }}
+
+  # Build after all tests pass
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-build-
+            ${{ runner.os }}-turbo-
+
+      - name: Build
+        run: npx turbo run build
+
+      - name: Validate server.json
+        run: npm run validate:server-json
 
       - name: Check package can be packed
         run: npm pack --dry-run

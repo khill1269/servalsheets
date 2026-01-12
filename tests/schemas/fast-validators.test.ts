@@ -143,6 +143,46 @@ describe("fastValidateValues", () => {
     })).not.toThrow();
   });
 
+  it("should accept read action with object range format (a1)", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { a1: "Sheet1!A1:D10" },
+    })).not.toThrow();
+  });
+
+  it("should accept read action with object range format (namedRange)", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { namedRange: "MyNamedRange" },
+    })).not.toThrow();
+  });
+
+  it("should accept read action with object range format (semantic)", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { semantic: { sheet: "Sheet1", column: "A" } },
+    })).not.toThrow();
+  });
+
+  it("should accept read action with object range format (grid)", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { grid: { sheetId: 0, startRowIndex: 0, endRowIndex: 10 } },
+    })).not.toThrow();
+  });
+
+  it("should reject read action with invalid object range (no valid key)", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { invalid: "test" },
+    })).toThrow(FastValidationError);
+  });
+
   it("should accept valid write action", () => {
     expect(() => fastValidateValues({
       action: "write",
@@ -152,10 +192,27 @@ describe("fastValidateValues", () => {
     })).not.toThrow();
   });
 
+  it("should accept write action with object range format", () => {
+    expect(() => fastValidateValues({
+      action: "write",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { a1: "Sheet1!A1:B2" },
+      values: [["A", "B"], [1, 2]],
+    })).not.toThrow();
+  });
+
   it("should require range for read action", () => {
     expect(() => fastValidateValues({
       action: "read",
       spreadsheetId: VALID_SPREADSHEET_ID,
+    })).toThrow(FastValidationError);
+  });
+
+  it("should reject empty string range", () => {
+    expect(() => fastValidateValues({
+      action: "read",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: "",
     })).toThrow(FastValidationError);
   });
 
@@ -203,6 +260,23 @@ describe("fastValidateCells", () => {
     })).not.toThrow();
   });
 
+  it("should accept add_note with object range format", () => {
+    expect(() => fastValidateCells({
+      action: "add_note",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { a1: "A1" },
+      note: "Test note",
+    })).not.toThrow();
+  });
+
+  it("should accept merge with object range format", () => {
+    expect(() => fastValidateCells({
+      action: "merge",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { a1: "A1:C1" },
+    })).not.toThrow();
+  });
+
   it("should not require range for get_merges", () => {
     expect(() => fastValidateCells({
       action: "get_merges",
@@ -217,6 +291,22 @@ describe("fastValidateFormat", () => {
       action: "set_format",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: "A1:B10",
+    })).not.toThrow();
+  });
+
+  it("should accept set_format with object range format", () => {
+    expect(() => fastValidateFormat({
+      action: "set_format",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { a1: "A1:B10" },
+    })).not.toThrow();
+  });
+
+  it("should accept apply_preset with object range format (namedRange)", () => {
+    expect(() => fastValidateFormat({
+      action: "apply_preset",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: { namedRange: "HeaderRow" },
     })).not.toThrow();
   });
 

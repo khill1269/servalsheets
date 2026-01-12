@@ -182,7 +182,7 @@ export class HistoryService {
    */
   getStats(spreadsheetId?: string): OperationHistoryStats {
     const ops = spreadsheetId
-      ? this.operations.filter(op => op.spreadsheetId === spreadsheetId)
+      ? this.operations.filter((op) => op.spreadsheetId === spreadsheetId)
       : this.operations;
 
     const total = ops.length;
@@ -192,7 +192,10 @@ export class HistoryService {
     const totalDuration = ops.reduce((sum, op) => sum + op.duration, 0);
     const averageDuration = total > 0 ? totalDuration / total : 0;
 
-    const totalCells = ops.reduce((sum, op) => sum + (op.cellsAffected || 0), 0);
+    const totalCells = ops.reduce(
+      (sum, op) => sum + (op.cellsAffected || 0),
+      0,
+    );
 
     // Find most common tool
     const toolCounts = new Map<string, number>();
@@ -431,11 +434,19 @@ export class HistoryService {
    * @param options Optional parameters (limit, etc.)
    * @returns Array of operations in reverse chronological order
    */
-  getHistory(spreadsheetId: string, options?: { limit?: number }): OperationHistory[] {
-    let ops = this.operations.filter(op => op.spreadsheetId === spreadsheetId);
+  getHistory(
+    spreadsheetId: string,
+    options?: { limit?: number },
+  ): OperationHistory[] {
+    let ops = this.operations.filter(
+      (op) => op.spreadsheetId === spreadsheetId,
+    );
 
     // Sort by timestamp (most recent first)
-    ops.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    ops.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
 
     // Apply limit if specified
     if (options?.limit && options.limit > 0) {
@@ -451,7 +462,10 @@ export class HistoryService {
    * @param operationId The operation ID
    * @returns The operation or undefined if not found
    */
-  getOperation(spreadsheetId: string, operationId: string): OperationHistory | undefined {
+  getOperation(
+    spreadsheetId: string,
+    operationId: string,
+  ): OperationHistory | undefined {
     const operation = this.operationsMap.get(operationId);
     if (operation && operation.spreadsheetId === spreadsheetId) {
       return operation;
@@ -466,35 +480,40 @@ export class HistoryService {
    * @param filters Search criteria
    * @returns Filtered operations
    */
-  searchHistory(spreadsheetId: string, filters: {
-    tool?: string;
-    action?: string;
-    startTime?: Date;
-    endTime?: Date;
-    result?: "success" | "error";
-  }): OperationHistory[] {
-    let ops = this.operations.filter(op => op.spreadsheetId === spreadsheetId);
+  searchHistory(
+    spreadsheetId: string,
+    filters: {
+      tool?: string;
+      action?: string;
+      startTime?: Date;
+      endTime?: Date;
+      result?: "success" | "error";
+    },
+  ): OperationHistory[] {
+    let ops = this.operations.filter(
+      (op) => op.spreadsheetId === spreadsheetId,
+    );
 
     if (filters.tool) {
-      ops = ops.filter(op => op.tool === filters.tool);
+      ops = ops.filter((op) => op.tool === filters.tool);
     }
 
     if (filters.action) {
-      ops = ops.filter(op => op.action === filters.action);
+      ops = ops.filter((op) => op.action === filters.action);
     }
 
     if (filters.startTime) {
       const startTime = filters.startTime.getTime();
-      ops = ops.filter(op => new Date(op.timestamp).getTime() >= startTime);
+      ops = ops.filter((op) => new Date(op.timestamp).getTime() >= startTime);
     }
 
     if (filters.endTime) {
       const endTime = filters.endTime.getTime();
-      ops = ops.filter(op => new Date(op.timestamp).getTime() <= endTime);
+      ops = ops.filter((op) => new Date(op.timestamp).getTime() <= endTime);
     }
 
     if (filters.result) {
-      ops = ops.filter(op => op.result === filters.result);
+      ops = ops.filter((op) => op.result === filters.result);
     }
 
     return ops;
@@ -506,7 +525,9 @@ export class HistoryService {
    */
   clearHistory(spreadsheetId: string): void {
     // Remove operations from array
-    this.operations = this.operations.filter(op => op.spreadsheetId !== spreadsheetId);
+    this.operations = this.operations.filter(
+      (op) => op.spreadsheetId !== spreadsheetId,
+    );
 
     // Remove from map
     for (const [id, op] of this.operationsMap.entries()) {

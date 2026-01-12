@@ -21,7 +21,10 @@
  * Create a fast action dispatcher using a Map
  * Avoids switch statement overhead for frequent actions
  */
-export function createActionDispatcher<TInput extends { action: string }, TOutput>(
+export function createActionDispatcher<
+  TInput extends { action: string },
+  TOutput,
+>(
   handlers: Record<string, (input: TInput) => Promise<TOutput>>,
 ): (input: TInput) => Promise<TOutput> {
   const dispatchMap = new Map(Object.entries(handlers));
@@ -46,7 +49,10 @@ const keyBuffer: string[] = [];
  * Fast cache key generation without object allocation
  * Uses a simple string join instead of JSON.stringify
  */
-export function fastCacheKey(prefix: string, ...parts: (string | number | undefined)[]): string {
+export function fastCacheKey(
+  prefix: string,
+  ...parts: (string | number | undefined)[]
+): string {
   keyBuffer.length = 0;
   keyBuffer.push(prefix);
 
@@ -101,7 +107,9 @@ export function hasRequiredParams(
 /**
  * Fast spreadsheet ID extraction (avoids type narrowing overhead)
  */
-export function getSpreadsheetId(input: Record<string, unknown>): string | undefined {
+export function getSpreadsheetId(
+  input: Record<string, unknown>,
+): string | undefined {
   const id = input["spreadsheetId"];
   return typeof id === "string" ? id : undefined;
 }
@@ -144,7 +152,10 @@ export function fastError(
   code: string,
   message: string,
   retryable: boolean = false,
-): { success: false; error: { code: string; message: string; retryable: boolean } } {
+): {
+  success: false;
+  error: { code: string; message: string; retryable: boolean };
+} {
   return {
     ...ERROR_BASE,
     error: { code, message, retryable },
@@ -281,7 +292,12 @@ export function truncateValues(
   values: unknown[][],
   maxRows: number,
   maxCells: number,
-): { values: unknown[][]; truncated: boolean; originalRows: number; originalCells: number } {
+): {
+  values: unknown[][];
+  truncated: boolean;
+  originalRows: number;
+  originalCells: number;
+} {
   const originalRows = values.length;
   let originalCells = 0;
   let cellCount = 0;

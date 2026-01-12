@@ -16,6 +16,7 @@ import type {
 import type { RangeInput } from "../schemas/shared.js";
 import { identifyDataIssues, checkSamplingSupport } from "../mcp/sampling.js";
 import { getRequestLogger } from "../utils/request-context.js";
+import { logger } from "../utils/logger.js";
 import { cacheManager, createCacheKey } from "../utils/cache-manager.js";
 import { createRequestKey } from "../utils/request-deduplication.js";
 import { CACHE_TTL_ANALYSIS } from "../config/constants.js";
@@ -843,29 +844,48 @@ export class AnalysisHandler extends BaseHandler<
     const sheets = metadata.sheets ?? [];
     let filledCells = 0;
     let formulas = 0;
+
     // Best-effort: sample first 200 rows/26 cols per sheet to estimate filled/formulas
-    for (const sheet of sheets) {
-      const title = sheet.properties?.title;
-      if (!title) continue;
-      const range = `'${title.replace(/'/g, "''")}'!A1:Z200`;
+    // Use batchGet to fetch all ranges in a single API call (fixes N+1 query)
+    const ranges = sheets
+      .filter((sheet) => sheet.properties?.title)
+      .map((sheet) => {
+        const title = sheet.properties!.title!;
+        return `'${title.replace(/'/g, "''")}'!A1:Z200`;
+      });
+
+    if (ranges.length > 0) {
       try {
-        const valuesResp = await this.sheetsApi.spreadsheets.values.get({
-          spreadsheetId: input.spreadsheetId,
-          range,
-          valueRenderOption: "FORMULA",
-        });
-        for (const row of valuesResp.data.values ?? []) {
-          for (const cell of row ?? []) {
-            if (cell !== "" && cell !== undefined && cell !== null) {
-              filledCells++;
-            }
-            if (typeof cell === "string" && cell.startsWith("=")) {
-              formulas++;
+        const batchResponse = await this.sheetsApi.spreadsheets.values.batchGet(
+          {
+            spreadsheetId: input.spreadsheetId,
+            ranges,
+            valueRenderOption: "FORMULA",
+          },
+        );
+
+        // Process all value ranges at once
+        for (const valueRange of batchResponse.data.valueRanges ?? []) {
+          for (const row of valueRange.values ?? []) {
+            for (const cell of row ?? []) {
+              if (cell !== "" && cell !== undefined && cell !== null) {
+                filledCells++;
+              }
+              if (typeof cell === "string" && cell.startsWith("=")) {
+                formulas++;
+              }
             }
           }
         }
-      } catch {
-        // ignore sampling errors
+      } catch (error) {
+        // Log batch sampling error but continue
+        logger.error("Failed to sample spreadsheet data", {
+          component: "analysis-handler",
+          action: "summary",
+          spreadsheetId: input.spreadsheetId,
+          sheetCount: sheets.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -916,7 +936,8 @@ export class AnalysisHandler extends BaseHandler<
     if (!input.spreadsheetId || !input.range1 || !input.range2) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId, range1 and range2 are required for compare_ranges action",
+        message:
+          "spreadsheetId, range1 and range2 are required for compare_ranges action",
         retryable: false,
       });
     }
@@ -973,7 +994,8 @@ export class AnalysisHandler extends BaseHandler<
     if (!input.spreadsheetId || !input.range) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId and range are required for detect_patterns action",
+        message:
+          "spreadsheetId and range are required for detect_patterns action",
         retryable: false,
       });
     }
@@ -1076,7 +1098,8 @@ Keep response concise and actionable.`,
     if (!input.spreadsheetId || !input.range) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId and range are required for column_analysis action",
+        message:
+          "spreadsheetId and range are required for column_analysis action",
         retryable: false,
       });
     }
@@ -1291,11 +1314,25 @@ Keep response concise and actionable.`,
     if (values.length === 0 || !values[0]) return trends;
 
     const columnCount = values[0].length;
-    for (let col = 0; col < columnCount; col++) {
-      const columnData = values
-        .map((row) => row[col])
-        .filter((v) => typeof v === "number") as number[];
 
+    // Extract all numeric columns in a single pass (O(n*m) instead of O(n*m*m))
+    const numericColumns: number[][] = Array.from(
+      { length: columnCount },
+      () => [],
+    );
+
+    for (const row of values) {
+      for (let col = 0; col < columnCount; col++) {
+        const value = row[col];
+        if (typeof value === "number") {
+          numericColumns[col]!.push(value);
+        }
+      }
+    }
+
+    // Analyze trends for each column with sufficient data
+    for (let col = 0; col < columnCount; col++) {
+      const columnData = numericColumns[col]!;
       if (columnData.length < 3) continue;
 
       // Simple linear trend calculation
@@ -1339,24 +1376,35 @@ Keep response concise and actionable.`,
 
     const columnCount = values[0].length;
 
-    // Extract numeric columns
-    const numericColumns: number[][] = [];
-    for (let col = 0; col < columnCount; col++) {
-      const columnData = values
-        .map((row) => row[col])
-        .filter((v) => typeof v === "number") as number[];
-      if (columnData.length >= 3) {
-        numericColumns.push(columnData);
+    // Extract numeric columns in a single pass (O(n*m) instead of O(n*m*m))
+    const numericColumns: number[][] = Array.from(
+      { length: columnCount },
+      () => [],
+    );
+
+    // Single pass through all rows to extract numeric values
+    for (const row of values) {
+      for (let col = 0; col < columnCount; col++) {
+        const value = row[col];
+        if (typeof value === "number") {
+          numericColumns[col]!.push(value);
+        }
       }
     }
 
-    // Calculate pairwise correlations
-    for (let i = 0; i < numericColumns.length; i++) {
-      for (let j = i + 1; j < numericColumns.length; j++) {
-        const col1 = numericColumns[i];
-        const col2 = numericColumns[j];
-        if (!col1 || !col2) continue;
-        const correlation = this.pearson(col1, col2);
+    // Filter out columns with insufficient data
+    const validColumns = numericColumns
+      .map((col, idx) => ({ col, idx }))
+      .filter((item) => item.col.length >= 3);
+
+    // Calculate pairwise correlations for valid columns only
+    for (let i = 0; i < validColumns.length; i++) {
+      for (let j = i + 1; j < validColumns.length; j++) {
+        const item1 = validColumns[i];
+        const item2 = validColumns[j];
+        if (!item1 || !item2) continue;
+
+        const correlation = this.pearson(item1.col, item2.col);
         const strength =
           Math.abs(correlation) > 0.7
             ? "strong"
@@ -1366,7 +1414,7 @@ Keep response concise and actionable.`,
 
         if (Math.abs(correlation) > 0.3) {
           correlations.push({
-            columns: [i, j],
+            columns: [item1.idx, item2.idx],
             correlation: correlation.toFixed(3),
             strength: `${strength} ${correlation > 0 ? "positive" : "negative"}`,
           });
@@ -1606,7 +1654,8 @@ Keep response concise and actionable.`,
     if (!input.spreadsheetId || !input.description) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId and description are required for suggest_templates action",
+        message:
+          "spreadsheetId and description are required for suggest_templates action",
         retryable: false,
       });
     }
@@ -1737,7 +1786,8 @@ Format as JSON array with this structure:
     if (!input.spreadsheetId || !input.description) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId and description are required for generate_formula action",
+        message:
+          "spreadsheetId and description are required for generate_formula action",
         retryable: false,
       });
     }
@@ -1871,7 +1921,8 @@ Format as JSON:
     if (!input.spreadsheetId || !input.range) {
       return this.error({
         code: "INVALID_PARAMS",
-        message: "spreadsheetId and range are required for suggest_chart action",
+        message:
+          "spreadsheetId and range are required for suggest_chart action",
         retryable: false,
       });
     }

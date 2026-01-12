@@ -47,6 +47,7 @@ import { createEnhancedError } from "../utils/enhanced-errors.js";
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
+  googleClient?: import("../services/google-api.js").GoogleApiClient | null; // For authentication checks
   batchingSystem?: import("../services/batching-system.js").BatchingSystem;
   snapshotService?: import("../services/snapshot.js").SnapshotService; // For undo/revert operations
   auth?: {
@@ -105,6 +106,31 @@ export abstract class BaseHandler<TInput, TOutput> {
   constructor(toolName: string, context: HandlerContext) {
     this.toolName = toolName;
     this.context = context;
+  }
+
+  /**
+   * Require authentication before executing tool
+   * Throws clear error with step-by-step instructions if not authenticated
+   */
+  protected requireAuth(): void {
+    if (!this.context.googleClient) {
+      const error = createEnhancedError(
+        "AUTH_REQUIRED",
+        `Authentication required for ${this.toolName}. Call sheets_auth with action "status" to check authentication, or action "login" to authenticate.`,
+        {
+          tool: this.toolName,
+          hint: "Authentication is required before using this tool",
+          resolution: "Authenticate using sheets_auth tool",
+          steps: [
+            '1. Check auth status: sheets_auth action="status"',
+            '2. If not authenticated: sheets_auth action="login"',
+            "3. Follow the OAuth flow to complete authentication",
+            "4. Retry this operation",
+          ],
+        },
+      );
+      throw error;
+    }
   }
 
   /**
@@ -276,6 +302,38 @@ export abstract class BaseHandler<TInput, TOutput> {
     context?: Record<string, unknown>,
   ): HandlerError {
     return createEnhancedError(code, message, context);
+  }
+
+  /**
+   * Helper: Create "not found" error (SHEET_NOT_FOUND, CHART_NOT_FOUND, etc.)
+   */
+  protected notFoundError(
+    resourceType: string,
+    identifier: string | number,
+    details?: Record<string, unknown>,
+  ): HandlerError {
+    return this.error({
+      code: "SHEET_NOT_FOUND",
+      message: `${resourceType} ${identifier} not found`,
+      retryable: false,
+      details,
+    });
+  }
+
+  /**
+   * Helper: Create "invalid" error (INVALID_RANGE, INVALID_REQUEST, etc.)
+   */
+  protected invalidError(
+    what: string,
+    why: string,
+    details?: Record<string, unknown>,
+  ): HandlerError {
+    return this.error({
+      code: "INVALID_REQUEST",
+      message: `Invalid ${what}: ${why}`,
+      retryable: false,
+      details,
+    });
   }
 
   /**
@@ -650,5 +708,65 @@ export abstract class BaseHandler<TInput, TOutput> {
     });
 
     return response.data;
+  }
+
+  /**
+   * Get sheet ID by name with caching
+   *
+   * Reduces redundant API calls by caching spreadsheet metadata.
+   * Multiple calls within same request will only hit API once.
+   */
+  protected async getSheetId(
+    spreadsheetId: string,
+    sheetName?: string,
+    sheetsApi?: import("googleapis").sheets_v4.Sheets,
+  ): Promise<number> {
+    const { cacheManager, createCacheKey } =
+      await import("../utils/cache-manager.js");
+    const { CACHE_TTL_SPREADSHEET } = await import("../config/constants.js");
+
+    // Check cache first
+    const cacheKey = createCacheKey("spreadsheet:metadata", {
+      spreadsheetId,
+    });
+    let metadata = cacheManager.get<
+      import("googleapis").sheets_v4.Schema$Spreadsheet
+    >(cacheKey, "spreadsheet");
+
+    // Fetch if not cached
+    if (!metadata) {
+      if (!sheetsApi) {
+        throw new Error("sheetsApi required when metadata not cached");
+      }
+      const response = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: "sheets.properties",
+      });
+      metadata = response.data;
+
+      // Cache for 5 minutes
+      cacheManager.set(cacheKey, metadata, {
+        ttl: CACHE_TTL_SPREADSHEET,
+        namespace: "spreadsheet",
+      });
+    }
+
+    const sheets = metadata.sheets ?? [];
+    if (!sheetName) {
+      return sheets[0]?.properties?.sheetId ?? 0;
+    }
+
+    const match = sheets.find((s) => s.properties?.title === sheetName);
+    if (!match) {
+      const RangeResolutionError = (await import("../core/range-resolver.js"))
+        .RangeResolutionError;
+      throw new RangeResolutionError(
+        `Sheet "${sheetName}" not found`,
+        "SHEET_NOT_FOUND",
+        { sheetName, spreadsheetId },
+        false,
+      );
+    }
+    return match.properties?.sheetId ?? 0;
   }
 }

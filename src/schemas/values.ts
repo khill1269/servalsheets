@@ -153,7 +153,9 @@ export const SheetsValuesInputSchema = z
       .positive()
       .optional()
       .default(100)
-      .describe("Maximum number of matches to return (default: 100) (find only)"),
+      .describe(
+        "Maximum number of matches to return (default: 100) (find only)",
+      ),
 
     // Safety and diff options (common to write operations)
     safety: SafetyOptionsSchema.optional().describe(
@@ -176,16 +178,22 @@ export const SheetsValuesInputSchema = z
         case "clear":
           return !!data.spreadsheetId && !!data.range;
         case "batch_read":
-          return !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0;
+          return (
+            !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0
+          );
         case "batch_write":
           return !!data.spreadsheetId && !!data.data && data.data.length > 0;
         case "batch_clear":
-          return !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0;
+          return (
+            !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0
+          );
         case "find":
           return !!data.spreadsheetId && !!data.query;
         case "replace":
           return (
-            !!data.spreadsheetId && !!data.find && data.replacement !== undefined
+            !!data.spreadsheetId &&
+            !!data.find &&
+            data.replacement !== undefined
           );
         default:
           return false;

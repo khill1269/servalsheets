@@ -498,6 +498,40 @@ export class GoogleApiClient {
   }
 
   /**
+   * Validate that OAuth tokens are valid by making a lightweight API call
+   * Returns both validity status and any error message
+   */
+  async validateToken(): Promise<{
+    valid: boolean;
+    error?: string;
+  }> {
+    // Only validate OAuth tokens (not service account or ADC)
+    if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
+      return { valid: false, error: "No OAuth client configured" };
+    }
+
+    const status = this.getTokenStatus();
+    if (!status.hasAccessToken && !status.hasRefreshToken) {
+      return { valid: false, error: "No tokens present" };
+    }
+
+    try {
+      // Make lightweight API call to validate token
+      const oauth2 = google.oauth2({ version: "v2", auth: this.auth });
+      await oauth2.userinfo.get();
+      return { valid: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.debug("Token validation failed", { error: errorMessage });
+      return {
+        valid: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
    * Check if elevated access is available
    */
   get hasElevatedAccess(): boolean {

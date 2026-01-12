@@ -91,7 +91,10 @@ export function integratedSet<T>(
  * Three-tier cache delete:
  * - Removes from all tiers
  */
-export function integratedDelete(key: string, namespace: string = "default"): void {
+export function integratedDelete(
+  key: string,
+  namespace: string = "default",
+): void {
   const hotCache = getHotCache();
 
   // Remove from hot cache
@@ -104,7 +107,10 @@ export function integratedDelete(key: string, namespace: string = "default"): vo
 /**
  * Invalidate by prefix across all tiers
  */
-export function integratedInvalidatePrefix(prefix: string, namespace?: string): number {
+export function integratedInvalidatePrefix(
+  prefix: string,
+  namespace?: string,
+): number {
   const hotCache = getHotCache();
 
   // Invalidate hot cache by prefix
@@ -171,16 +177,23 @@ export function createRangeCacheKey(
  * Invalidate all caches for a spreadsheet
  */
 export function invalidateSpreadsheet(spreadsheetId: string): number {
-  return integratedInvalidatePrefix(`ss:${spreadsheetId}:`) +
-         integratedInvalidatePrefix(`range:${spreadsheetId}:`);
+  return (
+    integratedInvalidatePrefix(`ss:${spreadsheetId}:`) +
+    integratedInvalidatePrefix(`range:${spreadsheetId}:`)
+  );
 }
 
 /**
  * Invalidate caches for a specific sheet
  */
-export function invalidateSheet(spreadsheetId: string, sheetName: string): number {
+export function invalidateSheet(
+  spreadsheetId: string,
+  sheetName: string,
+): number {
   // Invalidate ranges that include this sheet
-  return integratedInvalidatePrefix(`range:${spreadsheetId}:${sheetName.toUpperCase()}`);
+  return integratedInvalidatePrefix(
+    `range:${spreadsheetId}:${sheetName.toUpperCase()}`,
+  );
 }
 
 // ============================================================================

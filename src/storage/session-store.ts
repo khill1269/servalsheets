@@ -17,7 +17,11 @@ export interface SessionStore {
    * @param value Value to store (will be JSON serialized)
    * @param options TTL options - can be number (seconds) or object with ttlMs
    */
-  set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void>;
+  set(
+    key: string,
+    value: unknown,
+    options?: number | { ttlMs: number },
+  ): Promise<void>;
 
   /**
    * Retrieve a value by key
@@ -76,12 +80,16 @@ export class InMemorySessionStore implements SessionStore {
     }, cleanupIntervalMs);
   }
 
-  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
+  async set(
+    key: string,
+    value: unknown,
+    options?: number | { ttlMs: number },
+  ): Promise<void> {
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlMs: number;
-    if (typeof options === 'number') {
+    if (typeof options === "number") {
       ttlMs = options * 1000; // Convert seconds to milliseconds
-    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+    } else if (options && typeof options === "object" && "ttlMs" in options) {
       ttlMs = options.ttlMs;
     } else {
       ttlMs = 3600000; // 1 hour default
@@ -231,14 +239,18 @@ export class RedisSessionStore implements SessionStore {
     }
   }
 
-  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
+  async set(
+    key: string,
+    value: unknown,
+    options?: number | { ttlMs: number },
+  ): Promise<void> {
     await this.ensureConnected();
 
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlSeconds: number;
-    if (typeof options === 'number') {
+    if (typeof options === "number") {
       ttlSeconds = options;
-    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+    } else if (options && typeof options === "object" && "ttlMs" in options) {
       ttlSeconds = Math.floor(options.ttlMs / 1000);
     } else {
       ttlSeconds = 3600; // 1 hour default
@@ -351,7 +363,11 @@ export class MemorySessionStore implements SessionStore {
     }, cleanupIntervalMs);
   }
 
-  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
+  async set(
+    key: string,
+    value: unknown,
+    options?: number | { ttlMs: number },
+  ): Promise<void> {
     // Enforce max entries limit
     if (this.store.size >= this.maxEntries && !this.store.has(key)) {
       // Remove oldest entry
@@ -363,9 +379,9 @@ export class MemorySessionStore implements SessionStore {
 
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlMs: number;
-    if (typeof options === 'number') {
+    if (typeof options === "number") {
       ttlMs = options * 1000; // Convert seconds to milliseconds
-    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
+    } else if (options && typeof options === "object" && "ttlMs" in options) {
       ttlMs = options.ttlMs;
     } else {
       ttlMs = this.defaultTtlMs;

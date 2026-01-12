@@ -29,7 +29,6 @@ import {
   toGridRange,
   type GridRangeInput,
 } from "../utils/google-sheets-helpers.js";
-import { RangeResolutionError } from "../core/range-resolver.js";
 
 export class ChartsHandler extends BaseHandler<
   SheetsChartsInput,
@@ -75,7 +74,9 @@ export class ChartsHandler extends BaseHandler<
           response = await this.handleResize(req as ChartsResizeInput);
           break;
         case "update_data_range":
-          response = await this.handleUpdateDataRange(req as ChartsUpdateDataRangeInput);
+          response = await this.handleUpdateDataRange(
+            req as ChartsUpdateDataRangeInput,
+          );
           break;
         case "export":
           response = await this.handleExport(req as ChartsExportInput);
@@ -254,9 +255,7 @@ export class ChartsHandler extends BaseHandler<
     return this.success("delete", {});
   }
 
-  private async handleList(
-    input: ChartsListInput,
-  ): Promise<ChartsResponse> {
+  private async handleList(input: ChartsListInput): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: "sheets.charts,sheets.properties.sheetId",
@@ -303,9 +302,7 @@ export class ChartsHandler extends BaseHandler<
     return this.success("list", { charts });
   }
 
-  private async handleGet(
-    input: ChartsGetInput,
-  ): Promise<ChartsResponse> {
+  private async handleGet(input: ChartsGetInput): Promise<ChartsResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       fields: "sheets.charts",
@@ -338,16 +335,10 @@ export class ChartsHandler extends BaseHandler<
       }
     }
 
-    return this.error({
-      code: "SHEET_NOT_FOUND",
-      message: `Chart ${input.chartId} not found`,
-      retryable: false,
-    });
+    return this.notFoundError("Chart", input.chartId);
   }
 
-  private async handleMove(
-    input: ChartsMoveInput,
-  ): Promise<ChartsResponse> {
+  private async handleMove(input: ChartsMoveInput): Promise<ChartsResponse> {
     const position = await this.toOverlayPosition(
       input.spreadsheetId,
       input.position.anchorCell,
@@ -464,7 +455,11 @@ export class ChartsHandler extends BaseHandler<
   ): Promise<GridRangeInput> {
     const a1 = await this.resolveRange(spreadsheetId, rangeInput);
     const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -473,32 +468,6 @@ export class ChartsHandler extends BaseHandler<
       startColumnIndex: parsed.startCol,
       endColumnIndex: parsed.endCol,
     };
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    const sheets = response.data.sheets ?? [];
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const match = sheets.find((s) => s.properties?.title === sheetName);
-    if (!match) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-    return match.properties?.sheetId ?? 0;
   }
 
   private buildBasicChartSpec(
@@ -657,7 +626,11 @@ export class ChartsHandler extends BaseHandler<
     },
   ): Promise<sheets_v4.Schema$EmbeddedObjectPosition> {
     const parsed = parseCellReference(anchorCell);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       overlayPosition: {

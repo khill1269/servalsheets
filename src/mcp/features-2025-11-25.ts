@@ -212,6 +212,9 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   // Analysis tools - potentially long-running, task support disabled
   sheets_analysis: { taskSupport: "forbidden" },
 
+  // Ultimate Analysis Tool - intelligent routing with streaming support for large datasets
+  sheets_analyze: { taskSupport: "optional" }, // P1: Enable task support for streaming path
+
   // Value operations - can be slow with large ranges, task support disabled
   sheets_values: { taskSupport: "forbidden" },
 

@@ -11,103 +11,301 @@ import { z } from "zod";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 // ============================================================================
-// INPUT SCHEMAS (Actions)
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
 // ============================================================================
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
 
-const SetActiveSpreadsheetSchema = z.object({
-  action: z.literal("set_active"),
-  spreadsheetId: z.string().describe("Spreadsheet ID to set as active"),
-  title: z.string().describe("Spreadsheet title for natural reference"),
-  sheetNames: z.array(z.string()).describe("List of sheet names"),
-});
+export const SheetsSessionInputSchema = z
+  .object({
+    // Required action discriminator
+    action: z
+      .enum([
+        "set_active",
+        "get_active",
+        "get_context",
+        "record_operation",
+        "get_last_operation",
+        "get_history",
+        "find_by_reference",
+        "update_preferences",
+        "get_preferences",
+        "set_pending",
+        "get_pending",
+        "clear_pending",
+        "reset",
+      ])
+      .describe("The operation to perform on the session"),
 
-const GetActiveSpreadsheetSchema = z.object({
-  action: z.literal("get_active"),
-});
+    // Fields for SET_ACTIVE action
+    spreadsheetId: z
+      .string()
+      .optional()
+      .describe(
+        "Spreadsheet ID to set as active (required for: set_active, record_operation)",
+      ),
+    title: z
+      .string()
+      .optional()
+      .describe(
+        "Spreadsheet title for natural reference (required for: set_active)",
+      ),
+    sheetNames: z
+      .array(z.string())
+      .optional()
+      .describe("List of sheet names (required for: set_active)"),
 
-const GetContextSchema = z.object({
-  action: z.literal("get_context"),
-});
+    // Fields for RECORD_OPERATION action
+    tool: z
+      .string()
+      .optional()
+      .describe("Tool that was called (required for: record_operation)"),
+    toolAction: z
+      .string()
+      .optional()
+      .describe("Action within the tool (required for: record_operation)"),
+    range: z.string().optional().describe("Range affected (record_operation)"),
+    description: z
+      .string()
+      .optional()
+      .describe("Human-readable description (required for: record_operation)"),
+    undoable: z
+      .boolean()
+      .optional()
+      .describe("Can this be undone? (required for: record_operation)"),
+    snapshotId: z
+      .string()
+      .optional()
+      .describe("Snapshot ID if created (record_operation)"),
+    cellsAffected: z
+      .number()
+      .optional()
+      .describe("Number of cells affected (record_operation)"),
 
-const RecordOperationSchema = z.object({
-  action: z.literal("record_operation"),
-  tool: z.string().describe("Tool that was called"),
-  toolAction: z.string().describe("Action within the tool"),
-  spreadsheetId: z.string().describe("Spreadsheet affected"),
-  range: z.string().optional().describe("Range affected"),
-  description: z.string().describe("Human-readable description"),
-  undoable: z.boolean().describe("Can this be undone?"),
-  snapshotId: z.string().optional().describe("Snapshot ID if created"),
-  cellsAffected: z.number().optional().describe("Number of cells affected"),
-});
+    // Fields for GET_HISTORY action
+    limit: z
+      .number()
+      .min(1)
+      .max(20)
+      .optional()
+      .describe("Max operations to return (get_history, default: 10)"),
 
-const GetLastOperationSchema = z.object({
-  action: z.literal("get_last_operation"),
-});
+    // Fields for FIND_BY_REFERENCE action
+    reference: z
+      .string()
+      .optional()
+      .describe(
+        "Natural language reference like 'that', 'the budget', 'the last write' (required for: find_by_reference)",
+      ),
+    referenceType: z
+      .enum(["spreadsheet", "operation"])
+      .optional()
+      .describe("What to find (required for: find_by_reference)"),
 
-const GetHistorySchema = z.object({
-  action: z.literal("get_history"),
-  limit: z.number().min(1).max(20).optional().describe("Max operations to return (default: 10)"),
-});
+    // Fields for UPDATE_PREFERENCES action
+    confirmationLevel: z
+      .enum(["always", "destructive", "never"])
+      .optional()
+      .describe("Confirmation level (update_preferences)"),
+    dryRunDefault: z
+      .boolean()
+      .optional()
+      .describe("Default dry run setting (update_preferences)"),
+    snapshotDefault: z
+      .boolean()
+      .optional()
+      .describe("Default snapshot setting (update_preferences)"),
 
-const FindByReferenceSchema = z.object({
-  action: z.literal("find_by_reference"),
-  reference: z.string().describe("Natural language reference like 'that', 'the budget', 'the last write'"),
-  type: z.enum(["spreadsheet", "operation"]).describe("What to find"),
-});
-
-const UpdatePreferencesSchema = z.object({
-  action: z.literal("update_preferences"),
-  confirmationLevel: z.enum(["always", "destructive", "never"]).optional(),
-  dryRunDefault: z.boolean().optional(),
-  snapshotDefault: z.boolean().optional(),
-});
-
-const GetPreferencesSchema = z.object({
-  action: z.literal("get_preferences"),
-});
-
-const SetPendingOperationSchema = z.object({
-  action: z.literal("set_pending"),
-  type: z.string().describe("Type of pending operation"),
-  step: z.number().describe("Current step number"),
-  totalSteps: z.number().describe("Total steps"),
-  context: z.record(z.string(), z.unknown()).describe("Operation context data"),
-});
-
-const GetPendingOperationSchema = z.object({
-  action: z.literal("get_pending"),
-});
-
-const ClearPendingOperationSchema = z.object({
-  action: z.literal("clear_pending"),
-});
-
-const ResetSessionSchema = z.object({
-  action: z.literal("reset"),
-});
-
-// ============================================================================
-// COMBINED INPUT SCHEMA
-// ============================================================================
-
-export const SheetsSessionInputSchema = z.discriminatedUnion("action", [
-  SetActiveSpreadsheetSchema,
-  GetActiveSpreadsheetSchema,
-  GetContextSchema,
-  RecordOperationSchema,
-  GetLastOperationSchema,
-  GetHistorySchema,
-  FindByReferenceSchema,
-  UpdatePreferencesSchema,
-  GetPreferencesSchema,
-  SetPendingOperationSchema,
-  GetPendingOperationSchema,
-  ClearPendingOperationSchema,
-  ResetSessionSchema,
-]);
+    // Fields for SET_PENDING action
+    type: z
+      .string()
+      .optional()
+      .describe("Type of pending operation (required for: set_pending)"),
+    step: z
+      .number()
+      .optional()
+      .describe("Current step number (required for: set_pending)"),
+    totalSteps: z
+      .number()
+      .optional()
+      .describe("Total steps (required for: set_pending)"),
+    context: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("Operation context data (required for: set_pending)"),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "set_active":
+          return !!data.spreadsheetId && !!data.title && !!data.sheetNames;
+        case "record_operation":
+          return (
+            !!data.tool &&
+            !!data.toolAction &&
+            !!data.spreadsheetId &&
+            !!data.description &&
+            data.undoable !== undefined
+          );
+        case "find_by_reference":
+          return !!data.reference && !!data.referenceType;
+        case "set_pending":
+          return (
+            !!data.type &&
+            data.step !== undefined &&
+            data.totalSteps !== undefined &&
+            !!data.context
+          );
+        case "get_active":
+        case "get_context":
+        case "get_last_operation":
+        case "get_history":
+        case "update_preferences":
+        case "get_preferences":
+        case "get_pending":
+        case "clear_pending":
+        case "reset":
+          return true; // No required fields beyond action
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 export type SheetsSessionInput = z.infer<typeof SheetsSessionInputSchema>;
+
+// ============================================================================
+// TYPE NARROWING HELPERS
+// ============================================================================
+
+export function isSetActiveAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "set_active";
+  spreadsheetId: string;
+  title: string;
+  sheetNames: string[];
+} {
+  return input.action === "set_active";
+}
+
+export function isGetActiveAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_active";
+} {
+  return input.action === "get_active";
+}
+
+export function isGetContextAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_context";
+} {
+  return input.action === "get_context";
+}
+
+export function isRecordOperationAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "record_operation";
+  tool: string;
+  toolAction: string;
+  spreadsheetId: string;
+  description: string;
+  undoable: boolean;
+  range?: string;
+  snapshotId?: string;
+  cellsAffected?: number;
+} {
+  return input.action === "record_operation";
+}
+
+export function isGetLastOperationAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_last_operation";
+} {
+  return input.action === "get_last_operation";
+}
+
+export function isGetHistoryAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_history";
+  limit?: number;
+} {
+  return input.action === "get_history";
+}
+
+export function isFindByReferenceAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "find_by_reference";
+  reference: string;
+  referenceType: "spreadsheet" | "operation";
+} {
+  return input.action === "find_by_reference";
+}
+
+export function isUpdatePreferencesAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "update_preferences";
+  confirmationLevel?: "always" | "destructive" | "never";
+  dryRunDefault?: boolean;
+  snapshotDefault?: boolean;
+} {
+  return input.action === "update_preferences";
+}
+
+export function isGetPreferencesAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_preferences";
+} {
+  return input.action === "get_preferences";
+}
+
+export function isSetPendingAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "set_pending";
+  type: string;
+  step: number;
+  totalSteps: number;
+  context: Record<string, unknown>;
+} {
+  return input.action === "set_pending";
+}
+
+export function isGetPendingAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "get_pending";
+} {
+  return input.action === "get_pending";
+}
+
+export function isClearPendingAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "clear_pending";
+} {
+  return input.action === "clear_pending";
+}
+
+export function isResetAction(
+  input: SheetsSessionInput,
+): input is SheetsSessionInput & {
+  action: "reset";
+} {
+  return input.action === "reset";
+}
 
 // ============================================================================
 // OUTPUT SCHEMAS
@@ -147,12 +345,14 @@ const PreferencesSchema = z.object({
   }),
 });
 
-const PendingOperationSchema = z.object({
-  type: z.string(),
-  step: z.number(),
-  totalSteps: z.number(),
-  context: z.record(z.string(), z.unknown()),
-}).nullable();
+const PendingOperationSchema = z
+  .object({
+    type: z.string(),
+    step: z.number(),
+    totalSteps: z.number(),
+    context: z.record(z.string(), z.unknown()),
+  })
+  .nullable();
 
 // Success responses
 const SetActiveSuccessSchema = z.object({

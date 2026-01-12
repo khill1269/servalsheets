@@ -63,11 +63,8 @@ import {
 import { createServerCapabilities, SERVER_INSTRUCTIONS } from './mcp/features-2025-11-25.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 import { sessionLimiter } from './utils/session-limiter.js';
-import { patchMcpServerRequestHandler, patchToJsonSchemaCompat } from './mcp/sdk-compat.js';
-
-// Apply SDK compatibility patches before server initialization
-patchMcpServerRequestHandler();  // PATCH 1: Zod v4 method literal extraction
-patchToJsonSchemaCompat();        // PATCH 2: Discriminated union JSON Schema conversion
+// Monkey-patches removed: All schemas now use flattened z.object() pattern
+// which works natively with MCP SDK v1.25.x - no patches required!
 
 export interface RemoteServerConfig {
   port: number;

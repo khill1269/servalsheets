@@ -33,7 +33,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
     validation: { count: 1, actions: ["validate"] },
     impact: { count: 1, actions: ["analyze"] },
     analyze: {
-      count: 8,
+      count: 10,
       actions: [
         "analyze_data",
         "suggest_visualization",
@@ -42,6 +42,8 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
         "analyze_structure",
         "analyze_quality",
         "analyze_performance",
+        "analyze_formulas",
+        "query_natural_language",
         "explain_analysis",
       ],
     },

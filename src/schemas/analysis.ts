@@ -1,6 +1,32 @@
 /**
- * Tool 14: sheets_analysis
+ * Tool 14: sheets_analysis (DEPRECATED)
+ *
+ * ⚠️ DEPRECATION NOTICE ⚠️
+ * This tool is deprecated and will be removed in a future version.
+ * Please migrate to the consolidated `sheets_analyze` tool which provides:
+ * - All functionality from sheets_analysis + sheets_analyze
+ * - Intelligent routing (fast/AI/streaming paths)
+ * - Enhanced AI-powered insights
+ * - Auto-creation workflows for charts and pivots
+ *
+ * Migration guide:
+ * - data_quality → analyze_quality
+ * - formula_audit → (removed, use analyze_quality)
+ * - structure_analysis → analyze_structure
+ * - statistics → (removed, use analyze_data)
+ * - correlations → detect_patterns (with includeCorrelations:true)
+ * - summary → analyze_data
+ * - dependencies → (removed)
+ * - compare_ranges → (removed)
+ * - detect_patterns → detect_patterns
+ * - column_analysis → analyze_data
+ * - suggest_templates → (removed)
+ * - generate_formula → generate_formula
+ * - suggest_chart → suggest_visualization
+ *
  * Data quality and formula analysis (READ-ONLY)
+ *
+ * @deprecated Use sheets_analyze instead
  */
 
 import { z } from "zod";
@@ -14,7 +40,7 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
+const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
@@ -299,7 +325,8 @@ export type CompareRangesInput = Extract<
   SheetsAnalysisInput,
   { action: "compare_ranges" }
 >;
-export type DetectPatternsInput = Extract<
+// DEPRECATED: Use DetectPatternsInput from analyze.ts instead
+type AnalysisDetectPatternsInput = Extract<
   SheetsAnalysisInput,
   { action: "detect_patterns" }
 >;
@@ -557,12 +584,35 @@ export const SheetsAnalysisOutputSchema = z.object({
 });
 
 export const SHEETS_ANALYSIS_ANNOTATIONS: ToolAnnotations = {
-  title: "Data Analysis",
+  title: "Data Analysis (DEPRECATED)",
   readOnlyHint: true, // READ-ONLY
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: true,
 };
+
+/**
+ * Deprecation metadata
+ * @deprecated Since 2026-01-12. Use sheets_analyze instead.
+ */
+export const SHEETS_ANALYSIS_DEPRECATION = {
+  deprecated: true,
+  deprecatedSince: "2026-01-12",
+  removalDate: "2026-04-12", // 90 days
+  replacement: "sheets_analyze",
+  migrationGuide: {
+    data_quality: "analyze_quality",
+    formula_audit: "analyze_quality",
+    structure_analysis: "analyze_structure",
+    statistics: "analyze_data",
+    correlations: "detect_patterns",
+    summary: "analyze_data",
+    detect_patterns: "detect_patterns",
+    column_analysis: "analyze_data",
+    generate_formula: "generate_formula",
+    suggest_chart: "suggest_visualization",
+  },
+} as const;
 
 export type SheetsAnalysisInput = z.infer<typeof SheetsAnalysisInputSchema>;
 export type SheetsAnalysisOutput = z.infer<typeof SheetsAnalysisOutputSchema>;

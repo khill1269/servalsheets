@@ -92,9 +92,7 @@ export class MetricsExporter {
 
     // Add metadata
     lines.push(`# ServalSheets MCP Server Metrics`);
-    lines.push(
-      `# Generated: ${new Date(snapshot.timestamp).toISOString()}`,
-    );
+    lines.push(`# Generated: ${new Date(snapshot.timestamp).toISOString()}`);
     lines.push(``);
 
     // Cache metrics
@@ -144,7 +142,9 @@ export class MetricsExporter {
     lines.push(`batch_window_ms ${snapshot.batching.currentWindowMs}`);
     lines.push(``);
 
-    lines.push(`# HELP batch_requests_total Total requests processed in batches`);
+    lines.push(
+      `# HELP batch_requests_total Total requests processed in batches`,
+    );
     lines.push(`# TYPE batch_requests_total counter`);
     lines.push(`batch_requests_total ${snapshot.batching.totalRequests}`);
     lines.push(``);
@@ -156,7 +156,9 @@ export class MetricsExporter {
 
     lines.push(`# HELP batch_size_avg Average batch size (requests per batch)`);
     lines.push(`# TYPE batch_size_avg gauge`);
-    lines.push(`batch_size_avg ${snapshot.batching.averageBatchSize.toFixed(2)}`);
+    lines.push(
+      `batch_size_avg ${snapshot.batching.averageBatchSize.toFixed(2)}`,
+    );
     lines.push(``);
 
     lines.push(
@@ -184,12 +186,16 @@ export class MetricsExporter {
     lines.push(``);
 
     // Summary metrics
-    lines.push(`# HELP api_calls_summary_total Total API calls across all methods`);
+    lines.push(
+      `# HELP api_calls_summary_total Total API calls across all methods`,
+    );
     lines.push(`# TYPE api_calls_summary_total counter`);
     lines.push(`api_calls_summary_total ${snapshot.api.totalCalls}`);
     lines.push(``);
 
-    lines.push(`# HELP api_errors_summary_total Total API errors across all codes`);
+    lines.push(
+      `# HELP api_errors_summary_total Total API errors across all codes`,
+    );
     lines.push(`# TYPE api_errors_summary_total counter`);
     lines.push(`api_errors_summary_total ${snapshot.api.totalErrors}`);
     lines.push(``);
@@ -233,17 +239,13 @@ export class MetricsExporter {
 
     // Batching metrics
     lines.push(`Batching Statistics:`);
-    lines.push(
-      `  Current Window: ${snapshot.batching.currentWindowMs}ms`,
-    );
+    lines.push(`  Current Window: ${snapshot.batching.currentWindowMs}ms`);
     lines.push(`  Total Batches: ${snapshot.batching.totalBatches}`);
     lines.push(`  Total Requests: ${snapshot.batching.totalRequests}`);
     lines.push(
       `  Average Batch Size: ${snapshot.batching.averageBatchSize.toFixed(2)}`,
     );
-    lines.push(
-      `  Deduplicated: ${snapshot.batching.deduplicatedCount}`,
-    );
+    lines.push(`  Deduplicated: ${snapshot.batching.deduplicatedCount}`);
     lines.push(``);
 
     // API metrics

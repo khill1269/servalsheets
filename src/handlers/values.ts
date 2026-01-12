@@ -13,6 +13,15 @@ import type {
   SheetsValuesOutput,
   ValuesResponse,
   ValuesArray,
+  ValuesReadInput,
+  ValuesWriteInput,
+  ValuesAppendInput,
+  ValuesClearInput,
+  ValuesBatchReadInput,
+  ValuesBatchWriteInput,
+  ValuesBatchClearInput,
+  ValuesFindInput,
+  ValuesReplaceInput,
 } from "../schemas/index.js";
 import {
   getRequestContext,
@@ -110,6 +119,9 @@ export class ValuesHandler extends BaseHandler<
   async handle(input: SheetsValuesInput): Promise<SheetsValuesOutput> {
     // Input is now the action directly (no request wrapper)
 
+    // Require authentication before proceeding
+    this.requireAuth();
+
     // Track spreadsheet ID for better error messages
     this.trackSpreadsheetId(input.spreadsheetId);
 
@@ -150,7 +162,7 @@ export class ValuesHandler extends BaseHandler<
     // Input is the action directly (no request wrapper)
     const baseIntent = {
       target: {
-        spreadsheetId: input.spreadsheetId,
+        spreadsheetId: input.spreadsheetId!,
       },
       metadata: {
         sourceTool: this.toolName,
@@ -166,10 +178,10 @@ export class ValuesHandler extends BaseHandler<
           {
             ...baseIntent,
             type: "SET_VALUES" as const,
-            payload: { values: input.values },
+            payload: { values: input.values! },
             metadata: {
               ...baseIntent.metadata,
-              estimatedCells: input.values.reduce(
+              estimatedCells: input.values!.reduce(
                 (sum, row) => sum + row.length,
                 0,
               ),
@@ -181,10 +193,10 @@ export class ValuesHandler extends BaseHandler<
           {
             ...baseIntent,
             type: "APPEND_VALUES" as const,
-            payload: { values: input.values },
+            payload: { values: input.values! },
             metadata: {
               ...baseIntent.metadata,
-              estimatedCells: input.values.reduce(
+              estimatedCells: input.values!.reduce(
                 (sum, row) => sum + row.length,
                 0,
               ),
@@ -216,23 +228,23 @@ export class ValuesHandler extends BaseHandler<
   ): Promise<ValuesResponse> {
     switch (request.action) {
       case "read":
-        return await this.handleRead(request);
+        return await this.handleRead(request as ValuesReadInput);
       case "write":
-        return await this.handleWrite(request);
+        return await this.handleWrite(request as ValuesWriteInput);
       case "append":
-        return await this.handleAppend(request);
+        return await this.handleAppend(request as ValuesAppendInput);
       case "clear":
-        return await this.handleClear(request);
+        return await this.handleClear(request as ValuesClearInput);
       case "batch_read":
-        return await this.handleBatchRead(request);
+        return await this.handleBatchRead(request as ValuesBatchReadInput);
       case "batch_write":
-        return await this.handleBatchWrite(request);
+        return await this.handleBatchWrite(request as ValuesBatchWriteInput);
       case "batch_clear":
-        return await this.handleBatchClear(request);
+        return await this.handleBatchClear(request as ValuesBatchClearInput);
       case "find":
-        return await this.handleFind(request);
+        return await this.handleFind(request as ValuesFindInput);
       case "replace":
-        return await this.handleReplace(request);
+        return await this.handleReplace(request as ValuesReplaceInput);
       default:
         return this.error({
           code: "INVALID_PARAMS",
@@ -273,9 +285,7 @@ export class ValuesHandler extends BaseHandler<
    *
    * This ensures graceful degradation and system resilience.
    */
-  private async handleRead(
-    input: SheetsValuesInput & { action: "read" },
-  ): Promise<ValuesResponse> {
+  private async handleRead(input: ValuesReadInput): Promise<ValuesResponse> {
     // Use streaming mode for large reads if requested
     if (input.streaming) {
       return this.handleStreamingRead(input);
@@ -394,7 +404,7 @@ export class ValuesHandler extends BaseHandler<
    * Chunks data to respect request deadlines and memory limits
    */
   private async handleStreamingRead(
-    input: SheetsValuesInput & { action: "read" },
+    input: ValuesReadInput,
   ): Promise<ValuesResponse> {
     const chunkSize = input.chunkSize ?? 1000;
     const range = await this.resolveRange(input.spreadsheetId, input.range);
@@ -480,9 +490,7 @@ export class ValuesHandler extends BaseHandler<
     });
   }
 
-  private async handleWrite(
-    input: SheetsValuesInput & { action: "write" },
-  ): Promise<ValuesResponse> {
+  private async handleWrite(input: ValuesWriteInput): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
 
@@ -569,7 +577,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleAppend(
-    input: SheetsValuesInput & { action: "append" },
+    input: ValuesAppendInput,
   ): Promise<ValuesResponse> {
     const range = await this.resolveRange(input.spreadsheetId, input.range);
     const cellCount = input.values.reduce((sum, row) => sum + row.length, 0);
@@ -671,9 +679,7 @@ export class ValuesHandler extends BaseHandler<
     );
   }
 
-  private async handleClear(
-    input: SheetsValuesInput & { action: "clear" },
-  ): Promise<ValuesResponse> {
+  private async handleClear(input: ValuesClearInput): Promise<ValuesResponse> {
     const resolved = await this.context.rangeResolver.resolve(
       input.spreadsheetId,
       input.range,
@@ -763,7 +769,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchRead(
-    input: SheetsValuesInput & { action: "batch_read" },
+    input: ValuesBatchReadInput,
   ): Promise<ValuesResponse> {
     const ranges = await Promise.all(
       input.ranges.map((r) => this.resolveRange(input.spreadsheetId, r)),
@@ -842,7 +848,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchWrite(
-    input: SheetsValuesInput & { action: "batch_write" },
+    input: ValuesBatchWriteInput,
   ): Promise<ValuesResponse> {
     const { sendProgress } = await import("../utils/request-context.js");
 
@@ -940,7 +946,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleBatchClear(
-    input: SheetsValuesInput & { action: "batch_clear" },
+    input: ValuesBatchClearInput,
   ): Promise<ValuesResponse> {
     const resolvedRanges = await Promise.all(
       input.ranges.map((r) =>
@@ -1035,9 +1041,7 @@ export class ValuesHandler extends BaseHandler<
     );
   }
 
-  private async handleFind(
-    input: SheetsValuesInput & { action: "find" },
-  ): Promise<ValuesResponse> {
+  private async handleFind(input: ValuesFindInput): Promise<ValuesResponse> {
     // Get all values in range
     const range = input.range
       ? await this.resolveRange(input.spreadsheetId, input.range)
@@ -1091,7 +1095,7 @@ export class ValuesHandler extends BaseHandler<
   }
 
   private async handleReplace(
-    input: SheetsValuesInput & { action: "replace" },
+    input: ValuesReplaceInput,
   ): Promise<ValuesResponse> {
     const resolvedRange = input.range
       ? await this.resolveRange(input.spreadsheetId, input.range)
@@ -1111,6 +1115,7 @@ export class ValuesHandler extends BaseHandler<
         matchCase: input.matchCase ?? false,
         matchEntireCell: input.matchEntireCell ?? false,
         includeFormulas: false,
+        includeValuesInResponse: false,
         limit,
         range: input.range,
       };

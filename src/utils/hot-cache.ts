@@ -70,10 +70,10 @@ export interface HotCacheStats {
 export class HotCache<T = unknown> {
   private hotTier = new Map<string, CacheEntry<T>>();
   private warmTier = new Map<string, CacheEntry<T>>();
-  
+
   private config: Required<HotCacheConfig>;
   private cleanupTimer: NodeJS.Timeout | null = null;
-  
+
   // Statistics
   private stats = {
     hotHits: 0,
@@ -283,10 +283,12 @@ export class HotCache<T = unknown> {
    * Get cache statistics
    */
   getStats(): HotCacheStats {
-    const totalRequests = this.stats.hotHits + this.stats.warmHits + this.stats.misses;
-    const hitRate = totalRequests > 0
-      ? (this.stats.hotHits + this.stats.warmHits) / totalRequests
-      : 0;
+    const totalRequests =
+      this.stats.hotHits + this.stats.warmHits + this.stats.misses;
+    const hitRate =
+      totalRequests > 0
+        ? (this.stats.hotHits + this.stats.warmHits) / totalRequests
+        : 0;
 
     let totalMemoryBytes = 0;
     for (const entry of this.hotTier.values()) {
@@ -367,8 +369,10 @@ export class HotCache<T = unknown> {
     let lowestAccess = Infinity;
 
     for (const [key, entry] of this.hotTier) {
-      if (entry.accessCount < lowestCount ||
-          (entry.accessCount === lowestCount && entry.lastAccess < lowestAccess)) {
+      if (
+        entry.accessCount < lowestCount ||
+        (entry.accessCount === lowestCount && entry.lastAccess < lowestAccess)
+      ) {
         lowestKey = key;
         lowestCount = entry.accessCount;
         lowestAccess = entry.lastAccess;
@@ -517,7 +521,10 @@ export function resetHotCache(): void {
 /**
  * Create namespaced cache key
  */
-export function createHotCacheKey(namespace: string, ...parts: (string | number | boolean)[]): string {
+export function createHotCacheKey(
+  namespace: string,
+  ...parts: (string | number | boolean)[]
+): string {
   return `${namespace}:${parts.join(":")}`;
 }
 
@@ -531,7 +538,12 @@ export function hotCacheGet<T>(namespace: string, key: string): T | undefined {
 /**
  * Set value in hot cache with namespace
  */
-export function hotCacheSet<T>(namespace: string, key: string, value: T, ttl?: number): void {
+export function hotCacheSet<T>(
+  namespace: string,
+  key: string,
+  value: T,
+  ttl?: number,
+): void {
   getHotCache().set(createHotCacheKey(namespace, key), value, ttl);
 }
 

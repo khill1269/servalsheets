@@ -19,8 +19,6 @@ import {
   estimateCellCount,
   type GridRangeInput,
 } from "../utils/google-sheets-helpers.js";
-import { RangeResolutionError } from "../core/range-resolver.js";
-import { createRequestKey } from "../utils/request-deduplication.js";
 import { confirmDestructiveAction } from "../mcp/elicitation.js";
 
 export class FormatHandler extends BaseHandler<
@@ -36,6 +34,9 @@ export class FormatHandler extends BaseHandler<
 
   async handle(input: SheetsFormatInput): Promise<SheetsFormatOutput> {
     // Input is now the action directly (no request wrapper)
+
+    // Require authentication before proceeding
+    this.requireAuth();
 
     // Phase 1, Task 1.4: Infer missing parameters from context
     const inferredRequest = this.inferRequestParameters(
@@ -98,23 +99,41 @@ export class FormatHandler extends BaseHandler<
   ): Promise<FormatResponse> {
     switch (request.action) {
       case "set_format":
-        return await this.handleSetFormat(request);
+        return await this.handleSetFormat(
+          request as SheetsFormatInput & { action: "set_format" },
+        );
       case "set_background":
-        return await this.handleSetBackground(request);
+        return await this.handleSetBackground(
+          request as SheetsFormatInput & { action: "set_background" },
+        );
       case "set_text_format":
-        return await this.handleSetTextFormat(request);
+        return await this.handleSetTextFormat(
+          request as SheetsFormatInput & { action: "set_text_format" },
+        );
       case "set_number_format":
-        return await this.handleSetNumberFormat(request);
+        return await this.handleSetNumberFormat(
+          request as SheetsFormatInput & { action: "set_number_format" },
+        );
       case "set_alignment":
-        return await this.handleSetAlignment(request);
+        return await this.handleSetAlignment(
+          request as SheetsFormatInput & { action: "set_alignment" },
+        );
       case "set_borders":
-        return await this.handleSetBorders(request);
+        return await this.handleSetBorders(
+          request as SheetsFormatInput & { action: "set_borders" },
+        );
       case "clear_format":
-        return await this.handleClearFormat(request);
+        return await this.handleClearFormat(
+          request as SheetsFormatInput & { action: "clear_format" },
+        );
       case "apply_preset":
-        return await this.handleApplyPreset(request);
+        return await this.handleApplyPreset(
+          request as SheetsFormatInput & { action: "apply_preset" },
+        );
       case "auto_fit":
-        return await this.handleAutoFit(request);
+        return await this.handleAutoFit(
+          request as SheetsFormatInput & { action: "auto_fit" },
+        );
       default:
         return this.error({
           code: "INVALID_PARAMS",
@@ -135,9 +154,9 @@ export class FormatHandler extends BaseHandler<
       return this.success("set_format", { cellsFormatted: 0 }, undefined, true);
     }
 
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
-    const format = input.format;
+    const format = input.format!;
 
     const cellFormat: sheets_v4.Schema$CellFormat = {};
     const fields: string[] = [];
@@ -195,7 +214,7 @@ export class FormatHandler extends BaseHandler<
   private async handleSetBackground(
     input: SheetsFormatInput & { action: "set_background" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
 
@@ -208,7 +227,7 @@ export class FormatHandler extends BaseHandler<
               range: googleRange,
               cell: {
                 userEnteredFormat: {
-                  backgroundColor: input.color,
+                  backgroundColor: input.color!,
                 },
               },
               fields: "userEnteredFormat.backgroundColor",
@@ -226,7 +245,7 @@ export class FormatHandler extends BaseHandler<
   private async handleSetTextFormat(
     input: SheetsFormatInput & { action: "set_text_format" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
 
@@ -239,7 +258,7 @@ export class FormatHandler extends BaseHandler<
               range: googleRange,
               cell: {
                 userEnteredFormat: {
-                  textFormat: input.textFormat,
+                  textFormat: input.textFormat!,
                 },
               },
               fields: "userEnteredFormat.textFormat",
@@ -257,7 +276,7 @@ export class FormatHandler extends BaseHandler<
   private async handleSetNumberFormat(
     input: SheetsFormatInput & { action: "set_number_format" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
 
@@ -270,7 +289,7 @@ export class FormatHandler extends BaseHandler<
               range: googleRange,
               cell: {
                 userEnteredFormat: {
-                  numberFormat: input.numberFormat,
+                  numberFormat: input.numberFormat!,
                 },
               },
               fields: "userEnteredFormat.numberFormat",
@@ -288,7 +307,7 @@ export class FormatHandler extends BaseHandler<
   private async handleSetAlignment(
     input: SheetsFormatInput & { action: "set_alignment" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
 
@@ -339,7 +358,7 @@ export class FormatHandler extends BaseHandler<
   private async handleSetBorders(
     input: SheetsFormatInput & { action: "set_borders" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
 
@@ -368,7 +387,7 @@ export class FormatHandler extends BaseHandler<
   private async handleClearFormat(
     input: SheetsFormatInput & { action: "clear_format" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
     const estimatedCells = estimateCellCount(googleRange);
@@ -430,12 +449,12 @@ export class FormatHandler extends BaseHandler<
   private async handleApplyPreset(
     input: SheetsFormatInput & { action: "apply_preset" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
     const requests: sheets_v4.Schema$Request[] = [];
 
-    switch (input.preset) {
+    switch (input.preset!) {
       case "header_row":
         requests.push({
           repeatCell: {
@@ -587,11 +606,12 @@ export class FormatHandler extends BaseHandler<
   private async handleAutoFit(
     input: SheetsFormatInput & { action: "auto_fit" },
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const requests: sheets_v4.Schema$Request[] = [];
 
-    if (input.dimension === "ROWS" || input.dimension === "BOTH") {
+    const dimension = input.dimension ?? "BOTH";
+    if (dimension === "ROWS" || dimension === "BOTH") {
       requests.push({
         autoResizeDimensions: {
           dimensions: {
@@ -604,7 +624,7 @@ export class FormatHandler extends BaseHandler<
       });
     }
 
-    if (input.dimension === "COLUMNS" || input.dimension === "BOTH") {
+    if (dimension === "COLUMNS" || dimension === "BOTH") {
       requests.push({
         autoResizeDimensions: {
           dimensions: {
@@ -634,7 +654,11 @@ export class FormatHandler extends BaseHandler<
     a1: string,
   ): Promise<GridRangeInput> {
     const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName);
+    const sheetId = await this.getSheetId(
+      spreadsheetId,
+      parsed.sheetName,
+      this.sheetsApi,
+    );
 
     return {
       sheetId,
@@ -643,57 +667,5 @@ export class FormatHandler extends BaseHandler<
       startColumnIndex: parsed.startCol,
       endColumnIndex: parsed.endCol,
     };
-  }
-
-  private async getSheetId(
-    spreadsheetId: string,
-    sheetName?: string,
-  ): Promise<number> {
-    // Create deduplication key
-    const requestKey = createRequestKey("spreadsheets.get", {
-      spreadsheetId,
-      fields: "sheets.properties",
-    });
-
-    // Deduplicate the API call
-    const fetchFn = async (): Promise<unknown> =>
-      this.sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: "sheets.properties",
-      });
-
-    const response = (
-      this.context.requestDeduplicator
-        ? await this.context.requestDeduplicator.deduplicate(
-            requestKey,
-            fetchFn,
-          )
-        : await fetchFn()
-    ) as {
-      data: {
-        sheets?: Array<{ properties?: { sheetId?: number; title?: string } }>;
-      };
-    };
-
-    const sheets = response.data.sheets ?? [];
-
-    if (!sheetName) {
-      return sheets[0]?.properties?.sheetId ?? 0;
-    }
-
-    const sheet = sheets.find(
-      (s: { properties?: { title?: string } }) =>
-        s.properties?.title === sheetName,
-    );
-    if (!sheet) {
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { sheetName, spreadsheetId },
-        false,
-      );
-    }
-
-    return sheet.properties?.sheetId ?? 0;
   }
 }

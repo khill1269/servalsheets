@@ -63,7 +63,9 @@ export class TransactionHandler {
         case "queue": {
           // Type assertion after validation
           if (!input.transactionId || !input.operation) {
-            throw new Error("transactionId and operation are required for queue action");
+            throw new Error(
+              "transactionId and operation are required for queue action",
+            );
           }
 
           await transactionManager.queue(input.transactionId, {

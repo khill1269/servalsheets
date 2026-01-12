@@ -13,18 +13,32 @@ import {
 // INPUT SCHEMA: Flattened union for MCP SDK compatibility
 // The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
 // Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsAuthInputSchema = z.object({
-  action: z.enum(["status", "login", "callback", "logout"]).describe("The authentication operation to perform"),
-  scopes: z.array(z.string()).optional().describe("Additional OAuth scopes to request (login only)"),
-  code: z.string().min(1).optional().describe("Authorization code from Google (required for: callback)"),
-}).refine((data) => {
-  if (data.action === "callback") {
-    return !!data.code;
-  }
-  return true;
-}, {
-  message: "Authorization code is required for callback action",
-});
+export const SheetsAuthInputSchema = z
+  .object({
+    action: z
+      .enum(["status", "login", "callback", "logout"])
+      .describe("The authentication operation to perform"),
+    scopes: z
+      .array(z.string())
+      .optional()
+      .describe("Additional OAuth scopes to request (login only)"),
+    code: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Authorization code from Google (required for: callback)"),
+  })
+  .refine(
+    (data) => {
+      if (data.action === "callback") {
+        return !!data.code;
+      }
+      return true;
+    },
+    {
+      message: "Authorization code is required for callback action",
+    },
+  );
 
 const AuthResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -39,6 +53,12 @@ const AuthResponseSchema = z.discriminatedUnion("success", [
     scopes: z.array(z.string()).optional(),
     hasAccessToken: z.boolean().optional(),
     hasRefreshToken: z.boolean().optional(),
+    tokenValid: z
+      .boolean()
+      .optional()
+      .describe(
+        "Whether existing tokens are valid (undefined if no tokens, false if invalid, true if valid)",
+      ),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
@@ -66,5 +86,8 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 // Type narrowing helpers for handler methods
 export type AuthStatusInput = SheetsAuthInput & { action: "status" };
 export type AuthLoginInput = SheetsAuthInput & { action: "login" };
-export type AuthCallbackInput = SheetsAuthInput & { action: "callback"; code: string };
+export type AuthCallbackInput = SheetsAuthInput & {
+  action: "callback";
+  code: string;
+};
 export type AuthLogoutInput = SheetsAuthInput & { action: "logout" };

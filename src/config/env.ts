@@ -175,12 +175,12 @@ export function hasGoogleCredentials(): boolean {
 
 /**
  * Check if managed authentication mode is enabled
- * 
+ *
  * When true:
  * - Uses Google Cloud Application Default Credentials (ADC)
  * - Disables sheets_auth tool (not needed)
  * - Skips OAuth infrastructure initialization
- * 
+ *
  * Set MANAGED_AUTH=true when deploying to:
  * - Google Cloud Run
  * - Google Kubernetes Engine (GKE)

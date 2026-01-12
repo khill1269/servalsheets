@@ -5,7 +5,12 @@
  * Prometheus-compatible /metrics endpoint
  */
 
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type Server,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { MetricsExporter } from "../services/metrics-exporter.js";
 import { logger } from "../utils/logger.js";
 

@@ -6,7 +6,10 @@
  * @module handlers/session
  */
 
-import type { SheetsSessionInput, SheetsSessionOutput } from "../schemas/session.js";
+import type {
+  SheetsSessionInput,
+  SheetsSessionOutput,
+} from "../schemas/session.js";
 import {
   getSessionContext,
   type SpreadsheetContext,
@@ -42,10 +45,11 @@ export async function handleSheetsSession(
     switch (action) {
       case "set_active": {
         const { spreadsheetId, title, sheetNames } = input;
+        // Type assertion: refine() validates these are defined for set_active action
         const context: SpreadsheetContext = {
-          spreadsheetId,
-          title,
-          sheetNames,
+          spreadsheetId: spreadsheetId!,
+          title: title!,
+          sheetNames: sheetNames!,
           activatedAt: Date.now(),
         };
         session.setActiveSpreadsheet(context);
@@ -95,13 +99,14 @@ export async function handleSheetsSession(
           cellsAffected,
         } = input;
 
+        // Type assertion: refine() validates required fields are defined for record_operation action
         const operationId = session.recordOperation({
-          tool,
-          action: toolAction,
-          spreadsheetId,
+          tool: tool!,
+          action: toolAction!,
+          spreadsheetId: spreadsheetId!,
           range,
-          description,
-          undoable,
+          description: description!,
+          undoable: undoable!,
           snapshotId,
           cellsAffected,
         });
@@ -137,10 +142,11 @@ export async function handleSheetsSession(
       }
 
       case "find_by_reference": {
-        const { reference, type } = input;
+        const { reference, referenceType } = input;
 
-        if (type === "spreadsheet") {
-          const spreadsheet = session.findSpreadsheetByReference(reference);
+        // Type assertion: refine() validates these are defined for find_by_reference action
+        if (referenceType === "spreadsheet") {
+          const spreadsheet = session.findSpreadsheetByReference(reference!);
           return {
             response: {
               success: true,
@@ -150,7 +156,7 @@ export async function handleSheetsSession(
             },
           };
         } else {
-          const operation = session.findOperationByReference(reference);
+          const operation = session.findOperationByReference(reference!);
           return {
             response: {
               success: true,
@@ -171,8 +177,11 @@ export async function handleSheetsSession(
         }
         if (dryRunDefault !== undefined || snapshotDefault !== undefined) {
           updates["defaultSafety"] = {
-            dryRun: dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
-            createSnapshot: snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
+            dryRun:
+              dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
+            createSnapshot:
+              snapshotDefault ??
+              session.getPreferences().defaultSafety.createSnapshot,
           };
         }
 
@@ -199,7 +208,13 @@ export async function handleSheetsSession(
 
       case "set_pending": {
         const { type, step, totalSteps, context } = input;
-        session.setPendingOperation({ type, step, totalSteps, context });
+        // Type assertion: refine() validates these are defined for set_pending action
+        session.setPendingOperation({
+          type: type!,
+          step: step!,
+          totalSteps: totalSteps!,
+          context: context!,
+        });
         return {
           response: {
             success: true,

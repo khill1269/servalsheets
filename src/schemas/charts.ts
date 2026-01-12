@@ -19,7 +19,7 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
+const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
@@ -142,7 +142,9 @@ export const SheetsChartsInputSchema = z
       .enum(["PNG", "PDF"])
       .optional()
       .default("PNG")
-      .describe("Export format (PNG or PDF, default: PNG) (optional for: export)"),
+      .describe(
+        "Export format (PNG or PDF, default: PNG) (optional for: export)",
+      ),
   })
   .refine(
     (data) => {
@@ -166,7 +168,9 @@ export const SheetsChartsInputSchema = z
           return !!data.spreadsheetId && data.chartId !== undefined;
         case "move":
           return (
-            !!data.spreadsheetId && data.chartId !== undefined && !!data.position
+            !!data.spreadsheetId &&
+            data.chartId !== undefined &&
+            !!data.position
           );
         case "resize":
           return (
@@ -176,7 +180,9 @@ export const SheetsChartsInputSchema = z
             data.height !== undefined
           );
         case "update_data_range":
-          return !!data.spreadsheetId && data.chartId !== undefined && !!data.data;
+          return (
+            !!data.spreadsheetId && data.chartId !== undefined && !!data.data
+          );
         case "export":
           return !!data.spreadsheetId && data.chartId !== undefined;
         default:

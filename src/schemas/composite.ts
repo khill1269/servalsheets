@@ -197,13 +197,151 @@ export const DeduplicateOutputSchema = z.object({
 
 /**
  * All composite operation inputs
+ *
+ * Flattened union pattern for MCP SDK compatibility.
+ * The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas.
+ * Workaround: Use a single object with all fields optional, validate with refine().
  */
-export const CompositeInputSchema = z.discriminatedUnion("action", [
-  ImportCsvInputSchema,
-  SmartAppendInputSchema,
-  BulkUpdateInputSchema,
-  DeduplicateInputSchema,
-]);
+export const CompositeInputSchema = z
+  .object({
+    // Required action discriminator
+    action: z
+      .enum(["import_csv", "smart_append", "bulk_update", "deduplicate"])
+      .describe("The composite operation to perform"),
+
+    // Common fields
+    spreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Spreadsheet ID from URL (required for all actions)",
+    ),
+    sheet: SheetReferenceSchema.optional().describe(
+      "Target sheet - name or ID (required for: smart_append, bulk_update, deduplicate; optional for: import_csv)",
+    ),
+
+    // Import CSV fields
+    csvData: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("CSV data as string (required for: import_csv)"),
+    delimiter: z
+      .string()
+      .max(5)
+      .optional()
+      .default(",")
+      .describe("Field delimiter (import_csv only)"),
+    hasHeader: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("First row is header (import_csv only)"),
+    mode: ImportCsvModeSchema.optional()
+      .default("replace")
+      .describe("How to handle existing data (import_csv only)"),
+    newSheetName: z
+      .string()
+      .max(255)
+      .optional()
+      .describe("Name for new sheet if mode is new_sheet (import_csv only)"),
+    skipEmptyRows: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Skip empty rows (import_csv, smart_append)"),
+    trimValues: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Trim whitespace from values (import_csv only)"),
+
+    // Smart Append fields
+    data: z
+      .array(z.record(z.string(), z.unknown()))
+      .min(1)
+      .optional()
+      .describe(
+        "Array of objects with column headers as keys (required for: smart_append)",
+      ),
+    matchHeaders: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Match columns by header name (smart_append only)"),
+    createMissingColumns: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Create columns for unmatched headers (smart_append only)"),
+
+    // Bulk Update fields
+    keyColumn: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Column header to match rows by (required for: bulk_update)"),
+    updates: z
+      .array(z.record(z.string(), z.unknown()))
+      .min(1)
+      .optional()
+      .describe(
+        "Array of objects with key column and update values (required for: bulk_update)",
+      ),
+    createUnmatched: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Create new rows for unmatched keys (bulk_update only)"),
+
+    // Deduplicate fields
+    keyColumns: z
+      .array(z.string().min(1))
+      .min(1)
+      .optional()
+      .describe("Columns to check for duplicates (required for: deduplicate)"),
+    keep: DeduplicateKeepSchema.optional()
+      .default("first")
+      .describe("Which duplicate to keep (deduplicate only)"),
+    preview: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Preview only, don't delete duplicates (deduplicate only)"),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "import_csv":
+          return !!data.spreadsheetId && !!data.csvData;
+        case "smart_append":
+          return (
+            !!data.spreadsheetId &&
+            !!data.sheet &&
+            !!data.data &&
+            data.data.length > 0
+          );
+        case "bulk_update":
+          return (
+            !!data.spreadsheetId &&
+            !!data.sheet &&
+            !!data.keyColumn &&
+            !!data.updates &&
+            data.updates.length > 0
+          );
+        case "deduplicate":
+          return (
+            !!data.spreadsheetId &&
+            !!data.sheet &&
+            !!data.keyColumns &&
+            data.keyColumns.length > 0
+          );
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 /**
  * Success outputs
@@ -264,6 +402,33 @@ export type CompositeSuccessOutput = z.infer<
   typeof CompositeSuccessOutputSchema
 >;
 export type CompositeOutput = z.infer<typeof CompositeOutputSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type CompositeImportCsvInput = CompositeInput & {
+  action: "import_csv";
+  spreadsheetId: string;
+  csvData: string;
+};
+export type CompositeSmartAppendInput = CompositeInput & {
+  action: "smart_append";
+  spreadsheetId: string;
+  sheet: SheetReference;
+  data: Array<Record<string, unknown>>;
+};
+export type CompositeBulkUpdateInput = CompositeInput & {
+  action: "bulk_update";
+  spreadsheetId: string;
+  sheet: SheetReference;
+  keyColumn: string;
+  updates: Array<Record<string, unknown>>;
+};
+export type CompositeDeduplicateInput = CompositeInput & {
+  action: "deduplicate";
+  spreadsheetId: string;
+  sheet: SheetReference;
+  keyColumns: string[];
+};
 
 // ============================================================================
 // Tool Annotations

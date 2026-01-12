@@ -1,0 +1,1638 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ServalSheets Test Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 40px; background: #f5f5f5; }
+    .container { max-width: 1200px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { color: #333; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }
+    .stat-card { background: #f9f9f9; padding: 20px; border-radius: 8px; border-left: 4px solid #4CAF50; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #333; }
+    .stat-label { color: #666; font-size: 0.9em; text-transform: uppercase; }
+    .pass { color: #4CAF50; }
+    .fail { color: #f44336; }
+    .skip { color: #ff9800; }
+    .auth { color: #2196F3; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f5f5f5; font-weight: 600; }
+    tr:hover { background: #f9f9f9; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; }
+    .badge-pass { background: #4CAF50; color: white; }
+    .badge-fail { background: #f44336; color: white; }
+    .badge-skip { background: #ff9800; color: white; }
+    .badge-auth { background: #2196F3; color: white; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 ServalSheets Test Report</h1>
+    <p><strong>Test Run ID:</strong> run-1768195678365</p>
+    <p><strong>Started:</strong> 1/12/2026, 12:27:58 AM</p>
+    <p><strong>Duration:</strong> 20s</p>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value">195</div>
+        <div class="stat-label">Total Tests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value pass">173</div>
+        <div class="stat-label">Passed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value fail">1</div>
+        <div class="stat-label">Failed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value auth">21</div>
+        <div class="stat-label">Auth Required</div>
+      </div>
+    </div>
+
+    <h2>Test Cases</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>Action</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          <tr>
+            <td><code>sheets_auth</code></td>
+            <td><code>status</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>3ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_auth</code></td>
+            <td><code>login</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>10ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_auth</code></td>
+            <td><code>callback</code></td>
+            <td><span class="badge badge-fail">FAIL</span></td>
+            <td>144ms</td>
+            <td>{
+  "response": {
+    "success": false,
+    "error": {
+      "code": "INTERNAL_ERROR",
+      "messag</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_auth</code></td>
+            <td><code>logout</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>create</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>copy</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>update_properties</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>get_url</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>batch_get</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>get_comprehensive</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_spreadsheet</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>add</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>delete</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>duplicate</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>update</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>copy_to</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sheet</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>read</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>write</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>append</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>clear</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>batch_read</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>batch_write</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>batch_clear</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>find</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_values</code></td>
+            <td><code>replace</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>add_note</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>get_note</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>clear_note</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>set_validation</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>clear_validation</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>set_hyperlink</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>clear_hyperlink</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>merge</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>unmerge</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>get_merges</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>cut</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_cells</code></td>
+            <td><code>copy</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_background</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_text_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_number_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_alignment</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>set_borders</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>clear_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>apply_preset</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_format</code></td>
+            <td><code>auto_fit</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>insert_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>insert_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>delete_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>delete_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>move_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>move_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>resize_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>resize_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>auto_resize</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>hide_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>hide_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>show_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>show_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>freeze_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>freeze_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>group_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>group_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>ungroup_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>ungroup_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>append_rows</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_dimensions</code></td>
+            <td><code>append_columns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>add_conditional_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>update_conditional_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>delete_conditional_format</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>list_conditional_formats</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>add_data_validation</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>clear_data_validation</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>list_data_validations</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_rules</code></td>
+            <td><code>add_preset_rule</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>create</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>update</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>delete</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>move</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>resize</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>3ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>update_data_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_charts</code></td>
+            <td><code>export</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>create</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>update</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>delete</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_pivot</code></td>
+            <td><code>refresh</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>set_basic_filter</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>clear_basic_filter</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>get_basic_filter</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>update_filter_criteria</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>sort_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>create_filter_view</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>-</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>update_filter_view</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>delete_filter_view</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>list_filter_views</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>get_filter_view</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>create_slicer</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>update_slicer</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>delete_slicer</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_filter_sort</code></td>
+            <td><code>list_slicers</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>share</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>update_permission</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>remove_permission</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>list_permissions</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>get_permission</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>transfer_ownership</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>set_link_sharing</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_sharing</code></td>
+            <td><code>get_sharing_link</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>add</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>update</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>delete</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>resolve</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>reopen</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>add_reply</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>update_reply</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_comments</code></td>
+            <td><code>delete_reply</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>list_revisions</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>get_revision</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>restore_revision</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>keep_revision</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>create_snapshot</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>list_snapshots</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>restore_snapshot</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>delete_snapshot</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>compare</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_versions</code></td>
+            <td><code>export_version</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>data_quality</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>formula_audit</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>structure_analysis</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>statistics</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>correlations</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>summary</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>dependencies</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>compare_ranges</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>detect_patterns</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>column_analysis</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>suggest_templates</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>generate_formula</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analysis</code></td>
+            <td><code>suggest_chart</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>add_named_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>update_named_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>delete_named_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>list_named_ranges</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>get_named_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>add_protected_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>update_protected_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>delete_protected_range</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>list_protected_ranges</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>set_metadata</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>get_metadata</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>delete_metadata</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>add_banding</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>update_banding</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>delete_banding</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>list_banding</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>create_table</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>delete_table</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_advanced</code></td>
+            <td><code>list_tables</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>begin</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>queue</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>commit</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>rollback</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>status</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_transaction</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_validation</code></td>
+            <td><code>validate</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>3ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_conflict</code></td>
+            <td><code>detect</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_conflict</code></td>
+            <td><code>resolve</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_impact</code></td>
+            <td><code>analyze</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>list</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>get</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>stats</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>undo</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>redo</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>revert_to</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_history</code></td>
+            <td><code>clear</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_confirm</code></td>
+            <td><code>request</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_confirm</code></td>
+            <td><code>get_stats</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>1ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analyze</code></td>
+            <td><code>analyze</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analyze</code></td>
+            <td><code>generate_formula</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analyze</code></td>
+            <td><code>suggest_chart</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_analyze</code></td>
+            <td><code>get_stats</code></td>
+            <td><span class="badge badge-auth_required">AUTH_REQUIRED</span></td>
+            <td>2ms</td>
+            <td>Authentication required</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_fix</code></td>
+            <td><code>fix</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_composite</code></td>
+            <td><code>import_csv</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_composite</code></td>
+            <td><code>smart_append</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_composite</code></td>
+            <td><code>bulk_update</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>2ms</td>
+            <td>OK</td>
+          </tr>
+        
+          <tr>
+            <td><code>sheets_composite</code></td>
+            <td><code>deduplicate</code></td>
+            <td><span class="badge badge-pass">PASS</span></td>
+            <td>1ms</td>
+            <td>OK</td>
+          </tr>
+        
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>
+  

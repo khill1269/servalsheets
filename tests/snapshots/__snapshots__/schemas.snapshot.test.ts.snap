@@ -1,0 +1,681 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Schema Snapshots > Input Schemas > BulkUpdateInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BulkUpdateInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BulkUpdateInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > CompositeInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/CompositeInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "CompositeInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > DeduplicateInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/DeduplicateInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DeduplicateInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > ImportCsvInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/ImportCsvInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ImportCsvInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > RangeInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/RangeInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "RangeInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetSpreadsheetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetSpreadsheetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetSpreadsheetInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAdvancedInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAdvancedInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsAnalysisInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAnalysisInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAnalysisInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsAnalyzeInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAnalyzeInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAnalyzeInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsAuthInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAuthInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAuthInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsCellsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsCellsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsCellsInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsChartsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsChartsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsChartsInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsCommentsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsCommentsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsCommentsInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsConfirmInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConfirmInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConfirmInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsConflictInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConflictInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConflictInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsDimensionsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsDimensionsInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsFilterSortInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFilterSortInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFilterSortInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFixInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFixInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsFormatInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFormatInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFormatInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsHistoryInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsHistoryInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsImpactInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsImpactInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsImpactInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsPivotInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsPivotInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsPivotInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsRulesInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsRulesInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsRulesInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSessionInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSessionInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsSharingInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSharingInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSharingInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsSheetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSheetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSheetInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsTransactionInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsTransactionInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsValidationInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsValidationInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsValidationInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsValuesInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsValuesInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsValuesInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SheetsVersionsInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsVersionsInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsVersionsInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Input Schemas > SmartAppendInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SmartAppendInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SmartAppendInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > BulkUpdateOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/BulkUpdateOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "BulkUpdateOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > CompositeErrorOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/CompositeErrorOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "CompositeErrorOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > CompositeOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/CompositeOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "CompositeOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > CompositeSuccessOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/CompositeSuccessOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "CompositeSuccessOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > DeduplicateOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/DeduplicateOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DeduplicateOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > ImportCsvOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/ImportCsvOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ImportCsvOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsAdvancedOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAdvancedOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAdvancedOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsAnalysisOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAnalysisOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAnalysisOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsAnalyzeOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAnalyzeOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAnalyzeOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsAuthOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsAuthOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsAuthOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsCellsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsCellsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsCellsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsChartsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsChartsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsChartsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsCommentsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsCommentsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsCommentsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsConfirmOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConfirmOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConfirmOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsConflictOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsConflictOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsConflictOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsDimensionsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsDimensionsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsDimensionsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsFilterSortOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFilterSortOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFilterSortOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsFixOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFixOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFixOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsFormatOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFormatOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFormatOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsHistoryOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsHistoryOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsHistoryOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsImpactOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsImpactOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsImpactOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsPivotOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsPivotOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsPivotOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsRulesOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsRulesOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsRulesOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSessionOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSessionOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsSharingOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSharingOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSharingOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsSheetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSheetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSheetOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsSpreadsheetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsSpreadsheetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsSpreadsheetOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsTransactionOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsTransactionOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsTransactionOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsValidationOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsValidationOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsValidationOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsValuesOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsValuesOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsValuesOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsVersionsOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsVersionsOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsVersionsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SmartAppendOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SmartAppendOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SmartAppendOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Shared Schemas > ColorSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/ColorSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ColorSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Shared Schemas > GridRangeSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/GridRangeSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "GridRangeSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Shared Schemas > NumberFormatSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/NumberFormatSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "NumberFormatSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Shared Schemas > RangeInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/RangeInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "RangeInputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Shared Schemas > TextFormatSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/TextFormatSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "TextFormatSchema": {},
+  },
+}
+`;

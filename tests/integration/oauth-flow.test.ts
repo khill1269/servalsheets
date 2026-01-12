@@ -77,7 +77,7 @@ describe('OAuth Flow Integration Tests', () => {
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '1.3.0',
+        version: '1.4.0',
         oauth: {
           authorization_endpoint: `${issuer}/oauth/authorize`,
           token_endpoint: `${issuer}/oauth/token`,

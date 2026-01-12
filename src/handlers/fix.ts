@@ -31,6 +31,17 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       input,
     ) as SheetsFixInput;
 
+    // Type narrow to ensure required fields are present
+    if (!inferredRequest.spreadsheetId || !inferredRequest.issues) {
+      return {
+        response: this.mapError(
+          new Error("Missing required fields: spreadsheetId and issues"),
+        ),
+      };
+    }
+
+    const mode = inferredRequest.mode ?? "preview";
+
     try {
       // Filter issues based on user preferences
       const filteredIssues = this.filterIssues(
@@ -42,7 +53,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         return {
           response: {
             success: true,
-            mode: inferredRequest.mode,
+            mode,
             operations: [],
             summary: { total: 0, skipped: inferredRequest.issues.length },
             message: "No issues matched the filters",
@@ -57,10 +68,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       );
 
       // Preview mode - just return operations
-      if (
-        inferredRequest.mode === "preview" ||
-        inferredRequest.safety?.dryRun
-      ) {
+      if (mode === "preview" || inferredRequest.safety?.dryRun) {
         return {
           response: {
             success: true,
@@ -119,8 +127,12 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   protected createIntents(input: SheetsFixInput): Intent[] {
     // Input is now the action directly (no request wrapper)
 
-    if (input.mode === "preview" || input.safety?.dryRun) {
+    if ((input.mode ?? "preview") === "preview" || input.safety?.dryRun) {
       return []; // Read-only preview
+    }
+
+    if (!input.spreadsheetId || !input.issues) {
+      return []; // Missing required fields
     }
 
     // Fixing issues is destructive

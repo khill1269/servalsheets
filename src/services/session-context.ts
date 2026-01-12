@@ -2,7 +2,7 @@
  * ServalSheets - Session Context Manager
  *
  * Provides conversation-level state management for natural language interactions.
- * 
+ *
  * This is CRITICAL for natural language because:
  * 1. Users say "the spreadsheet" not "spreadsheet ID 1ABC..."
  * 2. Users say "undo that" not "rollback operation xyz"
@@ -10,6 +10,8 @@
  *
  * @module services/session-context
  */
+
+import { logger } from "../utils/logger.js";
 
 // ============================================================================
 // TYPES
@@ -143,7 +145,7 @@ export class SessionContextManager {
 
   /**
    * Set the active spreadsheet
-   * 
+   *
    * Called when user opens or creates a spreadsheet.
    * Enables natural references like "the spreadsheet" or "this sheet".
    */
@@ -162,7 +164,7 @@ export class SessionContextManager {
 
   /**
    * Get the active spreadsheet
-   * 
+   *
    * Returns null if no spreadsheet is active.
    * Claude should ask "Which spreadsheet?" if null.
    */
@@ -177,7 +179,7 @@ export class SessionContextManager {
     if (!this.state.activeSpreadsheet) {
       throw new Error(
         "No active spreadsheet. Please specify which spreadsheet to work with, " +
-        "or say 'open [spreadsheet name]' to set one as active."
+          "or say 'open [spreadsheet name]' to set one as active.",
       );
     }
     return this.state.activeSpreadsheet;
@@ -185,7 +187,7 @@ export class SessionContextManager {
 
   /**
    * Find spreadsheet by natural reference
-   * 
+   *
    * Handles: "the budget", "Q4 report", "my CRM", etc.
    */
   findSpreadsheetByReference(reference: string): SpreadsheetContext | null {
@@ -210,7 +212,7 @@ export class SessionContextManager {
 
   private matchesReference(ss: SpreadsheetContext, reference: string): boolean {
     const lowerTitle = ss.title.toLowerCase();
-    
+
     // Exact or contains match
     if (lowerTitle === reference || lowerTitle.includes(reference)) {
       return true;
@@ -235,7 +237,7 @@ export class SessionContextManager {
   private addToRecent(context: SpreadsheetContext): void {
     // Remove if already in recent
     this.state.recentSpreadsheets = this.state.recentSpreadsheets.filter(
-      (ss) => ss.spreadsheetId !== context.spreadsheetId
+      (ss) => ss.spreadsheetId !== context.spreadsheetId,
     );
 
     // Add to front
@@ -245,7 +247,7 @@ export class SessionContextManager {
     if (this.state.recentSpreadsheets.length > this.maxRecentSpreadsheets) {
       this.state.recentSpreadsheets = this.state.recentSpreadsheets.slice(
         0,
-        this.maxRecentSpreadsheets
+        this.maxRecentSpreadsheets,
       );
     }
   }
@@ -269,7 +271,7 @@ export class SessionContextManager {
    */
   recordOperation(record: Omit<OperationRecord, "id" | "timestamp">): string {
     const id = `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    
+
     const fullRecord: OperationRecord = {
       ...record,
       id,
@@ -282,7 +284,7 @@ export class SessionContextManager {
     if (this.state.operationHistory.length > this.maxOperationHistory) {
       this.state.operationHistory = this.state.operationHistory.slice(
         0,
-        this.maxOperationHistory
+        this.maxOperationHistory,
       );
     }
 
@@ -313,7 +315,7 @@ export class SessionContextManager {
 
   /**
    * Find operation by natural reference
-   * 
+   *
    * Handles: "that", "the last write", "the format change", etc.
    */
   findOperationByReference(reference: string): OperationRecord | null {
@@ -328,10 +330,13 @@ export class SessionContextManager {
     const actionMatch = lowerRef.match(/(?:the\s+)?(?:last\s+)?(\w+)/);
     if (actionMatch) {
       const action = actionMatch[1]!;
-      return this.state.operationHistory.find(
-        (op) => op.action.toLowerCase().includes(action) ||
-                op.tool.toLowerCase().includes(action)
-      ) ?? null;
+      return (
+        this.state.operationHistory.find(
+          (op) =>
+            op.action.toLowerCase().includes(action) ||
+            op.tool.toLowerCase().includes(action),
+        ) ?? null
+      );
     }
 
     return null;
@@ -361,7 +366,7 @@ export class SessionContextManager {
 
   /**
    * Learn preference from user behavior
-   * 
+   *
    * Called when user confirms/skips confirmations, uses certain formats, etc.
    */
   learnPreference(key: string, value: unknown): void {
@@ -392,7 +397,7 @@ export class SessionContextManager {
 
   /**
    * Set pending multi-step operation
-   * 
+   *
    * For complex operations that span multiple turns.
    */
   setPendingOperation(operation: SessionState["pendingOperation"]): void {
@@ -451,7 +456,11 @@ export class SessionContextManager {
         ...imported,
       };
     } catch (error) {
-      console.error("Failed to import session state:", error);
+      logger.error("Failed to import session state", {
+        component: "session-context",
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
     }
   }
 
@@ -461,7 +470,7 @@ export class SessionContextManager {
 
   /**
    * Get context summary for Claude
-   * 
+   *
    * Returns a natural language summary of current context
    * that Claude can use to understand the conversation state.
    */
@@ -472,9 +481,9 @@ export class SessionContextManager {
     if (this.state.activeSpreadsheet) {
       parts.push(
         `Currently working with: "${this.state.activeSpreadsheet.title}" ` +
-        `(${this.state.activeSpreadsheet.sheetNames.length} sheets: ` +
-        `${this.state.activeSpreadsheet.sheetNames.slice(0, 3).join(", ")}` +
-        `${this.state.activeSpreadsheet.sheetNames.length > 3 ? "..." : ""})`
+          `(${this.state.activeSpreadsheet.sheetNames.length} sheets: ` +
+          `${this.state.activeSpreadsheet.sheetNames.slice(0, 3).join(", ")}` +
+          `${this.state.activeSpreadsheet.sheetNames.length > 3 ? "..." : ""})`,
       );
 
       if (this.state.activeSpreadsheet.lastRange) {
@@ -494,7 +503,7 @@ export class SessionContextManager {
     if (this.state.pendingOperation) {
       parts.push(
         `Pending: ${this.state.pendingOperation.type} ` +
-        `(step ${this.state.pendingOperation.step}/${this.state.pendingOperation.totalSteps})`
+          `(step ${this.state.pendingOperation.step}/${this.state.pendingOperation.totalSteps})`,
       );
     }
 
@@ -511,7 +520,7 @@ export class SessionContextManager {
       suggestions.push("Open or create a spreadsheet to get started");
       if (this.state.recentSpreadsheets.length > 0) {
         suggestions.push(
-          `Switch to recent: ${this.state.recentSpreadsheets[0]!.title}`
+          `Switch to recent: ${this.state.recentSpreadsheets[0]!.title}`,
         );
       }
     } else {

@@ -114,7 +114,7 @@ export type HandlerOutput<T extends Record<string, unknown>> =
 
 /**
  * Optimized Base Handler
- * 
+ *
  * Key optimizations:
  * - Lazy initialization of context manager
  * - Pre-computed column letter lookups
@@ -155,7 +155,10 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     spreadsheetId: string,
     range: RangeInput,
   ): Promise<string> {
-    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, range);
+    const resolved = await this.context.rangeResolver.resolve(
+      spreadsheetId,
+      range,
+    );
     return resolved.a1Notation;
   }
 
@@ -196,7 +199,12 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
   protected mapError(err: unknown): HandlerError {
     // Fast path: already structured error
     if (err && typeof err === "object" && "code" in err) {
-      const structured = err as { code: string; message: string; details?: Record<string, unknown>; retryable?: boolean };
+      const structured = err as {
+        code: string;
+        message: string;
+        details?: Record<string, unknown>;
+        retryable?: boolean;
+      };
       return this.error({
         code: structured.code as ErrorDetail["code"],
         message: structured.message,
@@ -223,11 +231,21 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
    */
   private mapGoogleApiError(error: Error): ErrorDetail {
     const errorAny = error as unknown as Record<string, unknown>;
-    
+
     // Fast path: structured Google API error with numeric code
     if (typeof errorAny["code"] === "number") {
-      const parsed = parseGoogleApiError(errorAny as { code?: number; message?: string; status?: string; errors?: { domain?: string; reason?: string; message?: string }[] });
-      if (this.currentSpreadsheetId && parsed.details?.["resourceId"] === "unknown") {
+      const parsed = parseGoogleApiError(
+        errorAny as {
+          code?: number;
+          message?: string;
+          status?: string;
+          errors?: { domain?: string; reason?: string; message?: string }[];
+        },
+      );
+      if (
+        this.currentSpreadsheetId &&
+        parsed.details?.["resourceId"] === "unknown"
+      ) {
         parsed.details["resourceId"] = this.currentSpreadsheetId;
       }
       return parsed as ErrorDetail;
@@ -237,16 +255,32 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     const message = error.message.toLowerCase();
 
     if (message.includes("429") || message.includes("rate limit")) {
-      return { code: "RATE_LIMITED", message: "Rate limited. Retry in 60 seconds.", retryable: true };
+      return {
+        code: "RATE_LIMITED",
+        message: "Rate limited. Retry in 60 seconds.",
+        retryable: true,
+      };
     }
     if (message.includes("403") || message.includes("permission")) {
-      return { code: "PERMISSION_DENIED", message: "Permission denied.", retryable: false };
+      return {
+        code: "PERMISSION_DENIED",
+        message: "Permission denied.",
+        retryable: false,
+      };
     }
     if (message.includes("404") || message.includes("not found")) {
-      return { code: "NOT_FOUND", message: `Resource not found: ${this.currentSpreadsheetId || "unknown"}`, retryable: false };
+      return {
+        code: "NOT_FOUND",
+        message: `Resource not found: ${this.currentSpreadsheetId || "unknown"}`,
+        retryable: false,
+      };
     }
     if (message.includes("unable to parse range")) {
-      return { code: "INVALID_PARAMS", message: "Invalid range format", retryable: false };
+      return {
+        code: "INVALID_PARAMS",
+        message: "Invalid range format",
+        retryable: false,
+      };
     }
 
     return { code: "INTERNAL_ERROR", message: error.message, retryable: false };
@@ -255,17 +289,20 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
   /**
    * Create mutation summary from execution results
    */
-  protected createMutationSummary(results: ExecutionResult[]): MutationSummary | undefined {
+  protected createMutationSummary(
+    results: ExecutionResult[],
+  ): MutationSummary | undefined {
     const firstResult = results[0];
     // OK: Explicit empty - typed as optional, no execution results
     if (!firstResult) return undefined;
 
     return {
-      cellsAffected: firstResult.diff?.tier === "METADATA"
-        ? firstResult.diff.summary.estimatedCellsChanged
-        : firstResult.diff?.tier === "FULL"
-          ? firstResult.diff.summary.cellsChanged
-          : 0,
+      cellsAffected:
+        firstResult.diff?.tier === "METADATA"
+          ? firstResult.diff.summary.estimatedCellsChanged
+          : firstResult.diff?.tier === "FULL"
+            ? firstResult.diff.summary.cellsChanged
+            : 0,
       diff: firstResult.diff,
       reversible: !!firstResult.snapshotId,
       revertSnapshotId: firstResult.snapshotId,
@@ -315,7 +352,9 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
   /**
    * Infer parameters from context - lazy init
    */
-  protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
+  protected inferRequestParameters<T extends Record<string, unknown>>(
+    request: T,
+  ): T {
     if (!this._contextManager) {
       this._contextManager = getContextManager();
     }
@@ -342,12 +381,22 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     return requiresConfirmation(context);
   }
 
-  protected getSafetyWarnings(context: SafetyContext, safetyOptions?: SafetyOptions): SafetyWarning[] {
+  protected getSafetyWarnings(
+    context: SafetyContext,
+    safetyOptions?: SafetyOptions,
+  ): SafetyWarning[] {
     return generateSafetyWarnings(context, safetyOptions);
   }
 
-  protected async createSafetySnapshot(context: SafetyContext, safetyOptions?: SafetyOptions): Promise<SnapshotResult | null> {
-    return createSnapshotIfNeeded(this.context.snapshotService, context, safetyOptions);
+  protected async createSafetySnapshot(
+    context: SafetyContext,
+    safetyOptions?: SafetyOptions,
+  ): Promise<SnapshotResult | null> {
+    return createSnapshotIfNeeded(
+      this.context.snapshotService,
+      context,
+      safetyOptions,
+    );
   }
 
   protected formatWarnings(warnings: SafetyWarning[]): string[] {
@@ -358,7 +407,9 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     return shouldReturnPreview(safetyOptions);
   }
 
-  protected snapshotInfo(snapshot: SnapshotResult | null): Record<string, unknown> | undefined {
+  protected snapshotInfo(
+    snapshot: SnapshotResult | null,
+  ): Record<string, unknown> | undefined {
     return buildSnapshotInfo(snapshot);
   }
 
@@ -369,21 +420,30 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     spreadsheetId: string,
     sheetsApi: import("googleapis").sheets_v4.Sheets,
   ): Promise<import("googleapis").sheets_v4.Schema$Spreadsheet> {
-    const { cacheManager, createCacheKey } = await import("../utils/cache-manager.js");
+    const { cacheManager, createCacheKey } =
+      await import("../utils/cache-manager.js");
     const { CACHE_TTL_SPREADSHEET } = await import("../config/constants.js");
 
-    const cacheKey = createCacheKey("spreadsheet:comprehensive", { spreadsheetId });
-    const cached = cacheManager.get<import("googleapis").sheets_v4.Schema$Spreadsheet>(cacheKey, "spreadsheet");
+    const cacheKey = createCacheKey("spreadsheet:comprehensive", {
+      spreadsheetId,
+    });
+    const cached = cacheManager.get<
+      import("googleapis").sheets_v4.Schema$Spreadsheet
+    >(cacheKey, "spreadsheet");
 
     if (cached) return cached;
 
     const response = await sheetsApi.spreadsheets.get({
       spreadsheetId,
       includeGridData: false,
-      fields: "spreadsheetId,properties,namedRanges,sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
+      fields:
+        "spreadsheetId,properties,namedRanges,sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
     });
 
-    cacheManager.set(cacheKey, response.data, { ttl: CACHE_TTL_SPREADSHEET, namespace: "spreadsheet" });
+    cacheManager.set(cacheKey, response.data, {
+      ttl: CACHE_TTL_SPREADSHEET,
+      namespace: "spreadsheet",
+    });
     return response.data;
   }
 }

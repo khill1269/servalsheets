@@ -144,7 +144,9 @@ export class SheetResolver {
    */
   private getSheetsApi(): sheets_v4.Sheets {
     if (!this.sheetsApi) {
-      throw new Error("SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.");
+      throw new Error(
+        "SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.",
+      );
     }
     return this.sheetsApi;
   }
@@ -515,7 +517,12 @@ export class SheetResolver {
     // Handle semantic queries
     if (typeof range === "object" && "semantic" in range) {
       const { column, sheet } = range.semantic;
-      const columnIndex = await this.findColumnByHeader(spreadsheetId, sheet, column, _auth);
+      const columnIndex = await this.findColumnByHeader(
+        spreadsheetId,
+        sheet,
+        column,
+        _auth,
+      );
 
       if (columnIndex === -1) {
         throw new Error(`Column "${column}" not found in sheet "${sheet}"`);
@@ -561,7 +568,9 @@ export class SheetResolver {
       fields: "namedRanges(name,range)",
     });
 
-    const namedRange = response.data.namedRanges?.find((nr) => nr.name === range);
+    const namedRange = response.data.namedRanges?.find(
+      (nr) => nr.name === range,
+    );
 
     if (!namedRange || !namedRange.range) {
       throw new Error(`Named range "${range}" not found`);
@@ -576,7 +585,7 @@ export class SheetResolver {
     const startCol = this.columnIndexToLetter(nr.startColumnIndex ?? 0);
     const endCol = this.columnIndexToLetter((nr.endColumnIndex ?? 1) - 1);
     const startRow = (nr.startRowIndex ?? 0) + 1;
-    const endRow = (nr.endRowIndex ?? 1);
+    const endRow = nr.endRowIndex ?? 1;
 
     const resolvedRange = `${sheetName}!${startCol}${startRow}:${endCol}${endRow}`;
 
@@ -601,7 +610,9 @@ export class SheetResolver {
     });
 
     // Filter out named ranges without names
-    return (response.data.namedRanges || []).filter((nr): nr is sheets_v4.Schema$NamedRange => !!nr.name);
+    return (response.data.namedRanges || []).filter(
+      (nr): nr is sheets_v4.Schema$NamedRange => !!nr.name,
+    );
   }
 
   /**

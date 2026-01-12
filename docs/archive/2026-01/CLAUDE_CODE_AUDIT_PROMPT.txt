@@ -1,0 +1,60 @@
+Conduct a comprehensive audit of the ServalSheets MCP server at /Users/thomascahill/Documents/mcp-servers/servalsheets to verify whether previously identified issues still exist and establish best practices.
+
+**CRITICAL ISSUES TO VERIFY:**
+
+1. **Zod v4 Schema Conversion Bug** - Check `src/utils/schema-compat.ts` lines 108-141 for broken `.toJSONSchema()` method calls. Verify if `zod-to-json-schema` is properly imported and used.
+
+2. **Empty tools/list Schemas (F-01)** - Test if tools/list returns empty input schemas. Run the MCP tools/list probe to count tools with empty `{ type: "object", properties: {} }` schemas.
+
+3. **HTTP Transport Schema Wrapping (F-02)** - Check if `wrapInputSchemaForLegacyRequest` in `src/mcp/registration/schema-helpers.ts` wraps schemas in ZodUnion, causing normalizeObjectSchema to return undefined.
+
+4. **ZodEffects Handling** - Verify `src/utils/schema-inspection.ts` lines 72-76 work with Zod v4's ZodPipe/ZodTransform split.
+
+5. **Internal _def Access** - Audit all `_def` and `_zod` property access across the codebase for Zod upgrade fragility.
+
+6. **console.log Stdio Corruption (F-07)** - Find console.log usage in runtime code that could corrupt stdio JSON-RPC.
+
+**COMMANDS TO RUN:**
+
+```bash
+cd /Users/thomascahill/Documents/mcp-servers/servalsheets
+
+# Check versions
+cat package.json | grep -E '"zod"|"@modelcontextprotocol"' -A1
+
+# Audit schema conversion
+grep -n "toJSONSchema\|zodToJsonSchema" src/utils/schema-compat.ts
+cat src/utils/schema-compat.ts | head -150
+
+# Audit _def access
+grep -rn "_def\|_zod" src/ --include="*.ts" | grep -v "node_modules\|dist"
+
+# Audit console usage
+grep -rn "console.log" src/ --include="*.ts" | grep -v ".test.ts"
+
+# Check schema registration flow
+cat src/mcp/registration/schema-helpers.ts 2>/dev/null
+cat src/mcp/registration/tool-handlers.ts 2>/dev/null | head -100
+
+# Run relevant tests
+npx vitest tests/integration/mcp-tools-list.test.ts --run 2>&1
+npx vitest tests/contracts/sdk-compat.test.ts --run 2>&1
+npx vitest tests/contracts/schema-transformation.test.ts --run 2>&1
+```
+
+**RESEARCH QUESTIONS:**
+
+1. What is the canonical Zod v4 → JSON Schema conversion for MCP SDK compatibility?
+2. How should z.discriminatedUnion schemas be registered to avoid empty schema fallback?
+3. What stable public APIs exist for Zod schema inspection without _def access?
+4. What's the correct logging pattern for stdio MCP servers?
+
+**DELIVERABLES:**
+
+1. **Status Matrix** - Mark each issue as ✅ FIXED, ❌ STILL EXISTS, ⚠️ PARTIAL, or 🔍 UNCLEAR
+2. **Root Cause Analysis** - For remaining issues
+3. **Fix Recommendations** - Prioritized with code snippets
+4. **Best Practices Report** - For Zod v4 + MCP SDK patterns
+5. **Test Gap Analysis** - Missing contract tests
+
+Check `AUDIT_PROMPT.md` in the repo root for detailed investigation commands and the full issue list from the original audit reports.

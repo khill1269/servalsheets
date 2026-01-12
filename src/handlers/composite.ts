@@ -25,10 +25,10 @@ import {
 import type {
   CompositeInput,
   CompositeOutput,
-  ImportCsvInput,
-  SmartAppendInput,
-  BulkUpdateInput,
-  DeduplicateInput,
+  CompositeImportCsvInput,
+  CompositeSmartAppendInput,
+  CompositeBulkUpdateInput,
+  CompositeDeduplicateInput,
 } from "../schemas/composite.js";
 import type { Intent } from "../core/intent.js";
 import { getRequestLogger } from "../utils/request-context.js";
@@ -77,24 +77,27 @@ export class CompositeHandler extends BaseHandler<
 
       switch (input.action) {
         case "import_csv":
-          response = await this.handleImportCsv(input);
+          response = await this.handleImportCsv(
+            input as CompositeImportCsvInput,
+          );
           break;
         case "smart_append":
-          response = await this.handleSmartAppend(input);
+          response = await this.handleSmartAppend(
+            input as CompositeSmartAppendInput,
+          );
           break;
         case "bulk_update":
-          response = await this.handleBulkUpdate(input);
+          response = await this.handleBulkUpdate(
+            input as CompositeBulkUpdateInput,
+          );
           break;
         case "deduplicate":
-          response = await this.handleDeduplicate(input);
-          break;
-        default: {
-          // TypeScript exhaustiveness check
-          const _exhaustive: never = input;
-          throw new Error(
-            `Unknown action: ${(_exhaustive as { action: string }).action}`,
+          response = await this.handleDeduplicate(
+            input as CompositeDeduplicateInput,
           );
-        }
+          break;
+        default:
+          throw new Error(`Unknown action: ${input.action}`);
       }
 
       // Track context
@@ -128,7 +131,7 @@ export class CompositeHandler extends BaseHandler<
   // ==========================================================================
 
   private async handleImportCsv(
-    input: ImportCsvInput,
+    input: CompositeImportCsvInput,
   ): Promise<CompositeOutput["response"]> {
     const result: CsvImportResult = await this.compositeService.importCsv({
       spreadsheetId: input.spreadsheetId,
@@ -167,7 +170,7 @@ export class CompositeHandler extends BaseHandler<
   }
 
   private async handleSmartAppend(
-    input: SmartAppendInput,
+    input: CompositeSmartAppendInput,
   ): Promise<CompositeOutput["response"]> {
     const result: SmartAppendResult = await this.compositeService.smartAppend({
       spreadsheetId: input.spreadsheetId,
@@ -198,7 +201,7 @@ export class CompositeHandler extends BaseHandler<
   }
 
   private async handleBulkUpdate(
-    input: BulkUpdateInput,
+    input: CompositeBulkUpdateInput,
   ): Promise<CompositeOutput["response"]> {
     const result: BulkUpdateResult = await this.compositeService.bulkUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -228,7 +231,7 @@ export class CompositeHandler extends BaseHandler<
   }
 
   private async handleDeduplicate(
-    input: DeduplicateInput,
+    input: CompositeDeduplicateInput,
   ): Promise<CompositeOutput["response"]> {
     const result: DeduplicateResult = await this.compositeService.deduplicate({
       spreadsheetId: input.spreadsheetId,

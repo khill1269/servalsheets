@@ -19,7 +19,7 @@ import {
   type RangeInput,
 } from "./shared.js";
 
-const BaseSchema = z.object({
+const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
@@ -120,7 +120,9 @@ export const SheetsPivotInputSchema = z
     destinationCell: z
       .string()
       .optional()
-      .describe("Top-left cell for pivot table (e.g., 'A1', default: A1) (create only)"),
+      .describe(
+        "Top-left cell for pivot table (e.g., 'A1', default: A1) (create only)",
+      ),
 
     // Fields for CREATE and UPDATE actions
     rows: z
@@ -134,7 +136,9 @@ export const SheetsPivotInputSchema = z
     values: z
       .array(PivotValueSchema)
       .optional()
-      .describe("Value aggregations (required for create; optional for update)"),
+      .describe(
+        "Value aggregations (required for create; optional for update)",
+      ),
     filters: z
       .array(PivotFilterSchema)
       .optional()
@@ -156,7 +160,10 @@ export const SheetsPivotInputSchema = z
       switch (data.action) {
         case "create":
           return (
-            !!data.spreadsheetId && !!data.sourceRange && !!data.values && data.values.length > 0
+            !!data.spreadsheetId &&
+            !!data.sourceRange &&
+            !!data.values &&
+            data.values.length > 0
           );
         case "update":
         case "delete":

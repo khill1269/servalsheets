@@ -124,7 +124,10 @@ export class BatchCompiler {
     for (const [spreadsheetId, group] of Object.entries(grouped)) {
       const requests = group.map((intent) => this.intentToRequest(intent));
       const merged = this.mergeCompatibleRequests(requests);
-      const chunked = this.chunkRequests(merged, GOOGLE_SHEETS_MAX_BATCH_REQUESTS);
+      const chunked = this.chunkRequests(
+        merged,
+        GOOGLE_SHEETS_MAX_BATCH_REQUESTS,
+      );
 
       for (const chunk of chunked) {
         batches.push({

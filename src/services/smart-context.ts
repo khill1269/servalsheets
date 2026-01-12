@@ -2,7 +2,7 @@
  * ServalSheets - Smart Context Provider
  *
  * Provides Claude with relevant context and knowledge based on detected intent.
- * 
+ *
  * When Claude doesn't know what to do, it can fetch context to help decide:
  * - Templates for creating things
  * - Formulas for calculations
@@ -100,33 +100,99 @@ const INTENT_PATTERNS: Array<{
   confidence: number;
 }> = [
   // Creation intents
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?crm\b/i, intent: "create_crm", confidence: 0.95 },
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?budget\b/i, intent: "create_budget", confidence: 0.95 },
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?(tracker|tracking)\b/i, intent: "create_tracker", confidence: 0.9 },
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?inventory\b/i, intent: "create_inventory", confidence: 0.95 },
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?dashboard\b/i, intent: "create_dashboard", confidence: 0.9 },
-  { pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?(new\s+)?spreadsheet\b/i, intent: "create_spreadsheet", confidence: 0.85 },
-  
+  {
+    pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?crm\b/i,
+    intent: "create_crm",
+    confidence: 0.95,
+  },
+  {
+    pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?budget\b/i,
+    intent: "create_budget",
+    confidence: 0.95,
+  },
+  {
+    pattern:
+      /\b(create|make|build|set\s*up|start)\s+(a\s+)?(tracker|tracking)\b/i,
+    intent: "create_tracker",
+    confidence: 0.9,
+  },
+  {
+    pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?inventory\b/i,
+    intent: "create_inventory",
+    confidence: 0.95,
+  },
+  {
+    pattern: /\b(create|make|build|set\s*up|start)\s+(a\s+)?dashboard\b/i,
+    intent: "create_dashboard",
+    confidence: 0.9,
+  },
+  {
+    pattern:
+      /\b(create|make|build|set\s*up|start)\s+(a\s+)?(new\s+)?spreadsheet\b/i,
+    intent: "create_spreadsheet",
+    confidence: 0.85,
+  },
+
   // Data operations
-  { pattern: /\b(show|display|read|get|see|look|view|pull\s*up)\b.*\bdata\b/i, intent: "read_data", confidence: 0.85 },
-  { pattern: /\b(add|insert|write|put|enter|update|change)\b.*\b(data|row|cell|value)/i, intent: "write_data", confidence: 0.85 },
-  { pattern: /\b(analyze|check|review|audit|quality)\b/i, intent: "analyze_data", confidence: 0.8 },
-  { pattern: /\b(format|style|color|bold|highlight|make\s*it\s*look)\b/i, intent: "format_data", confidence: 0.8 },
-  
+  {
+    pattern: /\b(show|display|read|get|see|look|view|pull\s*up)\b.*\bdata\b/i,
+    intent: "read_data",
+    confidence: 0.85,
+  },
+  {
+    pattern:
+      /\b(add|insert|write|put|enter|update|change)\b.*\b(data|row|cell|value)/i,
+    intent: "write_data",
+    confidence: 0.85,
+  },
+  {
+    pattern: /\b(analyze|check|review|audit|quality)\b/i,
+    intent: "analyze_data",
+    confidence: 0.8,
+  },
+  {
+    pattern: /\b(format|style|color|bold|highlight|make\s*it\s*look)\b/i,
+    intent: "format_data",
+    confidence: 0.8,
+  },
+
   // Charts and formulas
-  { pattern: /\b(chart|graph|visuali[sz]e|plot)\b/i, intent: "create_chart", confidence: 0.9 },
-  { pattern: /\b(formula|calculate|sum|average|count|total)\b/i, intent: "add_formula", confidence: 0.85 },
-  { pattern: /\b(validate|validation|dropdown|restrict)\b/i, intent: "validate_data", confidence: 0.85 },
-  
+  {
+    pattern: /\b(chart|graph|visuali[sz]e|plot)\b/i,
+    intent: "create_chart",
+    confidence: 0.9,
+  },
+  {
+    pattern: /\b(formula|calculate|sum|average|count|total)\b/i,
+    intent: "add_formula",
+    confidence: 0.85,
+  },
+  {
+    pattern: /\b(validate|validation|dropdown|restrict)\b/i,
+    intent: "validate_data",
+    confidence: 0.85,
+  },
+
   // Sharing and undo
-  { pattern: /\b(share|permission|access|collaborat)/i, intent: "share_spreadsheet", confidence: 0.9 },
-  { pattern: /\b(undo|revert|rollback|restore|go\s*back)\b/i, intent: "undo_operation", confidence: 0.9 },
+  {
+    pattern: /\b(share|permission|access|collaborat)/i,
+    intent: "share_spreadsheet",
+    confidence: 0.9,
+  },
+  {
+    pattern: /\b(undo|revert|rollback|restore|go\s*back)\b/i,
+    intent: "undo_operation",
+    confidence: 0.9,
+  },
 ];
 
 /**
  * Detect intent from user request
  */
-export function detectIntent(request: string): { intent: IntentCategory; confidence: number } {
+export function detectIntent(request: string): {
+  intent: IntentCategory;
+  confidence: number;
+} {
   const lowerRequest = request.toLowerCase();
 
   for (const { pattern, intent, confidence } of INTENT_PATTERNS) {
@@ -270,9 +336,24 @@ export function getSmartContext(query: ContextQuery): ContextResponse {
     case "create_budget":
       response.knowledge.template = knowledgeLoader.loadTemplate("finance");
       response.knowledge.formulas = [
-        { name: "SUM", syntax: "=SUM(range)", example: "=SUM(B2:B100)", description: "Total expenses" },
-        { name: "SUMIF", syntax: "=SUMIF(range, criteria, sum_range)", example: '=SUMIF(A:A,"Food",B:B)', description: "Sum by category" },
-        { name: "Budget remaining", syntax: "=budget-actual", example: "=C2-D2", description: "Track remaining budget" },
+        {
+          name: "SUM",
+          syntax: "=SUM(range)",
+          example: "=SUM(B2:B100)",
+          description: "Total expenses",
+        },
+        {
+          name: "SUMIF",
+          syntax: "=SUMIF(range, criteria, sum_range)",
+          example: '=SUMIF(A:A,"Food",B:B)',
+          description: "Sum by category",
+        },
+        {
+          name: "Budget remaining",
+          syntax: "=budget-actual",
+          example: "=C2-D2",
+          description: "Track remaining budget",
+        },
       ];
       response.suggestedTools = [
         "sheets_spreadsheet",
@@ -300,7 +381,11 @@ export function getSmartContext(query: ContextQuery): ContextResponse {
         {
           request: "Show me what's in the spreadsheet",
           toolCalls: [
-            { tool: "sheets_values", action: "read", params: { range: "Sheet1!A1:Z100" } },
+            {
+              tool: "sheets_values",
+              action: "read",
+              params: { range: "Sheet1!A1:Z100" },
+            },
           ],
         },
       ];
@@ -330,7 +415,11 @@ export function getSmartContext(query: ContextQuery): ContextResponse {
         {
           request: "Make the headers bold",
           toolCalls: [
-            { tool: "sheets_format", action: "set_font", params: { range: "1:1", bold: true } },
+            {
+              tool: "sheets_format",
+              action: "set_font",
+              params: { range: "1:1", bold: true },
+            },
           ],
         },
       ];
@@ -346,11 +435,36 @@ export function getSmartContext(query: ContextQuery): ContextResponse {
 
     case "add_formula":
       response.knowledge.formulas = [
-        { name: "SUM", syntax: "=SUM(range)", example: "=SUM(A1:A100)", description: "Add values" },
-        { name: "AVERAGE", syntax: "=AVERAGE(range)", example: "=AVERAGE(B2:B100)", description: "Calculate mean" },
-        { name: "VLOOKUP", syntax: "=VLOOKUP(key, range, col, false)", example: '=VLOOKUP(A2,Data!A:C,2,FALSE)', description: "Look up value" },
-        { name: "IF", syntax: "=IF(condition, true_value, false_value)", example: '=IF(A1>100,"High","Low")', description: "Conditional logic" },
-        { name: "COUNTIF", syntax: "=COUNTIF(range, criteria)", example: '=COUNTIF(A:A,"Yes")', description: "Count matches" },
+        {
+          name: "SUM",
+          syntax: "=SUM(range)",
+          example: "=SUM(A1:A100)",
+          description: "Add values",
+        },
+        {
+          name: "AVERAGE",
+          syntax: "=AVERAGE(range)",
+          example: "=AVERAGE(B2:B100)",
+          description: "Calculate mean",
+        },
+        {
+          name: "VLOOKUP",
+          syntax: "=VLOOKUP(key, range, col, false)",
+          example: "=VLOOKUP(A2,Data!A:C,2,FALSE)",
+          description: "Look up value",
+        },
+        {
+          name: "IF",
+          syntax: "=IF(condition, true_value, false_value)",
+          example: '=IF(A1>100,"High","Low")',
+          description: "Conditional logic",
+        },
+        {
+          name: "COUNTIF",
+          syntax: "=COUNTIF(range, criteria)",
+          example: '=COUNTIF(A:A,"Yes")',
+          description: "Count matches",
+        },
       ];
       response.suggestedTools = ["sheets_values", "sheets_analyze"];
       response.knowledge.tips = [
@@ -360,7 +474,11 @@ export function getSmartContext(query: ContextQuery): ContextResponse {
       break;
 
     case "undo_operation":
-      response.suggestedTools = ["sheets_session", "sheets_history", "sheets_versions"];
+      response.suggestedTools = [
+        "sheets_session",
+        "sheets_history",
+        "sheets_versions",
+      ];
       response.knowledge.workflow = [
         "1. Use sheets_session action='find_by_reference' to find the operation",
         "2. If operation has snapshotId, use sheets_versions action='restore'",

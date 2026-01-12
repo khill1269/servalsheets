@@ -139,14 +139,17 @@ export class HeapMonitor {
       // Only alert once every 5 minutes to avoid spam
       const now = Date.now();
       if (now - this.lastCriticalTime > 5 * 60 * 1000) {
-        logger.error("CRITICAL: High heap usage detected - potential memory leak", {
-          utilizationPercent: stats.utilizationPercent,
-          threshold: `${(this.criticalThreshold * 100).toFixed(0)}%`,
-          heapUsedMB: stats.heapUsedMB,
-          heapLimitMB: stats.heapLimitMB,
-          consecutiveOccurrences: this.consecutiveCritical,
-          recommendation: this.getRecommendation(utilization),
-        });
+        logger.error(
+          "CRITICAL: High heap usage detected - potential memory leak",
+          {
+            utilizationPercent: stats.utilizationPercent,
+            threshold: `${(this.criticalThreshold * 100).toFixed(0)}%`,
+            heapUsedMB: stats.heapUsedMB,
+            heapLimitMB: stats.heapLimitMB,
+            consecutiveOccurrences: this.consecutiveCritical,
+            recommendation: this.getRecommendation(utilization),
+          },
+        );
 
         this.lastCriticalTime = now;
 

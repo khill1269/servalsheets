@@ -183,11 +183,16 @@ export function getMcpConfiguration(): McpServerConfiguration {
  * Get OAuth Authorization Server Metadata
  * Points to Google's OAuth server or custom issuer
  */
-export function getOAuthAuthorizationServerMetadata(issuer?: string): OAuthAuthorizationServerMetadata {
+export function getOAuthAuthorizationServerMetadata(
+  issuer?: string,
+): OAuthAuthorizationServerMetadata {
   const serverIssuer = issuer || "https://accounts.google.com";
 
   // Use Google endpoints if no issuer provided or if issuer is Google
-  const isGoogleIssuer = !issuer || issuer.includes("google.com") || issuer.includes("accounts.google.com");
+  const isGoogleIssuer =
+    !issuer ||
+    issuer.includes("google.com") ||
+    issuer.includes("accounts.google.com");
 
   if (isGoogleIssuer) {
     return {
@@ -320,10 +325,12 @@ export function registerWellKnownHandlers(app: {
 export const buildMcpConfiguration = getMcpConfiguration;
 
 /** @deprecated Use getOAuthAuthorizationServerMetadata instead */
-export const buildOAuthAuthorizationServerMetadata = getOAuthAuthorizationServerMetadata;
+export const buildOAuthAuthorizationServerMetadata =
+  getOAuthAuthorizationServerMetadata;
 
 /** @deprecated Use getOAuthProtectedResourceMetadata instead */
-export const buildOAuthProtectedResourceMetadata = getOAuthProtectedResourceMetadata;
+export const buildOAuthProtectedResourceMetadata =
+  getOAuthProtectedResourceMetadata;
 
 /** @deprecated Use mcpConfigurationHandler instead */
 export const handleMcpConfiguration = mcpConfigurationHandler;

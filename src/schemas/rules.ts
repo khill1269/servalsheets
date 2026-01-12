@@ -19,7 +19,7 @@ import {
   type ToolAnnotations,
 } from "./shared.js";
 
-const BaseSchema = z.object({
+const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
 });
 
@@ -58,137 +58,93 @@ const ConditionalFormatRuleSchema = z.discriminatedUnion("type", [
   GradientRuleSchema,
 ]);
 
-// INPUT SCHEMA: Direct discriminated union (no wrapper)
-// This exposes all fields at top level for proper MCP client UX
-export const SheetsRulesInputSchema = z.discriminatedUnion("action", [
-  // ADD_CONDITIONAL_FORMAT
-  BaseSchema.extend({
+// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
+// Workaround: Use a single object with all fields optional, validate with refine()
+export const SheetsRulesInputSchema = z
+  .object({
+    // Required action discriminator
     action: z
-      .literal("add_conditional_format")
-      .describe("Add a conditional formatting rule to cells"),
-    sheetId: SheetIdSchema.describe(
-      "Numeric sheet ID where rule will be applied",
+      .enum([
+        "add_conditional_format",
+        "update_conditional_format",
+        "delete_conditional_format",
+        "list_conditional_formats",
+        "add_data_validation",
+        "clear_data_validation",
+        "list_data_validations",
+        "add_preset_rule",
+      ])
+      .describe("The operation to perform on rules and validations"),
+
+    // Common fields
+    spreadsheetId: SpreadsheetIdSchema.optional().describe(
+      "Spreadsheet ID from URL (required for all actions)",
     ),
-    range: RangeInputSchema.describe(
-      "Range to apply the conditional format (A1 notation or semantic)",
+
+    // Fields for conditional format actions
+    sheetId: SheetIdSchema.optional().describe(
+      "Numeric sheet ID where rule will be applied (required for: add_conditional_format, update_conditional_format, delete_conditional_format, list_conditional_formats, list_data_validations, add_preset_rule)",
     ),
-    rule: ConditionalFormatRuleSchema.describe(
-      "Conditional format rule (boolean condition or gradient)",
+    range: RangeInputSchema.optional().describe(
+      "Range to apply the conditional format/validation (A1 notation or semantic) (required for: add_conditional_format, add_data_validation, clear_data_validation, add_preset_rule)",
+    ),
+    rule: ConditionalFormatRuleSchema.optional().describe(
+      "Conditional format rule (boolean condition or gradient) (required for: add_conditional_format; optional for: update_conditional_format)",
     ),
     index: z
       .number()
       .int()
       .min(0)
       .optional()
-      .describe("Position to insert rule (0 = first, omit = append to end)"),
-  }),
+      .describe(
+        "Position to insert rule (0 = first, omit = append to end) (add_conditional_format only)",
+      ),
 
-  // UPDATE_CONDITIONAL_FORMAT
-  BaseSchema.extend({
-    action: z
-      .literal("update_conditional_format")
-      .describe("Update an existing conditional formatting rule"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID containing the rule"),
+    // Fields for update/delete conditional format
     ruleIndex: z
       .number()
       .int()
       .min(0)
-      .describe("Zero-based index of the rule to update"),
-    rule: ConditionalFormatRuleSchema.optional().describe(
-      "New rule definition (omit to keep existing rule)",
-    ),
+      .optional()
+      .describe(
+        "Zero-based index of the rule to update/delete (required for: update_conditional_format, delete_conditional_format)",
+      ),
     newIndex: z
       .number()
       .int()
       .min(0)
       .optional()
-      .describe("New position for the rule (omit to keep current position)"),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
+      .describe(
+        "New position for the rule (omit to keep current position) (update_conditional_format only)",
+      ),
 
-  // DELETE_CONDITIONAL_FORMAT
-  BaseSchema.extend({
-    action: z
-      .literal("delete_conditional_format")
-      .describe("Delete a conditional formatting rule"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID containing the rule"),
-    ruleIndex: z
-      .number()
-      .int()
-      .min(0)
-      .describe("Zero-based index of the rule to delete"),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
-
-  // LIST_CONDITIONAL_FORMATS
-  BaseSchema.extend({
-    action: z
-      .literal("list_conditional_formats")
-      .describe("List all conditional formatting rules in a sheet"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID to query"),
-  }),
-
-  // ADD_DATA_VALIDATION
-  BaseSchema.extend({
-    action: z
-      .literal("add_data_validation")
-      .describe("Add data validation rules to a range"),
-    range: RangeInputSchema.describe(
-      "Range to apply validation (A1 notation or semantic)",
-    ),
-    condition: ConditionSchema.describe(
-      "Validation condition (e.g., ONE_OF_LIST, NUMBER_BETWEEN, DATE_AFTER, etc.)",
+    // Fields for data validation
+    condition: ConditionSchema.optional().describe(
+      "Validation condition (e.g., ONE_OF_LIST, NUMBER_BETWEEN, DATE_AFTER, etc.) (required for: add_data_validation)",
     ),
     inputMessage: z
       .string()
       .optional()
-      .describe("Help text shown when cell is selected"),
+      .describe(
+        "Help text shown when cell is selected (add_data_validation only)",
+      ),
     strict: z
       .boolean()
       .optional()
       .default(true)
       .describe(
-        "If true, reject invalid input; if false, show warning (default: true)",
+        "If true, reject invalid input; if false, show warning (default: true) (add_data_validation only)",
       ),
     showDropdown: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Show dropdown for list validations (default: true)"),
-  }),
+      .describe(
+        "Show dropdown for list validations (default: true) (add_data_validation only)",
+      ),
 
-  // CLEAR_DATA_VALIDATION
-  BaseSchema.extend({
-    action: z
-      .literal("clear_data_validation")
-      .describe("Remove data validation rules from a range"),
-    range: RangeInputSchema.describe("Range to clear validation from"),
-    safety: SafetyOptionsSchema.optional().describe(
-      "Safety options (dryRun, createSnapshot, etc.)",
-    ),
-  }),
-
-  // LIST_DATA_VALIDATIONS
-  BaseSchema.extend({
-    action: z
-      .literal("list_data_validations")
-      .describe("List all data validation rules in a sheet"),
-    sheetId: SheetIdSchema.describe("Numeric sheet ID to query"),
-  }),
-
-  // ADD_PRESET_RULE
-  BaseSchema.extend({
-    action: z
-      .literal("add_preset_rule")
-      .describe("Add a predefined conditional formatting rule"),
-    sheetId: SheetIdSchema.describe(
-      "Numeric sheet ID where rule will be applied",
-    ),
-    range: RangeInputSchema.describe("Range to apply the preset rule"),
+    // Fields for preset rules
     preset: z
       .enum([
         "highlight_duplicates",
@@ -202,11 +158,62 @@ export const SheetsRulesInputSchema = z.discriminatedUnion("action", [
         "above_average",
         "below_average",
       ])
+      .optional()
       .describe(
-        "Preset rule type (highlight_duplicates, color scales, data bars, percentile-based, etc.)",
+        "Preset rule type (highlight_duplicates, color scales, data bars, percentile-based, etc.) (required for: add_preset_rule)",
       ),
-  }),
-]);
+
+    // Safety options
+    safety: SafetyOptionsSchema.optional().describe(
+      "Safety options (dryRun, createSnapshot, etc.) (optional for: update_conditional_format, delete_conditional_format, clear_data_validation)",
+    ),
+  })
+  .refine(
+    (data) => {
+      // Validate required fields based on action
+      switch (data.action) {
+        case "add_conditional_format":
+          return (
+            !!data.spreadsheetId &&
+            data.sheetId !== undefined &&
+            !!data.range &&
+            !!data.rule
+          );
+        case "update_conditional_format":
+          return (
+            !!data.spreadsheetId &&
+            data.sheetId !== undefined &&
+            data.ruleIndex !== undefined
+          );
+        case "delete_conditional_format":
+          return (
+            !!data.spreadsheetId &&
+            data.sheetId !== undefined &&
+            data.ruleIndex !== undefined
+          );
+        case "list_conditional_formats":
+          return !!data.spreadsheetId && data.sheetId !== undefined;
+        case "add_data_validation":
+          return !!data.spreadsheetId && !!data.range && !!data.condition;
+        case "clear_data_validation":
+          return !!data.spreadsheetId && !!data.range;
+        case "list_data_validations":
+          return !!data.spreadsheetId && data.sheetId !== undefined;
+        case "add_preset_rule":
+          return (
+            !!data.spreadsheetId &&
+            data.sheetId !== undefined &&
+            !!data.range &&
+            !!data.preset
+          );
+        default:
+          return false;
+      }
+    },
+    {
+      message: "Missing required fields for the specified action",
+    },
+  );
 
 const RulesResponseSchema = z.discriminatedUnion("success", [
   z.object({
@@ -255,3 +262,53 @@ export const SHEETS_RULES_ANNOTATIONS: ToolAnnotations = {
 export type SheetsRulesInput = z.infer<typeof SheetsRulesInputSchema>;
 export type SheetsRulesOutput = z.infer<typeof SheetsRulesOutputSchema>;
 export type RulesResponse = z.infer<typeof RulesResponseSchema>;
+
+// Type narrowing helpers for handler methods
+// These provide type safety similar to discriminated union Extract<>
+export type RulesAddConditionalFormatInput = SheetsRulesInput & {
+  action: "add_conditional_format";
+  spreadsheetId: string;
+  sheetId: number;
+  range: NonNullable<SheetsRulesInput["range"]>;
+  rule: NonNullable<SheetsRulesInput["rule"]>;
+};
+export type RulesUpdateConditionalFormatInput = SheetsRulesInput & {
+  action: "update_conditional_format";
+  spreadsheetId: string;
+  sheetId: number;
+  ruleIndex: number;
+};
+export type RulesDeleteConditionalFormatInput = SheetsRulesInput & {
+  action: "delete_conditional_format";
+  spreadsheetId: string;
+  sheetId: number;
+  ruleIndex: number;
+};
+export type RulesListConditionalFormatsInput = SheetsRulesInput & {
+  action: "list_conditional_formats";
+  spreadsheetId: string;
+  sheetId: number;
+};
+export type RulesAddDataValidationInput = SheetsRulesInput & {
+  action: "add_data_validation";
+  spreadsheetId: string;
+  range: NonNullable<SheetsRulesInput["range"]>;
+  condition: NonNullable<SheetsRulesInput["condition"]>;
+};
+export type RulesClearDataValidationInput = SheetsRulesInput & {
+  action: "clear_data_validation";
+  spreadsheetId: string;
+  range: NonNullable<SheetsRulesInput["range"]>;
+};
+export type RulesListDataValidationsInput = SheetsRulesInput & {
+  action: "list_data_validations";
+  spreadsheetId: string;
+  sheetId: number;
+};
+export type RulesAddPresetRuleInput = SheetsRulesInput & {
+  action: "add_preset_rule";
+  spreadsheetId: string;
+  sheetId: number;
+  range: NonNullable<SheetsRulesInput["range"]>;
+  preset: NonNullable<SheetsRulesInput["preset"]>;
+};

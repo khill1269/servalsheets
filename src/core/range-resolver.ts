@@ -141,39 +141,67 @@ export class RangeResolver {
     if (rangeOnlyPattern.test(a1)) {
       // Input is just a range like "A1:Z200" without sheet name
       // Use first sheet as default
-      const response = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: "sheets.properties",
-      });
+      try {
+        const response = await this.sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          fields: "sheets.properties",
+        });
 
-      const firstSheet = response.data.sheets?.[0];
-      if (!firstSheet?.properties) {
-        throw new RangeResolutionError(
-          "No sheets found in spreadsheet",
-          "SHEET_NOT_FOUND",
-        );
+        const firstSheet = response.data.sheets?.[0];
+        if (!firstSheet?.properties) {
+          throw new RangeResolutionError(
+            "No sheets found in spreadsheet",
+            "SHEET_NOT_FOUND",
+          );
+        }
+
+        sheetName = firstSheet.properties.title ?? "Sheet1";
+        rangeRef = a1;
+
+        // Get sheet info to validate
+        const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
+
+        // Build full A1 notation with sheet name
+        const fullA1 = `'${this.escapeSheetName(sheetInfo.title)}'!${rangeRef}`;
+
+        return {
+          sheetId: sheetInfo.sheetId,
+          sheetName: sheetInfo.title,
+          a1Notation: fullA1,
+          gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
+          resolution: {
+            method: "a1_direct",
+            confidence: 1.0,
+            path: `Range without sheet qualifier resolved to: ${fullA1}`,
+          },
+        };
+      } catch (error: any) {
+        // Catch authentication errors and provide clear guidance
+        if (
+          error?.code === 401 ||
+          error?.code === 403 ||
+          error?.message?.includes("unauthenticated") ||
+          error?.message?.includes("invalid_grant") ||
+          error?.message?.includes("credentials")
+        ) {
+          throw new RangeResolutionError(
+            "Authentication required to resolve range. Call sheets_auth with action 'status' to check authentication, or action 'login' to authenticate.",
+            "AUTH_REQUIRED",
+            {
+              range: a1,
+              spreadsheetId,
+              hint: "Authentication is required before resolving ranges",
+              steps: [
+                '1. Check auth: sheets_auth action="status"',
+                '2. If not authenticated: sheets_auth action="login"',
+                "3. Follow OAuth flow",
+                "4. Retry this operation",
+              ],
+            },
+          );
+        }
+        throw error; // Re-throw other errors
       }
-
-      sheetName = firstSheet.properties.title ?? "Sheet1";
-      rangeRef = a1;
-
-      // Get sheet info to validate
-      const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
-
-      // Build full A1 notation with sheet name
-      const fullA1 = `'${this.escapeSheetName(sheetInfo.title)}'!${rangeRef}`;
-
-      return {
-        sheetId: sheetInfo.sheetId,
-        sheetName: sheetInfo.title,
-        a1Notation: fullA1,
-        gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
-        resolution: {
-          method: "a1_direct",
-          confidence: 1.0,
-          path: `Range without sheet qualifier resolved to: ${fullA1}`,
-        },
-      };
     }
 
     // Parse sheet name and range - handle escaped quotes in sheet names
@@ -193,20 +221,48 @@ export class RangeResolver {
     // Unescape sheet name (convert '' back to ')
     sheetName = sheetName.replace(/''/g, "'");
 
-    // Get sheet info
-    const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
+    // Get sheet info (with auth error handling)
+    try {
+      const sheetInfo = await this.getSheetInfo(spreadsheetId, sheetName);
 
-    return {
-      sheetId: sheetInfo.sheetId,
-      sheetName: sheetInfo.title,
-      a1Notation: a1,
-      gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
-      resolution: {
-        method: "a1_direct",
-        confidence: 1.0,
-        path: `Direct A1 notation: ${a1}`,
-      },
-    };
+      return {
+        sheetId: sheetInfo.sheetId,
+        sheetName: sheetInfo.title,
+        a1Notation: a1,
+        gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
+        resolution: {
+          method: "a1_direct",
+          confidence: 1.0,
+          path: `Direct A1 notation: ${a1}`,
+        },
+      };
+    } catch (error: any) {
+      // Catch authentication errors and provide clear guidance
+      if (
+        error?.code === 401 ||
+        error?.code === 403 ||
+        error?.message?.includes("unauthenticated") ||
+        error?.message?.includes("invalid_grant") ||
+        error?.message?.includes("credentials")
+      ) {
+        throw new RangeResolutionError(
+          "Authentication required to resolve range. Call sheets_auth with action 'status' to check authentication, or action 'login' to authenticate.",
+          "AUTH_REQUIRED",
+          {
+            range: a1,
+            spreadsheetId,
+            hint: "Authentication is required before resolving ranges",
+            steps: [
+              '1. Check auth: sheets_auth action="status"',
+              '2. If not authenticated: sheets_auth action="login"',
+              "3. Follow OAuth flow",
+              "4. Retry this operation",
+            ],
+          },
+        );
+      }
+      throw error; // Re-throw other errors
+    }
   }
 
   /**

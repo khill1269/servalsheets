@@ -83,10 +83,12 @@ export class RequestCoalescer {
   private coalesceWindowMs: number;
   private maxCoalesceSize: number;
 
-  constructor(options: {
-    coalesceWindowMs?: number;
-    maxCoalesceSize?: number;
-  } = {}) {
+  constructor(
+    options: {
+      coalesceWindowMs?: number;
+      maxCoalesceSize?: number;
+    } = {},
+  ) {
     this.coalesceWindowMs = options.coalesceWindowMs ?? COALESCE_WINDOW_MS;
     this.maxCoalesceSize = options.maxCoalesceSize ?? MAX_COALESCE_SIZE;
   }
@@ -198,7 +200,9 @@ export class RequestCoalescer {
           this.stats.executed++;
           this.stats.pending--;
         } catch (error) {
-          request.reject(error instanceof Error ? error : new Error(String(error)));
+          request.reject(
+            error instanceof Error ? error : new Error(String(error)),
+          );
           this.stats.pending--;
         }
       }),
@@ -263,7 +267,10 @@ export class PrefetchPredictor {
     timestamp: number;
   }> = [];
   private maxHistory = 100;
-  private prefetchCache = new Map<string, { data: unknown; timestamp: number }>();
+  private prefetchCache = new Map<
+    string,
+    { data: unknown; timestamp: number }
+  >();
   private prefetchTtl = 30000; // 30 seconds
 
   /**
@@ -289,7 +296,10 @@ export class PrefetchPredictor {
   /**
    * Predict next ranges based on access patterns
    */
-  private predictNextRanges(spreadsheetId: string, currentRange: string): string[] {
+  private predictNextRanges(
+    spreadsheetId: string,
+    currentRange: string,
+  ): string[] {
     const predictions: string[] = [];
 
     // Pattern 1: Sequential row access (A1:E10 -> A11:E20)
@@ -299,7 +309,10 @@ export class PrefetchPredictor {
     }
 
     // Pattern 2: Common follow-up ranges from history
-    const historicalNext = this.findHistoricalPatterns(spreadsheetId, currentRange);
+    const historicalNext = this.findHistoricalPatterns(
+      spreadsheetId,
+      currentRange,
+    );
     predictions.push(...historicalNext);
 
     return predictions.slice(0, PREFETCH_LOOKAHEAD);
@@ -599,9 +612,7 @@ export class ConnectionPool {
     while (this.queue.length > 0 && this.activeRequests < this.maxConcurrent) {
       const next = this.queue.shift();
       if (next) {
-        this.runOperation(next.operation)
-          .then(next.resolve)
-          .catch(next.reject);
+        this.runOperation(next.operation).then(next.resolve).catch(next.reject);
       }
     }
   }

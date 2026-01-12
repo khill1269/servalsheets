@@ -73,34 +73,38 @@ export class CommentsHandler extends BaseHandler<
       let response: CommentsResponse;
       switch (req.action) {
         case "add":
-          response = await this.handleAdd(req);
+          response = await this.handleAdd(req as CommentsAddInput);
           break;
         case "update":
-          response = await this.handleUpdate(req);
+          response = await this.handleUpdate(req as CommentsUpdateInput);
           break;
         case "delete":
-          response = await this.handleDelete(req);
+          response = await this.handleDelete(req as CommentsDeleteInput);
           break;
         case "list":
-          response = await this.handleList(req);
+          response = await this.handleList(req as CommentsListInput);
           break;
         case "get":
-          response = await this.handleGet(req);
+          response = await this.handleGet(req as CommentsGetInput);
           break;
         case "resolve":
-          response = await this.handleResolve(req);
+          response = await this.handleResolve(req as CommentsResolveInput);
           break;
         case "reopen":
-          response = await this.handleReopen(req);
+          response = await this.handleReopen(req as CommentsReopenInput);
           break;
         case "add_reply":
-          response = await this.handleAddReply(req);
+          response = await this.handleAddReply(req as CommentsAddReplyInput);
           break;
         case "update_reply":
-          response = await this.handleUpdateReply(req);
+          response = await this.handleUpdateReply(
+            req as CommentsUpdateReplyInput,
+          );
           break;
         case "delete_reply":
-          response = await this.handleDeleteReply(req);
+          response = await this.handleDeleteReply(
+            req as CommentsDeleteReplyInput,
+          );
           break;
         default:
           response = this.error({
@@ -123,9 +127,7 @@ export class CommentsHandler extends BaseHandler<
   // Actions
   // ============================================================
 
-  private async handleAdd(
-    input: CommentsAddInput,
-  ): Promise<CommentsResponse> {
+  private async handleAdd(input: CommentsAddInput): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.create({
       fileId: input.spreadsheetId,
       requestBody: {
@@ -188,9 +190,7 @@ export class CommentsHandler extends BaseHandler<
     return this.success("list", { comments });
   }
 
-  private async handleGet(
-    input: CommentsGetInput,
-  ): Promise<CommentsResponse> {
+  private async handleGet(input: CommentsGetInput): Promise<CommentsResponse> {
     const response = await this.driveApi!.comments.get({
       fileId: input.spreadsheetId,
       commentId: input.commentId,

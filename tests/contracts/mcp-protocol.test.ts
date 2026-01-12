@@ -14,9 +14,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerServalSheetsTools, registerServalSheetsPrompts } from '../../src/mcp/registration.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
-import { patchMcpServerRequestHandler } from '../../src/mcp/sdk-compat.js';
 
-patchMcpServerRequestHandler();
+// Monkey-patches removed: All schemas now use flattened z.object() pattern
+// which works natively with MCP SDK - no patches required!
 
 /**
  * The MCP SDK stores registrations on private fields (e.g. `_registeredTools`).

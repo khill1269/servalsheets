@@ -68,20 +68,29 @@ const OperationPlanSchema = z.object({
  * The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
  * Workaround: Use a single object with all fields optional, validate with refine()
  */
-export const SheetsConfirmInputSchema = z.object({
-  action: z.enum(["request", "get_stats"]).describe("The confirmation operation to perform"),
-  plan: OperationPlanSchema.optional().describe("The plan to confirm with the user (required for: request)"),
-}).refine((data) => {
-  switch (data.action) {
-    case "request":
-      return !!data.plan;
-    case "get_stats":
+export const SheetsConfirmInputSchema = z
+  .object({
+    action: z
+      .enum(["request", "get_stats"])
+      .describe("The confirmation operation to perform"),
+    plan: OperationPlanSchema.optional().describe(
+      "The plan to confirm with the user (required for: request)",
+    ),
+  })
+  .refine(
+    (data) => {
+      switch (data.action) {
+        case "request":
+          return !!data.plan;
+        case "get_stats":
+          return true;
+      }
       return true;
-  }
-  return true;
-}, {
-  message: "Plan is required for request action",
-});
+    },
+    {
+      message: "Plan is required for request action",
+    },
+  );
 
 /**
  * Confirmation result schema
@@ -153,5 +162,8 @@ export type OperationPlan = z.infer<typeof OperationPlanSchema>;
 export type RiskLevel = z.infer<typeof RiskLevelSchema>;
 
 // Type narrowing helpers for handler methods
-export type ConfirmRequestInput = SheetsConfirmInput & { action: "request"; plan: OperationPlan };
+export type ConfirmRequestInput = SheetsConfirmInput & {
+  action: "request";
+  plan: OperationPlan;
+};
 export type ConfirmGetStatsInput = SheetsConfirmInput & { action: "get_stats" };
