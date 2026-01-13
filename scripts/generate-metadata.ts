@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as ts from 'typescript';
+import { execSync } from 'node:child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -377,6 +378,8 @@ if (completionsContent.includes('const TOOL_ACTIONS')) {
 }
 
 writeFileSync(completionsPath, completionsContent);
+// Format with Prettier to match codebase style
+execSync(`npx prettier --write ${completionsPath}`, { cwd: ROOT, stdio: 'ignore' });
 console.log('✅ Updated src/mcp/completions.ts TOOL_ACTIONS');
 
 // ============================================================================

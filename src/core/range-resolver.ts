@@ -7,15 +7,10 @@
  * Tighten-up #6: Strict resolution with confidence
  */
 
-import type { sheets_v4 } from "googleapis";
-import { logger } from "../utils/logger.js";
-import { LRUCache } from "lru-cache";
-import type {
-  RangeInput,
-  ResolvedRange,
-  GridRange,
-  ErrorDetail,
-} from "../schemas/shared.js";
+import type { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
+import type { RangeInput, ResolvedRange, GridRange, ErrorDetail } from '../schemas/shared.js';
 
 export class RangeResolutionError extends Error {
   public readonly code: string;
@@ -26,10 +21,10 @@ export class RangeResolutionError extends Error {
     message: string,
     code: string,
     details: Record<string, unknown> = {},
-    retryable: boolean = false,
+    retryable: boolean = false
   ) {
     super(message);
-    this.name = "RangeResolutionError";
+    this.name = 'RangeResolutionError';
     this.code = code;
     this.details = details;
     this.retryable = retryable;
@@ -37,7 +32,7 @@ export class RangeResolutionError extends Error {
 
   toErrorDetail(): ErrorDetail {
     return {
-      code: this.code as ErrorDetail["code"],
+      code: this.code as ErrorDetail['code'],
       message: this.message,
       details: Object.keys(this.details).length > 0 ? this.details : undefined,
       retryable: this.retryable,
@@ -76,8 +71,8 @@ export class RangeResolver {
       updateAgeOnGet: true,
       dispose: (value, key) => {
         // Log evicted entries in debug mode
-        if (process.env["LOG_LEVEL"] === "debug") {
-          logger.debug("Range cache entry evicted", { key });
+        if (process.env['LOG_LEVEL'] === 'debug') {
+          logger.debug('Range cache entry evicted', { key });
         }
       },
     });
@@ -94,43 +89,34 @@ export class RangeResolver {
   /**
    * Resolve a range input to A1 notation
    */
-  async resolve(
-    spreadsheetId: string,
-    input: RangeInput,
-  ): Promise<ResolvedRange> {
+  async resolve(spreadsheetId: string, input: RangeInput): Promise<ResolvedRange> {
     // Direct A1 notation
-    if ("a1" in input) {
+    if ('a1' in input) {
       return this.resolveA1(spreadsheetId, input.a1);
     }
 
     // Named range
-    if ("namedRange" in input) {
+    if ('namedRange' in input) {
       return this.resolveNamedRange(spreadsheetId, input.namedRange);
     }
 
     // Grid coordinates
-    if ("grid" in input) {
+    if ('grid' in input) {
       return this.resolveGrid(spreadsheetId, input.grid);
     }
 
     // Semantic query
-    if ("semantic" in input) {
+    if ('semantic' in input) {
       return this.resolveSemantic(spreadsheetId, input.semantic);
     }
 
-    throw new RangeResolutionError(
-      "Invalid range input format",
-      "INVALID_RANGE",
-    );
+    throw new RangeResolutionError('Invalid range input format', 'INVALID_RANGE');
   }
 
   /**
    * Resolve A1 notation directly
    */
-  private async resolveA1(
-    spreadsheetId: string,
-    a1: string,
-  ): Promise<ResolvedRange> {
+  private async resolveA1(spreadsheetId: string, a1: string): Promise<ResolvedRange> {
     // Check if input is JUST a range (e.g., "A1:Z200") without sheet qualifier
     // A1 notation pattern: optional column letters, optional row numbers, optional colon, repeat
     const rangeOnlyPattern = /^[A-Z]+\d*(?::[A-Z]+\d*)?$/i;
@@ -144,18 +130,15 @@ export class RangeResolver {
       try {
         const response = await this.sheetsApi.spreadsheets.get({
           spreadsheetId,
-          fields: "sheets.properties",
+          fields: 'sheets.properties',
         });
 
         const firstSheet = response.data.sheets?.[0];
         if (!firstSheet?.properties) {
-          throw new RangeResolutionError(
-            "No sheets found in spreadsheet",
-            "SHEET_NOT_FOUND",
-          );
+          throw new RangeResolutionError('No sheets found in spreadsheet', 'SHEET_NOT_FOUND');
         }
 
-        sheetName = firstSheet.properties.title ?? "Sheet1";
+        sheetName = firstSheet.properties.title ?? 'Sheet1';
         rangeRef = a1;
 
         // Get sheet info to validate
@@ -170,34 +153,35 @@ export class RangeResolver {
           a1Notation: fullA1,
           gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
           resolution: {
-            method: "a1_direct",
+            method: 'a1_direct',
             confidence: 1.0,
             path: `Range without sheet qualifier resolved to: ${fullA1}`,
           },
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Catch authentication errors and provide clear guidance
+        const err = error as { code?: number; message?: string };
         if (
-          error?.code === 401 ||
-          error?.code === 403 ||
-          error?.message?.includes("unauthenticated") ||
-          error?.message?.includes("invalid_grant") ||
-          error?.message?.includes("credentials")
+          err?.code === 401 ||
+          err?.code === 403 ||
+          err?.message?.includes('unauthenticated') ||
+          err?.message?.includes('invalid_grant') ||
+          err?.message?.includes('credentials')
         ) {
           throw new RangeResolutionError(
             "Authentication required to resolve range. Call sheets_auth with action 'status' to check authentication, or action 'login' to authenticate.",
-            "AUTH_REQUIRED",
+            'AUTH_REQUIRED',
             {
               range: a1,
               spreadsheetId,
-              hint: "Authentication is required before resolving ranges",
+              hint: 'Authentication is required before resolving ranges',
               steps: [
                 '1. Check auth: sheets_auth action="status"',
                 '2. If not authenticated: sheets_auth action="login"',
-                "3. Follow OAuth flow",
-                "4. Retry this operation",
+                '3. Follow OAuth flow',
+                '4. Retry this operation',
               ],
-            },
+            }
           );
         }
         throw error; // Re-throw other errors
@@ -211,12 +195,12 @@ export class RangeResolver {
     if (!match) {
       throw new RangeResolutionError(
         `Invalid A1 notation format: "${a1}". Expected format: "Sheet1!A1:Z200" or "A1:Z200"`,
-        "INVALID_RANGE",
+        'INVALID_RANGE'
       );
     }
 
-    sheetName = match[1] ?? match[2] ?? "Sheet1";
-    rangeRef = match[3] ?? "";
+    sheetName = match[1] ?? match[2] ?? 'Sheet1';
+    rangeRef = match[3] ?? '';
 
     // Unescape sheet name (convert '' back to ')
     sheetName = sheetName.replace(/''/g, "'");
@@ -231,34 +215,35 @@ export class RangeResolver {
         a1Notation: a1,
         gridRange: this.a1ToGridRange(sheetInfo.sheetId, rangeRef),
         resolution: {
-          method: "a1_direct",
+          method: 'a1_direct',
           confidence: 1.0,
           path: `Direct A1 notation: ${a1}`,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Catch authentication errors and provide clear guidance
+      const err = error as { code?: number; message?: string };
       if (
-        error?.code === 401 ||
-        error?.code === 403 ||
-        error?.message?.includes("unauthenticated") ||
-        error?.message?.includes("invalid_grant") ||
-        error?.message?.includes("credentials")
+        err?.code === 401 ||
+        err?.code === 403 ||
+        err?.message?.includes('unauthenticated') ||
+        err?.message?.includes('invalid_grant') ||
+        err?.message?.includes('credentials')
       ) {
         throw new RangeResolutionError(
           "Authentication required to resolve range. Call sheets_auth with action 'status' to check authentication, or action 'login' to authenticate.",
-          "AUTH_REQUIRED",
+          'AUTH_REQUIRED',
           {
             range: a1,
             spreadsheetId,
-            hint: "Authentication is required before resolving ranges",
+            hint: 'Authentication is required before resolving ranges',
             steps: [
               '1. Check auth: sheets_auth action="status"',
               '2. If not authenticated: sheets_auth action="login"',
-              "3. Follow OAuth flow",
-              "4. Retry this operation",
+              '3. Follow OAuth flow',
+              '4. Retry this operation',
             ],
-          },
+          }
         );
       }
       throw error; // Re-throw other errors
@@ -268,35 +253,28 @@ export class RangeResolver {
   /**
    * Resolve named range
    */
-  private async resolveNamedRange(
-    spreadsheetId: string,
-    name: string,
-  ): Promise<ResolvedRange> {
+  private async resolveNamedRange(spreadsheetId: string, name: string): Promise<ResolvedRange> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: "namedRanges,sheets.properties",
+      fields: 'namedRanges,sheets.properties',
     });
 
     const namedRange = response.data.namedRanges?.find(
-      (nr) => nr.name?.toLowerCase() === name.toLowerCase(),
+      (nr) => nr.name?.toLowerCase() === name.toLowerCase()
     );
 
     if (!namedRange?.range) {
       // Provide available named ranges
       const available = response.data.namedRanges?.map((nr) => nr.name) ?? [];
-      throw new RangeResolutionError(
-        `Named range "${name}" not found`,
-        "RANGE_NOT_FOUND",
-        { available },
-      );
+      throw new RangeResolutionError(`Named range "${name}" not found`, 'RANGE_NOT_FOUND', {
+        available,
+      });
     }
 
     const sheetId = namedRange.range.sheetId ?? 0;
-    const sheet = response.data.sheets?.find(
-      (s) => s.properties?.sheetId === sheetId,
-    );
+    const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === sheetId);
 
-    const sheetTitle = sheet?.properties?.title ?? "Sheet1";
+    const sheetTitle = sheet?.properties?.title ?? 'Sheet1';
 
     return {
       sheetId,
@@ -304,7 +282,7 @@ export class RangeResolver {
       a1Notation: this.gridRangeToA1(sheetTitle, namedRange.range as GridRange),
       gridRange: namedRange.range as GridRange,
       resolution: {
-        method: "named_range",
+        method: 'named_range',
         confidence: 1.0,
         path: `Named range: ${name}`,
       },
@@ -314,27 +292,19 @@ export class RangeResolver {
   /**
    * Resolve grid coordinates
    */
-  private async resolveGrid(
-    spreadsheetId: string,
-    grid: GridRange,
-  ): Promise<ResolvedRange> {
+  private async resolveGrid(spreadsheetId: string, grid: GridRange): Promise<ResolvedRange> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: "sheets.properties",
+      fields: 'sheets.properties',
     });
 
-    const sheet = response.data.sheets?.find(
-      (s) => s.properties?.sheetId === grid.sheetId,
-    );
+    const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === grid.sheetId);
 
     if (!sheet?.properties) {
-      throw new RangeResolutionError(
-        `Sheet with ID ${grid.sheetId} not found`,
-        "SHEET_NOT_FOUND",
-      );
+      throw new RangeResolutionError(`Sheet with ID ${grid.sheetId} not found`, 'SHEET_NOT_FOUND');
     }
 
-    const sheetTitle = sheet.properties.title ?? "Sheet1";
+    const sheetTitle = sheet.properties.title ?? 'Sheet1';
     const a1 = this.gridRangeToA1(sheetTitle, grid);
 
     return {
@@ -343,7 +313,7 @@ export class RangeResolver {
       a1Notation: a1,
       gridRange: grid,
       resolution: {
-        method: "a1_direct",
+        method: 'a1_direct',
         confidence: 1.0,
         path: `Grid coordinates: ${JSON.stringify(grid)}`,
       },
@@ -361,7 +331,7 @@ export class RangeResolver {
       includeHeader?: boolean;
       rowStart?: number | undefined;
       rowEnd?: number | undefined;
-    },
+    }
   ): Promise<ResolvedRange> {
     // Get headers
     const headers = await this.getHeaders(spreadsheetId, query.sheet);
@@ -384,10 +354,7 @@ export class RangeResolver {
       }
 
       // Contains match
-      if (
-        headerLower.includes(queryLower) ||
-        queryLower.includes(headerLower)
-      ) {
+      if (headerLower.includes(queryLower) || queryLower.includes(headerLower)) {
         const confidence =
           Math.min(queryLower.length, headerLower.length) /
           Math.max(queryLower.length, headerLower.length);
@@ -401,8 +368,8 @@ export class RangeResolver {
     if (matches.length === 0) {
       throw new RangeResolutionError(
         `No column matching "${query.column}" found in sheet "${query.sheet}"`,
-        "RANGE_NOT_FOUND",
-        { available: Array.from(headers.keys()) },
+        'RANGE_NOT_FOUND',
+        { available: Array.from(headers.keys()) }
       );
     }
 
@@ -411,29 +378,28 @@ export class RangeResolver {
     if (exactMatches.length > 1) {
       throw new RangeResolutionError(
         `Ambiguous: "${query.column}" matches multiple columns`,
-        "AMBIGUOUS_RANGE",
+        'AMBIGUOUS_RANGE',
         {
           matches: exactMatches.map((m) => m.header),
-          suggestedFix: `Specify one of: ${exactMatches.map((m) => `"${m.header}"`).join(", ")}`,
-        },
+          suggestedFix: `Specify one of: ${exactMatches.map((m) => `"${m.header}"`).join(', ')}`,
+        }
       );
     }
 
     // Use exact match if available, otherwise best fuzzy match
-    const bestMatch =
-      exactMatches[0] ?? matches.sort((a, b) => b.confidence - a.confidence)[0];
+    const bestMatch = exactMatches[0] ?? matches.sort((a, b) => b.confidence - a.confidence)[0];
 
     if (!bestMatch) {
       throw new RangeResolutionError(
         `No column matching "${query.column}" found`,
-        "RANGE_NOT_FOUND",
+        'RANGE_NOT_FOUND'
       );
     }
 
     // Build A1 notation with properly escaped sheet name
     const colLetter = this.columnIndexToLetter(bestMatch.index);
     const startRow = query.includeHeader ? 1 : 2;
-    const endRow = query.rowEnd ?? "";
+    const endRow = query.rowEnd ?? '';
     const escapedSheet = this.escapeSheetName(query.sheet);
     const a1 = `'${escapedSheet}'!${colLetter}${query.rowStart ?? startRow}:${colLetter}${endRow}`;
 
@@ -451,7 +417,7 @@ export class RangeResolver {
         endRowIndex: query.rowEnd,
       },
       resolution: {
-        method: "semantic_header",
+        method: 'semantic_header',
         confidence: bestMatch.confidence,
         path: `Matched "${query.column}" to header "${bestMatch.header}" (column ${colLetter})`,
         alternatives:
@@ -470,10 +436,7 @@ export class RangeResolver {
   /**
    * Get headers for a sheet (cached)
    */
-  private async getHeaders(
-    spreadsheetId: string,
-    sheetName: string,
-  ): Promise<Map<string, number>> {
+  private async getHeaders(spreadsheetId: string, sheetName: string): Promise<Map<string, number>> {
     const cacheKey = `${spreadsheetId}:${sheetName}`;
     const cached = this.headerCache.get(cacheKey);
 
@@ -486,14 +449,14 @@ export class RangeResolver {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
       range: `'${escapedSheet}'!1:1`,
-      valueRenderOption: "FORMATTED_VALUE",
+      valueRenderOption: 'FORMATTED_VALUE',
     });
 
     const headers = new Map<string, number>();
     const row = response.data.values?.[0] ?? [];
 
     for (let i = 0; i < row.length; i++) {
-      const value = String(row[i] ?? "").trim();
+      const value = String(row[i] ?? '').trim();
       if (value) {
         headers.set(value, i);
       }
@@ -512,25 +475,22 @@ export class RangeResolver {
    */
   private async getSheetInfo(
     spreadsheetId: string,
-    sheetName: string,
+    sheetName: string
   ): Promise<{ sheetId: number; title: string }> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: "sheets.properties",
+      fields: 'sheets.properties',
     });
 
     const sheet = response.data.sheets?.find(
-      (s) => s.properties?.title?.toLowerCase() === sheetName.toLowerCase(),
+      (s) => s.properties?.title?.toLowerCase() === sheetName.toLowerCase()
     );
 
     if (!sheet?.properties) {
-      const available =
-        response.data.sheets?.map((s) => s.properties?.title) ?? [];
-      throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
-        { available },
-      );
+      const available = response.data.sheets?.map((s) => s.properties?.title) ?? [];
+      throw new RangeResolutionError(`Sheet "${sheetName}" not found`, 'SHEET_NOT_FOUND', {
+        available,
+      });
     }
 
     return {
@@ -556,20 +516,14 @@ export class RangeResolver {
 
     return {
       sheetId,
-      startColumnIndex: startCol
-        ? this.letterToColumnIndex(startCol)
-        : undefined,
+      startColumnIndex: startCol ? this.letterToColumnIndex(startCol) : undefined,
       endColumnIndex: endCol
         ? this.letterToColumnIndex(endCol) + 1
         : startCol
           ? this.letterToColumnIndex(startCol) + 1
           : undefined,
       startRowIndex: startRow ? parseInt(startRow) - 1 : undefined,
-      endRowIndex: endRow
-        ? parseInt(endRow)
-        : startRow
-          ? parseInt(startRow)
-          : undefined,
+      endRowIndex: endRow ? parseInt(endRow) : startRow ? parseInt(startRow) : undefined,
     };
   }
 
@@ -587,7 +541,7 @@ export class RangeResolver {
     }
 
     if (range.endColumnIndex !== undefined || range.endRowIndex !== undefined) {
-      parts.push(":");
+      parts.push(':');
       if (range.endColumnIndex !== undefined) {
         parts.push(this.columnIndexToLetter(range.endColumnIndex - 1));
       }
@@ -596,7 +550,7 @@ export class RangeResolver {
       }
     }
 
-    const rangeStr = parts.join("");
+    const rangeStr = parts.join('');
     const escapedSheet = this.escapeSheetName(sheetName);
     return rangeStr ? `'${escapedSheet}'!${rangeStr}` : `'${escapedSheet}'`;
   }
@@ -617,7 +571,7 @@ export class RangeResolver {
    * Convert 0-based index to column letter
    */
   private columnIndexToLetter(index: number): string {
-    let letter = "";
+    let letter = '';
     let temp = index + 1;
     while (temp > 0) {
       const mod = (temp - 1) % 26;
