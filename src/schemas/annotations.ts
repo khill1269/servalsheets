@@ -5,120 +5,120 @@
  * Required for Claude Connectors Directory
  */
 
-import type { ToolAnnotations } from "./shared.js";
-import { TOOL_DESCRIPTIONS } from "./descriptions.js";
+import type { ToolAnnotations } from './shared.js';
+import { TOOL_DESCRIPTIONS } from './descriptions.js';
 
 /**
  * All tool annotations with MCP compliance
  */
 export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   sheets_auth: {
-    title: "Authentication",
+    title: 'Authentication',
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_spreadsheet: {
-    title: "Spreadsheet Operations",
+    title: 'Spreadsheet Operations',
     readOnlyHint: false,
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_sheet: {
-    title: "Sheet/Tab Operations",
+    title: 'Sheet/Tab Operations',
     readOnlyHint: false,
     destructiveHint: true, // Can delete sheets
     idempotentHint: false, // delete without allowMissing fails on repeat; add/duplicate create new sheets
     openWorldHint: true,
   },
   sheets_values: {
-    title: "Cell Values",
+    title: 'Cell Values',
     readOnlyHint: false,
     destructiveHint: true, // Can overwrite data
     idempotentHint: false, // Append is not idempotent
     openWorldHint: true,
   },
   sheets_cells: {
-    title: "Cell Operations",
+    title: 'Cell Operations',
     readOnlyHint: false,
     destructiveHint: true, // Can clear notes/validation
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_format: {
-    title: "Cell Formatting",
+    title: 'Cell Formatting',
     readOnlyHint: false,
     destructiveHint: false, // Formatting doesn't destroy data
     idempotentHint: true, // Same format = same result
     openWorldHint: true,
   },
   sheets_dimensions: {
-    title: "Rows & Columns",
+    title: 'Rows & Columns',
     readOnlyHint: false,
     destructiveHint: true, // Can delete rows/columns
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_rules: {
-    title: "Formatting & Validation Rules",
+    title: 'Formatting & Validation Rules',
     readOnlyHint: false,
     destructiveHint: true, // Can delete rules
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_charts: {
-    title: "Chart Management",
+    title: 'Chart Management',
     readOnlyHint: false,
     destructiveHint: true, // Can delete charts
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_pivot: {
-    title: "Pivot Tables",
+    title: 'Pivot Tables',
     readOnlyHint: false,
     destructiveHint: true, // Can delete pivots
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_filter_sort: {
-    title: "Filtering & Sorting",
+    title: 'Filtering & Sorting',
     readOnlyHint: false,
     destructiveHint: true, // Can clear filters
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_sharing: {
-    title: "Sharing & Permissions",
+    title: 'Sharing & Permissions',
     readOnlyHint: false,
     destructiveHint: true, // Can remove permissions
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_comments: {
-    title: "Comments & Replies",
+    title: 'Comments & Replies',
     readOnlyHint: false,
     destructiveHint: true, // Can delete comments
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_versions: {
-    title: "Version History",
+    title: 'Version History',
     readOnlyHint: false,
     destructiveHint: true, // Can restore (overwrites current)
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_analysis: {
-    title: "Data Analysis (DEPRECATED)",
+    title: 'Data Analysis (DEPRECATED)',
     readOnlyHint: true, // READ-ONLY tool
     destructiveHint: false,
     idempotentHint: true, // Same input = same output
     openWorldHint: true,
   },
   sheets_advanced: {
-    title: "Advanced Features",
+    title: 'Advanced Features',
     readOnlyHint: false,
     destructiveHint: true, // Can delete named/protected ranges
     idempotentHint: false,
@@ -126,35 +126,35 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   // Enterprise Tools
   sheets_transaction: {
-    title: "Transaction Support",
+    title: 'Transaction Support',
     readOnlyHint: false,
     destructiveHint: true, // Commit can modify data
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_validation: {
-    title: "Data Validation",
+    title: 'Data Validation',
     readOnlyHint: true, // Local validation only
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false, // Local processing
   },
   sheets_conflict: {
-    title: "Conflict Detection",
+    title: 'Conflict Detection',
     readOnlyHint: true, // Detection is read-only
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
   sheets_impact: {
-    title: "Impact Analysis",
+    title: 'Impact Analysis',
     readOnlyHint: true,
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: true,
   },
   sheets_history: {
-    title: "Operation History",
+    title: 'Operation History',
     readOnlyHint: true, // Read history only
     destructiveHint: false,
     idempotentHint: true,
@@ -162,35 +162,35 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   // MCP-Native Tools
   sheets_confirm: {
-    title: "Plan Confirmation",
+    title: 'Plan Confirmation',
     readOnlyHint: true, // Just asks user
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false, // MCP Elicitation
   },
   sheets_analyze: {
-    title: "Ultimate Data Analysis",
+    title: 'Ultimate Data Analysis',
     readOnlyHint: false, // Can create charts/pivots
     destructiveHint: false, // Creating charts/pivots is not destructive
     idempotentHint: false, // AI output varies
     openWorldHint: true, // MCP Sampling + Google API
   },
   sheets_fix: {
-    title: "Automated Issue Fixing",
+    title: 'Automated Issue Fixing',
     readOnlyHint: false,
     destructiveHint: true, // Applies fixes to spreadsheet
     idempotentHint: false,
     openWorldHint: true,
   },
   sheets_composite: {
-    title: "Composite Operations",
+    title: 'Composite Operations',
     readOnlyHint: false,
     destructiveHint: true, // Can overwrite/modify data
     idempotentHint: false, // Import/append operations are not idempotent
     openWorldHint: true,
   },
   sheets_session: {
-    title: "Session Context",
+    title: 'Session Context',
     readOnlyHint: false, // Can update preferences
     destructiveHint: false, // No data destruction
     idempotentHint: true, // Most operations are idempotent
@@ -263,7 +263,4 @@ export function getToolMetadata(): Record<string, unknown>[] {
  * Constants
  */
 export const TOOL_COUNT = Object.keys(TOOL_ANNOTATIONS).length;
-export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce(
-  (sum, count) => sum + count,
-  0,
-);
+export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
