@@ -1,18 +1,22 @@
 /**
  * ServalSheets
- * 
+ *
  * Production-grade Google Sheets MCP Server
  * 15 tools, 156 actions, safety rails, enterprise features
- * 
+ *
  * MCP Protocol: 2025-11-25
  * Google Sheets API: v4
  */
 
 // Server
-export { ServalSheetsServer, createServalSheetsServer, type ServalSheetsServerOptions } from './server.js';
+export {
+  ServalSheetsServer,
+  createServalSheetsServer,
+  type ServalSheetsServerOptions,
+} from './server.js';
 
 // HTTP/SSE Transport
-export { createHttpServer, type HttpServerOptions } from './http-server.js';
+export { createHttpServer, startHttpServer, startRemoteServer, type HttpServerOptions } from './http-server.js';
 
 // OAuth Provider
 export { OAuthProvider, type OAuthConfig } from './oauth-provider.js';

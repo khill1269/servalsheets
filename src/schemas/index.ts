@@ -20,25 +20,16 @@ export * from './descriptions.js';
 
 // Core tool schemas
 export * from './auth.js';
-export * from './spreadsheet.js';
-export * from './sheet.js';
-export * from './values.js';
-export * from './cells.js';
+export * from './core.js'; // Consolidated spreadsheet + sheet
+export * from './data.js'; // Consolidated values + cells (Wave 4)
 export * from './format.js';
 export * from './dimensions.js';
-export * from './rules.js';
-export * from './charts.js';
-export * from './pivot.js';
-export * from './filter-sort.js';
-export * from './sharing.js';
-export * from './comments.js';
-export * from './versions.js';
+export * from './visualize.js'; // Consolidated charts + pivot
+export * from './collaborate.js'; // Consolidated sharing + comments + versions
 export * from './analysis.js';
 export * from './advanced.js';
 export * from './transaction.js';
-export * from './validation.js';
-export * from './conflict.js';
-export * from './impact.js';
+export * from './quality.js';
 export * from './history.js';
 export * from './prompts.js';
 
@@ -48,6 +39,7 @@ export * from './analyze.js'; // Uses Sampling (SEP-1577)
 export * from './fix.js'; // Automated issue resolution
 export * from './composite.js'; // High-level composite operations
 export * from './session.js'; // Session context for NL excellence
+// export * from './formulas.js'; // MERGED into sheets_advanced (2026-01-14) with formula_ prefix
 
 // Performance optimizations
 export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
@@ -64,14 +56,14 @@ export const TOOL_REGISTRY = {
     annotations: 'SHEETS_AUTH_ANNOTATIONS',
     actions: ['status', 'login', 'callback', 'logout'],
   },
-  sheets_spreadsheet: {
-    name: 'sheets_spreadsheet',
-    title: 'Spreadsheet',
+  sheets_core: {
+    name: 'sheets_core',
+    title: 'Core Operations',
     description:
-      'Spreadsheet operations: create, get, copy, update properties, list spreadsheets, get comprehensive metadata, batch operations',
-    schema: 'SheetSpreadsheetInputSchema',
-    output: 'SheetsSpreadsheetOutputSchema',
-    annotations: 'SHEETS_SPREADSHEET_ANNOTATIONS',
+      'Core spreadsheet and sheet/tab operations: create, get, copy, update spreadsheets; add, delete, duplicate, update sheets/tabs',
+    schema: 'SheetsCoreInputSchema',
+    output: 'SheetsCoreOutputSchema',
+    annotations: 'SHEETS_CORE_ANNOTATIONS',
     actions: [
       'get',
       'create',
@@ -81,24 +73,23 @@ export const TOOL_REGISTRY = {
       'batch_get',
       'get_comprehensive',
       'list',
+      'add_sheet',
+      'delete_sheet',
+      'duplicate_sheet',
+      'update_sheet',
+      'copy_sheet_to',
+      'list_sheets',
+      'get_sheet',
     ],
   },
-  sheets_sheet: {
-    name: 'sheets_sheet',
-    title: 'Sheet Management',
-    description: 'Sheet/tab operations: add, delete, duplicate, update, list',
-    schema: 'SheetsSheetInputSchema',
-    output: 'SheetsSheetOutputSchema',
-    annotations: 'SHEETS_SHEET_ANNOTATIONS',
-    actions: ['add', 'delete', 'duplicate', 'update', 'copy_to', 'list', 'get'],
-  },
-  sheets_values: {
-    name: 'sheets_values',
-    title: 'Cell Values',
-    description: 'Cell values: read, write, append, clear, find, replace',
-    schema: 'SheetsValuesInputSchema',
-    output: 'SheetsValuesOutputSchema',
-    annotations: 'SHEETS_VALUES_ANNOTATIONS',
+  sheets_data: {
+    name: 'sheets_data',
+    title: 'Cell Data',
+    description:
+      'Cell data operations: read, write, append, clear, batch operations, find/replace, notes, validation, hyperlinks, merge/unmerge, cut/copy',
+    schema: 'SheetsDataInputSchema',
+    output: 'SheetsDataOutputSchema',
+    annotations: 'SHEETS_DATA_ANNOTATIONS',
     actions: [
       'read',
       'write',
@@ -109,16 +100,6 @@ export const TOOL_REGISTRY = {
       'batch_clear',
       'find',
       'replace',
-    ],
-  },
-  sheets_cells: {
-    name: 'sheets_cells',
-    title: 'Cell Operations',
-    description: 'Cell operations: notes, validation, hyperlinks, merge',
-    schema: 'SheetsCellsInputSchema',
-    output: 'SheetsCellsOutputSchema',
-    annotations: 'SHEETS_CELLS_ANNOTATIONS',
-    actions: [
       'add_note',
       'get_note',
       'clear_note',
@@ -183,132 +164,69 @@ export const TOOL_REGISTRY = {
       'append_columns',
     ],
   },
-  sheets_rules: {
-    name: 'sheets_rules',
-    title: 'Rules',
-    description: 'Rules: conditional formatting, data validation',
-    schema: 'SheetsRulesInputSchema',
-    output: 'SheetsRulesOutputSchema',
-    annotations: 'SHEETS_RULES_ANNOTATIONS',
+  sheets_visualize: {
+    name: 'sheets_visualize',
+    title: 'Visualizations',
+    description: 'Chart and pivot table operations: create, update, delete, suggest visualizations',
+    schema: 'SheetsVisualizeInputSchema',
+    output: 'SheetsVisualizeOutputSchema',
+    annotations: 'SHEETS_VISUALIZE_ANNOTATIONS',
     actions: [
-      'add_conditional_format',
-      'update_conditional_format',
-      'delete_conditional_format',
-      'list_conditional_formats',
-      'add_data_validation',
-      'clear_data_validation',
-      'list_data_validations',
-      'add_preset_rule',
+      'chart_create',
+      'suggest_chart',
+      'chart_update',
+      'chart_delete',
+      'chart_list',
+      'chart_get',
+      'chart_move',
+      'chart_resize',
+      'chart_update_data_range',
+      'chart_export',
+      'pivot_create',
+      'suggest_pivot',
+      'pivot_update',
+      'pivot_delete',
+      'pivot_list',
+      'pivot_get',
+      'pivot_refresh',
     ],
   },
-  sheets_charts: {
-    name: 'sheets_charts',
-    title: 'Charts',
-    description: 'Charts: create, update, delete, move, export',
-    schema: 'SheetsChartsInputSchema',
-    output: 'SheetsChartsOutputSchema',
-    annotations: 'SHEETS_CHARTS_ANNOTATIONS',
+  sheets_collaborate: {
+    name: 'sheets_collaborate',
+    title: 'Collaboration',
+    description: 'Collaboration operations: sharing, permissions, comments, version control',
+    schema: 'SheetsCollaborateInputSchema',
+    output: 'SheetsCollaborateOutputSchema',
+    annotations: 'SHEETS_COLLABORATE_ANNOTATIONS',
     actions: [
-      'create',
-      'update',
-      'delete',
-      'list',
-      'get',
-      'move',
-      'resize',
-      'update_data_range',
-      'export',
-    ],
-  },
-  sheets_pivot: {
-    name: 'sheets_pivot',
-    title: 'Pivot Tables',
-    description: 'Pivot tables: create, update, refresh, calculated fields',
-    schema: 'SheetsPivotInputSchema',
-    output: 'SheetsPivotOutputSchema',
-    annotations: 'SHEETS_PIVOT_ANNOTATIONS',
-    actions: ['create', 'update', 'delete', 'list', 'get', 'refresh'],
-  },
-  sheets_filter_sort: {
-    name: 'sheets_filter_sort',
-    title: 'Filter & Sort',
-    description: 'Filter/sort: basic filter, filter views, slicers, sort',
-    schema: 'SheetsFilterSortInputSchema',
-    output: 'SheetsFilterSortOutputSchema',
-    annotations: 'SHEETS_FILTER_SORT_ANNOTATIONS',
-    actions: [
-      'set_basic_filter',
-      'clear_basic_filter',
-      'get_basic_filter',
-      'update_filter_criteria',
-      'sort_range',
-      'create_filter_view',
-      'update_filter_view',
-      'delete_filter_view',
-      'list_filter_views',
-      'get_filter_view',
-      'create_slicer',
-      'update_slicer',
-      'delete_slicer',
-      'list_slicers',
-    ],
-  },
-  sheets_sharing: {
-    name: 'sheets_sharing',
-    title: 'Sharing',
-    description: 'Sharing: permissions, transfer ownership, link sharing',
-    schema: 'SheetsSharingInputSchema',
-    output: 'SheetsSharingOutputSchema',
-    annotations: 'SHEETS_SHARING_ANNOTATIONS',
-    actions: [
-      'share',
-      'update_permission',
-      'remove_permission',
-      'list_permissions',
-      'get_permission',
-      'transfer_ownership',
-      'set_link_sharing',
-      'get_sharing_link',
-    ],
-  },
-  sheets_comments: {
-    name: 'sheets_comments',
-    title: 'Comments',
-    description: 'Comments: add, reply, resolve, delete',
-    schema: 'SheetsCommentsInputSchema',
-    output: 'SheetsCommentsOutputSchema',
-    annotations: 'SHEETS_COMMENTS_ANNOTATIONS',
-    actions: [
-      'add',
-      'update',
-      'delete',
-      'list',
-      'get',
-      'resolve',
-      'reopen',
-      'add_reply',
-      'update_reply',
-      'delete_reply',
-    ],
-  },
-  sheets_versions: {
-    name: 'sheets_versions',
-    title: 'Versions',
-    description: 'Versions: revisions, snapshots, restore, compare',
-    schema: 'SheetsVersionsInputSchema',
-    output: 'SheetsVersionsOutputSchema',
-    annotations: 'SHEETS_VERSIONS_ANNOTATIONS',
-    actions: [
-      'list_revisions',
-      'get_revision',
-      'restore_revision',
-      'keep_revision',
-      'create_snapshot',
-      'list_snapshots',
-      'restore_snapshot',
-      'delete_snapshot',
-      'compare',
-      'export_version',
+      'share_add',
+      'share_update',
+      'share_remove',
+      'share_list',
+      'share_get',
+      'share_transfer_ownership',
+      'share_set_link',
+      'share_get_link',
+      'comment_add',
+      'comment_update',
+      'comment_delete',
+      'comment_list',
+      'comment_get',
+      'comment_resolve',
+      'comment_reopen',
+      'comment_add_reply',
+      'comment_update_reply',
+      'comment_delete_reply',
+      'version_list_revisions',
+      'version_get_revision',
+      'version_restore_revision',
+      'version_keep_revision',
+      'version_create_snapshot',
+      'version_list_snapshots',
+      'version_restore_snapshot',
+      'version_delete_snapshot',
+      'version_compare',
+      'version_export',
     ],
   },
   sheets_analysis: {
@@ -373,35 +291,15 @@ export const TOOL_REGISTRY = {
     annotations: 'SHEETS_TRANSACTION_ANNOTATIONS',
     actions: ['begin', 'queue', 'commit', 'rollback', 'status', 'list'],
   },
-  sheets_validation: {
-    name: 'sheets_validation',
-    title: 'Validation',
+  sheets_quality: {
+    name: 'sheets_quality',
+    title: 'Quality Assurance',
     description:
-      'Data validation: 11 builtin validators (type, range, format, uniqueness, pattern, etc.) with custom rule support.',
-    schema: 'SheetsValidationInputSchema',
-    output: 'SheetsValidationOutputSchema',
-    annotations: 'SHEETS_VALIDATION_ANNOTATIONS',
-    actions: ['validate'],
-  },
-  sheets_conflict: {
-    name: 'sheets_conflict',
-    title: 'Conflict Detection',
-    description:
-      'Conflict detection and resolution: detect concurrent modifications with 6 resolution strategies.',
-    schema: 'SheetsConflictInputSchema',
-    output: 'SheetsConflictOutputSchema',
-    annotations: 'SHEETS_CONFLICT_ANNOTATIONS',
-    actions: ['detect', 'resolve'],
-  },
-  sheets_impact: {
-    name: 'sheets_impact',
-    title: 'Impact Analysis',
-    description:
-      'Impact analysis: pre-execution analysis with dependency tracking (formulas, charts, pivot tables, etc.).',
-    schema: 'SheetsImpactInputSchema',
-    output: 'SheetsImpactOutputSchema',
-    annotations: 'SHEETS_IMPACT_ANNOTATIONS',
-    actions: ['analyze'],
+      'Enterprise quality assurance: data validation (11 builtin validators), conflict detection and resolution (6 strategies), and pre-execution impact analysis with dependency tracking.',
+    schema: 'SheetsQualityInputSchema',
+    output: 'SheetsQualityOutputSchema',
+    annotations: 'SHEETS_QUALITY_ANNOTATIONS',
+    actions: ['validate', 'detect_conflicts', 'resolve_conflict', 'analyze_impact'],
   },
   sheets_history: {
     name: 'sheets_history',
@@ -489,11 +387,14 @@ export const TOOL_REGISTRY = {
       'reset',
     ],
   },
+  // sheets_formulas: MERGED into sheets_advanced (2026-01-14) with formula_ prefix
+  // Formula intelligence actions now available as: formula_generate, formula_suggest, formula_explain,
+  // formula_optimize, formula_fix, formula_trace_precedents, formula_trace_dependents, formula_manage_named_ranges
 } as const;
 
-// Tool count
-export const TOOL_COUNT = 26;
+// Tool count (after Wave 5: merged sheets_formulas into sheets_advanced)
+export const TOOL_COUNT = 17;
 
-// Action count (26 tools × avg 8.2 actions = 214 total)
+// Action count (17 tools after Wave 5: sheets_formulas merged into sheets_advanced)
 // Computed in annotations.ts from ACTION_COUNTS map
-export const ACTION_COUNT = 214;
+export const ACTION_COUNT = 226;

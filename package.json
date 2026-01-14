@@ -1,7 +1,7 @@
 {
   "name": "servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server with 26 tools, 215 actions, AI-powered features, advanced analytics, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 17 tools, 226 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -89,7 +89,8 @@
     "ci:legacy": "npm run clean && npm run build && npm run verify:legacy && npm run validate:server-json && npm run smoke",
     "security:audit": "npm audit --audit-level=high",
     "validate:server-json": "node scripts/validate-server-json.mjs",
-    "smoke": "node dist/cli.js --version",
+    "smoke": "bash scripts/smoke-test.sh",
+    "smoke:quick": "node dist/cli.js --version",
     "verify:build": "npm run build && npm run validate:server-json && npm run smoke && echo 'Build OK'",
     "clean": "rm -rf dist .tsbuildinfo .tsbuildinfo.build",
     "prepack": "npm run gen:metadata && npm run build && npm run validate:server-json",
@@ -101,7 +102,13 @@
     "export-openapi": "tsx scripts/export-openapi.ts",
     "export-openapi:yaml": "tsx scripts/export-openapi.ts --format=yaml --output=docs/openapi.yaml",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
-    "inspect:cli": "npx @modelcontextprotocol/inspector node dist/cli.js --stdio"
+    "inspect:cli": "npx @modelcontextprotocol/inspector node dist/cli.js --stdio",
+    "schema:fetch": "tsx src/cli/schema-manager.ts fetch",
+    "schema:compare": "tsx src/cli/schema-manager.ts compare",
+    "schema:versions": "tsx src/cli/schema-manager.ts versions",
+    "schema:clear-cache": "tsx src/cli/schema-manager.ts clear-cache",
+    "schema:migration-report": "tsx src/cli/schema-manager.ts migration-report",
+    "watch:all": "bash scripts/watch-all.sh"
   },
   "keywords": [
     "mcp",

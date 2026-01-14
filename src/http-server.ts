@@ -1,6 +1,6 @@
 /**
  * ServalSheets - HTTP Transport Server
- * 
+ *
  * Streamable HTTP transport for Claude Connectors Directory
  * Supports both SSE and HTTP streaming
  * MCP Protocol: 2025-11-25
@@ -17,6 +17,8 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
+import { OAuthProvider } from './oauth-provider.js';
+import { validateEnv, env } from './config/env.js';
 import { createGoogleApiClient } from './services/google-api.js';
 import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
@@ -82,6 +84,21 @@ export interface HttpServerOptions {
   rateLimitWindowMs?: number;
   rateLimitMax?: number;
   trustProxy?: boolean;
+
+  // OAuth mode (optional)
+  enableOAuth?: boolean;
+  oauthConfig?: {
+    issuer: string;
+    clientId: string;
+    clientSecret: string;
+    jwtSecret: string;
+    stateSecret: string;
+    allowedRedirectUris: string[];
+    googleClientId: string;
+    googleClientSecret: string;
+    accessTokenTtl: number;
+    refreshTokenTtl: number;
+  };
 }
 
 const DEFAULT_PORT = 3000;
@@ -94,7 +111,10 @@ const DEFAULT_RATE_LIMIT_MAX = 100;
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
 // which works natively with MCP SDK v1.25.x - no patches required!
 
-async function createMcpServerInstance(googleToken?: string, googleRefreshToken?: string): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
+async function createMcpServerInstance(
+  googleToken?: string,
+  googleRefreshToken?: string
+): Promise<{ mcpServer: McpServer; taskStore: TaskStoreAdapter }> {
   // Create task store for SEP-1686 support - uses createTaskStore() for Redis support
   const { createTaskStore } = await import('./core/task-store-factory.js');
   const taskStore = await createTaskStore();
@@ -214,7 +234,12 @@ async function createMcpServerInstance(googleToken?: string, googleRefreshToken?
 /**
  * Create HTTP server with MCP transport
  */
-export function createHttpServer(options: HttpServerOptions = {}): { app: unknown; start: () => Promise<void>; stop: () => Promise<void> | undefined; sessions: unknown } {
+export function createHttpServer(options: HttpServerOptions = {}): {
+  app: unknown;
+  start: () => Promise<void>;
+  stop: () => Promise<void> | undefined;
+  sessions: unknown;
+} {
   const port = options.port ?? DEFAULT_PORT;
   const host = options.host ?? DEFAULT_HOST;
   const corsOrigins = options.corsOrigins ?? ['https://claude.ai', 'https://claude.com'];
@@ -228,27 +253,32 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   const healthService = new HealthService(null); // Will be updated with googleClient per session
 
   // Security middleware
-  app.use(helmet({
-    contentSecurityPolicy: false, // Allow SSE
-    strictTransportSecurity: process.env['NODE_ENV'] === 'production'
-      ? {
-          maxAge: 31536000, // 1 year
-          includeSubDomains: true,
-          preload: true,
-        }
-      : false, // Disable in development (localhost issues)
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // Allow SSE
+      strictTransportSecurity:
+        process.env['NODE_ENV'] === 'production'
+          ? {
+              maxAge: 31536000, // 1 year
+              includeSubDomains: true,
+              preload: true,
+            }
+          : false, // Disable in development (localhost issues)
+    })
+  );
 
   // Compression middleware (gzip)
-  app.use(compression({
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) {
-        return false;
-      }
-      return compression.filter(req, res);
-    },
-    threshold: 1024, // Only compress responses larger than 1KB
-  }));
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+      threshold: 1024, // Only compress responses larger than 1KB
+    })
+  );
 
   // HTTPS Enforcement (Production Only)
   if (process.env['NODE_ENV'] === 'production') {
@@ -269,7 +299,8 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
           error: 'UPGRADE_REQUIRED',
           message: 'HTTPS is required for all requests in production mode',
           details: {
-            reason: 'Security: OAuth tokens and sensitive data must be transmitted over encrypted connections',
+            reason:
+              'Security: OAuth tokens and sensitive data must be transmitted over encrypted connections',
             action: 'Use https:// instead of http:// in your request URL',
           },
         });
@@ -286,12 +317,14 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   }
 
   // CORS configuration
-  app.use(cors({
-    origin: corsOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'OPTIONS', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Session-ID'],
-  }));
+  app.use(
+    cors({
+      origin: corsOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'OPTIONS', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Session-ID'],
+    })
+  );
 
   // Origin Validation for Authenticated Endpoints
   // CORS handles browser preflight, but this adds explicit validation for all authenticated requests
@@ -344,6 +377,17 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   // Parse JSON
   app.use(express.json({ limit: '10mb' }));
 
+  // OAuth provider (optional)
+  let oauth: OAuthProvider | null = null;
+  if (options.enableOAuth && options.oauthConfig) {
+    oauth = new OAuthProvider(options.oauthConfig);
+    app.use(oauth.createRouter());
+    logger.info('HTTP Server: OAuth mode enabled', {
+      issuer: options.oauthConfig.issuer,
+      clientId: options.oauthConfig.clientId,
+    });
+  }
+
   // Request ID middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestId = (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
@@ -365,6 +409,18 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   // Readiness probe - Is the server ready to handle requests?
   app.get('/health/ready', async (_req: Request, res: Response) => {
     const health = await healthService.checkReadiness();
+
+    // Add OAuth status if enabled
+    if (options.enableOAuth && options.oauthConfig) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (health as any).oauth = {
+        enabled: true,
+        configured: Boolean(options.oauthConfig.googleClientId && options.oauthConfig.googleClientSecret),
+        issuer: options.oauthConfig.issuer,
+        clientId: options.oauthConfig.clientId,
+      };
+    }
+
     // Return 200 for healthy/degraded, 503 for unhealthy
     const statusCode = health.status === 'unhealthy' ? 503 : 200;
     res.status(statusCode).json(health);
@@ -382,7 +438,7 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
     const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
     const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || `${host}:${port}`;
     const baseUrl = `${protocol}://${hostHeader}`;
-    
+
     res.json({
       name: SERVER_INFO.name,
       version: VERSION,
@@ -422,40 +478,52 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
         seconds: Math.floor(process.uptime()),
         formatted: formatUptime(process.uptime()),
       },
-      cache: cacheStats ? {
-        enabled: true,
-        totalEntries: cacheStats['totalEntries'] as number,
-        totalSizeMB: parseFloat(((cacheStats['totalSize'] as number) / 1024 / 1024).toFixed(2)),
-        hits: cacheStats['hits'] as number,
-        misses: cacheStats['misses'] as number,
-        hitRate: parseFloat((cacheStats['hitRate'] as number).toFixed(2)),
-        byNamespace: cacheStats['byNamespace'] as Record<string, unknown>,
-        oldestEntry: cacheStats['oldestEntry'] ? new Date(cacheStats['oldestEntry'] as number).toISOString() : null,
-        newestEntry: cacheStats['newestEntry'] ? new Date(cacheStats['newestEntry'] as number).toISOString() : null,
-      } : { enabled: false },
-      deduplication: dedupStats ? {
-        enabled: true,
-        totalRequests: dedupStats['totalRequests'] as number,
-        deduplicatedRequests: dedupStats['deduplicatedRequests'] as number,
-        savedRequests: dedupStats['savedRequests'] as number,
-        deduplicationRate: parseFloat((dedupStats['deduplicationRate'] as number).toFixed(2)),
-        pendingCount: dedupStats['pendingCount'] as number,
-        oldestRequestAgeMs: dedupStats['oldestRequestAge'] as number,
-      } : { enabled: false },
-      connection: connStats ? {
-        status: connStats['status'] as string,
-        uptimeSeconds: connStats['uptimeSeconds'] as number,
-        totalHeartbeats: connStats['totalHeartbeats'] as number,
-        disconnectWarnings: connStats['disconnectWarnings'] as number,
-        timeSinceLastActivityMs: connStats['timeSinceLastActivity'] as number,
-        lastActivity: new Date(connStats['lastActivity'] as number).toISOString(),
-      } : null,
-      tracing: tracingStats ? {
-        totalSpans: tracingStats['totalSpans'] as number,
-        averageDurationMs: parseFloat((tracingStats['averageDuration'] as number).toFixed(2)),
-        spansByKind: tracingStats['spansByKind'] as Record<string, unknown>,
-        spansByStatus: tracingStats['spansByStatus'] as Record<string, unknown>,
-      } : null,
+      cache: cacheStats
+        ? {
+            enabled: true,
+            totalEntries: cacheStats['totalEntries'] as number,
+            totalSizeMB: parseFloat(((cacheStats['totalSize'] as number) / 1024 / 1024).toFixed(2)),
+            hits: cacheStats['hits'] as number,
+            misses: cacheStats['misses'] as number,
+            hitRate: parseFloat((cacheStats['hitRate'] as number).toFixed(2)),
+            byNamespace: cacheStats['byNamespace'] as Record<string, unknown>,
+            oldestEntry: cacheStats['oldestEntry']
+              ? new Date(cacheStats['oldestEntry'] as number).toISOString()
+              : null,
+            newestEntry: cacheStats['newestEntry']
+              ? new Date(cacheStats['newestEntry'] as number).toISOString()
+              : null,
+          }
+        : { enabled: false },
+      deduplication: dedupStats
+        ? {
+            enabled: true,
+            totalRequests: dedupStats['totalRequests'] as number,
+            deduplicatedRequests: dedupStats['deduplicatedRequests'] as number,
+            savedRequests: dedupStats['savedRequests'] as number,
+            deduplicationRate: parseFloat((dedupStats['deduplicationRate'] as number).toFixed(2)),
+            pendingCount: dedupStats['pendingCount'] as number,
+            oldestRequestAgeMs: dedupStats['oldestRequestAge'] as number,
+          }
+        : { enabled: false },
+      connection: connStats
+        ? {
+            status: connStats['status'] as string,
+            uptimeSeconds: connStats['uptimeSeconds'] as number,
+            totalHeartbeats: connStats['totalHeartbeats'] as number,
+            disconnectWarnings: connStats['disconnectWarnings'] as number,
+            timeSinceLastActivityMs: connStats['timeSinceLastActivity'] as number,
+            lastActivity: new Date(connStats['lastActivity'] as number).toISOString(),
+          }
+        : null,
+      tracing: tracingStats
+        ? {
+            totalSpans: tracingStats['totalSpans'] as number,
+            averageDurationMs: parseFloat((tracingStats['averageDuration'] as number).toFixed(2)),
+            spansByKind: tracingStats['spansByKind'] as Record<string, unknown>,
+            spansByStatus: tracingStats['spansByStatus'] as Record<string, unknown>,
+          }
+        : null,
       memory: {
         heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
         heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
@@ -464,11 +532,14 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
         arrayBuffersMB: parseFloat((memUsage.arrayBuffers / 1024 / 1024).toFixed(2)),
       },
       performance: {
-        apiCallReduction: dedupStats && cacheStats ? {
-          deduplicationSavings: `${(dedupStats['deduplicationRate'] as number).toFixed(1)}%`,
-          cacheSavings: `${(cacheStats['hitRate'] as number).toFixed(1)}%`,
-          estimatedTotalSavings: calculateTotalSavings(dedupStats, cacheStats),
-        } : null,
+        apiCallReduction:
+          dedupStats && cacheStats
+            ? {
+                deduplicationSavings: `${(dedupStats['deduplicationRate'] as number).toFixed(1)}%`,
+                cacheSavings: `${(cacheStats['hitRate'] as number).toFixed(1)}%`,
+                estimatedTotalSavings: calculateTotalSavings(dedupStats, cacheStats),
+              }
+            : null,
       },
       sessions: {
         active: sessions.size,
@@ -506,11 +577,14 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   }
 
   // Store active sessions
-  const sessions = new Map<string, {
-    transport: SSEServerTransport | StreamableHTTPServerTransport;
-    mcpServer: McpServer;
-    taskStore: TaskStoreAdapter;
-  }>();
+  const sessions = new Map<
+    string,
+    {
+      transport: SSEServerTransport | StreamableHTTPServerTransport;
+      mcpServer: McpServer;
+      taskStore: TaskStoreAdapter;
+    }
+  >();
 
   // Resource Indicator validation (RFC 8707) - validates tokens if present
   const serverUrl = process.env['SERVER_URL'] || `http://${host}:${port}`;
@@ -518,196 +592,227 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
   const validateResourceIndicator = optionalResourceIndicatorMiddleware(resourceValidator);
 
   // SSE endpoint for Server-Sent Events transport
-  app.get('/sse', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
-    // Extract Google token from Authorization header
-    const authHeader = req.headers.authorization;
-    const googleToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : undefined;
+  // Add OAuth validation middleware if OAuth is enabled
+  const sseMiddleware = options.enableOAuth && oauth
+    ? [validateResourceIndicator as express.RequestHandler, oauth.validateToken()]
+    : [validateResourceIndicator as express.RequestHandler];
 
-    // Extract user ID (use token hash as user ID)
-    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+  app.get(
+    '/sse',
+    ...sseMiddleware,
+    async (req: Request, res: Response) => {
+      // Extract Google token - from OAuth or Authorization header
+      const googleToken = options.enableOAuth && oauth
+        ? oauth.getGoogleToken(req) ?? undefined
+        : req.headers.authorization?.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7)
+          : undefined;
 
-    // Check session limits before creating new session
-    const limitCheck = sessionLimiter.canCreateSession(userId);
-    if (!limitCheck.allowed) {
-      res.status(429).json({
-        error: {
-          code: 'TOO_MANY_SESSIONS',
-          message: limitCheck.reason,
-          retryable: true,
-        }
-      });
-      return;
-    }
+      // Extract user ID (use token hash as user ID)
+      const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
 
-    const sessionId = randomUUID();
-
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Session-ID', sessionId);
-
-    try {
-      // Create SSE transport
-      const transport = new SSEServerTransport('/sse/message', res);
-
-      // Register session in limiter
-      sessionLimiter.registerSession(sessionId, userId);
-
-      // Create and connect MCP server with task store
-      const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
-      await mcpServer.connect(transport);
-      sessions.set(sessionId, { transport, mcpServer, taskStore });
-
-      // Cleanup on disconnect
-      req.on('close', () => {
-        const session = sessions.get(sessionId);
-        if (session) {
-          // Session cleanup logic can be added here if needed
-        }
-        sessions.delete(sessionId);
-        sessionLimiter.unregisterSession(sessionId);
-        if (typeof transport.close === 'function') {
-          transport.close();
-        }
-      });
-
-    } catch (error) {
-      res.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to establish SSE connection',
-          details: process.env['NODE_ENV'] === 'production' ? undefined : (error instanceof Error ? error.message : String(error)),
-        }
-      });
-    }
-  });
-
-  // SSE message endpoint
-  app.post('/sse/message', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
-    const sessionId = req.headers['x-session-id'] as string | undefined;
-
-    if (!sessionId) {
-      res.status(400).json({
-        error: {
-          code: 'INVALID_REQUEST',
-          message: 'Missing X-Session-ID header',
-        }
-      });
-      return;
-    }
-
-    const session = sessions.get(sessionId);
-    const transport = session?.transport;
-
-    if (!transport) {
-      res.status(404).json({
-        error: {
-          code: 'SESSION_NOT_FOUND',
-          message: 'Session not found',
-        }
-      });
-      return;
-    }
-
-    try {
-      // Handle incoming message through transport
-      if (transport instanceof SSEServerTransport) {
-        await transport.handlePostMessage(req, res);
-      } else {
-        res.status(400).json({
+      // Check session limits before creating new session
+      const limitCheck = sessionLimiter.canCreateSession(userId);
+      if (!limitCheck.allowed) {
+        res.status(429).json({
           error: {
-            code: 'INVALID_REQUEST',
-            message: 'Invalid transport type for SSE message',
-          }
+            code: 'TOO_MANY_SESSIONS',
+            message: limitCheck.reason,
+            retryable: true,
+          },
         });
+        return;
       }
-    } catch (error) {
-      res.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to process message',
-          details: process.env['NODE_ENV'] === 'production' ? undefined : (error instanceof Error ? error.message : String(error)),
-        }
-      });
-    }
-  });
 
-  // Streamable HTTP endpoint
-  app.post('/mcp', validateResourceIndicator as express.RequestHandler, async (req: Request, res: Response) => {
-    // Extract Google token
-    const authHeader = req.headers.authorization;
-    const googleToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : undefined;
+      const sessionId = randomUUID();
 
-    // Extract user ID (use token hash as user ID)
-    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+      // Set SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Session-ID', sessionId);
 
-    const sessionId = (req.headers['x-session-id'] as string | undefined) ?? randomUUID();
-
-    try {
-      // Create transport if new session
-      let session = sessions.get(sessionId);
-      let transport = session?.transport;
-
-      if (!transport || !(transport instanceof StreamableHTTPServerTransport)) {
-        // Check session limits before creating new session
-        const limitCheck = sessionLimiter.canCreateSession(userId);
-        if (!limitCheck.allowed) {
-          res.status(429).json({
-            error: {
-              code: 'TOO_MANY_SESSIONS',
-              message: limitCheck.reason,
-              retryable: true,
-            }
-          });
-          return;
-        }
-
-        const newTransport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => sessionId,
-        });
-        transport = newTransport;
+      try {
+        // Create SSE transport
+        const transport = new SSEServerTransport('/sse/message', res);
 
         // Register session in limiter
         sessionLimiter.registerSession(sessionId, userId);
 
+        // Create and connect MCP server with task store
         const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
-        sessions.set(sessionId, { transport: newTransport, mcpServer, taskStore });
+        await mcpServer.connect(transport);
+        sessions.set(sessionId, { transport, mcpServer, taskStore });
 
-        // Connect with transport - use type assertion for SDK compatibility
-        await mcpServer.connect(newTransport as unknown as Parameters<typeof mcpServer.connect>[0]);
+        // Cleanup on disconnect
+        req.on('close', () => {
+          const session = sessions.get(sessionId);
+          if (session) {
+            // Session cleanup logic can be added here if needed
+          }
+          sessions.delete(sessionId);
+          sessionLimiter.unregisterSession(sessionId);
+          if (typeof transport.close === 'function') {
+            transport.close();
+          }
+        });
+      } catch (error) {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to establish SSE connection',
+            details:
+              process.env['NODE_ENV'] === 'production'
+                ? undefined
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
+          },
+        });
       }
-
-      // Handle the request
-      if (transport instanceof StreamableHTTPServerTransport) {
-        await transport.handleRequest(req, res);
-      }
-
-    } catch (error) {
-      res.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to process MCP request',
-          details: process.env['NODE_ENV'] === 'production' ? undefined : (error instanceof Error ? error.message : String(error)),
-        }
-      });
     }
-  });
+  );
+
+  // SSE message endpoint
+  app.post(
+    '/sse/message',
+    validateResourceIndicator as express.RequestHandler,
+    async (req: Request, res: Response) => {
+      const sessionId = req.headers['x-session-id'] as string | undefined;
+
+      if (!sessionId) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Missing X-Session-ID header',
+          },
+        });
+        return;
+      }
+
+      const session = sessions.get(sessionId);
+      const transport = session?.transport;
+
+      if (!transport) {
+        res.status(404).json({
+          error: {
+            code: 'SESSION_NOT_FOUND',
+            message: 'Session not found',
+          },
+        });
+        return;
+      }
+
+      try {
+        // Handle incoming message through transport
+        if (transport instanceof SSEServerTransport) {
+          await transport.handlePostMessage(req, res);
+        } else {
+          res.status(400).json({
+            error: {
+              code: 'INVALID_REQUEST',
+              message: 'Invalid transport type for SSE message',
+            },
+          });
+        }
+      } catch (error) {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to process message',
+            details:
+              process.env['NODE_ENV'] === 'production'
+                ? undefined
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
+          },
+        });
+      }
+    }
+  );
+
+  // Streamable HTTP endpoint
+  app.post(
+    '/mcp',
+    validateResourceIndicator as express.RequestHandler,
+    async (req: Request, res: Response) => {
+      // Extract Google token
+      const authHeader = req.headers.authorization;
+      const googleToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+
+      // Extract user ID (use token hash as user ID)
+      const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+
+      const sessionId = (req.headers['x-session-id'] as string | undefined) ?? randomUUID();
+
+      try {
+        // Create transport if new session
+        let session = sessions.get(sessionId);
+        let transport = session?.transport;
+
+        if (!transport || !(transport instanceof StreamableHTTPServerTransport)) {
+          // Check session limits before creating new session
+          const limitCheck = sessionLimiter.canCreateSession(userId);
+          if (!limitCheck.allowed) {
+            res.status(429).json({
+              error: {
+                code: 'TOO_MANY_SESSIONS',
+                message: limitCheck.reason,
+                retryable: true,
+              },
+            });
+            return;
+          }
+
+          const newTransport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => sessionId,
+          });
+          transport = newTransport;
+
+          // Register session in limiter
+          sessionLimiter.registerSession(sessionId, userId);
+
+          const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
+          sessions.set(sessionId, { transport: newTransport, mcpServer, taskStore });
+
+          // Connect with transport - use type assertion for SDK compatibility
+          await mcpServer.connect(
+            newTransport as unknown as Parameters<typeof mcpServer.connect>[0]
+          );
+        }
+
+        // Handle the request
+        if (transport instanceof StreamableHTTPServerTransport) {
+          await transport.handleRequest(req, res);
+        }
+      } catch (error) {
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to process MCP request',
+            details:
+              process.env['NODE_ENV'] === 'production'
+                ? undefined
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
+          },
+        });
+      }
+    }
+  );
 
   // Session cleanup endpoint
   app.delete('/session/:sessionId', (req: Request, res: Response) => {
-    const { sessionId } = req.params;
+    const sessionId = req.params['sessionId'] as string;
 
     if (!sessionId) {
       res.status(400).json({
         error: {
           code: 'INVALID_REQUEST',
           message: 'Session ID required',
-        }
+        },
       });
       return;
     }
@@ -726,7 +831,7 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
         error: {
           code: 'SESSION_NOT_FOUND',
           message: 'Session not found',
-        }
+        },
       });
     }
   });
@@ -739,7 +844,7 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
         code: 'INTERNAL_ERROR',
         message: 'Internal server error',
         details: process.env['NODE_ENV'] === 'production' ? undefined : err.message,
-      }
+      },
     });
   });
 
@@ -819,6 +924,39 @@ export function createHttpServer(options: HttpServerOptions = {}): { app: unknow
 export async function startHttpServer(options: HttpServerOptions = {}): Promise<void> {
   const port = options.port ?? parseInt(process.env['PORT'] ?? '3000', 10);
   const server = createHttpServer({ ...options, port });
+  await server.start();
+}
+
+/**
+ * Start remote server with OAuth - convenience function for CLI
+ * This is a compatibility wrapper that enables OAuth mode
+ */
+export async function startRemoteServer(options: { port?: number } = {}): Promise<void> {
+  // Validate environment variables
+  validateEnv();
+
+  // Load OAuth config from environment
+  const oauthConfig = {
+    issuer: env.OAUTH_ISSUER,
+    clientId: env.OAUTH_CLIENT_ID,
+    clientSecret: env.OAUTH_CLIENT_SECRET!,
+    jwtSecret: env.JWT_SECRET!,
+    stateSecret: env.STATE_SECRET!,
+    allowedRedirectUris: env.ALLOWED_REDIRECT_URIS.split(','),
+    googleClientId: env.GOOGLE_CLIENT_ID!,
+    googleClientSecret: env.GOOGLE_CLIENT_SECRET!,
+    accessTokenTtl: env.ACCESS_TOKEN_TTL,
+    refreshTokenTtl: env.REFRESH_TOKEN_TTL,
+  };
+
+  const server = createHttpServer({
+    port: options.port ?? env.PORT,
+    host: env.HOST,
+    enableOAuth: true,
+    oauthConfig,
+    corsOrigins: env.CORS_ORIGINS.split(','),
+  });
+
   await server.start();
 }
 

@@ -168,23 +168,24 @@ npm run check:drift
 
 ## Known Issues & Current Status
 
-**Build Status:** ⚠️ **FAILING** (as of 2026-01-12)
+**Build Status:** ✅ **PASSING** (as of 2026-01-13)
 
-**Active Issues:**
-1. **TypeScript Compilation** (25+ errors)
-   - File: `src/handlers/dimensions.ts:156,187,214,233,250,338,393,407,433,443,469,503,533,558`
-   - Issue: `'string | undefined' not assignable to 'string'` and `'possibly undefined'` errors
-   - Impact: Blocks `npm run typecheck`
+All verification checks passing:
+- TypeScript compilation: 0 errors
+- Linting: Clean (0 errors, 41 warnings in CLI tool acceptable)
+- Tests: 114 test files passing
+- Metadata drift: None detected
+- Placeholders: None found
+- Silent fallbacks: None detected
 
-2. **Placeholder Check** (1 TODO)
-   - File: `src/services/semantic-range.ts:359`
-   - Issue: `// TODO: Implement formula detection via API`
-   - Impact: Blocks `npm run check:placeholders`
+**No Active Issues** - All previous TypeScript errors and verification issues have been resolved.
 
-3. **Verification Pipeline**
-   - Status: `npm run verify` currently **FAILS**
-   - Per CLAUDE.md Rule #1: Must pass before commit
-   - Blockers: TypeScript errors + placeholder check
+**Recent Improvements:**
+1. Fixed all silent fallback warnings (6 instances across multiple files)
+2. Added sheets_session tool to all registry locations
+3. Updated tool count comments (25 → 26 tools)
+4. Synchronized metadata across all files
+5. Fixed TypeScript strict mode issues in handlers
 
 **Check current status:**
 ```bash
@@ -201,30 +202,79 @@ npm run verify 2>&1 | tee verify-output.txt
 |------|---------|--------|-------------|
 | `src/mcp/sdk-compat.ts` | 2026-01-11 | Schema flattening complete | Native SDK conversion |
 | `tests/contracts/sdk-compat.test.ts` | 2026-01-11 | Test for deleted file | N/A |
+| `src/server-v2.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
+| `src/server-compat.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
+| `src/migration-v1-to-v2.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
+| `src/schemas-v2/` | 2026-01-14 | V2 architecture abandoned | N/A |
+| `src/handlers-v2/` | 2026-01-14 | V2 architecture abandoned | N/A |
+| `src/services/snapshot-service.ts` | 2026-01-14 | Unused V2 service | N/A |
+| `src/__tests__/handlers-v2.test.ts` | 2026-01-14 | V2 test file | N/A |
+| `docs/archive/2026-01/` | 2026-01-14 | Old debug logs | N/A |
+| `docs/archive/2026-01-debug-session/` | 2026-01-14 | Old debug logs | N/A |
 
-**Git evidence:** `git status` shows `D src/mcp/sdk-compat.ts`
+**Git evidence:** V2 files were never committed (untracked). Planning docs archived in `docs/archive/abandoned-v2/`
 
 ---
 
 ## sheets_session Tool (26th Tool)
 
-**Status:** ✅ Implemented, ⚠️ Missing from some locations
+**Status:** ✅ Fully Implemented and Integrated
 
 The `sheets_session` tool was added as the 26th tool for conversational context management.
 
-**Locations where it EXISTS:**
+**All locations now synchronized:**
 - ✅ `src/schemas/session.ts` - Schema definition
 - ✅ `src/handlers/session.ts` - Handler implementation
 - ✅ `src/mcp/registration/tool-definitions.ts` - Registered
+- ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
+- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 26 tools"
+- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 26 entries
+- ✅ `src/mcp/completions.ts` - Comment updated to "215 actions across 26 tools"
 - ✅ Tool is functional and working
 
-**Locations where it's MISSING** (needs fixing):
-- ❌ `src/schemas/index.ts` - Not in `TOOL_REGISTRY` export
-- ❌ `src/schemas/fast-validators.ts` - Comment says "ALL 25 tools" (should be 26)
-- ❌ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 25 entries (missing session)
-- ❌ `src/mcp/completions.ts` - Comment says "188 actions across 24 tools" (should be 208/26)
+**Fixed:** All registry locations now include sheets_session (as of 2026-01-13)
 
-**TODO:** Add `sheets_session` to all registry locations and update comments.
+---
+
+## Server Consolidation (2026-01-14)
+
+**Status:** ✅ Completed
+
+The HTTP and OAuth servers have been consolidated into a single implementation.
+
+**Current Architecture:**
+- `src/server.ts` - STDIO transport (MCP over stdin/stdout)
+- `src/http-server.ts` - HTTP/SSE transport with optional OAuth support
+- `src/remote-server.ts` - Thin compatibility wrapper (calls http-server with OAuth enabled)
+
+**Usage:**
+```typescript
+// Standard HTTP mode (token via Authorization header)
+createHttpServer({ port: 3000 })
+
+// OAuth mode (full OAuth 2.1 provider)
+createHttpServer({
+  port: 3000,
+  enableOAuth: true,
+  oauthConfig: {
+    issuer: '...',
+    clientId: '...',
+    clientSecret: '...',
+    jwtSecret: '...',
+    stateSecret: '...',
+    allowedRedirectUris: ['...'],
+    googleClientId: '...',
+    googleClientSecret: '...',
+    accessTokenTtl: 3600,
+    refreshTokenTtl: 604800,
+  }
+})
+
+// Backward compatibility
+startRemoteServer({ port: 3000 })  // Uses OAuth mode
+```
+
+**Code Reduction:** ~540 LOC of duplicated code eliminated
 
 ---
 

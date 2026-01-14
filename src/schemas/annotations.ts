@@ -19,32 +19,18 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
-  sheets_spreadsheet: {
-    title: 'Spreadsheet Operations',
+  sheets_core: {
+    title: 'Core Operations',
     readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: false,
+    destructiveHint: true, // delete_sheet action is destructive
+    idempotentHint: false, // create/add create new entities
     openWorldHint: true,
   },
-  sheets_sheet: {
-    title: 'Sheet/Tab Operations',
+  sheets_data: {
+    title: 'Cell Data',
     readOnlyHint: false,
-    destructiveHint: true, // Can delete sheets
-    idempotentHint: false, // delete without allowMissing fails on repeat; add/duplicate create new sheets
-    openWorldHint: true,
-  },
-  sheets_values: {
-    title: 'Cell Values',
-    readOnlyHint: false,
-    destructiveHint: true, // Can overwrite data
+    destructiveHint: true, // Can overwrite data, clear notes/validation
     idempotentHint: false, // Append is not idempotent
-    openWorldHint: true,
-  },
-  sheets_cells: {
-    title: 'Cell Operations',
-    readOnlyHint: false,
-    destructiveHint: true, // Can clear notes/validation
-    idempotentHint: false,
     openWorldHint: true,
   },
   sheets_format: {
@@ -61,52 +47,17 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
-  sheets_rules: {
-    title: 'Formatting & Validation Rules',
+  sheets_visualize: {
+    title: 'Visualizations (Charts & Pivot Tables)',
     readOnlyHint: false,
-    destructiveHint: true, // Can delete rules
+    destructiveHint: true, // Can delete charts and pivots
     idempotentHint: false,
     openWorldHint: true,
   },
-  sheets_charts: {
-    title: 'Chart Management',
+  sheets_collaborate: {
+    title: 'Collaboration',
     readOnlyHint: false,
-    destructiveHint: true, // Can delete charts
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  sheets_pivot: {
-    title: 'Pivot Tables',
-    readOnlyHint: false,
-    destructiveHint: true, // Can delete pivots
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  sheets_filter_sort: {
-    title: 'Filtering & Sorting',
-    readOnlyHint: false,
-    destructiveHint: true, // Can clear filters
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  sheets_sharing: {
-    title: 'Sharing & Permissions',
-    readOnlyHint: false,
-    destructiveHint: true, // Can remove permissions
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  sheets_comments: {
-    title: 'Comments & Replies',
-    readOnlyHint: false,
-    destructiveHint: true, // Can delete comments
-    idempotentHint: false,
-    openWorldHint: true,
-  },
-  sheets_versions: {
-    title: 'Version History',
-    readOnlyHint: false,
-    destructiveHint: true, // Can restore (overwrites current)
+    destructiveHint: true, // Can remove permissions, delete comments, restore versions
     idempotentHint: false,
     openWorldHint: true,
   },
@@ -118,7 +69,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: true,
   },
   sheets_advanced: {
-    title: 'Advanced Features',
+    title: 'Advanced Features & Formula Intelligence',
     readOnlyHint: false,
     destructiveHint: true, // Can delete named/protected ranges
     idempotentHint: false,
@@ -132,26 +83,12 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
-  sheets_validation: {
-    title: 'Data Validation',
-    readOnlyHint: true, // Local validation only
+  sheets_quality: {
+    title: 'Quality Assurance',
+    readOnlyHint: true, // Analysis and validation are read-only
     destructiveHint: false,
     idempotentHint: true,
     openWorldHint: false, // Local processing
-  },
-  sheets_conflict: {
-    title: 'Conflict Detection',
-    readOnlyHint: true, // Detection is read-only
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: true,
-  },
-  sheets_impact: {
-    title: 'Impact Analysis',
-    readOnlyHint: true,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: true,
   },
   sheets_history: {
     title: 'Operation History',
@@ -196,6 +133,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: true, // Most operations are idempotent
     openWorldHint: false, // Session-only, no external effects
   },
+  // sheets_formulas: MERGED into sheets_advanced (2026-01-14) with formula_ prefix
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -206,34 +144,26 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
  */
 export const ACTION_COUNTS: Record<string, number> = {
   sheets_auth: 4,
-  sheets_spreadsheet: 8, // get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list
-  sheets_sheet: 7,
-  sheets_values: 9,
-  sheets_cells: 12,
-  sheets_format: 9,
-  sheets_dimensions: 21,
-  sheets_rules: 8,
-  sheets_charts: 9,
-  sheets_pivot: 6,
-  sheets_filter_sort: 14,
-  sheets_sharing: 8,
-  sheets_comments: 10,
-  sheets_versions: 10,
+  sheets_core: 15, // Consolidated: spreadsheet (8) + sheet (7)
+  sheets_data: 21, // Wave 4: Consolidated values (9) + cells (12)
+  sheets_format: 18, // Wave 2: Added 8 rule actions (conditional format + data validation) + 1 suggest_format
+  sheets_dimensions: 35, // Wave 2: Added 14 filter/sort actions
+  sheets_visualize: 17, // Consolidated: charts (10) + pivot (7)
+  sheets_collaborate: 28, // Consolidated: sharing (8) + comments (10) + versions (10)
   sheets_analysis: 13, // DEPRECATED (remove after 2026-04-12) - data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
-  sheets_advanced: 19,
+  sheets_advanced: 27, // Wave 5: Merged formula intelligence (8) with advanced features (19)
   // Enterprise Tools
   sheets_transaction: 6, // begin, queue, commit, rollback, status, list
-  sheets_validation: 1, // validate
-  sheets_conflict: 2, // detect, resolve
-  sheets_impact: 1, // analyze
+  sheets_quality: 4, // validate, detect_conflicts, resolve_conflict, analyze_impact
   sheets_history: 7, // list, get, stats, undo, redo, revert_to, clear
   // MCP-Native Tools
   sheets_confirm: 2, // request, get_stats (via Elicitation)
-  sheets_analyze: 10, // CONSOLIDATED (2026-01-12) - analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, create_recommended_chart, create_recommended_pivot, explain_analysis
+  sheets_analyze: 11, // CONSOLIDATED (2026-01-12) - comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis
   sheets_fix: 1, // fix action (automated issue resolution)
   // Composite Operations
   sheets_composite: 4, // import_csv, smart_append, bulk_update, deduplicate
   sheets_session: 13, // set_active, get_active, get_context, record_operation, get_last_operation, get_history, find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending, reset
+  // sheets_formulas: MERGED into sheets_advanced with formula_ prefix (2026-01-14)
 };
 
 /**
