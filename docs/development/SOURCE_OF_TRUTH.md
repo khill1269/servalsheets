@@ -11,8 +11,8 @@
 
 | Metric | Source File | Line | Current Value | Verification Command |
 |--------|-------------|------|---------------|---------------------|
-| **TOOL_COUNT** | `src/schemas/index.ts` | exported constant | `26` | `grep "export const TOOL_COUNT" src/schemas/index.ts` |
-| **ACTION_COUNT** | `src/schemas/index.ts` | exported constant | `208` | `grep "export const ACTION_COUNT" src/schemas/index.ts` |
+| **TOOL_COUNT** | `src/schemas/index.ts` | exported constant | `17` | `grep "export const TOOL_COUNT" src/schemas/index.ts` |
+| **ACTION_COUNT** | `src/schemas/index.ts` | exported constant | `226` | `grep "export const ACTION_COUNT" src/schemas/index.ts` |
 
 **Verification:**
 ```bash
@@ -20,7 +20,7 @@
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 26 tools, 208 actions
+# ✅ Total: 17 tools, 226 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -88,38 +88,29 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 | Tool | Actions | Schema File |
 |------|---------|-------------|
-| `sheets_advanced` | 19 | `src/schemas/advanced.ts` |
+| `sheets_advanced` | 27 | `src/schemas/advanced.ts` |
 | `sheets_analysis` | 13 | `src/schemas/analysis.ts` |
-| `sheets_analyze` | 4 | `src/schemas/analyze.ts` |
+| `sheets_analyze` | 11 | `src/schemas/analyze.ts` |
 | `sheets_auth` | 4 | `src/schemas/auth.ts` |
-| `sheets_cells` | 12 | `src/schemas/cells.ts` |
-| `sheets_charts` | 9 | `src/schemas/charts.ts` |
-| `sheets_comments` | 10 | `src/schemas/comments.ts` |
+| `sheets_collaborate` | 28 | `src/schemas/collaborate.ts` |
 | `sheets_composite` | 4 | `src/schemas/composite.ts` |
 | `sheets_confirm` | 2 | `src/schemas/confirm.ts` |
-| `sheets_conflict` | 2 | `src/schemas/conflict.ts` |
-| `sheets_dimensions` | 21 | `src/schemas/dimensions.ts` |
-| `sheets_filter_sort` | 14 | `src/schemas/filter-sort.ts` |
+| `sheets_core` | 15 | `src/schemas/core.ts` |
+| `sheets_data` | 21 | `src/schemas/data.ts` |
+| `sheets_dimensions` | 35 | `src/schemas/dimensions.ts` |
 | `sheets_fix` | 1 | `src/schemas/fix.ts` |
-| `sheets_format` | 9 | `src/schemas/format.ts` |
+| `sheets_format` | 18 | `src/schemas/format.ts` |
 | `sheets_history` | 7 | `src/schemas/history.ts` |
-| `sheets_impact` | 1 | `src/schemas/impact.ts` |
-| `sheets_pivot` | 6 | `src/schemas/pivot.ts` |
-| `sheets_rules` | 8 | `src/schemas/rules.ts` |
+| `sheets_quality` | 4 | `src/schemas/quality.ts` |
 | `sheets_session` | 13 | `src/schemas/session.ts` |
-| `sheets_sharing` | 8 | `src/schemas/sharing.ts` |
-| `sheets_sheet` | 7 | `src/schemas/sheet.ts` |
-| `sheets_spreadsheet` | 8 | `src/schemas/spreadsheet.ts` |
 | `sheets_transaction` | 6 | `src/schemas/transaction.ts` |
-| `sheets_validation` | 1 | `src/schemas/validation.ts` |
-| `sheets_values` | 9 | `src/schemas/values.ts` |
-| `sheets_versions` | 10 | `src/schemas/versions.ts` |
-| **TOTAL** | **208** | — |
+| `sheets_visualize` | 17 | `src/schemas/visualize.ts` |
+| **TOTAL** | **226** | — |
 
 **Verification:**
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 26 tools, 208 actions
+# Output: ✅ Total: 17 tools, 226 actions
 ```
 
 ---
@@ -238,8 +229,8 @@ npm run verify
 ## 📋 Quick Reference: Current Values (2026-01-12)
 
 ```
-TOOL_COUNT:         26
-ACTION_COUNT:       208
+TOOL_COUNT:         17
+ACTION_COUNT:       226
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2

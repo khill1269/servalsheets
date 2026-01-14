@@ -42,7 +42,7 @@
   ```
 
 **Output (Generated - DO NOT edit manually):**
-- `package.json` - Updates description with `"26 tools, 208 actions"`
+- `package.json` - Updates description with `"17 tools, 226 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -64,7 +64,7 @@ npm run gen:metadata
 # 📊 Analyzing 26 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 26 tools, 208 actions
+# ✅ Total: 17 tools, 226 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -108,8 +108,8 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 208 actions, found 53)
-#   - src/schemas/index.ts (expected ACTION_COUNT = 208, found 53)
+#   - package.json (expected 226 actions, found 53)
+#   - src/schemas/index.ts (expected ACTION_COUNT = 226, found 53)
 # Run 'npm run gen:metadata' to fix
 ```
 
