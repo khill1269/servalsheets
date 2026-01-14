@@ -10,9 +10,9 @@
  * @module services/sheet-resolver
  */
 
-import type { sheets_v4 } from "googleapis";
-import { LRUCache } from "lru-cache";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import { LRUCache } from 'lru-cache';
+import { logger } from '../utils/logger.js';
 
 // ============================================================================
 // Types
@@ -56,7 +56,7 @@ export interface SheetResolutionResult {
   /** Resolved sheet info */
   sheet: ResolvedSheet;
   /** Resolution method used */
-  method: "exact_name" | "exact_id" | "fuzzy_name" | "index";
+  method: 'exact_name' | 'exact_id' | 'fuzzy_name' | 'index';
   /** Confidence score (0-1) */
   confidence: number;
   /** Alternative matches (for fuzzy resolution) */
@@ -91,10 +91,10 @@ export class SheetResolutionError extends Error {
     message: string,
     code: string,
     details: Record<string, unknown> = {},
-    availableSheets?: string[],
+    availableSheets?: string[]
   ) {
     super(message);
-    this.name = "SheetResolutionError";
+    this.name = 'SheetResolutionError';
     this.code = code;
     this.details = details;
     this.retryable = false;
@@ -131,7 +131,7 @@ export class SheetResolver {
       updateAgeOnGet: true,
     });
 
-    logger.info("Sheet resolver initialized", {
+    logger.info('Sheet resolver initialized', {
       cacheTtlMs: this.cacheTtlMs,
       enableFuzzyMatch: this.enableFuzzyMatch,
       fuzzyThreshold: this.fuzzyThreshold,
@@ -145,7 +145,7 @@ export class SheetResolver {
   private getSheetsApi(): sheets_v4.Sheets {
     if (!this.sheetsApi) {
       throw new Error(
-        "SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.",
+        'SheetResolver not initialized with sheetsApi. Call constructor with { sheetsApi } options.'
       );
     }
     return this.sheetsApi;
@@ -158,17 +158,14 @@ export class SheetResolver {
    * @param reference - Sheet reference (name or ID)
    * @returns Resolved sheet information
    */
-  async resolve(
-    spreadsheetId: string,
-    reference: SheetReference,
-  ): Promise<SheetResolutionResult> {
+  async resolve(spreadsheetId: string, reference: SheetReference): Promise<SheetResolutionResult> {
     // Validate that at least one reference is provided
     if (reference.sheetId === undefined && reference.sheetName === undefined) {
       throw new SheetResolutionError(
-        "Must provide either sheetId or sheetName",
-        "NO_REFERENCE",
+        'Must provide either sheetId or sheetName',
+        'NO_REFERENCE',
         {},
-        [],
+        []
       );
     }
 
@@ -176,7 +173,7 @@ export class SheetResolver {
     const sheets = await this.getSheets(spreadsheetId);
 
     if (sheets.length === 0) {
-      throw new SheetResolutionError("Spreadsheet has no sheets", "NO_SHEETS", {
+      throw new SheetResolutionError('Spreadsheet has no sheets', 'NO_SHEETS', {
         spreadsheetId,
       });
     }
@@ -187,15 +184,15 @@ export class SheetResolver {
       if (byId) {
         return {
           sheet: byId,
-          method: "exact_id",
+          method: 'exact_id',
           confidence: 1.0,
         };
       }
       throw new SheetResolutionError(
         `Sheet with ID ${reference.sheetId} not found`,
-        "SHEET_NOT_FOUND",
+        'SHEET_NOT_FOUND',
         { sheetId: reference.sheetId },
-        sheets.map((s) => s.title),
+        sheets.map((s) => s.title)
       );
     }
 
@@ -207,20 +204,17 @@ export class SheetResolver {
     // This should never be reached due to validation above,
     // but TypeScript requires all code paths to return
     throw new SheetResolutionError(
-      "Invalid state: no sheet reference provided",
-      "INVALID_STATE",
+      'Invalid state: no sheet reference provided',
+      'INVALID_STATE',
       {},
-      [],
+      []
     );
   }
 
   /**
    * Resolve sheet by name with fuzzy matching support
    */
-  private resolveByName(
-    sheets: ResolvedSheet[],
-    name: string,
-  ): SheetResolutionResult {
+  private resolveByName(sheets: ResolvedSheet[], name: string): SheetResolutionResult {
     const nameLower = name.toLowerCase().trim();
 
     // Exact match (case-insensitive)
@@ -228,7 +222,7 @@ export class SheetResolver {
     if (exact) {
       return {
         sheet: exact,
-        method: "exact_name",
+        method: 'exact_name',
         confidence: 1.0,
       };
     }
@@ -238,10 +232,7 @@ export class SheetResolver {
       const matches = sheets
         .map((sheet) => ({
           sheet,
-          similarity: this.calculateSimilarity(
-            nameLower,
-            sheet.title.toLowerCase(),
-          ),
+          similarity: this.calculateSimilarity(nameLower, sheet.title.toLowerCase()),
         }))
         .filter((m) => m.similarity >= this.fuzzyThreshold)
         .sort((a, b) => b.similarity - a.similarity);
@@ -251,7 +242,7 @@ export class SheetResolver {
         if (best) {
           return {
             sheet: best.sheet,
-            method: "fuzzy_name",
+            method: 'fuzzy_name',
             confidence: best.similarity,
             alternatives:
               matches.length > 1
@@ -267,9 +258,9 @@ export class SheetResolver {
 
     throw new SheetResolutionError(
       `Sheet "${name}" not found`,
-      "SHEET_NOT_FOUND",
+      'SHEET_NOT_FOUND',
       { searchedName: name },
-      sheets.map((s) => s.title),
+      sheets.map((s) => s.title)
     );
   }
 
@@ -310,7 +301,7 @@ export class SheetResolver {
           row[j] = Math.min(
             (prevRow[j] ?? 0) + 1,
             (row[j - 1] ?? 0) + 1,
-            (prevRow[j - 1] ?? 0) + cost,
+            (prevRow[j - 1] ?? 0) + cost
           );
         }
       }
@@ -335,27 +326,23 @@ export class SheetResolver {
     const response = await api.spreadsheets.get({
       spreadsheetId,
       fields:
-        "sheets(properties(sheetId,title,index,hidden,gridProperties(rowCount,columnCount,frozenRowCount,frozenColumnCount)))",
+        'sheets(properties(sheetId,title,index,hidden,gridProperties(rowCount,columnCount,frozenRowCount,frozenColumnCount)))',
     });
 
-    const sheets: ResolvedSheet[] = (response.data.sheets ?? []).map(
-      (sheet) => ({
-        sheetId: sheet.properties?.sheetId ?? 0,
-        title: sheet.properties?.title ?? "Sheet",
-        index: sheet.properties?.index ?? 0,
-        hidden: sheet.properties?.hidden ?? false,
-        gridProperties: sheet.properties?.gridProperties
-          ? {
-              rowCount: sheet.properties.gridProperties.rowCount ?? 1000,
-              columnCount: sheet.properties.gridProperties.columnCount ?? 26,
-              frozenRowCount:
-                sheet.properties.gridProperties.frozenRowCount ?? undefined,
-              frozenColumnCount:
-                sheet.properties.gridProperties.frozenColumnCount ?? undefined,
-            }
-          : undefined,
-      }),
-    );
+    const sheets: ResolvedSheet[] = (response.data.sheets ?? []).map((sheet) => ({
+      sheetId: sheet.properties?.sheetId ?? 0,
+      title: sheet.properties?.title ?? 'Sheet',
+      index: sheet.properties?.index ?? 0,
+      hidden: sheet.properties?.hidden ?? false,
+      gridProperties: sheet.properties?.gridProperties
+        ? {
+            rowCount: sheet.properties.gridProperties.rowCount ?? 1000,
+            columnCount: sheet.properties.gridProperties.columnCount ?? 26,
+            frozenRowCount: sheet.properties.gridProperties.frozenRowCount ?? undefined,
+            frozenColumnCount: sheet.properties.gridProperties.frozenColumnCount ?? undefined,
+          }
+        : undefined,
+    }));
 
     this.cache.set(spreadsheetId, sheets);
     return sheets;
@@ -366,14 +353,14 @@ export class SheetResolver {
    */
   async resolveMultiple(
     spreadsheetId: string,
-    references: SheetReference[],
+    references: SheetReference[]
   ): Promise<SheetResolutionResult[]> {
     const sheets = await this.getSheets(spreadsheetId);
     return references.map((ref) => {
       if (ref.sheetId !== undefined) {
         const byId = sheets.find((s) => s.sheetId === ref.sheetId);
         if (byId) {
-          return { sheet: byId, method: "exact_id" as const, confidence: 1.0 };
+          return { sheet: byId, method: 'exact_id' as const, confidence: 1.0 };
         }
       }
       if (ref.sheetName !== undefined) {
@@ -381,19 +368,16 @@ export class SheetResolver {
       }
       const first = sheets[0];
       if (first) {
-        return { sheet: first, method: "index" as const, confidence: 0.8 };
+        return { sheet: first, method: 'index' as const, confidence: 0.8 };
       }
-      throw new SheetResolutionError("No sheets available", "NO_SHEETS", {});
+      throw new SheetResolutionError('No sheets available', 'NO_SHEETS', {});
     });
   }
 
   /**
    * Get sheet by index (0-based)
    */
-  async getSheetByIndex(
-    spreadsheetId: string,
-    index: number,
-  ): Promise<ResolvedSheet | null> {
+  async getSheetByIndex(spreadsheetId: string, index: number): Promise<ResolvedSheet | null> {
     const sheets = await this.getSheets(spreadsheetId);
     return sheets.find((s) => s.index === index) ?? null;
   }
@@ -450,13 +434,11 @@ export class SheetResolver {
   async getSheetByName(
     spreadsheetId: string,
     sheetName: string,
-    _auth?: unknown, // For test compatibility
+    _auth?: unknown // For test compatibility
   ): Promise<{ properties?: { sheetId: number; title: string } } | undefined> {
     const sheets = await this.getSheets(spreadsheetId);
     // Case-insensitive search
-    const sheet = sheets.find(
-      (s) => s.title.toLowerCase() === sheetName.toLowerCase(),
-    );
+    const sheet = sheets.find((s) => s.title.toLowerCase() === sheetName.toLowerCase());
 
     if (!sheet) {
       // OK: Explicit empty - typed as optional, sheet not found by name
@@ -478,7 +460,7 @@ export class SheetResolver {
   async getSheetById(
     spreadsheetId: string,
     sheetId: number,
-    _auth?: unknown, // For test compatibility
+    _auth?: unknown // For test compatibility
   ): Promise<{ properties?: { sheetId: number; title: string } } | undefined> {
     const sheets = await this.getSheets(spreadsheetId);
     const sheet = sheets.find((s) => s.sheetId === sheetId);
@@ -506,7 +488,7 @@ export class SheetResolver {
   async resolveRange(
     spreadsheetId: string,
     range: string | { semantic: { column: string; sheet: string } },
-    _auth: unknown, // For test compatibility
+    _auth: unknown // For test compatibility
   ): Promise<{
     resolvedRange: string;
     wasResolved: boolean;
@@ -515,14 +497,9 @@ export class SheetResolver {
     const originalInput = range;
 
     // Handle semantic queries
-    if (typeof range === "object" && "semantic" in range) {
+    if (typeof range === 'object' && 'semantic' in range) {
       const { column, sheet } = range.semantic;
-      const columnIndex = await this.findColumnByHeader(
-        spreadsheetId,
-        sheet,
-        column,
-        _auth,
-      );
+      const columnIndex = await this.findColumnByHeader(spreadsheetId, sheet, column, _auth);
 
       if (columnIndex === -1) {
         throw new Error(`Column "${column}" not found in sheet "${sheet}"`);
@@ -540,11 +517,9 @@ export class SheetResolver {
 
     // If already A1 notation, pass through
     // A1 notation patterns: A1, A1:B10, Sheet1!A1:B10, 'My Sheet'!A1, A:B, 1:10
-    if (typeof range === "string") {
+    if (typeof range === 'string') {
       // Remove optional sheet qualifier to check the range part
-      const rangeWithoutSheet = range.includes("!")
-        ? range.split("!")[1] || range
-        : range;
+      const rangeWithoutSheet = range.includes('!') ? range.split('!')[1] || range : range;
 
       // Check if it's A1 notation (cells, ranges, column-only, or row-only)
       const isA1Notation =
@@ -565,12 +540,10 @@ export class SheetResolver {
     const api = this.getSheetsApi();
     const response = await api.spreadsheets.get({
       spreadsheetId,
-      fields: "namedRanges(name,range)",
+      fields: 'namedRanges(name,range)',
     });
 
-    const namedRange = response.data.namedRanges?.find(
-      (nr) => nr.name === range,
-    );
+    const namedRange = response.data.namedRanges?.find((nr) => nr.name === range);
 
     if (!namedRange || !namedRange.range) {
       throw new Error(`Named range "${range}" not found`);
@@ -580,7 +553,7 @@ export class SheetResolver {
     const nr = namedRange.range;
     const sheets = await this.getSheets(spreadsheetId);
     const sheet = sheets.find((s) => s.sheetId === nr.sheetId);
-    const sheetName = sheet?.title || "Sheet1";
+    const sheetName = sheet?.title || 'Sheet1';
 
     const startCol = this.columnIndexToLetter(nr.startColumnIndex ?? 0);
     const endCol = this.columnIndexToLetter((nr.endColumnIndex ?? 1) - 1);
@@ -601,17 +574,17 @@ export class SheetResolver {
    */
   async getNamedRanges(
     spreadsheetId: string,
-    _auth: unknown, // For test compatibility
+    _auth: unknown // For test compatibility
   ): Promise<Array<sheets_v4.Schema$NamedRange>> {
     const api = this.getSheetsApi();
     const response = await api.spreadsheets.get({
       spreadsheetId,
-      fields: "namedRanges",
+      fields: 'namedRanges',
     });
 
     // Filter out named ranges without names
     return (response.data.namedRanges || []).filter(
-      (nr): nr is sheets_v4.Schema$NamedRange => !!nr.name,
+      (nr): nr is sheets_v4.Schema$NamedRange => !!nr.name
     );
   }
 
@@ -623,7 +596,7 @@ export class SheetResolver {
     spreadsheetId: string,
     sheetName: string,
     headerName: string,
-    _auth: unknown, // For test compatibility
+    _auth: unknown // For test compatibility
   ): Promise<number> {
     const headers = await this.getHeaders(spreadsheetId, sheetName, _auth);
     const headerLower = headerName.toLowerCase();
@@ -637,7 +610,7 @@ export class SheetResolver {
   async getHeaders(
     spreadsheetId: string,
     sheetName: string,
-    _auth: unknown, // For test compatibility
+    _auth: unknown // For test compatibility
   ): Promise<string[]> {
     const api = this.getSheetsApi();
     const response = await api.spreadsheets.values.get({
@@ -661,7 +634,7 @@ export class SheetResolver {
    * Convert 0-based column index to letter (A, B, ..., Z, AA, AB, ...)
    */
   columnIndexToLetter(index: number): string {
-    let letter = "";
+    let letter = '';
     let num = index + 1; // Convert to 1-based
 
     while (num > 0) {
@@ -698,8 +671,8 @@ export class SheetResolver {
     let sheetName: string | undefined;
     let rangeStr = notation;
 
-    if (notation.includes("!")) {
-      const parts = notation.split("!");
+    if (notation.includes('!')) {
+      const parts = notation.split('!');
       const extractedSheetName = parts[0];
       const extractedRange = parts[1];
 
@@ -715,8 +688,8 @@ export class SheetResolver {
     }
 
     // Parse the range part
-    if (rangeStr.includes(":")) {
-      const parts = rangeStr.split(":");
+    if (rangeStr.includes(':')) {
+      const parts = rangeStr.split(':');
       const start = parts[0];
       const end = parts[1];
 
@@ -819,9 +792,7 @@ let sheetResolverInstance: SheetResolver | null = null;
 /**
  * Get or create the sheet resolver singleton
  */
-export function getSheetResolver(
-  options?: SheetResolverOptions,
-): SheetResolver | null {
+export function getSheetResolver(options?: SheetResolverOptions): SheetResolver | null {
   if (!sheetResolverInstance && options) {
     sheetResolverInstance = new SheetResolver(options);
   }
@@ -840,7 +811,7 @@ export function setSheetResolver(resolver: SheetResolver | null): void {
  */
 export function initializeSheetResolver(
   sheetsApi: sheets_v4.Sheets,
-  options?: Omit<SheetResolverOptions, "sheetsApi">,
+  options?: Omit<SheetResolverOptions, 'sheetsApi'>
 ): SheetResolver {
   sheetResolverInstance = new SheetResolver({
     sheetsApi,
@@ -854,10 +825,8 @@ export function initializeSheetResolver(
  * @internal
  */
 export function resetSheetResolver(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetSheetResolver() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetSheetResolver() can only be called in test environment');
   }
   sheetResolverInstance = null;
 }

@@ -11,39 +11,30 @@
  * @module mcp/registration/fast-handler-map
  */
 
-import type { Handlers } from "../../handlers/index.js";
-import type { AuthHandler } from "../../handlers/auth.js";
+import type { Handlers } from '../../handlers/index.js';
+import type { AuthHandler } from '../../handlers/auth.js';
 import {
   fastValidateAuth,
-  fastValidateSpreadsheet,
-  fastValidateSheet,
-  fastValidateValues,
-  fastValidateCells,
+  fastValidateCore,
+  fastValidateData,
   fastValidateFormat,
   fastValidateDimensions,
-  fastValidateRules,
-  fastValidateCharts,
-  fastValidatePivot,
-  fastValidateFilterSort,
-  fastValidateSharing,
-  fastValidateComments,
-  fastValidateVersions,
+  fastValidateVisualize,
+  fastValidateCollaborate,
   fastValidateAnalysis,
   fastValidateAdvanced,
   fastValidateTransaction,
-  fastValidateValidation,
-  fastValidateConflict,
-  fastValidateImpact,
+  fastValidateQuality,
   fastValidateHistory,
   fastValidateConfirm,
   fastValidateAnalyze,
   fastValidateFix,
   fastValidateComposite,
   FastValidationError,
-} from "../../schemas/fast-validators.js";
+} from '../../schemas/fast-validators.js';
 
 // Environment flag to enable fast validation (default: true for performance)
-const USE_FAST_VALIDATORS = process.env["SERVAL_FAST_VALIDATORS"] !== "false";
+const USE_FAST_VALIDATORS = process.env['SERVAL_FAST_VALIDATORS'] !== 'false';
 
 /**
  * Creates an optimized handler map using fast validators
@@ -58,38 +49,42 @@ const USE_FAST_VALIDATORS = process.env["SERVAL_FAST_VALIDATORS"] !== "false";
  */
 export function createFastToolHandlerMap(
   handlers: Handlers,
-  authHandler?: AuthHandler,
+  authHandler?: AuthHandler
 ): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
   if (!USE_FAST_VALIDATORS) {
     // Fall back to Zod-based validation
-    const { createToolHandlerMap } = require("./tool-handlers.js") as typeof import("./tool-handlers.js");
+    const { createToolHandlerMap } =
+      require('./tool-handlers.js') as typeof import('./tool-handlers.js');
     return createToolHandlerMap(handlers, authHandler);
   }
 
   const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
-    // Core spreadsheet tools
-    sheets_spreadsheet: async (args) => {
+    // Wave 1 consolidated tools
+    sheets_core: async (args) => {
       const input = args as Record<string, unknown>;
-      fastValidateSpreadsheet(input);
-      return handlers.spreadsheet.handle(input as Parameters<typeof handlers.spreadsheet.handle>[0]);
+      fastValidateCore(input);
+      return handlers.core.handle(input as Parameters<typeof handlers.core.handle>[0]);
     },
 
-    sheets_sheet: async (args) => {
+    sheets_visualize: async (args) => {
       const input = args as Record<string, unknown>;
-      fastValidateSheet(input);
-      return handlers.sheet.handle(input as Parameters<typeof handlers.sheet.handle>[0]);
+      fastValidateVisualize(input);
+      return handlers.visualize.handle(input as Parameters<typeof handlers.visualize.handle>[0]);
     },
 
-    sheets_values: async (args) => {
+    sheets_collaborate: async (args) => {
       const input = args as Record<string, unknown>;
-      fastValidateValues(input);
-      return handlers.values.handle(input as Parameters<typeof handlers.values.handle>[0]);
+      fastValidateCollaborate(input);
+      return handlers.collaborate.handle(
+        input as Parameters<typeof handlers.collaborate.handle>[0]
+      );
     },
 
-    sheets_cells: async (args) => {
+    // Wave 4 consolidated tool (values + cells)
+    sheets_data: async (args) => {
       const input = args as Record<string, unknown>;
-      fastValidateCells(input);
-      return handlers.cells.handle(input as Parameters<typeof handlers.cells.handle>[0]);
+      fastValidateData(input);
+      return handlers.data.handle(input as Parameters<typeof handlers.data.handle>[0]);
     },
 
     sheets_format: async (args) => {
@@ -102,48 +97,6 @@ export function createFastToolHandlerMap(
       const input = args as Record<string, unknown>;
       fastValidateDimensions(input);
       return handlers.dimensions.handle(input as Parameters<typeof handlers.dimensions.handle>[0]);
-    },
-
-    sheets_rules: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateRules(input);
-      return handlers.rules.handle(input as Parameters<typeof handlers.rules.handle>[0]);
-    },
-
-    sheets_charts: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateCharts(input);
-      return handlers.charts.handle(input as Parameters<typeof handlers.charts.handle>[0]);
-    },
-
-    sheets_pivot: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidatePivot(input);
-      return handlers.pivot.handle(input as Parameters<typeof handlers.pivot.handle>[0]);
-    },
-
-    sheets_filter_sort: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateFilterSort(input);
-      return handlers.filterSort.handle(input as Parameters<typeof handlers.filterSort.handle>[0]);
-    },
-
-    sheets_sharing: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateSharing(input);
-      return handlers.sharing.handle(input as Parameters<typeof handlers.sharing.handle>[0]);
-    },
-
-    sheets_comments: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateComments(input);
-      return handlers.comments.handle(input as Parameters<typeof handlers.comments.handle>[0]);
-    },
-
-    sheets_versions: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateVersions(input);
-      return handlers.versions.handle(input as Parameters<typeof handlers.versions.handle>[0]);
     },
 
     sheets_analysis: async (args) => {
@@ -162,25 +115,15 @@ export function createFastToolHandlerMap(
     sheets_transaction: async (args) => {
       const input = args as Record<string, unknown>;
       fastValidateTransaction(input);
-      return handlers.transaction.handle(input as Parameters<typeof handlers.transaction.handle>[0]);
+      return handlers.transaction.handle(
+        input as Parameters<typeof handlers.transaction.handle>[0]
+      );
     },
 
-    sheets_validation: async (args) => {
+    sheets_quality: async (args) => {
       const input = args as Record<string, unknown>;
-      fastValidateValidation(input);
-      return handlers.validation.handle(input as Parameters<typeof handlers.validation.handle>[0]);
-    },
-
-    sheets_conflict: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateConflict(input);
-      return handlers.conflict.handle(input as Parameters<typeof handlers.conflict.handle>[0]);
-    },
-
-    sheets_impact: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateImpact(input);
-      return handlers.impact.handle(input as Parameters<typeof handlers.impact.handle>[0]);
+      fastValidateQuality(input);
+      return handlers.quality.handle(input as Parameters<typeof handlers.quality.handle>[0]);
     },
 
     sheets_history: async (args) => {
@@ -223,7 +166,7 @@ export function createFastToolHandlerMap(
 
   // Add auth handler if provided
   if (authHandler) {
-    map["sheets_auth"] = async (args) => {
+    map['sheets_auth'] = async (args) => {
       const input = args as Record<string, unknown>;
       fastValidateAuth(input);
       return authHandler.handle(input as Parameters<typeof authHandler.handle>[0]);
@@ -237,8 +180,11 @@ export function createFastToolHandlerMap(
  * Wrap a handler function with error handling for validation errors
  */
 export function wrapWithValidationErrorHandling<T>(
-  handler: (args: unknown, extra?: unknown) => Promise<T>,
-): (args: unknown, extra?: unknown) => Promise<T | { response: { success: false; error: Record<string, unknown> } }> {
+  handler: (args: unknown, extra?: unknown) => Promise<T>
+): (
+  args: unknown,
+  extra?: unknown
+) => Promise<T | { response: { success: false; error: Record<string, unknown> } }> {
   return async (args, extra) => {
     try {
       return await handler(args, extra);
@@ -248,7 +194,7 @@ export function wrapWithValidationErrorHandling<T>(
           response: {
             success: false,
             error: {
-              code: "INVALID_PARAMS",
+              code: 'INVALID_PARAMS',
               message: error.message,
               details: error.details,
               retryable: false,

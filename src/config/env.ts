@@ -11,22 +11,20 @@
  * - Validates early (fail fast)
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Environment variable schema with validation rules and defaults
  */
 const EnvSchema = z.object({
   // Server configuration
-  NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   // HIGH-003 FIX: Default to 127.0.0.1 for security (0.0.0.0 exposes to entire network)
-  HOST: z.string().default("127.0.0.1"),
+  HOST: z.string().default('127.0.0.1'),
 
   // Logging
-  LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info"),
+  LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
 
   // Google API Configuration (optional - can run without for testing)
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -51,16 +49,8 @@ const EnvSchema = z.object({
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
   // Circuit Breaker
-  CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(5),
-  CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(2),
+  CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(5),
+  CIRCUIT_BREAKER_SUCCESS_THRESHOLD: z.coerce.number().int().positive().default(2),
   CIRCUIT_BREAKER_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
 
   // Safety limits
@@ -71,17 +61,17 @@ const EnvSchema = z.object({
   GRACEFUL_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(10000), // 10 seconds
 
   // Session Store Configuration (for OAuth)
-  SESSION_STORE_TYPE: z.enum(["memory", "redis"]).default("memory"),
+  SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
   REDIS_URL: z.string().url().optional(),
 
   // OAuth Server Configuration (for remote server)
   JWT_SECRET: z.string().optional(),
   STATE_SECRET: z.string().optional(),
   OAUTH_CLIENT_SECRET: z.string().optional(),
-  OAUTH_ISSUER: z.string().default("https://servalsheets.example.com"),
-  OAUTH_CLIENT_ID: z.string().default("servalsheets"),
-  ALLOWED_REDIRECT_URIS: z.string().default("http://localhost:3000/callback"),
-  CORS_ORIGINS: z.string().default("https://claude.ai,https://claude.com"),
+  OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
+  OAUTH_CLIENT_ID: z.string().default('servalsheets'),
+  ALLOWED_REDIRECT_URIS: z.string().default('http://localhost:3000/callback'),
+  CORS_ORIGINS: z.string().default('https://claude.ai,https://claude.com'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days
 
@@ -121,18 +111,18 @@ export function validateEnv(): Env {
     return env;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error("❌ Environment validation failed:");
-      console.error("");
+      console.error('❌ Environment validation failed:');
+      console.error('');
 
       for (const issue of error.issues) {
-        const path = issue.path.join(".");
+        const path = issue.path.join('.');
         const message = issue.message;
         console.error(`  - ${path}: ${message}`);
       }
 
-      console.error("");
-      console.error("Please check your environment variables or .env file.");
-      console.error("See .env.example for required configuration.");
+      console.error('');
+      console.error('Please check your environment variables or .env file.');
+      console.error('See .env.example for required configuration.');
       process.exit(1);
     }
 
@@ -144,21 +134,21 @@ export function validateEnv(): Env {
  * Check if running in production mode
  */
 export function isProduction(): boolean {
-  return ensureEnv().NODE_ENV === "production";
+  return ensureEnv().NODE_ENV === 'production';
 }
 
 /**
  * Check if running in development mode
  */
 export function isDevelopment(): boolean {
-  return ensureEnv().NODE_ENV === "development";
+  return ensureEnv().NODE_ENV === 'development';
 }
 
 /**
  * Check if running in test mode
  */
 export function isTest(): boolean {
-  return ensureEnv().NODE_ENV === "test";
+  return ensureEnv().NODE_ENV === 'test';
 }
 
 /**
@@ -251,17 +241,17 @@ export function getSafetyLimits(): {
  * @throws {Error} if redis type is selected but REDIS_URL not provided
  */
 export function getSessionStoreConfig(): {
-  type: "memory" | "redis";
+  type: 'memory' | 'redis';
   redisUrl?: string;
 } {
   const current = ensureEnv();
   const type = current.SESSION_STORE_TYPE;
   const redisUrl = current.REDIS_URL;
 
-  if (type === "redis" && !redisUrl) {
+  if (type === 'redis' && !redisUrl) {
     throw new Error(
-      "REDIS_URL is required when SESSION_STORE_TYPE=redis. " +
-        "Please provide a Redis connection URL (e.g., redis://localhost:6379)",
+      'REDIS_URL is required when SESSION_STORE_TYPE=redis. ' +
+        'Please provide a Redis connection URL (e.g., redis://localhost:6379)'
     );
   }
 

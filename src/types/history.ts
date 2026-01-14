@@ -16,7 +16,7 @@ export interface OperationHistory {
   /** Operation parameters */
   params: Record<string, unknown>;
   /** Operation result status */
-  result: "success" | "error";
+  result: 'success' | 'error';
   /** Duration in milliseconds */
   duration: number;
   /** Number of cells affected (if applicable) */
@@ -70,7 +70,7 @@ export interface OperationHistoryFilter {
   /** Filter by action */
   action?: string;
   /** Filter by result */
-  result?: "success" | "error";
+  result?: 'success' | 'error';
   /** Filter by spreadsheet ID */
   spreadsheetId?: string;
   /** Filter by time range (start) */

@@ -6,42 +6,42 @@
  * Phase 4, Task 4.4
  */
 
-import type { GoogleApiClient } from "../services/google-api.js";
+import type { GoogleApiClient } from '../services/google-api.js';
 
 /**
  * Validation rule type
  */
 export type ValidationRuleType =
-  | "data_type"
-  | "range"
-  | "format"
-  | "uniqueness"
-  | "required"
-  | "pattern"
-  | "custom"
-  | "business_rule";
+  | 'data_type'
+  | 'range'
+  | 'format'
+  | 'uniqueness'
+  | 'required'
+  | 'pattern'
+  | 'custom'
+  | 'business_rule';
 
 /**
  * Validation severity
  */
-export type ValidationSeverity = "error" | "warning" | "info";
+export type ValidationSeverity = 'error' | 'warning' | 'info';
 
 /**
  * Data type for validation
  */
 export type DataType =
-  | "string"
-  | "number"
-  | "integer"
-  | "boolean"
-  | "date"
-  | "time"
-  | "datetime"
-  | "email"
-  | "url"
-  | "phone"
-  | "currency"
-  | "percentage";
+  | 'string'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'date'
+  | 'time'
+  | 'datetime'
+  | 'email'
+  | 'url'
+  | 'phone'
+  | 'currency'
+  | 'percentage';
 
 /**
  * Validation rule
@@ -224,7 +224,7 @@ export interface FormatValidation {
   pattern?: string;
 
   /** Format type */
-  format?: "email" | "url" | "phone" | "date" | "time" | "custom";
+  format?: 'email' | 'url' | 'phone' | 'date' | 'time' | 'custom';
 
   /** Custom format validator */
   customValidator?: (value: string) => boolean;
@@ -235,7 +235,7 @@ export interface FormatValidation {
  */
 export interface UniquenessValidation {
   /** Scope */
-  scope: "column" | "sheet" | "spreadsheet";
+  scope: 'column' | 'sheet' | 'spreadsheet';
 
   /** Case sensitive */
   caseSensitive?: boolean;
@@ -274,10 +274,7 @@ export interface PatternValidation {
  */
 export interface CustomValidation {
   /** Validator function */
-  validator: (
-    value: unknown,
-    context?: ValidationContext,
-  ) => boolean | Promise<boolean>;
+  validator: (value: unknown, context?: ValidationContext) => boolean | Promise<boolean>;
 
   /** Error message */
   message: string;
@@ -294,10 +291,7 @@ export interface BusinessRuleValidation {
   ruleName: string;
 
   /** Rule function */
-  rule: (
-    data: unknown,
-    context?: ValidationContext,
-  ) => boolean | Promise<boolean>;
+  rule: (data: unknown, context?: ValidationContext) => boolean | Promise<boolean>;
 
   /** Description */
   description: string;

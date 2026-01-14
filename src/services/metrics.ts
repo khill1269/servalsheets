@@ -13,7 +13,7 @@
  * - Memory-efficient (sliding window)
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 
 // ==================== Types ====================
 
@@ -309,20 +309,18 @@ export class MetricsService {
     openEvents: 0,
     halfOpenEvents: 0,
     closedEvents: 0,
-    currentState: "closed",
+    currentState: 'closed',
   };
 
   private enabled: boolean;
   private verboseLogging: boolean;
 
   constructor(options: { enabled?: boolean; verboseLogging?: boolean } = {}) {
-    this.enabled =
-      options.enabled ?? process.env["METRICS_ENABLED"] !== "false";
-    this.verboseLogging =
-      options.verboseLogging ?? process.env["METRICS_VERBOSE"] === "true";
+    this.enabled = options.enabled ?? process.env['METRICS_ENABLED'] !== 'false';
+    this.verboseLogging = options.verboseLogging ?? process.env['METRICS_VERBOSE'] === 'true';
 
     if (this.enabled) {
-      logger.info("Metrics service initialized", {
+      logger.info('Metrics service initialized', {
         enabled: this.enabled,
         verboseLogging: this.verboseLogging,
         maxOperations: MAX_OPERATIONS,
@@ -346,13 +344,13 @@ export class MetricsService {
   recordOperation(
     optionsOrName: RecordOperationOptions | string,
     durationMs?: number,
-    success?: boolean,
+    success?: boolean
   ): void {
     if (!this.enabled) return;
 
     // Handle both signatures
     const options: RecordOperationOptions =
-      typeof optionsOrName === "string"
+      typeof optionsOrName === 'string'
         ? { name: optionsOrName, durationMs: durationMs!, success: success! }
         : optionsOrName;
 
@@ -402,7 +400,7 @@ export class MetricsService {
     }
 
     if (this.verboseLogging) {
-      logger.debug("Operation recorded in metrics", {
+      logger.debug('Operation recorded in metrics', {
         name,
         durationMs,
         success,
@@ -433,52 +431,33 @@ export class MetricsService {
    * Record API call (extended signature with tool/action tracking)
    */
   recordApiCall(options: RecordApiCallOptions): void;
-  recordApiCall(
-    methodOrOptions: string | RecordApiCallOptions,
-    success: boolean = true,
-  ): void {
+  recordApiCall(methodOrOptions: string | RecordApiCallOptions, success: boolean = true): void {
     if (!this.enabled) return;
 
     // Handle both signatures
-    if (typeof methodOrOptions === "string") {
+    if (typeof methodOrOptions === 'string') {
       // Simple signature: recordApiCall(method, success)
       const method = methodOrOptions;
       this.apiCalls++;
-      this.apiCallsByMethod.set(
-        method,
-        (this.apiCallsByMethod.get(method) || 0) + 1,
-      );
+      this.apiCallsByMethod.set(method, (this.apiCallsByMethod.get(method) || 0) + 1);
       if (!success) {
         this.apiErrors++;
       }
     } else {
       // Extended signature: recordApiCall({ tool, action, duration, success, errorType, timestamp })
-      const {
-        tool,
-        action,
-        duration,
-        success: isSuccess,
-        errorType,
-        timestamp,
-      } = methodOrOptions;
+      const { tool, action, duration, success: isSuccess, errorType, timestamp } = methodOrOptions;
       const recordTimestamp = timestamp ?? Date.now();
 
       // Update basic API metrics
       this.apiCalls++;
       const method = `${tool}.${action}`;
-      this.apiCallsByMethod.set(
-        method,
-        (this.apiCallsByMethod.get(method) || 0) + 1,
-      );
+      this.apiCallsByMethod.set(method, (this.apiCallsByMethod.get(method) || 0) + 1);
       if (!isSuccess) {
         this.apiErrors++;
 
         // Track error types
         if (errorType) {
-          this.errorMetrics.set(
-            errorType,
-            (this.errorMetrics.get(errorType) || 0) + 1,
-          );
+          this.errorMetrics.set(errorType, (this.errorMetrics.get(errorType) || 0) + 1);
         }
       }
 
@@ -578,7 +557,7 @@ export class MetricsService {
       failureCount: number;
       durations: number[];
       lastRecorded: number;
-    },
+    }
   ): OperationMetrics {
     const durations = [...op.durations].sort((a, b) => a - b);
     const total = durations.reduce((sum, d) => sum + d, 0);
@@ -680,8 +659,7 @@ export class MetricsService {
     const totalOperations = operations.reduce((sum, op) => sum + op.count, 0);
     const avgSuccessRate =
       operations.length > 0
-        ? operations.reduce((sum, op) => sum + op.successRate, 0) /
-          operations.length
+        ? operations.reduce((sum, op) => sum + op.successRate, 0) / operations.length
         : 0;
 
     return {
@@ -715,9 +693,7 @@ export class MetricsService {
 
     const durations = stats.durations;
     const avgDuration =
-      durations.length > 0
-        ? durations.reduce((sum, d) => sum + d, 0) / durations.length
-        : 0;
+      durations.length > 0 ? durations.reduce((sum, d) => sum + d, 0) / durations.length : 0;
     const minDuration = durations.length > 0 ? Math.min(...durations) : 0;
     const maxDuration = durations.length > 0 ? Math.max(...durations) : 0;
 
@@ -746,8 +722,7 @@ export class MetricsService {
 
     const avgDuration =
       stats.durations.length > 0
-        ? stats.durations.reduce((sum, d) => sum + d, 0) /
-          stats.durations.length
+        ? stats.durations.reduce((sum, d) => sum + d, 0) / stats.durations.length
         : 0;
 
     return {
@@ -817,8 +792,7 @@ export class MetricsService {
   getBatchMetrics(): BatchMetrics {
     const avgEfficiency =
       this.batchOperations.totalRequestCount > 0
-        ? this.batchOperations.totalSavedCalls /
-          this.batchOperations.totalRequestCount
+        ? this.batchOperations.totalSavedCalls / this.batchOperations.totalRequestCount
         : 0;
 
     return {
@@ -831,10 +805,10 @@ export class MetricsService {
   /**
    * Record rate limit hit
    */
-  recordRateLimitHit(type: "read" | "write"): void {
+  recordRateLimitHit(type: 'read' | 'write'): void {
     if (!this.enabled) return;
 
-    if (type === "read") {
+    if (type === 'read') {
       this.rateLimits.readLimits++;
     } else {
       this.rateLimits.writeLimits++;
@@ -855,14 +829,14 @@ export class MetricsService {
   /**
    * Record circuit breaker state change
    */
-  recordCircuitBreakerEvent(state: "open" | "half-open" | "closed"): void {
+  recordCircuitBreakerEvent(state: 'open' | 'half-open' | 'closed'): void {
     if (!this.enabled) return;
 
-    if (state === "open") {
+    if (state === 'open') {
       this.circuitBreakerEvents.openEvents++;
-    } else if (state === "half-open") {
+    } else if (state === 'half-open') {
       this.circuitBreakerEvents.halfOpenEvents++;
-    } else if (state === "closed") {
+    } else if (state === 'closed') {
       this.circuitBreakerEvents.closedEvents++;
     }
     this.circuitBreakerEvents.currentState = state;
@@ -884,12 +858,10 @@ export class MetricsService {
    */
   getOverallMetrics(): OverallMetrics {
     const totalApiCalls = this.apiCalls;
-    const successRate =
-      totalApiCalls > 0 ? (totalApiCalls - this.apiErrors) / totalApiCalls : 0;
+    const successRate = totalApiCalls > 0 ? (totalApiCalls - this.apiErrors) / totalApiCalls : 0;
 
     const totalCacheRequests = this.cacheRequests;
-    const cacheHitRate =
-      totalCacheRequests > 0 ? this.cacheHits / totalCacheRequests : 0;
+    const cacheHitRate = totalCacheRequests > 0 ? this.cacheHits / totalCacheRequests : 0;
 
     const batchMetrics = this.getBatchMetrics();
 
@@ -1021,7 +993,7 @@ export class MetricsService {
       openEvents: 0,
       halfOpenEvents: 0,
       closedEvents: 0,
-      currentState: "closed",
+      currentState: 'closed',
     };
 
     this.startTime = new Date();
@@ -1054,7 +1026,7 @@ export class MetricsService {
 
 // ==================== Singleton ====================
 
-import * as os from "os";
+import * as os from 'os';
 
 let metricsService: MetricsService | null = null;
 
@@ -1091,10 +1063,8 @@ export function initMetricsService(options?: {
  * @internal
  */
 export function resetMetricsService(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetMetricsService() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetMetricsService() can only be called in test environment');
   }
   metricsService = null;
 }

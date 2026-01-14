@@ -4,7 +4,7 @@
  * Exponential backoff with jitter and request timeouts.
  */
 
-import { getRequestContext, getRequestLogger } from "./request-context.js";
+import { getRequestContext, getRequestLogger } from './request-context.js';
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -15,39 +15,28 @@ export interface RetryOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = parseInt(
-  process.env["GOOGLE_API_TIMEOUT_MS"] ?? "30000",
-  10,
-);
-const DEFAULT_RETRY_OPTIONS: Required<
-  Omit<RetryOptions, "retryable" | "timeoutMs">
-> = {
-  maxRetries: parseInt(process.env["GOOGLE_API_MAX_RETRIES"] ?? "3", 10),
-  baseDelayMs: parseInt(
-    process.env["GOOGLE_API_RETRY_BASE_DELAY_MS"] ?? "500",
-    10,
-  ),
-  maxDelayMs: parseInt(
-    process.env["GOOGLE_API_RETRY_MAX_DELAY_MS"] ?? "60000",
-    10,
-  ),
-  jitterRatio: parseFloat(process.env["GOOGLE_API_RETRY_JITTER"] ?? "0.2"),
+const DEFAULT_TIMEOUT_MS = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000', 10);
+const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutMs'>> = {
+  maxRetries: parseInt(process.env['GOOGLE_API_MAX_RETRIES'] ?? '3', 10),
+  baseDelayMs: parseInt(process.env['GOOGLE_API_RETRY_BASE_DELAY_MS'] ?? '500', 10),
+  maxDelayMs: parseInt(process.env['GOOGLE_API_RETRY_MAX_DELAY_MS'] ?? '60000', 10),
+  jitterRatio: parseFloat(process.env['GOOGLE_API_RETRY_JITTER'] ?? '0.2'),
 };
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const RETRYABLE_CODES = new Set([
-  "ETIMEDOUT",
-  "ECONNRESET",
-  "ECONNREFUSED",
-  "EAI_AGAIN",
-  "ENOTFOUND",
-  "ENETUNREACH",
-  "ECONNABORTED",
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EAI_AGAIN',
+  'ENOTFOUND',
+  'ENETUNREACH',
+  'ECONNABORTED',
 ]);
 
 export async function executeWithRetry<T>(
   operation: (signal: AbortSignal) => Promise<T>,
-  options: RetryOptions = {},
+  options: RetryOptions = {}
 ): Promise<T> {
   const logger = getRequestLogger();
   const requestContext = getRequestContext();
@@ -56,8 +45,7 @@ export async function executeWithRetry<T>(
   const baseDelayMs = options.baseDelayMs ?? DEFAULT_RETRY_OPTIONS.baseDelayMs;
   const maxDelayMs = options.maxDelayMs ?? DEFAULT_RETRY_OPTIONS.maxDelayMs;
   const jitterRatio = options.jitterRatio ?? DEFAULT_RETRY_OPTIONS.jitterRatio;
-  const timeoutMs =
-    options.timeoutMs ?? requestContext?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? requestContext?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const retryable = options.retryable ?? isRetryableError;
 
   let lastError: unknown;
@@ -77,11 +65,8 @@ export async function executeWithRetry<T>(
       const jitter = backoff * jitterRatio * (Math.random() * 2 - 1);
       const delay = Math.max(0, retryAfterMs ?? backoff + jitter);
 
-      if (
-        requestContext?.deadline &&
-        Date.now() + delay > requestContext.deadline
-      ) {
-        logger.warn("Retry skipped due to request deadline", {
+      if (requestContext?.deadline && Date.now() + delay > requestContext.deadline) {
+        logger.warn('Retry skipped due to request deadline', {
           attempt,
           maxRetries,
           delayMs: delay,
@@ -89,7 +74,7 @@ export async function executeWithRetry<T>(
         throw error;
       }
 
-      logger.warn("Retrying Google API call", {
+      logger.warn('Retrying Google API call', {
         attempt,
         maxRetries,
         delayMs: delay,
@@ -103,7 +88,7 @@ export async function executeWithRetry<T>(
 }
 
 function isRetryableError(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
+  if (!error || typeof error !== 'object') {
     return false;
   }
 
@@ -115,31 +100,31 @@ function isRetryableError(error: unknown): boolean {
   };
 
   const status = errAny.response?.status;
-  if (typeof status === "number" && RETRYABLE_STATUS.has(status)) {
+  if (typeof status === 'number' && RETRYABLE_STATUS.has(status)) {
     return true;
   }
 
-  if (typeof errAny.code === "number" && RETRYABLE_STATUS.has(errAny.code)) {
+  if (typeof errAny.code === 'number' && RETRYABLE_STATUS.has(errAny.code)) {
     return true;
   }
 
-  if (typeof errAny.code === "string" && RETRYABLE_CODES.has(errAny.code)) {
+  if (typeof errAny.code === 'string' && RETRYABLE_CODES.has(errAny.code)) {
     return true;
   }
 
-  if (typeof errAny.name === "string" && errAny.name === "AbortError") {
+  if (typeof errAny.name === 'string' && errAny.name === 'AbortError') {
     return true;
   }
 
-  if (typeof errAny.message === "string") {
+  if (typeof errAny.message === 'string') {
     const message = errAny.message.toLowerCase();
     return (
-      message.includes("rate limit") ||
-      message.includes("quota exceeded") ||
-      message.includes("timeout") ||
-      message.includes("timed out") ||
-      message.includes("temporarily unavailable") ||
-      message.includes("backend error")
+      message.includes('rate limit') ||
+      message.includes('quota exceeded') ||
+      message.includes('timeout') ||
+      message.includes('timed out') ||
+      message.includes('temporarily unavailable') ||
+      message.includes('backend error')
     );
   }
 
@@ -147,19 +132,18 @@ function isRetryableError(error: unknown): boolean {
 }
 
 function parseRetryAfter(error: unknown): number | undefined {
-  if (!error || typeof error !== "object") {
+  if (!error || typeof error !== 'object') {
     // OK: Explicit empty - typed as optional, invalid error object
     return undefined;
   }
-  const headers = (
-    error as { response?: { headers?: Record<string, string | string[]> } }
-  ).response?.headers;
+  const headers = (error as { response?: { headers?: Record<string, string | string[]> } }).response
+    ?.headers;
   if (!headers) {
     // OK: Explicit empty - typed as optional, no response headers
     return undefined;
   }
 
-  const headerValue = headers["retry-after"] ?? headers["Retry-After"];
+  const headerValue = headers['retry-after'] ?? headers['Retry-After'];
   if (!headerValue) {
     // OK: Explicit empty - typed as optional, no Retry-After header
     return undefined;
@@ -182,19 +166,19 @@ function parseRetryAfter(error: unknown): number | undefined {
 
 async function withTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
-  timeoutMs: number,
+  timeoutMs: number
 ): Promise<T> {
   const logger = getRequestLogger();
   const controller = new AbortController();
   const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
-  timeoutError.name = "TimeoutError";
+  timeoutError.name = 'TimeoutError';
 
   let timeoutId: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      logger.warn("Request timeout triggered", {
+      logger.warn('Request timeout triggered', {
         timeoutMs,
-        message: "Google API call exceeded timeout, aborting request",
+        message: 'Google API call exceeded timeout, aborting request',
       });
       controller.abort();
       reject(timeoutError);

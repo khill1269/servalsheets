@@ -16,22 +16,22 @@
  * @see https://spec.modelcontextprotocol.io/specification/security/
  */
 
-import type { OAuth2Client } from "google-auth-library";
-import { logger } from "../utils/logger.js";
-import { DEFAULT_SCOPES } from "../services/google-api.js";
+import type { OAuth2Client } from 'google-auth-library';
+import { logger } from '../utils/logger.js';
+import { DEFAULT_SCOPES } from '../services/google-api.js';
 
 /**
  * Scope categories for different operations
  */
 export enum ScopeCategory {
   /** Basic spreadsheet operations */
-  SPREADSHEET = "spreadsheet",
+  SPREADSHEET = 'spreadsheet',
   /** File-level Drive operations (create, open) */
-  DRIVE_FILE = "drive_file",
+  DRIVE_FILE = 'drive_file',
   /** Full Drive operations (share, list all, permissions) */
-  DRIVE_FULL = "drive_full",
+  DRIVE_FULL = 'drive_full',
   /** Read-only operations */
-  READONLY = "readonly",
+  READONLY = 'readonly',
 }
 
 /**
@@ -46,67 +46,67 @@ export const OPERATION_SCOPES: Record<
   }
 > = {
   // Basic operations - default scopes
-  "sheets_values.read": {
-    required: ["https://www.googleapis.com/auth/spreadsheets"],
+  'sheets_values.read': {
+    required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
-    description: "Read spreadsheet values",
+    description: 'Read spreadsheet values',
   },
-  "sheets_values.write": {
-    required: ["https://www.googleapis.com/auth/spreadsheets"],
+  'sheets_values.write': {
+    required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
-    description: "Write spreadsheet values",
+    description: 'Write spreadsheet values',
   },
-  "sheets_format.set_format": {
-    required: ["https://www.googleapis.com/auth/spreadsheets"],
+  'sheets_format.set_format': {
+    required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
-    description: "Format cells",
+    description: 'Format cells',
   },
-  "sheets_spreadsheet.create": {
+  'sheets_spreadsheet.create': {
     required: [
-      "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive.file",
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file',
     ],
     category: ScopeCategory.DRIVE_FILE,
-    description: "Create new spreadsheet",
+    description: 'Create new spreadsheet',
   },
-  "sheets_spreadsheet.get": {
-    required: ["https://www.googleapis.com/auth/spreadsheets"],
+  'sheets_spreadsheet.get': {
+    required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
-    description: "Get spreadsheet metadata",
+    description: 'Get spreadsheet metadata',
   },
 
   // Elevated operations - require full drive access
-  "sheets_sharing.share": {
-    required: ["https://www.googleapis.com/auth/drive"],
+  'sheets_sharing.share': {
+    required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
-    description: "Share spreadsheet with others",
+    description: 'Share spreadsheet with others',
   },
-  "sheets_sharing.list_permissions": {
-    required: ["https://www.googleapis.com/auth/drive"],
+  'sheets_sharing.list_permissions': {
+    required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
-    description: "List sharing permissions",
+    description: 'List sharing permissions',
   },
-  "sheets_sharing.transfer_ownership": {
-    required: ["https://www.googleapis.com/auth/drive"],
+  'sheets_sharing.transfer_ownership': {
+    required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
-    description: "Transfer spreadsheet ownership",
+    description: 'Transfer spreadsheet ownership',
   },
-  "sheets_sharing.set_link_sharing": {
-    required: ["https://www.googleapis.com/auth/drive"],
+  'sheets_sharing.set_link_sharing': {
+    required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
-    description: "Configure link sharing",
+    description: 'Configure link sharing',
   },
 
   // Read-only operations
-  "sheets_analysis.data_quality": {
-    required: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  'sheets_analysis.data_quality': {
+    required: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     category: ScopeCategory.READONLY,
-    description: "Analyze data quality",
+    description: 'Analyze data quality',
   },
-  "sheets_analysis.statistics": {
-    required: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  'sheets_analysis.statistics': {
+    required: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     category: ScopeCategory.READONLY,
-    description: "Calculate statistics",
+    description: 'Calculate statistics',
   },
 };
 
@@ -114,7 +114,7 @@ export const OPERATION_SCOPES: Record<
  * Error thrown when additional scopes are required
  */
 export class IncrementalScopeRequiredError extends Error {
-  public readonly code = "INCREMENTAL_SCOPE_REQUIRED";
+  public readonly code = 'INCREMENTAL_SCOPE_REQUIRED';
   public readonly requiredScopes: string[];
   public readonly currentScopes: string[];
   public readonly missingScopes: string[];
@@ -131,17 +131,15 @@ export class IncrementalScopeRequiredError extends Error {
     category: ScopeCategory;
     description?: string;
   }) {
-    const missingScopes = options.requiredScopes.filter(
-      (s) => !options.currentScopes.includes(s),
-    );
+    const missingScopes = options.requiredScopes.filter((s) => !options.currentScopes.includes(s));
 
     super(
       `Operation "${options.operation}" requires additional permissions. ` +
-        `Missing scopes: ${missingScopes.join(", ")}. ` +
-        `Please authorize at: ${options.authorizationUrl}`,
+        `Missing scopes: ${missingScopes.join(', ')}. ` +
+        `Please authorize at: ${options.authorizationUrl}`
     );
 
-    this.name = "IncrementalScopeRequiredError";
+    this.name = 'IncrementalScopeRequiredError';
     this.operation = options.operation;
     this.requiredScopes = options.requiredScopes;
     this.currentScopes = options.currentScopes;
@@ -154,7 +152,7 @@ export class IncrementalScopeRequiredError extends Error {
    * Convert to MCP tool error response
    */
   toToolResponse(): {
-    content: Array<{ type: "text"; text: string }>;
+    content: Array<{ type: 'text'; text: string }>;
     structuredContent: {
       error: string;
       code: string;
@@ -172,7 +170,7 @@ export class IncrementalScopeRequiredError extends Error {
     return {
       content: [
         {
-          type: "text",
+          type: 'text',
           text: this.message,
         },
       ],
@@ -187,8 +185,8 @@ export class IncrementalScopeRequiredError extends Error {
         authorizationUrl: this.authorizationUrl,
         retryable: this.retryable,
         instructions:
-          "To complete this operation, the user needs to grant additional permissions. " +
-          "Direct them to the authorization URL to approve the required scopes, then retry the operation.",
+          'To complete this operation, the user needs to grant additional permissions. ' +
+          'Direct them to the authorization URL to approve the required scopes, then retry the operation.',
       },
       isError: true,
     };
@@ -244,7 +242,7 @@ export class ScopeValidator {
       (scope) =>
         this.currentScopes.includes(scope) ||
         // Check for scope upgrades (readonly -> full)
-        this.hasScopeUpgrade(scope),
+        this.hasScopeUpgrade(scope)
     );
   }
 
@@ -254,27 +252,24 @@ export class ScopeValidator {
   private hasScopeUpgrade(requiredScope: string): boolean {
     // Full drive covers drive.file
     if (
-      requiredScope === "https://www.googleapis.com/auth/drive.file" &&
-      this.currentScopes.includes("https://www.googleapis.com/auth/drive")
+      requiredScope === 'https://www.googleapis.com/auth/drive.file' &&
+      this.currentScopes.includes('https://www.googleapis.com/auth/drive')
     ) {
       return true;
     }
 
     // Full spreadsheets covers readonly
     if (
-      requiredScope ===
-        "https://www.googleapis.com/auth/spreadsheets.readonly" &&
-      this.currentScopes.includes(
-        "https://www.googleapis.com/auth/spreadsheets",
-      )
+      requiredScope === 'https://www.googleapis.com/auth/spreadsheets.readonly' &&
+      this.currentScopes.includes('https://www.googleapis.com/auth/spreadsheets')
     ) {
       return true;
     }
 
     // Full drive covers drive.readonly
     if (
-      requiredScope === "https://www.googleapis.com/auth/drive.readonly" &&
-      this.currentScopes.includes("https://www.googleapis.com/auth/drive")
+      requiredScope === 'https://www.googleapis.com/auth/drive.readonly' &&
+      this.currentScopes.includes('https://www.googleapis.com/auth/drive')
     ) {
       return true;
     }
@@ -292,8 +287,7 @@ export class ScopeValidator {
     }
 
     return opConfig.required.filter(
-      (scope) =>
-        !this.currentScopes.includes(scope) && !this.hasScopeUpgrade(scope),
+      (scope) => !this.currentScopes.includes(scope) && !this.hasScopeUpgrade(scope)
     );
   }
 
@@ -304,24 +298,24 @@ export class ScopeValidator {
     if (!this.oauthClient) {
       // Fall back to manual URL construction
       const params = new URLSearchParams({
-        client_id: this.clientId ?? process.env["GOOGLE_CLIENT_ID"] ?? "",
+        client_id: this.clientId ?? process.env['GOOGLE_CLIENT_ID'] ?? '',
         redirect_uri:
           this.redirectUri ??
-          process.env["GOOGLE_REDIRECT_URI"] ??
-          "http://localhost:3000/oauth/callback",
-        response_type: "code",
-        scope: [...this.currentScopes, ...additionalScopes].join(" "),
-        access_type: "offline",
-        prompt: "consent",
-        include_granted_scopes: "true", // Key for incremental consent
+          process.env['GOOGLE_REDIRECT_URI'] ??
+          'http://localhost:3000/oauth/callback',
+        response_type: 'code',
+        scope: [...this.currentScopes, ...additionalScopes].join(' '),
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true', // Key for incremental consent
       });
       return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
 
     return this.oauthClient.generateAuthUrl({
-      access_type: "offline",
+      access_type: 'offline',
       scope: [...this.currentScopes, ...additionalScopes],
-      prompt: "consent",
+      prompt: 'consent',
       include_granted_scopes: true, // Google-specific: include previously granted scopes
     });
   }
@@ -342,7 +336,7 @@ export class ScopeValidator {
     const missingScopes = this.getMissingScopes(operation);
     const authUrl = this.generateIncrementalAuthUrl(missingScopes);
 
-    logger.info("Incremental scope required", {
+    logger.info('Incremental scope required', {
       operation,
       category: opConfig.category,
       missingScopes,
@@ -385,9 +379,7 @@ export class ScopeValidator {
    * Get all operations that can be performed with current scopes
    */
   getAvailableOperations(): string[] {
-    return Object.keys(OPERATION_SCOPES).filter((op) =>
-      this.hasRequiredScopes(op),
-    );
+    return Object.keys(OPERATION_SCOPES).filter((op) => this.hasRequiredScopes(op));
   }
 
   /**
@@ -445,18 +437,13 @@ export function createScopeValidator(authContext?: {
 /**
  * Middleware-style scope check for handlers
  */
-export function requireScopes(
-  operation: string,
-  validator: ScopeValidator,
-): void {
+export function requireScopes(operation: string, validator: ScopeValidator): void {
   validator.validateOperation(operation);
 }
 
 /**
  * Check if error is an incremental scope error
  */
-export function isIncrementalScopeError(
-  error: unknown,
-): error is IncrementalScopeRequiredError {
+export function isIncrementalScopeError(error: unknown): error is IncrementalScopeRequiredError {
   return error instanceof IncrementalScopeRequiredError;
 }

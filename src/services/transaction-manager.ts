@@ -10,9 +10,9 @@
  * Phase 4, Task 4.1
  */
 
-import { v4 as uuidv4 } from "uuid";
-import { logger } from "../utils/logger.js";
-import type { sheets_v4 } from "googleapis";
+import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../utils/logger.js';
+import type { sheets_v4 } from 'googleapis';
 import {
   Transaction,
   TransactionStatus as _TransactionStatus,
@@ -28,14 +28,14 @@ import {
   TransactionStats,
   TransactionEvent,
   TransactionListener,
-} from "../types/transaction.js";
+} from '../types/transaction.js';
 
 /**
  * Transaction Manager - Handles multi-operation transactions with atomicity
  */
 export class TransactionManager {
-  private config: Required<Omit<TransactionConfig, "googleClient">>;
-  private googleClient?: TransactionConfig["googleClient"];
+  private config: Required<Omit<TransactionConfig, 'googleClient'>>;
+  private googleClient?: TransactionConfig['googleClient'];
   private stats: TransactionStats;
   private activeTransactions: Map<string, Transaction>;
   private snapshots: Map<string, TransactionSnapshot>;
@@ -53,7 +53,7 @@ export class TransactionManager {
       snapshotRetentionMs: config.snapshotRetentionMs ?? 3600000, // 1 hour
       maxConcurrentTransactions: config.maxConcurrentTransactions ?? 10,
       verboseLogging: config.verboseLogging ?? false,
-      defaultIsolationLevel: config.defaultIsolationLevel ?? "read_committed",
+      defaultIsolationLevel: config.defaultIsolationLevel ?? 'read_committed',
     };
 
     this.stats = {
@@ -87,16 +87,16 @@ export class TransactionManager {
     options: {
       autoCommit?: boolean;
       autoRollback?: boolean;
-      isolationLevel?: "read_uncommitted" | "read_committed" | "serializable";
+      isolationLevel?: 'read_uncommitted' | 'read_committed' | 'serializable';
       userId?: string;
-    } = {},
+    } = {}
   ): Promise<string> {
     if (!this.config.enabled) {
-      throw new Error("Transactions are disabled");
+      throw new Error('Transactions are disabled');
     }
 
     if (this.activeTransactions.size >= this.config.maxConcurrentTransactions) {
-      throw new Error("Maximum concurrent transactions reached");
+      throw new Error('Maximum concurrent transactions reached');
     }
 
     const transactionId = uuidv4();
@@ -114,11 +114,10 @@ export class TransactionManager {
       spreadsheetId,
       operations: [],
       snapshot,
-      status: "pending",
+      status: 'pending',
       startTime: Date.now(),
       userId: options.userId,
-      isolationLevel:
-        options.isolationLevel ?? this.config.defaultIsolationLevel,
+      isolationLevel: options.isolationLevel ?? this.config.defaultIsolationLevel,
       autoCommit: options.autoCommit ?? false,
       autoRollback: options.autoRollback ?? this.config.autoRollback,
     };
@@ -128,7 +127,7 @@ export class TransactionManager {
     this.stats.activeTransactions++;
 
     this.emitEvent({
-      type: "begin",
+      type: 'begin',
       transactionId,
       timestamp: Date.now(),
       data: { spreadsheetId, snapshot: snapshot?.id },
@@ -149,24 +148,20 @@ export class TransactionManager {
       params: Record<string, unknown>;
       dependsOn?: string[];
       estimatedDuration?: number;
-    },
+    }
   ): Promise<string> {
     const transaction = this.getTransaction(transactionId);
 
-    if (transaction.status !== "pending") {
+    if (transaction.status !== 'pending') {
       throw new Error(`Transaction ${transactionId} is not in pending state`);
     }
 
-    if (
-      transaction.operations.length >= this.config.maxOperationsPerTransaction
-    ) {
-      throw new Error("Maximum operations per transaction reached");
+    if (transaction.operations.length >= this.config.maxOperationsPerTransaction) {
+      throw new Error('Maximum operations per transaction reached');
     }
 
     const operationId = `op_${this.operationIdCounter++}`;
-    this.log(
-      `Queuing operation ${operationId} in transaction ${transactionId}`,
-    );
+    this.log(`Queuing operation ${operationId} in transaction ${transactionId}`);
 
     const queuedOp: QueuedOperation = {
       id: operationId,
@@ -177,15 +172,15 @@ export class TransactionManager {
       order: transaction.operations.length,
       estimatedDuration: operation.estimatedDuration,
       dependsOn: operation.dependsOn,
-      status: "pending",
+      status: 'pending',
       timestamp: Date.now(),
     };
 
     transaction.operations.push(queuedOp);
-    transaction.status = "queued";
+    transaction.status = 'queued';
 
     this.emitEvent({
-      type: "queue",
+      type: 'queue',
       transactionId,
       timestamp: Date.now(),
       data: { operationId, operationType: operation.type },
@@ -202,7 +197,7 @@ export class TransactionManager {
     const startTime = Date.now();
 
     this.log(`Committing transaction: ${transactionId}`);
-    transaction.status = "executing";
+    transaction.status = 'executing';
 
     try {
       // Validate all operations
@@ -212,26 +207,18 @@ export class TransactionManager {
       const batchRequest = this.mergeToBatchRequest(transaction.operations);
 
       // Execute batch request via Google Sheets API
-      const batchResponse = await this.executeBatchRequest(
-        transaction.spreadsheetId,
-        batchRequest,
-      );
+      const batchResponse = await this.executeBatchRequest(transaction.spreadsheetId, batchRequest);
 
       // Process results
-      const operationResults = this.processOperationResults(
-        transaction.operations,
-        batchResponse,
-      );
+      const operationResults = this.processOperationResults(transaction.operations, batchResponse);
 
       // Check for failures
       const failedOps = operationResults.filter((r) => !r.success);
       if (failedOps.length > 0 && transaction.autoRollback) {
-        throw new Error(
-          `${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`,
-        );
+        throw new Error(`${failedOps.length} operation(s) failed: ${failedOps[0]!.error?.message}`);
       }
 
-      transaction.status = "committed";
+      transaction.status = 'committed';
       transaction.endTime = Date.now();
       transaction.duration = transaction.endTime - transaction.startTime!;
 
@@ -254,7 +241,7 @@ export class TransactionManager {
       };
 
       this.emitEvent({
-        type: "commit",
+        type: 'commit',
         transactionId,
         timestamp: Date.now(),
         data: { success: true, operationCount: transaction.operations.length },
@@ -266,7 +253,7 @@ export class TransactionManager {
 
       return result;
     } catch (error) {
-      transaction.status = "failed";
+      transaction.status = 'failed';
       transaction.endTime = Date.now();
       transaction.duration = transaction.endTime - transaction.startTime!;
 
@@ -282,13 +269,12 @@ export class TransactionManager {
           await this.rollback(transactionId);
           rolledBack = true;
         } catch (rbError) {
-          rollbackError =
-            rbError instanceof Error ? rbError : new Error(String(rbError));
+          rollbackError = rbError instanceof Error ? rbError : new Error(String(rbError));
         }
       }
 
       this.emitEvent({
-        type: "fail",
+        type: 'fail',
         transactionId,
         timestamp: Date.now(),
         data: {
@@ -315,7 +301,7 @@ export class TransactionManager {
 
       if (rollbackError && result.error) {
         result.error = new Error(
-          `Transaction failed and rollback failed: ${result.error.message}, Rollback error: ${rollbackError.message}`,
+          `Transaction failed and rollback failed: ${result.error.message}, Rollback error: ${rollbackError.message}`
         );
       }
 
@@ -333,18 +319,18 @@ export class TransactionManager {
     this.log(`Rolling back transaction: ${transactionId}`);
 
     if (!transaction.snapshot) {
-      throw new Error("No snapshot available for rollback");
+      throw new Error('No snapshot available for rollback');
     }
 
     try {
       // Restore snapshot
       await this.restoreSnapshot(transaction.snapshot);
 
-      transaction.status = "rolled_back";
+      transaction.status = 'rolled_back';
       this.stats.rolledBackTransactions++;
 
       this.emitEvent({
-        type: "rollback",
+        type: 'rollback',
         transactionId,
         timestamp: Date.now(),
         data: { snapshotId: transaction.snapshot.id },
@@ -385,15 +371,13 @@ export class TransactionManager {
    *
    * PRODUCTION: Fetches actual spreadsheet state from Google Sheets API
    */
-  private async createSnapshot(
-    spreadsheetId: string,
-  ): Promise<TransactionSnapshot> {
+  private async createSnapshot(spreadsheetId: string): Promise<TransactionSnapshot> {
     this.log(`Creating snapshot for spreadsheet: ${spreadsheetId}`);
 
     if (!this.googleClient) {
       throw new Error(
-        "Transaction manager requires Google API client for snapshots. " +
-          "Simulated snapshots have been removed for production safety.",
+        'Transaction manager requires Google API client for snapshots. ' +
+          'Simulated snapshots have been removed for production safety.'
       );
     }
 
@@ -403,7 +387,7 @@ export class TransactionManager {
       const response = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId,
         includeGridData: false, // Exclude cell data for performance
-        fields: "spreadsheetId,properties,sheets(properties)", // Fixed: removed ',data' which caused 500MB+ fetches
+        fields: 'spreadsheetId,properties,sheets(properties)', // Fixed: removed ',data' which caused 500MB+ fetches
       });
 
       const state = response.data;
@@ -417,12 +401,12 @@ export class TransactionManager {
         // Catch V8 string length limit errors (>512MB)
         if (
           serializationError instanceof RangeError &&
-          String(serializationError.message).includes("string longer than")
+          String(serializationError.message).includes('string longer than')
         ) {
           throw new Error(
-            "Snapshot too large to serialize (exceeds 512MB JavaScript limit). " +
-              "This spreadsheet is too large for transactional snapshots. " +
-              "Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.",
+            'Snapshot too large to serialize (exceeds 512MB JavaScript limit). ' +
+              'This spreadsheet is too large for transactional snapshots. ' +
+              'Options: (1) Disable autoSnapshot, (2) Use sheets_history for undo, (3) Reduce spreadsheet size.'
           );
         }
         throw serializationError;
@@ -434,7 +418,7 @@ export class TransactionManager {
         throw new Error(
           `Snapshot too large: ${Math.round(size / 1024 / 1024)}MB exceeds ${MAX_SNAPSHOT_SIZE / 1024 / 1024}MB limit. ` +
             `This spreadsheet has too much metadata for transactional snapshots. ` +
-            `Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`,
+            `Options: (1) Begin transaction with autoSnapshot: false, (2) Use sheets_history instead, (3) Reduce number of sheets.`
         );
       }
 
@@ -450,14 +434,12 @@ export class TransactionManager {
       this.snapshots.set(snapshot.id, snapshot);
       this.stats.snapshotsCreated++;
 
-      this.log(
-        `Snapshot created: ${snapshot.id} (${Math.round(size / 1024)}KB metadata-only)`,
-      );
+      this.log(`Snapshot created: ${snapshot.id} (${Math.round(size / 1024)}KB metadata-only)`);
 
       return snapshot;
     } catch (error) {
       this.log(
-        `Snapshot creation failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Snapshot creation failed: ${error instanceof Error ? error.message : String(error)}`
       );
       throw error;
     }
@@ -484,13 +466,13 @@ export class TransactionManager {
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
     this.log(
-      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_versions to restore.`,
+      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_versions to restore.`
     );
 
     throw new Error(
-      "Automatic in-place snapshot restoration is not supported. " +
+      'Automatic in-place snapshot restoration is not supported. ' +
         "Use sheets_versions action='restore_snapshot' to create a recovery file, " +
-        "or use sheets_history to review and manually undo operations.",
+        'or use sheets_history to review and manually undo operations.'
     );
   }
 
@@ -499,7 +481,7 @@ export class TransactionManager {
    */
   private validateOperations(transaction: Transaction): void {
     if (transaction.operations.length === 0) {
-      throw new Error("No operations to commit");
+      throw new Error('No operations to commit');
     }
 
     // Check for circular dependencies
@@ -526,7 +508,7 @@ export class TransactionManager {
 
     for (const op of transaction.operations) {
       if (hasCycle(op.id)) {
-        throw new Error("Circular dependency detected in operations");
+        throw new Error('Circular dependency detected in operations');
       }
     }
   }
@@ -563,35 +545,35 @@ export class TransactionManager {
    */
   private operationToBatchEntry(op: QueuedOperation): BatchRequestEntry | null {
     switch (op.type) {
-      case "values_write":
+      case 'values_write':
         return {
           updateCells: {
-            range: op.params["range"],
-            fields: "userEnteredValue",
+            range: op.params['range'],
+            fields: 'userEnteredValue',
           },
         };
 
-      case "format_apply":
+      case 'format_apply':
         return {
           updateCells: {
-            range: op.params["range"],
-            fields: "userEnteredFormat",
+            range: op.params['range'],
+            fields: 'userEnteredFormat',
           },
         };
 
-      case "sheet_create":
+      case 'sheet_create':
         return {
           addSheet: {
             properties: {
-              title: op.params["title"],
+              title: op.params['title'],
             },
           },
         };
 
-      case "sheet_delete":
+      case 'sheet_delete':
         return {
           deleteSheet: {
-            sheetId: op.params["sheetId"],
+            sheetId: op.params['sheetId'],
           },
         };
 
@@ -607,34 +589,29 @@ export class TransactionManager {
    */
   private async executeBatchRequest(
     spreadsheetId: string,
-    batchRequest: BatchRequest,
+    batchRequest: BatchRequest
   ): Promise<sheets_v4.Schema$BatchUpdateSpreadsheetResponse> {
     this.log(
-      `Executing batch request for spreadsheet ${spreadsheetId} with ${batchRequest.requests.length} requests`,
+      `Executing batch request for spreadsheet ${spreadsheetId} with ${batchRequest.requests.length} requests`
     );
 
     if (!this.googleClient) {
       throw new Error(
-        "Transaction manager requires Google API client for execution. " +
-          "Simulated execution has been removed for production safety.",
+        'Transaction manager requires Google API client for execution. ' +
+          'Simulated execution has been removed for production safety.'
       );
     }
 
     try {
       const response = await this.googleClient.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
-        requestBody:
-          batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
+        requestBody: batchRequest as sheets_v4.Schema$BatchUpdateSpreadsheetRequest,
       });
 
-      this.log(
-        `Batch request succeeded with ${response.data.replies?.length ?? 0} replies`,
-      );
+      this.log(`Batch request succeeded with ${response.data.replies?.length ?? 0} replies`);
       return response.data;
     } catch (error) {
-      this.log(
-        `Batch request failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.log(`Batch request failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -646,7 +623,7 @@ export class TransactionManager {
    */
   private processOperationResults(
     operations: QueuedOperation[],
-    batchResponse: sheets_v4.Schema$BatchUpdateSpreadsheetResponse,
+    batchResponse: sheets_v4.Schema$BatchUpdateSpreadsheetResponse
   ): OperationResult[] {
     const results: OperationResult[] = [];
     const replies = batchResponse.replies || [];
@@ -663,9 +640,7 @@ export class TransactionManager {
         success,
         data: reply || {},
         duration: op.estimatedDuration ?? 100,
-        error: success
-          ? undefined
-          : new Error("No reply received from batch request"),
+        error: success ? undefined : new Error('No reply received from batch request'),
       });
     }
 
@@ -681,14 +656,11 @@ export class TransactionManager {
 
     if (transaction.duration) {
       this.stats.avgTransactionDuration =
-        (this.stats.avgTransactionDuration * (totalTx - 1) +
-          transaction.duration) /
-        totalTx;
+        (this.stats.avgTransactionDuration * (totalTx - 1) + transaction.duration) / totalTx;
     }
 
     this.stats.avgOperationsPerTransaction =
-      (this.stats.avgOperationsPerTransaction * (totalTx - 1) +
-        transaction.operations.length) /
+      (this.stats.avgOperationsPerTransaction * (totalTx - 1) + transaction.operations.length) /
       totalTx;
   }
 
@@ -738,7 +710,7 @@ export class TransactionManager {
       try {
         listener(event);
       } catch (error) {
-        logger.error("Error in transaction event listener", {
+        logger.error('Error in transaction event listener', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           transactionId: event.transactionId,
@@ -820,31 +792,23 @@ let transactionManagerInstance: TransactionManager | null = null;
  * Initialize transaction manager (call once during server startup)
  */
 export function initTransactionManager(
-  googleClient?: TransactionConfig["googleClient"],
+  googleClient?: TransactionConfig['googleClient']
 ): TransactionManager {
   if (!transactionManagerInstance) {
     transactionManagerInstance = new TransactionManager({
-      enabled: process.env["TRANSACTIONS_ENABLED"] !== "false",
-      autoSnapshot: process.env["TRANSACTIONS_AUTO_SNAPSHOT"] !== "false",
-      autoRollback: process.env["TRANSACTIONS_AUTO_ROLLBACK"] !== "false",
-      maxOperationsPerTransaction: parseInt(
-        process.env["TRANSACTIONS_MAX_OPERATIONS"] || "100",
-      ),
-      transactionTimeoutMs: parseInt(
-        process.env["TRANSACTIONS_TIMEOUT_MS"] || "300000",
-      ),
-      snapshotRetentionMs: parseInt(
-        process.env["TRANSACTIONS_SNAPSHOT_RETENTION_MS"] || "3600000",
-      ),
-      maxConcurrentTransactions: parseInt(
-        process.env["TRANSACTIONS_MAX_CONCURRENT"] || "10",
-      ),
-      verboseLogging: process.env["TRANSACTIONS_VERBOSE"] === "true",
+      enabled: process.env['TRANSACTIONS_ENABLED'] !== 'false',
+      autoSnapshot: process.env['TRANSACTIONS_AUTO_SNAPSHOT'] !== 'false',
+      autoRollback: process.env['TRANSACTIONS_AUTO_ROLLBACK'] !== 'false',
+      maxOperationsPerTransaction: parseInt(process.env['TRANSACTIONS_MAX_OPERATIONS'] || '100'),
+      transactionTimeoutMs: parseInt(process.env['TRANSACTIONS_TIMEOUT_MS'] || '300000'),
+      snapshotRetentionMs: parseInt(process.env['TRANSACTIONS_SNAPSHOT_RETENTION_MS'] || '3600000'),
+      maxConcurrentTransactions: parseInt(process.env['TRANSACTIONS_MAX_CONCURRENT'] || '10'),
+      verboseLogging: process.env['TRANSACTIONS_VERBOSE'] === 'true',
       defaultIsolationLevel:
-        (process.env["TRANSACTIONS_DEFAULT_ISOLATION"] as
-          | "read_uncommitted"
-          | "read_committed"
-          | "serializable") || "read_committed",
+        (process.env['TRANSACTIONS_DEFAULT_ISOLATION'] as
+          | 'read_uncommitted'
+          | 'read_committed'
+          | 'serializable') || 'read_committed',
       googleClient,
     });
   }
@@ -856,9 +820,7 @@ export function initTransactionManager(
  */
 export function getTransactionManager(): TransactionManager {
   if (!transactionManagerInstance) {
-    throw new Error(
-      "Transaction manager not initialized. Call initTransactionManager() first.",
-    );
+    throw new Error('Transaction manager not initialized. Call initTransactionManager() first.');
   }
   return transactionManagerInstance;
 }
@@ -868,10 +830,8 @@ export function getTransactionManager(): TransactionManager {
  * @internal
  */
 export function resetTransactionManager(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetTransactionManager() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetTransactionManager() can only be called in test environment');
   }
   transactionManagerInstance = null;
 }

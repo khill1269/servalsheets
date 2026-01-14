@@ -18,8 +18,8 @@
  * 5. Split response back to individual requesters
  */
 
-import type { sheets_v4 } from "googleapis";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
 
 /**
  * Parsed A1 range information
@@ -43,8 +43,8 @@ export interface RangeInfo {
  * Read request options
  */
 export interface ReadOptions {
-  valueRenderOption?: "FORMATTED_VALUE" | "UNFORMATTED_VALUE" | "FORMULA";
-  majorDimension?: "ROWS" | "COLUMNS";
+  valueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA';
+  majorDimension?: 'ROWS' | 'COLUMNS';
 }
 
 /**
@@ -128,7 +128,7 @@ export class RequestMerger {
     this.maxWindowSize = config.maxWindowSize ?? 100;
     this.mergeAdjacent = config.mergeAdjacent ?? true;
 
-    logger.info("RequestMerger initialized", {
+    logger.info('RequestMerger initialized', {
       enabled: this.enabled,
       windowMs: this.windowMs,
       maxWindowSize: this.maxWindowSize,
@@ -149,7 +149,7 @@ export class RequestMerger {
     sheetsApi: sheets_v4.Sheets,
     spreadsheetId: string,
     range: string,
-    options: ReadOptions = {},
+    options: ReadOptions = {}
   ): Promise<sheets_v4.Schema$ValueRange> {
     // If merging disabled, execute directly
     if (!this.enabled) {
@@ -208,10 +208,7 @@ export class RequestMerger {
   /**
    * Flush a request group - merge and execute
    */
-  private async flushGroup(
-    sheetsApi: sheets_v4.Sheets,
-    spreadsheetId: string,
-  ): Promise<void> {
+  private async flushGroup(sheetsApi: sheets_v4.Sheets, spreadsheetId: string): Promise<void> {
     const group = this.pendingGroups.get(spreadsheetId);
     if (!group || group.requests.length === 0) {
       return;
@@ -229,19 +226,12 @@ export class RequestMerger {
 
       // Process each sheet group
       for (const [sheetKey, sheetRequests] of groupsBySheet) {
-        await this.processSheetGroup(
-          sheetsApi,
-          spreadsheetId,
-          sheetKey,
-          sheetRequests,
-        );
+        await this.processSheetGroup(sheetsApi, spreadsheetId, sheetKey, sheetRequests);
       }
     } catch (error) {
       // Reject all requests on catastrophic failure
       for (const request of requests) {
-        request.reject(
-          error instanceof Error ? error : new Error("Request merge failed"),
-        );
+        request.reject(error instanceof Error ? error : new Error('Request merge failed'));
       }
     }
   }
@@ -249,14 +239,12 @@ export class RequestMerger {
   /**
    * Group requests by sheet name and options
    */
-  private groupRequestsBySheet(
-    requests: PendingRequest[],
-  ): Map<string, PendingRequest[]> {
+  private groupRequestsBySheet(requests: PendingRequest[]): Map<string, PendingRequest[]> {
     const groups = new Map<string, PendingRequest[]>();
 
     for (const request of requests) {
       // Create key from sheet name and options
-      const key = `${request.rangeInfo.sheetName}:${request.options.valueRenderOption || "FORMATTED_VALUE"}:${request.options.majorDimension || "ROWS"}`;
+      const key = `${request.rangeInfo.sheetName}:${request.options.valueRenderOption || 'FORMATTED_VALUE'}:${request.options.majorDimension || 'ROWS'}`;
 
       const group = groups.get(key) || [];
       group.push(request);
@@ -273,7 +261,7 @@ export class RequestMerger {
     sheetsApi: sheets_v4.Sheets,
     spreadsheetId: string,
     sheetKey: string,
-    requests: PendingRequest[],
+    requests: PendingRequest[]
   ): Promise<void> {
     if (requests.length === 0) return;
 
@@ -290,9 +278,7 @@ export class RequestMerger {
         this.stats.apiCalls++;
         request.resolve(response.data);
       } catch (error) {
-        request.reject(
-          error instanceof Error ? error : new Error("API call failed"),
-        );
+        request.reject(error instanceof Error ? error : new Error('API call failed'));
       }
       return;
     }
@@ -300,7 +286,7 @@ export class RequestMerger {
     // Find mergeable ranges
     const mergeGroups = this.findMergeableGroups(requests);
 
-    logger.debug("Request merge analysis", {
+    logger.debug('Request merge analysis', {
       spreadsheetId,
       sheetKey,
       totalRequests: requests.length,
@@ -334,9 +320,7 @@ export class RequestMerger {
         const candidate = remaining[i]!;
 
         // Check if any request in the group overlaps with candidate
-        const overlaps = group.some((r) =>
-          this.shouldMerge(r.rangeInfo, candidate.rangeInfo),
-        );
+        const overlaps = group.some((r) => this.shouldMerge(r.rangeInfo, candidate.rangeInfo));
 
         if (overlaps) {
           group.push(candidate);
@@ -377,7 +361,7 @@ export class RequestMerger {
   private async executeMergedRequest(
     sheetsApi: sheets_v4.Sheets,
     spreadsheetId: string,
-    requests: PendingRequest[],
+    requests: PendingRequest[]
   ): Promise<void> {
     try {
       // Merge all ranges into bounding box
@@ -387,7 +371,7 @@ export class RequestMerger {
       // Use options from first request (all in group have same options)
       const options = requests[0]!.options;
 
-      logger.debug("Executing merged request", {
+      logger.debug('Executing merged request', {
         spreadsheetId,
         mergedRange: mergedA1,
         requestCount: requests.length,
@@ -406,26 +390,16 @@ export class RequestMerger {
       // Split response to individual requesters
       for (const request of requests) {
         try {
-          const split = splitResponse(
-            response.data,
-            mergedRange,
-            request.rangeInfo,
-          );
+          const split = splitResponse(response.data, mergedRange, request.rangeInfo);
           request.resolve(split);
         } catch (error) {
-          request.reject(
-            error instanceof Error
-              ? error
-              : new Error("Failed to split response"),
-          );
+          request.reject(error instanceof Error ? error : new Error('Failed to split response'));
         }
       }
     } catch (error) {
       // Reject all requests in this group
       for (const request of requests) {
-        request.reject(
-          error instanceof Error ? error : new Error("Merged request failed"),
-        );
+        request.reject(error instanceof Error ? error : new Error('Merged request failed'));
       }
     }
   }
@@ -436,15 +410,12 @@ export class RequestMerger {
   getStats(): MergerStats {
     const avgWindowSize =
       this.stats.windowSizes.length > 0
-        ? this.stats.windowSizes.reduce((a, b) => a + b, 0) /
-          this.stats.windowSizes.length
+        ? this.stats.windowSizes.reduce((a, b) => a + b, 0) / this.stats.windowSizes.length
         : 0;
 
     const savingsRate =
       this.stats.totalRequests > 0
-        ? ((this.stats.totalRequests - this.stats.apiCalls) /
-            this.stats.totalRequests) *
-          100
+        ? ((this.stats.totalRequests - this.stats.apiCalls) / this.stats.totalRequests) * 100
         : 0;
 
     return {
@@ -479,7 +450,7 @@ export class RequestMerger {
       clearTimeout(group.timer);
       // Reject all pending requests
       for (const request of group.requests) {
-        request.reject(new Error("RequestMerger destroyed"));
+        request.reject(new Error('RequestMerger destroyed'));
       }
     }
     this.pendingGroups.clear();
@@ -503,14 +474,14 @@ export class RequestMerger {
  */
 export function parseA1Range(range: string): RangeInfo {
   // Extract sheet name if present
-  let sheetName = "";
+  let sheetName = '';
   let rangeRef = range;
 
   // Match sheet name (quoted or unquoted)
   const sheetMatch = range.match(/^(?:'((?:[^']|'')+)'|([^!]+))!(.*)$/);
   if (sheetMatch) {
-    sheetName = (sheetMatch[1] || sheetMatch[2] || "").replace(/''/g, "'");
-    rangeRef = sheetMatch[3] || "";
+    sheetName = (sheetMatch[1] || sheetMatch[2] || '').replace(/''/g, "'");
+    rangeRef = sheetMatch[3] || '';
   }
 
   // Parse range reference
@@ -581,18 +552,12 @@ export function rangesOverlap(range1: RangeInfo, range2: RangeInfo): boolean {
   // Check row overlap
   const rowOverlap =
     Math.max(range1.startRow, range2.startRow) <=
-    Math.min(
-      range1.endRow || Number.MAX_SAFE_INTEGER,
-      range2.endRow || Number.MAX_SAFE_INTEGER,
-    );
+    Math.min(range1.endRow || Number.MAX_SAFE_INTEGER, range2.endRow || Number.MAX_SAFE_INTEGER);
 
   // Check column overlap
   const colOverlap =
     Math.max(range1.startCol, range2.startCol) <=
-    Math.min(
-      range1.endCol || Number.MAX_SAFE_INTEGER,
-      range2.endCol || Number.MAX_SAFE_INTEGER,
-    );
+    Math.min(range1.endCol || Number.MAX_SAFE_INTEGER, range2.endCol || Number.MAX_SAFE_INTEGER);
 
   return rowOverlap && colOverlap;
 }
@@ -600,10 +565,7 @@ export function rangesOverlap(range1: RangeInfo, range2: RangeInfo): boolean {
 /**
  * Check if two ranges overlap or are adjacent
  */
-export function rangesOverlapOrAdjacent(
-  range1: RangeInfo,
-  range2: RangeInfo,
-): boolean {
+export function rangesOverlapOrAdjacent(range1: RangeInfo, range2: RangeInfo): boolean {
   // Must be on same sheet
   if (range1.sheetName !== range2.sheetName) {
     return false;
@@ -620,19 +582,13 @@ export function rangesOverlapOrAdjacent(
   // Check row adjacency (within 1 row)
   const rowAdjacent =
     Math.max(range1.startRow, range2.startRow) <=
-    Math.min(
-      range1.endRow || Number.MAX_SAFE_INTEGER,
-      range2.endRow || Number.MAX_SAFE_INTEGER,
-    ) +
+    Math.min(range1.endRow || Number.MAX_SAFE_INTEGER, range2.endRow || Number.MAX_SAFE_INTEGER) +
       1;
 
   // Check column adjacency (within 1 column)
   const colAdjacent =
     Math.max(range1.startCol, range2.startCol) <=
-    Math.min(
-      range1.endCol || Number.MAX_SAFE_INTEGER,
-      range2.endCol || Number.MAX_SAFE_INTEGER,
-    ) +
+    Math.min(range1.endCol || Number.MAX_SAFE_INTEGER, range2.endCol || Number.MAX_SAFE_INTEGER) +
       1;
 
   return rowAdjacent && colAdjacent;
@@ -643,7 +599,7 @@ export function rangesOverlapOrAdjacent(
  */
 export function mergeRanges(ranges: RangeInfo[]): RangeInfo {
   if (ranges.length === 0) {
-    throw new Error("Cannot merge empty range list");
+    throw new Error('Cannot merge empty range list');
   }
 
   if (ranges.length === 1) {
@@ -653,7 +609,7 @@ export function mergeRanges(ranges: RangeInfo[]): RangeInfo {
   // All ranges must be on same sheet
   const sheetName = ranges[0]!.sheetName;
   if (!ranges.every((r) => r.sheetName === sheetName)) {
-    throw new Error("Cannot merge ranges from different sheets");
+    throw new Error('Cannot merge ranges from different sheets');
   }
 
   // Calculate bounding box
@@ -680,7 +636,7 @@ export function mergeRanges(ranges: RangeInfo[]): RangeInfo {
     startCol: minCol === Number.MAX_SAFE_INTEGER ? 0 : minCol,
     endRow: maxRow,
     endCol: maxCol,
-    originalA1: "", // Not applicable for merged range
+    originalA1: '', // Not applicable for merged range
   };
 }
 
@@ -698,7 +654,7 @@ export function formatA1Range(range: RangeInfo): string {
 
   // Handle unbounded ranges
   if (range.startRow === 0 && range.startCol === 0) {
-    return parts.join(""); // Entire sheet
+    return parts.join(''); // Entire sheet
   }
 
   // Format start cell
@@ -711,7 +667,7 @@ export function formatA1Range(range: RangeInfo): string {
 
   // Add range separator if needed (but not for single cells)
   if (range.endRow !== range.startRow || range.endCol !== range.startCol) {
-    parts.push(":");
+    parts.push(':');
 
     // Format end cell
     if (range.endCol > 0) {
@@ -722,7 +678,7 @@ export function formatA1Range(range: RangeInfo): string {
     }
   }
 
-  return parts.join("");
+  return parts.join('');
 }
 
 /**
@@ -731,7 +687,7 @@ export function formatA1Range(range: RangeInfo): string {
 export function splitResponse(
   mergedData: sheets_v4.Schema$ValueRange,
   mergedRange: RangeInfo,
-  targetRange: RangeInfo,
+  targetRange: RangeInfo
 ): sheets_v4.Schema$ValueRange {
   const mergedValues = (mergedData.values || []) as unknown[][];
 
@@ -785,7 +741,7 @@ function letterToColumnIndex(letter: string): number {
  * Convert 0-based index to column letter
  */
 function columnIndexToLetter(index: number): string {
-  let letter = "";
+  let letter = '';
   let temp = index + 1;
   while (temp > 0) {
     const mod = (temp - 1) % 26;

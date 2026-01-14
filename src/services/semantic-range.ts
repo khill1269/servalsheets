@@ -9,8 +9,8 @@
  * @module services/semantic-range
  */
 
-import type { sheets_v4 } from "googleapis";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
 
 // ============================================================================
 // TYPES
@@ -24,7 +24,7 @@ export interface SemanticRangeQuery {
   /** Optional: specific sheet to search */
   sheetName?: string;
   /** Optional: hint about what type of range */
-  hint?: "row" | "column" | "cell" | "range";
+  hint?: 'row' | 'column' | 'cell' | 'range';
 }
 
 export interface SemanticRangeResult {
@@ -35,12 +35,7 @@ export interface SemanticRangeResult {
   /** Confidence level 0-1 */
   confidence: number;
   /** How the range was found */
-  method:
-    | "header_match"
-    | "pattern_match"
-    | "position_match"
-    | "formula_detection"
-    | "not_found";
+  method: 'header_match' | 'pattern_match' | 'position_match' | 'formula_detection' | 'not_found';
   /** Additional context about the match */
   context?: string;
 }
@@ -77,32 +72,32 @@ const ROW_PATTERNS: Array<{
 }> = [
   {
     pattern: /\b(total[s]?|sum)\s*(row)?\b/i,
-    type: "totals",
+    type: 'totals',
     finder: (s) => s.specialRows.totals ?? null,
   },
   {
     pattern: /\b(average[s]?|avg|mean)\s*(row)?\b/i,
-    type: "averages",
+    type: 'averages',
     finder: (s) => s.specialRows.averages ?? null,
   },
   {
     pattern: /\b(header[s]?|title[s]?)\s*(row)?\b/i,
-    type: "headers",
+    type: 'headers',
     finder: (s) => s.specialRows.headers ?? s.headerRow,
   },
   {
     pattern: /\b(last|bottom|final)\s*(row|entry)?\b/i,
-    type: "last",
+    type: 'last',
     finder: (s) => s.lastRow,
   },
   {
     pattern: /\b(first|top)\s*(data\s*)?(row|entry)?\b/i,
-    type: "first_data",
+    type: 'first_data',
     finder: (s) => s.dataStartRow,
   },
   {
     pattern: /\brow\s*(\d+)\b/i,
-    type: "numbered",
+    type: 'numbered',
     finder: () => null, // Handled specially
   },
 ];
@@ -117,43 +112,43 @@ const COLUMN_PATTERNS: Array<{
 }> = [
   {
     pattern: /\b(email|e-?mail)\s*(column|col)?\b/i,
-    type: "email",
-    headers: ["email", "e-mail", "email address", "contact email"],
+    type: 'email',
+    headers: ['email', 'e-mail', 'email address', 'contact email'],
   },
   {
     pattern: /\b(name|full\s*name)\s*(column|col)?\b/i,
-    type: "name",
-    headers: ["name", "full name", "contact name", "customer name"],
+    type: 'name',
+    headers: ['name', 'full name', 'contact name', 'customer name'],
   },
   {
     pattern: /\b(phone|telephone|mobile)\s*(column|col)?\b/i,
-    type: "phone",
-    headers: ["phone", "telephone", "mobile", "phone number", "contact"],
+    type: 'phone',
+    headers: ['phone', 'telephone', 'mobile', 'phone number', 'contact'],
   },
   {
     pattern: /\b(date|created|updated)\s*(column|col)?\b/i,
-    type: "date",
-    headers: ["date", "created", "updated", "created at", "modified"],
+    type: 'date',
+    headers: ['date', 'created', 'updated', 'created at', 'modified'],
   },
   {
     pattern: /\b(amount|total|sum|price|cost|revenue)\s*(column|col)?\b/i,
-    type: "amount",
-    headers: ["amount", "total", "sum", "price", "cost", "revenue", "value"],
+    type: 'amount',
+    headers: ['amount', 'total', 'sum', 'price', 'cost', 'revenue', 'value'],
   },
   {
     pattern: /\b(status|state)\s*(column|col)?\b/i,
-    type: "status",
-    headers: ["status", "state", "stage", "condition"],
+    type: 'status',
+    headers: ['status', 'state', 'stage', 'condition'],
   },
   {
     pattern: /\b(id|identifier|key)\s*(column|col)?\b/i,
-    type: "id",
-    headers: ["id", "identifier", "key", "record id", "contact id"],
+    type: 'id',
+    headers: ['id', 'identifier', 'key', 'record id', 'contact id'],
   },
   {
     pattern: /\b(notes?|comments?|description)\s*(column|col)?\b/i,
-    type: "notes",
-    headers: ["notes", "note", "comments", "description", "remarks"],
+    type: 'notes',
+    headers: ['notes', 'note', 'comments', 'description', 'remarks'],
   },
 ];
 
@@ -185,8 +180,8 @@ export class SemanticRangeFinder {
       return {
         found: false,
         confidence: 0,
-        method: "not_found",
-        context: "Could not analyze spreadsheet structure",
+        method: 'not_found',
+        context: 'Could not analyze spreadsheet structure',
       };
     }
 
@@ -206,11 +201,7 @@ export class SemanticRangeFinder {
     if (headerResult.found) results.push(headerResult);
 
     // 4. Try formula detection (e.g., "the formula cells")
-    const formulaResult = await this.findFormulaRange(
-      lowerDesc,
-      spreadsheetId,
-      structure,
-    );
+    const formulaResult = await this.findFormulaRange(lowerDesc, spreadsheetId, structure);
     if (formulaResult.found) results.push(formulaResult);
 
     // Return best match
@@ -218,7 +209,7 @@ export class SemanticRangeFinder {
       return {
         found: false,
         confidence: 0,
-        method: "not_found",
+        method: 'not_found',
         context: `Could not find a range matching "${description}"`,
       };
     }
@@ -231,21 +222,18 @@ export class SemanticRangeFinder {
   /**
    * Find row by semantic description
    */
-  private findRowBySemantic(
-    description: string,
-    structure: SheetStructure,
-  ): SemanticRangeResult {
+  private findRowBySemantic(description: string, structure: SheetStructure): SemanticRangeResult {
     for (const pattern of ROW_PATTERNS) {
       const match = description.match(pattern.pattern);
       if (match) {
         // Handle numbered row specially
-        if (pattern.type === "numbered" && match[1]) {
+        if (pattern.type === 'numbered' && match[1]) {
           const rowNum = parseInt(match[1], 10);
           return {
             found: true,
             range: `'${structure.sheetName}'!${rowNum}:${rowNum}`,
             confidence: 1.0,
-            method: "pattern_match",
+            method: 'pattern_match',
             context: `Row ${rowNum} (explicit reference)`,
           };
         }
@@ -256,14 +244,14 @@ export class SemanticRangeFinder {
             found: true,
             range: `'${structure.sheetName}'!${rowNum}:${rowNum}`,
             confidence: 0.9,
-            method: "pattern_match",
+            method: 'pattern_match',
             context: `${pattern.type} row at row ${rowNum}`,
           };
         }
       }
     }
 
-    return { found: false, confidence: 0, method: "not_found" };
+    return { found: false, confidence: 0, method: 'not_found' };
   }
 
   /**
@@ -271,16 +259,13 @@ export class SemanticRangeFinder {
    */
   private findColumnBySemantic(
     description: string,
-    structure: SheetStructure,
+    structure: SheetStructure
   ): SemanticRangeResult {
     for (const pattern of COLUMN_PATTERNS) {
       if (pattern.pattern.test(description)) {
         // Find matching header
         const headerIndex = structure.headers.findIndex((h) =>
-          pattern.headers.some(
-            (ph) =>
-              h.toLowerCase().includes(ph) || ph.includes(h.toLowerCase()),
-          ),
+          pattern.headers.some((ph) => h.toLowerCase().includes(ph) || ph.includes(h.toLowerCase()))
         );
 
         if (headerIndex >= 0) {
@@ -289,29 +274,24 @@ export class SemanticRangeFinder {
             found: true,
             range: `'${structure.sheetName}'!${colLetter}:${colLetter}`,
             confidence: 0.85,
-            method: "header_match",
+            method: 'header_match',
             context: `Column ${colLetter} (${structure.headers[headerIndex]})`,
           };
         }
       }
     }
 
-    return { found: false, confidence: 0, method: "not_found" };
+    return { found: false, confidence: 0, method: 'not_found' };
   }
 
   /**
    * Find by direct header text match
    */
-  private findByHeaderMatch(
-    description: string,
-    structure: SheetStructure,
-  ): SemanticRangeResult {
+  private findByHeaderMatch(description: string, structure: SheetStructure): SemanticRangeResult {
     // Extract potential header name from description
-    const headerMatch = description.match(
-      /(?:the\s+)?["']?([^"']+)["']?\s*(?:column|col|field)?/i,
-    );
+    const headerMatch = description.match(/(?:the\s+)?["']?([^"']+)["']?\s*(?:column|col|field)?/i);
     if (!headerMatch) {
-      return { found: false, confidence: 0, method: "not_found" };
+      return { found: false, confidence: 0, method: 'not_found' };
     }
 
     const searchTerm = headerMatch[1]!.trim().toLowerCase();
@@ -333,8 +313,7 @@ export class SemanticRangeFinder {
       // Contains match
       if (header.includes(searchTerm) || searchTerm.includes(header)) {
         const score =
-          Math.min(searchTerm.length, header.length) /
-          Math.max(searchTerm.length, header.length);
+          Math.min(searchTerm.length, header.length) / Math.max(searchTerm.length, header.length);
         if (score > bestScore) {
           bestMatch = i;
           bestScore = score;
@@ -348,12 +327,12 @@ export class SemanticRangeFinder {
         found: true,
         range: `'${structure.sheetName}'!${colLetter}:${colLetter}`,
         confidence: bestScore * 0.8,
-        method: "header_match",
+        method: 'header_match',
         context: `Column ${colLetter} matches "${structure.headers[bestMatch]}"`,
       };
     }
 
-    return { found: false, confidence: 0, method: "not_found" };
+    return { found: false, confidence: 0, method: 'not_found' };
   }
 
   /**
@@ -362,15 +341,15 @@ export class SemanticRangeFinder {
   private async findFormulaRange(
     description: string,
     _spreadsheetId: string,
-    _structure: SheetStructure,
+    _structure: SheetStructure
   ): Promise<SemanticRangeResult> {
-    if (!description.includes("formula")) {
-      return { found: false, confidence: 0, method: "not_found" };
+    if (!description.includes('formula')) {
+      return { found: false, confidence: 0, method: 'not_found' };
     }
 
     // Formula detection not yet implemented - requires Sheets API formula introspection
     // Would need to fetch cell formulas and identify cells starting with '='
-    return { found: false, confidence: 0, method: "not_found" };
+    return { found: false, confidence: 0, method: 'not_found' };
   }
 
   /**
@@ -378,9 +357,9 @@ export class SemanticRangeFinder {
    */
   private async getSheetStructure(
     spreadsheetId: string,
-    sheetName?: string,
+    sheetName?: string
   ): Promise<SheetStructure | null> {
-    const cacheKey = `${spreadsheetId}:${sheetName ?? "default"}`;
+    const cacheKey = `${spreadsheetId}:${sheetName ?? 'default'}`;
 
     if (this.structureCache.has(cacheKey)) {
       return this.structureCache.get(cacheKey)!;
@@ -390,7 +369,7 @@ export class SemanticRangeFinder {
       // Get spreadsheet metadata
       const metaResponse = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: "sheets.properties",
+        fields: 'sheets.properties',
       });
 
       const sheets = metaResponse.data.sheets ?? [];
@@ -402,7 +381,7 @@ export class SemanticRangeFinder {
         return null;
       }
 
-      const actualSheetName = targetSheet.properties.title ?? "Sheet1";
+      const actualSheetName = targetSheet.properties.title ?? 'Sheet1';
       const gridProps = targetSheet.properties.gridProperties;
 
       // Get header row (first row)
@@ -436,8 +415,8 @@ export class SemanticRangeFinder {
       this.structureCache.set(cacheKey, structure);
       return structure;
     } catch (error) {
-      logger.error("Failed to get sheet structure", {
-        component: "semantic-range",
+      logger.error('Failed to get sheet structure', {
+        component: 'semantic-range',
         spreadsheetId,
         sheetName,
         error: error instanceof Error ? error.message : String(error),
@@ -450,32 +429,22 @@ export class SemanticRangeFinder {
   /**
    * Detect special rows like totals, averages
    */
-  private detectSpecialRows(
-    values: unknown[][],
-  ): SheetStructure["specialRows"] {
-    const special: SheetStructure["specialRows"] = {};
+  private detectSpecialRows(values: unknown[][]): SheetStructure['specialRows'] {
+    const special: SheetStructure['specialRows'] = {};
 
     for (let i = values.length - 1; i >= 0; i--) {
       const row = values[i];
       if (!row || row.length === 0) continue;
 
-      const firstCell = String(row[0] ?? "").toLowerCase();
+      const firstCell = String(row[0] ?? '').toLowerCase();
 
       // Detect totals row
-      if (
-        firstCell.includes("total") ||
-        firstCell.includes("sum") ||
-        firstCell === "totals"
-      ) {
+      if (firstCell.includes('total') || firstCell.includes('sum') || firstCell === 'totals') {
         special.totals = i + 1; // 1-indexed
       }
 
       // Detect averages row
-      if (
-        firstCell.includes("average") ||
-        firstCell.includes("avg") ||
-        firstCell === "mean"
-      ) {
+      if (firstCell.includes('average') || firstCell.includes('avg') || firstCell === 'mean') {
         special.averages = i + 1;
       }
     }
@@ -487,7 +456,7 @@ export class SemanticRangeFinder {
    * Convert column number to letter (1 = A, 27 = AA)
    */
   private numberToColumn(num: number): string {
-    let result = "";
+    let result = '';
     while (num > 0) {
       num--;
       result = String.fromCharCode(65 + (num % 26)) + result;
@@ -529,14 +498,14 @@ export class SemanticRangeFinder {
  * - "column C" → "C:C"
  */
 export function parseNaturalRange(input: string): {
-  type: "a1" | "semantic" | "row" | "column";
+  type: 'a1' | 'semantic' | 'row' | 'column';
   value: string;
 } {
   const trimmed = input.trim();
 
   // Check for A1 notation
   if (/^[A-Z]+\d+(:[A-Z]+\d+)?$/i.test(trimmed)) {
-    return { type: "a1", value: trimmed.toUpperCase() };
+    return { type: 'a1', value: trimmed.toUpperCase() };
   }
 
   // Check for full row reference "5:5" or "row 5"
@@ -544,21 +513,19 @@ export function parseNaturalRange(input: string): {
   if (rowMatch) {
     const start = rowMatch[1];
     const end = rowMatch[2] ?? start;
-    return { type: "row", value: `${start}:${end}` };
+    return { type: 'row', value: `${start}:${end}` };
   }
 
   // Check for column reference "C:C" or "column C"
-  const colMatch = trimmed.match(
-    /^(?:col(?:umn)?\s*)?([A-Z]+)(?::([A-Z]+))?$/i,
-  );
+  const colMatch = trimmed.match(/^(?:col(?:umn)?\s*)?([A-Z]+)(?::([A-Z]+))?$/i);
   if (colMatch) {
     const start = colMatch[1]!.toUpperCase();
     const end = colMatch[2]?.toUpperCase() ?? start;
-    return { type: "column", value: `${start}:${end}` };
+    return { type: 'column', value: `${start}:${end}` };
   }
 
   // Semantic reference
-  return { type: "semantic", value: trimmed };
+  return { type: 'semantic', value: trimmed };
 }
 
 // ============================================================================

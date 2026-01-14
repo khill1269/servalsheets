@@ -14,7 +14,7 @@
  * MCP Protocol: 2025-11-25
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 /**
  * Check if HTTP/2 is supported by the current Node.js runtime
@@ -24,7 +24,7 @@ import { logger } from "./logger.js";
  */
 export function isHTTP2Supported(): boolean {
   const nodeVersion = process.version;
-  const majorVersion = parseInt(nodeVersion.slice(1).split(".")[0] ?? "0");
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0] ?? '0');
 
   // Node.js 14+ has stable HTTP/2 support
   return majorVersion >= 14;
@@ -43,10 +43,10 @@ export function getNodeVersionInfo(): {
   http2Supported: boolean;
 } {
   const nodeVersion = process.version;
-  const parts = nodeVersion.slice(1).split(".");
-  const major = parseInt(parts[0] ?? "0");
-  const minor = parseInt(parts[1] ?? "0");
-  const patch = parseInt(parts[2] ?? "0");
+  const parts = nodeVersion.slice(1).split('.');
+  const major = parseInt(parts[0] ?? '0');
+  const minor = parseInt(parts[1] ?? '0');
+  const patch = parseInt(parts[2] ?? '0');
 
   return {
     version: nodeVersion,
@@ -65,17 +65,17 @@ export function logHTTP2Capabilities(): void {
   const versionInfo = getNodeVersionInfo();
 
   if (versionInfo.http2Supported) {
-    logger.info("HTTP/2 support: ENABLED", {
+    logger.info('HTTP/2 support: ENABLED', {
       nodeVersion: versionInfo.version,
-      protocol: "HTTP/2 via ALPN negotiation",
-      capability: "google-api-http2",
+      protocol: 'HTTP/2 via ALPN negotiation',
+      capability: 'google-api-http2',
     });
   } else {
-    logger.warn("HTTP/2 support: LIMITED", {
+    logger.warn('HTTP/2 support: LIMITED', {
       nodeVersion: versionInfo.version,
       reason: `Node.js ${versionInfo.version} < 14.0.0`,
-      recommendation: "Upgrade to Node.js 14+ for HTTP/2 support",
-      capability: "google-api-http2",
+      recommendation: 'Upgrade to Node.js 14+ for HTTP/2 support',
+      capability: 'google-api-http2',
     });
   }
 }
@@ -89,44 +89,44 @@ export function logHTTP2Capabilities(): void {
  */
 export function detectHTTPVersion(response: unknown): string {
   // Try to extract HTTP version from various possible locations
-  if (response && typeof response === "object") {
+  if (response && typeof response === 'object') {
     const resp = response as Record<string, unknown>;
 
     // Check response.config.httpVersion (gaxios)
     if (
-      resp["config"] &&
-      typeof resp["config"] === "object" &&
-      (resp["config"] as Record<string, unknown>)["httpVersion"]
+      resp['config'] &&
+      typeof resp['config'] === 'object' &&
+      (resp['config'] as Record<string, unknown>)['httpVersion']
     ) {
-      return String((resp["config"] as Record<string, unknown>)["httpVersion"]);
+      return String((resp['config'] as Record<string, unknown>)['httpVersion']);
     }
 
     // Check response.request.protocol (Node.js http/https)
     if (
-      resp["request"] &&
-      typeof resp["request"] === "object" &&
-      (resp["request"] as Record<string, unknown>)["protocol"]
+      resp['request'] &&
+      typeof resp['request'] === 'object' &&
+      (resp['request'] as Record<string, unknown>)['protocol']
     ) {
-      return String((resp["request"] as Record<string, unknown>)["protocol"]);
+      return String((resp['request'] as Record<string, unknown>)['protocol']);
     }
 
     // Check response.httpVersion (direct property)
-    if (resp["httpVersion"]) {
-      return String(resp["httpVersion"]);
+    if (resp['httpVersion']) {
+      return String(resp['httpVersion']);
     }
 
     // Check response headers for HTTP/2 indicators
-    if (resp["headers"] && typeof resp["headers"] === "object") {
-      const headers = resp["headers"] as Record<string, unknown>;
+    if (resp['headers'] && typeof resp['headers'] === 'object') {
+      const headers = resp['headers'] as Record<string, unknown>;
       // HTTP/2 uses lowercase header names
-      if (headers[":status"]) {
-        return "HTTP/2";
+      if (headers[':status']) {
+        return 'HTTP/2';
       }
     }
   }
 
   // Default assumption: HTTP/1.1 (cannot definitively determine)
-  return "HTTP/1.1 (assumed)";
+  return 'HTTP/1.1 (assumed)';
 }
 
 /**
@@ -139,18 +139,17 @@ export function detectHTTPVersion(response: unknown): string {
 export function logHTTPVersion(response: unknown, operation?: string): void {
   // Only log in development or when HTTP_DEBUG is enabled
   const shouldLog =
-    process.env["NODE_ENV"] === "development" ||
-    process.env["HTTP_DEBUG"] === "true";
+    process.env['NODE_ENV'] === 'development' || process.env['HTTP_DEBUG'] === 'true';
 
   if (!shouldLog) {
     return;
   }
 
   const httpVersion = detectHTTPVersion(response);
-  logger.debug("API request completed", {
+  logger.debug('API request completed', {
     operation,
     httpVersion,
-    capability: "google-api-http2",
+    capability: 'google-api-http2',
   });
 }
 
@@ -170,18 +169,16 @@ export function getHTTP2PerformanceMetrics(): {
 
   return {
     enabled: versionInfo.http2Supported,
-    expectedLatencyReduction: versionInfo.http2Supported
-      ? "5-15% average"
-      : "N/A",
+    expectedLatencyReduction: versionInfo.http2Supported ? '5-15% average' : 'N/A',
     features: versionInfo.http2Supported
       ? [
-          "Request multiplexing",
-          "Header compression (HPACK)",
-          "Server push capability",
-          "Binary protocol",
-          "Stream prioritization",
+          'Request multiplexing',
+          'Header compression (HPACK)',
+          'Server push capability',
+          'Binary protocol',
+          'Stream prioritization',
         ]
-      : ["HTTP/1.1 fallback"],
+      : ['HTTP/1.1 fallback'],
     nodeVersion: versionInfo.version,
   };
 }
@@ -203,15 +200,13 @@ export function validateHTTP2Config(http2Enabled: boolean): {
   // Check if HTTP/2 is enabled but Node.js doesn't support it
   if (http2Enabled && !versionInfo.http2Supported) {
     warnings.push(`HTTP/2 enabled but Node.js ${versionInfo.version} < 14.0.0`);
-    warnings.push("Upgrade to Node.js 14+ for HTTP/2 support");
+    warnings.push('Upgrade to Node.js 14+ for HTTP/2 support');
   }
 
   // Check if HTTP/2 is disabled despite Node.js support
   if (!http2Enabled && versionInfo.http2Supported) {
-    warnings.push(
-      `HTTP/2 disabled despite Node.js ${versionInfo.version} >= 14.0.0`,
-    );
-    warnings.push("Enable HTTP/2 for 5-15% latency reduction");
+    warnings.push(`HTTP/2 disabled despite Node.js ${versionInfo.version} >= 14.0.0`);
+    warnings.push('Enable HTTP/2 for 5-15% latency reduction');
   }
 
   return {

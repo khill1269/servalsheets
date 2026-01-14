@@ -5,14 +5,9 @@
  * Prometheus-compatible /metrics endpoint
  */
 
-import {
-  createServer,
-  type Server,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
-import { MetricsExporter } from "../services/metrics-exporter.js";
-import { logger } from "../utils/logger.js";
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
+import { MetricsExporter } from '../services/metrics-exporter.js';
+import { logger } from '../utils/logger.js';
 
 export interface MetricsServerOptions {
   port: number;
@@ -24,23 +19,21 @@ export interface MetricsServerOptions {
  * Start HTTP server for metrics endpoint
  * Serves metrics in Prometheus, JSON, and text formats
  */
-export function startMetricsServer(
-  options: MetricsServerOptions,
-): Promise<Server> {
-  const { port, host = "127.0.0.1", exporter } = options;
+export function startMetricsServer(options: MetricsServerOptions): Promise<Server> {
+  const { port, host = '127.0.0.1', exporter } = options;
 
   return new Promise((resolve, reject) => {
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       handleRequest(req, res, exporter);
     });
 
-    server.on("error", (err) => {
-      logger.error("Metrics server error", { error: err });
+    server.on('error', (err) => {
+      logger.error('Metrics server error', { error: err });
       reject(err);
     });
 
     server.listen(port, host, () => {
-      logger.info("Metrics server started", {
+      logger.info('Metrics server started', {
         host,
         port,
         endpoints: {
@@ -58,71 +51,67 @@ export function startMetricsServer(
 /**
  * Handle HTTP requests
  */
-function handleRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  exporter: MetricsExporter,
-): void {
-  const url = req.url || "/";
+function handleRequest(req: IncomingMessage, res: ServerResponse, exporter: MetricsExporter): void {
+  const url = req.url || '/';
 
   // Set CORS headers for browser access
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   // Handle OPTIONS preflight
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
     return;
   }
 
   // Only allow GET requests
-  if (req.method !== "GET") {
-    res.writeHead(405, { "Content-Type": "text/plain" });
-    res.end("Method Not Allowed\n");
+  if (req.method !== 'GET') {
+    res.writeHead(405, { 'Content-Type': 'text/plain' });
+    res.end('Method Not Allowed\n');
     return;
   }
 
   try {
     switch (url) {
-      case "/metrics":
+      case '/metrics':
         // Prometheus text format
         res.writeHead(200, {
-          "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
+          'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
         });
         res.end(exporter.exportPrometheus());
         break;
 
-      case "/metrics.json":
+      case '/metrics.json':
         // JSON format
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(exporter.exportJSON());
         break;
 
-      case "/metrics.txt":
-      case "/metrics/text":
+      case '/metrics.txt':
+      case '/metrics/text':
         // Human-readable text format
-        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end(exporter.exportText());
         break;
 
-      case "/health":
-      case "/healthz":
+      case '/health':
+      case '/healthz':
         // Health check endpoint
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
-            status: "healthy",
+            status: 'healthy',
             timestamp: new Date().toISOString(),
             uptime: process.uptime(),
-          }),
+          })
         );
         break;
 
-      case "/":
+      case '/':
         // Root - show available endpoints
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(`<!DOCTYPE html>
 <html>
 <head>
@@ -172,14 +161,14 @@ function handleRequest(
 
       default:
         // 404 Not Found
-        res.writeHead(404, { "Content-Type": "text/plain" });
-        res.end("Not Found\n");
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found\n');
         break;
     }
   } catch (error) {
-    logger.error("Error handling metrics request", { error, url });
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Internal Server Error\n");
+    logger.error('Error handling metrics request', { error, url });
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Internal Server Error\n');
   }
 }
 
@@ -190,10 +179,10 @@ export function stopMetricsServer(server: Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((err) => {
       if (err) {
-        logger.error("Error stopping metrics server", { error: err });
+        logger.error('Error stopping metrics server', { error: err });
         reject(err);
       } else {
-        logger.info("Metrics server stopped");
+        logger.info('Metrics server stopped');
         resolve();
       }
     });

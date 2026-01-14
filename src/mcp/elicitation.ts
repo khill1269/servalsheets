@@ -10,10 +10,7 @@
  * @see https://spec.modelcontextprotocol.io/specification/2025-11-25/client/elicitation/
  */
 
-import type {
-  ClientCapabilities,
-  ElicitResult,
-} from "@modelcontextprotocol/sdk/types.js";
+import type { ClientCapabilities, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
 // Types
@@ -35,17 +32,17 @@ export interface ElicitationSupport {
  * Primitive schema types for form fields
  */
 export interface StringSchema {
-  type: "string";
+  type: 'string';
   title?: string;
   description?: string;
   default?: string;
   minLength?: number;
   maxLength?: number;
-  format?: "email" | "uri" | "date" | "date-time";
+  format?: 'email' | 'uri' | 'date' | 'date-time';
 }
 
 export interface NumberSchema {
-  type: "number" | "integer";
+  type: 'number' | 'integer';
   title?: string;
   description?: string;
   default?: number;
@@ -54,14 +51,14 @@ export interface NumberSchema {
 }
 
 export interface BooleanSchema {
-  type: "boolean";
+  type: 'boolean';
   title?: string;
   description?: string;
   default?: boolean;
 }
 
 export interface EnumSchema {
-  type: "string";
+  type: 'string';
   title?: string;
   description?: string;
   default?: string;
@@ -69,20 +66,16 @@ export interface EnumSchema {
   oneOf?: Array<{ const: string; title: string }>;
 }
 
-export type PrimitiveSchema =
-  | StringSchema
-  | NumberSchema
-  | BooleanSchema
-  | EnumSchema;
+export type PrimitiveSchema = StringSchema | NumberSchema | BooleanSchema | EnumSchema;
 
 /**
  * Form elicitation request parameters
  */
 export interface FormElicitParams {
-  mode?: "form";
+  mode?: 'form';
   message: string;
   requestedSchema: {
-    type: "object";
+    type: 'object';
     properties: Record<string, PrimitiveSchema>;
     required?: string[];
   };
@@ -92,7 +85,7 @@ export interface FormElicitParams {
  * URL elicitation request parameters
  */
 export interface URLElicitParams {
-  mode: "url";
+  mode: 'url';
   message: string;
   elicitationId: string;
   url: string;
@@ -103,9 +96,7 @@ export interface URLElicitParams {
  */
 export interface ElicitationServer {
   getClientCapabilities(): ClientCapabilities | undefined;
-  elicitInput(
-    params: FormElicitParams | URLElicitParams,
-  ): Promise<ElicitResult>;
+  elicitInput(params: FormElicitParams | URLElicitParams): Promise<ElicitResult>;
   sendElicitationCompleteNotification?(elicitationId: string): Promise<void>;
 }
 
@@ -117,7 +108,7 @@ export interface ElicitationServer {
  * Check if the client supports elicitation and its modes
  */
 export function checkElicitationSupport(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): ElicitationSupport {
   const elicitation = clientCapabilities?.elicitation;
   return {
@@ -131,10 +122,10 @@ export function checkElicitationSupport(
  * Assert that form elicitation is supported
  */
 export function assertFormElicitationSupport(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.form) {
-    throw new Error("Client does not support form-based elicitation");
+    throw new Error('Client does not support form-based elicitation');
   }
 }
 
@@ -142,10 +133,10 @@ export function assertFormElicitationSupport(
  * Assert that URL elicitation is supported
  */
 export function assertURLElicitationSupport(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): void {
   if (!clientCapabilities?.elicitation?.url) {
-    throw new Error("Client does not support URL-based elicitation");
+    throw new Error('Client does not support URL-based elicitation');
   }
 }
 
@@ -163,10 +154,10 @@ export function stringField(options: {
   required?: boolean;
   minLength?: number;
   maxLength?: number;
-  format?: "email" | "uri" | "date" | "date-time";
+  format?: 'email' | 'uri' | 'date' | 'date-time';
 }): StringSchema {
   return {
-    type: "string",
+    type: 'string',
     title: options.title,
     ...(options.description && { description: options.description }),
     ...(options.default !== undefined && { default: options.default }),
@@ -188,7 +179,7 @@ export function numberField(options: {
   integer?: boolean;
 }): NumberSchema {
   return {
-    type: options.integer ? "integer" : "number",
+    type: options.integer ? 'integer' : 'number',
     title: options.title,
     ...(options.description && { description: options.description }),
     ...(options.default !== undefined && { default: options.default }),
@@ -206,7 +197,7 @@ export function booleanField(options: {
   default?: boolean;
 }): BooleanSchema {
   return {
-    type: "boolean",
+    type: 'boolean',
     title: options.title,
     ...(options.description && { description: options.description }),
     ...(options.default !== undefined && { default: options.default }),
@@ -223,7 +214,7 @@ export function enumField(options: {
   default?: string;
 }): EnumSchema {
   return {
-    type: "string",
+    type: 'string',
     title: options.title,
     ...(options.description && { description: options.description }),
     enum: options.values,
@@ -241,7 +232,7 @@ export function selectField(options: {
   default?: string;
 }): EnumSchema {
   return {
-    type: "string",
+    type: 'string',
     title: options.title,
     ...(options.description && { description: options.description }),
     oneOf: options.options.map((opt) => ({
@@ -259,176 +250,174 @@ export function selectField(options: {
 /**
  * Schema for spreadsheet creation preferences
  */
-export const SPREADSHEET_CREATION_SCHEMA: FormElicitParams["requestedSchema"] =
-  {
-    type: "object",
-    properties: {
-      title: stringField({
-        title: "Spreadsheet Title",
-        description: "Name for your new spreadsheet",
-        default: "Untitled Spreadsheet",
-        maxLength: 255,
-      }),
-      locale: selectField({
-        title: "Locale",
-        description: "Regional format settings",
-        options: [
-          { value: "en_US", label: "English (United States)" },
-          { value: "en_GB", label: "English (United Kingdom)" },
-          { value: "de_DE", label: "German (Germany)" },
-          { value: "fr_FR", label: "French (France)" },
-          { value: "es_ES", label: "Spanish (Spain)" },
-          { value: "ja_JP", label: "Japanese (Japan)" },
-          { value: "zh_CN", label: "Chinese (Simplified)" },
-        ],
-        default: "en_US",
-      }),
-      timeZone: selectField({
-        title: "Time Zone",
-        description: "Time zone for date/time functions",
-        options: [
-          { value: "America/New_York", label: "Eastern Time (US)" },
-          { value: "America/Chicago", label: "Central Time (US)" },
-          { value: "America/Denver", label: "Mountain Time (US)" },
-          { value: "America/Los_Angeles", label: "Pacific Time (US)" },
-          { value: "Europe/London", label: "London (UK)" },
-          { value: "Europe/Paris", label: "Paris (France)" },
-          { value: "Europe/Berlin", label: "Berlin (Germany)" },
-          { value: "Asia/Tokyo", label: "Tokyo (Japan)" },
-          { value: "Asia/Shanghai", label: "Shanghai (China)" },
-          { value: "Australia/Sydney", label: "Sydney (Australia)" },
-        ],
-        default: "America/New_York",
-      }),
-    },
-    required: ["title"],
-  };
+export const SPREADSHEET_CREATION_SCHEMA: FormElicitParams['requestedSchema'] = {
+  type: 'object',
+  properties: {
+    title: stringField({
+      title: 'Spreadsheet Title',
+      description: 'Name for your new spreadsheet',
+      default: 'Untitled Spreadsheet',
+      maxLength: 255,
+    }),
+    locale: selectField({
+      title: 'Locale',
+      description: 'Regional format settings',
+      options: [
+        { value: 'en_US', label: 'English (United States)' },
+        { value: 'en_GB', label: 'English (United Kingdom)' },
+        { value: 'de_DE', label: 'German (Germany)' },
+        { value: 'fr_FR', label: 'French (France)' },
+        { value: 'es_ES', label: 'Spanish (Spain)' },
+        { value: 'ja_JP', label: 'Japanese (Japan)' },
+        { value: 'zh_CN', label: 'Chinese (Simplified)' },
+      ],
+      default: 'en_US',
+    }),
+    timeZone: selectField({
+      title: 'Time Zone',
+      description: 'Time zone for date/time functions',
+      options: [
+        { value: 'America/New_York', label: 'Eastern Time (US)' },
+        { value: 'America/Chicago', label: 'Central Time (US)' },
+        { value: 'America/Denver', label: 'Mountain Time (US)' },
+        { value: 'America/Los_Angeles', label: 'Pacific Time (US)' },
+        { value: 'Europe/London', label: 'London (UK)' },
+        { value: 'Europe/Paris', label: 'Paris (France)' },
+        { value: 'Europe/Berlin', label: 'Berlin (Germany)' },
+        { value: 'Asia/Tokyo', label: 'Tokyo (Japan)' },
+        { value: 'Asia/Shanghai', label: 'Shanghai (China)' },
+        { value: 'Australia/Sydney', label: 'Sydney (Australia)' },
+      ],
+      default: 'America/New_York',
+    }),
+  },
+  required: ['title'],
+};
 
 /**
  * Schema for sharing settings
  */
-export const SHARING_SETTINGS_SCHEMA: FormElicitParams["requestedSchema"] = {
-  type: "object",
+export const SHARING_SETTINGS_SCHEMA: FormElicitParams['requestedSchema'] = {
+  type: 'object',
   properties: {
     email: stringField({
-      title: "Email Address",
-      description: "Email of the person to share with",
-      format: "email",
+      title: 'Email Address',
+      description: 'Email of the person to share with',
+      format: 'email',
     }),
     role: selectField({
-      title: "Permission Level",
-      description: "What can they do?",
+      title: 'Permission Level',
+      description: 'What can they do?',
       options: [
-        { value: "reader", label: "Viewer - Can view only" },
-        { value: "commenter", label: "Commenter - Can view and comment" },
-        { value: "writer", label: "Editor - Can make changes" },
+        { value: 'reader', label: 'Viewer - Can view only' },
+        { value: 'commenter', label: 'Commenter - Can view and comment' },
+        { value: 'writer', label: 'Editor - Can make changes' },
       ],
-      default: "reader",
+      default: 'reader',
     }),
     sendNotification: booleanField({
-      title: "Send notification email",
-      description: "Notify the person via email",
+      title: 'Send notification email',
+      description: 'Notify the person via email',
       default: true,
     }),
     message: stringField({
-      title: "Personal message (optional)",
-      description: "Add a message to the notification email",
+      title: 'Personal message (optional)',
+      description: 'Add a message to the notification email',
       maxLength: 500,
     }),
   },
-  required: ["email", "role"],
+  required: ['email', 'role'],
 };
 
 /**
  * Schema for destructive action confirmation
  */
-export const DESTRUCTIVE_CONFIRMATION_SCHEMA: FormElicitParams["requestedSchema"] =
-  {
-    type: "object",
-    properties: {
-      confirm: booleanField({
-        title: "I understand this action cannot be undone",
-        default: false,
-      }),
-      reason: stringField({
-        title: "Reason for this action (optional)",
-        description: "Why are you performing this operation?",
-        maxLength: 200,
-      }),
-    },
-    required: ["confirm"],
-  };
+export const DESTRUCTIVE_CONFIRMATION_SCHEMA: FormElicitParams['requestedSchema'] = {
+  type: 'object',
+  properties: {
+    confirm: booleanField({
+      title: 'I understand this action cannot be undone',
+      default: false,
+    }),
+    reason: stringField({
+      title: 'Reason for this action (optional)',
+      description: 'Why are you performing this operation?',
+      maxLength: 200,
+    }),
+  },
+  required: ['confirm'],
+};
 
 /**
  * Schema for data import options
  */
-export const DATA_IMPORT_SCHEMA: FormElicitParams["requestedSchema"] = {
-  type: "object",
+export const DATA_IMPORT_SCHEMA: FormElicitParams['requestedSchema'] = {
+  type: 'object',
   properties: {
     sourceType: selectField({
-      title: "Import from",
+      title: 'Import from',
       options: [
-        { value: "csv_url", label: "CSV from URL" },
-        { value: "google_sheet", label: "Another Google Sheet" },
-        { value: "json_api", label: "JSON API endpoint" },
+        { value: 'csv_url', label: 'CSV from URL' },
+        { value: 'google_sheet', label: 'Another Google Sheet' },
+        { value: 'json_api', label: 'JSON API endpoint' },
       ],
     }),
     url: stringField({
-      title: "Source URL",
-      description: "URL of the data source",
-      format: "uri",
+      title: 'Source URL',
+      description: 'URL of the data source',
+      format: 'uri',
     }),
     targetSheet: stringField({
-      title: "Target Sheet",
-      description: "Name of sheet to import into (new or existing)",
-      default: "Imported Data",
+      title: 'Target Sheet',
+      description: 'Name of sheet to import into (new or existing)',
+      default: 'Imported Data',
     }),
     headerRow: booleanField({
-      title: "First row contains headers",
+      title: 'First row contains headers',
       default: true,
     }),
     replaceExisting: booleanField({
-      title: "Replace existing data",
-      description: "Clear the target sheet before importing",
+      title: 'Replace existing data',
+      description: 'Clear the target sheet before importing',
       default: false,
     }),
   },
-  required: ["sourceType", "url", "targetSheet"],
+  required: ['sourceType', 'url', 'targetSheet'],
 };
 
 /**
  * Schema for filter settings
  */
-export const FILTER_SETTINGS_SCHEMA: FormElicitParams["requestedSchema"] = {
-  type: "object",
+export const FILTER_SETTINGS_SCHEMA: FormElicitParams['requestedSchema'] = {
+  type: 'object',
   properties: {
     filterName: stringField({
-      title: "Filter View Name",
-      description: "Name to save this filter as",
+      title: 'Filter View Name',
+      description: 'Name to save this filter as',
       maxLength: 100,
     }),
     columnToFilter: stringField({
-      title: "Column to Filter",
+      title: 'Column to Filter',
       description: 'Column letter or name (e.g., "A" or "Status")',
     }),
     filterType: selectField({
-      title: "Filter Type",
+      title: 'Filter Type',
       options: [
-        { value: "equals", label: "Equals" },
-        { value: "contains", label: "Contains" },
-        { value: "greater_than", label: "Greater than" },
-        { value: "less_than", label: "Less than" },
-        { value: "between", label: "Between" },
-        { value: "is_empty", label: "Is empty" },
-        { value: "is_not_empty", label: "Is not empty" },
+        { value: 'equals', label: 'Equals' },
+        { value: 'contains', label: 'Contains' },
+        { value: 'greater_than', label: 'Greater than' },
+        { value: 'less_than', label: 'Less than' },
+        { value: 'between', label: 'Between' },
+        { value: 'is_empty', label: 'Is empty' },
+        { value: 'is_not_empty', label: 'Is not empty' },
       ],
     }),
     filterValue: stringField({
-      title: "Filter Value",
-      description: "Value to filter by",
+      title: 'Filter Value',
+      description: 'Value to filter by',
     }),
   },
-  required: ["columnToFilter", "filterType"],
+  required: ['columnToFilter', 'filterType'],
 };
 
 // ============================================================================
@@ -441,7 +430,7 @@ export const FILTER_SETTINGS_SCHEMA: FormElicitParams["requestedSchema"] = {
 export async function safeElicit<T>(
   server: ElicitationServer,
   params: FormElicitParams,
-  fallback: T,
+  fallback: T
 ): Promise<T> {
   const caps = server.getClientCapabilities();
   if (!caps?.elicitation?.form) {
@@ -450,11 +439,11 @@ export async function safeElicit<T>(
 
   try {
     const result = await server.elicitInput(params);
-    if (result.action === "accept" && result.content) {
+    if (result.action === 'accept' && result.content) {
       return result.content as T;
     }
   } catch (error) {
-    console.error("Elicitation failed:", error);
+    console.error('Elicitation failed:', error);
   }
 
   return fallback;
@@ -463,9 +452,7 @@ export async function safeElicit<T>(
 /**
  * Elicit spreadsheet creation preferences
  */
-export async function elicitSpreadsheetCreation(
-  server: ElicitationServer,
-): Promise<{
+export async function elicitSpreadsheetCreation(server: ElicitationServer): Promise<{
   title: string;
   locale: string;
   timeZone: string;
@@ -473,16 +460,16 @@ export async function elicitSpreadsheetCreation(
   assertFormElicitationSupport(server.getClientCapabilities());
 
   const result = await server.elicitInput({
-    mode: "form",
-    message: "Configure your new spreadsheet:",
+    mode: 'form',
+    message: 'Configure your new spreadsheet:',
     requestedSchema: SPREADSHEET_CREATION_SCHEMA,
   });
 
-  if (result.action === "accept" && result.content) {
+  if (result.action === 'accept' && result.content) {
     return {
-      title: (result.content["title"] as string) || "Untitled Spreadsheet",
-      locale: (result.content["locale"] as string) || "en_US",
-      timeZone: (result.content["timeZone"] as string) || "America/New_York",
+      title: (result.content['title'] as string) || 'Untitled Spreadsheet',
+      locale: (result.content['locale'] as string) || 'en_US',
+      timeZone: (result.content['timeZone'] as string) || 'America/New_York',
     };
   }
 
@@ -494,27 +481,27 @@ export async function elicitSpreadsheetCreation(
  */
 export async function elicitSharingSettings(
   server: ElicitationServer,
-  spreadsheetTitle: string,
+  spreadsheetTitle: string
 ): Promise<{
   email: string;
-  role: "reader" | "commenter" | "writer";
+  role: 'reader' | 'commenter' | 'writer';
   sendNotification: boolean;
   message?: string;
 } | null> {
   assertFormElicitationSupport(server.getClientCapabilities());
 
   const result = await server.elicitInput({
-    mode: "form",
+    mode: 'form',
     message: `Share "${spreadsheetTitle}" with someone:`,
     requestedSchema: SHARING_SETTINGS_SCHEMA,
   });
 
-  if (result.action === "accept" && result.content) {
+  if (result.action === 'accept' && result.content) {
     return {
-      email: result.content["email"] as string,
-      role: result.content["role"] as "reader" | "commenter" | "writer",
-      sendNotification: (result.content["sendNotification"] as boolean) ?? true,
-      message: result.content["message"] as string | undefined,
+      email: result.content['email'] as string,
+      role: result.content['role'] as 'reader' | 'commenter' | 'writer',
+      sendNotification: (result.content['sendNotification'] as boolean) ?? true,
+      message: result.content['message'] as string | undefined,
     };
   }
 
@@ -527,7 +514,7 @@ export async function elicitSharingSettings(
 export async function confirmDestructiveAction(
   server: ElicitationServer,
   action: string,
-  details: string,
+  details: string
 ): Promise<{ confirmed: boolean; reason?: string }> {
   const caps = server.getClientCapabilities();
   if (!caps?.elicitation?.form) {
@@ -536,15 +523,15 @@ export async function confirmDestructiveAction(
   }
 
   const result = await server.elicitInput({
-    mode: "form",
+    mode: 'form',
     message: `⚠️ ${action}\n\n${details}\n\nThis action cannot be undone.`,
     requestedSchema: DESTRUCTIVE_CONFIRMATION_SCHEMA,
   });
 
-  if (result.action === "accept" && result.content?.["confirm"] === true) {
+  if (result.action === 'accept' && result.content?.['confirm'] === true) {
     return {
       confirmed: true,
-      reason: result.content["reason"] as string | undefined,
+      reason: result.content['reason'] as string | undefined,
     };
   }
 
@@ -555,7 +542,7 @@ export async function confirmDestructiveAction(
  * Elicit data import configuration
  */
 export async function elicitDataImport(server: ElicitationServer): Promise<{
-  sourceType: "csv_url" | "google_sheet" | "json_api";
+  sourceType: 'csv_url' | 'google_sheet' | 'json_api';
   url: string;
   targetSheet: string;
   headerRow: boolean;
@@ -564,21 +551,18 @@ export async function elicitDataImport(server: ElicitationServer): Promise<{
   assertFormElicitationSupport(server.getClientCapabilities());
 
   const result = await server.elicitInput({
-    mode: "form",
-    message: "Configure data import:",
+    mode: 'form',
+    message: 'Configure data import:',
     requestedSchema: DATA_IMPORT_SCHEMA,
   });
 
-  if (result.action === "accept" && result.content) {
+  if (result.action === 'accept' && result.content) {
     return {
-      sourceType: result.content["sourceType"] as
-        | "csv_url"
-        | "google_sheet"
-        | "json_api",
-      url: result.content["url"] as string,
-      targetSheet: (result.content["targetSheet"] as string) || "Imported Data",
-      headerRow: (result.content["headerRow"] as boolean) ?? true,
-      replaceExisting: (result.content["replaceExisting"] as boolean) ?? false,
+      sourceType: result.content['sourceType'] as 'csv_url' | 'google_sheet' | 'json_api',
+      url: result.content['url'] as string,
+      targetSheet: (result.content['targetSheet'] as string) || 'Imported Data',
+      headerRow: (result.content['headerRow'] as boolean) ?? true,
+      replaceExisting: (result.content['replaceExisting'] as boolean) ?? false,
     };
   }
 
@@ -592,7 +576,7 @@ export async function elicitDataImport(server: ElicitationServer): Promise<{
 /**
  * Generate a unique elicitation ID
  */
-export function generateElicitationId(prefix: string = "elicit"): string {
+export function generateElicitationId(prefix: string = 'elicit'): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
@@ -605,29 +589,29 @@ export async function initiateOAuthFlow(
     authUrl: string;
     provider: string;
     scopes?: string[];
-  },
+  }
 ): Promise<{
   accepted: boolean;
   elicitationId: string;
 }> {
   assertURLElicitationSupport(server.getClientCapabilities());
 
-  const elicitationId = generateElicitationId("oauth");
+  const elicitationId = generateElicitationId('oauth');
 
   let message = `Sign in with ${params.provider} to authorize access.`;
   if (params.scopes?.length) {
-    message += `\n\nRequested permissions:\n• ${params.scopes.join("\n• ")}`;
+    message += `\n\nRequested permissions:\n• ${params.scopes.join('\n• ')}`;
   }
 
   const result = await server.elicitInput({
-    mode: "url",
+    mode: 'url',
     message,
     elicitationId,
     url: params.authUrl,
   });
 
   return {
-    accepted: result.action === "accept",
+    accepted: result.action === 'accept',
     elicitationId,
   };
 }
@@ -637,7 +621,7 @@ export async function initiateOAuthFlow(
  */
 export async function completeOAuthFlow(
   server: ElicitationServer,
-  elicitationId: string,
+  elicitationId: string
 ): Promise<void> {
   if (server.sendElicitationCompleteNotification) {
     await server.sendElicitationCompleteNotification(elicitationId);
@@ -653,30 +637,30 @@ export async function initiateVerificationFlow(
     verificationUrl: string;
     purpose: string;
     expiresIn?: number; // seconds
-  },
+  }
 ): Promise<{
   accepted: boolean;
   elicitationId: string;
 }> {
   assertURLElicitationSupport(server.getClientCapabilities());
 
-  const elicitationId = generateElicitationId("verify");
+  const elicitationId = generateElicitationId('verify');
 
   let message = params.purpose;
   if (params.expiresIn) {
     const minutes = Math.ceil(params.expiresIn / 60);
-    message += `\n\nThis link expires in ${minutes} minute${minutes > 1 ? "s" : ""}.`;
+    message += `\n\nThis link expires in ${minutes} minute${minutes > 1 ? 's' : ''}.`;
   }
 
   const result = await server.elicitInput({
-    mode: "url",
+    mode: 'url',
     message,
     elicitationId,
     url: params.verificationUrl,
   });
 
   return {
-    accepted: result.action === "accept",
+    accepted: result.action === 'accept',
     elicitationId,
   };
 }
@@ -701,15 +685,12 @@ export async function runWizard<T>(
   server: ElicitationServer,
   steps: Array<{
     message: string;
-    schema: FormElicitParams["requestedSchema"];
-    transform?: (
-      data: Record<string, unknown>,
-      accumulated: Partial<T>,
-    ) => Partial<T>;
+    schema: FormElicitParams['requestedSchema'];
+    transform?: (data: Record<string, unknown>, accumulated: Partial<T>) => Partial<T>;
   }>,
   options: {
     onStepComplete?: (stepIndex: number, data: Partial<T>) => void;
-  } = {},
+  } = {}
 ): Promise<WizardStepResult<T>> {
   assertFormElicitationSupport(server.getClientCapabilities());
 
@@ -721,16 +702,16 @@ export async function runWizard<T>(
     const totalSteps = steps.length;
 
     const result = await server.elicitInput({
-      mode: "form",
+      mode: 'form',
       message: `Step ${stepNumber}/${totalSteps}: ${step.message}`,
       requestedSchema: step.schema,
     });
 
-    if (result.action === "cancel") {
+    if (result.action === 'cancel') {
       return { completed: false, cancelled: true };
     }
 
-    if (result.action === "decline" || !result.content) {
+    if (result.action === 'decline' || !result.content) {
       return { completed: false };
     }
 

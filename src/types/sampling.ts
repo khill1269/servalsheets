@@ -13,26 +13,21 @@
 /**
  * Tool call status
  */
-export type ToolCallStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "failed"
-  | "skipped";
+export type ToolCallStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
 
 /**
  * Tool call priority
  */
-export type ToolCallPriority = "low" | "medium" | "high" | "critical";
+export type ToolCallPriority = 'low' | 'medium' | 'high' | 'critical';
 
 /**
  * Tool selection strategy
  */
 export type ToolSelectionStrategy =
-  | "automatic"
-  | "cost_optimized"
-  | "performance_optimized"
-  | "quality_optimized";
+  | 'automatic'
+  | 'cost_optimized'
+  | 'performance_optimized'
+  | 'quality_optimized';
 
 /**
  * Enhanced tool call request
@@ -121,7 +116,7 @@ export interface MultiToolWorkflow {
   toolCalls: EnhancedToolCall[];
 
   /** Execution strategy */
-  strategy: "sequential" | "parallel" | "adaptive";
+  strategy: 'sequential' | 'parallel' | 'adaptive';
 
   /** Overall status */
   status: ToolCallStatus;
@@ -307,7 +302,7 @@ export interface ParameterInference {
   confidence: number;
 
   /** Source of inference */
-  source: "context" | "previous_result" | "default" | "user_intent" | "pattern";
+  source: 'context' | 'previous_result' | 'default' | 'user_intent' | 'pattern';
 
   /** Reasoning */
   reasoning?: string;
@@ -367,7 +362,7 @@ export interface ChainCondition {
   tool: string;
 
   /** Condition type */
-  type: "success" | "failure" | "result_match" | "custom";
+  type: 'success' | 'failure' | 'result_match' | 'custom';
 
   /** Expected value (for result_match) */
   expectedValue?: unknown;
@@ -376,7 +371,7 @@ export interface ChainCondition {
   condition?: (result: unknown) => boolean;
 
   /** Action if condition is met */
-  action: "continue" | "skip_next" | "abort" | "retry";
+  action: 'continue' | 'skip_next' | 'abort' | 'retry';
 }
 
 /**
@@ -414,7 +409,7 @@ export interface SamplingContext {
  * Message in conversation history
  */
 export interface Message {
-  role: "user" | "assistant" | "system";
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp?: number;
 }
@@ -430,7 +425,7 @@ export interface SamplingResponse {
   toolCalls?: EnhancedToolCall[];
 
   /** Stop reason */
-  stopReason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use";
+  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use';
 
   /** Usage statistics */
   usage?: {

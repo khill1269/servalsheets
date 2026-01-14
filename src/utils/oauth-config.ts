@@ -10,12 +10,9 @@ export interface OAuthEnvConfig {
 }
 
 export function getOAuthEnvConfig(): OAuthEnvConfig {
-  const clientId =
-    process.env["GOOGLE_CLIENT_ID"] ?? process.env["OAUTH_CLIENT_ID"];
-  const clientSecret =
-    process.env["GOOGLE_CLIENT_SECRET"] ?? process.env["OAUTH_CLIENT_SECRET"];
-  const redirectUri =
-    process.env["GOOGLE_REDIRECT_URI"] ?? process.env["OAUTH_REDIRECT_URI"];
+  const clientId = process.env['GOOGLE_CLIENT_ID'] ?? process.env['OAUTH_CLIENT_ID'];
+  const clientSecret = process.env['GOOGLE_CLIENT_SECRET'] ?? process.env['OAUTH_CLIENT_SECRET'];
+  const redirectUri = process.env['GOOGLE_REDIRECT_URI'] ?? process.env['OAUTH_REDIRECT_URI'];
 
   return {
     clientId,

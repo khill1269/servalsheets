@@ -5,8 +5,8 @@
  * Provides visibility into caching, batching, and API performance
  */
 
-import { MetricsService } from "./metrics.js";
-import { CacheManager } from "../utils/cache-manager.js";
+import { MetricsService } from './metrics.js';
+import { CacheManager } from '../utils/cache-manager.js';
 
 export interface MetricsSnapshot {
   timestamp: number;
@@ -135,16 +135,12 @@ export class MetricsExporter {
     }
 
     // Batching metrics
-    lines.push(
-      `# HELP batch_window_ms Current adaptive batch window in milliseconds`,
-    );
+    lines.push(`# HELP batch_window_ms Current adaptive batch window in milliseconds`);
     lines.push(`# TYPE batch_window_ms gauge`);
     lines.push(`batch_window_ms ${snapshot.batching.currentWindowMs}`);
     lines.push(``);
 
-    lines.push(
-      `# HELP batch_requests_total Total requests processed in batches`,
-    );
+    lines.push(`# HELP batch_requests_total Total requests processed in batches`);
     lines.push(`# TYPE batch_requests_total counter`);
     lines.push(`batch_requests_total ${snapshot.batching.totalRequests}`);
     lines.push(``);
@@ -156,18 +152,12 @@ export class MetricsExporter {
 
     lines.push(`# HELP batch_size_avg Average batch size (requests per batch)`);
     lines.push(`# TYPE batch_size_avg gauge`);
-    lines.push(
-      `batch_size_avg ${snapshot.batching.averageBatchSize.toFixed(2)}`,
-    );
+    lines.push(`batch_size_avg ${snapshot.batching.averageBatchSize.toFixed(2)}`);
     lines.push(``);
 
-    lines.push(
-      `# HELP requests_deduplicated_total Total requests deduplicated`,
-    );
+    lines.push(`# HELP requests_deduplicated_total Total requests deduplicated`);
     lines.push(`# TYPE requests_deduplicated_total counter`);
-    lines.push(
-      `requests_deduplicated_total ${snapshot.batching.deduplicatedCount}`,
-    );
+    lines.push(`requests_deduplicated_total ${snapshot.batching.deduplicatedCount}`);
     lines.push(``);
 
     // API call metrics
@@ -186,21 +176,17 @@ export class MetricsExporter {
     lines.push(``);
 
     // Summary metrics
-    lines.push(
-      `# HELP api_calls_summary_total Total API calls across all methods`,
-    );
+    lines.push(`# HELP api_calls_summary_total Total API calls across all methods`);
     lines.push(`# TYPE api_calls_summary_total counter`);
     lines.push(`api_calls_summary_total ${snapshot.api.totalCalls}`);
     lines.push(``);
 
-    lines.push(
-      `# HELP api_errors_summary_total Total API errors across all codes`,
-    );
+    lines.push(`# HELP api_errors_summary_total Total API errors across all codes`);
     lines.push(`# TYPE api_errors_summary_total counter`);
     lines.push(`api_errors_summary_total ${snapshot.api.totalErrors}`);
     lines.push(``);
 
-    return lines.join("\n");
+    return lines.join('\n');
   }
 
   /**
@@ -242,9 +228,7 @@ export class MetricsExporter {
     lines.push(`  Current Window: ${snapshot.batching.currentWindowMs}ms`);
     lines.push(`  Total Batches: ${snapshot.batching.totalBatches}`);
     lines.push(`  Total Requests: ${snapshot.batching.totalRequests}`);
-    lines.push(
-      `  Average Batch Size: ${snapshot.batching.averageBatchSize.toFixed(2)}`,
-    );
+    lines.push(`  Average Batch Size: ${snapshot.batching.averageBatchSize.toFixed(2)}`);
     lines.push(`  Deduplicated: ${snapshot.batching.deduplicatedCount}`);
     lines.push(``);
 
@@ -254,9 +238,7 @@ export class MetricsExporter {
     lines.push(`  Total Errors: ${snapshot.api.totalErrors}`);
     if (Object.keys(snapshot.api.callsByMethod).length > 0) {
       lines.push(`  Calls by Method:`);
-      for (const [method, count] of Object.entries(
-        snapshot.api.callsByMethod,
-      )) {
+      for (const [method, count] of Object.entries(snapshot.api.callsByMethod)) {
         lines.push(`    ${method}: ${count}`);
       }
     }
@@ -267,6 +249,6 @@ export class MetricsExporter {
       }
     }
 
-    return lines.join("\n");
+    return lines.join('\n');
   }
 }

@@ -6,8 +6,8 @@ import { describe, it, expect } from 'vitest';
 import {
   TOOL_COUNT,
   ACTION_COUNT,
-  SheetSpreadsheetInputSchema,
-  SheetsValuesInputSchema,
+  SheetsCoreInputSchema,
+  SheetsDataInputSchema,
   SheetsDimensionsInputSchema,
   SafetyOptionsSchema,
   ColorSchema,
@@ -15,19 +15,19 @@ import {
 
 describe('ServalSheets v4', () => {
   describe('Tool Registry', () => {
-    it('should have 26 tools', () => {
-      expect(TOOL_COUNT).toBe(26);
+    it('should have 17 tools', () => {
+      expect(TOOL_COUNT).toBe(17);
     });
 
-    it('should have 70+ actions', () => {
-      expect(ACTION_COUNT).toBeGreaterThanOrEqual(70);
+    it('should have 226 actions', () => {
+      expect(ACTION_COUNT).toBe(226);
     });
   });
 
   describe('Schema Validation', () => {
-    describe('SheetSpreadsheetInputSchema', () => {
+    describe('SheetsCoreInputSchema', () => {
       it('should validate get action', () => {
-        const result = SheetSpreadsheetInputSchema.safeParse({
+        const result = SheetsCoreInputSchema.safeParse({
           action: 'get',
           spreadsheetId: 'abc123',
         });
@@ -35,7 +35,7 @@ describe('ServalSheets v4', () => {
       });
 
       it('should validate create action', () => {
-        const result = SheetSpreadsheetInputSchema.safeParse({
+        const result = SheetsCoreInputSchema.safeParse({
           action: 'create',
           title: 'New Spreadsheet',
         });
@@ -43,7 +43,7 @@ describe('ServalSheets v4', () => {
       });
 
       it('should reject invalid action', () => {
-        const result = SheetSpreadsheetInputSchema.safeParse({
+        const result = SheetsCoreInputSchema.safeParse({
           action: 'invalid',
           spreadsheetId: 'abc123',
         });
@@ -51,9 +51,9 @@ describe('ServalSheets v4', () => {
       });
     });
 
-    describe('SheetsValuesInputSchema', () => {
+    describe('SheetsDataInputSchema', () => {
       it('should validate read action with A1 range', () => {
-        const result = SheetsValuesInputSchema.safeParse({
+        const result = SheetsDataInputSchema.safeParse({
           action: 'read',
           spreadsheetId: 'abc123',
           range: { a1: 'Sheet1!A1:C10' },
@@ -62,7 +62,7 @@ describe('ServalSheets v4', () => {
       });
 
       it('should validate write action with safety options', () => {
-        const result = SheetsValuesInputSchema.safeParse({
+        const result = SheetsDataInputSchema.safeParse({
           action: 'write',
           spreadsheetId: 'abc123',
           range: { a1: 'Sheet1!A1' },
@@ -78,7 +78,7 @@ describe('ServalSheets v4', () => {
       });
 
       it('should validate semantic range', () => {
-        const result = SheetsValuesInputSchema.safeParse({
+        const result = SheetsDataInputSchema.safeParse({
           action: 'read',
           spreadsheetId: 'abc123',
           range: {

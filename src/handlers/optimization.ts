@@ -21,11 +21,8 @@
  * Create a fast action dispatcher using a Map
  * Avoids switch statement overhead for frequent actions
  */
-export function createActionDispatcher<
-  TInput extends { action: string },
-  TOutput,
->(
-  handlers: Record<string, (input: TInput) => Promise<TOutput>>,
+export function createActionDispatcher<TInput extends { action: string }, TOutput>(
+  handlers: Record<string, (input: TInput) => Promise<TOutput>>
 ): (input: TInput) => Promise<TOutput> {
   const dispatchMap = new Map(Object.entries(handlers));
 
@@ -49,10 +46,7 @@ const keyBuffer: string[] = [];
  * Fast cache key generation without object allocation
  * Uses a simple string join instead of JSON.stringify
  */
-export function fastCacheKey(
-  prefix: string,
-  ...parts: (string | number | undefined)[]
-): string {
+export function fastCacheKey(prefix: string, ...parts: (string | number | undefined)[]): string {
   keyBuffer.length = 0;
   keyBuffer.push(prefix);
 
@@ -63,7 +57,7 @@ export function fastCacheKey(
     }
   }
 
-  return keyBuffer.join(":");
+  return keyBuffer.join(':');
 }
 
 /**
@@ -73,16 +67,14 @@ export function spreadsheetCacheKey(
   operation: string,
   spreadsheetId: string,
   range?: string,
-  extra?: string,
+  extra?: string
 ): string {
   if (extra) {
     return range
       ? `${operation}:${spreadsheetId}:${range}:${extra}`
       : `${operation}:${spreadsheetId}:${extra}`;
   }
-  return range
-    ? `${operation}:${spreadsheetId}:${range}`
-    : `${operation}:${spreadsheetId}`;
+  return range ? `${operation}:${spreadsheetId}:${range}` : `${operation}:${spreadsheetId}`;
 }
 
 // ============================================================================
@@ -92,10 +84,7 @@ export function spreadsheetCacheKey(
 /**
  * Check if all required parameters are present (avoid inference overhead)
  */
-export function hasRequiredParams(
-  input: Record<string, unknown>,
-  ...required: string[]
-): boolean {
+export function hasRequiredParams(input: Record<string, unknown>, ...required: string[]): boolean {
   for (let i = 0; i < required.length; i++) {
     if (input[required[i]!] === undefined) {
       return false;
@@ -107,19 +96,17 @@ export function hasRequiredParams(
 /**
  * Fast spreadsheet ID extraction (avoids type narrowing overhead)
  */
-export function getSpreadsheetId(
-  input: Record<string, unknown>,
-): string | undefined {
-  const id = input["spreadsheetId"];
-  return typeof id === "string" ? id : undefined;
+export function getSpreadsheetId(input: Record<string, unknown>): string | undefined {
+  const id = input['spreadsheetId'];
+  return typeof id === 'string' ? id : undefined;
 }
 
 /**
  * Fast action extraction
  */
 export function getAction(input: Record<string, unknown>): string | undefined {
-  const action = input["action"];
-  return typeof action === "string" ? action : undefined;
+  const action = input['action'];
+  return typeof action === 'string' ? action : undefined;
 }
 
 // ============================================================================
@@ -136,7 +123,7 @@ const ERROR_BASE = { success: false as const };
  */
 export function fastSuccess<T extends Record<string, unknown>>(
   action: string,
-  data: T,
+  data: T
 ): T & { success: true; action: string } {
   return {
     ...SUCCESS_BASE,
@@ -151,7 +138,7 @@ export function fastSuccess<T extends Record<string, unknown>>(
 export function fastError(
   code: string,
   message: string,
-  retryable: boolean = false,
+  retryable: boolean = false
 ): {
   success: false;
   error: { code: string; message: string; retryable: boolean };
@@ -170,9 +157,7 @@ export function fastError(
  * Execute multiple async operations in parallel with early bailout
  * Returns as soon as first operation fails
  */
-export async function parallelWithBailout<T>(
-  operations: (() => Promise<T>)[],
-): Promise<T[]> {
+export async function parallelWithBailout<T>(operations: (() => Promise<T>)[]): Promise<T[]> {
   const results: T[] = [];
   const promises = operations.map(async (op, index) => {
     const result = await op();
@@ -190,7 +175,7 @@ export async function parallelWithBailout<T>(
 export async function batchAsync<T, R>(
   items: T[],
   operation: (item: T) => Promise<R>,
-  concurrency: number = 5,
+  concurrency: number = 5
 ): Promise<R[]> {
   const results: R[] = [];
 
@@ -216,21 +201,13 @@ export class LazyContextTracker {
   private lastRange?: string;
 
   constructor(
-    private updateFn: (params: {
-      spreadsheetId?: string;
-      sheetId?: number;
-      range?: string;
-    }) => void,
+    private updateFn: (params: { spreadsheetId?: string; sheetId?: number; range?: string }) => void
   ) {}
 
   /**
    * Track context only if values have changed
    */
-  track(params: {
-    spreadsheetId?: string;
-    sheetId?: number;
-    range?: string;
-  }): void {
+  track(params: { spreadsheetId?: string; sheetId?: number; range?: string }): void {
     const { spreadsheetId, sheetId, range } = params;
 
     // Only update if values have changed
@@ -291,7 +268,7 @@ export function countColumns(values: unknown[][]): number {
 export function truncateValues(
   values: unknown[][],
   maxRows: number,
-  maxCells: number,
+  maxCells: number
 ): {
   values: unknown[][];
   truncated: boolean;

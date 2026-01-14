@@ -5,15 +5,15 @@
  * Google Sheets API: v4
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // PROTOCOL CONSTANTS
 // ============================================================================
 
-export const MCP_PROTOCOL_VERSION = "2025-11-25";
-export const SHEETS_API_VERSION = "v4";
-export const DRIVE_API_VERSION = "v3";
+export const MCP_PROTOCOL_VERSION = '2025-11-25';
+export const SHEETS_API_VERSION = 'v4';
+export const DRIVE_API_VERSION = 'v3';
 
 // ============================================================================
 // PRIMITIVE SCHEMAS
@@ -27,32 +27,28 @@ export const ColorSchema = z
     blue: z.number().min(0).max(1).optional().default(0),
     alpha: z.number().min(0).max(1).optional().default(1),
   })
-  .describe("RGB color in 0-1 scale");
+  .describe('RGB color in 0-1 scale');
 
 /** Cell value types */
 export const CellValueSchema = z
   .union([z.string(), z.number(), z.boolean(), z.null()])
-  .describe("Cell value");
+  .describe('Cell value');
 
 /** 2D array of values */
 export const ValuesArraySchema = z
   .array(z.array(CellValueSchema))
-  .describe("2D array - each inner array is a row");
+  .describe('2D array - each inner array is a row');
 
 /** Spreadsheet ID */
 export const SpreadsheetIdSchema = z
   .string()
   .min(1)
   .max(100)
-  .regex(/^[a-zA-Z0-9-_]+$/, "Invalid spreadsheet ID")
-  .describe("Spreadsheet ID from URL");
+  .regex(/^[a-zA-Z0-9-_]+$/, 'Invalid spreadsheet ID')
+  .describe('Spreadsheet ID from URL');
 
 /** Sheet ID (numeric) */
-export const SheetIdSchema = z
-  .number()
-  .int()
-  .min(0)
-  .describe("Numeric sheet ID");
+export const SheetIdSchema = z.number().int().min(0).describe('Numeric sheet ID');
 
 /** A1 Notation */
 export const A1NotationSchema = z
@@ -62,165 +58,143 @@ export const A1NotationSchema = z
   .describe('A1 notation (e.g., "Sheet1!A1:C10")');
 
 /** Sheet name */
-export const SheetNameSchema = z
-  .string()
-  .min(1)
-  .max(255)
-  .describe("Sheet/tab name");
+export const SheetNameSchema = z.string().min(1).max(255).describe('Sheet/tab name');
 
 // ============================================================================
 // ENUMS (Google Sheets API)
 // ============================================================================
 
 export const ValueRenderOptionSchema = z
-  .enum(["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"])
-  .default("FORMATTED_VALUE");
+  .enum(['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'])
+  .default('FORMATTED_VALUE');
 
-export const ValueInputOptionSchema = z
-  .enum(["RAW", "USER_ENTERED"])
-  .default("USER_ENTERED");
+export const ValueInputOptionSchema = z.enum(['RAW', 'USER_ENTERED']).default('USER_ENTERED');
 
-export const InsertDataOptionSchema = z
-  .enum(["OVERWRITE", "INSERT_ROWS"])
-  .default("INSERT_ROWS");
+export const InsertDataOptionSchema = z.enum(['OVERWRITE', 'INSERT_ROWS']).default('INSERT_ROWS');
 
-export const MajorDimensionSchema = z.enum(["ROWS", "COLUMNS"]).default("ROWS");
+export const MajorDimensionSchema = z.enum(['ROWS', 'COLUMNS']).default('ROWS');
 
-export const DimensionSchema = z.enum(["ROWS", "COLUMNS"]);
+export const DimensionSchema = z.enum(['ROWS', 'COLUMNS']);
 
-export const HorizontalAlignSchema = z.enum(["LEFT", "CENTER", "RIGHT"]);
-export const VerticalAlignSchema = z.enum(["TOP", "MIDDLE", "BOTTOM"]);
+export const HorizontalAlignSchema = z.enum(['LEFT', 'CENTER', 'RIGHT']);
+export const VerticalAlignSchema = z.enum(['TOP', 'MIDDLE', 'BOTTOM']);
 
-export const WrapStrategySchema = z.enum([
-  "OVERFLOW_CELL",
-  "LEGACY_WRAP",
-  "CLIP",
-  "WRAP",
-]);
+export const WrapStrategySchema = z.enum(['OVERFLOW_CELL', 'LEGACY_WRAP', 'CLIP', 'WRAP']);
 
 export const BorderStyleSchema = z.enum([
-  "NONE",
-  "DOTTED",
-  "DASHED",
-  "SOLID",
-  "SOLID_MEDIUM",
-  "SOLID_THICK",
-  "DOUBLE",
+  'NONE',
+  'DOTTED',
+  'DASHED',
+  'SOLID',
+  'SOLID_MEDIUM',
+  'SOLID_THICK',
+  'DOUBLE',
 ]);
 
-export const MergeTypeSchema = z.enum([
-  "MERGE_ALL",
-  "MERGE_COLUMNS",
-  "MERGE_ROWS",
-]);
+export const MergeTypeSchema = z.enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS']);
 
 export const PasteTypeSchema = z.enum([
-  "PASTE_NORMAL",
-  "PASTE_VALUES",
-  "PASTE_FORMAT",
-  "PASTE_NO_BORDERS",
-  "PASTE_FORMULA",
-  "PASTE_DATA_VALIDATION",
-  "PASTE_CONDITIONAL_FORMATTING",
+  'PASTE_NORMAL',
+  'PASTE_VALUES',
+  'PASTE_FORMAT',
+  'PASTE_NO_BORDERS',
+  'PASTE_FORMULA',
+  'PASTE_DATA_VALIDATION',
+  'PASTE_CONDITIONAL_FORMATTING',
 ]);
 
 export const ChartTypeSchema = z.enum([
-  "BAR",
-  "LINE",
-  "AREA",
-  "COLUMN",
-  "SCATTER",
-  "COMBO",
-  "STEPPED_AREA",
-  "PIE",
-  "DOUGHNUT",
-  "TREEMAP",
-  "WATERFALL",
-  "HISTOGRAM",
-  "CANDLESTICK",
-  "ORG",
-  "RADAR",
-  "SCORECARD",
-  "BUBBLE",
+  'BAR',
+  'LINE',
+  'AREA',
+  'COLUMN',
+  'SCATTER',
+  'COMBO',
+  'STEPPED_AREA',
+  'PIE',
+  'DOUGHNUT',
+  'TREEMAP',
+  'WATERFALL',
+  'HISTOGRAM',
+  'CANDLESTICK',
+  'ORG',
+  'RADAR',
+  'SCORECARD',
+  'BUBBLE',
 ]);
 
 export const LegendPositionSchema = z.enum([
-  "BOTTOM_LEGEND",
-  "LEFT_LEGEND",
-  "RIGHT_LEGEND",
-  "TOP_LEGEND",
-  "NO_LEGEND",
+  'BOTTOM_LEGEND',
+  'LEFT_LEGEND',
+  'RIGHT_LEGEND',
+  'TOP_LEGEND',
+  'NO_LEGEND',
 ]);
 
 export const SummarizeFunctionSchema = z.enum([
-  "SUM",
-  "COUNTA",
-  "COUNT",
-  "COUNTUNIQUE",
-  "AVERAGE",
-  "MAX",
-  "MIN",
-  "MEDIAN",
-  "PRODUCT",
-  "STDEV",
-  "STDEVP",
-  "VAR",
-  "VARP",
-  "CUSTOM",
+  'SUM',
+  'COUNTA',
+  'COUNT',
+  'COUNTUNIQUE',
+  'AVERAGE',
+  'MAX',
+  'MIN',
+  'MEDIAN',
+  'PRODUCT',
+  'STDEV',
+  'STDEVP',
+  'VAR',
+  'VARP',
+  'CUSTOM',
 ]);
 
-export const SortOrderSchema = z.enum(["ASCENDING", "DESCENDING"]);
+export const SortOrderSchema = z.enum(['ASCENDING', 'DESCENDING']);
 
 export const PermissionRoleSchema = z.enum([
-  "owner",
-  "organizer",
-  "fileOrganizer",
-  "writer",
-  "commenter",
-  "reader",
+  'owner',
+  'organizer',
+  'fileOrganizer',
+  'writer',
+  'commenter',
+  'reader',
 ]);
 
-export const PermissionTypeSchema = z.enum([
-  "user",
-  "group",
-  "domain",
-  "anyone",
-]);
+export const PermissionTypeSchema = z.enum(['user', 'group', 'domain', 'anyone']);
 
 export const ConditionTypeSchema = z.enum([
   // Number
-  "NUMBER_GREATER",
-  "NUMBER_GREATER_THAN_EQ",
-  "NUMBER_LESS",
-  "NUMBER_LESS_THAN_EQ",
-  "NUMBER_EQ",
-  "NUMBER_NOT_EQ",
-  "NUMBER_BETWEEN",
-  "NUMBER_NOT_BETWEEN",
+  'NUMBER_GREATER',
+  'NUMBER_GREATER_THAN_EQ',
+  'NUMBER_LESS',
+  'NUMBER_LESS_THAN_EQ',
+  'NUMBER_EQ',
+  'NUMBER_NOT_EQ',
+  'NUMBER_BETWEEN',
+  'NUMBER_NOT_BETWEEN',
   // Text
-  "TEXT_CONTAINS",
-  "TEXT_NOT_CONTAINS",
-  "TEXT_STARTS_WITH",
-  "TEXT_ENDS_WITH",
-  "TEXT_EQ",
-  "TEXT_IS_EMAIL",
-  "TEXT_IS_URL",
+  'TEXT_CONTAINS',
+  'TEXT_NOT_CONTAINS',
+  'TEXT_STARTS_WITH',
+  'TEXT_ENDS_WITH',
+  'TEXT_EQ',
+  'TEXT_IS_EMAIL',
+  'TEXT_IS_URL',
   // Date
-  "DATE_EQ",
-  "DATE_BEFORE",
-  "DATE_AFTER",
-  "DATE_ON_OR_BEFORE",
-  "DATE_ON_OR_AFTER",
-  "DATE_BETWEEN",
-  "DATE_NOT_BETWEEN",
-  "DATE_IS_VALID",
+  'DATE_EQ',
+  'DATE_BEFORE',
+  'DATE_AFTER',
+  'DATE_ON_OR_BEFORE',
+  'DATE_ON_OR_AFTER',
+  'DATE_BETWEEN',
+  'DATE_NOT_BETWEEN',
+  'DATE_IS_VALID',
   // Other
-  "BLANK",
-  "NOT_BLANK",
-  "CUSTOM_FORMULA",
-  "ONE_OF_LIST",
-  "ONE_OF_RANGE",
-  "BOOLEAN",
+  'BLANK',
+  'NOT_BLANK',
+  'CUSTOM_FORMULA',
+  'ONE_OF_LIST',
+  'ONE_OF_RANGE',
+  'BOOLEAN',
 ]);
 
 // ============================================================================
@@ -229,60 +203,63 @@ export const ConditionTypeSchema = z.enum([
 
 export const ErrorCodeSchema = z.enum([
   // MCP Standard
-  "PARSE_ERROR",
-  "INVALID_REQUEST",
-  "METHOD_NOT_FOUND",
-  "INVALID_PARAMS",
-  "INTERNAL_ERROR",
+  'PARSE_ERROR',
+  'INVALID_REQUEST',
+  'METHOD_NOT_FOUND',
+  'INVALID_PARAMS',
+  'INTERNAL_ERROR',
   // Sheets API
-  "SHEET_NOT_FOUND",
-  "SPREADSHEET_NOT_FOUND",
-  "RANGE_NOT_FOUND",
-  "PERMISSION_DENIED",
-  "QUOTA_EXCEEDED",
-  "RATE_LIMITED",
-  "INVALID_RANGE",
-  "CIRCULAR_REFERENCE",
-  "FORMULA_ERROR",
+  'SHEET_NOT_FOUND',
+  'SPREADSHEET_NOT_FOUND',
+  'RANGE_NOT_FOUND',
+  'PERMISSION_DENIED',
+  'QUOTA_EXCEEDED',
+  'RATE_LIMITED',
+  'INVALID_RANGE',
+  'CIRCULAR_REFERENCE',
+  'FORMULA_ERROR',
   // Safety Rails
-  "PRECONDITION_FAILED",
-  "EFFECT_SCOPE_EXCEEDED",
-  "EXPLICIT_RANGE_REQUIRED",
-  "AMBIGUOUS_RANGE",
+  'PRECONDITION_FAILED',
+  'EFFECT_SCOPE_EXCEEDED',
+  'EXPLICIT_RANGE_REQUIRED',
+  'AMBIGUOUS_RANGE',
   // Features
-  "FEATURE_UNAVAILABLE",
-  "FEATURE_DEGRADED",
+  'FEATURE_UNAVAILABLE',
+  'FEATURE_DEGRADED',
   // Auth & configuration
-  "AUTHENTICATION_REQUIRED",
-  "AUTH_ERROR",
-  "CONFIG_ERROR",
-  "VALIDATION_ERROR",
+  'AUTHENTICATION_REQUIRED',
+  'AUTH_ERROR',
+  'CONFIG_ERROR',
+  'VALIDATION_ERROR',
   // Resource/handler lifecycle
-  "NOT_FOUND",
-  "NOT_IMPLEMENTED",
-  "HANDLER_LOAD_ERROR",
+  'NOT_FOUND',
+  'NOT_IMPLEMENTED',
+  'HANDLER_LOAD_ERROR',
   // Session limits
-  "TOO_MANY_SESSIONS",
+  'TOO_MANY_SESSIONS',
   // Data integrity
-  "DATA_ERROR",
-  "VERSION_MISMATCH",
-  "NO_DATA",
+  'DATA_ERROR',
+  'VERSION_MISMATCH',
+  'NO_DATA',
   // Service lifecycle
-  "SERVICE_NOT_INITIALIZED",
-  "SNAPSHOT_CREATION_FAILED",
-  "SNAPSHOT_RESTORE_FAILED",
+  'SERVICE_NOT_INITIALIZED',
+  'SNAPSHOT_CREATION_FAILED',
+  'SNAPSHOT_RESTORE_FAILED',
   // Transactions
-  "TRANSACTION_CONFLICT",
-  "TRANSACTION_EXPIRED",
+  'TRANSACTION_CONFLICT',
+  'TRANSACTION_EXPIRED',
   // HTTP Transport
-  "SESSION_NOT_FOUND",
+  'SESSION_NOT_FOUND',
   // Batch/Payload
-  "PAYLOAD_TOO_LARGE",
+  'PAYLOAD_TOO_LARGE',
   // MCP-native features (SEP-1036, SEP-1577)
-  "ELICITATION_UNAVAILABLE",
-  "SAMPLING_UNAVAILABLE",
+  'ELICITATION_UNAVAILABLE',
+  'SAMPLING_UNAVAILABLE',
+  // Discovery & Replay
+  'FORBIDDEN',
+  'REPLAY_FAILED',
   // Generic
-  "UNKNOWN_ERROR",
+  'UNKNOWN_ERROR',
 ]);
 
 // ============================================================================
@@ -309,16 +286,7 @@ export const TextFormatSchema = z.object({
 /** Number format */
 export const NumberFormatSchema = z.object({
   type: z
-    .enum([
-      "TEXT",
-      "NUMBER",
-      "PERCENT",
-      "CURRENCY",
-      "DATE",
-      "TIME",
-      "DATE_TIME",
-      "SCIENTIFIC",
-    ])
+    .enum(['TEXT', 'NUMBER', 'PERCENT', 'CURRENCY', 'DATE', 'TIME', 'DATE_TIME', 'SCIENTIFIC'])
     .optional(),
   pattern: z.string().optional(),
 });
@@ -385,32 +353,16 @@ export const EffectScopeSchema = z.object({
 
 /** Expected state for optimistic locking */
 export const ExpectedStateSchema = z.object({
-  version: z.string().optional().describe("Specific version to validate"),
-  rowCount: z
-    .number()
-    .int()
-    .min(0)
-    .optional()
-    .describe("Expected total row count"),
-  columnCount: z
-    .number()
-    .int()
-    .min(0)
-    .optional()
-    .describe("Expected total column count"),
-  sheetTitle: z.string().optional().describe("Sheet title that must exist"),
-  checksum: z
-    .string()
-    .optional()
-    .describe("MD5 hash of range values to verify"),
+  version: z.string().optional().describe('Specific version to validate'),
+  rowCount: z.number().int().min(0).optional().describe('Expected total row count'),
+  columnCount: z.number().int().min(0).optional().describe('Expected total column count'),
+  sheetTitle: z.string().optional().describe('Sheet title that must exist'),
+  checksum: z.string().optional().describe('MD5 hash of range values to verify'),
   checksumRange: z
     .string()
     .optional()
-    .describe("A1 range for checksum calculation (default: A1:J10)"),
-  firstRowValues: z
-    .array(z.string())
-    .optional()
-    .describe("Expected header values in first row"),
+    .describe('A1 range for checksum calculation (default: A1:J10)'),
+  firstRowValues: z.array(z.string()).optional().describe('Expected header values in first row'),
 });
 
 /** Safety options for destructive actions */
@@ -426,9 +378,7 @@ export const SafetyOptionsSchema = z.object({
 // DIFF ENGINE
 // ============================================================================
 
-export const DiffTierSchema = z
-  .enum(["METADATA", "SAMPLE", "FULL"])
-  .default("METADATA");
+export const DiffTierSchema = z.enum(['METADATA', 'SAMPLE', 'FULL']).default('METADATA');
 
 export const DiffOptionsSchema = z.object({
   tier: DiffTierSchema.optional(),
@@ -440,11 +390,11 @@ export const CellChangeSchema = z.object({
   cell: z.string(),
   before: CellValueSchema.optional(),
   after: CellValueSchema.optional(),
-  type: z.enum(["value", "format", "formula", "note"]),
+  type: z.enum(['value', 'format', 'formula', 'note']),
 });
 
 export const MetadataDiffSchema = z.object({
-  tier: z.literal("METADATA"),
+  tier: z.literal('METADATA'),
   before: z.object({
     timestamp: z.string(),
     rowCount: z.number().int(),
@@ -464,7 +414,7 @@ export const MetadataDiffSchema = z.object({
 });
 
 export const SampleDiffSchema = z.object({
-  tier: z.literal("SAMPLE"),
+  tier: z.literal('SAMPLE'),
   samples: z.object({
     firstRows: z.array(CellChangeSchema),
     lastRows: z.array(CellChangeSchema),
@@ -477,7 +427,7 @@ export const SampleDiffSchema = z.object({
 });
 
 export const FullDiffSchema = z.object({
-  tier: z.literal("FULL"),
+  tier: z.literal('FULL'),
   changes: z.array(CellChangeSchema),
   summary: z.object({
     cellsChanged: z.number().int(),
@@ -486,7 +436,7 @@ export const FullDiffSchema = z.object({
   }),
 });
 
-export const DiffResultSchema = z.discriminatedUnion("tier", [
+export const DiffResultSchema = z.discriminatedUnion('tier', [
   MetadataDiffSchema,
   SampleDiffSchema,
   FullDiffSchema,
@@ -497,10 +447,10 @@ export const DiffResultSchema = z.discriminatedUnion("tier", [
 // ============================================================================
 
 export const ResolutionMethodSchema = z.enum([
-  "a1_direct",
-  "named_range",
-  "semantic_header",
-  "semantic_search",
+  'a1_direct',
+  'named_range',
+  'semantic_header',
+  'semantic_search',
 ]);
 
 export const ResolvedRangeSchema = z.object({
@@ -517,7 +467,7 @@ export const ResolvedRangeSchema = z.object({
         z.object({
           a1Notation: z.string(),
           reason: z.string(),
-        }),
+        })
       )
       .optional(),
   }),
@@ -556,19 +506,15 @@ export const ErrorDetailSchema = z.object({
         tool: z.string(),
         action: z.string(),
         description: z.string(),
-      }),
+      })
     )
     .optional(),
   // Agent-actionable fields
   resolution: z.string().optional(),
   resolutionSteps: z.array(z.string()).optional(),
-  category: z
-    .enum(["client", "server", "network", "auth", "quota", "unknown"])
-    .optional(),
-  severity: z.enum(["low", "medium", "high", "critical"]).optional(),
-  retryStrategy: z
-    .enum(["exponential_backoff", "wait_for_reset", "manual", "none"])
-    .optional(),
+  category: z.enum(['client', 'server', 'network', 'auth', 'quota', 'unknown']).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  retryStrategy: z.enum(['exponential_backoff', 'wait_for_reset', 'manual', 'none']).optional(),
   suggestedTools: z.array(z.string()).optional(),
 });
 
@@ -609,7 +555,7 @@ export const SpreadsheetInfoSchema = z.object({
       z.object({
         email: z.string().optional(),
         displayName: z.string().optional(),
-      }),
+      })
     )
     .optional(),
   lastModifiedBy: z.string().optional(),
@@ -621,18 +567,12 @@ export const SpreadsheetInfoSchema = z.object({
 
 /** Tool suggestion for follow-up or optimization */
 export const ToolSuggestionSchema = z.object({
-  type: z.enum([
-    "optimization",
-    "alternative",
-    "follow_up",
-    "warning",
-    "related",
-  ]),
+  type: z.enum(['optimization', 'alternative', 'follow_up', 'warning', 'related']),
   message: z.string(),
   tool: z.string().optional(),
   action: z.string().optional(),
   reason: z.string(),
-  priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
 });
 
 /** Cost estimation for the operation */
@@ -673,7 +613,7 @@ export interface ToolAnnotations {
 }
 
 export interface ToolExecution {
-  taskSupport?: "forbidden" | "optional" | "required";
+  taskSupport?: 'forbidden' | 'optional' | 'required';
 }
 
 // ============================================================================

@@ -40,9 +40,19 @@ function createMockContext(batchingSystem?: BatchingSystem): HandlerContext {
           startColumnIndex: 0,
           endColumnIndex: 5,
         },
+        sheetId: 0,
+        sheetName: 'Sheet1',
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: '',
+        },
       })),
     } as any,
     batchingSystem,
+    googleClient: {
+      sheets: vi.fn(),
+    } as any,
   };
 }
 

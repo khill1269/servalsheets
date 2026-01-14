@@ -5,8 +5,8 @@
  * Provides automatic alerting at configurable thresholds
  */
 
-import v8 from "node:v8";
-import { logger } from "./logger.js";
+import v8 from 'node:v8';
+import { logger } from './logger.js';
 
 export interface HeapStats {
   timestamp: number;
@@ -51,7 +51,7 @@ export class HeapMonitor {
     this.warningThreshold = options.warningThreshold ?? 0.7; // 70%
     this.criticalThreshold = options.criticalThreshold ?? 0.85; // 85%
     this.enableSnapshots = options.enableSnapshots ?? false;
-    this.snapshotPath = options.snapshotPath ?? "./heap-snapshots";
+    this.snapshotPath = options.snapshotPath ?? './heap-snapshots';
   }
 
   /**
@@ -59,11 +59,11 @@ export class HeapMonitor {
    */
   start(): void {
     if (this.interval) {
-      logger.warn("Heap monitor already started");
+      logger.warn('Heap monitor already started');
       return;
     }
 
-    logger.info("Heap monitor started", {
+    logger.info('Heap monitor started', {
       intervalMs: this.intervalMs,
       intervalMin: Math.round(this.intervalMs / 60000),
       warningThreshold: `${(this.warningThreshold * 100).toFixed(0)}%`,
@@ -87,7 +87,7 @@ export class HeapMonitor {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;
-      logger.info("Heap monitor stopped");
+      logger.info('Heap monitor stopped');
     }
   }
 
@@ -122,7 +122,7 @@ export class HeapMonitor {
     const utilization = stats.utilizationPercent / 100;
 
     // Log normal statistics
-    logger.info("Heap statistics", {
+    logger.info('Heap statistics', {
       heapUsedMB: stats.heapUsedMB,
       heapTotalMB: stats.heapTotalMB,
       heapLimitMB: stats.heapLimitMB,
@@ -139,17 +139,14 @@ export class HeapMonitor {
       // Only alert once every 5 minutes to avoid spam
       const now = Date.now();
       if (now - this.lastCriticalTime > 5 * 60 * 1000) {
-        logger.error(
-          "CRITICAL: High heap usage detected - potential memory leak",
-          {
-            utilizationPercent: stats.utilizationPercent,
-            threshold: `${(this.criticalThreshold * 100).toFixed(0)}%`,
-            heapUsedMB: stats.heapUsedMB,
-            heapLimitMB: stats.heapLimitMB,
-            consecutiveOccurrences: this.consecutiveCritical,
-            recommendation: this.getRecommendation(utilization),
-          },
-        );
+        logger.error('CRITICAL: High heap usage detected - potential memory leak', {
+          utilizationPercent: stats.utilizationPercent,
+          threshold: `${(this.criticalThreshold * 100).toFixed(0)}%`,
+          heapUsedMB: stats.heapUsedMB,
+          heapLimitMB: stats.heapLimitMB,
+          consecutiveOccurrences: this.consecutiveCritical,
+          recommendation: this.getRecommendation(utilization),
+        });
 
         this.lastCriticalTime = now;
 
@@ -167,7 +164,7 @@ export class HeapMonitor {
       // Only alert once every 15 minutes to avoid spam
       const now = Date.now();
       if (now - this.lastWarningTime > 15 * 60 * 1000) {
-        logger.warn("WARNING: Elevated heap usage detected", {
+        logger.warn('WARNING: Elevated heap usage detected', {
           utilizationPercent: stats.utilizationPercent,
           threshold: `${(this.warningThreshold * 100).toFixed(0)}%`,
           heapUsedMB: stats.heapUsedMB,
@@ -182,7 +179,7 @@ export class HeapMonitor {
     // Normal usage - reset counters
     else {
       if (this.consecutiveWarnings > 0 || this.consecutiveCritical > 0) {
-        logger.info("Heap usage returned to normal", {
+        logger.info('Heap usage returned to normal', {
           utilizationPercent: stats.utilizationPercent,
           previousWarnings: this.consecutiveWarnings,
           previousCritical: this.consecutiveCritical,
@@ -199,13 +196,13 @@ export class HeapMonitor {
    */
   private getRecommendation(utilization: number): string {
     if (utilization >= 0.95) {
-      return "IMMEDIATE ACTION REQUIRED: Restart server to prevent OOM crash. Investigate memory leak.";
+      return 'IMMEDIATE ACTION REQUIRED: Restart server to prevent OOM crash. Investigate memory leak.';
     } else if (utilization >= 0.85) {
-      return "Monitor closely. Consider restarting during maintenance window. Profile with heap snapshots.";
+      return 'Monitor closely. Consider restarting during maintenance window. Profile with heap snapshots.';
     } else if (utilization >= 0.7) {
-      return "Monitor for sustained growth. Review caching policies and connection pool sizes.";
+      return 'Monitor for sustained growth. Review caching policies and connection pool sizes.';
     }
-    return "Normal operation";
+    return 'Normal operation';
   }
 
   /**
@@ -213,21 +210,18 @@ export class HeapMonitor {
    */
   private takeHeapSnapshot(): void {
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `${this.snapshotPath}/heap-${timestamp}.heapsnapshot`;
 
       const snapshot = v8.writeHeapSnapshot(filename);
 
-      logger.info("Heap snapshot captured", {
+      logger.info('Heap snapshot captured', {
         filename: snapshot,
-        filesize: "unknown", // Node.js doesn't return size
-        analysisTools: [
-          "Chrome DevTools Memory Profiler",
-          "clinic.js heapprofiler",
-        ],
+        filesize: 'unknown', // Node.js doesn't return size
+        analysisTools: ['Chrome DevTools Memory Profiler', 'clinic.js heapprofiler'],
       });
     } catch (error) {
-      logger.error("Failed to capture heap snapshot", { error });
+      logger.error('Failed to capture heap snapshot', { error });
     }
   }
 
@@ -236,13 +230,11 @@ export class HeapMonitor {
    */
   forceGC(): void {
     if (global.gc) {
-      logger.info("Forcing garbage collection");
+      logger.info('Forcing garbage collection');
       global.gc();
-      logger.info("Garbage collection completed");
+      logger.info('Garbage collection completed');
     } else {
-      logger.warn(
-        "Garbage collection not available. Run with --expose-gc flag to enable.",
-      );
+      logger.warn('Garbage collection not available. Run with --expose-gc flag to enable.');
     }
   }
 }
@@ -251,24 +243,20 @@ export class HeapMonitor {
  * Create and start heap monitor if enabled via environment variables
  */
 export function startHeapMonitorIfEnabled(): HeapMonitor | null {
-  const enabled = process.env["ENABLE_HEAP_MONITORING"] === "true";
+  const enabled = process.env['ENABLE_HEAP_MONITORING'] === 'true';
 
   if (!enabled) {
     return null;
   }
 
   const intervalMs = parseInt(
-    process.env["HEAP_MONITOR_INTERVAL_MS"] || "1800000", // 30 minutes
-    10,
+    process.env['HEAP_MONITOR_INTERVAL_MS'] || '1800000', // 30 minutes
+    10
   );
-  const warningThreshold = parseFloat(
-    process.env["HEAP_WARNING_THRESHOLD"] || "0.7",
-  );
-  const criticalThreshold = parseFloat(
-    process.env["HEAP_CRITICAL_THRESHOLD"] || "0.85",
-  );
-  const enableSnapshots = process.env["ENABLE_HEAP_SNAPSHOTS"] === "true";
-  const snapshotPath = process.env["HEAP_SNAPSHOT_PATH"] || "./heap-snapshots";
+  const warningThreshold = parseFloat(process.env['HEAP_WARNING_THRESHOLD'] || '0.7');
+  const criticalThreshold = parseFloat(process.env['HEAP_CRITICAL_THRESHOLD'] || '0.85');
+  const enableSnapshots = process.env['ENABLE_HEAP_SNAPSHOTS'] === 'true';
+  const snapshotPath = process.env['HEAP_SNAPSHOT_PATH'] || './heap-snapshots';
 
   const monitor = new HeapMonitor({
     intervalMs,

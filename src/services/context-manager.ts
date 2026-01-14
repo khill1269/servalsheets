@@ -12,7 +12,7 @@
  * Phase 1, Task 1.4
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 
 export interface InferenceContext {
   /** Last used spreadsheet ID */
@@ -61,7 +61,7 @@ export class ContextManager {
     this.verboseLogging = options.verboseLogging ?? false;
     this.contextTTL = options.contextTTL ?? 3600000; // 1 hour default
 
-    logger.info("Context manager initialized", {
+    logger.info('Context manager initialized', {
       verboseLogging: this.verboseLogging,
       contextTTL: this.contextTTL,
     });
@@ -92,7 +92,7 @@ export class ContextManager {
     this.stats.contextUpdates++;
 
     if (this.verboseLogging) {
-      logger.debug("Context updated", {
+      logger.debug('Context updated', {
         previous: previousContext,
         current: this.context,
         requestId,
@@ -110,7 +110,7 @@ export class ContextManager {
     // Check if context is stale
     if (this.isContextStale()) {
       if (this.verboseLogging) {
-        logger.debug("Context is stale, skipping inference");
+        logger.debug('Context is stale, skipping inference');
       }
       return params;
     }
@@ -119,58 +119,54 @@ export class ContextManager {
     let inferencesMade = false;
 
     // Infer spreadsheetId
-    if (!inferred["spreadsheetId"] && this.context.spreadsheetId) {
-      inferred["spreadsheetId"] = this.context.spreadsheetId;
+    if (!inferred['spreadsheetId'] && this.context.spreadsheetId) {
+      inferred['spreadsheetId'] = this.context.spreadsheetId;
       this.stats.spreadsheetIdInferences++;
       this.stats.totalInferences++;
       inferencesMade = true;
 
       if (this.verboseLogging) {
-        logger.debug("Inferred spreadsheetId from context", {
-          value: inferred["spreadsheetId"],
+        logger.debug('Inferred spreadsheetId from context', {
+          value: inferred['spreadsheetId'],
         });
       }
     }
 
     // Infer sheetId
-    if (
-      inferred["sheetId"] === undefined &&
-      this.context.sheetId !== undefined
-    ) {
-      inferred["sheetId"] = this.context.sheetId;
+    if (inferred['sheetId'] === undefined && this.context.sheetId !== undefined) {
+      inferred['sheetId'] = this.context.sheetId;
       this.stats.sheetIdInferences++;
       this.stats.totalInferences++;
       inferencesMade = true;
 
       if (this.verboseLogging) {
-        logger.debug("Inferred sheetId from context", {
-          value: inferred["sheetId"],
+        logger.debug('Inferred sheetId from context', {
+          value: inferred['sheetId'],
         });
       }
     }
 
     // Infer range
-    if (!inferred["range"] && this.context.range) {
-      inferred["range"] = this.context.range;
+    if (!inferred['range'] && this.context.range) {
+      inferred['range'] = this.context.range;
       this.stats.rangeInferences++;
       this.stats.totalInferences++;
       inferencesMade = true;
 
       if (this.verboseLogging) {
-        logger.debug("Inferred range from context", {
-          value: inferred["range"],
+        logger.debug('Inferred range from context', {
+          value: inferred['range'],
         });
       }
     }
 
     // Log inference summary if any were made
     if (inferencesMade && !this.verboseLogging) {
-      logger.debug("Parameters inferred from context", {
+      logger.debug('Parameters inferred from context', {
         inferredFields: [
-          inferred["spreadsheetId"] !== params["spreadsheetId"] &&
-            "spreadsheetId",
-          inferred["sheetId"] !== params["sheetId"] && "sheetId",
-          inferred["range"] !== params["range"] && "range",
+          inferred['spreadsheetId'] !== params['spreadsheetId'] && 'spreadsheetId',
+          inferred['sheetId'] !== params['sheetId'] && 'sheetId',
+          inferred['range'] !== params['range'] && 'range',
         ].filter(Boolean),
       });
     }
@@ -204,7 +200,7 @@ export class ContextManager {
     const previousContext = { ...this.context };
     this.context = {};
 
-    logger.info("Context reset", {
+    logger.info('Context reset', {
       previous: previousContext,
     });
   }
@@ -216,14 +212,10 @@ export class ContextManager {
     return {
       ...this.stats,
       currentContext: this.context,
-      contextAge: this.context.lastUpdated
-        ? Date.now() - this.context.lastUpdated
-        : undefined,
+      contextAge: this.context.lastUpdated ? Date.now() - this.context.lastUpdated : undefined,
       isContextStale: this.isContextStale(),
       inferenceRate:
-        this.stats.contextUpdates > 0
-          ? this.stats.totalInferences / this.stats.contextUpdates
-          : 0,
+        this.stats.contextUpdates > 0 ? this.stats.totalInferences / this.stats.contextUpdates : 0,
     };
   }
 
@@ -239,13 +231,13 @@ export class ContextManager {
       contextUpdates: 0,
     };
 
-    logger.info("Context statistics reset");
+    logger.info('Context statistics reset');
   }
 
   /**
    * Check if a specific parameter can be inferred
    */
-  canInfer(paramName: "spreadsheetId" | "sheetId" | "range"): boolean {
+  canInfer(paramName: 'spreadsheetId' | 'sheetId' | 'range'): boolean {
     if (this.isContextStale()) {
       return false;
     }
@@ -256,9 +248,7 @@ export class ContextManager {
   /**
    * Get specific inferred value
    */
-  getInferredValue(
-    paramName: "spreadsheetId" | "sheetId" | "range",
-  ): string | number | undefined {
+  getInferredValue(paramName: 'spreadsheetId' | 'sheetId' | 'range'): string | number | undefined {
     if (this.isContextStale()) {
       // OK: Explicit empty - typed as optional, stale context returns undefined
       return undefined;
@@ -293,10 +283,8 @@ export function setContextManager(manager: ContextManager): void {
  * @internal
  */
 export function resetContextManager(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetContextManager() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetContextManager() can only be called in test environment');
   }
   contextManager = null;
 }

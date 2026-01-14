@@ -38,8 +38,7 @@ export const FIELD_MASKS = {
    * Use for: Quick metadata lookups
    * Size: ~2KB
    */
-  SPREADSHEET_BASIC:
-    "spreadsheetId,properties(title,locale,timeZone),spreadsheetUrl",
+  SPREADSHEET_BASIC: 'spreadsheetId,properties(title,locale,timeZone),spreadsheetUrl',
 
   /**
    * Spreadsheet with sheet list (no grid data)
@@ -47,7 +46,7 @@ export const FIELD_MASKS = {
    * Size: ~10-50KB depending on sheet count
    */
   SPREADSHEET_WITH_SHEETS:
-    "spreadsheetId,properties,spreadsheetUrl,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))",
+    'spreadsheetId,properties,spreadsheetUrl,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
 
   /**
    * Comprehensive spreadsheet metadata (everything except grid data)
@@ -55,21 +54,21 @@ export const FIELD_MASKS = {
    * Size: ~50-200KB depending on complexity
    */
   SPREADSHEET_COMPREHENSIVE:
-    "spreadsheetId,properties,spreadsheetUrl,sheets(properties,merges,conditionalFormats,filterViews,protectedRanges),namedRanges,developerMetadata",
+    'spreadsheetId,properties,spreadsheetUrl,sheets(properties,merges,conditionalFormats,filterViews,protectedRanges),namedRanges,developerMetadata',
 
   /**
    * Spreadsheet for copying (minimal fields needed)
    * Use for: Pre-copy title lookup
    * Size: ~1KB
    */
-  SPREADSHEET_COPY: "properties.title",
+  SPREADSHEET_COPY: 'properties.title',
 
   /**
    * Spreadsheet after property update (verify changes)
    * Use for: Post-update verification
    * Size: ~5KB
    */
-  SPREADSHEET_UPDATE_VERIFY: "spreadsheetId,properties,spreadsheetUrl",
+  SPREADSHEET_UPDATE_VERIFY: 'spreadsheetId,properties,spreadsheetUrl',
 
   // =========================================================================
   // SHEET OPERATIONS
@@ -80,14 +79,14 @@ export const FIELD_MASKS = {
    * Use for: Listing sheets, sheet metadata
    * Size: ~5-20KB
    */
-  SHEET_PROPERTIES: "sheets.properties(sheetId,title,index,gridProperties)",
+  SHEET_PROPERTIES: 'sheets.properties(sheetId,title,index,gridProperties)',
 
   /**
    * Sheet properties for dropdown (title and ID only)
    * Use for: Generating sheet selection lists
    * Size: ~1KB
    */
-  SHEET_LIST: "sheets.properties(title,sheetId)",
+  SHEET_LIST: 'sheets.properties(title,sheetId)',
 
   // =========================================================================
   // VALUES OPERATIONS
@@ -98,15 +97,14 @@ export const FIELD_MASKS = {
    * Use for: Reading data from ranges
    * Size: Varies with range size (10KB-1MB)
    */
-  VALUES_READ: "range,majorDimension,values",
+  VALUES_READ: 'range,majorDimension,values',
 
   /**
    * Update response (cells modified count)
    * Use for: Verifying update success
    * Size: ~500 bytes
    */
-  VALUES_UPDATE:
-    "spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange",
+  VALUES_UPDATE: 'spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange',
 
   /**
    * Append response (where data was added)
@@ -114,14 +112,14 @@ export const FIELD_MASKS = {
    * Size: ~500 bytes
    */
   VALUES_APPEND:
-    "spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)",
+    'spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)',
 
   /**
    * Batch get values (multiple ranges)
    * Use for: Reading multiple ranges efficiently
    * Size: Varies with ranges (10KB-5MB)
    */
-  VALUES_BATCH_GET: "spreadsheetId,valueRanges(range,values)",
+  VALUES_BATCH_GET: 'spreadsheetId,valueRanges(range,values)',
 
   // =========================================================================
   // FORMATTING OPERATIONS
@@ -132,15 +130,14 @@ export const FIELD_MASKS = {
    * Use for: Formatting operations, style inspection
    * Size: ~50-500KB depending on range
    */
-  CELL_FORMAT:
-    "sheets(data(rowData(values(userEnteredFormat,effectiveFormat))))",
+  CELL_FORMAT: 'sheets(data(rowData(values(userEnteredFormat,effectiveFormat))))',
 
   /**
    * Conditional formatting rules
    * Use for: Conditional format operations
    * Size: ~10-100KB
    */
-  CONDITIONAL_FORMATS: "sheets.conditionalFormats",
+  CONDITIONAL_FORMATS: 'sheets.conditionalFormats',
 
   // =========================================================================
   // ADVANCED FEATURES
@@ -151,56 +148,56 @@ export const FIELD_MASKS = {
    * Use for: Named range operations
    * Size: ~5-50KB
    */
-  NAMED_RANGES: "namedRanges(namedRangeId,name,range)",
+  NAMED_RANGES: 'namedRanges(namedRangeId,name,range)',
 
   /**
    * Charts list and specifications
    * Use for: Chart operations
    * Size: ~10-100KB
    */
-  CHARTS: "sheets.charts(chartId,spec,position)",
+  CHARTS: 'sheets.charts(chartId,spec,position)',
 
   /**
    * Pivot tables
    * Use for: Pivot table operations
    * Size: ~10-100KB
    */
-  PIVOTS: "sheets.pivotTables",
+  PIVOTS: 'sheets.pivotTables',
 
   /**
    * Data validation rules
    * Use for: Data validation operations
    * Size: ~10-100KB depending on range
    */
-  DATA_VALIDATION: "sheets(data(rowData(values(dataValidation))))",
+  DATA_VALIDATION: 'sheets(data(rowData(values(dataValidation))))',
 
   /**
    * Protected ranges
    * Use for: Permission/protection operations
    * Size: ~5-50KB
    */
-  PROTECTED_RANGES: "sheets.protectedRanges",
+  PROTECTED_RANGES: 'sheets.protectedRanges',
 
   /**
    * Filter views
    * Use for: Filter operations
    * Size: ~5-50KB
    */
-  FILTER_VIEWS: "sheets.filterViews",
+  FILTER_VIEWS: 'sheets.filterViews',
 
   /**
    * Merges (merged cell ranges)
    * Use for: Merge operations
    * Size: ~5-50KB
    */
-  MERGES: "sheets.merges",
+  MERGES: 'sheets.merges',
 
   /**
    * Developer metadata
    * Use for: Custom metadata operations
    * Size: ~5-50KB
    */
-  DEVELOPER_METADATA: "developerMetadata",
+  DEVELOPER_METADATA: 'developerMetadata',
 } as const;
 
 /**
@@ -216,7 +213,7 @@ export const FIELD_MASKS = {
  * ```
  */
 export function buildFieldMask(fields: string[]): string {
-  return fields.join(",");
+  return fields.join(',');
 }
 
 /**
@@ -234,7 +231,7 @@ export function combineFieldMasks(...masks: string[]): string {
   // Split, dedupe, and rejoin
   const fields = new Set<string>();
   for (const mask of masks) {
-    mask.split(",").forEach((f) => fields.add(f.trim()));
+    mask.split(',').forEach((f) => fields.add(f.trim()));
   }
-  return Array.from(fields).join(",");
+  return Array.from(fields).join(',');
 }

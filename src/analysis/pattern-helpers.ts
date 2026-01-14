@@ -17,7 +17,7 @@
 // ============================================================================
 
 export interface DistributionAnalysis {
-  type: "normal" | "uniform" | "exponential" | "bimodal" | "skewed" | "unknown";
+  type: 'normal' | 'uniform' | 'exponential' | 'bimodal' | 'skewed' | 'unknown';
   confidence: number; // 0-100
   parameters: {
     mean?: number;
@@ -32,7 +32,7 @@ export interface ChangePoint {
   index: number;
   value: number;
   significance: number; // 0-100
-  changeType: "level_shift" | "trend_change" | "volatility_change";
+  changeType: 'level_shift' | 'trend_change' | 'volatility_change';
 }
 
 export interface Cluster {
@@ -43,7 +43,7 @@ export interface Cluster {
 }
 
 export interface TrendlineResult {
-  type: "linear" | "polynomial" | "exponential" | "logarithmic";
+  type: 'linear' | 'polynomial' | 'exponential' | 'logarithmic';
   equation: string;
   r_squared: number;
   coefficients: number[];
@@ -60,75 +60,71 @@ export interface TrendlineResult {
 export function detectDistribution(values: number[]): DistributionAnalysis {
   if (values.length < 10) {
     return {
-      type: "unknown",
+      type: 'unknown',
       confidence: 0,
       parameters: {},
-      reasoning: "Insufficient data points for distribution detection",
+      reasoning: 'Insufficient data points for distribution detection',
     };
   }
 
   const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
-  const variance =
-    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
   const stddev = Math.sqrt(variance);
 
   // Calculate skewness and kurtosis
   const skewness =
-    values.reduce((sum, v) => sum + Math.pow((v - mean) / stddev, 3), 0) /
-    values.length;
+    values.reduce((sum, v) => sum + Math.pow((v - mean) / stddev, 3), 0) / values.length;
   const kurtosis =
-    values.reduce((sum, v) => sum + Math.pow((v - mean) / stddev, 4), 0) /
-      values.length -
-    3;
+    values.reduce((sum, v) => sum + Math.pow((v - mean) / stddev, 4), 0) / values.length - 3;
 
   // Kolmogorov-Smirnov test for normality (simplified)
   const sorted = [...values].sort((a, b) => a - b);
   let maxDiff = 0;
   for (let i = 0; i < sorted.length; i++) {
     const empirical = (i + 1) / sorted.length;
-    const theoretical = normalCDF((sorted[i] - mean) / stddev);
+    const theoretical = normalCDF((sorted[i]! - mean) / stddev);
     maxDiff = Math.max(maxDiff, Math.abs(empirical - theoretical));
   }
 
   // Decision logic
   if (Math.abs(skewness) < 0.5 && Math.abs(kurtosis) < 0.5 && maxDiff < 0.1) {
     return {
-      type: "normal",
+      type: 'normal',
       confidence: Math.round((1 - maxDiff * 10) * 100),
       parameters: { mean, stddev, skewness, kurtosis },
-      reasoning: "Data closely follows normal distribution (bell curve)",
+      reasoning: 'Data closely follows normal distribution (bell curve)',
     };
   }
 
   if (Math.abs(skewness) < 0.3 && kurtosis < -1.2) {
     return {
-      type: "uniform",
+      type: 'uniform',
       confidence: 75,
       parameters: { mean, stddev, skewness, kurtosis },
-      reasoning: "Data is uniformly distributed with flat density",
+      reasoning: 'Data is uniformly distributed with flat density',
     };
   }
 
   if (skewness > 1) {
     return {
-      type: "exponential",
+      type: 'exponential',
       confidence: 70,
       parameters: { mean, stddev, skewness, kurtosis },
-      reasoning: "Data shows exponential decay pattern (right-skewed)",
+      reasoning: 'Data shows exponential decay pattern (right-skewed)',
     };
   }
 
   if (kurtosis > 2) {
     return {
-      type: "bimodal",
+      type: 'bimodal',
       confidence: 65,
       parameters: { mean, stddev, skewness, kurtosis },
-      reasoning: "Data appears to have two peaks (bimodal distribution)",
+      reasoning: 'Data appears to have two peaks (bimodal distribution)',
     };
   }
 
   return {
-    type: "skewed",
+    type: 'skewed',
     confidence: 60,
     parameters: { mean, stddev, skewness, kurtosis },
     reasoning: `Data is skewed (skewness: ${skewness.toFixed(2)})`,
@@ -142,10 +138,7 @@ function normalCDF(z: number): number {
   const t = 1 / (1 + 0.2316419 * Math.abs(z));
   const d = 0.3989423 * Math.exp((-z * z) / 2);
   const p =
-    d *
-    t *
-    (0.3193815 +
-      t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+    d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
   return z > 0 ? 1 - p : p;
 }
 
@@ -158,16 +151,13 @@ function normalCDF(z: number): number {
  *
  * Uses CUSUM (cumulative sum) method to detect level shifts
  */
-export function detectChangePoints(
-  values: number[],
-  threshold: number = 3,
-): ChangePoint[] {
+export function detectChangePoints(values: number[], threshold: number = 3): ChangePoint[] {
   if (values.length < 10) return [];
 
   const changePoints: ChangePoint[] = [];
   const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
   const stddev = Math.sqrt(
-    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length,
+    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length
   );
 
   // CUSUM calculation
@@ -175,43 +165,37 @@ export function detectChangePoints(
   const cusumValues: number[] = [];
 
   for (let i = 0; i < values.length; i++) {
-    cusum += (values[i] - mean) / stddev;
+    cusum += (values[i]! - mean) / stddev;
     cusumValues.push(cusum);
   }
 
   // Find peaks in CUSUM (potential change points)
   for (let i = 1; i < cusumValues.length - 1; i++) {
-    const prev = cusumValues[i - 1];
-    const curr = cusumValues[i];
-    const next = cusumValues[i + 1];
+    const prev = cusumValues[i - 1]!;
+    const curr = cusumValues[i]!;
+    const next = cusumValues[i + 1]!;
 
     // Peak detection
     if (Math.abs(curr) > threshold) {
-      const isPeak =
-        (curr > prev && curr > next) || (curr < prev && curr < next);
+      const isPeak = (curr > prev && curr > next) || (curr < prev && curr < next);
 
       if (isPeak) {
         // Calculate significance
-        const significance = Math.min(
-          100,
-          Math.round((Math.abs(curr) / threshold) * 50),
-        );
+        const significance = Math.min(100, Math.round((Math.abs(curr) / threshold) * 50));
 
         // Determine change type
-        let changeType: ChangePoint["changeType"] = "level_shift";
-        if (i > 2) {
-          const prevSlope =
-            (cusumValues[i - 1] - cusumValues[i - 2]) / cusumValues[i - 2];
-          const currSlope =
-            (cusumValues[i] - cusumValues[i - 1]) / cusumValues[i - 1];
+        let changeType: ChangePoint['changeType'] = 'level_shift';
+        if (i > 2 && cusumValues[i - 2] !== undefined) {
+          const prevSlope = (cusumValues[i - 1]! - cusumValues[i - 2]!) / cusumValues[i - 2]!;
+          const currSlope = (cusumValues[i]! - cusumValues[i - 1]!) / cusumValues[i - 1]!;
           if (Math.abs(currSlope - prevSlope) > 0.5) {
-            changeType = "trend_change";
+            changeType = 'trend_change';
           }
         }
 
         changePoints.push({
           index: i,
-          value: values[i],
+          value: values[i]!,
           significance,
           changeType,
         });
@@ -248,7 +232,8 @@ function getRanks(values: number[]): number[] {
 
   const ranks = new Array(values.length);
   for (let i = 0; i < indexed.length; i++) {
-    ranks[indexed[i].index] = i + 1;
+    const item = indexed[i]!;
+    ranks[item.index] = i + 1;
   }
 
   return ranks;
@@ -264,8 +249,8 @@ function pearson(x: number[], y: number[]): number {
   let denomY = 0;
 
   for (let i = 0; i < n; i++) {
-    const dx = x[i] - meanX;
-    const dy = y[i] - meanY;
+    const dx = x[i]! - meanX;
+    const dy = y[i]! - meanY;
     numerator += dx * dy;
     denomX += dx * dx;
     denomY += dy * dy;
@@ -290,24 +275,20 @@ export function modifiedZScore(values: number[]): number[] {
   const sorted = [...values].sort((a, b) => a - b);
   const median =
     sorted.length % 2 === 0
-      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-      : sorted[Math.floor(sorted.length / 2)];
+      ? (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2
+      : sorted[Math.floor(sorted.length / 2)]!;
 
   // Calculate MAD (Median Absolute Deviation)
-  const deviations = values.map((v) => Math.abs(v - median));
+  const deviations = values.map((v) => Math.abs(v - median!));
   const sortedDev = [...deviations].sort((a, b) => a - b);
   const mad =
     sortedDev.length % 2 === 0
-      ? (sortedDev[sortedDev.length / 2 - 1] +
-          sortedDev[sortedDev.length / 2]) /
-        2
-      : sortedDev[Math.floor(sortedDev.length / 2)];
+      ? (sortedDev[sortedDev.length / 2 - 1]! + sortedDev[sortedDev.length / 2]!) / 2
+      : sortedDev[Math.floor(sortedDev.length / 2)]!;
 
   // Modified Z-scores
   const k = 1.4826; // Constant for normal distribution
-  return values.map((v) =>
-    mad === 0 ? 0 : (0.6745 * (v - median)) / (k * mad),
-  );
+  return values.map((v) => (mad === 0 ? 0 : (0.6745 * (v - median!)) / (k * mad!)));
 }
 
 // ============================================================================
@@ -321,21 +302,17 @@ export function detectClusters(values: number[], k: number = 3): Cluster[] {
   if (values.length < k || k < 2) return [];
 
   // Initialize centroids using k-means++
-  const centroids: number[] = [
-    values[Math.floor(Math.random() * values.length)],
-  ];
+  const centroids: number[] = [values[Math.floor(Math.random() * values.length)]!];
 
   while (centroids.length < k) {
-    const distances = values.map((v) =>
-      Math.min(...centroids.map((c) => Math.abs(v - c))),
-    );
+    const distances = values.map((v) => Math.min(...centroids.map((c) => Math.abs(v - c))));
     const totalDist = distances.reduce((sum, d) => sum + d * d, 0);
     let rand = Math.random() * totalDist;
 
     for (let i = 0; i < distances.length; i++) {
-      rand -= distances[i] * distances[i];
+      rand -= distances[i]! * distances[i]!;
       if (rand <= 0) {
-        centroids.push(values[i]);
+        centroids.push(values[i]!);
         break;
       }
     }
@@ -351,7 +328,7 @@ export function detectClusters(values: number[], k: number = 3): Cluster[] {
       let minDist = Infinity;
       let bestCluster = 0;
       for (let j = 0; j < centroids.length; j++) {
-        const dist = Math.abs(v - centroids[j]);
+        const dist = Math.abs(v - centroids[j]!);
         if (dist < minDist) {
           minDist = dist;
           bestCluster = j;
@@ -368,8 +345,7 @@ export function detectClusters(values: number[], k: number = 3): Cluster[] {
     for (let j = 0; j < k; j++) {
       const clusterValues = values.filter((_, i) => assignments[i] === j);
       if (clusterValues.length > 0) {
-        centroids[j] =
-          clusterValues.reduce((sum, v) => sum + v, 0) / clusterValues.length;
+        centroids[j] = clusterValues.reduce((sum, v) => sum + v, 0) / clusterValues.length;
       }
     }
   }
@@ -377,13 +353,11 @@ export function detectClusters(values: number[], k: number = 3): Cluster[] {
   // Build cluster objects
   const clusters: Cluster[] = [];
   for (let j = 0; j < k; j++) {
-    const members = assignments
-      .map((a, i) => (a === j ? i : -1))
-      .filter((i) => i >= 0);
+    const members = assignments.map((a, i) => (a === j ? i : -1)).filter((i) => i >= 0);
     if (members.length > 0) {
       clusters.push({
         id: j,
-        center: [centroids[j]],
+        center: [centroids[j]!],
         members,
         size: members.length,
       });
@@ -403,21 +377,21 @@ export function detectClusters(values: number[], k: number = 3): Cluster[] {
 export function fitTrendline(
   x: number[],
   y: number[],
-  type: "linear" | "polynomial" | "exponential" | "logarithmic" = "linear",
-  degree: number = 2,
+  type: 'linear' | 'polynomial' | 'exponential' | 'logarithmic' = 'linear',
+  degree: number = 2
 ): TrendlineResult {
   if (x.length !== y.length || x.length < 3) {
-    throw new Error("Insufficient data points for trendline fitting");
+    throw new Error('Insufficient data points for trendline fitting');
   }
 
   switch (type) {
-    case "linear":
+    case 'linear':
       return fitLinear(x, y);
-    case "polynomial":
+    case 'polynomial':
       return fitPolynomial(x, y, degree);
-    case "exponential":
+    case 'exponential':
       return fitExponential(x, y);
-    case "logarithmic":
+    case 'logarithmic':
       return fitLogarithmic(x, y);
   }
 }
@@ -426,7 +400,7 @@ function fitLinear(x: number[], y: number[]): TrendlineResult {
   const n = x.length;
   const sumX = x.reduce((sum, v) => sum + v, 0);
   const sumY = y.reduce((sum, v) => sum + v, 0);
-  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i]!, 0);
   const sumX2 = x.reduce((sum, v) => sum + v * v, 0);
 
   const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
@@ -437,14 +411,11 @@ function fitLinear(x: number[], y: number[]): TrendlineResult {
   // Calculate R²
   const meanY = sumY / n;
   const ssTotal = y.reduce((sum, yi) => sum + Math.pow(yi - meanY, 2), 0);
-  const ssResid = y.reduce(
-    (sum, yi, i) => sum + Math.pow(yi - predicted[i], 2),
-    0,
-  );
+  const ssResid = y.reduce((sum, yi, i) => sum + Math.pow(yi - predicted[i]!, 2), 0);
   const r_squared = 1 - ssResid / ssTotal;
 
   return {
-    type: "linear",
+    type: 'linear',
     equation: `y = ${slope.toFixed(3)}x + ${intercept.toFixed(3)}`,
     r_squared: Math.max(0, r_squared),
     coefficients: [intercept, slope],
@@ -452,11 +423,7 @@ function fitLinear(x: number[], y: number[]): TrendlineResult {
   };
 }
 
-function fitPolynomial(
-  x: number[],
-  y: number[],
-  degree: number,
-): TrendlineResult {
+function fitPolynomial(x: number[], y: number[], degree: number): TrendlineResult {
   // Simplified polynomial fitting (degree 2 only for now)
   if (degree !== 2) {
     return fitLinear(x, y);
@@ -466,7 +433,7 @@ function fitPolynomial(
   const sumX = x.reduce((sum, v) => sum + v, 0);
   const sumY = y.reduce((sum, v) => sum + v, 0);
   const sumX2 = x.reduce((sum, v) => sum + v * v, 0);
-  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+  const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i]!, 0);
 
   // Solve system of equations (simplified linear approximation for degree 2)
   // Full polynomial fitting would require matrix operations with X³, X⁴, X²Y terms
@@ -478,14 +445,11 @@ function fitPolynomial(
 
   const meanY = sumY / n;
   const ssTotal = y.reduce((sum, yi) => sum + Math.pow(yi - meanY, 2), 0);
-  const ssResid = y.reduce(
-    (sum, yi, i) => sum + Math.pow(yi - predicted[i], 2),
-    0,
-  );
+  const ssResid = y.reduce((sum, yi, i) => sum + Math.pow(yi - predicted[i]!, 2), 0);
   const r_squared = 1 - ssResid / ssTotal;
 
   return {
-    type: "polynomial",
+    type: 'polynomial',
     equation: `y = ${a.toFixed(3)}x² + ${b.toFixed(3)}x + ${c.toFixed(3)}`,
     r_squared: Math.max(0, r_squared),
     coefficients: [c, b, a],
@@ -498,22 +462,19 @@ function fitExponential(x: number[], y: number[]): TrendlineResult {
   const lnY = y.map((yi) => (yi > 0 ? Math.log(yi) : 0));
   const linear = fitLinear(x, lnY);
 
-  const a = Math.exp(linear.coefficients[0]);
-  const b = linear.coefficients[1];
+  const a = Math.exp(linear.coefficients[0]!);
+  const b = linear.coefficients[1]!;
 
   const predicted = x.map((xi) => a * Math.exp(b * xi));
 
   const meanY = y.reduce((sum, v) => sum + v, 0) / y.length;
   const ssTotal = y.reduce((sum, yi) => sum + Math.pow(yi - meanY, 2), 0);
-  const ssResid = y.reduce(
-    (sum, yi, i) => sum + Math.pow(yi - predicted[i], 2),
-    0,
-  );
+  const ssResid = y.reduce((sum, yi, i) => sum + Math.pow(yi - predicted[i]!, 2), 0);
   const r_squared = 1 - ssResid / ssTotal;
 
   return {
-    type: "exponential",
-    equation: `y = ${a.toFixed(3)} * e^(${b.toFixed(3)}x)`,
+    type: 'exponential',
+    equation: `y = ${a.toFixed(3)} * e^(${b!.toFixed(3)}x)`,
     r_squared: Math.max(0, r_squared),
     coefficients: [a, b],
     predicted,
@@ -525,22 +486,19 @@ function fitLogarithmic(x: number[], y: number[]): TrendlineResult {
   const lnX = x.map((xi) => (xi > 0 ? Math.log(xi) : 0));
   const linear = fitLinear(lnX, y);
 
-  const a = linear.coefficients[0];
-  const b = linear.coefficients[1];
+  const a = linear.coefficients[0]!;
+  const b = linear.coefficients[1]!;
 
-  const predicted = x.map((xi) => a + b * Math.log(xi));
+  const predicted = x.map((xi) => a! + b! * Math.log(xi));
 
   const meanY = y.reduce((sum, v) => sum + v, 0) / y.length;
   const ssTotal = y.reduce((sum, yi) => sum + Math.pow(yi - meanY, 2), 0);
-  const ssResid = y.reduce(
-    (sum, yi, i) => sum + Math.pow(yi - predicted[i], 2),
-    0,
-  );
+  const ssResid = y.reduce((sum, yi, i) => sum + Math.pow(yi - predicted[i]!, 2), 0);
   const r_squared = 1 - ssResid / ssTotal;
 
   return {
-    type: "logarithmic",
-    equation: `y = ${a.toFixed(3)} + ${b.toFixed(3)}*ln(x)`,
+    type: 'logarithmic',
+    equation: `y = ${a!.toFixed(3)} + ${b!.toFixed(3)}*ln(x)`,
     r_squared: Math.max(0, r_squared),
     coefficients: [a, b],
     predicted,

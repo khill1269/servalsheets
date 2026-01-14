@@ -13,8 +13,8 @@
  * Part of Ultimate Analysis Tool - Natural Language Query capability
  */
 
-import type { SamplingMessage } from "../mcp/sampling.js";
-import type { ColumnSchema } from "./structure-helpers.js";
+import type { SamplingMessage } from '../mcp/sampling.js';
+import type { ColumnSchema } from './structure-helpers.js';
 
 // ============================================================================
 // Type Definitions
@@ -38,15 +38,15 @@ export interface ConversationContext {
 
 export interface QueryIntent {
   type:
-    | "AGGREGATE" // Sum, average, count, etc.
-    | "FILTER" // Filter by criteria
-    | "COMPARE" // Compare two sets
-    | "TREND" // Time series analysis
-    | "ANOMALY" // Outlier detection
-    | "TOP_N" // Top/bottom N records
-    | "PIVOT" // Cross-tab analysis
-    | "SEARCH" // Find specific records
-    | "EXPLAIN"; // Explain data/results
+    | 'AGGREGATE' // Sum, average, count, etc.
+    | 'FILTER' // Filter by criteria
+    | 'COMPARE' // Compare two sets
+    | 'TREND' // Time series analysis
+    | 'ANOMALY' // Outlier detection
+    | 'TOP_N' // Top/bottom N records
+    | 'PIVOT' // Cross-tab analysis
+    | 'SEARCH' // Find specific records
+    | 'EXPLAIN'; // Explain data/results
   confidence: number; // 0-100
   entities: {
     columns: string[];
@@ -80,10 +80,7 @@ export interface QueryResult {
 /**
  * Detect the intent of a natural language query
  */
-export function detectQueryIntent(
-  query: string,
-  schema: ColumnSchema[],
-): QueryIntent {
+export function detectQueryIntent(query: string, schema: ColumnSchema[]): QueryIntent {
   const columnNames = schema.map((col) => col.columnName.toLowerCase());
 
   // Pattern matching for different intents
@@ -108,9 +105,8 @@ export function detectQueryIntent(
   // Find highest scoring intent
   const maxScore = Math.max(...Object.values(scores));
   const detectedIntent =
-    (Object.keys(scores).find(
-      (key) => scores[key] === maxScore,
-    ) as QueryIntent["type"]) || "EXPLAIN";
+    (Object.keys(scores).find((key) => scores[key] === maxScore) as QueryIntent['type']) ||
+    'EXPLAIN';
 
   // Extract entities
   const entities = {
@@ -159,9 +155,7 @@ function extractValues(query: string): string[] {
   const quotedPattern = /"([^"]+)"|'([^']+)'/g;
   const quotedMatches = Array.from(query.matchAll(quotedPattern));
   values.push(
-    ...quotedMatches
-      .map((m) => m[1] ?? m[2])
-      .filter((v): v is string => v !== undefined),
+    ...quotedMatches.map((m) => m[1] ?? m[2]).filter((v): v is string => v !== undefined)
   );
 
   // Extract numbers
@@ -176,17 +170,7 @@ function extractValues(query: string): string[] {
  * Extract operations (sum, average, etc.)
  */
 function extractOperations(query: string): string[] {
-  const operations = [
-    "sum",
-    "average",
-    "count",
-    "max",
-    "min",
-    "median",
-    "filter",
-    "sort",
-    "group",
-  ];
+  const operations = ['sum', 'average', 'count', 'max', 'min', 'median', 'filter', 'sort', 'group'];
   const lowerQuery = query.toLowerCase();
 
   return operations.filter((op) => lowerQuery.includes(op));
@@ -222,7 +206,7 @@ function extractTimeframes(query: string): string[] | undefined {
  */
 export function buildNLQuerySamplingRequest(
   query: string,
-  context: ConversationContext,
+  context: ConversationContext
 ): {
   messages: SamplingMessage[];
   systemPrompt: string;
@@ -232,28 +216,25 @@ export function buildNLQuerySamplingRequest(
 
   // Build context description
   const schemaDescription = context.schema
-    .map(
-      (col) =>
-        `- ${col.columnName} (${col.inferredType}, ${col.cardinality} unique values)`,
-    )
-    .join("\n");
+    .map((col) => `- ${col.columnName} (${col.inferredType}, ${col.cardinality} unique values)`)
+    .join('\n');
 
   const sampleData = context.dataSnapshot
     ? JSON.stringify(context.dataSnapshot.sampleRows.slice(0, 10), null, 2)
-    : "No sample data available";
+    : 'No sample data available';
 
   // Build conversation history
   const conversationHistory = context.previousQueries
     .slice(-3) // Last 3 queries for context
     .map((q) => `Q: ${q.query}\nA: ${q.response}`)
-    .join("\n\n");
+    .join('\n\n');
 
   const systemPrompt = `You are an expert data analyst assistant helping users query and understand their Google Sheets data.
 
 **Current Spreadsheet Context:**
 - Sheet: ${context.sheetName}
 - Columns: ${context.schema.length}
-- Rows: ${context.dataSnapshot?.rowCount || "Unknown"}
+- Rows: ${context.dataSnapshot?.rowCount || 'Unknown'}
 
 **Schema:**
 ${schemaDescription}
@@ -261,7 +242,7 @@ ${schemaDescription}
 **Sample Data (first 10 rows):**
 ${sampleData}
 
-${conversationHistory ? `**Conversation History:**\n${conversationHistory}\n` : ""}
+${conversationHistory ? `**Conversation History:**\n${conversationHistory}\n` : ''}
 
 **Your task:**
 1. Understand the user's question: "${query}"
@@ -292,9 +273,9 @@ Respond in JSON format:
 
   const messages: SamplingMessage[] = [
     {
-      role: "user",
+      role: 'user',
       content: {
-        type: "text",
+        type: 'text',
         text: query,
       },
     },
@@ -317,7 +298,7 @@ Respond in JSON format:
 export function addToConversationHistory(
   context: ConversationContext,
   query: string,
-  response: string,
+  response: string
 ): ConversationContext {
   return {
     ...context,
@@ -348,10 +329,7 @@ export function referencesHistory(query: string): boolean {
 /**
  * Resolve references to previous queries
  */
-export function resolveHistoryReferences(
-  query: string,
-  context: ConversationContext,
-): string {
+export function resolveHistoryReferences(query: string, context: ConversationContext): string {
   if (context.previousQueries.length === 0) return query;
 
   const lastQuery = context.previousQueries[context.previousQueries.length - 1];
@@ -374,29 +352,25 @@ export function resolveHistoryReferences(
  */
 export function validateQuery(
   query: string,
-  context: ConversationContext,
+  context: ConversationContext
 ): { valid: boolean; reason?: string } {
   const intent = detectQueryIntent(query, context.schema);
 
   // Check if any columns were detected
-  if (intent.entities.columns.length === 0 && intent.type !== "EXPLAIN") {
+  if (intent.entities.columns.length === 0 && intent.type !== 'EXPLAIN') {
     return {
       valid: false,
       reason:
-        "Could not identify any column references in your query. Available columns: " +
-        context.schema.map((c) => c.columnName).join(", "),
+        'Could not identify any column references in your query. Available columns: ' +
+        context.schema.map((c) => c.columnName).join(', '),
     };
   }
 
   // Check if data snapshot is available for data queries
-  if (
-    !context.dataSnapshot &&
-    ["AGGREGATE", "FILTER", "COMPARE", "TOP_N"].includes(intent.type)
-  ) {
+  if (!context.dataSnapshot && ['AGGREGATE', 'FILTER', 'COMPARE', 'TOP_N'].includes(intent.type)) {
     return {
       valid: false,
-      reason:
-        "No data available to answer this query. Please provide data context.",
+      reason: 'No data available to answer this query. Please provide data context.',
     };
   }
 
@@ -410,38 +384,31 @@ export function validateQuery(
 /**
  * Generate quick insights from data for conversational context
  */
-export function generateQuickInsights(
-  data: unknown[][],
-  schema: ColumnSchema[],
-): string[] {
+export function generateQuickInsights(data: unknown[][], schema: ColumnSchema[]): string[] {
   const insights: string[] = [];
 
   // Total rows
   insights.push(`Dataset contains ${data.length} rows`);
 
   // Numeric columns summary
-  const numericCols = schema.filter((col) => col.inferredType === "number");
+  const numericCols = schema.filter((col) => col.inferredType === 'number');
   if (numericCols.length > 0) {
-    insights.push(
-      `${numericCols.length} numeric columns available for calculations`,
-    );
+    insights.push(`${numericCols.length} numeric columns available for calculations`);
   }
 
   // High cardinality columns (potential categories)
   const categoricalCols = schema.filter(
-    (col) => col.cardinality > 1 && col.cardinality < data.length * 0.5,
+    (col) => col.cardinality > 1 && col.cardinality < data.length * 0.5
   );
   if (categoricalCols.length > 0) {
-    insights.push(
-      `Categorical columns: ${categoricalCols.map((c) => c.columnName).join(", ")}`,
-    );
+    insights.push(`Categorical columns: ${categoricalCols.map((c) => c.columnName).join(', ')}`);
   }
 
   // Date columns (time series potential)
-  const dateCols = schema.filter((col) => col.inferredType === "date");
+  const dateCols = schema.filter((col) => col.inferredType === 'date');
   if (dateCols.length > 0) {
     insights.push(
-      `Time series analysis available for: ${dateCols.map((c) => c.columnName).join(", ")}`,
+      `Time series analysis available for: ${dateCols.map((c) => c.columnName).join(', ')}`
     );
   }
 

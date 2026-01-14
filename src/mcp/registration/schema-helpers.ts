@@ -6,9 +6,9 @@
  * @module mcp/registration/schema-helpers
  */
 
-import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import { z, type ZodTypeAny } from "zod";
-import { verifyJsonSchema } from "../../utils/schema-compat.js";
+import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import { z, type ZodTypeAny } from 'zod';
+import { verifyJsonSchema } from '../../utils/schema-compat.js';
 
 // ============================================================================
 // SCHEMA PREPARATION
@@ -31,9 +31,7 @@ import { verifyJsonSchema } from "../../utils/schema-compat.js";
  * @param schema - Zod schema to prepare
  * @returns The same Zod schema (SDK handles conversion internally)
  */
-export function prepareSchemaForRegistration(
-  schema: ZodTypeAny,
-): AnySchema {
+export function prepareSchemaForRegistration(schema: ZodTypeAny): AnySchema {
   // ALWAYS return the Zod schema as-is
   // The SDK needs Zod schemas for runtime validation via safeParseAsync()
   // JSON Schema conversion happens internally in the SDK for tools/list
@@ -48,9 +46,7 @@ export function prepareSchemaForRegistration(
  * - { request: <input> } (legacy wrapper)
  * - { request: { action, params } } (legacy params wrapper)
  */
-export function wrapInputSchemaForLegacyRequest(
-  schema: ZodTypeAny,
-): ZodTypeAny {
+export function wrapInputSchemaForLegacyRequest(schema: ZodTypeAny): ZodTypeAny {
   const legacyParamsSchema = z.object({
     action: z.string(),
     params: z.record(z.string(), z.unknown()).optional(),
@@ -69,13 +65,9 @@ export function wrapInputSchemaForLegacyRequest(
  * @param schema - Schema to verify
  */
 export function verifySchemaIfNeeded(schema: unknown): void {
-  if (process.env["NODE_ENV"] !== "production") {
+  if (process.env['NODE_ENV'] !== 'production') {
     const isZodSchema = (s: unknown): boolean =>
-      Boolean(
-        s &&
-        typeof s === "object" &&
-        "_def" in (s as Record<string, unknown>),
-      );
+      Boolean(s && typeof s === 'object' && '_def' in (s as Record<string, unknown>));
 
     if (!isZodSchema(schema)) {
       verifyJsonSchema(schema);

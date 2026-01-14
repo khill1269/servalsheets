@@ -4,9 +4,9 @@
  * Service-level metadata for structured logging.
  */
 
-import * as os from "os";
-import { randomUUID } from "crypto";
-import { VERSION } from "../version.js";
+import * as os from 'os';
+import { randomUUID } from 'crypto';
+import { VERSION } from '../version.js';
 
 /**
  * Service metadata for logging context
@@ -38,13 +38,13 @@ let serviceContext: ServiceContext | null = null;
 export function getServiceContext(): ServiceContext {
   if (!serviceContext) {
     serviceContext = {
-      service: "servalsheets",
+      service: 'servalsheets',
       version: VERSION,
-      environment: process.env["NODE_ENV"] || "development",
+      environment: process.env['NODE_ENV'] || 'development',
       hostname: os.hostname(),
       nodeVersion: process.version,
       pid: process.pid,
-      instanceId: process.env["INSTANCE_ID"] || randomUUID(),
+      instanceId: process.env['INSTANCE_ID'] || randomUUID(),
       startTime: new Date().toISOString(),
     };
   }

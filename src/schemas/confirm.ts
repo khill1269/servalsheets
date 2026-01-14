@@ -10,57 +10,40 @@
  * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
  */
 
-import { z } from "zod";
-import {
-  ErrorDetailSchema,
-  ResponseMetaSchema,
-  type ToolAnnotations,
-} from "./shared.js";
+import { z } from 'zod';
+import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 /**
  * Risk level schema
  */
-const RiskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
+const RiskLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
 
 /**
  * Plan step schema
  */
 const PlanStepSchema = z.object({
-  stepNumber: z.number().int().positive().describe("Step number (1-based)"),
-  description: z.string().describe("Human-readable description"),
-  tool: z.string().describe("Tool to be called"),
-  action: z.string().describe("Action within the tool"),
-  risk: RiskLevelSchema.describe("Risk level of this step"),
-  estimatedApiCalls: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe("Estimated API calls"),
-  isDestructive: z
-    .boolean()
-    .optional()
-    .describe("Whether this step modifies/deletes data"),
-  canUndo: z.boolean().optional().describe("Whether this step can be undone"),
+  stepNumber: z.number().int().positive().describe('Step number (1-based)'),
+  description: z.string().describe('Human-readable description'),
+  tool: z.string().describe('Tool to be called'),
+  action: z.string().describe('Action within the tool'),
+  risk: RiskLevelSchema.describe('Risk level of this step'),
+  estimatedApiCalls: z.number().int().positive().optional().describe('Estimated API calls'),
+  isDestructive: z.boolean().optional().describe('Whether this step modifies/deletes data'),
+  canUndo: z.boolean().optional().describe('Whether this step can be undone'),
 });
 
 /**
  * Operation plan schema for confirmation
  */
 const OperationPlanSchema = z.object({
-  title: z.string().min(1).describe("Plan title"),
-  description: z
-    .string()
-    .describe("Detailed description of what the plan does"),
-  steps: z.array(PlanStepSchema).min(1).describe("Steps in the plan"),
+  title: z.string().min(1).describe('Plan title'),
+  description: z.string().describe('Detailed description of what the plan does'),
+  steps: z.array(PlanStepSchema).min(1).describe('Steps in the plan'),
   willCreateSnapshot: z
     .boolean()
     .default(true)
-    .describe("Whether to create a snapshot before execution"),
-  additionalWarnings: z
-    .array(z.string())
-    .optional()
-    .describe("Additional warnings to display"),
+    .describe('Whether to create a snapshot before execution'),
+  additionalWarnings: z.array(z.string()).optional().describe('Additional warnings to display'),
 });
 
 /**
@@ -70,39 +53,34 @@ const OperationPlanSchema = z.object({
  */
 export const SheetsConfirmInputSchema = z
   .object({
-    action: z
-      .enum(["request", "get_stats"])
-      .describe("The confirmation operation to perform"),
+    action: z.enum(['request', 'get_stats']).describe('The confirmation operation to perform'),
     plan: OperationPlanSchema.optional().describe(
-      "The plan to confirm with the user (required for: request)",
+      'The plan to confirm with the user (required for: request)'
     ),
   })
   .refine(
     (data) => {
       switch (data.action) {
-        case "request":
+        case 'request':
           return !!data.plan;
-        case "get_stats":
+        case 'get_stats':
           return true;
       }
       return true;
     },
     {
-      message: "Plan is required for request action",
-    },
+      message: 'Plan is required for request action',
+    }
   );
 
 /**
  * Confirmation result schema
  */
 const ConfirmationResultSchema = z.object({
-  approved: z.boolean().describe("Whether the user approved the plan"),
-  action: z.enum(["accept", "decline", "cancel"]).describe("User action"),
-  modifications: z
-    .string()
-    .optional()
-    .describe("User modifications to the plan"),
-  timestamp: z.number().describe("Timestamp of confirmation"),
+  approved: z.boolean().describe('Whether the user approved the plan'),
+  action: z.enum(['accept', 'decline', 'cancel']).describe('User action'),
+  modifications: z.string().optional().describe('User modifications to the plan'),
+  timestamp: z.number().describe('Timestamp of confirmation'),
 });
 
 /**
@@ -120,7 +98,7 @@ const ConfirmStatsSchema = z.object({
 /**
  * Response schema
  */
-const ConfirmResponseSchema = z.discriminatedUnion("success", [
+const ConfirmResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -146,7 +124,7 @@ export const SheetsConfirmOutputSchema = z.object({
  * Tool annotations following MCP 2025-11-25
  */
 export const SHEETS_CONFIRM_ANNOTATIONS: ToolAnnotations = {
-  title: "Plan Confirmation",
+  title: 'Plan Confirmation',
   readOnlyHint: true, // Confirmation itself doesn't change data
   destructiveHint: false, // The tool just confirms, doesn't execute
   idempotentHint: false, // Each confirmation is unique
@@ -163,7 +141,7 @@ export type RiskLevel = z.infer<typeof RiskLevelSchema>;
 
 // Type narrowing helpers for handler methods
 export type ConfirmRequestInput = SheetsConfirmInput & {
-  action: "request";
+  action: 'request';
   plan: OperationPlan;
 };
-export type ConfirmGetStatsInput = SheetsConfirmInput & { action: "get_stats" };
+export type ConfirmGetStatsInput = SheetsConfirmInput & { action: 'get_stats' };

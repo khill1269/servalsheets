@@ -40,11 +40,11 @@ export function pearson(x: number[], y: number[]): number {
  * Returns: 'empty' | 'number' | 'boolean' | 'string' | 'other'
  */
 export function valueType(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "empty";
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "string") return "string";
-  return "other";
+  if (value === null || value === undefined || value === '') return 'empty';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'string') return 'string';
+  return 'other';
 }
 
 /**
@@ -54,13 +54,13 @@ export function valueType(value: unknown): string {
  */
 export function analyzeTrends(values: unknown[][]): Array<{
   column: number;
-  trend: "increasing" | "decreasing" | "stable";
+  trend: 'increasing' | 'decreasing' | 'stable';
   changeRate: string;
   confidence: number;
 }> {
   const trends: Array<{
     column: number;
-    trend: "increasing" | "decreasing" | "stable";
+    trend: 'increasing' | 'decreasing' | 'stable';
     changeRate: string;
     confidence: number;
   }> = [];
@@ -70,15 +70,12 @@ export function analyzeTrends(values: unknown[][]): Array<{
   const columnCount = values[0].length;
 
   // Extract all numeric columns in a single pass (O(n*m) instead of O(n*m*m))
-  const numericColumns: number[][] = Array.from(
-    { length: columnCount },
-    () => [],
-  );
+  const numericColumns: number[][] = Array.from({ length: columnCount }, () => []);
 
   for (const row of values) {
     for (let col = 0; col < columnCount; col++) {
       const value = row[col];
-      if (typeof value === "number") {
+      if (typeof value === 'number') {
         numericColumns[col]!.push(value);
       }
     }
@@ -106,8 +103,8 @@ export function analyzeTrends(values: unknown[][]): Array<{
     }
 
     const slope = denominator !== 0 ? numerator / denominator : 0;
-    const direction: "increasing" | "decreasing" | "stable" =
-      slope > 0.1 ? "increasing" : slope < -0.1 ? "decreasing" : "stable";
+    const direction: 'increasing' | 'decreasing' | 'stable' =
+      slope > 0.1 ? 'increasing' : slope < -0.1 ? 'decreasing' : 'stable';
     const changeRate = Math.abs(slope / meanY) * 100;
 
     trends.push({
@@ -148,7 +145,7 @@ export function detectAnomalies(values: unknown[][]): Array<{
   for (let col = 0; col < columnCount; col++) {
     const columnData = values
       .map((row, idx) => ({ value: row[col], row: idx }))
-      .filter((v) => typeof v.value === "number") as {
+      .filter((v) => typeof v.value === 'number') as {
       value: number;
       row: number;
     }[];
@@ -156,11 +153,9 @@ export function detectAnomalies(values: unknown[][]): Array<{
     if (columnData.length < 4) continue;
 
     const numericValues = columnData.map((d) => d.value);
-    const mean =
-      numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+    const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
     const variance =
-      numericValues.reduce((sum, val) => sum + (val - mean) ** 2, 0) /
-      numericValues.length;
+      numericValues.reduce((sum, val) => sum + (val - mean) ** 2, 0) / numericValues.length;
     const stdDev = Math.sqrt(variance);
 
     // Detect outliers using z-score (> 3 std devs from mean)
@@ -197,16 +192,14 @@ export function analyzeSeasonality(values: unknown[][]): {
   if (values.length < 12) {
     return {
       detected: false,
-      message: "Insufficient data for seasonality analysis (need 12+ periods)",
+      message: 'Insufficient data for seasonality analysis (need 12+ periods)',
     };
   }
 
   // Look for repeating patterns in first numeric column
-  const firstColumn = values
-    .map((row) => row[0])
-    .filter((v) => typeof v === "number") as number[];
+  const firstColumn = values.map((row) => row[0]).filter((v) => typeof v === 'number') as number[];
   if (firstColumn.length < 12) {
-    return { detected: false, message: "Insufficient numeric data" };
+    return { detected: false, message: 'Insufficient numeric data' };
   }
 
   // Simple heuristic: check for monthly patterns (12-period cycle)
@@ -214,10 +207,10 @@ export function analyzeSeasonality(values: unknown[][]): {
   if (firstColumn.length >= period * 2) {
     return {
       detected: true,
-      period: "monthly",
-      pattern: "Potential seasonal pattern detected",
+      period: 'monthly',
+      pattern: 'Potential seasonal pattern detected',
       strength: 0.65, // Placeholder
-      note: "Full seasonality analysis requires more sophisticated algorithms",
+      note: 'Full seasonality analysis requires more sophisticated algorithms',
     };
   }
 
@@ -229,30 +222,27 @@ export function analyzeSeasonality(values: unknown[][]): {
  * Returns: 'empty' | 'number' | 'boolean' | 'date' | 'email' | 'url' | 'text' | 'mixed' | 'unknown'
  */
 export function detectDataType(columnData: unknown[]): string {
-  if (columnData.length === 0) return "empty";
+  if (columnData.length === 0) return 'empty';
 
   const types = columnData.map((v) => {
-    if (typeof v === "number") return "number";
-    if (typeof v === "boolean") return "boolean";
-    if (typeof v === "string") {
+    if (typeof v === 'number') return 'number';
+    if (typeof v === 'boolean') return 'boolean';
+    if (typeof v === 'string') {
       // Check for date patterns
-      if (
-        /^\d{4}-\d{2}-\d{2}/.test(v) ||
-        /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)
-      ) {
-        return "date";
+      if (/^\d{4}-\d{2}-\d{2}/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)) {
+        return 'date';
       }
       // Check for email
       if (/@/.test(v)) {
-        return "email";
+        return 'email';
       }
       // Check for URL
       if (/^https?:\/\//.test(v)) {
-        return "url";
+        return 'url';
       }
-      return "text";
+      return 'text';
     }
-    return "unknown";
+    return 'unknown';
   });
 
   // Find most common type
@@ -263,12 +253,12 @@ export function detectDataType(columnData: unknown[]): string {
 
   const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
   const dominantTypeEntry = sortedTypes[0];
-  if (!dominantTypeEntry) return "unknown";
+  if (!dominantTypeEntry) return 'unknown';
 
   const dominantType = dominantTypeEntry[0];
   const typePercentage = (dominantTypeEntry[1] / types.length) * 100;
 
-  return typePercentage > 80 ? dominantType : "mixed";
+  return typePercentage > 80 ? dominantType : 'mixed';
 }
 
 /**
@@ -277,12 +267,12 @@ export function detectDataType(columnData: unknown[]): string {
  */
 export function analyzeDistribution(columnData: unknown[]):
   | {
-      type: "categorical";
+      type: 'categorical';
       uniqueCount: number;
       totalCount: number;
     }
   | {
-      type: "numeric";
+      type: 'numeric';
       mean: string;
       median: string;
       stdDev: string;
@@ -295,15 +285,13 @@ export function analyzeDistribution(columnData: unknown[]):
         iqr: string;
       };
     } {
-  const numericData = columnData.filter(
-    (v) => typeof v === "number",
-  ) as number[];
+  const numericData = columnData.filter((v) => typeof v === 'number') as number[];
 
   if (numericData.length === 0) {
     // For non-numeric data, return value counts
     const uniqueValues = new Set(columnData);
     return {
-      type: "categorical",
+      type: 'categorical',
       uniqueCount: uniqueValues.size,
       totalCount: columnData.length,
     };
@@ -324,7 +312,7 @@ export function analyzeDistribution(columnData: unknown[]):
   const max = sorted[n - 1] ?? 0;
 
   return {
-    type: "numeric",
+    type: 'numeric',
     mean: mean.toFixed(2),
     median: median.toFixed(2),
     stdDev: stdDev.toFixed(2),
@@ -345,7 +333,7 @@ export function analyzeDistribution(columnData: unknown[]):
  */
 export function checkColumnQuality(
   columnData: unknown[],
-  dataType: string,
+  dataType: string
 ): {
   completeness: number;
   consistency: number;
@@ -368,17 +356,15 @@ export function checkColumnQuality(
 
   // Check for data type consistency
   const actualTypes = new Set(columnData.map((v) => typeof v));
-  if (actualTypes.size > 1 && dataType !== "mixed") {
+  if (actualTypes.size > 1 && dataType !== 'mixed') {
     quality.consistency = 70;
-    quality.issues.push("Mixed data types detected");
+    quality.issues.push('Mixed data types detected');
   }
 
   // Check for duplicates
   const duplicateRatio = (totalCount - uniqueCount) / totalCount;
   if (duplicateRatio > 0.5) {
-    quality.issues.push(
-      `High duplicate rate: ${(duplicateRatio * 100).toFixed(0)}%`,
-    );
+    quality.issues.push(`High duplicate rate: ${(duplicateRatio * 100).toFixed(0)}%`);
   }
 
   // Calculate unique ratio
@@ -408,16 +394,13 @@ export function analyzeCorrelationsData(values: unknown[][]): Array<{
   const columnCount = values[0].length;
 
   // Extract numeric columns in a single pass (O(n*m) instead of O(n*m*m))
-  const numericColumns: number[][] = Array.from(
-    { length: columnCount },
-    () => [],
-  );
+  const numericColumns: number[][] = Array.from({ length: columnCount }, () => []);
 
   // Single pass through all rows to extract numeric values
   for (const row of values) {
     for (let col = 0; col < columnCount; col++) {
       const value = row[col];
-      if (typeof value === "number") {
+      if (typeof value === 'number') {
         numericColumns[col]!.push(value);
       }
     }
@@ -437,17 +420,13 @@ export function analyzeCorrelationsData(values: unknown[][]): Array<{
 
       const correlation = pearson(item1.col, item2.col);
       const strength =
-        Math.abs(correlation) > 0.7
-          ? "strong"
-          : Math.abs(correlation) > 0.4
-            ? "moderate"
-            : "weak";
+        Math.abs(correlation) > 0.7 ? 'strong' : Math.abs(correlation) > 0.4 ? 'moderate' : 'weak';
 
       if (Math.abs(correlation) > 0.3) {
         correlations.push({
           columns: [item1.idx, item2.idx],
           correlation: correlation.toFixed(3),
-          strength: `${strength} ${correlation > 0 ? "positive" : "negative"}`,
+          strength: `${strength} ${correlation > 0 ? 'positive' : 'negative'}`,
         });
       }
     }
@@ -461,7 +440,7 @@ export function analyzeCorrelationsData(values: unknown[][]): Array<{
  */
 export interface TrendAnalysis {
   column: number;
-  trend: "increasing" | "decreasing" | "stable";
+  trend: 'increasing' | 'decreasing' | 'stable';
   changeRate: string;
   confidence: number;
 }
@@ -484,7 +463,7 @@ export interface SeasonalityResult {
 }
 
 export interface DistributionStats {
-  type: "numeric" | "categorical";
+  type: 'numeric' | 'categorical';
   mean?: string;
   median?: string;
   stdDev?: string;

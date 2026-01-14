@@ -25,9 +25,9 @@
  * - RESULT_CACHE_MAX_SIZE: Max cached results (default: 1000)
  */
 
-import { createHash } from "crypto";
-import { LRUCache } from "lru-cache";
-import { logger } from "./logger.js";
+import { createHash } from 'crypto';
+import { LRUCache } from 'lru-cache';
+import { logger } from './logger.js';
 
 interface PendingRequest<T> {
   promise: Promise<T>;
@@ -104,10 +104,7 @@ export class RequestDeduplicator {
    * 2. Checks if request is in-flight (deduplication)
    * 3. Executes request and caches result
    */
-  async deduplicate<T>(
-    requestKey: string,
-    requestFn: () => Promise<T>,
-  ): Promise<T> {
+  async deduplicate<T>(requestKey: string, requestFn: () => Promise<T>): Promise<T> {
     // Skip deduplication if disabled
     if (!this.options.enabled) {
       return requestFn();
@@ -123,7 +120,7 @@ export class RequestDeduplicator {
     if (this.options.resultCacheEnabled && this.resultCache.has(key)) {
       this.cacheHits++;
       const cached = this.resultCache.get(key) as T;
-      logger.debug("Result cache hit", {
+      logger.debug('Result cache hit', {
         key: requestKey,
         hash: key.substring(0, 8),
         cacheHits: this.cacheHits,
@@ -141,7 +138,7 @@ export class RequestDeduplicator {
     const existing = this.pendingRequests.get(key);
     if (existing) {
       this.deduplicatedRequests++;
-      logger.debug("Request deduplicated (in-flight)", {
+      logger.debug('Request deduplicated (in-flight)', {
         key: requestKey,
         hash: key.substring(0, 8),
         age: Date.now() - existing.timestamp,
@@ -153,14 +150,14 @@ export class RequestDeduplicator {
 
     // Check if we've exceeded max pending requests
     if (this.pendingRequests.size >= this.options.maxPendingRequests) {
-      logger.warn("Max pending requests reached, cleaning up oldest", {
+      logger.warn('Max pending requests reached, cleaning up oldest', {
         count: this.pendingRequests.size,
         max: this.options.maxPendingRequests,
       });
       this.cleanupOldestRequests();
     }
 
-    logger.debug("New request registered", {
+    logger.debug('New request registered', {
       key: requestKey,
       hash: key.substring(0, 8),
       pendingCount: this.pendingRequests.size,
@@ -172,7 +169,7 @@ export class RequestDeduplicator {
         // Cache successful result
         if (this.options.resultCacheEnabled) {
           this.resultCache.set(key, result);
-          logger.debug("Result cached", {
+          logger.debug('Result cached', {
             key: requestKey,
             hash: key.substring(0, 8),
             cacheSize: this.resultCache.size,
@@ -184,7 +181,7 @@ export class RequestDeduplicator {
       .finally(() => {
         // Clean up after request completes
         this.pendingRequests.delete(key);
-        logger.debug("Request completed, removed from pending", {
+        logger.debug('Request completed, removed from pending', {
           key: requestKey,
           hash: key.substring(0, 8),
           remainingPending: this.pendingRequests.size,
@@ -206,10 +203,7 @@ export class RequestDeduplicator {
    * Uses SHA-256 truncated to 128 bits for collision resistance
    */
   private generateKey(requestKey: string): string {
-    return createHash("sha256")
-      .update(requestKey)
-      .digest("hex")
-      .substring(0, 32); // 128 bits (32 hex chars)
+    return createHash('sha256').update(requestKey).digest('hex').substring(0, 32); // 128 bits (32 hex chars)
   }
 
   /**
@@ -240,7 +234,7 @@ export class RequestDeduplicator {
     }
 
     if (staleKeys.length > 0) {
-      logger.warn("Cleaning up stale requests", {
+      logger.warn('Cleaning up stale requests', {
         count: staleKeys.length,
         timeout: this.options.timeout,
       });
@@ -264,7 +258,7 @@ export class RequestDeduplicator {
       this.pendingRequests.delete(key);
     });
 
-    logger.debug("Removed oldest requests", {
+    logger.debug('Removed oldest requests', {
       removed: countToRemove,
       remaining: this.pendingRequests.size,
     });
@@ -278,7 +272,7 @@ export class RequestDeduplicator {
     const cacheCount = this.resultCache.size;
     this.pendingRequests.clear();
     this.resultCache.clear();
-    logger.debug("Cleared all pending requests and cached results", {
+    logger.debug('Cleared all pending requests and cached results', {
       pendingCount,
       cacheCount,
     });
@@ -298,7 +292,7 @@ export class RequestDeduplicator {
    */
   invalidateCache(pattern: string | RegExp): number {
     const keys = Array.from(this.resultCache.keys());
-    const regex = typeof pattern === "string" ? new RegExp(pattern) : pattern;
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
 
     let invalidated = 0;
 
@@ -315,7 +309,7 @@ export class RequestDeduplicator {
     }
 
     if (invalidated > 0) {
-      logger.info("Cache invalidated by pattern", {
+      logger.info('Cache invalidated by pattern', {
         pattern: pattern.toString(),
         invalidated,
         remaining: this.resultCache.size,
@@ -335,7 +329,7 @@ export class RequestDeduplicator {
     // In production, consider adding a spreadsheet->keys mapping
     const count = this.resultCache.size;
     this.resultCache.clear();
-    logger.info("Invalidated cache for spreadsheet (full clear)", {
+    logger.info('Invalidated cache for spreadsheet (full clear)', {
       spreadsheetId,
       entriesCleared: count,
     });
@@ -374,16 +368,13 @@ export class RequestDeduplicator {
 
     if (this.pendingRequests.size > 0) {
       const now = Date.now();
-      const timestamps = Array.from(this.pendingRequests.values()).map(
-        (r) => r.timestamp,
-      );
+      const timestamps = Array.from(this.pendingRequests.values()).map((r) => r.timestamp);
       const oldestTimestamp = Math.min(...timestamps);
       oldestAge = now - oldestTimestamp;
     }
 
     const totalSaved = this.deduplicatedRequests + this.cacheHits;
-    const totalSavingsRate =
-      this.totalRequests > 0 ? (totalSaved / this.totalRequests) * 100 : 0;
+    const totalSavingsRate = this.totalRequests > 0 ? (totalSaved / this.totalRequests) * 100 : 0;
 
     return {
       // Pending request stats
@@ -479,30 +470,22 @@ function parseEnvInt(value: string | undefined, defaultValue: number): number {
  * Global deduplicator instance with result caching
  */
 export const requestDeduplicator = new RequestDeduplicator({
-  enabled: process.env["DEDUPLICATION_ENABLED"] !== "false",
-  timeout: parseEnvInt(process.env["DEDUPLICATION_TIMEOUT"], 30000),
-  maxPendingRequests: parseEnvInt(
-    process.env["DEDUPLICATION_MAX_PENDING"],
-    1000,
-  ),
-  resultCacheEnabled: process.env["RESULT_CACHE_ENABLED"] !== "false",
-  resultCacheTTL: parseEnvInt(process.env["RESULT_CACHE_TTL"], 300000), // 5 minutes - aligned with CACHE_TTL_* constants
-  resultCacheMaxSize: parseEnvInt(process.env["RESULT_CACHE_MAX_SIZE"], 1000),
+  enabled: process.env['DEDUPLICATION_ENABLED'] !== 'false',
+  timeout: parseEnvInt(process.env['DEDUPLICATION_TIMEOUT'], 30000),
+  maxPendingRequests: parseEnvInt(process.env['DEDUPLICATION_MAX_PENDING'], 1000),
+  resultCacheEnabled: process.env['RESULT_CACHE_ENABLED'] !== 'false',
+  resultCacheTTL: parseEnvInt(process.env['RESULT_CACHE_TTL'], 300000), // 5 minutes - aligned with CACHE_TTL_* constants
+  resultCacheMaxSize: parseEnvInt(process.env['RESULT_CACHE_MAX_SIZE'], 1000),
 });
 
 /**
  * Helper: Create a request key from parameters
  * Sorts keys for consistent hashing
  */
-export function createRequestKey(
-  operation: string,
-  params: Record<string, unknown>,
-): string {
+export function createRequestKey(operation: string, params: Record<string, unknown>): string {
   // Sort keys for consistent hashing
   const sortedKeys = Object.keys(params).sort();
-  const serialized = sortedKeys
-    .map((key) => `${key}=${JSON.stringify(params[key])}`)
-    .join("&");
+  const serialized = sortedKeys.map((key) => `${key}=${JSON.stringify(params[key])}`).join('&');
 
   return `${operation}:${serialized}`;
 }

@@ -31,7 +31,7 @@
  * @module utils/schema-inspection
  */
 
-import { z, type ZodTypeAny } from "zod";
+import { z, type ZodTypeAny } from 'zod';
 
 /**
  * Recursively unwraps wrapper schemas to get the base type
@@ -127,9 +127,7 @@ export function isEnumLike(schema: ZodTypeAny): boolean {
  * const shape = getObjectShape(schema);
  * // shape = { name: ZodString, age: ZodNumber }
  */
-export function getObjectShape(
-  schema: ZodTypeAny,
-): Record<string, ZodTypeAny> | null {
+export function getObjectShape(schema: ZodTypeAny): Record<string, ZodTypeAny> | null {
   const unwrapped = unwrapSchema(schema);
 
   if (!(unwrapped instanceof z.ZodObject)) {
@@ -176,7 +174,7 @@ export function isActionBasedSchema(schema: ZodTypeAny): boolean {
   // Pattern 2: Flat object with action enum field
   if (unwrapped instanceof z.ZodObject) {
     const shape = unwrapped.shape;
-    const actionField = shape?.["action"];
+    const actionField = shape?.['action'];
     return actionField ? isEnumLike(actionField) : false;
   }
 
@@ -229,9 +227,7 @@ export function getDiscriminator(schema: ZodTypeAny): string | null {
  * const options = getDiscriminatedUnionOptions(schema);
  * // options = [ZodObject, ZodObject]
  */
-export function getDiscriminatedUnionOptions(
-  schema: ZodTypeAny,
-): ZodTypeAny[] | null {
+export function getDiscriminatedUnionOptions(schema: ZodTypeAny): ZodTypeAny[] | null {
   const unwrapped = unwrapSchema(schema);
 
   if (unwrapped instanceof z.ZodDiscriminatedUnion) {
@@ -346,10 +342,7 @@ export function hasField(schema: ZodTypeAny, fieldName: string): boolean {
  * const nameSchema = getField(schema, "name");
  * // nameSchema = z.string()
  */
-export function getField(
-  schema: ZodTypeAny,
-  fieldName: string,
-): ZodTypeAny | null {
+export function getField(schema: ZodTypeAny, fieldName: string): ZodTypeAny | null {
   const shape = getObjectShape(schema);
   if (!shape || !(fieldName in shape)) {
     return null;

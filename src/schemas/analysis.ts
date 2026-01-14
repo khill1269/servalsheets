@@ -29,7 +29,7 @@
  * @deprecated Use sheets_analyze instead
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,
@@ -38,7 +38,7 @@ import {
   CellValueSchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from "./shared.js";
+} from './shared.js';
 
 const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -46,23 +46,23 @@ const _BaseSchema = z.object({
 
 const DataQualityIssueSchema = z.object({
   type: z.enum([
-    "EMPTY_HEADER",
-    "DUPLICATE_HEADER",
-    "MIXED_DATA_TYPES",
-    "EMPTY_ROW",
-    "EMPTY_COLUMN",
-    "TRAILING_WHITESPACE",
-    "LEADING_WHITESPACE",
-    "INCONSISTENT_FORMAT",
-    "STATISTICAL_OUTLIER",
-    "MISSING_VALUE",
-    "DUPLICATE_ROW",
-    "INVALID_EMAIL",
-    "INVALID_URL",
-    "INVALID_DATE",
-    "FORMULA_ERROR",
+    'EMPTY_HEADER',
+    'DUPLICATE_HEADER',
+    'MIXED_DATA_TYPES',
+    'EMPTY_ROW',
+    'EMPTY_COLUMN',
+    'TRAILING_WHITESPACE',
+    'LEADING_WHITESPACE',
+    'INCONSISTENT_FORMAT',
+    'STATISTICAL_OUTLIER',
+    'MISSING_VALUE',
+    'DUPLICATE_ROW',
+    'INVALID_EMAIL',
+    'INVALID_URL',
+    'INVALID_DATE',
+    'FORMULA_ERROR',
   ]),
-  severity: z.enum(["low", "medium", "high"]),
+  severity: z.enum(['low', 'medium', 'high']),
   location: z.string(),
   description: z.string(),
   autoFixable: z.boolean(),
@@ -73,17 +73,17 @@ const DataQualityIssueSchema = z.object({
 
 const FormulaIssueSchema = z.object({
   type: z.enum([
-    "CIRCULAR_REFERENCE",
-    "BROKEN_REFERENCE",
-    "VOLATILE_FUNCTION",
-    "COMPLEX_FORMULA",
-    "HARDCODED_VALUE",
-    "INCONSISTENT_FORMULA",
-    "ARRAY_FORMULA_ISSUE",
-    "DEPRECATED_FUNCTION",
-    "PERFORMANCE_ISSUE",
+    'CIRCULAR_REFERENCE',
+    'BROKEN_REFERENCE',
+    'VOLATILE_FUNCTION',
+    'COMPLEX_FORMULA',
+    'HARDCODED_VALUE',
+    'INCONSISTENT_FORMULA',
+    'ARRAY_FORMULA_ISSUE',
+    'DEPRECATED_FUNCTION',
+    'PERFORMANCE_ISSUE',
   ]),
-  severity: z.enum(["low", "medium", "high"]),
+  severity: z.enum(['low', 'medium', 'high']),
   cell: z.string(),
   formula: z.string(),
   description: z.string(),
@@ -96,19 +96,19 @@ export const SheetsAnalysisInputSchema = z
   .object({
     // Common fields
     action: z.enum([
-      "data_quality",
-      "formula_audit",
-      "structure_analysis",
-      "statistics",
-      "correlations",
-      "summary",
-      "dependencies",
-      "compare_ranges",
-      "detect_patterns",
-      "column_analysis",
-      "suggest_templates",
-      "generate_formula",
-      "suggest_chart",
+      'data_quality',
+      'formula_audit',
+      'structure_analysis',
+      'statistics',
+      'correlations',
+      'summary',
+      'dependencies',
+      'compare_ranges',
+      'detect_patterns',
+      'column_analysis',
+      'suggest_templates',
+      'generate_formula',
+      'suggest_chart',
     ]),
     spreadsheetId: SpreadsheetIdSchema.optional(),
     sheetId: SheetIdSchema.optional(),
@@ -118,32 +118,26 @@ export const SheetsAnalysisInputSchema = z
     checks: z
       .array(
         z.enum([
-          "headers",
-          "data_types",
-          "empty_cells",
-          "duplicates",
-          "outliers",
-          "formatting",
-          "validation",
-          "circular",
-          "broken",
-          "volatile",
-          "complex",
-          "hardcoded",
-          "inconsistent",
-          "performance",
-        ]),
+          'headers',
+          'data_types',
+          'empty_cells',
+          'duplicates',
+          'outliers',
+          'formatting',
+          'validation',
+          'circular',
+          'broken',
+          'volatile',
+          'complex',
+          'hardcoded',
+          'inconsistent',
+          'performance',
+        ])
       )
       .optional(),
-    outlierMethod: z
-      .enum(["iqr", "zscore", "modified_zscore"])
-      .optional()
-      .default("iqr"),
+    outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
     outlierThreshold: z.number().optional().default(1.5),
-    useAI: z
-      .boolean()
-      .optional()
-      .describe("Use AI-powered analysis via sampling (SEP-1577)"),
+    useAI: z.boolean().optional().describe('Use AI-powered analysis via sampling (SEP-1577)'),
 
     // formula_audit specific
     complexityThreshold: z.number().int().optional().default(10),
@@ -156,79 +150,49 @@ export const SheetsAnalysisInputSchema = z
     columns: z.array(z.number().int().min(0)).optional(),
 
     // correlations specific
-    method: z.enum(["pearson", "spearman"]).optional().default("pearson"),
+    method: z.enum(['pearson', 'spearman']).optional().default('pearson'),
 
     // dependencies specific
     cell: z.string().optional(),
-    direction: z
-      .enum(["precedents", "dependents", "both"])
-      .optional()
-      .default("both"),
+    direction: z.enum(['precedents', 'dependents', 'both']).optional().default('both'),
 
     // compare_ranges specific
     range1: RangeInputSchema.optional(),
     range2: RangeInputSchema.optional(),
-    compareType: z
-      .enum(["values", "structure", "both"])
-      .optional()
-      .default("values"),
+    compareType: z.enum(['values', 'structure', 'both']).optional().default('values'),
 
     // detect_patterns specific
     includeCorrelations: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include correlation analysis"),
-    includeTrends: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include trend detection"),
+      .describe('Include correlation analysis'),
+    includeTrends: z.boolean().optional().default(true).describe('Include trend detection'),
     includeSeasonality: z
       .boolean()
       .optional()
       .default(false)
-      .describe("Include seasonality patterns"),
-    includeAnomalies: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include anomaly detection"),
+      .describe('Include seasonality patterns'),
+    includeAnomalies: z.boolean().optional().default(true).describe('Include anomaly detection'),
 
     // column_analysis specific
     analyzeDistribution: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Analyze value distribution"),
-    detectDataType: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Auto-detect data type"),
-    checkQuality: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Check data quality"),
-    findUnique: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Count unique values"),
+      .describe('Analyze value distribution'),
+    detectDataType: z.boolean().optional().default(true).describe('Auto-detect data type'),
+    checkQuality: z.boolean().optional().default(true).describe('Check data quality'),
+    findUnique: z.boolean().optional().default(true).describe('Count unique values'),
 
     // suggest_templates specific
     description: z
       .string()
       .optional()
       .describe(
-        'Natural language description of needed template (e.g., "project tracker", "budget planner")',
+        'Natural language description of needed template (e.g., "project tracker", "budget planner")'
       ),
-    includeExample: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include example data structure"),
+    includeExample: z.boolean().optional().default(true).describe('Include example data structure'),
     maxSuggestions: z
       .number()
       .int()
@@ -236,7 +200,7 @@ export const SheetsAnalysisInputSchema = z
       .max(5)
       .optional()
       .default(3)
-      .describe("Number of chart/template suggestions"),
+      .describe('Number of chart/template suggestions'),
 
     // generate_formula specific
     targetCell: z
@@ -247,42 +211,49 @@ export const SheetsAnalysisInputSchema = z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include formula explanation"),
+      .describe('Include formula explanation'),
 
     // suggest_chart specific
     goal: z
       .string()
       .optional()
+      .describe('Optional visualization goal (e.g., "show trends", "compare categories")'),
+
+    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
       .describe(
-        'Optional visualization goal (e.g., "show trends", "compare categories")',
+        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
       ),
   })
   .refine(
     (data) => {
       switch (data.action) {
-        case "data_quality":
-        case "formula_audit":
-        case "structure_analysis":
-        case "summary":
+        case 'data_quality':
+        case 'formula_audit':
+        case 'structure_analysis':
+        case 'summary':
           return !!data.spreadsheetId;
 
-        case "statistics":
-        case "correlations":
-        case "detect_patterns":
-        case "column_analysis":
-        case "suggest_chart":
+        case 'statistics':
+        case 'correlations':
+        case 'detect_patterns':
+        case 'column_analysis':
+        case 'suggest_chart':
           return !!data.spreadsheetId && !!data.range;
 
-        case "compare_ranges":
+        case 'compare_ranges':
           return !!data.spreadsheetId && !!data.range1 && !!data.range2;
 
-        case "dependencies":
+        case 'dependencies':
           return !!data.spreadsheetId;
 
-        case "suggest_templates":
+        case 'suggest_templates':
           return !!data.spreadsheetId && !!data.description;
 
-        case "generate_formula":
+        case 'generate_formula':
           return !!data.spreadsheetId && !!data.description;
 
         default:
@@ -291,63 +262,30 @@ export const SheetsAnalysisInputSchema = z
     },
     {
       message:
-        "Missing required fields for the specified action. Check action-specific requirements.",
-    },
+        'Missing required fields for the specified action. Check action-specific requirements.',
+    }
   );
 
 // Type narrowing helpers for each action
-export type DataQualityInput = Extract<
-  SheetsAnalysisInput,
-  { action: "data_quality" }
->;
-export type FormulaAuditInput = Extract<
-  SheetsAnalysisInput,
-  { action: "formula_audit" }
->;
-export type StructureAnalysisInput = Extract<
-  SheetsAnalysisInput,
-  { action: "structure_analysis" }
->;
-export type StatisticsInput = Extract<
-  SheetsAnalysisInput,
-  { action: "statistics" }
->;
-export type CorrelationsInput = Extract<
-  SheetsAnalysisInput,
-  { action: "correlations" }
->;
-export type SummaryInput = Extract<SheetsAnalysisInput, { action: "summary" }>;
-export type DependenciesInput = Extract<
-  SheetsAnalysisInput,
-  { action: "dependencies" }
->;
-export type CompareRangesInput = Extract<
-  SheetsAnalysisInput,
-  { action: "compare_ranges" }
->;
+export type DataQualityInput = Extract<SheetsAnalysisInput, { action: 'data_quality' }>;
+export type FormulaAuditInput = Extract<SheetsAnalysisInput, { action: 'formula_audit' }>;
+export type StructureAnalysisInput = Extract<SheetsAnalysisInput, { action: 'structure_analysis' }>;
+export type StatisticsInput = Extract<SheetsAnalysisInput, { action: 'statistics' }>;
+export type CorrelationsInput = Extract<SheetsAnalysisInput, { action: 'correlations' }>;
+export type SummaryInput = Extract<SheetsAnalysisInput, { action: 'summary' }>;
+export type DependenciesInput = Extract<SheetsAnalysisInput, { action: 'dependencies' }>;
+export type CompareRangesInput = Extract<SheetsAnalysisInput, { action: 'compare_ranges' }>;
 // DEPRECATED: Use DetectPatternsInput from analyze.ts instead
-type AnalysisDetectPatternsInput = Extract<
-  SheetsAnalysisInput,
-  { action: "detect_patterns" }
->;
-export type ColumnAnalysisInput = Extract<
-  SheetsAnalysisInput,
-  { action: "column_analysis" }
->;
-export type SuggestTemplatesInput = Extract<
-  SheetsAnalysisInput,
-  { action: "suggest_templates" }
->;
+type _AnalysisDetectPatternsInput = Extract<SheetsAnalysisInput, { action: 'detect_patterns' }>;
+export type ColumnAnalysisInput = Extract<SheetsAnalysisInput, { action: 'column_analysis' }>;
+export type SuggestTemplatesInput = Extract<SheetsAnalysisInput, { action: 'suggest_templates' }>;
 export type AnalysisGenerateFormulaInput = Extract<
   SheetsAnalysisInput,
-  { action: "generate_formula" }
+  { action: 'generate_formula' }
 >;
-export type AnalysisSuggestChartInput = Extract<
-  SheetsAnalysisInput,
-  { action: "suggest_chart" }
->;
+export type AnalysisSuggestChartInput = Extract<SheetsAnalysisInput, { action: 'suggest_chart' }>;
 
-const AnalysisResponseSchema = z.discriminatedUnion("success", [
+const AnalysisResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -388,7 +326,7 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
               range: z.string(),
               headers: z.array(z.string()),
               rowCount: z.number().int(),
-            }),
+            })
           )
           .optional(),
         namedRanges: z
@@ -396,7 +334,7 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
             z.object({
               name: z.string(),
               range: z.string(),
-            }),
+            })
           )
           .optional(),
       })
@@ -418,7 +356,7 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
             max: z.number().optional(),
             nullCount: z.number().int(),
             uniqueCount: z.number().int(),
-          }),
+          })
         ),
       })
       .optional(),
@@ -462,7 +400,7 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
             cell: z.string(),
             value1: CellValueSchema,
             value2: CellValueSchema,
-          }),
+          })
         ),
         diffCount: z.number().int(),
       })
@@ -473,9 +411,9 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
       .object({
         suggestions: z.array(
           z.object({
-            name: z.string().describe("Template name"),
-            description: z.string().describe("Template description"),
-            useCase: z.string().describe("Best use case"),
+            name: z.string().describe('Template name'),
+            description: z.string().describe('Template description'),
+            useCase: z.string().describe('Best use case'),
             structure: z
               .object({
                 sheets: z.array(
@@ -483,33 +421,33 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
                     name: z.string(),
                     headers: z.array(z.string()),
                     columnTypes: z.array(z.string()).optional(),
-                  }),
+                  })
                 ),
                 features: z
                   .array(z.string())
                   .describe(
-                    'Recommended features (e.g., "conditional formatting", "data validation")',
+                    'Recommended features (e.g., "conditional formatting", "data validation")'
                   ),
               })
               .optional(),
             exampleData: z.array(z.array(z.unknown())).optional(),
-          }),
+          })
         ),
-        reasoning: z.string().describe("AI explanation of suggestions"),
+        reasoning: z.string().describe('AI explanation of suggestions'),
       })
       .optional(),
 
     // Formula generation (AI-powered)
     formula: z
       .object({
-        formula: z.string().describe("Generated formula (with = prefix)"),
-        explanation: z.string().describe("Formula explanation"),
+        formula: z.string().describe('Generated formula (with = prefix)'),
+        explanation: z.string().describe('Formula explanation'),
         components: z
           .array(
             z.object({
               part: z.string(),
               description: z.string(),
-            }),
+            })
           )
           .optional(),
         alternatives: z
@@ -517,13 +455,10 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
             z.object({
               formula: z.string(),
               reason: z.string(),
-            }),
+            })
           )
           .optional(),
-        warnings: z
-          .array(z.string())
-          .optional()
-          .describe("Potential issues or considerations"),
+        warnings: z.array(z.string()).optional().describe('Potential issues or considerations'),
       })
       .optional(),
 
@@ -534,24 +469,22 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
           z.object({
             chartType: z
               .enum([
-                "LINE",
-                "AREA",
-                "COLUMN",
-                "BAR",
-                "SCATTER",
-                "PIE",
-                "COMBO",
-                "HISTOGRAM",
-                "CANDLESTICK",
-                "ORG",
-                "TREEMAP",
-                "WATERFALL",
+                'LINE',
+                'AREA',
+                'COLUMN',
+                'BAR',
+                'SCATTER',
+                'PIE',
+                'COMBO',
+                'HISTOGRAM',
+                'CANDLESTICK',
+                'ORG',
+                'TREEMAP',
+                'WATERFALL',
               ])
-              .describe("Recommended chart type"),
+              .describe('Recommended chart type'),
             title: z.string(),
-            reasoning: z
-              .string()
-              .describe("Why this chart type is recommended"),
+            reasoning: z.string().describe('Why this chart type is recommended'),
             configuration: z
               .object({
                 xAxis: z.string().optional(),
@@ -564,10 +497,10 @@ const AnalysisResponseSchema = z.discriminatedUnion("success", [
               .number()
               .min(0)
               .max(100)
-              .describe("How well this chart fits the data (0-100)"),
-          }),
+              .describe('How well this chart fits the data (0-100)'),
+          })
         ),
-        dataInsights: z.string().describe("AI insights about the data"),
+        dataInsights: z.string().describe('AI insights about the data'),
       })
       .optional(),
 
@@ -584,7 +517,7 @@ export const SheetsAnalysisOutputSchema = z.object({
 });
 
 export const SHEETS_ANALYSIS_ANNOTATIONS: ToolAnnotations = {
-  title: "Data Analysis (DEPRECATED)",
+  title: 'Data Analysis (DEPRECATED)',
   readOnlyHint: true, // READ-ONLY
   destructiveHint: false,
   idempotentHint: true,
@@ -597,20 +530,20 @@ export const SHEETS_ANALYSIS_ANNOTATIONS: ToolAnnotations = {
  */
 export const SHEETS_ANALYSIS_DEPRECATION = {
   deprecated: true,
-  deprecatedSince: "2026-01-12",
-  removalDate: "2026-04-12", // 90 days
-  replacement: "sheets_analyze",
+  deprecatedSince: '2026-01-12',
+  removalDate: '2026-04-12', // 90 days
+  replacement: 'sheets_analyze',
   migrationGuide: {
-    data_quality: "analyze_quality",
-    formula_audit: "analyze_quality",
-    structure_analysis: "analyze_structure",
-    statistics: "analyze_data",
-    correlations: "detect_patterns",
-    summary: "analyze_data",
-    detect_patterns: "detect_patterns",
-    column_analysis: "analyze_data",
-    generate_formula: "generate_formula",
-    suggest_chart: "suggest_visualization",
+    data_quality: 'analyze_quality',
+    formula_audit: 'analyze_quality',
+    structure_analysis: 'analyze_structure',
+    statistics: 'analyze_data',
+    correlations: 'detect_patterns',
+    summary: 'analyze_data',
+    detect_patterns: 'detect_patterns',
+    column_analysis: 'analyze_data',
+    generate_formula: 'generate_formula',
+    suggest_chart: 'suggest_visualization',
   },
 } as const;
 

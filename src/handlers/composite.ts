@@ -9,19 +9,16 @@
  * @module handlers/composite
  */
 
-import type { sheets_v4 } from "googleapis";
-import { BaseHandler, type HandlerContext, type HandlerError } from "./base.js";
+import type { sheets_v4 } from 'googleapis';
+import { BaseHandler, type HandlerContext, type HandlerError } from './base.js';
 import {
   CompositeOperationsService,
   type CsvImportResult,
   type SmartAppendResult,
   type BulkUpdateResult,
   type DeduplicateResult,
-} from "../services/composite-operations.js";
-import {
-  SheetResolver,
-  initializeSheetResolver,
-} from "../services/sheet-resolver.js";
+} from '../services/composite-operations.js';
+import { SheetResolver, initializeSheetResolver } from '../services/sheet-resolver.js';
 import type {
   CompositeInput,
   CompositeOutput,
@@ -29,13 +26,10 @@ import type {
   CompositeSmartAppendInput,
   CompositeBulkUpdateInput,
   CompositeDeduplicateInput,
-} from "../schemas/composite.js";
-import type { Intent } from "../core/intent.js";
-import { getRequestLogger } from "../utils/request-context.js";
-import {
-  optimizeResponse,
-  type VerbosityLevel,
-} from "../utils/response-optimizer.js";
+} from '../schemas/composite.js';
+import type { Intent } from '../core/intent.js';
+import { getRequestLogger } from '../utils/request-context.js';
+import type { VerbosityLevel } from '../utils/response-optimizer.js';
 
 // ============================================================================
 // Handler
@@ -46,26 +40,40 @@ import {
  *
  * Provides high-level operations that combine multiple API calls.
  */
-export class CompositeHandler extends BaseHandler<
-  CompositeInput,
-  CompositeOutput
-> {
+export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutput> {
   private sheetsApi: sheets_v4.Sheets;
   private compositeService: CompositeOperationsService;
   private sheetResolver: SheetResolver;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
-    super("sheets_composite", context);
+    super('sheets_composite', context);
     this.sheetsApi = sheetsApi;
 
     // Initialize sheet resolver
     this.sheetResolver = initializeSheetResolver(sheetsApi);
 
     // Initialize composite operations service
-    this.compositeService = new CompositeOperationsService(
-      sheetsApi,
-      this.sheetResolver,
-    );
+    this.compositeService = new CompositeOperationsService(sheetsApi, this.sheetResolver);
+  }
+
+  /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: CompositeOutput['response'],
+    verbosity: VerbosityLevel
+  ): CompositeOutput['response'] {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field
+      const { _meta, ...rest } = response as Record<string, unknown>;
+      return rest as CompositeOutput['response'];
+    }
+
+    return response;
   }
 
   async handle(input: CompositeInput): Promise<CompositeOutput> {
@@ -73,28 +81,20 @@ export class CompositeHandler extends BaseHandler<
     this.trackSpreadsheetId(input.spreadsheetId);
 
     try {
-      let response: CompositeOutput["response"];
+      let response: CompositeOutput['response'];
 
       switch (input.action) {
-        case "import_csv":
-          response = await this.handleImportCsv(
-            input as CompositeImportCsvInput,
-          );
+        case 'import_csv':
+          response = await this.handleImportCsv(input as CompositeImportCsvInput);
           break;
-        case "smart_append":
-          response = await this.handleSmartAppend(
-            input as CompositeSmartAppendInput,
-          );
+        case 'smart_append':
+          response = await this.handleSmartAppend(input as CompositeSmartAppendInput);
           break;
-        case "bulk_update":
-          response = await this.handleBulkUpdate(
-            input as CompositeBulkUpdateInput,
-          );
+        case 'bulk_update':
+          response = await this.handleBulkUpdate(input as CompositeBulkUpdateInput);
           break;
-        case "deduplicate":
-          response = await this.handleDeduplicate(
-            input as CompositeDeduplicateInput,
-          );
+        case 'deduplicate':
+          response = await this.handleDeduplicate(input as CompositeDeduplicateInput);
           break;
         default:
           throw new Error(`Unknown action: ${input.action}`);
@@ -105,15 +105,16 @@ export class CompositeHandler extends BaseHandler<
         spreadsheetId: input.spreadsheetId,
       });
 
-      // Optimize response based on verbosity
+      // Apply verbosity filtering (LLM optimization)
       const verbosity: VerbosityLevel =
-        "verbosity" in input
-          ? ((input as { verbosity?: VerbosityLevel }).verbosity ?? "standard")
-          : "standard";
+        'verbosity' in input
+          ? ((input as { verbosity?: VerbosityLevel }).verbosity ?? 'standard')
+          : 'standard';
+      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
 
-      return { response: optimizeResponse(response, { verbosity }) };
+      return { response: filteredResponse };
     } catch (error) {
-      logger.error("Composite operation failed", {
+      logger.error('Composite operation failed', {
         action: input.action,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -131,13 +132,13 @@ export class CompositeHandler extends BaseHandler<
   // ==========================================================================
 
   private async handleImportCsv(
-    input: CompositeImportCsvInput,
-  ): Promise<CompositeOutput["response"]> {
+    input: CompositeImportCsvInput
+  ): Promise<CompositeOutput['response']> {
     const result: CsvImportResult = await this.compositeService.importCsv({
       spreadsheetId: input.spreadsheetId,
       sheet:
         input.sheet !== undefined
-          ? typeof input.sheet === "string"
+          ? typeof input.sheet === 'string'
             ? input.sheet
             : input.sheet
           : undefined,
@@ -152,26 +153,26 @@ export class CompositeHandler extends BaseHandler<
 
     return {
       success: true as const,
-      action: "import_csv" as const,
+      action: 'import_csv' as const,
       ...result,
       mutation: {
         cellsAffected: result.rowsImported * result.columnsImported,
         reversible: false,
       },
       _meta: this.generateMeta(
-        "import_csv",
+        'import_csv',
         input as unknown as Record<string, unknown>,
         result as unknown as Record<string, unknown>,
         {
           cellsAffected: result.rowsImported * result.columnsImported,
-        },
+        }
       ),
     };
   }
 
   private async handleSmartAppend(
-    input: CompositeSmartAppendInput,
-  ): Promise<CompositeOutput["response"]> {
+    input: CompositeSmartAppendInput
+  ): Promise<CompositeOutput['response']> {
     const result: SmartAppendResult = await this.compositeService.smartAppend({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
@@ -185,24 +186,24 @@ export class CompositeHandler extends BaseHandler<
 
     return {
       success: true as const,
-      action: "smart_append" as const,
+      action: 'smart_append' as const,
       ...result,
       mutation: {
         cellsAffected,
         reversible: false,
       },
       _meta: this.generateMeta(
-        "smart_append",
+        'smart_append',
         input as unknown as Record<string, unknown>,
         result as unknown as Record<string, unknown>,
-        { cellsAffected },
+        { cellsAffected }
       ),
     };
   }
 
   private async handleBulkUpdate(
-    input: CompositeBulkUpdateInput,
-  ): Promise<CompositeOutput["response"]> {
+    input: CompositeBulkUpdateInput
+  ): Promise<CompositeOutput['response']> {
     const result: BulkUpdateResult = await this.compositeService.bulkUpdate({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
@@ -213,26 +214,26 @@ export class CompositeHandler extends BaseHandler<
 
     return {
       success: true as const,
-      action: "bulk_update" as const,
+      action: 'bulk_update' as const,
       ...result,
       mutation: {
         cellsAffected: result.cellsModified,
         reversible: false,
       },
       _meta: this.generateMeta(
-        "bulk_update",
+        'bulk_update',
         input as unknown as Record<string, unknown>,
         result as unknown as Record<string, unknown>,
         {
           cellsAffected: result.cellsModified,
-        },
+        }
       ),
     };
   }
 
   private async handleDeduplicate(
-    input: CompositeDeduplicateInput,
-  ): Promise<CompositeOutput["response"]> {
+    input: CompositeDeduplicateInput
+  ): Promise<CompositeOutput['response']> {
     const result: DeduplicateResult = await this.compositeService.deduplicate({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
@@ -243,7 +244,7 @@ export class CompositeHandler extends BaseHandler<
 
     return {
       success: true as const,
-      action: "deduplicate" as const,
+      action: 'deduplicate' as const,
       ...result,
       mutation:
         result.rowsDeleted > 0
@@ -253,9 +254,9 @@ export class CompositeHandler extends BaseHandler<
             }
           : undefined,
       _meta: this.generateMeta(
-        "deduplicate",
+        'deduplicate',
         input as unknown as Record<string, unknown>,
-        result as unknown as Record<string, unknown>,
+        result as unknown as Record<string, unknown>
       ),
     };
   }

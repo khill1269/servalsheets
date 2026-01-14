@@ -8,7 +8,7 @@
  * @module extraction-fields
  */
 
-import { FIELD_MASKS, combineFieldMasks } from "./field-masks.js";
+import { FIELD_MASKS, combineFieldMasks } from './field-masks.js';
 
 // ============================================================================
 // EXTRACTION TIER DEFINITIONS
@@ -18,69 +18,69 @@ import { FIELD_MASKS, combineFieldMasks } from "./field-masks.js";
  * Extraction tier identifiers ordered by data volume
  */
 export type ExtractionTier =
-  | "MINIMAL"
-  | "STRUCTURAL"
-  | "FORMATTING"
-  | "DATA_COMPLETE"
-  | "COLLABORATION"
-  | "COMPREHENSIVE";
+  | 'MINIMAL'
+  | 'STRUCTURAL'
+  | 'FORMATTING'
+  | 'DATA_COMPLETE'
+  | 'COLLABORATION'
+  | 'COMPREHENSIVE';
 
 /**
  * Test category domain identifiers
  */
-export type TestDomain = "structural" | "data" | "formatting" | "collaboration";
+export type TestDomain = 'structural' | 'data' | 'formatting' | 'collaboration';
 
 /**
  * Individual test category identifiers (43 total)
  */
 export type TestCategory =
   // Structural Domain (15 categories)
-  | "sheet_count"
-  | "sheet_names"
-  | "sheet_order"
-  | "hidden_sheets"
-  | "sheet_protection"
-  | "grid_dimensions"
-  | "frozen_rows"
-  | "frozen_columns"
-  | "merged_cells"
-  | "row_heights"
-  | "column_widths"
-  | "row_groups"
-  | "column_groups"
-  | "filter_views"
-  | "named_ranges"
+  | 'sheet_count'
+  | 'sheet_names'
+  | 'sheet_order'
+  | 'hidden_sheets'
+  | 'sheet_protection'
+  | 'grid_dimensions'
+  | 'frozen_rows'
+  | 'frozen_columns'
+  | 'merged_cells'
+  | 'row_heights'
+  | 'column_widths'
+  | 'row_groups'
+  | 'column_groups'
+  | 'filter_views'
+  | 'named_ranges'
   // Data Domain (12 categories)
-  | "cell_values"
-  | "cell_formulas"
-  | "formula_errors"
-  | "data_types"
-  | "empty_cells"
-  | "data_validation"
-  | "dropdown_lists"
-  | "hyperlinks"
-  | "notes"
-  | "checkboxes"
-  | "pivot_tables"
-  | "charts"
+  | 'cell_values'
+  | 'cell_formulas'
+  | 'formula_errors'
+  | 'data_types'
+  | 'empty_cells'
+  | 'data_validation'
+  | 'dropdown_lists'
+  | 'hyperlinks'
+  | 'notes'
+  | 'checkboxes'
+  | 'pivot_tables'
+  | 'charts'
   // Formatting Domain (10 categories)
-  | "font_styles"
-  | "cell_colors"
-  | "borders"
-  | "number_formats"
-  | "text_alignment"
-  | "text_wrapping"
-  | "conditional_formatting"
-  | "alternating_colors"
-  | "cell_padding"
-  | "text_rotation"
+  | 'font_styles'
+  | 'cell_colors'
+  | 'borders'
+  | 'number_formats'
+  | 'text_alignment'
+  | 'text_wrapping'
+  | 'conditional_formatting'
+  | 'alternating_colors'
+  | 'cell_padding'
+  | 'text_rotation'
   // Collaboration Domain (6 categories)
-  | "sharing_permissions"
-  | "edit_history"
-  | "comments"
-  | "suggested_edits"
-  | "protected_ranges"
-  | "owner_info";
+  | 'sharing_permissions'
+  | 'edit_history'
+  | 'comments'
+  | 'suggested_edits'
+  | 'protected_ranges'
+  | 'owner_info';
 
 /**
  * Configuration for a single extraction tier
@@ -129,11 +129,11 @@ export interface TierConfig {
  * Basic spreadsheet metadata - fastest retrieval
  */
 export const TIER_MINIMAL: TierConfig = {
-  tier: "MINIMAL",
-  description: "Basic spreadsheet metadata (ID, title, URL, locale)",
+  tier: 'MINIMAL',
+  description: 'Basic spreadsheet metadata (ID, title, URL, locale)',
   fieldMask: FIELD_MASKS.SPREADSHEET_BASIC,
   cacheTTL: 600_000, // 10 minutes - stable data
-  expectedSize: { min: "1KB", max: "5KB" },
+  expectedSize: { min: '1KB', max: '5KB' },
   categories: [],
   domains: [],
   priority: 1,
@@ -145,35 +145,35 @@ export const TIER_MINIMAL: TierConfig = {
  * Sheet properties and structural metadata
  */
 export const TIER_STRUCTURAL: TierConfig = {
-  tier: "STRUCTURAL",
-  description: "Sheet properties, dimensions, merges, groups, filters",
+  tier: 'STRUCTURAL',
+  description: 'Sheet properties, dimensions, merges, groups, filters',
   fieldMask: combineFieldMasks(
     FIELD_MASKS.SPREADSHEET_WITH_SHEETS,
     FIELD_MASKS.NAMED_RANGES,
     FIELD_MASKS.MERGES,
     FIELD_MASKS.FILTER_VIEWS,
-    "sheets(properties,merges,filterViews,basicFilter)",
-    "sheets(rowMetadata(hiddenByUser,pixelSize),columnMetadata(hiddenByUser,pixelSize))",
+    'sheets(properties,merges,filterViews,basicFilter)',
+    'sheets(rowMetadata(hiddenByUser,pixelSize),columnMetadata(hiddenByUser,pixelSize))'
   ),
   cacheTTL: 300_000, // 5 minutes
-  expectedSize: { min: "10KB", max: "200KB" },
+  expectedSize: { min: '10KB', max: '200KB' },
   categories: [
-    "sheet_count",
-    "sheet_names",
-    "sheet_order",
-    "hidden_sheets",
-    "grid_dimensions",
-    "frozen_rows",
-    "frozen_columns",
-    "merged_cells",
-    "row_heights",
-    "column_widths",
-    "row_groups",
-    "column_groups",
-    "filter_views",
-    "named_ranges",
+    'sheet_count',
+    'sheet_names',
+    'sheet_order',
+    'hidden_sheets',
+    'grid_dimensions',
+    'frozen_rows',
+    'frozen_columns',
+    'merged_cells',
+    'row_heights',
+    'column_widths',
+    'row_groups',
+    'column_groups',
+    'filter_views',
+    'named_ranges',
   ],
-  domains: ["structural"],
+  domains: ['structural'],
   priority: 2,
   requiresGridData: false,
 };
@@ -183,29 +183,29 @@ export const TIER_STRUCTURAL: TierConfig = {
  * Cell formatting and conditional formatting rules
  */
 export const TIER_FORMATTING: TierConfig = {
-  tier: "FORMATTING",
-  description: "Cell formats, styles, conditional formatting, banding",
+  tier: 'FORMATTING',
+  description: 'Cell formats, styles, conditional formatting, banding',
   fieldMask: combineFieldMasks(
     FIELD_MASKS.CELL_FORMAT,
     FIELD_MASKS.CONDITIONAL_FORMATS,
-    "sheets(bandedRanges)",
-    "sheets(data(rowData(values(userEnteredFormat,effectiveFormat,textFormatRuns))))",
+    'sheets(bandedRanges)',
+    'sheets(data(rowData(values(userEnteredFormat,effectiveFormat,textFormatRuns))))'
   ),
   cacheTTL: 180_000, // 3 minutes - formats change less frequently
-  expectedSize: { min: "50KB", max: "2MB" },
+  expectedSize: { min: '50KB', max: '2MB' },
   categories: [
-    "font_styles",
-    "cell_colors",
-    "borders",
-    "number_formats",
-    "text_alignment",
-    "text_wrapping",
-    "conditional_formatting",
-    "alternating_colors",
-    "cell_padding",
-    "text_rotation",
+    'font_styles',
+    'cell_colors',
+    'borders',
+    'number_formats',
+    'text_alignment',
+    'text_wrapping',
+    'conditional_formatting',
+    'alternating_colors',
+    'cell_padding',
+    'text_rotation',
   ],
-  domains: ["formatting"],
+  domains: ['formatting'],
   priority: 3,
   requiresGridData: true,
 };
@@ -215,30 +215,30 @@ export const TIER_FORMATTING: TierConfig = {
  * All cell values, formulas, and data validation
  */
 export const TIER_DATA_COMPLETE: TierConfig = {
-  tier: "DATA_COMPLETE",
-  description: "Cell values, formulas, validation, hyperlinks, notes",
+  tier: 'DATA_COMPLETE',
+  description: 'Cell values, formulas, validation, hyperlinks, notes',
   fieldMask: combineFieldMasks(
     FIELD_MASKS.DATA_VALIDATION,
-    "sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue,hyperlink,note,dataValidation,pivotTable))))",
-    "sheets(charts)",
+    'sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue,hyperlink,note,dataValidation,pivotTable))))',
+    'sheets(charts)'
   ),
   cacheTTL: 120_000, // 2 minutes - data changes frequently
-  expectedSize: { min: "100KB", max: "10MB" },
+  expectedSize: { min: '100KB', max: '10MB' },
   categories: [
-    "cell_values",
-    "cell_formulas",
-    "formula_errors",
-    "data_types",
-    "empty_cells",
-    "data_validation",
-    "dropdown_lists",
-    "hyperlinks",
-    "notes",
-    "checkboxes",
-    "pivot_tables",
-    "charts",
+    'cell_values',
+    'cell_formulas',
+    'formula_errors',
+    'data_types',
+    'empty_cells',
+    'data_validation',
+    'dropdown_lists',
+    'hyperlinks',
+    'notes',
+    'checkboxes',
+    'pivot_tables',
+    'charts',
   ],
-  domains: ["data"],
+  domains: ['data'],
   priority: 4,
   requiresGridData: true,
 };
@@ -248,25 +248,25 @@ export const TIER_DATA_COMPLETE: TierConfig = {
  * Sharing, permissions, protection, and history
  */
 export const TIER_COLLABORATION: TierConfig = {
-  tier: "COLLABORATION",
-  description: "Protection, sharing permissions, comments, edit history",
+  tier: 'COLLABORATION',
+  description: 'Protection, sharing permissions, comments, edit history',
   fieldMask: combineFieldMasks(
     FIELD_MASKS.PROTECTED_RANGES,
-    "sheets(protectedRanges)",
-    "sheets(properties(sheetId,title))",
+    'sheets(protectedRanges)',
+    'sheets(properties(sheetId,title))'
   ),
   cacheTTL: 60_000, // 1 minute - permissions can change
-  expectedSize: { min: "5KB", max: "100KB" },
+  expectedSize: { min: '5KB', max: '100KB' },
   categories: [
-    "sheet_protection",
-    "sharing_permissions",
-    "edit_history",
-    "comments",
-    "suggested_edits",
-    "protected_ranges",
-    "owner_info",
+    'sheet_protection',
+    'sharing_permissions',
+    'edit_history',
+    'comments',
+    'suggested_edits',
+    'protected_ranges',
+    'owner_info',
   ],
-  domains: ["collaboration"],
+  domains: ['collaboration'],
   priority: 5,
   requiresGridData: false,
   apiParams: {
@@ -280,58 +280,58 @@ export const TIER_COLLABORATION: TierConfig = {
  * Everything - full spreadsheet extraction
  */
 export const TIER_COMPREHENSIVE: TierConfig = {
-  tier: "COMPREHENSIVE",
-  description: "Complete spreadsheet data including all metadata and grid data",
-  fieldMask: "*", // All fields
+  tier: 'COMPREHENSIVE',
+  description: 'Complete spreadsheet data including all metadata and grid data',
+  fieldMask: '*', // All fields
   cacheTTL: 60_000, // 1 minute - full data snapshot
-  expectedSize: { min: "500KB", max: "50MB" },
+  expectedSize: { min: '500KB', max: '50MB' },
   categories: [
     // All 43 categories
-    "sheet_count",
-    "sheet_names",
-    "sheet_order",
-    "hidden_sheets",
-    "sheet_protection",
-    "grid_dimensions",
-    "frozen_rows",
-    "frozen_columns",
-    "merged_cells",
-    "row_heights",
-    "column_widths",
-    "row_groups",
-    "column_groups",
-    "filter_views",
-    "named_ranges",
-    "cell_values",
-    "cell_formulas",
-    "formula_errors",
-    "data_types",
-    "empty_cells",
-    "data_validation",
-    "dropdown_lists",
-    "hyperlinks",
-    "notes",
-    "checkboxes",
-    "pivot_tables",
-    "charts",
-    "font_styles",
-    "cell_colors",
-    "borders",
-    "number_formats",
-    "text_alignment",
-    "text_wrapping",
-    "conditional_formatting",
-    "alternating_colors",
-    "cell_padding",
-    "text_rotation",
-    "sharing_permissions",
-    "edit_history",
-    "comments",
-    "suggested_edits",
-    "protected_ranges",
-    "owner_info",
+    'sheet_count',
+    'sheet_names',
+    'sheet_order',
+    'hidden_sheets',
+    'sheet_protection',
+    'grid_dimensions',
+    'frozen_rows',
+    'frozen_columns',
+    'merged_cells',
+    'row_heights',
+    'column_widths',
+    'row_groups',
+    'column_groups',
+    'filter_views',
+    'named_ranges',
+    'cell_values',
+    'cell_formulas',
+    'formula_errors',
+    'data_types',
+    'empty_cells',
+    'data_validation',
+    'dropdown_lists',
+    'hyperlinks',
+    'notes',
+    'checkboxes',
+    'pivot_tables',
+    'charts',
+    'font_styles',
+    'cell_colors',
+    'borders',
+    'number_formats',
+    'text_alignment',
+    'text_wrapping',
+    'conditional_formatting',
+    'alternating_colors',
+    'cell_padding',
+    'text_rotation',
+    'sharing_permissions',
+    'edit_history',
+    'comments',
+    'suggested_edits',
+    'protected_ranges',
+    'owner_info',
   ],
-  domains: ["structural", "data", "formatting", "collaboration"],
+  domains: ['structural', 'data', 'formatting', 'collaboration'],
   priority: 6,
   requiresGridData: true,
   apiParams: {
@@ -361,55 +361,55 @@ export const EXTRACTION_TIERS: Record<ExtractionTier, TierConfig> = {
  */
 export const CATEGORY_TO_TIER: Record<TestCategory, ExtractionTier> = {
   // Structural categories -> STRUCTURAL tier
-  sheet_count: "STRUCTURAL",
-  sheet_names: "STRUCTURAL",
-  sheet_order: "STRUCTURAL",
-  hidden_sheets: "STRUCTURAL",
-  sheet_protection: "COLLABORATION", // Needs protection data
-  grid_dimensions: "STRUCTURAL",
-  frozen_rows: "STRUCTURAL",
-  frozen_columns: "STRUCTURAL",
-  merged_cells: "STRUCTURAL",
-  row_heights: "STRUCTURAL",
-  column_widths: "STRUCTURAL",
-  row_groups: "STRUCTURAL",
-  column_groups: "STRUCTURAL",
-  filter_views: "STRUCTURAL",
-  named_ranges: "STRUCTURAL",
+  sheet_count: 'STRUCTURAL',
+  sheet_names: 'STRUCTURAL',
+  sheet_order: 'STRUCTURAL',
+  hidden_sheets: 'STRUCTURAL',
+  sheet_protection: 'COLLABORATION', // Needs protection data
+  grid_dimensions: 'STRUCTURAL',
+  frozen_rows: 'STRUCTURAL',
+  frozen_columns: 'STRUCTURAL',
+  merged_cells: 'STRUCTURAL',
+  row_heights: 'STRUCTURAL',
+  column_widths: 'STRUCTURAL',
+  row_groups: 'STRUCTURAL',
+  column_groups: 'STRUCTURAL',
+  filter_views: 'STRUCTURAL',
+  named_ranges: 'STRUCTURAL',
 
   // Data categories -> DATA_COMPLETE tier
-  cell_values: "DATA_COMPLETE",
-  cell_formulas: "DATA_COMPLETE",
-  formula_errors: "DATA_COMPLETE",
-  data_types: "DATA_COMPLETE",
-  empty_cells: "DATA_COMPLETE",
-  data_validation: "DATA_COMPLETE",
-  dropdown_lists: "DATA_COMPLETE",
-  hyperlinks: "DATA_COMPLETE",
-  notes: "DATA_COMPLETE",
-  checkboxes: "DATA_COMPLETE",
-  pivot_tables: "DATA_COMPLETE",
-  charts: "DATA_COMPLETE",
+  cell_values: 'DATA_COMPLETE',
+  cell_formulas: 'DATA_COMPLETE',
+  formula_errors: 'DATA_COMPLETE',
+  data_types: 'DATA_COMPLETE',
+  empty_cells: 'DATA_COMPLETE',
+  data_validation: 'DATA_COMPLETE',
+  dropdown_lists: 'DATA_COMPLETE',
+  hyperlinks: 'DATA_COMPLETE',
+  notes: 'DATA_COMPLETE',
+  checkboxes: 'DATA_COMPLETE',
+  pivot_tables: 'DATA_COMPLETE',
+  charts: 'DATA_COMPLETE',
 
   // Formatting categories -> FORMATTING tier
-  font_styles: "FORMATTING",
-  cell_colors: "FORMATTING",
-  borders: "FORMATTING",
-  number_formats: "FORMATTING",
-  text_alignment: "FORMATTING",
-  text_wrapping: "FORMATTING",
-  conditional_formatting: "FORMATTING",
-  alternating_colors: "FORMATTING",
-  cell_padding: "FORMATTING",
-  text_rotation: "FORMATTING",
+  font_styles: 'FORMATTING',
+  cell_colors: 'FORMATTING',
+  borders: 'FORMATTING',
+  number_formats: 'FORMATTING',
+  text_alignment: 'FORMATTING',
+  text_wrapping: 'FORMATTING',
+  conditional_formatting: 'FORMATTING',
+  alternating_colors: 'FORMATTING',
+  cell_padding: 'FORMATTING',
+  text_rotation: 'FORMATTING',
 
   // Collaboration categories -> COLLABORATION tier
-  sharing_permissions: "COLLABORATION",
-  edit_history: "COLLABORATION",
-  comments: "COLLABORATION",
-  suggested_edits: "COLLABORATION",
-  protected_ranges: "COLLABORATION",
-  owner_info: "COLLABORATION",
+  sharing_permissions: 'COLLABORATION',
+  edit_history: 'COLLABORATION',
+  comments: 'COLLABORATION',
+  suggested_edits: 'COLLABORATION',
+  protected_ranges: 'COLLABORATION',
+  owner_info: 'COLLABORATION',
 };
 
 /**
@@ -417,55 +417,55 @@ export const CATEGORY_TO_TIER: Record<TestCategory, ExtractionTier> = {
  */
 export const DOMAIN_CATEGORIES: Record<TestDomain, TestCategory[]> = {
   structural: [
-    "sheet_count",
-    "sheet_names",
-    "sheet_order",
-    "hidden_sheets",
-    "sheet_protection",
-    "grid_dimensions",
-    "frozen_rows",
-    "frozen_columns",
-    "merged_cells",
-    "row_heights",
-    "column_widths",
-    "row_groups",
-    "column_groups",
-    "filter_views",
-    "named_ranges",
+    'sheet_count',
+    'sheet_names',
+    'sheet_order',
+    'hidden_sheets',
+    'sheet_protection',
+    'grid_dimensions',
+    'frozen_rows',
+    'frozen_columns',
+    'merged_cells',
+    'row_heights',
+    'column_widths',
+    'row_groups',
+    'column_groups',
+    'filter_views',
+    'named_ranges',
   ],
   data: [
-    "cell_values",
-    "cell_formulas",
-    "formula_errors",
-    "data_types",
-    "empty_cells",
-    "data_validation",
-    "dropdown_lists",
-    "hyperlinks",
-    "notes",
-    "checkboxes",
-    "pivot_tables",
-    "charts",
+    'cell_values',
+    'cell_formulas',
+    'formula_errors',
+    'data_types',
+    'empty_cells',
+    'data_validation',
+    'dropdown_lists',
+    'hyperlinks',
+    'notes',
+    'checkboxes',
+    'pivot_tables',
+    'charts',
   ],
   formatting: [
-    "font_styles",
-    "cell_colors",
-    "borders",
-    "number_formats",
-    "text_alignment",
-    "text_wrapping",
-    "conditional_formatting",
-    "alternating_colors",
-    "cell_padding",
-    "text_rotation",
+    'font_styles',
+    'cell_colors',
+    'borders',
+    'number_formats',
+    'text_alignment',
+    'text_wrapping',
+    'conditional_formatting',
+    'alternating_colors',
+    'cell_padding',
+    'text_rotation',
   ],
   collaboration: [
-    "sharing_permissions",
-    "edit_history",
-    "comments",
-    "suggested_edits",
-    "protected_ranges",
-    "owner_info",
+    'sharing_permissions',
+    'edit_history',
+    'comments',
+    'suggested_edits',
+    'protected_ranges',
+    'owner_info',
   ],
 };
 
@@ -477,9 +477,7 @@ export const DOMAIN_CATEGORIES: Record<TestDomain, TestCategory[]> = {
  * Get the optimal tiers needed for a set of test categories
  * Returns tiers in priority order (lowest priority first for efficient fetching)
  */
-export function getTiersForCategories(
-  categories: TestCategory[],
-): ExtractionTier[] {
+export function getTiersForCategories(categories: TestCategory[]): ExtractionTier[] {
   const tiersNeeded = new Set<ExtractionTier>();
 
   for (const category of categories) {
@@ -488,7 +486,7 @@ export function getTiersForCategories(
 
   // Sort by priority
   return Array.from(tiersNeeded).sort(
-    (a, b) => EXTRACTION_TIERS[a].priority - EXTRACTION_TIERS[b].priority,
+    (a, b) => EXTRACTION_TIERS[a].priority - EXTRACTION_TIERS[b].priority
   );
 }
 
@@ -522,8 +520,8 @@ export function getTierForCategory(category: TestCategory): TierConfig {
  * Merge multiple tier field masks efficiently
  */
 export function mergeFieldMasks(tiers: ExtractionTier[]): string {
-  if (tiers.includes("COMPREHENSIVE")) {
-    return "*";
+  if (tiers.includes('COMPREHENSIVE')) {
+    return '*';
   }
 
   const masks = tiers.map((tier) => EXTRACTION_TIERS[tier].fieldMask);
@@ -548,9 +546,7 @@ export function requiresGridData(tiers: ExtractionTier[]): boolean {
  * Check if any tier requires Drive API
  */
 export function requiresDriveApi(tiers: ExtractionTier[]): boolean {
-  return tiers.some(
-    (tier) => EXTRACTION_TIERS[tier].apiParams?.["requiresDriveApi"] === true,
-  );
+  return tiers.some((tier) => EXTRACTION_TIERS[tier].apiParams?.['requiresDriveApi'] === true);
 }
 
 /**

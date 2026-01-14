@@ -5,15 +5,10 @@
  * Supports: working → input_required → completed/failed/cancelled
  */
 
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { logger } from "../utils/logger.js";
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { logger } from '../utils/logger.js';
 
-export type TaskStatus =
-  | "working"
-  | "input_required"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
 
 export interface Task {
   taskId: string;
@@ -27,7 +22,7 @@ export interface Task {
 
 export interface TaskResult {
   result: CallToolResult;
-  status: "completed" | "failed" | "cancelled";
+  status: 'completed' | 'failed' | 'cancelled';
 }
 
 /**
@@ -41,15 +36,11 @@ export interface TaskResult {
 export interface TaskStore {
   createTask(options: { ttl?: number }): Promise<Task>;
   getTask(taskId: string): Promise<Task | null>;
-  updateTaskStatus(
-    taskId: string,
-    status: TaskStatus,
-    message?: string,
-  ): Promise<void>;
+  updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void>;
   storeTaskResult(
     taskId: string,
-    status: "completed" | "failed" | "cancelled",
-    result: CallToolResult,
+    status: 'completed' | 'failed' | 'cancelled',
+    result: CallToolResult
   ): Promise<void>;
   getTaskResult(taskId: string): Promise<TaskResult | null>;
   deleteTask(taskId: string): Promise<void>;
@@ -116,7 +107,7 @@ export class InMemoryTaskStore implements TaskStore {
 
     const task: Task = {
       taskId,
-      status: "working",
+      status: 'working',
       createdAt: now,
       lastUpdatedAt: now,
       ttl,
@@ -154,11 +145,7 @@ export class InMemoryTaskStore implements TaskStore {
    * @param status - New status
    * @param message - Optional human-readable status message
    */
-  async updateTaskStatus(
-    taskId: string,
-    status: TaskStatus,
-    message?: string,
-  ): Promise<void> {
+  async updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void> {
     const task = this.tasks.get(taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
@@ -180,8 +167,8 @@ export class InMemoryTaskStore implements TaskStore {
    */
   async storeTaskResult(
     taskId: string,
-    status: "completed" | "failed" | "cancelled",
-    result: CallToolResult,
+    status: 'completed' | 'failed' | 'cancelled',
+    result: CallToolResult
   ): Promise<void> {
     // Update task status to terminal state
     await this.updateTaskStatus(taskId, status);
@@ -308,18 +295,18 @@ export class InMemoryTaskStore implements TaskStore {
       throw new Error(`Task ${taskId} not found`);
     }
 
-    if (task.status === "completed" || task.status === "failed") {
+    if (task.status === 'completed' || task.status === 'failed') {
       // Already finished, can't cancel
       return;
     }
 
     // Mark as cancelled
-    this.cancelledTasks.set(taskId, reason || "Cancelled by client");
+    this.cancelledTasks.set(taskId, reason || 'Cancelled by client');
 
     // Update task status
-    await this.updateTaskStatus(taskId, "cancelled");
+    await this.updateTaskStatus(taskId, 'cancelled');
 
-    logger.warn("Task cancelled", { taskId, reason: reason || "no reason" });
+    logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }
 
   /**
@@ -366,7 +353,7 @@ export class RedisTaskStore implements TaskStore {
 
   constructor(
     private redisUrl: string,
-    keyPrefix: string = "servalsheets:task:",
+    keyPrefix: string = 'servalsheets:task:'
   ) {
     this.keyPrefix = keyPrefix;
   }
@@ -382,24 +369,24 @@ export class RedisTaskStore implements TaskStore {
     try {
       // Dynamic import to make Redis optional
       // @ts-ignore - Redis is an optional peer dependency
-      const { createClient } = await import("redis");
+      const { createClient } = await import('redis');
 
       this.client = createClient({
         url: this.redisUrl,
       });
 
-      this.client.on("error", (err: Error) => {
-        logger.error("Redis task store error", { error: err });
+      this.client.on('error', (err: Error) => {
+        logger.error('Redis task store error', { error: err });
       });
 
       await this.client.connect();
       this.connected = true;
-      logger.info("Redis task store connected");
+      logger.info('Redis task store connected');
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
           `Make sure Redis is installed (npm install redis) and running. ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
+          `Error: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -424,7 +411,7 @@ export class RedisTaskStore implements TaskStore {
 
     const task: Task = {
       taskId,
-      status: "working",
+      status: 'working',
       createdAt: now,
       lastUpdatedAt: now,
       ttl,
@@ -439,7 +426,7 @@ export class RedisTaskStore implements TaskStore {
       createdAt: task.createdAt,
       lastUpdatedAt: task.lastUpdatedAt,
       ttl: task.ttl.toString(),
-      pollInterval: task.pollInterval?.toString() ?? "5000",
+      pollInterval: task.pollInterval?.toString() ?? '5000',
     });
 
     // Set expiration (convert ms to seconds)
@@ -464,15 +451,13 @@ export class RedisTaskStore implements TaskStore {
 
     // Parse task data
     const task: Task = {
-      taskId: taskData["taskId"],
-      status: taskData["status"] as TaskStatus,
-      statusMessage: taskData["statusMessage"],
-      createdAt: taskData["createdAt"],
-      lastUpdatedAt: taskData["lastUpdatedAt"],
-      ttl: parseInt(taskData["ttl"], 10),
-      pollInterval: taskData["pollInterval"]
-        ? parseInt(taskData["pollInterval"], 10)
-        : undefined,
+      taskId: taskData['taskId'],
+      status: taskData['status'] as TaskStatus,
+      statusMessage: taskData['statusMessage'],
+      createdAt: taskData['createdAt'],
+      lastUpdatedAt: taskData['lastUpdatedAt'],
+      ttl: parseInt(taskData['ttl'], 10),
+      pollInterval: taskData['pollInterval'] ? parseInt(taskData['pollInterval'], 10) : undefined,
     };
 
     // Check if expired based on application TTL (handles sub-second TTLs)
@@ -489,11 +474,7 @@ export class RedisTaskStore implements TaskStore {
   /**
    * Update task status and message
    */
-  async updateTaskStatus(
-    taskId: string,
-    status: TaskStatus,
-    message?: string,
-  ): Promise<void> {
+  async updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void> {
     await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
@@ -511,7 +492,7 @@ export class RedisTaskStore implements TaskStore {
     };
 
     if (message !== undefined) {
-      updates["statusMessage"] = message;
+      updates['statusMessage'] = message;
     }
 
     await this.client.hSet(taskKey, updates);
@@ -522,8 +503,8 @@ export class RedisTaskStore implements TaskStore {
    */
   async storeTaskResult(
     taskId: string,
-    status: "completed" | "failed" | "cancelled",
-    result: CallToolResult,
+    status: 'completed' | 'failed' | 'cancelled',
+    result: CallToolResult
   ): Promise<void> {
     await this.ensureConnected();
 
@@ -559,7 +540,7 @@ export class RedisTaskStore implements TaskStore {
     try {
       return JSON.parse(resultData) as TaskResult;
     } catch (error) {
-      logger.error("Failed to parse Redis task result", { error });
+      logger.error('Failed to parse Redis task result', { error });
       return null;
     }
   }
@@ -586,7 +567,7 @@ export class RedisTaskStore implements TaskStore {
     await this.ensureConnected();
 
     let cleaned = 0;
-    let cursor = "0";
+    let cursor = '0';
 
     // Use SCAN to iterate over task keys
     do {
@@ -600,7 +581,7 @@ export class RedisTaskStore implements TaskStore {
 
       for (const key of keys) {
         // Skip result keys
-        if (key.includes(":result:")) continue;
+        if (key.includes(':result:')) continue;
 
         // Check if key still exists (may have been expired)
         const exists = await this.client.exists(key);
@@ -608,7 +589,7 @@ export class RedisTaskStore implements TaskStore {
           cleaned++;
         }
       }
-    } while (cursor !== "0");
+    } while (cursor !== '0');
 
     return cleaned;
   }
@@ -621,7 +602,7 @@ export class RedisTaskStore implements TaskStore {
 
     const tasks: Task[] = [];
     const now = Date.now();
-    let cursor = "0";
+    let cursor = '0';
 
     // Use SCAN to iterate over task keys
     do {
@@ -635,19 +616,19 @@ export class RedisTaskStore implements TaskStore {
 
       for (const key of keys) {
         // Skip result keys
-        if (key.includes(":result:")) continue;
+        if (key.includes(':result:')) continue;
 
         const taskData = await this.client.hGetAll(key);
         if (taskData && Object.keys(taskData).length > 0) {
           const task: Task = {
-            taskId: taskData["taskId"],
-            status: taskData["status"] as TaskStatus,
-            statusMessage: taskData["statusMessage"],
-            createdAt: taskData["createdAt"],
-            lastUpdatedAt: taskData["lastUpdatedAt"],
-            ttl: parseInt(taskData["ttl"], 10),
-            pollInterval: taskData["pollInterval"]
-              ? parseInt(taskData["pollInterval"], 10)
+            taskId: taskData['taskId'],
+            status: taskData['status'] as TaskStatus,
+            statusMessage: taskData['statusMessage'],
+            createdAt: taskData['createdAt'],
+            lastUpdatedAt: taskData['lastUpdatedAt'],
+            ttl: parseInt(taskData['ttl'], 10),
+            pollInterval: taskData['pollInterval']
+              ? parseInt(taskData['pollInterval'], 10)
               : undefined,
           };
 
@@ -658,7 +639,7 @@ export class RedisTaskStore implements TaskStore {
           }
         }
       }
-    } while (cursor !== "0");
+    } while (cursor !== '0');
 
     // Sort by creation time, newest first
     tasks.sort((a, b) => {
@@ -717,22 +698,22 @@ export class RedisTaskStore implements TaskStore {
       throw new Error(`Task ${taskId} not found`);
     }
 
-    const status = task["status"];
-    if (status === "completed" || status === "failed") {
+    const status = task['status'];
+    if (status === 'completed' || status === 'failed') {
       return;
     }
 
     // Store cancellation reason
     const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
-    const ttlSeconds = Math.ceil(parseInt(task["ttl"], 10) / 1000);
-    await this.client.set(cancelKey, reason || "Cancelled by client", {
+    const ttlSeconds = Math.ceil(parseInt(task['ttl'], 10) / 1000);
+    await this.client.set(cancelKey, reason || 'Cancelled by client', {
       EX: ttlSeconds,
     });
 
     // Update task status
-    await this.updateTaskStatus(taskId, "cancelled");
+    await this.updateTaskStatus(taskId, 'cancelled');
 
-    logger.warn("Task cancelled", { taskId, reason: reason || "no reason" });
+    logger.warn('Task cancelled', { taskId, reason: reason || 'no reason' });
   }
 
   /**

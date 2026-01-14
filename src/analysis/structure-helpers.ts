@@ -12,7 +12,7 @@
  * Part of Ultimate Analysis Tool - Cross-Sheet Intelligence capability
  */
 
-import type { sheets_v4 } from "googleapis";
+import type { sheets_v4 } from 'googleapis';
 
 // ============================================================================
 // Type Definitions
@@ -39,7 +39,7 @@ export interface DataRegion {
 export interface ColumnSchema {
   columnIndex: number;
   columnName: string;
-  inferredType: "string" | "number" | "boolean" | "date" | "mixed";
+  inferredType: 'string' | 'number' | 'boolean' | 'date' | 'mixed';
   typeConfidence: number; // 0-100
   cardinality: number; // unique value count
   uniqueRatio: number; // unique / total (0-1)
@@ -92,24 +92,22 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
       hasHeaders: false,
       headerRow: 0,
       confidence: 0,
-      reasoning: "No data provided",
+      reasoning: 'No data provided',
       headers: [],
     };
   }
 
   if (data.length === 1) {
     // Single row - assume it's headers if all strings
-    const allStrings = data[0].every(
-      (cell) => typeof cell === "string" || cell === null || cell === "",
+    const allStrings = data[0]!.every(
+      (cell) => typeof cell === 'string' || cell === null || cell === ''
     );
     return {
       hasHeaders: allStrings,
       headerRow: 0,
       confidence: allStrings ? 60 : 30,
-      reasoning: allStrings
-        ? "Single row with all string values"
-        : "Single row with mixed types",
-      headers: data[0].map(String),
+      reasoning: allStrings ? 'Single row with all string values' : 'Single row with mixed types',
+      headers: data[0]!.map(String),
     };
   }
 
@@ -126,7 +124,7 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
 
     // Heuristic 1: Type consistency (all strings or nulls)
     const stringCount = row.filter(
-      (cell) => typeof cell === "string" || cell === null || cell === "",
+      (cell) => typeof cell === 'string' || cell === null || cell === ''
     ).length;
     const stringRatio = stringCount / row.length;
     score += stringRatio * 25;
@@ -138,7 +136,7 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
 
     // Heuristic 3: Non-numeric (headers are rarely all numbers)
     const numericCount = row.filter(
-      (cell) => typeof cell === "number" || !isNaN(Number(cell)),
+      (cell) => typeof cell === 'number' || !isNaN(Number(cell))
     ).length;
     const nonNumericRatio = 1 - numericCount / row.length;
     score += nonNumericRatio * 15;
@@ -164,8 +162,7 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
       for (let i = 0; i < Math.min(rowTypes.length, nextRowTypes.length); i++) {
         if (rowTypes[i] !== nextRowTypes[i]) typeChanges++;
       }
-      const changeRatio =
-        typeChanges / Math.min(rowTypes.length, nextRowTypes.length);
+      const changeRatio = typeChanges / Math.min(rowTypes.length, nextRowTypes.length);
       score += changeRatio * 20;
     }
 
@@ -178,10 +175,10 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
 
   const hasHeaders = maxScore > 50; // Threshold
   const headers = hasHeaders
-    ? data[headerRowIndex].map((cell) =>
-        String(cell || `Column ${data[headerRowIndex].indexOf(cell) + 1}`),
+    ? data[headerRowIndex]!.map((cell) =>
+        String(cell || `Column ${data[headerRowIndex]!.indexOf(cell) + 1}`)
       )
-    : data[0].map((_, idx) => `Column ${idx + 1}`);
+    : data[0]!.map((_, idx) => `Column ${idx + 1}`);
 
   return {
     hasHeaders,
@@ -189,7 +186,7 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
     confidence: Math.min(maxScore, 100),
     reasoning: hasHeaders
       ? `Row ${headerRowIndex + 1} detected as headers (score: ${maxScore.toFixed(1)})`
-      : "No clear header row detected",
+      : 'No clear header row detected',
     headers,
   };
 }
@@ -205,7 +202,7 @@ export function detectHeaderRow(data: unknown[][]): HeaderDetectionResult {
  * excluding empty rows/columns at edges.
  */
 export function detectDataRegion(data: unknown[][]): DataRegion {
-  if (data.length === 0 || data[0].length === 0) {
+  if (data.length === 0 || data[0]!.length === 0) {
     return {
       startRow: 0,
       endRow: 0,
@@ -220,9 +217,7 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find first non-empty row
   let startRow = 0;
   for (let r = 0; r < data.length; r++) {
-    if (
-      data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)
-    ) {
+    if (data[r]!.some((cell) => cell !== null && cell !== '' && cell !== undefined)) {
       startRow = r;
       break;
     }
@@ -231,9 +226,7 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
   // Find last non-empty row
   let endRow = data.length - 1;
   for (let r = data.length - 1; r >= 0; r--) {
-    if (
-      data[r].some((cell) => cell !== null && cell !== "" && cell !== undefined)
-    ) {
+    if (data[r]!.some((cell) => cell !== null && cell !== '' && cell !== undefined)) {
       endRow = r;
       break;
     }
@@ -241,25 +234,17 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
 
   // Find first non-empty column
   let startCol = 0;
-  for (let c = 0; c < data[0].length; c++) {
-    if (
-      data.some(
-        (row) => row[c] !== null && row[c] !== "" && row[c] !== undefined,
-      )
-    ) {
+  for (let c = 0; c < data[0]!.length; c++) {
+    if (data.some((row) => row[c] !== null && row[c] !== '' && row[c] !== undefined)) {
       startCol = c;
       break;
     }
   }
 
   // Find last non-empty column
-  let endCol = data[0].length - 1;
-  for (let c = data[0].length - 1; c >= 0; c--) {
-    if (
-      data.some(
-        (row) => row[c] !== null && row[c] !== "" && row[c] !== undefined,
-      )
-    ) {
+  let endCol = data[0]!.length - 1;
+  for (let c = data[0]!.length - 1; c >= 0; c--) {
+    if (data.some((row) => row[c] !== null && row[c] !== '' && row[c] !== undefined)) {
       endCol = c;
       break;
     }
@@ -288,26 +273,23 @@ export function detectDataRegion(data: unknown[][]): DataRegion {
  *
  * Analyzes column types, cardinality, uniqueness, and provides sample values.
  */
-export function inferSchema(
-  data: unknown[][],
-  headerRow?: number,
-): ColumnSchema[] {
+export function inferSchema(data: unknown[][], headerRow?: number): ColumnSchema[] {
   if (data.length === 0) return [];
 
   const hasHeaders = headerRow !== undefined;
   const dataStartRow = hasHeaders ? headerRow + 1 : 0;
   const headers = hasHeaders
-    ? data[headerRow].map(String)
-    : data[0].map((_, idx) => `Column ${idx + 1}`);
+    ? data[headerRow]!.map(String)
+    : data[0]!.map((_, idx) => `Column ${idx + 1}`);
 
-  const numCols = data[0].length;
+  const numCols = data[0]!.length;
   const schemas: ColumnSchema[] = [];
 
   for (let colIdx = 0; colIdx < numCols; colIdx++) {
     const columnValues = data
       .slice(dataStartRow)
       .map((row) => row[colIdx])
-      .filter((val) => val !== null && val !== "" && val !== undefined);
+      .filter((val) => val !== null && val !== '' && val !== undefined);
 
     // Type inference
     const types: Record<string, number> = {
@@ -318,46 +300,42 @@ export function inferSchema(
     };
 
     for (const val of columnValues) {
-      if (typeof val === "boolean") {
-        types.boolean++;
-      } else if (typeof val === "number") {
-        types.number++;
-      } else if (typeof val === "string") {
+      if (typeof val === 'boolean') {
+        types['boolean'] = (types['boolean'] || 0) + 1;
+      } else if (typeof val === 'number') {
+        types['number'] = (types['number'] || 0) + 1;
+      } else if (typeof val === 'string') {
         // Check if it's a date string
         const datePattern = /^\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}/;
         if (datePattern.test(val)) {
-          types.date++;
+          types['date'] = (types['date'] || 0) + 1;
         } else {
-          types.string++;
+          types['string'] = (types['string'] || 0) + 1;
         }
       }
     }
 
     // Determine dominant type
-    let inferredType: ColumnSchema["inferredType"] = "string";
+    let inferredType: ColumnSchema['inferredType'] = 'string';
     let maxCount = 0;
     for (const [type, count] of Object.entries(types)) {
       if (count > maxCount) {
         maxCount = count;
-        inferredType = type as ColumnSchema["inferredType"];
+        inferredType = type as ColumnSchema['inferredType'];
       }
     }
 
     // If no clear dominant type, mark as mixed
-    const totalTyped = Object.values(types).reduce(
-      (sum, count) => sum + count,
-      0,
-    );
+    const totalTyped = Object.values(types).reduce((sum, count) => sum + count, 0);
     const dominantRatio = maxCount / totalTyped;
     if (dominantRatio < 0.8 && totalTyped > 0) {
-      inferredType = "mixed";
+      inferredType = 'mixed';
     }
 
     // Cardinality and uniqueness
     const uniqueValues = new Set(columnValues.map(String));
     const cardinality = uniqueValues.size;
-    const uniqueRatio =
-      columnValues.length > 0 ? cardinality / columnValues.length : 0;
+    const uniqueRatio = columnValues.length > 0 ? cardinality / columnValues.length : 0;
 
     // Nulls
     const totalRows = data.length - dataStartRow;
@@ -398,15 +376,15 @@ export function detectForeignKeys(
     name: string;
     data: unknown[][];
     schema: ColumnSchema[];
-  }>,
+  }>
 ): ForeignKeyCandidate[] {
   const candidates: ForeignKeyCandidate[] = [];
 
   // Compare each sheet with every other sheet
   for (let i = 0; i < sheets.length; i++) {
     for (let j = i + 1; j < sheets.length; j++) {
-      const sheet1 = sheets[i];
-      const sheet2 = sheets[j];
+      const sheet1 = sheets[i]!;
+      const sheet2 = sheets[j]!;
 
       // Compare each column in sheet1 with each column in sheet2
       for (const col1 of sheet1.schema) {
@@ -425,22 +403,19 @@ export function detectForeignKeys(
             sheet1.data
               .slice(1)
               .map((row) => String(row[col1.columnIndex]))
-              .filter((v) => v && v !== ""),
+              .filter((v) => v && v !== '')
           );
 
           const values2 = new Set(
             sheet2.data
               .slice(1)
               .map((row) => String(row[col2.columnIndex]))
-              .filter((v) => v && v !== ""),
+              .filter((v) => v && v !== '')
           );
 
           // Calculate match ratio
-          const intersection = new Set(
-            [...values1].filter((x) => values2.has(x)),
-          );
-          const matchRatio =
-            intersection.size / Math.min(values1.size, values2.size);
+          const intersection = new Set([...values1].filter((x) => values2.has(x)));
+          const matchRatio = intersection.size / Math.min(values1.size, values2.size);
 
           // If significant overlap, it's a candidate
           if (matchRatio > 0.5) {
@@ -471,9 +446,7 @@ export function detectForeignKeys(
 /**
  * Analyze merged cells in a sheet
  */
-export function findMergedCells(
-  sheetData: sheets_v4.Schema$Sheet,
-): MergedCellInfo[] {
+export function findMergedCells(sheetData: sheets_v4.Schema$Sheet): MergedCellInfo[] {
   const mergedCells: MergedCellInfo[] = [];
 
   if (!sheetData.merges) return mergedCells;
@@ -493,19 +466,13 @@ export function findMergedCells(
 
     // Get value from merged cell (top-left corner)
     let value: unknown = null;
-    if (
-      sheetData.data?.[0]?.rowData?.[merge.startRowIndex]?.values?.[
-        merge.startColumnIndex
-      ]
-    ) {
+    if (sheetData.data?.[0]?.rowData?.[merge.startRowIndex]?.values?.[merge.startColumnIndex]) {
       const cellData =
-        sheetData.data[0].rowData[merge.startRowIndex].values[
-          merge.startColumnIndex
-        ];
+        sheetData.data![0]!.rowData![merge.startRowIndex]!.values![merge.startColumnIndex]!;
       value =
-        cellData.formattedValue ||
-        cellData.effectiveValue?.stringValue ||
-        cellData.effectiveValue?.numberValue;
+        cellData!.formattedValue ||
+        cellData!.effectiveValue?.stringValue ||
+        cellData!.effectiveValue?.numberValue;
     }
 
     // Convert to A1 notation
@@ -531,9 +498,7 @@ export function findMergedCells(
 /**
  * Detect protected ranges in a sheet
  */
-export function findProtectedRanges(
-  sheetData: sheets_v4.Schema$Sheet,
-): ProtectedRangeInfo[] {
+export function findProtectedRanges(sheetData: sheets_v4.Schema$Sheet): ProtectedRangeInfo[] {
   const protectedRanges: ProtectedRangeInfo[] = [];
 
   if (!sheetData.protectedRanges) return protectedRanges;
@@ -541,13 +506,13 @@ export function findProtectedRanges(
   for (const protection of sheetData.protectedRanges) {
     const range = protection.range
       ? `${String.fromCharCode(65 + (protection.range.startColumnIndex || 0))}${(protection.range.startRowIndex || 0) + 1}:${String.fromCharCode(65 + ((protection.range.endColumnIndex || 1) - 1))}${protection.range.endRowIndex || 1}`
-      : "Entire Sheet";
+      : 'Entire Sheet';
 
     const editors = protection.editors?.users?.map((user) => user) || [];
 
     protectedRanges.push({
       range,
-      description: protection.description || "No description",
+      description: protection.description || 'No description',
       warningOnly: protection.warningOnly || false,
       editors,
     });

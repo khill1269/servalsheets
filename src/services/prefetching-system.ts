@@ -12,14 +12,11 @@
  * - Configurable strategies
  */
 
-import type { sheets_v4 } from "googleapis";
-import {
-  getAccessPatternTracker,
-  type PredictedAccess,
-} from "./access-pattern-tracker.js";
-import { cacheManager, createCacheKey } from "../utils/cache-manager.js";
-import { logger } from "../utils/logger.js";
-import PQueue from "p-queue";
+import type { sheets_v4 } from 'googleapis';
+import { getAccessPatternTracker, type PredictedAccess } from './access-pattern-tracker.js';
+import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
+import { logger } from '../utils/logger.js';
+import PQueue from 'p-queue';
 
 export interface PrefetchOptions {
   /** Enable/disable prefetching (default: true) */
@@ -123,7 +120,7 @@ export class PrefetchingSystem {
       this.startBackgroundRefresh();
     }
 
-    logger.info("Prefetching system initialized", {
+    logger.info('Prefetching system initialized', {
       enabled: this.enabled,
       minConfidence: this.minConfidence,
       backgroundRefresh: this.backgroundRefresh,
@@ -156,7 +153,7 @@ export class PrefetchingSystem {
       this.queuePrefetch(task);
     }
 
-    logger.debug("Prefetch predictions generated", {
+    logger.debug('Prefetch predictions generated', {
       total: predictions.length,
       queued: tasks.length,
       spreadsheetId: current.spreadsheetId,
@@ -170,7 +167,7 @@ export class PrefetchingSystem {
   async prefetchOnOpen(spreadsheetId: string): Promise<void> {
     if (!this.enabled) return;
 
-    logger.debug("Prefetching on spreadsheet open (comprehensive mode)", {
+    logger.debug('Prefetching on spreadsheet open (comprehensive mode)', {
       spreadsheetId,
     });
 
@@ -180,17 +177,16 @@ export class PrefetchingSystem {
       spreadsheetId,
       comprehensive: true,
       confidence: 0.95,
-      reason:
-        "Comprehensive metadata on open (all sheets, charts, formats, rules)",
+      reason: 'Comprehensive metadata on open (all sheets, charts, formats, rules)',
       priority: 10,
     });
 
     // Strategy 2: Prefetch first 100 rows (for data analysis)
     this.queuePrefetch({
       spreadsheetId,
-      range: "A1:Z100",
+      range: 'A1:Z100',
       confidence: 0.8,
-      reason: "First 100 rows on open",
+      reason: 'First 100 rows on open',
       priority: 9,
     });
   }
@@ -216,8 +212,8 @@ export class PrefetchingSystem {
     const cacheKey = this.getPrefetchCacheKey(task);
 
     // Skip if already in cache
-    if (cacheManager.has("prefetch", cacheKey)) {
-      logger.debug("Prefetch skipped - already cached", {
+    if (cacheManager.has('prefetch', cacheKey)) {
+      logger.debug('Prefetch skipped - already cached', {
         spreadsheetId: task.spreadsheetId,
         range: task.range,
       });
@@ -240,7 +236,7 @@ export class PrefetchingSystem {
           this.stats.successfulPrefetches++;
         } catch (error) {
           this.stats.failedPrefetches++;
-          logger.debug("Prefetch failed", {
+          logger.debug('Prefetch failed', {
             spreadsheetId: task.spreadsheetId,
             range: task.range,
             error: error instanceof Error ? error.message : String(error),
@@ -252,7 +248,7 @@ export class PrefetchingSystem {
           }, 5000);
         }
       },
-      { priority: task.priority },
+      { priority: task.priority }
     );
   }
 
@@ -263,7 +259,7 @@ export class PrefetchingSystem {
   private async executePrefetch(task: PrefetchTask): Promise<void> {
     const cacheKey = this.getPrefetchCacheKey(task);
 
-    logger.debug("Executing prefetch", {
+    logger.debug('Executing prefetch', {
       spreadsheetId: task.spreadsheetId,
       range: task.range,
       comprehensive: task.comprehensive,
@@ -276,11 +272,11 @@ export class PrefetchingSystem {
       const response = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId: task.spreadsheetId,
         range: task.range,
-        valueRenderOption: "UNFORMATTED_VALUE",
+        valueRenderOption: 'UNFORMATTED_VALUE',
       });
 
       // Cache the result
-      cacheManager.set(cacheKey, response.data, { namespace: "prefetch" });
+      cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });
 
       // Track metadata for refresh
       this.trackRefreshMetadata(cacheKey, {
@@ -292,11 +288,11 @@ export class PrefetchingSystem {
     } else if (task.comprehensive) {
       // Phase 2: Prefetch COMPREHENSIVE metadata (all analysis data in one call)
       const fields = [
-        "spreadsheetId",
-        "properties",
-        "namedRanges",
-        "sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
-      ].join(",");
+        'spreadsheetId',
+        'properties',
+        'namedRanges',
+        'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
+      ].join(',');
 
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId: task.spreadsheetId,
@@ -305,14 +301,11 @@ export class PrefetchingSystem {
       });
 
       // Cache with the comprehensive key (shared with BaseHandler.fetchComprehensiveMetadata)
-      const comprehensiveCacheKey = createCacheKey(
-        "spreadsheet:comprehensive",
-        {
-          spreadsheetId: task.spreadsheetId,
-        },
-      );
+      const comprehensiveCacheKey = createCacheKey('spreadsheet:comprehensive', {
+        spreadsheetId: task.spreadsheetId,
+      });
       cacheManager.set(comprehensiveCacheKey, response.data, {
-        namespace: "spreadsheet",
+        namespace: 'spreadsheet',
         ttl: 300000, // 5 minutes
       });
 
@@ -324,7 +317,7 @@ export class PrefetchingSystem {
         accessCount: 1,
       });
 
-      logger.debug("Comprehensive metadata prefetched", {
+      logger.debug('Comprehensive metadata prefetched', {
         spreadsheetId: task.spreadsheetId,
         sheetsCount: response.data.sheets?.length ?? 0,
         namedRangesCount: response.data.namedRanges?.length ?? 0,
@@ -337,7 +330,7 @@ export class PrefetchingSystem {
       });
 
       // Cache the result
-      cacheManager.set(cacheKey, response.data, { namespace: "prefetch" });
+      cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });
 
       // Track metadata for refresh
       this.trackRefreshMetadata(cacheKey, {
@@ -347,7 +340,7 @@ export class PrefetchingSystem {
       });
     }
 
-    logger.debug("Prefetch completed", {
+    logger.debug('Prefetch completed', {
       spreadsheetId: task.spreadsheetId,
       range: task.range,
       comprehensive: task.comprehensive,
@@ -360,10 +353,7 @@ export class PrefetchingSystem {
    *
    * Stores metadata needed to reconstruct refresh tasks
    */
-  private trackRefreshMetadata(
-    cacheKey: string,
-    metadata: RefreshMetadata,
-  ): void {
+  private trackRefreshMetadata(cacheKey: string, metadata: RefreshMetadata): void {
     // Update existing metadata or create new
     const existing = this.refreshMetadata.get(cacheKey);
     if (existing) {
@@ -397,7 +387,7 @@ export class PrefetchingSystem {
       this.refreshTimer.unref();
     }
 
-    logger.debug("Background refresh started", {
+    logger.debug('Background refresh started', {
       checkInterval: `${this.refreshCheckInterval}ms`,
       refreshThreshold: `${this.refreshThreshold}ms`,
     });
@@ -412,25 +402,22 @@ export class PrefetchingSystem {
   private async refreshExpiringSoon(): Promise<void> {
     try {
       // Get entries from prefetch namespace that are expiring within the threshold
-      const expiringEntries = cacheManager.getExpiringEntries(
-        this.refreshThreshold,
-        "prefetch",
-      );
+      const expiringEntries = cacheManager.getExpiringEntries(this.refreshThreshold, 'prefetch');
 
       // Also check spreadsheet namespace for comprehensive metadata
       const expiringSpreadsheetEntries = cacheManager.getExpiringEntries(
         this.refreshThreshold,
-        "spreadsheet",
+        'spreadsheet'
       );
 
       const allExpiring = [...expiringEntries, ...expiringSpreadsheetEntries];
 
       if (allExpiring.length === 0) {
-        logger.debug("Background refresh: no expiring entries");
+        logger.debug('Background refresh: no expiring entries');
         return;
       }
 
-      logger.debug("Background refresh: expiring entries detected", {
+      logger.debug('Background refresh: expiring entries detected', {
         count: allExpiring.length,
         threshold: `${this.refreshThreshold}ms`,
       });
@@ -446,14 +433,14 @@ export class PrefetchingSystem {
       }
 
       if (refreshTasks.length === 0) {
-        logger.debug("Background refresh: no valid refresh tasks");
+        logger.debug('Background refresh: no valid refresh tasks');
         return;
       }
 
       // Sort by priority (hot data first)
       refreshTasks.sort((a, b) => b.priority - a.priority);
 
-      logger.debug("Background refresh: queueing refresh tasks", {
+      logger.debug('Background refresh: queueing refresh tasks', {
         total: refreshTasks.length,
         highPriority: refreshTasks.filter((t) => t.priority >= 8).length,
       });
@@ -467,17 +454,17 @@ export class PrefetchingSystem {
               this.stats.successfulRefreshes++;
             } catch (error) {
               this.stats.failedRefreshes++;
-              logger.debug("Background refresh failed", {
+              logger.debug('Background refresh failed', {
                 cacheKey: task.cacheKey,
                 error: error instanceof Error ? error.message : String(error),
               });
             }
           },
-          { priority: task.priority },
+          { priority: task.priority }
         );
       }
     } catch (error) {
-      logger.warn("Background refresh check failed", {
+      logger.warn('Background refresh check failed', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -489,10 +476,7 @@ export class PrefetchingSystem {
    * Parses the cache key to reconstruct the original request parameters
    * and determines refresh priority based on access patterns.
    */
-  private createRefreshTask(
-    cacheKey: string,
-    expiresIn: number,
-  ): RefreshTask | null {
+  private createRefreshTask(cacheKey: string, expiresIn: number): RefreshTask | null {
     // Try to get stored metadata first
     const metadata = this.refreshMetadata.get(cacheKey);
     if (metadata) {
@@ -500,7 +484,7 @@ export class PrefetchingSystem {
       const priority = this.calculateRefreshPriority(
         metadata.accessCount,
         metadata.lastAccessed,
-        expiresIn,
+        expiresIn
       );
 
       return {
@@ -517,7 +501,7 @@ export class PrefetchingSystem {
     // Fallback: Parse cache key to reconstruct task
     const parsed = this.parseCacheKey(cacheKey);
     if (!parsed) {
-      logger.debug("Background refresh: unable to parse cache key", {
+      logger.debug('Background refresh: unable to parse cache key', {
         cacheKey,
       });
       return null;
@@ -545,25 +529,18 @@ export class PrefetchingSystem {
   private calculateRefreshPriority(
     accessCount: number,
     lastAccessed: number,
-    expiresIn: number,
+    expiresIn: number
   ): number {
     // Base priority on access frequency (capped at 5)
     const frequencyScore = Math.min(5, accessCount);
 
     // Recency score: higher for recently accessed data
     const ageMs = Date.now() - lastAccessed;
-    const recencyScore =
-      ageMs < 60000 ? 3 : ageMs < 300000 ? 2 : ageMs < 600000 ? 1 : 0;
+    const recencyScore = ageMs < 60000 ? 3 : ageMs < 300000 ? 2 : ageMs < 600000 ? 1 : 0;
 
     // Urgency score: higher for entries expiring sooner
     const urgencyScore =
-      expiresIn < 30000
-        ? 2
-        : expiresIn < 60000
-          ? 1
-          : expiresIn < 120000
-            ? 0.5
-            : 0;
+      expiresIn < 30000 ? 2 : expiresIn < 60000 ? 1 : expiresIn < 120000 ? 0.5 : 0;
 
     // Combine scores (max 10)
     const priority = Math.min(10, frequencyScore + recencyScore + urgencyScore);
@@ -583,12 +560,10 @@ export class PrefetchingSystem {
   } | null {
     try {
       // Remove namespace prefix if present
-      const key = cacheKey.includes(":")
-        ? cacheKey.substring(cacheKey.indexOf(":") + 1)
-        : cacheKey;
+      const key = cacheKey.includes(':') ? cacheKey.substring(cacheKey.indexOf(':') + 1) : cacheKey;
 
       // Check for comprehensive metadata pattern
-      if (key.includes("spreadsheet:comprehensive")) {
+      if (key.includes('spreadsheet:comprehensive')) {
         const match = key.match(/spreadsheetId="([^"]+)"/);
         if (match?.[1]) {
           return {
@@ -600,25 +575,25 @@ export class PrefetchingSystem {
 
       // Parse standard cache key format
       const params: Record<string, string> = {};
-      const parts = key.split("&");
+      const parts = key.split('&');
 
       for (const part of parts) {
-        const [paramKey, paramValue] = part.split("=");
+        const [paramKey, paramValue] = part.split('=');
         if (paramKey && paramValue) {
           // Remove quotes from JSON-stringified values
-          params[paramKey] = paramValue.replace(/^"(.*)"$/, "$1");
+          params[paramKey] = paramValue.replace(/^"(.*)"$/, '$1');
         }
       }
 
       // Extract spreadsheetId
-      let spreadsheetId = params["spreadsheetId"];
+      let spreadsheetId = params['spreadsheetId'];
 
       // If not found in params, try to extract from first part
       if (!spreadsheetId && parts[0]) {
         const firstPart = parts[0];
-        if (firstPart.includes(":")) {
-          const afterColon = firstPart.split(":").pop();
-          if (afterColon && !afterColon.includes("=")) {
+        if (firstPart.includes(':')) {
+          const afterColon = firstPart.split(':').pop();
+          if (afterColon && !afterColon.includes('=')) {
             spreadsheetId = afterColon;
           }
         }
@@ -630,11 +605,11 @@ export class PrefetchingSystem {
 
       return {
         spreadsheetId,
-        range: params["range"],
-        comprehensive: params["type"] === "metadata",
+        range: params['range'],
+        comprehensive: params['type'] === 'metadata',
       };
     } catch (error) {
-      logger.debug("Failed to parse cache key", {
+      logger.debug('Failed to parse cache key', {
         cacheKey,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -650,7 +625,7 @@ export class PrefetchingSystem {
   private async refreshCacheEntry(task: RefreshTask): Promise<void> {
     this.stats.totalRefreshes++;
 
-    logger.debug("Refreshing cache entry", {
+    logger.debug('Refreshing cache entry', {
       spreadsheetId: task.spreadsheetId,
       range: task.range,
       comprehensive: task.comprehensive,
@@ -664,28 +639,28 @@ export class PrefetchingSystem {
         const response = await this.sheetsApi.spreadsheets.values.get({
           spreadsheetId: task.spreadsheetId,
           range: task.range,
-          valueRenderOption: "UNFORMATTED_VALUE",
+          valueRenderOption: 'UNFORMATTED_VALUE',
         });
 
         // Update cache
         const cacheKey = createCacheKey(task.spreadsheetId, {
           range: task.range,
-          type: "values",
+          type: 'values',
         });
-        cacheManager.set(cacheKey, response.data, { namespace: "prefetch" });
+        cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });
 
-        logger.debug("Cache entry refreshed", {
+        logger.debug('Cache entry refreshed', {
           spreadsheetId: task.spreadsheetId,
           range: task.range,
         });
       } else if (task.comprehensive) {
         // Refresh comprehensive metadata
         const fields = [
-          "spreadsheetId",
-          "properties",
-          "namedRanges",
-          "sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
-        ].join(",");
+          'spreadsheetId',
+          'properties',
+          'namedRanges',
+          'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
+        ].join(',');
 
         const response = await this.sheetsApi.spreadsheets.get({
           spreadsheetId: task.spreadsheetId,
@@ -694,18 +669,15 @@ export class PrefetchingSystem {
         });
 
         // Update cache
-        const comprehensiveCacheKey = createCacheKey(
-          "spreadsheet:comprehensive",
-          {
-            spreadsheetId: task.spreadsheetId,
-          },
-        );
+        const comprehensiveCacheKey = createCacheKey('spreadsheet:comprehensive', {
+          spreadsheetId: task.spreadsheetId,
+        });
         cacheManager.set(comprehensiveCacheKey, response.data, {
-          namespace: "spreadsheet",
+          namespace: 'spreadsheet',
           ttl: 300000, // 5 minutes
         });
 
-        logger.debug("Comprehensive metadata refreshed", {
+        logger.debug('Comprehensive metadata refreshed', {
           spreadsheetId: task.spreadsheetId,
           sheetsCount: response.data.sheets?.length ?? 0,
         });
@@ -718,11 +690,11 @@ export class PrefetchingSystem {
 
         // Update cache
         const cacheKey = createCacheKey(task.spreadsheetId, {
-          type: "metadata",
+          type: 'metadata',
         });
-        cacheManager.set(cacheKey, response.data, { namespace: "prefetch" });
+        cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });
 
-        logger.debug("Basic metadata refreshed", {
+        logger.debug('Basic metadata refreshed', {
           spreadsheetId: task.spreadsheetId,
         });
       }
@@ -733,7 +705,7 @@ export class PrefetchingSystem {
         metadata.lastAccessed = Date.now();
       }
     } catch (error) {
-      logger.debug("Failed to refresh cache entry", {
+      logger.debug('Failed to refresh cache entry', {
         spreadsheetId: task.spreadsheetId,
         range: task.range,
         error: error instanceof Error ? error.message : String(error),
@@ -750,15 +722,15 @@ export class PrefetchingSystem {
     if (task.range) {
       return createCacheKey(task.spreadsheetId, {
         range: task.range,
-        type: "values",
+        type: 'values',
       });
     }
     if (task.comprehensive) {
-      return createCacheKey("spreadsheet:comprehensive", {
+      return createCacheKey('spreadsheet:comprehensive', {
         spreadsheetId: task.spreadsheetId,
       });
     }
-    return createCacheKey(task.spreadsheetId, { type: "metadata" });
+    return createCacheKey(task.spreadsheetId, { type: 'metadata' });
   }
 
   /**
@@ -788,8 +760,7 @@ export class PrefetchingSystem {
       cacheHitsFromPrefetch: this.stats.cacheHitsFromPrefetch,
       prefetchHitRate:
         this.stats.totalPrefetches > 0
-          ? (this.stats.cacheHitsFromPrefetch / this.stats.totalPrefetches) *
-            100
+          ? (this.stats.cacheHitsFromPrefetch / this.stats.totalPrefetches) * 100
           : 0,
       totalRefreshes: this.stats.totalRefreshes,
       successfulRefreshes: this.stats.successfulRefreshes,
@@ -819,17 +790,13 @@ let prefetchingSystem: PrefetchingSystem | null = null;
 /**
  * Initialize the prefetching system
  */
-export function initPrefetchingSystem(
-  sheetsApi: sheets_v4.Sheets,
-): PrefetchingSystem {
+export function initPrefetchingSystem(sheetsApi: sheets_v4.Sheets): PrefetchingSystem {
   if (!prefetchingSystem) {
     prefetchingSystem = new PrefetchingSystem(sheetsApi, {
-      enabled: process.env["PREFETCH_ENABLED"] !== "false",
-      concurrency: parseInt(process.env["PREFETCH_CONCURRENCY"] || "2", 10),
-      minConfidence: parseFloat(
-        process.env["PREFETCH_MIN_CONFIDENCE"] || "0.5",
-      ),
-      backgroundRefresh: process.env["PREFETCH_BACKGROUND_REFRESH"] !== "false",
+      enabled: process.env['PREFETCH_ENABLED'] !== 'false',
+      concurrency: parseInt(process.env['PREFETCH_CONCURRENCY'] || '2', 10),
+      minConfidence: parseFloat(process.env['PREFETCH_MIN_CONFIDENCE'] || '0.5'),
+      backgroundRefresh: process.env['PREFETCH_BACKGROUND_REFRESH'] !== 'false',
     });
   }
   return prefetchingSystem;
@@ -847,10 +814,8 @@ export function getPrefetchingSystem(): PrefetchingSystem | null {
  * @internal
  */
 export function resetPrefetchingSystem(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetPrefetchingSystem() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetPrefetchingSystem() can only be called in test environment');
   }
   if (prefetchingSystem) {
     prefetchingSystem.destroy();

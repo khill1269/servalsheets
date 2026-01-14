@@ -17,14 +17,14 @@
  * @module handlers/values-optimized
  */
 
-import type { sheets_v4 } from "googleapis";
+import type { sheets_v4 } from 'googleapis';
 import {
   spreadsheetCacheKey,
   countCells,
   truncateValues,
   LazyContextTracker,
-} from "./optimization.js";
-import { getHotCache } from "../utils/hot-cache.js";
+} from './optimization.js';
+import { getHotCache } from '../utils/hot-cache.js';
 
 // ============================================================================
 // OPTIMIZED CACHE OPERATIONS
@@ -38,7 +38,7 @@ const hotCache = getHotCache();
 export function fastCacheGet<T>(
   operation: string,
   spreadsheetId: string,
-  range: string,
+  range: string
 ): T | undefined {
   const key = spreadsheetCacheKey(operation, spreadsheetId, range);
 
@@ -60,7 +60,7 @@ export function fastCacheSet<T>(
   spreadsheetId: string,
   range: string,
   value: T,
-  ttl?: number,
+  ttl?: number
 ): void {
   const key = spreadsheetCacheKey(operation, spreadsheetId, range);
   hotCache.set(key, value, ttl);
@@ -69,12 +69,9 @@ export function fastCacheSet<T>(
 /**
  * Fast cache invalidation for range
  */
-export function fastCacheInvalidate(
-  spreadsheetId: string,
-  range?: string,
-): number {
+export function fastCacheInvalidate(spreadsheetId: string, range?: string): number {
   if (range) {
-    const key = spreadsheetCacheKey("values", spreadsheetId, range);
+    const key = spreadsheetCacheKey('values', spreadsheetId, range);
     hotCache.delete(key);
     return 1;
   }
@@ -103,7 +100,7 @@ export async function optimizedValuesRead(
   options?: {
     valueRenderOption?: string;
     majorDimension?: string;
-  },
+  }
 ): Promise<{
   values: unknown[][];
   range: string;
@@ -112,10 +109,8 @@ export async function optimizedValuesRead(
   cellCount: number;
 }> {
   // Try hot cache first
-  const cacheKey = spreadsheetCacheKey("values:read", spreadsheetId, range);
-  const cached = hotCache.get(cacheKey) as
-    | sheets_v4.Schema$ValueRange
-    | undefined;
+  const cacheKey = spreadsheetCacheKey('values:read', spreadsheetId, range);
+  const cached = hotCache.get(cacheKey) as sheets_v4.Schema$ValueRange | undefined;
 
   if (cached) {
     const values = cached.values ?? [];
@@ -176,7 +171,7 @@ export async function optimizedValuesWrite(
   options?: {
     valueInputOption?: string;
     includeValuesInResponse?: boolean;
-  },
+  }
 ): Promise<{
   updatedCells: number;
   updatedRows: number;
@@ -186,7 +181,7 @@ export async function optimizedValuesWrite(
   const response = await sheetsApi.spreadsheets.values.update({
     spreadsheetId,
     range,
-    valueInputOption: options?.valueInputOption ?? "USER_ENTERED",
+    valueInputOption: options?.valueInputOption ?? 'USER_ENTERED',
     includeValuesInResponse: options?.includeValuesInResponse ?? false,
     requestBody: { values },
   });
@@ -223,7 +218,7 @@ export async function optimizedBatchRead(
   options?: {
     valueRenderOption?: string;
     majorDimension?: string;
-  },
+  }
 ): Promise<{
   valueRanges: Array<{ range: string; values: unknown[][] }>;
   fromCache: number;
@@ -235,10 +230,8 @@ export async function optimizedBatchRead(
 
   // Check cache for each range
   for (const range of ranges) {
-    const cacheKey = spreadsheetCacheKey("values:read", spreadsheetId, range);
-    const cached = hotCache.get(cacheKey) as
-      | sheets_v4.Schema$ValueRange
-      | undefined;
+    const cacheKey = spreadsheetCacheKey('values:read', spreadsheetId, range);
+    const cached = hotCache.get(cacheKey) as sheets_v4.Schema$ValueRange | undefined;
 
     if (cached) {
       results.push({
@@ -269,15 +262,11 @@ export async function optimizedBatchRead(
 
     for (const vr of valueRanges) {
       // Cache result
-      const cacheKey = spreadsheetCacheKey(
-        "values:read",
-        spreadsheetId,
-        vr.range ?? "",
-      );
+      const cacheKey = spreadsheetCacheKey('values:read', spreadsheetId, vr.range ?? '');
       hotCache.set(cacheKey, vr, 60000);
 
       results.push({
-        range: vr.range ?? "",
+        range: vr.range ?? '',
         values: vr.values ?? [],
       });
     }
@@ -298,11 +287,7 @@ export async function optimizedBatchRead(
  * Create lazy context tracker for values handler
  */
 export function createValuesContextTracker(
-  updateFn: (params: {
-    spreadsheetId?: string;
-    sheetId?: number;
-    range?: string;
-  }) => void,
+  updateFn: (params: { spreadsheetId?: string; sheetId?: number; range?: string }) => void
 ): LazyContextTracker {
   return new LazyContextTracker(updateFn);
 }
@@ -322,10 +307,10 @@ export function buildReadResponse(
     maxCells?: number;
     maxRows?: number;
     spreadsheetId?: string;
-  },
+  }
 ): {
   success: true;
-  action: "read";
+  action: 'read';
   values: unknown[][];
   range: string;
   majorDimension?: string;
@@ -342,13 +327,13 @@ export function buildReadResponse(
   if (cellCount <= maxCells && values.length <= maxRows) {
     const result: {
       success: true;
-      action: "read";
+      action: 'read';
       values: unknown[][];
       range: string;
       majorDimension?: string;
     } = {
       success: true,
-      action: "read",
+      action: 'read',
       values,
       range,
     };
@@ -365,7 +350,7 @@ export function buildReadResponse(
 
   return {
     success: true,
-    action: "read",
+    action: 'read',
     values: truncated.values,
     range,
     majorDimension: options?.majorDimension,
@@ -392,10 +377,10 @@ export function buildWriteResponse(
     reversible?: boolean;
     revertSnapshotId?: string;
   },
-  dryRun?: boolean,
+  dryRun?: boolean
 ): {
   success: true;
-  action: "write";
+  action: 'write';
   updatedCells: number;
   updatedRows: number;
   updatedColumns: number;
@@ -405,7 +390,7 @@ export function buildWriteResponse(
 } {
   const result: {
     success: true;
-    action: "write";
+    action: 'write';
     updatedCells: number;
     updatedRows: number;
     updatedColumns: number;
@@ -414,7 +399,7 @@ export function buildWriteResponse(
     dryRun?: boolean;
   } = {
     success: true,
-    action: "write",
+    action: 'write',
     updatedCells,
     updatedRows,
     updatedColumns,

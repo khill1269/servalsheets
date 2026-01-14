@@ -5,8 +5,8 @@
  * Prevents session exhaustion attacks by limiting sessions per user.
  */
 
-import { SessionStore } from "./session-store.js";
-import { logger } from "../utils/logger.js";
+import { SessionStore } from './session-store.js';
+import { logger } from '../utils/logger.js';
 
 export interface SessionInfo {
   sessionId: string;
@@ -50,7 +50,7 @@ export class SessionManager {
     sessionId: string,
     userId: string,
     metadata?: Record<string, unknown>,
-    ttlSeconds?: number,
+    ttlSeconds?: number
   ): Promise<void> {
     const ttl = ttlSeconds ?? this.defaultTtlSeconds;
     const now = Date.now();
@@ -74,7 +74,7 @@ export class SessionManager {
 
       for (const session of toRemove) {
         await this.deleteSession(session.sessionId);
-        logger.info("Removed old session due to limit", {
+        logger.info('Removed old session due to limit', {
           userId,
           sessionId: session.sessionId,
           limit: this.maxSessionsPerUser,
@@ -88,7 +88,7 @@ export class SessionManager {
     // Add to user's session index
     await this.addToUserIndex(userId, sessionId, ttl);
 
-    logger.info("Session created", {
+    logger.info('Session created', {
       userId,
       sessionId,
       ttlSeconds: ttl,
@@ -122,7 +122,7 @@ export class SessionManager {
       // Remove from user index
       await this.removeFromUserIndex(session.userId, sessionId);
 
-      logger.debug("Session deleted", { sessionId, userId: session.userId });
+      logger.debug('Session deleted', { sessionId, userId: session.userId });
     }
   }
 
@@ -155,7 +155,7 @@ export class SessionManager {
       deleted++;
     }
 
-    logger.info("User sessions deleted", { userId, count: deleted });
+    logger.info('User sessions deleted', { userId, count: deleted });
     return deleted;
   }
 
@@ -169,10 +169,7 @@ export class SessionManager {
   /**
    * Update session TTL (refresh session)
    */
-  async refreshSession(
-    sessionId: string,
-    ttlSeconds?: number,
-  ): Promise<boolean> {
+  async refreshSession(sessionId: string, ttlSeconds?: number): Promise<boolean> {
     const session = await this.getSession(sessionId);
 
     if (!session) {
@@ -191,7 +188,7 @@ export class SessionManager {
     // Refresh user index TTL
     await this.addToUserIndex(session.userId, sessionId, ttl);
 
-    logger.debug("Session refreshed", { sessionId, ttlSeconds: ttl });
+    logger.debug('Session refreshed', { sessionId, ttlSeconds: ttl });
     return true;
   }
 
@@ -202,7 +199,7 @@ export class SessionManager {
     totalSessions: number;
     storeStats?: { totalKeys: number; memoryUsage?: number };
   }> {
-    const keys = this.store.keys ? await this.store.keys("session:*") : [];
+    const keys = this.store.keys ? await this.store.keys('session:*') : [];
 
     const storeStats = this.store.stats ? await this.store.stats() : undefined;
 
@@ -242,7 +239,7 @@ export class SessionManager {
   private async addToUserIndex(
     userId: string,
     sessionId: string,
-    ttlSeconds: number,
+    ttlSeconds: number
   ): Promise<void> {
     const sessionIds = await this.getUserSessionIds(userId);
 
@@ -255,20 +252,13 @@ export class SessionManager {
     await this.store.set(this.getUserIndexKey(userId), sessionIds, ttlSeconds);
   }
 
-  private async removeFromUserIndex(
-    userId: string,
-    sessionId: string,
-  ): Promise<void> {
+  private async removeFromUserIndex(userId: string, sessionId: string): Promise<void> {
     const sessionIds = await this.getUserSessionIds(userId);
     const filtered = sessionIds.filter((id) => id !== sessionId);
 
     if (filtered.length > 0) {
       // Re-store with original TTL (we don't know it, so use default)
-      await this.store.set(
-        this.getUserIndexKey(userId),
-        filtered,
-        this.defaultTtlSeconds,
-      );
+      await this.store.set(this.getUserIndexKey(userId), filtered, this.defaultTtlSeconds);
     } else {
       // No more sessions, delete the index
       await this.store.delete(this.getUserIndexKey(userId));
@@ -284,7 +274,7 @@ export function createSessionManager(
   options?: {
     maxSessionsPerUser?: number;
     defaultTtlSeconds?: number;
-  },
+  }
 ): SessionManager {
   return new SessionManager({
     sessionStore,

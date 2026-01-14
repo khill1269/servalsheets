@@ -8,8 +8,8 @@
  * - Safety warnings and suggestions
  */
 
-import type { SnapshotService } from "../services/snapshot.js";
-import { logger } from "./logger.js";
+import type { SnapshotService } from '../services/snapshot.js';
+import { logger } from './logger.js';
 
 export interface SafetyOptions {
   dryRun?: boolean;
@@ -28,10 +28,10 @@ export interface SafetyContext {
 
 export interface SafetyWarning {
   type:
-    | "snapshot_recommended"
-    | "confirmation_recommended"
-    | "dry_run_recommended"
-    | "large_operation";
+    | 'snapshot_recommended'
+    | 'confirmation_recommended'
+    | 'dry_run_recommended'
+    | 'large_operation';
   message: string;
   suggestion: string;
 }
@@ -54,7 +54,7 @@ export function requiresConfirmation(context: SafetyContext): boolean {
   }
 
   // Deleting >10 rows requires confirmation
-  if (context.operationType.includes("delete") && affectedRows > 10) {
+  if (context.operationType.includes('delete') && affectedRows > 10) {
     return true;
   }
 
@@ -66,57 +66,44 @@ export function requiresConfirmation(context: SafetyContext): boolean {
  */
 export function generateSafetyWarnings(
   context: SafetyContext,
-  safetyOptions?: SafetyOptions,
+  safetyOptions?: SafetyOptions
 ): SafetyWarning[] {
   const warnings: SafetyWarning[] = [];
-  const {
-    affectedCells = 0,
-    affectedRows = 0,
-    isDestructive,
-    operationType,
-  } = context;
+  const { affectedCells = 0, affectedRows = 0, isDestructive, operationType } = context;
 
   // Recommend confirmation for large/destructive operations
   if (requiresConfirmation(context) && !safetyOptions?.requireConfirmation) {
     warnings.push({
-      type: "confirmation_recommended",
+      type: 'confirmation_recommended',
       message: `This operation affects ${affectedCells > 0 ? `${affectedCells} cells` : `${affectedRows} rows`}`,
-      suggestion:
-        "Consider using sheets_confirm to review the plan before execution",
+      suggestion: 'Consider using sheets_confirm to review the plan before execution',
     });
   }
 
   // Recommend snapshot for destructive operations
-  if (
-    isDestructive &&
-    !safetyOptions?.createSnapshot &&
-    !safetyOptions?.dryRun
-  ) {
+  if (isDestructive && !safetyOptions?.createSnapshot && !safetyOptions?.dryRun) {
     warnings.push({
-      type: "snapshot_recommended",
+      type: 'snapshot_recommended',
       message: `${operationType} is destructive and cannot be undone without a snapshot`,
-      suggestion:
-        'Add {"safety":{"createSnapshot":true}} for instant undo capability',
+      suggestion: 'Add {"safety":{"createSnapshot":true}} for instant undo capability',
     });
   }
 
   // Recommend dry-run for first-time operations
   if (isDestructive && !safetyOptions?.dryRun && affectedCells > 50) {
     warnings.push({
-      type: "dry_run_recommended",
-      message: "Preview changes before executing",
-      suggestion:
-        'Use {"safety":{"dryRun":true}} to see what will change without executing',
+      type: 'dry_run_recommended',
+      message: 'Preview changes before executing',
+      suggestion: 'Use {"safety":{"dryRun":true}} to see what will change without executing',
     });
   }
 
   // Warn about large operations
   if (affectedCells > 1000 || affectedRows > 500) {
     warnings.push({
-      type: "large_operation",
-      message: `Large operation (${affectedCells || affectedRows} ${affectedCells > 0 ? "cells" : "rows"})`,
-      suggestion:
-        "Consider using sheets_transaction to batch operations for better performance",
+      type: 'large_operation',
+      message: `Large operation (${affectedCells || affectedRows} ${affectedCells > 0 ? 'cells' : 'rows'})`,
+      suggestion: 'Consider using sheets_transaction to batch operations for better performance',
     });
   }
 
@@ -129,7 +116,7 @@ export function generateSafetyWarnings(
 export async function createSnapshotIfNeeded(
   snapshotService: SnapshotService | undefined,
   context: SafetyContext,
-  safetyOptions?: SafetyOptions,
+  safetyOptions?: SafetyOptions
 ): Promise<SnapshotResult | null> {
   // Only create snapshot if requested AND operation is destructive
   if (!safetyOptions?.createSnapshot || !context.isDestructive) {
@@ -137,14 +124,14 @@ export async function createSnapshotIfNeeded(
   }
 
   if (!snapshotService) {
-    logger.warn("Snapshot requested but snapshotService not available", {
+    logger.warn('Snapshot requested but snapshotService not available', {
       operationType: context.operationType,
     });
     return null;
   }
 
   if (!context.spreadsheetId) {
-    logger.warn("Snapshot requested but spreadsheetId not provided", {
+    logger.warn('Snapshot requested but spreadsheetId not provided', {
       operationType: context.operationType,
     });
     return null;
@@ -153,17 +140,17 @@ export async function createSnapshotIfNeeded(
   try {
     const snapshot = await snapshotService.create(
       context.spreadsheetId,
-      `Before ${context.operationType}`,
+      `Before ${context.operationType}`
     );
 
-    logger.info("Snapshot created for safety", {
+    logger.info('Snapshot created for safety', {
       snapshotId: (snapshot as { id?: string }).id,
       operationType: context.operationType,
       spreadsheetId: context.spreadsheetId,
     });
 
     return {
-      snapshotId: (snapshot as { id?: string }).id ?? "",
+      snapshotId: (snapshot as { id?: string }).id ?? '',
       createdAt: new Date().toISOString(),
       metadata: {
         operationType: context.operationType,
@@ -172,7 +159,7 @@ export async function createSnapshotIfNeeded(
       },
     };
   } catch (error) {
-    logger.error("Failed to create safety snapshot", {
+    logger.error('Failed to create safety snapshot', {
       error: error instanceof Error ? error.message : String(error),
       operationType: context.operationType,
       spreadsheetId: context.spreadsheetId,
@@ -219,10 +206,7 @@ function columnToNumber(col: string): number {
 /**
  * Extract affected rows from dimension operations
  */
-export function calculateAffectedRows(
-  startIndex: number,
-  count: number,
-): number {
+export function calculateAffectedRows(startIndex: number, count: number): number {
   return count;
 }
 
@@ -244,7 +228,7 @@ export function shouldReturnPreview(safetyOptions?: SafetyOptions): boolean {
  * Build snapshot info for response
  */
 export function buildSnapshotInfo(
-  snapshot: SnapshotResult | null,
+  snapshot: SnapshotResult | null
 ): Record<string, unknown> | undefined {
   // OK: Explicit empty - typed as optional, no snapshot provided
   if (!snapshot) return undefined;

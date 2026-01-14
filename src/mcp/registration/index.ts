@@ -8,24 +8,21 @@
  */
 
 // Re-export types and definitions
-export type { ToolDefinition } from "./tool-definitions.js";
-export { TOOL_DEFINITIONS } from "./tool-definitions.js";
+export type { ToolDefinition } from './tool-definitions.js';
+export { TOOL_DEFINITIONS } from './tool-definitions.js';
 
 // Re-export helpers
-export {
-  prepareSchemaForRegistration,
-  verifySchemaIfNeeded,
-} from "./schema-helpers.js";
+export { prepareSchemaForRegistration, verifySchemaIfNeeded } from './schema-helpers.js';
 
 // Re-export handler functions
 export {
   createToolHandlerMap,
   buildToolResponse,
   registerServalSheetsTools,
-} from "./tool-handlers.js";
+} from './tool-handlers.js';
 
 // Re-export resource registration
-export { registerServalSheetsResources } from "./resource-registration.js";
+export { registerServalSheetsResources } from './resource-registration.js';
 
 // Re-export prompt registration
-export { registerServalSheetsPrompts } from "./prompt-registration.js";
+export { registerServalSheetsPrompts } from './prompt-registration.js';

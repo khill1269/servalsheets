@@ -5,40 +5,55 @@
  * MCP Protocol: 2025-11-25
  */
 
-import type { sheets_v4 } from "googleapis";
-import { BaseHandler, type HandlerContext } from "./base.js";
-import type { Intent } from "../core/intent.js";
+import type { sheets_v4 } from 'googleapis';
+import { BaseHandler, type HandlerContext } from './base.js';
+import type { Intent } from '../core/intent.js';
 import type {
   SheetsAnalysisInput,
   SheetsAnalysisOutput,
   AnalysisResponse,
-} from "../schemas/index.js";
-import type { RangeInput } from "../schemas/shared.js";
-import { identifyDataIssues, checkSamplingSupport } from "../mcp/sampling.js";
-import { getRequestLogger } from "../utils/request-context.js";
-import { logger } from "../utils/logger.js";
-import { cacheManager, createCacheKey } from "../utils/cache-manager.js";
-import { createRequestKey } from "../utils/request-deduplication.js";
-import { CACHE_TTL_ANALYSIS } from "../config/constants.js";
+} from '../schemas/index.js';
+import type { RangeInput } from '../schemas/shared.js';
+import { identifyDataIssues, checkSamplingSupport } from '../mcp/sampling.js';
+import { getRequestLogger } from '../utils/request-context.js';
+import { logger } from '../utils/logger.js';
+import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
+import { createRequestKey } from '../utils/request-deduplication.js';
+import { CACHE_TTL_ANALYSIS } from '../config/constants.js';
 
-export class AnalysisHandler extends BaseHandler<
-  SheetsAnalysisInput,
-  SheetsAnalysisOutput
-> {
+export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnalysisOutput> {
   private sheetsApi: sheets_v4.Sheets;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
-    super("sheets_analysis", context);
+    super('sheets_analysis', context);
     this.sheetsApi = sheetsApi;
+  }
+
+  /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: AnalysisResponse,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): AnalysisResponse {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field
+      const { _meta, ...rest } = response as Record<string, unknown>;
+      return rest as AnalysisResponse;
+    }
+
+    return response;
   }
 
   async handle(input: SheetsAnalysisInput): Promise<SheetsAnalysisOutput> {
     // Input is now the action directly (no request wrapper)
 
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(
-      input,
-    ) as SheetsAnalysisInput;
+    const inferredRequest = this.inferRequestParameters(input) as SheetsAnalysisInput;
 
     try {
       const response = await this.executeAction(inferredRequest);
@@ -48,21 +63,25 @@ export class AnalysisHandler extends BaseHandler<
         this.trackContextFromRequest({
           spreadsheetId: inferredRequest.spreadsheetId,
           sheetId:
-            "sheetId" in inferredRequest
-              ? typeof inferredRequest.sheetId === "number"
+            'sheetId' in inferredRequest
+              ? typeof inferredRequest.sheetId === 'number'
                 ? inferredRequest.sheetId
                 : undefined
               : undefined,
           range:
-            "range" in inferredRequest
-              ? typeof inferredRequest.range === "string"
+            'range' in inferredRequest
+              ? typeof inferredRequest.range === 'string'
                 ? inferredRequest.range
                 : undefined
               : undefined,
         });
       }
 
-      return { response };
+      // Apply verbosity filtering (LLM optimization)
+      const verbosity = inferredRequest.verbosity ?? 'standard';
+      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+
+      return { response: filteredResponse };
     } catch (err) {
       return { response: this.mapError(err) };
     }
@@ -76,39 +95,37 @@ export class AnalysisHandler extends BaseHandler<
   /**
    * Execute action and return response
    */
-  private async executeAction(
-    request: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async executeAction(request: SheetsAnalysisInput): Promise<AnalysisResponse> {
     switch (request.action) {
-      case "data_quality":
+      case 'data_quality':
         return await this.handleDataQuality(request);
-      case "formula_audit":
+      case 'formula_audit':
         return await this.handleFormulaAudit(request);
-      case "structure_analysis":
+      case 'structure_analysis':
         return await this.handleStructure(request);
-      case "statistics":
+      case 'statistics':
         return await this.handleStatistics(request);
-      case "correlations":
+      case 'correlations':
         return await this.handleCorrelations(request);
-      case "summary":
+      case 'summary':
         return await this.handleSummary(request);
-      case "dependencies":
+      case 'dependencies':
         return await this.handleDependencies(request);
-      case "compare_ranges":
+      case 'compare_ranges':
         return await this.handleCompareRanges(request);
-      case "detect_patterns":
+      case 'detect_patterns':
         return await this.handleDetectPatterns(request);
-      case "column_analysis":
+      case 'column_analysis':
         return await this.handleColumnAnalysis(request);
-      case "suggest_templates":
+      case 'suggest_templates':
         return await this.handleSuggestTemplates(request);
-      case "generate_formula":
+      case 'generate_formula':
         return await this.handleGenerateFormula(request);
-      case "suggest_chart":
+      case 'suggest_chart':
         return await this.handleSuggestChart(request);
       default:
         return this.error({
-          code: "INVALID_PARAMS",
+          code: 'INVALID_PARAMS',
           message: `Unknown action: ${(request as { action: string }).action}`,
           retryable: false,
         });
@@ -119,102 +136,94 @@ export class AnalysisHandler extends BaseHandler<
   // Actions
   // ============================================================
 
-  private async handleDataQuality(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleDataQuality(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId is required",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId is required',
         retryable: false,
       });
     }
 
-    const { sendProgress } = await import("../utils/request-context.js");
+    const { sendProgress } = await import('../utils/request-context.js');
 
-    const range = input.range ?? { a1: "A1:Z200" };
+    const range = input.range ?? { a1: 'A1:Z200' };
 
     // Progress: Reading data
-    await sendProgress(0, 5, "Reading data...");
+    await sendProgress(0, 5, 'Reading data...');
     const values = await this.fetchValues(input.spreadsheetId, range);
 
     // If AI-powered analysis is requested and sampling is supported
     if (input.useAI && this.context.samplingServer) {
       const samplingSupport = checkSamplingSupport(
-        this.context.samplingServer.getClientCapabilities(),
+        this.context.samplingServer.getClientCapabilities()
       );
 
       if (samplingSupport.supported) {
         try {
-          const aiIssues = await identifyDataIssues(
-            this.context.samplingServer,
-            {
-              data: values,
-            },
-          );
+          const aiIssues = await identifyDataIssues(this.context.samplingServer, {
+            data: values,
+          });
 
           // Convert AI issues to our format
           const issues = aiIssues.map((issue) => ({
-            type: issue.type.toUpperCase().replace(/_/g, "_") as
-              | "EMPTY_HEADER"
-              | "DUPLICATE_HEADER"
-              | "MIXED_DATA_TYPES"
-              | "EMPTY_ROW"
-              | "EMPTY_COLUMN"
-              | "TRAILING_WHITESPACE"
-              | "LEADING_WHITESPACE"
-              | "INCONSISTENT_FORMAT"
-              | "STATISTICAL_OUTLIER"
-              | "MISSING_VALUE"
-              | "DUPLICATE_ROW"
-              | "INVALID_EMAIL"
-              | "INVALID_URL"
-              | "INVALID_DATE"
-              | "FORMULA_ERROR",
-            severity: issue.severity === "critical" ? "high" : issue.severity,
+            type: issue.type.toUpperCase().replace(/_/g, '_') as
+              | 'EMPTY_HEADER'
+              | 'DUPLICATE_HEADER'
+              | 'MIXED_DATA_TYPES'
+              | 'EMPTY_ROW'
+              | 'EMPTY_COLUMN'
+              | 'TRAILING_WHITESPACE'
+              | 'LEADING_WHITESPACE'
+              | 'INCONSISTENT_FORMAT'
+              | 'STATISTICAL_OUTLIER'
+              | 'MISSING_VALUE'
+              | 'DUPLICATE_ROW'
+              | 'INVALID_EMAIL'
+              | 'INVALID_URL'
+              | 'INVALID_DATE'
+              | 'FORMULA_ERROR',
+            severity: issue.severity === 'critical' ? 'high' : issue.severity,
             location: issue.location,
             description: `${issue.description} (AI-detected). Suggested fix: ${issue.suggestedFix}`,
             autoFixable: false,
           }));
 
           // Return AI-generated analysis
-          return this.success("data_quality", {
+          return this.success('data_quality', {
             issues,
             usedAI: true,
           });
         } catch (error) {
           // Fall back to traditional analysis if AI fails
           const logger = getRequestLogger();
-          logger.warn(
-            "AI analysis failed, falling back to traditional analysis",
-            { error },
-          );
+          logger.warn('AI analysis failed, falling back to traditional analysis', { error });
         }
       }
     }
 
     // Progress: Checking headers
-    await sendProgress(1, 5, "Checking for empty headers...");
+    await sendProgress(1, 5, 'Checking for empty headers...');
 
     const headers = (values[0] ?? []) as string[];
     const issues: Array<{
       type:
-        | "EMPTY_HEADER"
-        | "DUPLICATE_HEADER"
-        | "MIXED_DATA_TYPES"
-        | "EMPTY_ROW"
-        | "EMPTY_COLUMN"
-        | "TRAILING_WHITESPACE"
-        | "LEADING_WHITESPACE"
-        | "INCONSISTENT_FORMAT"
-        | "STATISTICAL_OUTLIER"
-        | "MISSING_VALUE"
-        | "DUPLICATE_ROW"
-        | "INVALID_EMAIL"
-        | "INVALID_URL"
-        | "INVALID_DATE"
-        | "FORMULA_ERROR";
-      severity: "low" | "medium" | "high";
+        | 'EMPTY_HEADER'
+        | 'DUPLICATE_HEADER'
+        | 'MIXED_DATA_TYPES'
+        | 'EMPTY_ROW'
+        | 'EMPTY_COLUMN'
+        | 'TRAILING_WHITESPACE'
+        | 'LEADING_WHITESPACE'
+        | 'INCONSISTENT_FORMAT'
+        | 'STATISTICAL_OUTLIER'
+        | 'MISSING_VALUE'
+        | 'DUPLICATE_ROW'
+        | 'INVALID_EMAIL'
+        | 'INVALID_URL'
+        | 'INVALID_DATE'
+        | 'FORMULA_ERROR';
+      severity: 'low' | 'medium' | 'high';
       location: string;
       description: string;
       autoFixable: boolean;
@@ -226,19 +235,19 @@ export class AnalysisHandler extends BaseHandler<
     // Empty or duplicate headers
     const headerSet = new Set<string>();
     headers.forEach((h, idx) => {
-      const name = (h ?? "").toString().trim();
+      const name = (h ?? '').toString().trim();
       if (!name) {
         issues.push({
-          type: "EMPTY_HEADER",
-          severity: "medium",
+          type: 'EMPTY_HEADER',
+          severity: 'medium',
           location: `header:${idx + 1}`,
-          description: "Header cell is empty",
+          description: 'Header cell is empty',
           autoFixable: false,
         });
       } else if (headerSet.has(name)) {
         issues.push({
-          type: "DUPLICATE_HEADER",
-          severity: "medium",
+          type: 'DUPLICATE_HEADER',
+          severity: 'medium',
           location: `header:${idx + 1}`,
           description: `Duplicate header "${name}"`,
           autoFixable: false,
@@ -248,50 +257,46 @@ export class AnalysisHandler extends BaseHandler<
     });
 
     // Progress: Checking for empty rows
-    await sendProgress(2, 5, "Checking for empty rows...");
+    await sendProgress(2, 5, 'Checking for empty rows...');
 
     // Empty rows detection
     for (let i = 1; i < values.length; i++) {
       const row = values[i] ?? [];
-      if (
-        row.every((cell) => cell === "" || cell === undefined || cell === null)
-      ) {
+      if (row.every((cell) => cell === '' || cell === undefined || cell === null)) {
         issues.push({
-          type: "EMPTY_ROW",
-          severity: "low",
+          type: 'EMPTY_ROW',
+          severity: 'low',
           location: `row:${i + 1}`,
-          description: "Empty row detected",
+          description: 'Empty row detected',
           autoFixable: false,
         });
       }
     }
 
     // Progress: Analyzing columns
-    await sendProgress(3, 5, "Analyzing column data types...");
+    await sendProgress(3, 5, 'Analyzing column data types...');
 
     // Mixed data types and missing values per column
     const bodyRows = values.slice(1);
     const colCount = headers.length;
     for (let col = 0; col < colCount; col++) {
-      const colValues = bodyRows
-        .map((r) => r?.[col])
-        .filter((v) => v !== undefined);
+      const colValues = bodyRows.map((r) => r?.[col]).filter((v) => v !== undefined);
       const types = new Set(colValues.map((v) => this.valueType(v)));
       const missing = bodyRows.length - colValues.length;
 
       if (types.size > 1) {
         issues.push({
-          type: "MIXED_DATA_TYPES",
-          severity: "medium",
+          type: 'MIXED_DATA_TYPES',
+          severity: 'medium',
           location: `col:${col + 1}`,
-          description: `Column has mixed types: ${Array.from(types).join(", ")}`,
+          description: `Column has mixed types: ${Array.from(types).join(', ')}`,
           autoFixable: false,
         });
       }
       if (missing > 0) {
         issues.push({
-          type: "MISSING_VALUE",
-          severity: "low",
+          type: 'MISSING_VALUE',
+          severity: 'low',
           location: `col:${col + 1}`,
           description: `${missing} missing value(s)`,
           autoFixable: false,
@@ -299,27 +304,23 @@ export class AnalysisHandler extends BaseHandler<
       }
 
       // Whitespace issues
-      const ws = colValues.find(
-        (v) => typeof v === "string" && (/^\s+/.test(v) || /\s+$/.test(v)),
-      );
+      const ws = colValues.find((v) => typeof v === 'string' && (/^\s+/.test(v) || /\s+$/.test(v)));
       if (ws !== undefined) {
         issues.push({
-          type: /^\s+/.test(ws as string)
-            ? "LEADING_WHITESPACE"
-            : "TRAILING_WHITESPACE",
-          severity: "low",
+          type: /^\s+/.test(ws as string) ? 'LEADING_WHITESPACE' : 'TRAILING_WHITESPACE',
+          severity: 'low',
           location: `col:${col + 1}`,
-          description: "Value has unnecessary whitespace",
+          description: 'Value has unnecessary whitespace',
           autoFixable: false,
         });
       }
     }
 
     // Progress: Complete
-    await sendProgress(5, 5, "Data quality analysis complete");
+    await sendProgress(5, 5, 'Data quality analysis complete');
 
     const score = Math.max(0, 100 - issues.length * 5);
-    return this.success("data_quality", {
+    return this.success('data_quality', {
       dataQuality: {
         score,
         completeness: score,
@@ -328,43 +329,41 @@ export class AnalysisHandler extends BaseHandler<
         issues,
         summary:
           issues.length === 0
-            ? "No data quality issues detected."
+            ? 'No data quality issues detected.'
             : `${issues.length} issue(s) detected.`,
       },
     });
   }
 
-  private async handleFormulaAudit(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleFormulaAudit(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId is required",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId is required',
         retryable: false,
       });
     }
-    const range = input.range ?? { a1: "A1:Z200" };
+    const range = input.range ?? { a1: 'A1:Z200' };
     const a1 = await this.resolveRange(input.spreadsheetId, range);
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId: input.spreadsheetId,
       range: a1,
-      valueRenderOption: "FORMULA",
+      valueRenderOption: 'FORMULA',
     });
 
     const formulas: string[] = [];
     const issues: Array<{
       type:
-        | "CIRCULAR_REFERENCE"
-        | "BROKEN_REFERENCE"
-        | "VOLATILE_FUNCTION"
-        | "COMPLEX_FORMULA"
-        | "HARDCODED_VALUE"
-        | "INCONSISTENT_FORMULA"
-        | "ARRAY_FORMULA_ISSUE"
-        | "DEPRECATED_FUNCTION"
-        | "PERFORMANCE_ISSUE";
-      severity: "low" | "medium" | "high";
+        | 'CIRCULAR_REFERENCE'
+        | 'BROKEN_REFERENCE'
+        | 'VOLATILE_FUNCTION'
+        | 'COMPLEX_FORMULA'
+        | 'HARDCODED_VALUE'
+        | 'INCONSISTENT_FORMULA'
+        | 'ARRAY_FORMULA_ISSUE'
+        | 'DEPRECATED_FUNCTION'
+        | 'PERFORMANCE_ISSUE';
+      severity: 'low' | 'medium' | 'high';
       cell: string;
       formula: string;
       description: string;
@@ -380,18 +379,18 @@ export class AnalysisHandler extends BaseHandler<
 
     for (const row of response.data.values ?? []) {
       for (const cell of row ?? []) {
-        if (typeof cell === "string" && cell.startsWith("=")) {
+        if (typeof cell === 'string' && cell.startsWith('=')) {
           formulas.push(cell);
 
           // Existing checks
-          if (cell.includes("#REF!") || cell.includes("#ERROR")) {
+          if (cell.includes('#REF!') || cell.includes('#ERROR')) {
             issues.push({
-              type: "BROKEN_REFERENCE",
-              severity: "high",
-              cell: "",
+              type: 'BROKEN_REFERENCE',
+              severity: 'high',
+              cell: '',
               formula: cell,
-              description: "Formula contains a broken reference",
-              suggestion: "Repoint the reference to a valid range.",
+              description: 'Formula contains a broken reference',
+              suggestion: 'Repoint the reference to a valid range.',
             });
           }
 
@@ -402,31 +401,26 @@ export class AnalysisHandler extends BaseHandler<
           }
           if (/(NOW\(|RAND\(|RANDBETWEEN\()/.test(cell)) {
             issues.push({
-              type: "VOLATILE_FUNCTION",
-              severity: "medium",
-              cell: "",
+              type: 'VOLATILE_FUNCTION',
+              severity: 'medium',
+              cell: '',
               formula: cell,
-              description: "Volatile function may recalc frequently.",
-              suggestion: "Consider static values or less volatile functions.",
+              description: 'Volatile function may recalc frequently.',
+              suggestion: 'Consider static values or less volatile functions.',
             });
           }
 
           // NEW: Full column reference detection (A:A, E:E)
-          if (
-            /(SUMIF|COUNTIF|SUMIFS|COUNTIFS|VLOOKUP|MATCH)\([^)]*[A-Z]:[A-Z]/.test(
-              cell,
-            )
-          ) {
+          if (/(SUMIF|COUNTIF|SUMIFS|COUNTIFS|VLOOKUP|MATCH)\([^)]*[A-Z]:[A-Z]/.test(cell)) {
             fullColumnRefs++;
             issues.push({
-              type: "PERFORMANCE_ISSUE",
-              severity: "high",
-              cell: "",
+              type: 'PERFORMANCE_ISSUE',
+              severity: 'high',
+              cell: '',
               formula: cell,
-              description:
-                "Full column reference (A:A) scans 1M+ rows unnecessarily",
+              description: 'Full column reference (A:A) scans 1M+ rows unnecessarily',
               suggestion:
-                "Replace A:A with bounded range like A2:A500. Example: SUMIF(A:A,...) → SUMIF(A2:A500,...)",
+                'Replace A:A with bounded range like A2:A500. Example: SUMIF(A:A,...) → SUMIF(A2:A500,...)',
             });
           }
 
@@ -434,14 +428,13 @@ export class AnalysisHandler extends BaseHandler<
           if (/VLOOKUP\(/.test(cell)) {
             vlookupCount++;
             issues.push({
-              type: "PERFORMANCE_ISSUE",
-              severity: "medium",
-              cell: "",
+              type: 'PERFORMANCE_ISSUE',
+              severity: 'medium',
+              cell: '',
               formula: cell,
-              description:
-                "VLOOKUP is 60% slower than INDEX/MATCH on large datasets",
+              description: 'VLOOKUP is 60% slower than INDEX/MATCH on large datasets',
               suggestion:
-                "Replace with INDEX/MATCH. Example: =VLOOKUP(A2,Data!A:D,3,0) → =INDEX(Data!C:C,MATCH(A2,Data!A:A,0))",
+                'Replace with INDEX/MATCH. Example: =VLOOKUP(A2,Data!A:D,3,0) → =INDEX(Data!C:C,MATCH(A2,Data!A:A,0))',
             });
           }
 
@@ -449,13 +442,12 @@ export class AnalysisHandler extends BaseHandler<
           if (/IFERROR\(IFERROR\(/.test(cell)) {
             nestedIferror++;
             issues.push({
-              type: "COMPLEX_FORMULA",
-              severity: "low",
-              cell: "",
+              type: 'COMPLEX_FORMULA',
+              severity: 'low',
+              cell: '',
               formula: cell,
-              description: "Redundant nested IFERROR reduces readability",
-              suggestion:
-                "Simplify to single IFERROR with appropriate default value",
+              description: 'Redundant nested IFERROR reduces readability',
+              suggestion: 'Simplify to single IFERROR with appropriate default value',
             });
           }
 
@@ -468,9 +460,9 @@ export class AnalysisHandler extends BaseHandler<
           const nestedIfCount = (cell.match(/IF\(/g) || []).length;
           if (nestedIfCount >= 3) {
             issues.push({
-              type: "COMPLEX_FORMULA",
-              severity: "medium",
-              cell: "",
+              type: 'COMPLEX_FORMULA',
+              severity: 'medium',
+              cell: '',
               formula: cell,
               description: `${nestedIfCount} nested IF statements make formula hard to maintain`,
               suggestion:
@@ -481,28 +473,25 @@ export class AnalysisHandler extends BaseHandler<
           // NEW: Hardcoded threshold detection
           if (/IF\([^,]+[<>=]\d+/.test(cell)) {
             issues.push({
-              type: "HARDCODED_VALUE",
-              severity: "medium",
-              cell: "",
+              type: 'HARDCODED_VALUE',
+              severity: 'medium',
+              cell: '',
               formula: cell,
-              description: "Hardcoded threshold value makes updates difficult",
-              suggestion:
-                "Move threshold to _System or Config sheet and reference as named range",
+              description: 'Hardcoded threshold value makes updates difficult',
+              suggestion: 'Move threshold to _System or Config sheet and reference as named range',
             });
           }
 
           // Existing complexity check
-          const complexity =
-            (cell.match(/[,;]/g)?.length ?? 0) +
-            (cell.match(/\(/g)?.length ?? 0);
+          const complexity = (cell.match(/[,;]/g)?.length ?? 0) + (cell.match(/\(/g)?.length ?? 0);
           if (complexity > (input.complexityThreshold ?? 10)) {
             issues.push({
-              type: "COMPLEX_FORMULA",
-              severity: "medium",
-              cell: "",
+              type: 'COMPLEX_FORMULA',
+              severity: 'medium',
+              cell: '',
               formula: cell,
               description: `Formula complexity ${complexity} exceeds threshold`,
-              suggestion: "Break into helper columns.",
+              suggestion: 'Break into helper columns.',
             });
           }
         }
@@ -512,10 +501,10 @@ export class AnalysisHandler extends BaseHandler<
     // NEW: Global pattern detection
     if (todayCount > 3) {
       issues.push({
-        type: "PERFORMANCE_ISSUE",
-        severity: "high",
-        cell: "Multiple cells",
-        formula: "",
+        type: 'PERFORMANCE_ISSUE',
+        severity: 'high',
+        cell: 'Multiple cells',
+        formula: '',
         description: `Found ${todayCount} TODAY() calls across spreadsheet`,
         suggestion:
           'Create _System!B1 = TODAY(), name it "TodayDate", and reference everywhere. Saves 90% recalculation time.',
@@ -524,20 +513,20 @@ export class AnalysisHandler extends BaseHandler<
 
     if (arrayFormulaCount > 10) {
       issues.push({
-        type: "PERFORMANCE_ISSUE",
-        severity: "medium",
-        cell: "Multiple cells",
-        formula: "",
+        type: 'PERFORMANCE_ISSUE',
+        severity: 'medium',
+        cell: 'Multiple cells',
+        formula: '',
         description: `Found ${arrayFormulaCount} ARRAYFORMULA instances`,
         suggestion:
-          "Excessive ARRAYFORMULA usage slows editing. Consider using regular formulas for datasets <100 rows.",
+          'Excessive ARRAYFORMULA usage slows editing. Consider using regular formulas for datasets <100 rows.',
       });
     }
 
     const uniqueFormulas = new Set(formulas);
     const score = Math.max(0, 100 - issues.length * 5);
 
-    return this.success("formula_audit", {
+    return this.success('formula_audit', {
       formulaAudit: {
         score,
         totalFormulas: formulas.length,
@@ -545,7 +534,7 @@ export class AnalysisHandler extends BaseHandler<
         issues,
         summary:
           issues.length === 0
-            ? "No formula issues detected."
+            ? 'No formula issues detected.'
             : `${issues.length} formula issue(s) detected.`,
         statistics: {
           todayCount,
@@ -558,41 +547,36 @@ export class AnalysisHandler extends BaseHandler<
     });
   }
 
-  private async handleStructure(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleStructure(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId is required",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId is required',
         retryable: false,
       });
     }
     // Phase 2: Use comprehensive metadata (single API call)
-    const metadata = await this.fetchComprehensiveMetadata(
-      input.spreadsheetId,
-      this.sheetsApi,
-    );
+    const metadata = await this.fetchComprehensiveMetadata(input.spreadsheetId, this.sheetsApi);
 
     const sheets = metadata.sheets ?? [];
     const totalRows = sheets.reduce(
       (sum, s) => sum + (s.properties?.gridProperties?.rowCount ?? 0),
-      0,
+      0
     );
     const totalColumns = sheets.reduce(
       (sum, s) => sum + (s.properties?.gridProperties?.columnCount ?? 0),
-      0,
+      0
     );
 
     const namedRanges = (metadata.namedRanges ?? []).map((n) => ({
-      name: n.name ?? "",
+      name: n.name ?? '',
       range: `${n.range?.sheetId ?? 0}:${n.range?.startRowIndex ?? 0}-${n.range?.endRowIndex ?? 0}`,
     }));
 
     // Enhanced analysis: detect issues
     const issues: Array<{
       type: string;
-      severity: "low" | "medium" | "high";
+      severity: 'low' | 'medium' | 'high';
       sheet?: string;
       description: string;
       suggestion: string;
@@ -600,24 +584,19 @@ export class AnalysisHandler extends BaseHandler<
 
     // Check each sheet for issues
     for (const sheet of sheets) {
-      const sheetName = sheet.properties?.title ?? "Unnamed";
+      const sheetName = sheet.properties?.title ?? 'Unnamed';
       const _sheetId = sheet.properties?.sheetId ?? 0;
       const gridProps = sheet.properties?.gridProperties;
       const isHidden = sheet.properties?.hidden ?? false;
 
       // UI/UX: Check frozen headers
-      if (
-        !isHidden &&
-        (gridProps?.frozenRowCount ?? 0) === 0 &&
-        (gridProps?.rowCount ?? 0) > 20
-      ) {
+      if (!isHidden && (gridProps?.frozenRowCount ?? 0) === 0 && (gridProps?.rowCount ?? 0) > 20) {
         issues.push({
-          type: "UI_UX",
-          severity: "medium",
+          type: 'UI_UX',
+          severity: 'medium',
           sheet: sheetName,
-          description: "No frozen header rows - headers scroll out of view",
-          suggestion:
-            'Freeze row 1: sheets_dimensions action="freeze_rows" count=1',
+          description: 'No frozen header rows - headers scroll out of view',
+          suggestion: 'Freeze row 1: sheets_dimensions action="freeze_rows" count=1',
         });
       }
 
@@ -628,13 +607,11 @@ export class AnalysisHandler extends BaseHandler<
         (gridProps?.columnCount ?? 0) > 10
       ) {
         issues.push({
-          type: "UI_UX",
-          severity: "low",
+          type: 'UI_UX',
+          severity: 'low',
           sheet: sheetName,
-          description:
-            "No frozen ID column for wide sheet - row identifiers scroll away",
-          suggestion:
-            'Freeze column A: sheets_dimensions action="freeze_columns" count=1',
+          description: 'No frozen ID column for wide sheet - row identifiers scroll away',
+          suggestion: 'Freeze column A: sheets_dimensions action="freeze_columns" count=1',
         });
       }
 
@@ -642,12 +619,11 @@ export class AnalysisHandler extends BaseHandler<
       const cfRules = sheet.conditionalFormats ?? [];
       if (cfRules.length > 20) {
         issues.push({
-          type: "CONDITIONAL_FORMATTING",
-          severity: "medium",
+          type: 'CONDITIONAL_FORMATTING',
+          severity: 'medium',
           sheet: sheetName,
           description: `${cfRules.length} conditional format rules detected - likely redundant`,
-          suggestion:
-            "Consolidate rules to 8-10. Remove duplicates, merge similar conditions.",
+          suggestion: 'Consolidate rules to 8-10. Remove duplicates, merge similar conditions.',
         });
       }
 
@@ -655,24 +631,22 @@ export class AnalysisHandler extends BaseHandler<
       const protectedRanges = sheet.protectedRanges ?? [];
       if (protectedRanges.length === 0 && (gridProps?.rowCount ?? 0) > 10) {
         issues.push({
-          type: "PROTECTION",
-          severity: "high",
+          type: 'PROTECTION',
+          severity: 'high',
           sheet: sheetName,
-          description:
-            "No protected ranges - formulas can be accidentally overwritten",
-          suggestion:
-            'Protect formula cells: sheets_advanced action="add_protected_range"',
+          description: 'No protected ranges - formulas can be accidentally overwritten',
+          suggestion: 'Protect formula cells: sheets_advanced action="add_protected_range"',
         });
       }
 
       // Hidden sheets without underscore prefix
-      if (isHidden && !sheetName.startsWith("_")) {
+      if (isHidden && !sheetName.startsWith('_')) {
         issues.push({
-          type: "STRUCTURE",
-          severity: "low",
+          type: 'STRUCTURE',
+          severity: 'low',
           sheet: sheetName,
-          description: "Hidden sheet not prefixed with _ - unclear purpose",
-          suggestion: "Rename to _" + sheetName + " for clarity",
+          description: 'Hidden sheet not prefixed with _ - unclear purpose',
+          suggestion: 'Rename to _' + sheetName + ' for clarity',
         });
       }
     }
@@ -680,24 +654,23 @@ export class AnalysisHandler extends BaseHandler<
     // Named range analysis
     const namedRangesByPrefix: Record<string, number> = {};
     for (const nr of metadata.namedRanges ?? []) {
-      const prefix = nr.name?.split(/[_A-Z]/)[0] ?? "";
+      const prefix = nr.name?.split(/[_A-Z]/)[0] ?? '';
       namedRangesByPrefix[prefix] = (namedRangesByPrefix[prefix] || 0) + 1;
     }
 
     // Check for naming inconsistency
     if (Object.keys(namedRangesByPrefix).length > 2) {
       issues.push({
-        type: "STRUCTURE",
-        severity: "low",
-        description: "Inconsistent named range naming conventions detected",
-        suggestion:
-          "Standardize to PascalCase (InvestorNames) or snake_case (investor_names)",
+        type: 'STRUCTURE',
+        severity: 'low',
+        description: 'Inconsistent named range naming conventions detected',
+        suggestion: 'Standardize to PascalCase (InvestorNames) or snake_case (investor_names)',
       });
     }
 
     const hiddenSheets = sheets.filter((s) => s.properties?.hidden).length;
 
-    return this.success("structure_analysis", {
+    return this.success('structure_analysis', {
       structure: {
         sheets: sheets.length,
         totalRows,
@@ -708,25 +681,23 @@ export class AnalysisHandler extends BaseHandler<
         issues,
         summary:
           issues.length === 0
-            ? "No structural issues detected."
+            ? 'No structural issues detected.'
             : `${issues.length} structural issue(s) detected.`,
       },
     });
   }
 
-  private async handleStatistics(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleStatistics(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId || !input.range) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId and range are required for statistics action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and range are required for statistics action',
         retryable: false,
       });
     }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     if (values.length === 0) {
-      return this.success("statistics", { statistics: { columns: [] } });
+      return this.success('statistics', { statistics: { columns: [] } });
     }
 
     const headers = values[0] ?? [];
@@ -746,23 +717,19 @@ export class AnalysisHandler extends BaseHandler<
       max?: number;
       mode?: string | number;
     }> = [];
-    const targetCols =
-      input.columns ?? Array.from({ length: colCount }, (_, i) => i);
+    const targetCols = input.columns ?? Array.from({ length: colCount }, (_, i) => i);
 
     for (const colIdx of targetCols) {
       const data = rows.map((r) => r[colIdx]).filter((v) => v !== undefined);
-      const numeric = data.filter((v) => typeof v === "number") as number[];
+      const numeric = data.filter((v) => typeof v === 'number') as number[];
       const count = data.length;
       const sum = numeric.reduce((a, b) => a + b, 0);
       const mean = numeric.length ? sum / numeric.length : undefined;
       const sorted = [...numeric].sort((a, b) => a - b);
-      const median = sorted.length
-        ? sorted[Math.floor(sorted.length / 2)]
-        : undefined;
+      const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : undefined;
       const variance =
         mean !== undefined
-          ? numeric.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) /
-            (numeric.length || 1)
+          ? numeric.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / (numeric.length || 1)
           : undefined;
       const stdDev = variance !== undefined ? Math.sqrt(variance) : undefined;
       const uniqueCount = new Set(data.map((v) => JSON.stringify(v))).size;
@@ -783,16 +750,14 @@ export class AnalysisHandler extends BaseHandler<
       });
     }
 
-    return this.success("statistics", { statistics: { columns } });
+    return this.success('statistics', { statistics: { columns } });
   }
 
-  private async handleCorrelations(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleCorrelations(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId || !input.range) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId and range are required for correlations action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and range are required for correlations action',
         retryable: false,
       });
     }
@@ -800,18 +765,12 @@ export class AnalysisHandler extends BaseHandler<
     const rows = values.slice(1);
     const colCount = Math.max(...rows.map((r) => r.length), 0);
     const columns = Array.from({ length: colCount }, (_, i) => i.toString());
-    const matrix: number[][] = Array.from({ length: colCount }, () =>
-      Array(colCount).fill(1),
-    );
+    const matrix: number[][] = Array.from({ length: colCount }, () => Array(colCount).fill(1));
 
     for (let i = 0; i < colCount; i++) {
-      const colI = rows
-        .map((r) => r[i])
-        .filter((v) => typeof v === "number") as number[];
+      const colI = rows.map((r) => r[i]).filter((v) => typeof v === 'number') as number[];
       for (let j = i + 1; j < colCount; j++) {
-        const colJ = rows
-          .map((r) => r[j])
-          .filter((v) => typeof v === "number") as number[];
+        const colJ = rows.map((r) => r[j]).filter((v) => typeof v === 'number') as number[];
         const corr = this.pearson(colI, colJ);
         const rowI = matrix[i];
         const rowJ = matrix[j];
@@ -822,24 +781,19 @@ export class AnalysisHandler extends BaseHandler<
       }
     }
 
-    return this.success("correlations", { correlations: { matrix, columns } });
+    return this.success('correlations', { correlations: { matrix, columns } });
   }
 
-  private async handleSummary(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleSummary(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message: "spreadsheetId is required",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId is required',
         retryable: false,
       });
     }
     // Phase 2: Use comprehensive metadata (single API call)
-    const metadata = await this.fetchComprehensiveMetadata(
-      input.spreadsheetId,
-      this.sheetsApi,
-    );
+    const metadata = await this.fetchComprehensiveMetadata(input.spreadsheetId, this.sheetsApi);
 
     const sheets = metadata.sheets ?? [];
     let filledCells = 0;
@@ -856,22 +810,20 @@ export class AnalysisHandler extends BaseHandler<
 
     if (ranges.length > 0) {
       try {
-        const batchResponse = await this.sheetsApi.spreadsheets.values.batchGet(
-          {
-            spreadsheetId: input.spreadsheetId,
-            ranges,
-            valueRenderOption: "FORMULA",
-          },
-        );
+        const batchResponse = await this.sheetsApi.spreadsheets.values.batchGet({
+          spreadsheetId: input.spreadsheetId,
+          ranges,
+          valueRenderOption: 'FORMULA',
+        });
 
         // Process all value ranges at once
         for (const valueRange of batchResponse.data.valueRanges ?? []) {
           for (const row of valueRange.values ?? []) {
             for (const cell of row ?? []) {
-              if (cell !== "" && cell !== undefined && cell !== null) {
+              if (cell !== '' && cell !== undefined && cell !== null) {
                 filledCells++;
               }
-              if (typeof cell === "string" && cell.startsWith("=")) {
+              if (typeof cell === 'string' && cell.startsWith('=')) {
                 formulas++;
               }
             }
@@ -879,9 +831,9 @@ export class AnalysisHandler extends BaseHandler<
         }
       } catch (error) {
         // Log batch sampling error but continue
-        logger.error("Failed to sample spreadsheet data", {
-          component: "analysis-handler",
-          action: "summary",
+        logger.error('Failed to sample spreadsheet data', {
+          component: 'analysis-handler',
+          action: 'summary',
           spreadsheetId: input.spreadsheetId,
           sheetCount: sheets.length,
           error: error instanceof Error ? error.message : String(error),
@@ -895,9 +847,9 @@ export class AnalysisHandler extends BaseHandler<
       return sum + rows * cols;
     }, 0);
 
-    return this.success("summary", {
+    return this.success('summary', {
       summary: {
-        title: metadata.properties?.title ?? "",
+        title: metadata.properties?.title ?? '',
         sheets: sheets.length,
         totalCells,
         filledCells,
@@ -908,9 +860,7 @@ export class AnalysisHandler extends BaseHandler<
     });
   }
 
-  private async handleDependencies(
-    _input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleDependencies(_input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     /**
      * Dependency tracing is not yet implemented.
      *
@@ -923,21 +873,18 @@ export class AnalysisHandler extends BaseHandler<
      * For now, we return a clear error instead of fake empty data.
      */
     return this.error({
-      code: "FEATURE_UNAVAILABLE",
+      code: 'FEATURE_UNAVAILABLE',
       message:
-        "Cell dependency tracing is not yet implemented. This feature requires complex formula parsing and graph traversal.",
+        'Cell dependency tracing is not yet implemented. This feature requires complex formula parsing and graph traversal.',
       retryable: false,
     });
   }
 
-  private async handleCompareRanges(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleCompareRanges(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId || !input.range1 || !input.range2) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId, range1 and range2 are required for compare_ranges action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId, range1 and range2 are required for compare_ranges action',
         retryable: false,
       });
     }
@@ -948,14 +895,10 @@ export class AnalysisHandler extends BaseHandler<
       cell: string;
       value1: string | number | boolean | null;
       value2: string | number | boolean | null;
-      type: "value" | "type" | "missing";
+      type: 'value' | 'type' | 'missing';
     }> = [];
     const maxRows = Math.max(values1.length, values2.length);
-    const maxCols = Math.max(
-      ...values1.map((r) => r.length),
-      ...values2.map((r) => r.length),
-      0,
-    );
+    const maxCols = Math.max(...values1.map((r) => r.length), ...values2.map((r) => r.length), 0);
 
     for (let r = 0; r < maxRows; r++) {
       for (let c = 0; c < maxCols; c++) {
@@ -964,22 +907,20 @@ export class AnalysisHandler extends BaseHandler<
         if (v1 !== v2) {
           differences.push({
             cell: `${this.columnToLetter(c)}${r + 1}`,
-            value1:
-              (v1 as string | number | boolean | null | undefined) ?? null,
-            value2:
-              (v2 as string | number | boolean | null | undefined) ?? null,
+            value1: (v1 as string | number | boolean | null | undefined) ?? null,
+            value2: (v2 as string | number | boolean | null | undefined) ?? null,
             type:
               v1 === undefined || v2 === undefined
-                ? "missing"
+                ? 'missing'
                 : typeof v1 !== typeof v2
-                  ? "type"
-                  : "value",
+                  ? 'type'
+                  : 'value',
           });
         }
       }
     }
 
-    return this.success("compare_ranges", {
+    return this.success('compare_ranges', {
       comparison: {
         identical: differences.length === 0,
         differences,
@@ -988,21 +929,18 @@ export class AnalysisHandler extends BaseHandler<
     });
   }
 
-  private async handleDetectPatterns(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleDetectPatterns(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId || !input.range) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId and range are required for detect_patterns action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and range are required for detect_patterns action',
         retryable: false,
       });
     }
     const values = await this.fetchValues(input.spreadsheetId, input.range);
     const logger = getRequestLogger();
 
-    logger.info("Starting pattern detection", {
+    logger.info('Starting pattern detection', {
       spreadsheetId: input.spreadsheetId,
       range: input.range,
       includeCorrelations: input.includeCorrelations,
@@ -1013,7 +951,7 @@ export class AnalysisHandler extends BaseHandler<
 
     // Analyze trends if requested
     if (input.includeTrends) {
-      patterns["trends"] = this.analyzeTrends(values);
+      patterns['trends'] = this.analyzeTrends(values);
     }
 
     // Analyze correlations if requested
@@ -1023,23 +961,23 @@ export class AnalysisHandler extends BaseHandler<
       values[0]?.length &&
       values[0].length > 1
     ) {
-      patterns["correlations"] = this.analyzeCorrelationsData(values);
+      patterns['correlations'] = this.analyzeCorrelationsData(values);
     }
 
     // Detect anomalies if requested
     if (input.includeAnomalies) {
-      patterns["anomalies"] = this.detectAnomalies(values);
+      patterns['anomalies'] = this.detectAnomalies(values);
     }
 
     // Analyze seasonality if requested (requires time-series data)
     if (input.includeSeasonality) {
-      patterns["seasonality"] = this.analyzeSeasonality(values);
+      patterns['seasonality'] = this.analyzeSeasonality(values);
     }
 
     // Use AI for pattern explanation if requested
     if (input.useAI && this.context.samplingServer) {
       const samplingSupport = checkSamplingSupport(
-        this.context.samplingServer.getClientCapabilities(),
+        this.context.samplingServer.getClientCapabilities()
       );
 
       if (samplingSupport.supported) {
@@ -1047,9 +985,9 @@ export class AnalysisHandler extends BaseHandler<
           const aiResponse = await this.context.samplingServer.createMessage({
             messages: [
               {
-                role: "user",
+                role: 'user',
                 content: {
-                  type: "text",
+                  type: 'text',
                   text: `Analyze these data patterns and provide insights:
 Data dimensions: ${values.length} rows × ${values[0]?.length || 0} columns
 Patterns detected: ${JSON.stringify(patterns, null, 2)}
@@ -1072,16 +1010,16 @@ Keep response concise and actionable.`,
             ? aiResponse.content
             : [aiResponse.content];
           const aiContent = contentArray[0];
-          if (aiContent && aiContent.type === "text") {
-            patterns["aiInsights"] = aiContent.text;
+          if (aiContent && aiContent.type === 'text') {
+            patterns['aiInsights'] = aiContent.text;
           }
         } catch (error) {
-          logger.warn("AI pattern explanation failed", { error });
+          logger.warn('AI pattern explanation failed', { error });
         }
       }
     }
 
-    return this.success("detect_patterns", {
+    return this.success('detect_patterns', {
       patterns: {
         ...patterns,
         dataSize: {
@@ -1092,14 +1030,11 @@ Keep response concise and actionable.`,
     });
   }
 
-  private async handleColumnAnalysis(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleColumnAnalysis(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     if (!input.spreadsheetId || !input.range) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId and range are required for column_analysis action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and range are required for column_analysis action',
         retryable: false,
       });
     }
@@ -1109,9 +1044,9 @@ Keep response concise and actionable.`,
     // Extract first column data
     const columnData = values
       .map((row) => row[0])
-      .filter((v) => v !== null && v !== undefined && v !== "");
+      .filter((v) => v !== null && v !== undefined && v !== '');
 
-    logger.info("Starting column analysis", {
+    logger.info('Starting column analysis', {
       spreadsheetId: input.spreadsheetId,
       range: input.range,
       valueCount: columnData.length,
@@ -1125,29 +1060,29 @@ Keep response concise and actionable.`,
 
     // Detect data type if requested
     if (input.detectDataType) {
-      analysis["dataType"] = this.detectDataType(columnData);
+      analysis['dataType'] = this.detectDataType(columnData);
     }
 
     // Analyze distribution if requested
     if (input.analyzeDistribution) {
-      analysis["distribution"] = this.analyzeDistribution(columnData);
+      analysis['distribution'] = this.analyzeDistribution(columnData);
     }
 
     // Find unique values if requested
     if (input.findUnique) {
       const uniqueValues = new Set(columnData);
-      analysis["uniqueCount"] = uniqueValues.size;
-      analysis["duplicateCount"] = columnData.length - uniqueValues.size;
+      analysis['uniqueCount'] = uniqueValues.size;
+      analysis['duplicateCount'] = columnData.length - uniqueValues.size;
 
       // Show value frequency for categorical data
-      if (analysis["dataType"] === "text" || uniqueValues.size <= 20) {
+      if (analysis['dataType'] === 'text' || uniqueValues.size <= 20) {
         const frequency: Record<string, number> = {};
         for (const val of columnData) {
           const key = String(val);
           frequency[key] = (frequency[key] || 0) + 1;
         }
 
-        analysis["valueFrequency"] = Object.entries(frequency)
+        analysis['valueFrequency'] = Object.entries(frequency)
           .map(([value, count]) => ({
             value,
             count,
@@ -1160,16 +1095,13 @@ Keep response concise and actionable.`,
 
     // Check data quality if requested
     if (input.checkQuality) {
-      analysis["quality"] = this.checkColumnQuality(
-        columnData,
-        analysis["dataType"] as string,
-      );
+      analysis['quality'] = this.checkColumnQuality(columnData, analysis['dataType'] as string);
     }
 
     // Use AI for insights if requested
     if (input.useAI && this.context.samplingServer) {
       const samplingSupport = checkSamplingSupport(
-        this.context.samplingServer.getClientCapabilities(),
+        this.context.samplingServer.getClientCapabilities()
       );
 
       if (samplingSupport.supported) {
@@ -1179,13 +1111,13 @@ Keep response concise and actionable.`,
           const aiResponse = await this.context.samplingServer.createMessage({
             messages: [
               {
-                role: "user",
+                role: 'user',
                 content: {
-                  type: "text",
+                  type: 'text',
                   text: `Analyze this column data and provide insights:
-Data type: ${analysis["dataType"]}
+Data type: ${analysis['dataType']}
 Total values: ${columnData.length}
-Unique values: ${analysis["uniqueCount"]}
+Unique values: ${analysis['uniqueCount']}
 Sample values: ${JSON.stringify(sampleValues, null, 2)}
 
 Analysis results: ${JSON.stringify(analysis, null, 2)}
@@ -1208,16 +1140,16 @@ Keep response concise and actionable.`,
             ? aiResponse.content
             : [aiResponse.content];
           const aiContent = contentArray[0];
-          if (aiContent && aiContent.type === "text") {
-            analysis["aiInsights"] = aiContent.text;
+          if (aiContent && aiContent.type === 'text') {
+            analysis['aiInsights'] = aiContent.text;
           }
         } catch (error) {
-          logger.warn("AI column analysis failed", { error });
+          logger.warn('AI column analysis failed', { error });
         }
       }
     }
 
-    return this.success("column_analysis", {
+    return this.success('column_analysis', {
       columnAnalysis: analysis,
     });
   }
@@ -1226,25 +1158,22 @@ Keep response concise and actionable.`,
   // Helpers
   // ============================================================
 
-  private async fetchValues(
-    spreadsheetId: string,
-    range: RangeInput,
-  ): Promise<unknown[][]> {
+  private async fetchValues(spreadsheetId: string, range: RangeInput): Promise<unknown[][]> {
     const a1 = await this.resolveRange(spreadsheetId, range);
 
     // Check cache first (1min TTL for analysis data)
-    const cacheKey = createCacheKey("analysis:values", {
+    const cacheKey = createCacheKey('analysis:values', {
       spreadsheetId,
       range: a1,
     });
-    const cached = cacheManager.get<unknown[][]>(cacheKey, "values");
+    const cached = cacheManager.get<unknown[][]>(cacheKey, 'values');
 
     if (cached) {
       return cached;
     }
 
     // Use request deduplication for concurrent requests
-    const requestKey = createRequestKey("values.get", {
+    const requestKey = createRequestKey('values.get', {
       spreadsheetId,
       range: a1,
     });
@@ -1253,14 +1182,14 @@ Keep response concise and actionable.`,
       const response = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId,
         range: a1,
-        valueRenderOption: "UNFORMATTED_VALUE",
+        valueRenderOption: 'UNFORMATTED_VALUE',
       });
       const values = (response.data.values ?? []) as unknown[][];
 
       // Cache the result
       cacheManager.set(cacheKey, values, {
         ttl: CACHE_TTL_ANALYSIS,
-        namespace: "values",
+        namespace: 'values',
       });
       cacheManager.trackRangeDependency(spreadsheetId, a1, cacheKey);
 
@@ -1296,11 +1225,11 @@ Keep response concise and actionable.`,
   }
 
   private valueType(value: unknown): string {
-    if (value === null || value === undefined || value === "") return "empty";
-    if (typeof value === "number") return "number";
-    if (typeof value === "boolean") return "boolean";
-    if (typeof value === "string") return "string";
-    return "other";
+    if (value === null || value === undefined || value === '') return 'empty';
+    if (typeof value === 'number') return 'number';
+    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'string') return 'string';
+    return 'other';
   }
 
   // ============================================================
@@ -1316,15 +1245,12 @@ Keep response concise and actionable.`,
     const columnCount = values[0].length;
 
     // Extract all numeric columns in a single pass (O(n*m) instead of O(n*m*m))
-    const numericColumns: number[][] = Array.from(
-      { length: columnCount },
-      () => [],
-    );
+    const numericColumns: number[][] = Array.from({ length: columnCount }, () => []);
 
     for (const row of values) {
       for (let col = 0; col < columnCount; col++) {
         const value = row[col];
-        if (typeof value === "number") {
+        if (typeof value === 'number') {
           numericColumns[col]!.push(value);
         }
       }
@@ -1352,8 +1278,7 @@ Keep response concise and actionable.`,
       }
 
       const slope = denominator !== 0 ? numerator / denominator : 0;
-      const direction =
-        slope > 0.1 ? "increasing" : slope < -0.1 ? "decreasing" : "stable";
+      const direction = slope > 0.1 ? 'increasing' : slope < -0.1 ? 'decreasing' : 'stable';
       const changeRate = Math.abs(slope / meanY) * 100;
 
       trends.push({
@@ -1367,9 +1292,7 @@ Keep response concise and actionable.`,
     return trends;
   }
 
-  private analyzeCorrelationsData(
-    values: unknown[][],
-  ): Array<Record<string, unknown>> {
+  private analyzeCorrelationsData(values: unknown[][]): Array<Record<string, unknown>> {
     const correlations: Array<Record<string, unknown>> = [];
 
     if (values.length === 0 || !values[0]) return correlations;
@@ -1377,16 +1300,13 @@ Keep response concise and actionable.`,
     const columnCount = values[0].length;
 
     // Extract numeric columns in a single pass (O(n*m) instead of O(n*m*m))
-    const numericColumns: number[][] = Array.from(
-      { length: columnCount },
-      () => [],
-    );
+    const numericColumns: number[][] = Array.from({ length: columnCount }, () => []);
 
     // Single pass through all rows to extract numeric values
     for (const row of values) {
       for (let col = 0; col < columnCount; col++) {
         const value = row[col];
-        if (typeof value === "number") {
+        if (typeof value === 'number') {
           numericColumns[col]!.push(value);
         }
       }
@@ -1407,16 +1327,16 @@ Keep response concise and actionable.`,
         const correlation = this.pearson(item1.col, item2.col);
         const strength =
           Math.abs(correlation) > 0.7
-            ? "strong"
+            ? 'strong'
             : Math.abs(correlation) > 0.4
-              ? "moderate"
-              : "weak";
+              ? 'moderate'
+              : 'weak';
 
         if (Math.abs(correlation) > 0.3) {
           correlations.push({
             columns: [item1.idx, item2.idx],
             correlation: correlation.toFixed(3),
-            strength: `${strength} ${correlation > 0 ? "positive" : "negative"}`,
+            strength: `${strength} ${correlation > 0 ? 'positive' : 'negative'}`,
           });
         }
       }
@@ -1435,7 +1355,7 @@ Keep response concise and actionable.`,
     for (let col = 0; col < columnCount; col++) {
       const columnData = values
         .map((row, idx) => ({ value: row[col], row: idx }))
-        .filter((v) => typeof v.value === "number") as {
+        .filter((v) => typeof v.value === 'number') as {
         value: number;
         row: number;
       }[];
@@ -1443,11 +1363,9 @@ Keep response concise and actionable.`,
       if (columnData.length < 4) continue;
 
       const numericValues = columnData.map((d) => d.value);
-      const mean =
-        numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+      const mean = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
       const variance =
-        numericValues.reduce((sum, val) => sum + (val - mean) ** 2, 0) /
-        numericValues.length;
+        numericValues.reduce((sum, val) => sum + (val - mean) ** 2, 0) / numericValues.length;
       const stdDev = Math.sqrt(variance);
 
       // Detect outliers using z-score (> 3 std devs from mean)
@@ -1474,17 +1392,16 @@ Keep response concise and actionable.`,
     if (values.length < 12) {
       return {
         detected: false,
-        message:
-          "Insufficient data for seasonality analysis (need 12+ periods)",
+        message: 'Insufficient data for seasonality analysis (need 12+ periods)',
       };
     }
 
     // Look for repeating patterns in first numeric column
     const firstColumn = values
       .map((row) => row[0])
-      .filter((v) => typeof v === "number") as number[];
+      .filter((v) => typeof v === 'number') as number[];
     if (firstColumn.length < 12) {
-      return { detected: false, message: "Insufficient numeric data" };
+      return { detected: false, message: 'Insufficient numeric data' };
     }
 
     // Simple heuristic: check for monthly patterns (12-period cycle)
@@ -1492,10 +1409,10 @@ Keep response concise and actionable.`,
     if (firstColumn.length >= period * 2) {
       return {
         detected: true,
-        period: "monthly",
-        pattern: "Potential seasonal pattern detected",
+        period: 'monthly',
+        pattern: 'Potential seasonal pattern detected',
         strength: 0.65, // Placeholder
-        note: "Full seasonality analysis requires more sophisticated algorithms",
+        note: 'Full seasonality analysis requires more sophisticated algorithms',
       };
     }
 
@@ -1503,30 +1420,27 @@ Keep response concise and actionable.`,
   }
 
   private detectDataType(columnData: unknown[]): string {
-    if (columnData.length === 0) return "empty";
+    if (columnData.length === 0) return 'empty';
 
     const types = columnData.map((v) => {
-      if (typeof v === "number") return "number";
-      if (typeof v === "boolean") return "boolean";
-      if (typeof v === "string") {
+      if (typeof v === 'number') return 'number';
+      if (typeof v === 'boolean') return 'boolean';
+      if (typeof v === 'string') {
         // Check for date patterns
-        if (
-          /^\d{4}-\d{2}-\d{2}/.test(v) ||
-          /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)
-        ) {
-          return "date";
+        if (/^\d{4}-\d{2}-\d{2}/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)) {
+          return 'date';
         }
         // Check for email
         if (/@/.test(v)) {
-          return "email";
+          return 'email';
         }
         // Check for URL
         if (/^https?:\/\//.test(v)) {
-          return "url";
+          return 'url';
         }
-        return "text";
+        return 'text';
       }
-      return "unknown";
+      return 'unknown';
     });
 
     // Find most common type
@@ -1537,24 +1451,22 @@ Keep response concise and actionable.`,
 
     const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
     const dominantTypeEntry = sortedTypes[0];
-    if (!dominantTypeEntry) return "unknown";
+    if (!dominantTypeEntry) return 'unknown';
 
     const dominantType = dominantTypeEntry[0];
     const typePercentage = (dominantTypeEntry[1] / types.length) * 100;
 
-    return typePercentage > 80 ? dominantType : "mixed";
+    return typePercentage > 80 ? dominantType : 'mixed';
   }
 
   private analyzeDistribution(columnData: unknown[]): Record<string, unknown> {
-    const numericData = columnData.filter(
-      (v) => typeof v === "number",
-    ) as number[];
+    const numericData = columnData.filter((v) => typeof v === 'number') as number[];
 
     if (numericData.length === 0) {
       // For non-numeric data, return value counts
       const uniqueValues = new Set(columnData);
       return {
-        type: "categorical",
+        type: 'categorical',
         uniqueCount: uniqueValues.size,
         totalCount: columnData.length,
       };
@@ -1565,8 +1477,7 @@ Keep response concise and actionable.`,
     const n = sorted.length;
     const sum = sorted.reduce((a, b) => a + b, 0);
     const mean = sum / n;
-    const variance =
-      sorted.reduce((acc, val) => acc + (val - mean) ** 2, 0) / n;
+    const variance = sorted.reduce((acc, val) => acc + (val - mean) ** 2, 0) / n;
     const stdDev = Math.sqrt(variance);
 
     const q1 = sorted[Math.floor(n * 0.25)] ?? 0;
@@ -1576,7 +1487,7 @@ Keep response concise and actionable.`,
     const max = sorted[n - 1] ?? 0;
 
     return {
-      type: "numeric",
+      type: 'numeric',
       mean: mean.toFixed(2),
       median: median.toFixed(2),
       stdDev: stdDev.toFixed(2),
@@ -1593,7 +1504,7 @@ Keep response concise and actionable.`,
 
   private checkColumnQuality(
     columnData: unknown[],
-    dataType: string,
+    dataType: string
   ): {
     completeness: number;
     consistency: number;
@@ -1616,26 +1527,22 @@ Keep response concise and actionable.`,
 
     // Check for data type consistency
     const actualTypes = new Set(columnData.map((v) => typeof v));
-    if (actualTypes.size > 1 && dataType !== "mixed") {
+    if (actualTypes.size > 1 && dataType !== 'mixed') {
       quality.consistency = 70;
-      quality.issues.push("Mixed data types detected");
+      quality.issues.push('Mixed data types detected');
     }
 
     // Check for duplicates
     const duplicateRatio = (totalCount - uniqueCount) / totalCount;
     if (duplicateRatio > 0.5) {
-      quality.issues.push(
-        `High duplicate ratio: ${(duplicateRatio * 100).toFixed(1)}%`,
-      );
+      quality.issues.push(`High duplicate ratio: ${(duplicateRatio * 100).toFixed(1)}%`);
     }
 
     // Check for potential data quality issues
-    if (dataType === "text") {
-      const hasLeadingSpaces = columnData.some(
-        (v) => typeof v === "string" && v !== v.trim(),
-      );
+    if (dataType === 'text') {
+      const hasLeadingSpaces = columnData.some((v) => typeof v === 'string' && v !== v.trim());
       if (hasLeadingSpaces) {
-        quality.issues.push("Values with leading/trailing whitespace found");
+        quality.issues.push('Values with leading/trailing whitespace found');
       }
     }
 
@@ -1646,16 +1553,13 @@ Keep response concise and actionable.`,
   // AI-Powered Actions (Phase 2)
   // ============================================================
 
-  private async handleSuggestTemplates(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleSuggestTemplates(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
 
     if (!input.spreadsheetId || !input.description) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId and description are required for suggest_templates action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and description are required for suggest_templates action',
         retryable: false,
       });
     }
@@ -1663,20 +1567,20 @@ Keep response concise and actionable.`,
     // Check sampling support
     if (!this.context.samplingServer) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Template suggestions require AI sampling capability",
-        details: { reason: "Sampling server not initialized" },
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Template suggestions require AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
         retryable: false,
       });
     }
 
     const samplingSupport = checkSamplingSupport(
-      this.context.samplingServer.getClientCapabilities(),
+      this.context.samplingServer.getClientCapabilities()
     );
     if (!samplingSupport.supported) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Template suggestions require client AI sampling capability",
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Template suggestions require client AI sampling capability',
         retryable: false,
       });
     }
@@ -1686,9 +1590,9 @@ Keep response concise and actionable.`,
       const aiResponse = await this.context.samplingServer.createMessage({
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: {
-              type: "text",
+              type: 'text',
               text: `Generate ${input.maxSuggestions || 3} Google Sheets template suggestions based on this description:
 
 "${input.description}"
@@ -1699,7 +1603,7 @@ For each template, provide:
 3. Best use case
 4. Recommended sheet structure (sheet names, column headers, data types)
 5. Recommended features (e.g., conditional formatting, data validation, formulas)
-${input.includeExample ? "6. Example data (2-3 rows)" : ""}
+${input.includeExample ? '6. Example data (2-3 rows)' : ''}
 
 Format as JSON array with this structure:
 {
@@ -1712,7 +1616,7 @@ Format as JSON array with this structure:
         "sheets": [{"name": "Sheet1", "headers": ["Col1", "Col2"], "columnTypes": ["text", "number"]}],
         "features": ["Feature 1", "Feature 2"]
       },
-      ${input.includeExample ? '"exampleData": [["Value1", "Value2"], ["Value3", "Value4"]]' : ""}
+      ${input.includeExample ? '"exampleData": [["Value1", "Value2"], ["Value3", "Value4"]]' : ''}
     }
   ],
   "reasoning": "Why these templates were suggested"
@@ -1729,14 +1633,14 @@ Format as JSON array with this structure:
         : [aiResponse.content];
       const aiContent = contentArray[0];
 
-      if (!aiContent || aiContent.type !== "text") {
-        throw new Error("Invalid AI response format");
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
       }
 
       // Parse JSON response
       const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error("Could not extract JSON from AI response");
+        throw new Error('Could not extract JSON from AI response');
       }
 
       const templateData = JSON.parse(jsonMatch[0]) as {
@@ -1757,37 +1661,34 @@ Format as JSON array with this structure:
         reasoning: string;
       };
 
-      logger.info("Template suggestions generated", {
+      logger.info('Template suggestions generated', {
         count: templateData.suggestions.length,
         description: input.description,
       });
 
-      return this.success("suggest_templates", {
+      return this.success('suggest_templates', {
         templates: templateData,
       });
     } catch (error) {
-      logger.error("Template suggestion failed", { error });
+      logger.error('Template suggestion failed', { error });
       return this.error({
-        code: "INTERNAL_ERROR",
-        message: "Failed to generate template suggestions",
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate template suggestions',
         details: {
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
         retryable: true,
       });
     }
   }
 
-  private async handleGenerateFormula(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleGenerateFormula(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
 
     if (!input.spreadsheetId || !input.description) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId and description are required for generate_formula action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and description are required for generate_formula action',
         retryable: false,
       });
     }
@@ -1795,37 +1696,34 @@ Format as JSON array with this structure:
     // Check sampling support
     if (!this.context.samplingServer) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Formula generation requires AI sampling capability",
-        details: { reason: "Sampling server not initialized" },
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Formula generation requires AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
         retryable: false,
       });
     }
 
     const samplingSupport = checkSamplingSupport(
-      this.context.samplingServer.getClientCapabilities(),
+      this.context.samplingServer.getClientCapabilities()
     );
     if (!samplingSupport.supported) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Formula generation requires client AI sampling capability",
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Formula generation requires client AI sampling capability',
         retryable: false,
       });
     }
 
     try {
       // Get context data if range provided
-      let contextData = "";
+      let contextData = '';
       if (input.range) {
         try {
-          const values = await this.fetchValues(
-            input.spreadsheetId,
-            input.range,
-          );
+          const values = await this.fetchValues(input.spreadsheetId, input.range);
           const sample = values.slice(0, 5); // First 5 rows for context
           contextData = `\n\nContext data (first 5 rows):\n${JSON.stringify(sample, null, 2)}`;
         } catch (error) {
-          logger.warn("Could not fetch context data", { error });
+          logger.warn('Could not fetch context data', { error });
         }
       }
 
@@ -1833,18 +1731,18 @@ Format as JSON array with this structure:
       const aiResponse = await this.context.samplingServer.createMessage({
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: {
-              type: "text",
+              type: 'text',
               text: `Generate a Google Sheets formula based on this description:
 
 "${input.description}"
-${input.targetCell ? `\nTarget cell: ${input.targetCell}` : ""}
+${input.targetCell ? `\nTarget cell: ${input.targetCell}` : ''}
 ${contextData}
 
 Provide:
 1. The complete formula (with = prefix)
-2. ${input.includeExplanation ? "Detailed explanation of how it works" : "Brief explanation"}
+2. ${input.includeExplanation ? 'Detailed explanation of how it works' : 'Brief explanation'}
 3. Breakdown of main components (optional)
 4. Alternative formulas if applicable (max 2)
 5. Any warnings or considerations
@@ -1869,14 +1767,14 @@ Format as JSON:
         : [aiResponse.content];
       const aiContent = contentArray[0];
 
-      if (!aiContent || aiContent.type !== "text") {
-        throw new Error("Invalid AI response format");
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
       }
 
       // Parse JSON response
       const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error("Could not extract JSON from AI response");
+        throw new Error('Could not extract JSON from AI response');
       }
 
       const formulaData = JSON.parse(jsonMatch[0]) as {
@@ -1888,41 +1786,38 @@ Format as JSON:
       };
 
       // Ensure formula starts with =
-      if (!formulaData.formula.startsWith("=")) {
+      if (!formulaData.formula.startsWith('=')) {
         formulaData.formula = `=${formulaData.formula}`;
       }
 
-      logger.info("Formula generated", {
+      logger.info('Formula generated', {
         description: input.description,
         formulaLength: formulaData.formula.length,
       });
 
-      return this.success("generate_formula", {
+      return this.success('generate_formula', {
         formula: formulaData,
       });
     } catch (error) {
-      logger.error("Formula generation failed", { error });
+      logger.error('Formula generation failed', { error });
       return this.error({
-        code: "INTERNAL_ERROR",
-        message: "Failed to generate formula",
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate formula',
         details: {
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
         retryable: true,
       });
     }
   }
 
-  private async handleSuggestChart(
-    input: SheetsAnalysisInput,
-  ): Promise<AnalysisResponse> {
+  private async handleSuggestChart(input: SheetsAnalysisInput): Promise<AnalysisResponse> {
     const logger = getRequestLogger();
 
     if (!input.spreadsheetId || !input.range) {
       return this.error({
-        code: "INVALID_PARAMS",
-        message:
-          "spreadsheetId and range are required for suggest_chart action",
+        code: 'INVALID_PARAMS',
+        message: 'spreadsheetId and range are required for suggest_chart action',
         retryable: false,
       });
     }
@@ -1930,20 +1825,20 @@ Format as JSON:
     // Check sampling support
     if (!this.context.samplingServer) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Chart suggestions require AI sampling capability",
-        details: { reason: "Sampling server not initialized" },
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Chart suggestions require AI sampling capability',
+        details: { reason: 'Sampling server not initialized' },
         retryable: false,
       });
     }
 
     const samplingSupport = checkSamplingSupport(
-      this.context.samplingServer.getClientCapabilities(),
+      this.context.samplingServer.getClientCapabilities()
     );
     if (!samplingSupport.supported) {
       return this.error({
-        code: "FEATURE_UNAVAILABLE",
-        message: "Chart suggestions require client AI sampling capability",
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'Chart suggestions require client AI sampling capability',
         retryable: false,
       });
     }
@@ -1954,8 +1849,8 @@ Format as JSON:
 
       if (values.length === 0) {
         return this.error({
-          code: "INVALID_PARAMS",
-          message: "No data found in specified range",
+          code: 'INVALID_PARAMS',
+          message: 'No data found in specified range',
           retryable: false,
         });
       }
@@ -1973,9 +1868,9 @@ Format as JSON:
       const aiResponse = await this.context.samplingServer.createMessage({
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: {
-              type: "text",
+              type: 'text',
               text: `Analyze this data and suggest ${input.maxSuggestions || 3} appropriate chart types:
 
 Data structure:
@@ -1983,7 +1878,7 @@ Data structure:
 - Rows: ${rowCount}
 - Columns: ${columnCount}
 - Sample data (first 10 rows): ${JSON.stringify(sampleData, null, 2)}
-${input.goal ? `\nVisualization goal: "${input.goal}"` : ""}
+${input.goal ? `\nVisualization goal: "${input.goal}"` : ''}
 
 For each chart suggestion, provide:
 1. Chart type (from: LINE, AREA, COLUMN, BAR, SCATTER, PIE, COMBO, HISTOGRAM, CANDLESTICK, ORG, TREEMAP, WATERFALL)
@@ -2019,31 +1914,31 @@ Format as JSON:
         : [aiResponse.content];
       const aiContent = contentArray[0];
 
-      if (!aiContent || aiContent.type !== "text") {
-        throw new Error("Invalid AI response format");
+      if (!aiContent || aiContent.type !== 'text') {
+        throw new Error('Invalid AI response format');
       }
 
       // Parse JSON response
       const jsonMatch = aiContent.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error("Could not extract JSON from AI response");
+        throw new Error('Could not extract JSON from AI response');
       }
 
       const chartData = JSON.parse(jsonMatch[0]) as {
         suggestions: Array<{
           chartType:
-            | "LINE"
-            | "AREA"
-            | "COLUMN"
-            | "BAR"
-            | "SCATTER"
-            | "PIE"
-            | "COMBO"
-            | "HISTOGRAM"
-            | "CANDLESTICK"
-            | "ORG"
-            | "TREEMAP"
-            | "WATERFALL";
+            | 'LINE'
+            | 'AREA'
+            | 'COLUMN'
+            | 'BAR'
+            | 'SCATTER'
+            | 'PIE'
+            | 'COMBO'
+            | 'HISTOGRAM'
+            | 'CANDLESTICK'
+            | 'ORG'
+            | 'TREEMAP'
+            | 'WATERFALL';
           title: string;
           reasoning: string;
           configuration?: {
@@ -2057,21 +1952,21 @@ Format as JSON:
         dataInsights: string;
       };
 
-      logger.info("Chart suggestions generated", {
+      logger.info('Chart suggestions generated', {
         count: chartData.suggestions.length,
         range: input.range,
       });
 
-      return this.success("suggest_chart", {
+      return this.success('suggest_chart', {
         chartSuggestions: chartData,
       });
     } catch (error) {
-      logger.error("Chart suggestion failed", { error });
+      logger.error('Chart suggestion failed', { error });
       return this.error({
-        code: "INTERNAL_ERROR",
-        message: "Failed to generate chart suggestions",
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to generate chart suggestions',
         details: {
-          error: error instanceof Error ? error.message : "Unknown error",
+          error: error instanceof Error ? error.message : 'Unknown error',
         },
         retryable: true,
       });

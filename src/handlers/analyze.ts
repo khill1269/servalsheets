@@ -9,9 +9,9 @@
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
-import type { sheets_v4 } from "googleapis";
-import type { HandlerContext } from "./base.js";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import type { HandlerContext } from './base.js';
+import { logger } from '../utils/logger.js';
 import {
   getSamplingAnalysisService,
   buildAnalysisSamplingRequest,
@@ -19,17 +19,21 @@ import {
   buildChartSamplingRequest,
   parseAnalysisResponse,
   type AnalysisType,
-} from "../services/sampling-analysis.js";
+} from '../services/sampling-analysis.js';
 import type {
   SheetsAnalyzeInput,
   SheetsAnalyzeOutput,
   AnalyzeResponse,
-} from "../schemas/analyze.js";
-import { getCapabilitiesWithCache } from "../services/capability-cache.js";
-import { getHotCache } from "../utils/hot-cache.js";
-import { TieredRetrieval } from "../analysis/tiered-retrieval.js";
-import { AnalysisRouter } from "../analysis/router.js";
-import { storeAnalysisResult } from "../resources/analyze.js";
+} from '../schemas/analyze.js';
+import { getCapabilitiesWithCache } from '../services/capability-cache.js';
+import { getHotCache } from '../utils/hot-cache.js';
+import { TieredRetrieval } from '../analysis/tiered-retrieval.js';
+import { AnalysisRouter } from '../analysis/router.js';
+import {
+  ComprehensiveAnalyzer,
+  type ComprehensiveResult as _ComprehensiveResult,
+} from '../analysis/comprehensive.js';
+import { storeAnalysisResult } from '../resources/analyze.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -47,11 +51,31 @@ export class AnalyzeHandler {
   constructor(
     context: HandlerContext,
     sheetsApi: sheets_v4.Sheets,
-    _options?: AnalyzeHandlerOptions,
+    _options?: AnalyzeHandlerOptions
   ) {
     // If options.context is provided, use it; otherwise use the passed context
     this.context = _options?.context ?? context;
     this.sheetsApi = sheetsApi;
+  }
+
+  /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: AnalyzeResponse,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): AnalyzeResponse {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field
+      const { _meta, ...rest } = response as Record<string, unknown>;
+      return rest as AnalyzeResponse;
+    }
+
+    return response;
   }
 
   /**
@@ -63,12 +87,13 @@ export class AnalyzeHandler {
       | { namedRange: string }
       | { semantic: unknown }
       | { grid: unknown }
-      | undefined,
+      | undefined
   ): { a1?: string; sheetName?: string; range?: string } | undefined {
+    // OK: Explicit empty - no range provided
     if (!range) return undefined;
-    if ("a1" in range) return { a1: range.a1 };
-    if ("namedRange" in range) return { a1: range.namedRange };
-    // Semantic and grid ranges will be supported in Phase 2
+    if ('a1' in range) return { a1: range.a1 };
+    if ('namedRange' in range) return { a1: range.namedRange };
+    // OK: Explicit empty - semantic and grid ranges will be supported in Phase 2
     return undefined;
   }
 
@@ -82,11 +107,9 @@ export class AnalyzeHandler {
   }): string | undefined {
     // OK: Explicit empty - typed as optional, no range specified
     if (!range) return undefined;
-    if ("a1" in range && range.a1) return range.a1;
-    if ("sheetName" in range && range.sheetName) {
-      return range.range
-        ? `${range.sheetName}!${range.range}`
-        : range.sheetName;
+    if ('a1' in range && range.a1) return range.a1;
+    if ('sheetName' in range && range.sheetName) {
+      return range.range ? `${range.sheetName}!${range.range}` : range.sheetName;
     }
     // OK: Explicit empty - typed as optional, invalid range format
     return undefined;
@@ -95,16 +118,47 @@ export class AnalyzeHandler {
   /**
    * Read data from spreadsheet
    */
-  private async readData(
-    spreadsheetId: string,
-    range?: string,
-  ): Promise<unknown[][]> {
+  private async readData(spreadsheetId: string, range?: string): Promise<unknown[][]> {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
-      range: range ?? "A:ZZ",
-      valueRenderOption: "FORMATTED_VALUE",
+      range: range ?? 'A:ZZ',
+      valueRenderOption: 'FORMATTED_VALUE',
     });
     return response.data.values ?? [];
+  }
+
+  /**
+   * Check if client supports MCP Sampling capability
+   * @returns null if sampling is available, error response if not
+   */
+  private async checkSamplingCapability(): Promise<AnalyzeResponse | null> {
+    if (!this.context.server) {
+      return {
+        success: false,
+        error: {
+          code: 'SAMPLING_UNAVAILABLE',
+          message: 'MCP Server instance not available. Cannot perform sampling.',
+          retryable: false,
+        },
+      };
+    }
+
+    const sessionId = this.context.requestId || 'default';
+    const clientCapabilities = await getCapabilitiesWithCache(sessionId, this.context.server);
+
+    if (!clientCapabilities?.sampling) {
+      return {
+        success: false,
+        error: {
+          code: 'SAMPLING_UNAVAILABLE',
+          message:
+            'MCP Sampling capability not available. The client must support sampling (SEP-1577).',
+          retryable: false,
+        },
+      };
+    }
+
+    return null; // Sampling is available
   }
 
   /**
@@ -118,7 +172,7 @@ export class AnalyzeHandler {
       let response: AnalyzeResponse;
 
       switch (input.action) {
-        case "analyze_data": {
+        case 'analyze_data': {
           // Type assertion: refine() ensures spreadsheetId is present for 'analyze_data' action
           const analyzeInput = input as typeof input & {
             spreadsheetId: string;
@@ -136,9 +190,7 @@ export class AnalyzeHandler {
           });
 
           // Get metadata first (fast, ~0.3s, cached 5min)
-          const metadata = await tieredRetrieval.getMetadata(
-            analyzeInput.spreadsheetId,
-          );
+          const metadata = await tieredRetrieval.getMetadata(analyzeInput.spreadsheetId);
 
           // Route to optimal execution path
           const router = new AnalysisRouter({
@@ -147,7 +199,7 @@ export class AnalyzeHandler {
           });
           const decision = router.route(analyzeInput, metadata);
 
-          logger.info("Analysis routing decision", {
+          logger.info('Analysis routing decision', {
             spreadsheetId: analyzeInput.spreadsheetId,
             path: decision.path,
             reason: decision.reason,
@@ -156,15 +208,14 @@ export class AnalyzeHandler {
 
           // Execute based on routing decision
           switch (decision.path) {
-            case "fast": {
+            case 'fast': {
               // Fast path: Traditional statistics without LLM
               // Use tiered retrieval - sample data is sufficient for fast analysis (95%+ accuracy)
-              const sheetId =
-                "sheetId" in analyzeInput ? analyzeInput.sheetId : undefined;
+              const sheetId = 'sheetId' in analyzeInput ? analyzeInput.sheetId : undefined;
               const sampleResult = await tieredRetrieval.getSample(
                 analyzeInput.spreadsheetId,
                 sheetId as number | undefined,
-                100, // Default sample size
+                100 // Default sample size
               );
 
               // Extract sample data
@@ -173,26 +224,23 @@ export class AnalyzeHandler {
                 response = {
                   success: false,
                   error: {
-                    code: "NO_DATA",
-                    message: "No data found in the specified range",
+                    code: 'NO_DATA',
+                    message: 'No data found in the specified range',
                     retryable: false,
                   },
                 };
                 break;
               }
 
-              logger.info("Fast path using tier 3 (sample)", {
+              logger.info('Fast path using tier 3 (sample)', {
                 sampleSize: sampleResult.sampleData.sampleSize,
                 totalRows: sampleResult.sampleData.totalRows,
                 samplingMethod: sampleResult.sampleData.samplingMethod,
               });
 
               // Use helper functions for fast statistical analysis
-              const {
-                analyzeTrends,
-                detectAnomalies,
-                analyzeCorrelationsData,
-              } = await import("../analysis/helpers.js");
+              const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } =
+                await import('../analysis/helpers.js');
 
               const trends = analyzeTrends(data);
               const anomalies = detectAnomalies(data);
@@ -202,12 +250,12 @@ export class AnalyzeHandler {
 
               response = {
                 success: true,
-                action: "analyze_data",
+                action: 'analyze_data',
                 summary: `Fast statistical analysis complete (sample: ${sampleResult.sampleData.sampleSize}/${sampleResult.sampleData.totalRows} rows). Found ${anomalies.length} anomalies, ${trends.length} trends, and ${correlations.length} correlations.`,
                 analyses: [
                   {
-                    type: "summary",
-                    confidence: "high",
+                    type: 'summary',
+                    confidence: 'high',
                     findings: [
                       `Analyzed ${data.length} rows with ${data[0]?.length ?? 0} columns (sample of ${sampleResult.sampleData.totalRows} total rows)`,
                       `Detected ${anomalies.length} anomalies`,
@@ -229,68 +277,43 @@ export class AnalyzeHandler {
               break;
             }
 
-            case "ai": {
+            case 'ai': {
               // AI path: LLM-powered analysis via MCP Sampling
-              // Check if server is available
-              if (!this.context.server) {
-                response = {
-                  success: false,
-                  error: {
-                    code: "SAMPLING_UNAVAILABLE",
-                    message:
-                      "MCP Server instance not available. Cannot perform sampling.",
-                    retryable: false,
-                  },
-                };
+              const samplingError = await this.checkSamplingCapability();
+              if (samplingError) {
+                response = samplingError;
                 break;
               }
 
-              // Check if client supports sampling (with caching)
-              const sessionId = this.context.requestId || "default";
-              const clientCapabilities = await getCapabilitiesWithCache(
-                sessionId,
-                this.context.server,
-              );
-              if (!clientCapabilities?.sampling) {
-                response = {
-                  success: false,
-                  error: {
-                    code: "SAMPLING_UNAVAILABLE",
-                    message:
-                      "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
-                    retryable: false,
-                  },
-                };
-                break;
-              }
+              // Server is guaranteed to be available after sampling check
+              const server = this.context.server!;
 
               // Use tiered retrieval - sample for medium datasets, full for explicit requests
-              const sheetId =
-                "sheetId" in analyzeInput ? analyzeInput.sheetId : undefined;
+              const sheetId = 'sheetId' in analyzeInput ? analyzeInput.sheetId : undefined;
 
               // Determine which tier to use based on request
               const useFullData =
-                "analysisTypes" in analyzeInput &&
+                'analysisTypes' in analyzeInput &&
                 Array.isArray(analyzeInput.analysisTypes) &&
-                analyzeInput.analysisTypes.includes("quality"); // Quality analysis benefits from full data
+                analyzeInput.analysisTypes.includes('quality'); // Quality analysis benefits from full data
 
               const dataResult = useFullData
                 ? await tieredRetrieval.getFull(
                     analyzeInput.spreadsheetId,
-                    sheetId as number | undefined,
+                    sheetId as number | undefined
                   )
                 : await tieredRetrieval.getSample(
                     analyzeInput.spreadsheetId,
                     sheetId as number | undefined,
-                    200, // Larger sample for AI analysis
+                    200 // Larger sample for AI analysis
                   );
 
               // Extract data (sample or full)
               const data = useFullData
-                ? "fullData" in dataResult
+                ? 'fullData' in dataResult
                   ? dataResult.fullData.values
                   : []
-                : "sampleData" in dataResult
+                : 'sampleData' in dataResult
                   ? dataResult.sampleData.rows
                   : [];
 
@@ -298,21 +321,18 @@ export class AnalyzeHandler {
                 response = {
                   success: false,
                   error: {
-                    code: "NO_DATA",
-                    message: "No data found in the specified range",
+                    code: 'NO_DATA',
+                    message: 'No data found in the specified range',
                     retryable: false,
                   },
                 };
                 break;
               }
 
-              logger.info(
-                `AI path using tier ${useFullData ? "4 (full)" : "3 (sample)"}`,
-                {
-                  dataSize: data.length,
-                  useFullData,
-                },
-              );
+              logger.info(`AI path using tier ${useFullData ? '4 (full)' : '3 (sample)'}`, {
+                dataSize: data.length,
+                useFullData,
+              });
 
               // Build sampling request
               const targetSheet =
@@ -331,47 +351,40 @@ export class AnalyzeHandler {
               });
 
               // Call LLM via MCP Sampling
-              const samplingResult =
-                await this.context.server.createMessage(samplingRequest);
+              const samplingResult = await server.createMessage(samplingRequest);
               const duration = Date.now() - startTime;
 
               // Parse the response (extract text from content)
               const contentText =
-                typeof samplingResult.content === "string"
+                typeof samplingResult.content === 'string'
                   ? samplingResult.content
-                  : samplingResult.content.type === "text"
+                  : samplingResult.content.type === 'text'
                     ? samplingResult.content.text
-                    : "";
+                    : '';
               const parsed = parseAnalysisResponse(contentText);
 
               if (!parsed.success || !parsed.result) {
-                analysisService.recordFailure(
-                  analyzeInput.analysisTypes as AnalysisType[],
-                );
+                analysisService.recordFailure(analyzeInput.analysisTypes as AnalysisType[]);
                 response = {
                   success: false,
                   error: {
-                    code: "PARSE_ERROR",
-                    message:
-                      parsed.error ?? "Failed to parse analysis response",
+                    code: 'PARSE_ERROR',
+                    message: parsed.error ?? 'Failed to parse analysis response',
                     retryable: true,
                   },
                 };
                 break;
               }
 
-              analysisService.recordSuccess(
-                analyzeInput.analysisTypes as AnalysisType[],
-                duration,
-              );
+              analysisService.recordSuccess(analyzeInput.analysisTypes as AnalysisType[], duration);
 
               response = {
                 success: true,
-                action: "analyze_data",
+                action: 'analyze_data',
                 summary: parsed.result.summary,
                 analyses: parsed.result.analyses.map((a) => ({
                   type: a.type as AnalysisType,
-                  confidence: a.confidence as "high" | "medium" | "low",
+                  confidence: a.confidence as 'high' | 'medium' | 'low',
                   findings: a.findings,
                   details: a.details,
                   affectedCells: a.affectedCells,
@@ -380,29 +393,27 @@ export class AnalyzeHandler {
                 overallQualityScore: parsed.result.overallQualityScore,
                 topInsights: parsed.result.topInsights,
                 duration,
-                message: `AI path analysis complete (tier ${useFullData ? "4" : "3"}): ${parsed.result.analyses.length} finding(s) with ${parsed.result.topInsights.length} key insight(s)`,
+                message: `AI path analysis complete (tier ${useFullData ? '4' : '3'}): ${parsed.result.analyses.length} finding(s) with ${parsed.result.topInsights.length} key insight(s)`,
               };
               break;
             }
 
-            case "streaming": {
+            case 'streaming': {
               // Streaming path: Task-based chunked processing
               // Full implementation using StreamingAnalyzer
-              logger.info("Streaming path selected - chunked processing", {
+              logger.info('Streaming path selected - chunked processing', {
                 decision,
               });
 
-              const sheetId =
-                "sheetId" in analyzeInput ? analyzeInput.sheetId : undefined;
+              const sheetId = 'sheetId' in analyzeInput ? analyzeInput.sheetId : undefined;
 
               // Import StreamingAnalyzer
-              const { StreamingAnalyzer } =
-                await import("../analysis/streaming.js");
+              const { StreamingAnalyzer } = await import('../analysis/streaming.js');
 
               const streamingAnalyzer = new StreamingAnalyzer(
                 this.sheetsApi,
                 tieredRetrieval,
-                1000, // 1000 rows per chunk
+                1000 // 1000 rows per chunk
               );
 
               // Execute streaming analysis with progress tracking
@@ -412,22 +423,21 @@ export class AnalyzeHandler {
                 metadata,
                 async (chunk) => {
                   // Progress callback
-                  const progressPercent = (
-                    (chunk.rowsProcessed / chunk.totalRows) *
-                    100
-                  ).toFixed(1);
-                  logger.info("Streaming progress", {
+                  const progressPercent = ((chunk.rowsProcessed / chunk.totalRows) * 100).toFixed(
+                    1
+                  );
+                  logger.info('Streaming progress', {
                     chunkIndex: chunk.chunkIndex,
                     totalChunks: chunk.totalChunks,
                     progress: `${progressPercent}%`,
                     partialResults: chunk.partialResults,
                   });
-                },
+                }
               );
 
               const duration = Date.now() - startTime;
 
-              logger.info("Streaming analysis complete", {
+              logger.info('Streaming analysis complete', {
                 totalRowsProcessed: streamingResult.totalRowsProcessed,
                 totalChunks: streamingResult.totalChunks,
                 duration: streamingResult.duration,
@@ -435,13 +445,13 @@ export class AnalyzeHandler {
 
               response = {
                 success: true,
-                action: "analyze_data",
-                executionPath: "streaming",
+                action: 'analyze_data',
+                executionPath: 'streaming',
                 summary: `Streaming analysis complete: processed ${streamingResult.totalRowsProcessed} rows in ${streamingResult.totalChunks} chunks. Found ${streamingResult.aggregatedResults.anomalies} anomalies, ${streamingResult.aggregatedResults.trends} trends, ${streamingResult.aggregatedResults.correlations} correlations.`,
                 analyses: [
                   {
-                    type: "summary",
-                    confidence: "high",
+                    type: 'summary',
+                    confidence: 'high',
                     findings: [
                       `Processed ${streamingResult.totalRowsProcessed} rows using chunked streaming (${streamingResult.totalChunks} chunks)`,
                       `Detected ${streamingResult.aggregatedResults.anomalies} anomalies`,
@@ -459,8 +469,8 @@ export class AnalyzeHandler {
                     Math.floor(
                       (streamingResult.aggregatedResults.nullCount /
                         streamingResult.totalRowsProcessed) *
-                        100,
-                    ),
+                        100
+                    )
                 ),
                 topInsights: [
                   `${streamingResult.aggregatedResults.anomalies} anomalies detected across all chunks`,
@@ -477,46 +487,21 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "generate_formula": {
+        case 'generate_formula': {
           // Type assertion: refine() ensures spreadsheetId and description are present
           const formulaInput = input as typeof input & {
             spreadsheetId: string;
             description: string;
           };
 
-          // Check if server is available
-          if (!this.context.server) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Server instance not available. Cannot perform sampling.",
-                retryable: false,
-              },
-            };
+          // Check sampling capability
+          const samplingError2 = await this.checkSamplingCapability();
+          if (samplingError2) {
+            response = samplingError2;
             break;
           }
 
-          // Check if client supports sampling (with caching)
-          const sessionId2 = this.context.requestId || "default";
-          const clientCapabilities2 = await getCapabilitiesWithCache(
-            sessionId2,
-            this.context.server,
-          );
-          if (!clientCapabilities2?.sampling) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
-                retryable: false,
-              },
-            };
-            break;
-          }
-
+          const server2 = this.context.server!;
           const startTime = Date.now();
 
           // Read context data if range provided
@@ -524,14 +509,9 @@ export class AnalyzeHandler {
           let sampleData: unknown[][] | undefined;
 
           if (formulaInput.range) {
-            const convertedFormulaRange = this.convertRangeInput(
-              formulaInput.range,
-            );
+            const convertedFormulaRange = this.convertRangeInput(formulaInput.range);
             const rangeStr = this.resolveRange(convertedFormulaRange);
-            const data = await this.readData(
-              formulaInput.spreadsheetId,
-              rangeStr,
-            );
+            const data = await this.readData(formulaInput.spreadsheetId, rangeStr);
             if (data.length > 0) {
               headers = data[0]?.map(String);
               sampleData = data.slice(0, 10);
@@ -540,41 +520,37 @@ export class AnalyzeHandler {
 
           // Build sampling request
           const formulaSheetName =
-            formulaInput.range && "sheetName" in formulaInput.range
+            formulaInput.range && 'sheetName' in formulaInput.range
               ? (formulaInput.range as { sheetName: string }).sheetName
               : undefined;
 
-          const samplingRequest = buildFormulaSamplingRequest(
-            formulaInput.description,
-            {
-              headers,
-              sampleData,
-              targetCell: formulaInput.targetCell,
-              sheetName: formulaSheetName,
-            },
-          );
+          const samplingRequest = buildFormulaSamplingRequest(formulaInput.description, {
+            headers,
+            sampleData,
+            targetCell: formulaInput.targetCell,
+            sheetName: formulaSheetName,
+          });
 
           // Call LLM via MCP Sampling
-          const samplingResult =
-            await this.context.server.createMessage(samplingRequest);
+          const samplingResult = await server2.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
           // Parse the response (extract text from content)
           const contentText =
-            typeof samplingResult.content === "string"
+            typeof samplingResult.content === 'string'
               ? samplingResult.content
-              : samplingResult.content.type === "text"
+              : samplingResult.content.type === 'text'
                 ? samplingResult.content.text
-                : "";
+                : '';
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error("No JSON in response");
+            if (!jsonMatch) throw new Error('No JSON in response');
             const parsed = JSON.parse(jsonMatch[0]);
 
             response = {
               success: true,
-              action: "generate_formula",
+              action: 'generate_formula',
               formula: {
                 formula: parsed.formula,
                 explanation: parsed.explanation,
@@ -586,16 +562,16 @@ export class AnalyzeHandler {
               message: `Formula generated: ${parsed.formula}`,
             };
           } catch (error) {
-            logger.error("Failed to parse formula response", {
-              component: "analyze-handler",
-              action: "generate_formula",
+            logger.error('Failed to parse formula response', {
+              component: 'analyze-handler',
+              action: 'generate_formula',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "PARSE_ERROR",
-                message: "Failed to parse formula response",
+                code: 'PARSE_ERROR',
+                message: 'Failed to parse formula response',
                 retryable: true,
               },
             };
@@ -603,46 +579,21 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "suggest_visualization": {
+        case 'suggest_visualization': {
           // Type assertion: refine() ensures spreadsheetId and range are present
           const chartInput = input as typeof input & {
             spreadsheetId: string;
             range: { a1: string } | { sheetName: string; range?: string };
           };
 
-          // Check if server is available
-          if (!this.context.server) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Server instance not available. Cannot perform sampling.",
-                retryable: false,
-              },
-            };
+          // Check sampling capability
+          const samplingError3 = await this.checkSamplingCapability();
+          if (samplingError3) {
+            response = samplingError3;
             break;
           }
 
-          // Check if client supports sampling (with caching)
-          const sessionId3 = this.context.requestId || "default";
-          const clientCapabilities3 = await getCapabilitiesWithCache(
-            sessionId3,
-            this.context.server,
-          );
-          if (!clientCapabilities3?.sampling) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
-                retryable: false,
-              },
-            };
-            break;
-          }
-
+          const server3 = this.context.server!;
           const startTime = Date.now();
 
           // Read the data
@@ -653,8 +604,8 @@ export class AnalyzeHandler {
             response = {
               success: false,
               error: {
-                code: "NO_DATA",
-                message: "No data found in the specified range",
+                code: 'NO_DATA',
+                message: 'No data found in the specified range',
                 retryable: false,
               },
             };
@@ -668,77 +619,72 @@ export class AnalyzeHandler {
           });
 
           // Call LLM via MCP Sampling
-          const samplingResult =
-            await this.context.server.createMessage(samplingRequest);
+          const samplingResult = await server3.createMessage(samplingRequest);
           const duration = Date.now() - startTime;
 
           // Parse the response (extract text from content)
           const contentText =
-            typeof samplingResult.content === "string"
+            typeof samplingResult.content === 'string'
               ? samplingResult.content
-              : samplingResult.content.type === "text"
+              : samplingResult.content.type === 'text'
                 ? samplingResult.content.text
-                : "";
+                : '';
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error("No JSON in response");
+            if (!jsonMatch) throw new Error('No JSON in response');
             const parsed = JSON.parse(jsonMatch[0]);
 
             // Build chart recommendations with executable params
             const chartRecommendations = parsed.recommendations?.map(
               (r: Record<string, unknown>) => {
-                const config = r["configuration"] as
-                  | Record<string, unknown>
-                  | undefined;
+                const config = r['configuration'] as Record<string, unknown> | undefined;
 
                 // Build executable params for sheets_charts:create
                 const executionParams = {
-                  tool: "sheets_charts" as const,
-                  action: "create" as const,
+                  tool: 'sheets_charts' as const,
+                  action: 'create' as const,
                   params: {
                     spreadsheetId: chartInput.spreadsheetId,
-                    chartType: String(r["chartType"] || "LINE"),
+                    chartType: String(r['chartType'] || 'LINE'),
                     dataRange: rangeStr,
-                    title: String(
-                      config?.["title"] || `${r["chartType"]} Chart`,
-                    ),
-                    xAxisTitle: String(config?.["categories"] || ""),
-                    yAxisTitle: "Values",
-                    legendPosition: "BOTTOM_LEGEND",
+                    title: String(config?.['title'] || `${r['chartType']} Chart`),
+                    xAxisTitle: String(config?.['categories'] || ''),
+                    yAxisTitle: 'Values',
+                    legendPosition: 'BOTTOM_LEGEND',
                   },
                 };
 
                 return {
-                  chartType: r["chartType"],
-                  suitabilityScore: r["suitabilityScore"],
-                  reasoning: r["reasoning"],
-                  configuration: r["configuration"],
-                  insights: r["insights"],
+                  chartType: r['chartType'],
+                  suitabilityScore: r['suitabilityScore'],
+                  reasoning: r['reasoning'],
+                  configuration: r['configuration'],
+                  insights: r['insights'],
                   executionParams,
                 };
-              },
+              }
             );
 
             response = {
               success: true,
-              action: "suggest_chart",
+              action: 'suggest_chart',
               chartRecommendations,
               dataAssessment: parsed.dataAssessment,
               duration,
               message: `${chartRecommendations?.length ?? 0} chart type(s) recommended with executable params`,
             };
           } catch (error) {
-            logger.error("Failed to parse chart recommendation response", {
-              component: "analyze-handler",
-              action: "suggest_chart",
+            logger.error('Failed to parse chart recommendation response', {
+              component: 'analyze-handler',
+              action: 'suggest_chart',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "PARSE_ERROR",
-                message: "Failed to parse chart recommendation response",
+                code: 'PARSE_ERROR',
+                message: 'Failed to parse chart recommendation response',
                 retryable: true,
               },
             };
@@ -746,7 +692,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "detect_patterns": {
+        case 'detect_patterns': {
           // Type assertion: refine() ensures spreadsheetId and range are present
           const patternInput = input as typeof input & {
             spreadsheetId: string;
@@ -762,9 +708,9 @@ export class AnalyzeHandler {
             response = {
               success: false,
               error: {
-                code: "SAMPLING_UNAVAILABLE",
+                code: 'SAMPLING_UNAVAILABLE',
                 message:
-                  "MCP Sampling is not available. detect_patterns requires an LLM via Sampling.",
+                  'MCP Sampling is not available. detect_patterns requires an LLM via Sampling.',
                 retryable: false,
               },
             };
@@ -774,21 +720,16 @@ export class AnalyzeHandler {
           const startTime = Date.now();
 
           // Read the data
-          const convertedPatternRange = this.convertRangeInput(
-            patternInput.range,
-          );
+          const convertedPatternRange = this.convertRangeInput(patternInput.range);
           const rangeStr = this.resolveRange(convertedPatternRange);
-          const data = await this.readData(
-            patternInput.spreadsheetId,
-            rangeStr,
-          );
+          const data = await this.readData(patternInput.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
             response = {
               success: false,
               error: {
-                code: "NO_DATA",
-                message: "No data found in the specified range",
+                code: 'NO_DATA',
+                message: 'No data found in the specified range',
                 retryable: false,
               },
             };
@@ -797,7 +738,7 @@ export class AnalyzeHandler {
 
           // Use helpers from analysis/helpers.ts for pattern detection
           const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } =
-            await import("../analysis/helpers.js");
+            await import('../analysis/helpers.js');
 
           try {
             // Detect anomalies using statistical methods
@@ -813,17 +754,13 @@ export class AnalyzeHandler {
 
             response = {
               success: true,
-              action: "detect_patterns",
+              action: 'detect_patterns',
               patterns: {
                 anomalies: anomalies.map((a) => ({
                   location: a.cell,
                   value: a.value,
                   severity:
-                    parseFloat(a.zScore) > 3
-                      ? "high"
-                      : parseFloat(a.zScore) > 2
-                        ? "medium"
-                        : "low",
+                    parseFloat(a.zScore) > 3 ? 'high' : parseFloat(a.zScore) > 2 ? 'medium' : 'low',
                   expectedRange: a.expected,
                 })),
                 trends: trends.map((t) => ({
@@ -834,25 +771,23 @@ export class AnalyzeHandler {
                 })),
                 correlations: {
                   matrix: [],
-                  columns: correlations.map(
-                    (c) => `Columns ${c.columns.join(" & ")}`,
-                  ),
+                  columns: correlations.map((c) => `Columns ${c.columns.join(' & ')}`),
                 },
               },
               duration,
               message: `Found ${anomalies.length} anomalies, ${trends.length} trends, ${correlations.length} correlations`,
             };
           } catch (error) {
-            logger.error("Failed to detect patterns", {
-              component: "analyze-handler",
-              action: "detect_patterns",
+            logger.error('Failed to detect patterns', {
+              component: 'analyze-handler',
+              action: 'detect_patterns',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to detect patterns",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to detect patterns',
                 retryable: true,
               },
             };
@@ -860,7 +795,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "analyze_structure": {
+        case 'analyze_structure': {
           // Type assertion: refine() ensures spreadsheetId is present
           const structureInput = input as typeof input & {
             spreadsheetId: string;
@@ -880,14 +815,12 @@ export class AnalyzeHandler {
 
             // Calculate totals
             const totalRows = sheets.reduce(
-              (sum, sheet) =>
-                sum + (sheet.properties?.gridProperties?.rowCount ?? 0),
-              0,
+              (sum, sheet) => sum + (sheet.properties?.gridProperties?.rowCount ?? 0),
+              0
             );
             const totalColumns = sheets.reduce(
-              (sum, sheet) =>
-                sum + (sheet.properties?.gridProperties?.columnCount ?? 0),
-              0,
+              (sum, sheet) => sum + (sheet.properties?.gridProperties?.columnCount ?? 0),
+              0
             );
 
             const structure = {
@@ -895,12 +828,11 @@ export class AnalyzeHandler {
               totalRows,
               totalColumns,
               namedRanges: namedRanges.map((nr) => ({
-                name: nr.name ?? "Unnamed",
+                name: nr.name ?? 'Unnamed',
                 range:
-                  nr.range?.startRowIndex !== undefined &&
-                  nr.range.startRowIndex !== null
-                    ? `${sheets[nr.range.sheetId ?? 0]?.properties?.title ?? "Sheet1"}!R${nr.range.startRowIndex + 1}C${(nr.range.startColumnIndex ?? 0) + 1}:R${nr.range.endRowIndex ?? 0}C${nr.range.endColumnIndex ?? 0}`
-                    : "Unknown",
+                  nr.range?.startRowIndex !== undefined && nr.range.startRowIndex !== null
+                    ? `${sheets[nr.range.sheetId ?? 0]?.properties?.title ?? 'Sheet1'}!R${nr.range.startRowIndex + 1}C${(nr.range.startColumnIndex ?? 0) + 1}:R${nr.range.endRowIndex ?? 0}C${nr.range.endColumnIndex ?? 0}`
+                    : 'Unknown',
               })),
             };
 
@@ -908,22 +840,22 @@ export class AnalyzeHandler {
 
             response = {
               success: true,
-              action: "analyze_structure",
+              action: 'analyze_structure',
               structure,
               duration,
               message: `Analyzed structure: ${structure.sheets} sheets, ${structure.totalRows} total rows, ${structure.namedRanges?.length ?? 0} named ranges`,
             };
           } catch (error) {
-            logger.error("Failed to analyze structure", {
-              component: "analyze-handler",
-              action: "analyze_structure",
+            logger.error('Failed to analyze structure', {
+              component: 'analyze-handler',
+              action: 'analyze_structure',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to analyze structure",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to analyze structure',
                 retryable: true,
               },
             };
@@ -931,7 +863,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "analyze_quality": {
+        case 'analyze_quality': {
           // Type assertion: refine() ensures spreadsheetId and range are present
           const qualityInput = input as typeof input & {
             spreadsheetId: string;
@@ -946,21 +878,16 @@ export class AnalyzeHandler {
 
           try {
             // Read the data
-            const convertedQualityRange = this.convertRangeInput(
-              qualityInput.range,
-            );
+            const convertedQualityRange = this.convertRangeInput(qualityInput.range);
             const rangeStr = this.resolveRange(convertedQualityRange);
-            const data = await this.readData(
-              qualityInput.spreadsheetId,
-              rangeStr,
-            );
+            const data = await this.readData(qualityInput.spreadsheetId, rangeStr);
 
             if (data.length === 0) {
               response = {
                 success: false,
                 error: {
-                  code: "NO_DATA",
-                  message: "No data found in the specified range",
+                  code: 'NO_DATA',
+                  message: 'No data found in the specified range',
                   retryable: false,
                 },
               };
@@ -968,8 +895,7 @@ export class AnalyzeHandler {
             }
 
             // Use helpers from analysis/helpers.ts for quality analysis
-            const { checkColumnQuality, detectDataType } =
-              await import("../analysis/helpers.js");
+            const { checkColumnQuality, detectDataType } = await import('../analysis/helpers.js');
 
             const headers = data[0]?.map(String) ?? [];
             const dataRows = data.slice(1);
@@ -991,31 +917,29 @@ export class AnalyzeHandler {
 
             // Calculate overall metrics
             const avgCompleteness =
-              columnResults.reduce((sum, col) => sum + col.completeness, 0) /
-              columnResults.length;
+              columnResults.reduce((sum, col) => sum + col.completeness, 0) / columnResults.length;
             const avgConsistency =
-              columnResults.reduce((sum, col) => sum + col.consistency, 0) /
-              columnResults.length;
+              columnResults.reduce((sum, col) => sum + col.consistency, 0) / columnResults.length;
             const overallScore = (avgCompleteness + avgConsistency) / 2;
 
             // Build issues array
             const issues = columnResults.flatMap((col) =>
               col.issues.map((issue) => ({
-                type: "MIXED_DATA_TYPES" as const,
-                severity: "medium" as const,
+                type: 'MIXED_DATA_TYPES' as const,
+                severity: 'medium' as const,
                 location: col.column,
                 description: issue,
                 autoFixable: false,
                 fixTool: undefined,
                 fixAction: undefined,
-              })),
+              }))
             );
 
             const duration = Date.now() - startTime;
 
             response = {
               success: true,
-              action: "analyze_quality",
+              action: 'analyze_quality',
               dataQuality: {
                 score: overallScore,
                 completeness: avgCompleteness,
@@ -1028,16 +952,16 @@ export class AnalyzeHandler {
               message: `Quality score: ${overallScore.toFixed(1)}%`,
             };
           } catch (error) {
-            logger.error("Failed to analyze quality", {
-              component: "analyze-handler",
-              action: "analyze_quality",
+            logger.error('Failed to analyze quality', {
+              component: 'analyze-handler',
+              action: 'analyze_quality',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to analyze quality",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to analyze quality',
                 retryable: true,
               },
             };
@@ -1045,7 +969,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "analyze_performance": {
+        case 'analyze_performance': {
           // Type assertion: refine() ensures spreadsheetId is present
           const perfInput = input as typeof input & {
             spreadsheetId: string;
@@ -1072,82 +996,96 @@ export class AnalyzeHandler {
               largeSheets: sheets
                 .filter((sheet) => {
                   const rows = sheet.properties?.gridProperties?.rowCount ?? 0;
-                  const cols =
-                    sheet.properties?.gridProperties?.columnCount ?? 0;
+                  const cols = sheet.properties?.gridProperties?.columnCount ?? 0;
                   return rows * cols > 50000;
                 })
-                .map((sheet) => sheet.properties?.title ?? "Untitled"),
+                .map((sheet) => sheet.properties?.title ?? 'Untitled'),
               complexFormulas: sheets.reduce(
                 (sum, sheet) =>
                   sum +
                   (sheet.data?.[0]?.rowData?.filter((row) =>
-                    row.values?.some(
-                      (cell) => cell.userEnteredValue?.formulaValue,
-                    ),
+                    row.values?.some((cell) => cell.userEnteredValue?.formulaValue)
                   ).length ?? 0),
-                0,
+                0
               ),
               conditionalFormats: sheets.reduce(
                 (sum, sheet) => sum + (sheet.conditionalFormats?.length ?? 0),
-                0,
+                0
               ),
-              charts: sheets.reduce(
-                (sum, sheet) => sum + (sheet.charts?.length ?? 0),
-                0,
-              ),
+              charts: sheets.reduce((sum, sheet) => sum + (sheet.charts?.length ?? 0), 0),
             };
 
             const recommendations: Array<{
               type:
-                | "VOLATILE_FORMULAS"
-                | "EXCESSIVE_FORMULAS"
-                | "LARGE_RANGES"
-                | "CIRCULAR_REFERENCES"
-                | "INEFFICIENT_STRUCTURE"
-                | "TOO_MANY_SHEETS";
-              severity: "low" | "medium" | "high";
+                | 'VOLATILE_FORMULAS'
+                | 'EXCESSIVE_FORMULAS'
+                | 'LARGE_RANGES'
+                | 'CIRCULAR_REFERENCES'
+                | 'INEFFICIENT_STRUCTURE'
+                | 'TOO_MANY_SHEETS';
+              severity: 'low' | 'medium' | 'high';
               description: string;
               estimatedImpact: string;
               recommendation: string;
+              executableFix?: {
+                tool: string;
+                action: string;
+                params: Record<string, unknown>;
+                description: string;
+              };
             }> = [];
 
             if (performance.totalCells > 1000000) {
               recommendations.push({
-                type: "LARGE_RANGES",
-                severity: "high",
+                type: 'LARGE_RANGES',
+                severity: 'high',
                 description: `Spreadsheet has ${performance.totalCells.toLocaleString()} cells`,
-                estimatedImpact: "Slow load times, high memory usage",
-                recommendation:
-                  "Consider splitting into multiple smaller spreadsheets",
+                estimatedImpact: 'Slow load times, high memory usage',
+                recommendation: 'Consider splitting into multiple smaller spreadsheets',
+                executableFix: {
+                  tool: 'sheets_spreadsheet',
+                  action: 'create',
+                  params: {
+                    title: `${perfInput.spreadsheetId}-split`,
+                    sheets: [{ title: 'Sheet1', rowCount: 1000, columnCount: 26 }],
+                  },
+                  description: 'Create a new spreadsheet for splitting data',
+                },
               });
             }
             if (performance.largeSheets.length > 0) {
               recommendations.push({
-                type: "INEFFICIENT_STRUCTURE",
-                severity: "medium",
-                description: `Large sheets detected: ${performance.largeSheets.join(", ")}`,
-                estimatedImpact: "Slower sheet switching and rendering",
-                recommendation: "Archive or split large sheets",
+                type: 'INEFFICIENT_STRUCTURE',
+                severity: 'medium',
+                description: `Large sheets detected: ${performance.largeSheets.join(', ')}`,
+                estimatedImpact: 'Slower sheet switching and rendering',
+                recommendation: 'Archive or split large sheets',
               });
             }
             if (performance.conditionalFormats > 50) {
               recommendations.push({
-                type: "INEFFICIENT_STRUCTURE",
-                severity: "medium",
+                type: 'INEFFICIENT_STRUCTURE',
+                severity: 'medium',
                 description: `${performance.conditionalFormats} conditional format rules`,
-                estimatedImpact: "Increased rendering time",
-                recommendation:
-                  "Consolidate or remove unused conditional formats",
+                estimatedImpact: 'Increased rendering time',
+                recommendation: 'Consolidate or remove unused conditional formats',
+                executableFix: {
+                  tool: 'sheets_rules',
+                  action: 'list_conditional_formats',
+                  params: {
+                    spreadsheetId: perfInput.spreadsheetId,
+                  },
+                  description: 'List all conditional formats to review and consolidate',
+                },
               });
             }
             if (performance.charts > 20) {
               recommendations.push({
-                type: "INEFFICIENT_STRUCTURE",
-                severity: "low",
+                type: 'INEFFICIENT_STRUCTURE',
+                severity: 'low',
                 description: `${performance.charts} charts present`,
-                estimatedImpact: "Slower initial load",
-                recommendation:
-                  "Consider moving charts to separate dashboard sheets",
+                estimatedImpact: 'Slower initial load',
+                recommendation: 'Consider moving charts to separate dashboard sheets',
               });
             }
 
@@ -1158,36 +1096,36 @@ export class AnalyzeHandler {
                 ((performance.totalCells > 1000000 ? 30 : 0) +
                   performance.largeSheets.length * 10 +
                   (performance.conditionalFormats > 50 ? 20 : 0) +
-                  (performance.charts > 20 ? 10 : 0)),
+                  (performance.charts > 20 ? 10 : 0))
             );
 
             const duration = Date.now() - startTime;
 
             response = {
               success: true,
-              action: "analyze_performance",
+              action: 'analyze_performance',
               performance: {
                 overallScore,
                 recommendations,
                 estimatedImprovementPotential:
                   recommendations.length > 0
-                    ? `${recommendations.length} optimization${recommendations.length > 1 ? "s" : ""} available`
-                    : "No major optimizations needed",
+                    ? `${recommendations.length} optimization${recommendations.length > 1 ? 's' : ''} available`
+                    : 'No major optimizations needed',
               },
               duration,
               message: `Performance score: ${overallScore}/100 (${recommendations.length} recommendations)`,
             };
           } catch (error) {
-            logger.error("Failed to analyze performance", {
-              component: "analyze-handler",
-              action: "analyze_performance",
+            logger.error('Failed to analyze performance', {
+              component: 'analyze-handler',
+              action: 'analyze_performance',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to analyze performance",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to analyze performance',
                 retryable: true,
               },
             };
@@ -1195,7 +1133,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "analyze_formulas": {
+        case 'analyze_formulas': {
           // Type assertion: refine() ensures spreadsheetId is present
           const formulaInput = input as typeof input & {
             spreadsheetId: string;
@@ -1214,9 +1152,7 @@ export class AnalyzeHandler {
             });
 
             // Get metadata to know which sheets to analyze
-            const metadata = await tieredRetrieval.getMetadata(
-              formulaInput.spreadsheetId,
-            );
+            const metadata = await tieredRetrieval.getMetadata(formulaInput.spreadsheetId);
 
             // Extract all formulas from sheets using Google Sheets API
             const formulas: Array<{ cell: string; formula: string }> = [];
@@ -1227,8 +1163,7 @@ export class AnalyzeHandler {
                 spreadsheetId: formulaInput.spreadsheetId,
                 ranges: [`'${sheet.title}'`],
                 includeGridData: true,
-                fields:
-                  "sheets(data(rowData(values(userEnteredValue))),properties(title))",
+                fields: 'sheets(data(rowData(values(userEnteredValue))),properties(title))',
               });
 
               if (response.data.sheets && response.data.sheets[0]?.data) {
@@ -1238,11 +1173,7 @@ export class AnalyzeHandler {
                 for (const gridData of sheetData.data || []) {
                   if (!gridData.rowData) continue;
 
-                  for (
-                    let rowIdx = 0;
-                    rowIdx < gridData.rowData.length;
-                    rowIdx++
-                  ) {
+                  for (let rowIdx = 0; rowIdx < gridData.rowData.length; rowIdx++) {
                     const row = gridData.rowData[rowIdx];
                     if (!row?.values) continue;
 
@@ -1267,7 +1198,7 @@ export class AnalyzeHandler {
               analyzeFormulaComplexity,
               detectCircularRefs,
               generateOptimizations,
-            } = await import("../analysis/formula-helpers.js");
+            } = await import('../analysis/formula-helpers.js');
 
             // Analyze formulas
             const volatileFormulas = findVolatileFormulas(formulas);
@@ -1275,33 +1206,25 @@ export class AnalyzeHandler {
 
             // Complexity analysis
             const complexityScores = formulas.map((f) =>
-              analyzeFormulaComplexity(f.cell, f.formula),
+              analyzeFormulaComplexity(f.cell, f.formula)
             );
 
             const complexityDistribution = {
-              simple: complexityScores.filter((c) => c.category === "simple")
-                .length,
-              moderate: complexityScores.filter(
-                (c) => c.category === "moderate",
-              ).length,
-              complex: complexityScores.filter((c) => c.category === "complex")
-                .length,
-              very_complex: complexityScores.filter(
-                (c) => c.category === "very_complex",
-              ).length,
+              simple: complexityScores.filter((c) => c.category === 'simple').length,
+              moderate: complexityScores.filter((c) => c.category === 'moderate').length,
+              complex: complexityScores.filter((c) => c.category === 'complex').length,
+              very_complex: complexityScores.filter((c) => c.category === 'very_complex').length,
             };
 
             // Optimization suggestions
             const optimizationOpportunities =
-              formulaInput.includeOptimizations !== false
-                ? generateOptimizations(formulas)
-                : [];
+              formulaInput.includeOptimizations !== false ? generateOptimizations(formulas) : [];
 
             const duration = Date.now() - startTime;
 
             response = {
               success: true,
-              action: "analyze_formulas",
+              action: 'analyze_formulas',
               formulaAnalysis: {
                 totalFormulas: formulas.length,
                 complexityDistribution,
@@ -1312,16 +1235,14 @@ export class AnalyzeHandler {
                   impact: v.impact,
                   suggestion: v.suggestion,
                 })),
-                optimizationOpportunities: optimizationOpportunities.map(
-                  (o) => ({
-                    type: o.type,
-                    priority: o.priority,
-                    affectedCells: o.affectedCells,
-                    currentFormula: o.currentFormula,
-                    suggestedFormula: o.suggestedFormula,
-                    reasoning: o.reasoning,
-                  }),
-                ),
+                optimizationOpportunities: optimizationOpportunities.map((o) => ({
+                  type: o.type,
+                  priority: o.priority,
+                  affectedCells: o.affectedCells,
+                  currentFormula: o.currentFormula,
+                  suggestedFormula: o.suggestedFormula,
+                  reasoning: o.reasoning,
+                })),
                 circularReferences:
                   circularRefs.length > 0
                     ? circularRefs.map((c) => ({
@@ -1334,16 +1255,16 @@ export class AnalyzeHandler {
               message: `Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations available`,
             };
           } catch (error) {
-            logger.error("Failed to analyze formulas", {
-              component: "analyze-handler",
-              action: "analyze_formulas",
+            logger.error('Failed to analyze formulas', {
+              component: 'analyze-handler',
+              action: 'analyze_formulas',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to analyze formulas",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to analyze formulas',
                 retryable: true,
               },
             };
@@ -1351,7 +1272,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "query_natural_language": {
+        case 'query_natural_language': {
           // Type assertion: refine() ensures spreadsheetId and query are present
           const nlInput = input as typeof input & {
             spreadsheetId: string;
@@ -1360,39 +1281,14 @@ export class AnalyzeHandler {
             conversationId?: string;
           };
 
-          // Check if server is available
-          if (!this.context.server) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Server instance not available. Cannot perform sampling.",
-                retryable: false,
-              },
-            };
+          // Check sampling capability
+          const samplingError4 = await this.checkSamplingCapability();
+          if (samplingError4) {
+            response = samplingError4;
             break;
           }
 
-          // Check if client supports sampling
-          const sessionId = this.context.requestId || "default";
-          const clientCapabilities = await getCapabilitiesWithCache(
-            sessionId,
-            this.context.server,
-          );
-          if (!clientCapabilities?.sampling) {
-            response = {
-              success: false,
-              error: {
-                code: "SAMPLING_UNAVAILABLE",
-                message:
-                  "MCP Sampling capability not available. The client must support sampling (SEP-1577).",
-                retryable: false,
-              },
-            };
-            break;
-          }
-
+          const server4 = this.context.server!;
           const startTime = Date.now();
 
           try {
@@ -1402,12 +1298,8 @@ export class AnalyzeHandler {
               sheetsApi: this.sheetsApi,
             });
 
-            const metadata = await tieredRetrieval.getMetadata(
-              nlInput.spreadsheetId,
-            );
-            const sampleData = await tieredRetrieval.getSample(
-              nlInput.spreadsheetId,
-            );
+            const metadata = await tieredRetrieval.getMetadata(nlInput.spreadsheetId);
+            const sampleData = await tieredRetrieval.getSample(nlInput.spreadsheetId);
 
             // Get target sheet
             const targetSheet = nlInput.sheetId
@@ -1418,8 +1310,8 @@ export class AnalyzeHandler {
               response = {
                 success: false,
                 error: {
-                  code: "SHEET_NOT_FOUND",
-                  message: "Target sheet not found",
+                  code: 'SHEET_NOT_FOUND',
+                  message: 'Target sheet not found',
                   retryable: false,
                 },
               };
@@ -1427,13 +1319,9 @@ export class AnalyzeHandler {
             }
 
             // Import conversational helpers
-            const {
-              detectQueryIntent,
-              buildNLQuerySamplingRequest,
-              validateQuery,
-            } = await import("../analysis/conversational-helpers.js");
-            const { inferSchema } =
-              await import("../analysis/structure-helpers.js");
+            const { detectQueryIntent, buildNLQuerySamplingRequest, validateQuery } =
+              await import('../analysis/conversational-helpers.js');
+            const { inferSchema } = await import('../analysis/structure-helpers.js');
 
             // Get sample data for target sheet
             const sheetSample = sampleData.sampleData.rows || [];
@@ -1463,8 +1351,8 @@ export class AnalyzeHandler {
               response = {
                 success: false,
                 error: {
-                  code: "VALIDATION_ERROR",
-                  message: validation.reason || "Invalid query",
+                  code: 'VALIDATION_ERROR',
+                  message: validation.reason || 'Invalid query',
                   retryable: false,
                 },
               };
@@ -1472,26 +1360,22 @@ export class AnalyzeHandler {
             }
 
             // Build sampling request
-            const samplingRequest = buildNLQuerySamplingRequest(
-              nlInput.query,
-              context,
-            );
+            const samplingRequest = buildNLQuerySamplingRequest(nlInput.query, context);
 
             // Call LLM via MCP Sampling
-            const samplingResult =
-              await this.context.server.createMessage(samplingRequest);
+            const samplingResult = await server4.createMessage(samplingRequest);
 
             // Parse response
             const contentText =
-              typeof samplingResult.content === "string"
+              typeof samplingResult.content === 'string'
                 ? samplingResult.content
-                : samplingResult.content.type === "text"
+                : samplingResult.content.type === 'text'
                   ? samplingResult.content.text
-                  : "";
+                  : '';
 
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
-              throw new Error("No JSON in response");
+              throw new Error('No JSON in response');
             }
             const parsed = JSON.parse(jsonMatch[0]);
 
@@ -1499,10 +1383,10 @@ export class AnalyzeHandler {
 
             response = {
               success: true,
-              action: "query_natural_language",
+              action: 'query_natural_language',
               queryResult: {
                 query: nlInput.query,
-                answer: parsed.answer || "No answer provided",
+                answer: parsed.answer || 'No answer provided',
                 intent: {
                   type: intent.type,
                   confidence: intent.confidence,
@@ -1515,16 +1399,16 @@ export class AnalyzeHandler {
               message: `Query processed: ${intent.type} (${intent.confidence}% confidence)`,
             };
           } catch (error) {
-            logger.error("Failed to process natural language query", {
-              component: "analyze-handler",
-              action: "query_natural_language",
+            logger.error('Failed to process natural language query', {
+              component: 'analyze-handler',
+              action: 'query_natural_language',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to process natural language query",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to process natural language query',
                 retryable: true,
               },
             };
@@ -1532,7 +1416,7 @@ export class AnalyzeHandler {
           break;
         }
 
-        case "explain_analysis": {
+        case 'explain_analysis': {
           // Type assertion: analysisResult should be present
           const explainInput = input as typeof input & {
             analysisResult?: Record<string, unknown>;
@@ -1544,9 +1428,9 @@ export class AnalyzeHandler {
             response = {
               success: false,
               error: {
-                code: "SAMPLING_UNAVAILABLE",
+                code: 'SAMPLING_UNAVAILABLE',
                 message:
-                  "MCP Sampling is not available. explain_analysis requires an LLM via Sampling.",
+                  'MCP Sampling is not available. explain_analysis requires an LLM via Sampling.',
                 retryable: false,
               },
             };
@@ -1561,45 +1445,169 @@ export class AnalyzeHandler {
               ? `${explainInput.question}\n\nContext: ${JSON.stringify(explainInput.analysisResult, null, 2)}`
               : `Please explain this analysis result in simple terms:\n\n${JSON.stringify(explainInput.analysisResult, null, 2)}`;
 
-            const samplingRequest = buildAnalysisSamplingRequest(
-              [[questionText]],
-              {
-                spreadsheetId: "",
-                analysisTypes: ["summary" as const],
-                maxTokens: 1000,
-              },
-            );
+            const samplingRequest = buildAnalysisSamplingRequest([[questionText]], {
+              spreadsheetId: '',
+              analysisTypes: ['summary' as const],
+              maxTokens: 1000,
+            });
 
-            const samplingResult =
-              await this.context.server.createMessage(samplingRequest);
+            const samplingResult = await this.context.server.createMessage(samplingRequest);
             const duration = Date.now() - startTime;
 
             // Extract text from response
             const explanation =
-              typeof samplingResult.content === "string"
+              typeof samplingResult.content === 'string'
                 ? samplingResult.content
-                : samplingResult.content.type === "text"
+                : samplingResult.content.type === 'text'
                   ? samplingResult.content.text
-                  : "Unable to extract explanation from response";
+                  : 'Unable to extract explanation from response';
 
             response = {
               success: true,
-              action: "explain_analysis",
+              action: 'explain_analysis',
               explanation,
               duration,
-              message: "Analysis explained successfully",
+              message: 'Analysis explained successfully',
             };
           } catch (error) {
-            logger.error("Failed to explain analysis", {
-              component: "analyze-handler",
-              action: "explain_analysis",
+            logger.error('Failed to explain analysis', {
+              component: 'analyze-handler',
+              action: 'explain_analysis',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
-                message: "Failed to explain analysis",
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to explain analysis',
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'comprehensive': {
+          // ONE TOOL TO RULE THEM ALL (MCP 2025-11-25 Enhanced)
+          // Complete analysis with pagination, task support, and resource URIs
+          const comprehensiveInput = input as typeof input & {
+            spreadsheetId: string;
+          };
+
+          logger.info('Comprehensive analysis requested', {
+            spreadsheetId: comprehensiveInput.spreadsheetId,
+            sheetId: comprehensiveInput.sheetId,
+            cursor: 'cursor' in comprehensiveInput ? comprehensiveInput.cursor : undefined,
+            pageSize: 'pageSize' in comprehensiveInput ? comprehensiveInput.pageSize : undefined,
+          });
+
+          // Check if this should be task-based (long-running operation)
+          // Estimate if analysis will take >10s based on spreadsheet size
+          const shouldUseTask = await this.shouldUseTaskForComprehensive(
+            comprehensiveInput.spreadsheetId,
+            comprehensiveInput.sheetId
+          );
+
+          if (shouldUseTask && this.context.taskStore) {
+            // Create task for long-running analysis
+            const task = await this.context.taskStore.createTask(
+              { ttl: 3600000 }, // 1 hour TTL
+              'analyze-comprehensive',
+              {
+                method: 'tools/call',
+                params: { name: 'sheets_analyze', arguments: comprehensiveInput },
+              }
+            );
+
+            logger.info('Creating task for comprehensive analysis', {
+              taskId: task.taskId,
+              spreadsheetId: comprehensiveInput.spreadsheetId,
+            });
+
+            // Run analysis in background
+            void this.runComprehensiveAnalysisTask(task.taskId, comprehensiveInput).catch(
+              (error) => {
+                logger.error('Background comprehensive analysis failed', {
+                  taskId: task.taskId,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+            );
+
+            // Return task immediately
+            response = {
+              success: true,
+              action: 'comprehensive',
+              message: `Large analysis started - check task ${task.taskId} for progress (estimated time: 30-60s)`,
+              taskId: task.taskId,
+              taskStatus: task.status,
+              summary: 'Analysis running in background...',
+              topInsights: [],
+            } as AnalyzeResponse;
+
+            break;
+          }
+
+          // Run synchronously for smaller analyses
+          // Create comprehensive analyzer with pagination support
+          const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
+            includeFormulas:
+              'includeFormulas' in comprehensiveInput
+                ? (comprehensiveInput.includeFormulas as boolean)
+                : true,
+            includeVisualizations:
+              'includeVisualizations' in comprehensiveInput
+                ? (comprehensiveInput.includeVisualizations as boolean)
+                : true,
+            includePerformance:
+              'includePerformance' in comprehensiveInput
+                ? (comprehensiveInput.includePerformance as boolean)
+                : true,
+            forceFullData:
+              'forceFullData' in comprehensiveInput
+                ? (comprehensiveInput.forceFullData as boolean)
+                : false,
+            samplingThreshold:
+              'samplingThreshold' in comprehensiveInput
+                ? (comprehensiveInput.samplingThreshold as number)
+                : 10000,
+            sampleSize:
+              'sampleSize' in comprehensiveInput ? (comprehensiveInput.sampleSize as number) : 100,
+            sheetId: comprehensiveInput.sheetId,
+            context: comprehensiveInput.context,
+            cursor:
+              'cursor' in comprehensiveInput ? (comprehensiveInput.cursor as string) : undefined,
+            pageSize:
+              'pageSize' in comprehensiveInput
+                ? (comprehensiveInput.pageSize as number)
+                : undefined,
+          });
+
+          try {
+            // Run comprehensive analysis
+            const result = await analyzer.analyze(comprehensiveInput.spreadsheetId);
+
+            // ComprehensiveResult matches AnalyzeResponse schema (comprehensive fields added)
+            response = result;
+
+            logger.info('Comprehensive analysis complete', {
+              spreadsheetId: comprehensiveInput.spreadsheetId,
+              sheetCount: result.sheets.length,
+              totalIssues: result.aggregate.totalIssues,
+              hasMore: result.hasMore ?? false,
+              resourceUri: result.resourceUri,
+            });
+          } catch (error) {
+            logger.error('Comprehensive analysis failed', {
+              error: error instanceof Error ? error.message : String(error),
+              spreadsheetId: comprehensiveInput.spreadsheetId,
+            });
+
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
                 retryable: true,
               },
             };
@@ -1612,7 +1620,7 @@ export class AnalyzeHandler {
           response = {
             success: false,
             error: {
-              code: "INVALID_PARAMS",
+              code: 'INVALID_PARAMS',
               message: `Unknown action: ${input.action}`,
               retryable: false,
             },
@@ -1624,42 +1632,177 @@ export class AnalyzeHandler {
       // Store results for analyze_data actions so they can be referenced via analyze://results/{id}
       if (
         response.success &&
-        input.action === "analyze_data" &&
-        "spreadsheetId" in input &&
-        typeof input.spreadsheetId === "string"
+        input.action === 'analyze_data' &&
+        'spreadsheetId' in input &&
+        typeof input.spreadsheetId === 'string'
       ) {
         try {
           const analysisId = storeAnalysisResult(input.spreadsheetId, response);
-          logger.info("Stored analysis result for MCP Resources", {
+          logger.info('Stored analysis result for MCP Resources', {
             analysisId,
             spreadsheetId: input.spreadsheetId,
             resourceUri: `analyze://results/${analysisId}`,
           });
 
           // Add resource URI to response message
-          if ("message" in response && typeof response.message === "string") {
+          if ('message' in response && typeof response.message === 'string') {
             response.message = `${response.message} (stored as analyze://results/${analysisId})`;
           }
         } catch (error) {
           // Storage failure should not block the response
-          logger.warn("Failed to store analysis result", {
+          logger.warn('Failed to store analysis result', {
             error: error instanceof Error ? error.message : String(error),
           });
         }
       }
 
-      return { response };
+      // Apply verbosity filtering (LLM optimization)
+      const verbosity = input.verbosity ?? 'standard';
+      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+
+      return { response: filteredResponse };
     } catch (error) {
       return {
         response: {
           success: false,
           error: {
-            code: "INTERNAL_ERROR",
+            code: 'INTERNAL_ERROR',
             message: error instanceof Error ? error.message : String(error),
             retryable: false,
           },
         },
       };
+    }
+  }
+
+  /**
+   * Check if comprehensive analysis should use task-based execution
+   * Based on estimated execution time (>10s for large spreadsheets)
+   */
+  private async shouldUseTaskForComprehensive(
+    spreadsheetId: string,
+    sheetId?: number | string
+  ): Promise<boolean> {
+    try {
+      // Get spreadsheet metadata to estimate size
+      const metadata = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+      });
+
+      if (!metadata.data.sheets) {
+        return false;
+      }
+
+      // Calculate total cells
+      const sheets = sheetId
+        ? metadata.data.sheets.filter((s) => s.properties?.sheetId === sheetId)
+        : metadata.data.sheets;
+
+      const totalCells = sheets.reduce(
+        (sum, s) =>
+          sum +
+          (s.properties?.gridProperties?.rowCount || 0) *
+            (s.properties?.gridProperties?.columnCount || 0),
+        0
+      );
+
+      const sheetCount = sheets.length;
+
+      // Use task if:
+      // - >20 sheets OR
+      // - >1M cells OR
+      // - >50K rows in any sheet
+      const hasLargeSheet = sheets.some(
+        (s) => (s.properties?.gridProperties?.rowCount || 0) > 50000
+      );
+
+      const shouldUseTask = sheetCount > 20 || totalCells > 1000000 || hasLargeSheet;
+
+      logger.info('Task decision for comprehensive analysis', {
+        spreadsheetId,
+        sheetCount,
+        totalCells,
+        hasLargeSheet,
+        shouldUseTask,
+      });
+
+      return shouldUseTask;
+    } catch (error) {
+      logger.warn('Failed to estimate spreadsheet size for task decision', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false; // Default to synchronous
+    }
+  }
+
+  /**
+   * Run comprehensive analysis as a background task
+   */
+  private async runComprehensiveAnalysisTask(
+    taskId: string,
+    input: SheetsAnalyzeInput & { spreadsheetId: string }
+  ): Promise<void> {
+    const taskStore = this.context.taskStore;
+    if (!taskStore) {
+      throw new Error('Task store not available');
+    }
+
+    try {
+      // Update task status to working
+      await taskStore.updateTaskStatus(taskId, 'working', 'Analyzing spreadsheet...');
+
+      // Create analyzer
+      const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
+        includeFormulas: 'includeFormulas' in input ? (input.includeFormulas as boolean) : true,
+        includeVisualizations:
+          'includeVisualizations' in input ? (input.includeVisualizations as boolean) : true,
+        includePerformance:
+          'includePerformance' in input ? (input.includePerformance as boolean) : true,
+        forceFullData: 'forceFullData' in input ? (input.forceFullData as boolean) : false,
+        samplingThreshold:
+          'samplingThreshold' in input ? (input.samplingThreshold as number) : 10000,
+        sampleSize: 'sampleSize' in input ? (input.sampleSize as number) : 100,
+        sheetId: input.sheetId,
+        context: input.context,
+        cursor: 'cursor' in input ? (input.cursor as string) : undefined,
+        pageSize: 'pageSize' in input ? (input.pageSize as number) : undefined,
+      });
+
+      // Run analysis
+      const result = await analyzer.analyze(input.spreadsheetId);
+
+      // Store result
+      await taskStore.storeTaskResult(taskId, 'completed', {
+        content: [
+          {
+            type: 'text',
+            text: `Comprehensive analysis complete: ${result.aggregate.totalIssues} issues found, quality score ${result.aggregate.overallQualityScore.toFixed(0)}%`,
+          },
+        ],
+        structuredContent: result,
+      });
+
+      logger.info('Comprehensive analysis task completed', {
+        taskId,
+        spreadsheetId: input.spreadsheetId,
+        sheetCount: result.sheets.length,
+      });
+    } catch (error) {
+      logger.error('Comprehensive analysis task failed', {
+        taskId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      await taskStore.storeTaskResult(taskId, 'failed', {
+        content: [
+          {
+            type: 'text',
+            text: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      });
     }
   }
 }

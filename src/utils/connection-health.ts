@@ -27,7 +27,7 @@
  *   - Result: 80% reduction in false positive warnings, 90% reduction in log noise
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 export interface ConnectionHealthConfig {
   /** Heartbeat check interval in ms (default: 15000 = 15 seconds) */
@@ -50,30 +50,21 @@ export interface ConnectionStats {
   /** Uptime in seconds */
   uptimeSeconds: number;
   /** Current connection status */
-  status: "healthy" | "warning" | "disconnected" | "unknown";
+  status: 'healthy' | 'warning' | 'disconnected' | 'unknown';
   /** Last activity timestamp */
   lastActivity: number;
 }
 
 interface ConnectionEvent {
-  type: "heartbeat" | "warning" | "disconnect" | "reconnect" | "start" | "stop";
+  type: 'heartbeat' | 'warning' | 'disconnect' | 'reconnect' | 'start' | 'stop';
   timestamp: number;
   metadata?: Record<string, unknown>;
 }
 
 const DEFAULT_CONFIG: Required<ConnectionHealthConfig> = {
-  checkIntervalMs: parseInt(
-    process.env["MCP_HEALTH_CHECK_INTERVAL_MS"] || "15000",
-    10,
-  ), // Check every 15 seconds (optimized from 30s)
-  disconnectThresholdMs: parseInt(
-    process.env["MCP_DISCONNECT_THRESHOLD_MS"] || "120000",
-    10,
-  ), // Disconnected after 2 minutes (optimized from 3min)
-  warnThresholdMs: parseInt(
-    process.env["MCP_WARN_THRESHOLD_MS"] || "60000",
-    10,
-  ), // Warn after 1 minute (optimized from 2min)
+  checkIntervalMs: parseInt(process.env['MCP_HEALTH_CHECK_INTERVAL_MS'] || '15000', 10), // Check every 15 seconds (optimized from 30s)
+  disconnectThresholdMs: parseInt(process.env['MCP_DISCONNECT_THRESHOLD_MS'] || '120000', 10), // Disconnected after 2 minutes (optimized from 3min)
+  warnThresholdMs: parseInt(process.env['MCP_WARN_THRESHOLD_MS'] || '60000', 10), // Warn after 1 minute (optimized from 2min)
 };
 
 export class ConnectionHealthMonitor {
@@ -84,7 +75,7 @@ export class ConnectionHealthMonitor {
   private totalHeartbeats: number = 0;
   private disconnectWarnings: number = 0;
   private isDisconnected: boolean = false;
-  private connectionId: string = "";
+  private connectionId: string = '';
   private eventLog: ConnectionEvent[] = [];
   private maxEventLogSize: number = 100;
   private reconnectAttempts: number = 0;
@@ -107,7 +98,7 @@ export class ConnectionHealthMonitor {
    */
   start(): void {
     if (this.checkInterval) {
-      logger.warn("Connection health monitor already running");
+      logger.warn('Connection health monitor already running');
       return;
     }
 
@@ -115,9 +106,9 @@ export class ConnectionHealthMonitor {
     this.lastActivity = Date.now();
     this.isDisconnected = false;
 
-    this.logEvent("start", { connectionId: this.connectionId });
+    this.logEvent('start', { connectionId: this.connectionId });
 
-    logger.info("Connection health monitor started", {
+    logger.info('Connection health monitor started', {
       connectionId: this.connectionId,
       checkIntervalMs: this.config.checkIntervalMs,
       disconnectThresholdMs: this.config.disconnectThresholdMs,
@@ -136,8 +127,8 @@ export class ConnectionHealthMonitor {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
-      this.logEvent("stop", { stats: this.getStats() });
-      logger.info("Connection health monitor stopped", {
+      this.logEvent('stop', { stats: this.getStats() });
+      logger.info('Connection health monitor stopped', {
         connectionId: this.connectionId,
         stats: this.getStats(),
       });
@@ -151,10 +142,7 @@ export class ConnectionHealthMonitor {
   private getBackoffDelay(): number {
     const baseDelay = 1000; // 1 second
     const maxDelay = 60000; // 60 seconds max
-    const delay = Math.min(
-      baseDelay * Math.pow(2, this.reconnectAttempts),
-      maxDelay,
-    );
+    const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts), maxDelay);
     return delay;
   }
 
@@ -173,7 +161,7 @@ export class ConnectionHealthMonitor {
       const disconnectDuration = Date.now() - this.lastDisconnectTime;
       const backoffDelay = this.getBackoffDelay();
 
-      this.logEvent("reconnect", {
+      this.logEvent('reconnect', {
         source,
         disconnectDuration,
         reconnectAttempts: this.reconnectAttempts,
@@ -182,7 +170,7 @@ export class ConnectionHealthMonitor {
 
       // Only log info for first reconnect or after significant delay
       if (this.reconnectAttempts === 0 || disconnectDuration > 300000) {
-        logger.info("MCP connection restored", {
+        logger.info('MCP connection restored', {
           connectionId: this.connectionId,
           source,
           disconnectDuration,
@@ -190,7 +178,7 @@ export class ConnectionHealthMonitor {
         });
       } else {
         // Routine reconnects use debug level to reduce noise
-        logger.debug("MCP connection restored", {
+        logger.debug('MCP connection restored', {
           connectionId: this.connectionId,
           source,
           disconnectDuration,
@@ -202,7 +190,7 @@ export class ConnectionHealthMonitor {
       this.reconnectAttempts = 0;
     }
 
-    this.logEvent("heartbeat", { source });
+    this.logEvent('heartbeat', { source });
   }
 
   /**
@@ -222,7 +210,7 @@ export class ConnectionHealthMonitor {
 
         const backoffDelay = this.getBackoffDelay();
 
-        this.logEvent("disconnect", {
+        this.logEvent('disconnect', {
           timeSinceActivity,
           reconnectAttempts: this.reconnectAttempts,
           backoffDelay,
@@ -230,17 +218,17 @@ export class ConnectionHealthMonitor {
 
         // First disconnect is an error, subsequent are debug (reduce noise)
         if (this.disconnectWarnings === 1) {
-          logger.error("MCP client appears disconnected", {
+          logger.error('MCP client appears disconnected', {
             connectionId: this.connectionId,
             lastActivity: new Date(this.lastActivity).toISOString(),
             timeSinceActivityMs: timeSinceActivity,
             totalWarnings: this.disconnectWarnings,
             nextCheckIn: backoffDelay,
-            suggestion: "Check MCP client (Claude Desktop) connection status",
+            suggestion: 'Check MCP client (Claude Desktop) connection status',
           });
         } else {
           // Routine disconnects use debug level
-          logger.debug("MCP client still disconnected", {
+          logger.debug('MCP client still disconnected', {
             connectionId: this.connectionId,
             timeSinceActivityMs: timeSinceActivity,
             disconnectWarnings: this.disconnectWarnings,
@@ -252,8 +240,8 @@ export class ConnectionHealthMonitor {
     } else if (timeSinceActivity >= this.config.warnThresholdMs) {
       // Warning - no activity but not yet disconnected
       // Use debug level for routine activity delays to reduce noise
-      this.logEvent("warning", { timeSinceActivity });
-      logger.debug("MCP client activity delayed", {
+      this.logEvent('warning', { timeSinceActivity });
+      logger.debug('MCP client activity delayed', {
         connectionId: this.connectionId,
         lastActivity: new Date(this.lastActivity).toISOString(),
         timeSinceActivityMs: timeSinceActivity,
@@ -265,10 +253,7 @@ export class ConnectionHealthMonitor {
   /**
    * Log an event for debugging
    */
-  private logEvent(
-    type: ConnectionEvent["type"],
-    metadata?: Record<string, unknown>,
-  ): void {
+  private logEvent(type: ConnectionEvent['type'], metadata?: Record<string, unknown>): void {
     this.eventLog.push({
       type,
       timestamp: Date.now(),
@@ -288,15 +273,15 @@ export class ConnectionHealthMonitor {
     const now = Date.now();
     const timeSinceActivity = now - this.lastActivity;
 
-    let status: ConnectionStats["status"];
+    let status: ConnectionStats['status'];
     if (this.monitoringStarted === 0) {
-      status = "unknown";
+      status = 'unknown';
     } else if (timeSinceActivity >= this.config.disconnectThresholdMs) {
-      status = "disconnected";
+      status = 'disconnected';
     } else if (timeSinceActivity >= this.config.warnThresholdMs) {
-      status = "warning";
+      status = 'warning';
     } else {
-      status = "healthy";
+      status = 'healthy';
     }
 
     return {
@@ -305,9 +290,7 @@ export class ConnectionHealthMonitor {
       disconnectWarnings: this.disconnectWarnings,
       monitoringStarted: this.monitoringStarted,
       uptimeSeconds:
-        this.monitoringStarted > 0
-          ? Math.floor((now - this.monitoringStarted) / 1000)
-          : 0,
+        this.monitoringStarted > 0 ? Math.floor((now - this.monitoringStarted) / 1000) : 0,
       status,
       lastActivity: this.lastActivity,
     };
@@ -352,7 +335,7 @@ export function getConnectionHealthMonitor(): ConnectionHealthMonitor {
  * Start connection health monitoring with optional config
  */
 export function startConnectionHealthMonitoring(
-  config?: ConnectionHealthConfig,
+  config?: ConnectionHealthConfig
 ): ConnectionHealthMonitor {
   const monitor = new ConnectionHealthMonitor(config);
   monitor.start();

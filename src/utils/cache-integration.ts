@@ -9,8 +9,8 @@
  * @module utils/cache-integration
  */
 
-import { getHotCache } from "./hot-cache.js";
-import { cacheManager } from "./cache-manager.js";
+import { getHotCache } from './hot-cache.js';
+import { cacheManager } from './cache-manager.js';
 
 // ============================================================================
 // TYPES
@@ -41,10 +41,7 @@ export interface IntegratedCacheStats {
  * 2. Warm cache (LRU, ~500ns)
  * 3. Cold cache (cache-manager, ~5ms)
  */
-export function integratedGet<T>(
-  key: string,
-  namespace: string = "default",
-): T | undefined {
+export function integratedGet<T>(key: string, namespace: string = 'default'): T | undefined {
   const hotCache = getHotCache();
 
   // Try hot/warm tiers first (single call handles both)
@@ -73,9 +70,9 @@ export function integratedGet<T>(
 export function integratedSet<T>(
   key: string,
   value: T,
-  options: IntegratedCacheOptions = {},
+  options: IntegratedCacheOptions = {}
 ): void {
-  const { ttl, namespace = "default", hotTier = true } = options;
+  const { ttl, namespace = 'default', hotTier = true } = options;
   const hotCache = getHotCache();
 
   // Set in hot cache for fast access
@@ -91,10 +88,7 @@ export function integratedSet<T>(
  * Three-tier cache delete:
  * - Removes from all tiers
  */
-export function integratedDelete(
-  key: string,
-  namespace: string = "default",
-): void {
+export function integratedDelete(key: string, namespace: string = 'default'): void {
   const hotCache = getHotCache();
 
   // Remove from hot cache
@@ -107,10 +101,7 @@ export function integratedDelete(
 /**
  * Invalidate by prefix across all tiers
  */
-export function integratedInvalidatePrefix(
-  prefix: string,
-  namespace?: string,
-): number {
+export function integratedInvalidatePrefix(prefix: string, namespace?: string): number {
   const hotCache = getHotCache();
 
   // Invalidate hot cache by prefix
@@ -153,23 +144,20 @@ export function getIntegratedCacheStats(): IntegratedCacheStats {
  */
 export function createSpreadsheetCacheKey(
   spreadsheetId: string,
-  type: "metadata" | "values" | "sheets" | "named-ranges",
-  extra?: string,
+  type: 'metadata' | 'values' | 'sheets' | 'named-ranges',
+  extra?: string
 ): string {
-  const parts = ["ss", spreadsheetId, type];
+  const parts = ['ss', spreadsheetId, type];
   if (extra) parts.push(extra);
-  return parts.join(":");
+  return parts.join(':');
 }
 
 /**
  * Create cache key for range data
  */
-export function createRangeCacheKey(
-  spreadsheetId: string,
-  range: string,
-): string {
+export function createRangeCacheKey(spreadsheetId: string, range: string): string {
   // Normalize range for consistent caching
-  const normalizedRange = range.replace(/\s+/g, "").toUpperCase();
+  const normalizedRange = range.replace(/\s+/g, '').toUpperCase();
   return `range:${spreadsheetId}:${normalizedRange}`;
 }
 
@@ -186,14 +174,9 @@ export function invalidateSpreadsheet(spreadsheetId: string): number {
 /**
  * Invalidate caches for a specific sheet
  */
-export function invalidateSheet(
-  spreadsheetId: string,
-  sheetName: string,
-): number {
+export function invalidateSheet(spreadsheetId: string, sheetName: string): number {
   // Invalidate ranges that include this sheet
-  return integratedInvalidatePrefix(
-    `range:${spreadsheetId}:${sheetName.toUpperCase()}`,
-  );
+  return integratedInvalidatePrefix(`range:${spreadsheetId}:${sheetName.toUpperCase()}`);
 }
 
 // ============================================================================
@@ -215,7 +198,7 @@ let prefetchRunning = false;
 export function queuePrefetch(
   key: string,
   fetcher: () => Promise<unknown>,
-  priority: number = 1,
+  priority: number = 1
 ): void {
   // Don't prefetch if already cached
   if (integratedGet(key) !== undefined) {
@@ -274,7 +257,7 @@ async function processPrefetchQueue(): Promise<void> {
 export function predictAndPrefetch(
   spreadsheetId: string,
   currentRange: string,
-  fetcher: (range: string) => Promise<unknown>,
+  fetcher: (range: string) => Promise<unknown>
 ): void {
   // Simple prediction: adjacent ranges are likely to be accessed
   const match = currentRange.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/i);
@@ -293,7 +276,7 @@ export function predictAndPrefetch(
   queuePrefetch(
     createRangeCacheKey(spreadsheetId, nextRange),
     () => fetcher(nextRange),
-    1, // Low priority for predictions
+    1 // Low priority for predictions
   );
 }
 
@@ -310,34 +293,28 @@ export async function warmSpreadsheetCache(
     metadata?: () => Promise<unknown>;
     sheets?: () => Promise<unknown>;
     namedRanges?: () => Promise<unknown>;
-  },
+  }
 ): Promise<void> {
   const warmPromises: Promise<void>[] = [];
 
   if (fetchers.metadata) {
-    const key = createSpreadsheetCacheKey(spreadsheetId, "metadata");
+    const key = createSpreadsheetCacheKey(spreadsheetId, 'metadata');
     if (integratedGet(key) === undefined) {
-      warmPromises.push(
-        fetchers.metadata().then((data) => integratedSet(key, data)),
-      );
+      warmPromises.push(fetchers.metadata().then((data) => integratedSet(key, data)));
     }
   }
 
   if (fetchers.sheets) {
-    const key = createSpreadsheetCacheKey(spreadsheetId, "sheets");
+    const key = createSpreadsheetCacheKey(spreadsheetId, 'sheets');
     if (integratedGet(key) === undefined) {
-      warmPromises.push(
-        fetchers.sheets().then((data) => integratedSet(key, data)),
-      );
+      warmPromises.push(fetchers.sheets().then((data) => integratedSet(key, data)));
     }
   }
 
   if (fetchers.namedRanges) {
-    const key = createSpreadsheetCacheKey(spreadsheetId, "named-ranges");
+    const key = createSpreadsheetCacheKey(spreadsheetId, 'named-ranges');
     if (integratedGet(key) === undefined) {
-      warmPromises.push(
-        fetchers.namedRanges().then((data) => integratedSet(key, data)),
-      );
+      warmPromises.push(fetchers.namedRanges().then((data) => integratedSet(key, data)));
     }
   }
 

@@ -9,7 +9,7 @@
  * @module utils/response-optimizer
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 // ============================================================================
 // Types
@@ -18,7 +18,7 @@ import { logger } from "./logger.js";
 /**
  * Verbosity levels for responses
  */
-export type VerbosityLevel = "minimal" | "standard" | "verbose";
+export type VerbosityLevel = 'minimal' | 'standard' | 'verbose';
 
 /**
  * Optimization options
@@ -65,7 +65,7 @@ export interface OptimizationResult<T> {
 // ============================================================================
 
 const DEFAULT_OPTIONS: Required<OptimizationOptions> = {
-  verbosity: "standard",
+  verbosity: 'standard',
   maxArrayItems: 100,
   maxStringLength: 1000,
   includeMetadata: true,
@@ -77,40 +77,29 @@ const DEFAULT_OPTIONS: Required<OptimizationOptions> = {
 /**
  * Fields to always remove (internal/debug only)
  */
-const INTERNAL_FIELDS = new Set([
-  "_internal",
-  "_debug",
-  "_trace",
-  "_raw",
-  "__proto__",
-]);
+const INTERNAL_FIELDS = new Set(['_internal', '_debug', '_trace', '_raw', '__proto__']);
 
 /**
  * Fields to remove in minimal mode
  */
 const MINIMAL_REMOVE_FIELDS = new Set([
-  "_meta",
-  "metadata",
-  "suggestions",
-  "alternatives",
-  "resolution",
-  "warnings",
-  "hints",
-  "debug",
-  "timing",
-  "cache",
-  "requestId",
+  '_meta',
+  'metadata',
+  'suggestions',
+  'alternatives',
+  'resolution',
+  'warnings',
+  'hints',
+  'debug',
+  'timing',
+  'cache',
+  'requestId',
 ]);
 
 /**
  * Fields to remove in standard mode
  */
-const STANDARD_REMOVE_FIELDS = new Set([
-  "debug",
-  "timing",
-  "cache",
-  "_internal",
-]);
+const STANDARD_REMOVE_FIELDS = new Set(['debug', 'timing', 'cache', '_internal']);
 
 // ============================================================================
 // Response Optimizer
@@ -147,17 +136,15 @@ export class ResponseOptimizer {
     const optimized = this.optimizeValue(
       data,
       opts,
-      "",
+      '',
       fieldsRemoved,
       arraysTruncated,
-      stringsTruncated,
+      stringsTruncated
     ) as T;
 
     const optimizedSize = this.estimateSize(optimized);
     const reductionPercent =
-      originalSize > 0
-        ? Math.round(((originalSize - optimizedSize) / originalSize) * 100)
-        : 0;
+      originalSize > 0 ? Math.round(((originalSize - optimizedSize) / originalSize) * 100) : 0;
 
     // Update stats
     this.stats.totalOptimizations++;
@@ -165,7 +152,7 @@ export class ResponseOptimizer {
     this.stats.totalBytesOptimized += optimizedSize;
 
     if (reductionPercent > 10) {
-      logger.debug("Response optimized", {
+      logger.debug('Response optimized', {
         originalSize,
         optimizedSize,
         reductionPercent,
@@ -194,7 +181,7 @@ export class ResponseOptimizer {
     path: string,
     fieldsRemoved: string[],
     arraysTruncated: string[],
-    stringsTruncated: string[],
+    stringsTruncated: string[]
   ): unknown {
     // Handle null/undefined
     if (value === null || value === undefined) {
@@ -209,24 +196,24 @@ export class ResponseOptimizer {
         path,
         fieldsRemoved,
         arraysTruncated,
-        stringsTruncated,
+        stringsTruncated
       );
     }
 
     // Handle objects
-    if (typeof value === "object") {
+    if (typeof value === 'object') {
       return this.optimizeObject(
         value as Record<string, unknown>,
         opts,
         path,
         fieldsRemoved,
         arraysTruncated,
-        stringsTruncated,
+        stringsTruncated
       );
     }
 
     // Handle strings
-    if (typeof value === "string") {
+    if (typeof value === 'string') {
       return this.optimizeString(value, opts, path, stringsTruncated);
     }
 
@@ -243,7 +230,7 @@ export class ResponseOptimizer {
     path: string,
     fieldsRemoved: string[],
     arraysTruncated: string[],
-    stringsTruncated: string[],
+    stringsTruncated: string[]
   ): unknown[] {
     let result = arr;
 
@@ -262,8 +249,8 @@ export class ResponseOptimizer {
           `${path}[${i}]`,
           fieldsRemoved,
           arraysTruncated,
-          stringsTruncated,
-        ),
+          stringsTruncated
+        )
       )
       .filter((item) => item !== undefined);
   }
@@ -277,7 +264,7 @@ export class ResponseOptimizer {
     path: string,
     fieldsRemoved: string[],
     arraysTruncated: string[],
-    stringsTruncated: string[],
+    stringsTruncated: string[]
   ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
@@ -300,13 +287,13 @@ export class ResponseOptimizer {
       }
 
       // Skip metadata if not included
-      if (!opts.includeMetadata && key === "_meta") {
+      if (!opts.includeMetadata && key === '_meta') {
         fieldsRemoved.push(fieldPath);
         continue;
       }
 
       // Skip suggestions if not included
-      if (!opts.includeSuggestions && key === "suggestions") {
+      if (!opts.includeSuggestions && key === 'suggestions') {
         fieldsRemoved.push(fieldPath);
         continue;
       }
@@ -317,7 +304,7 @@ export class ResponseOptimizer {
         fieldPath,
         fieldsRemoved,
         arraysTruncated,
-        stringsTruncated,
+        stringsTruncated
       );
 
       if (optimizedValue !== undefined) {
@@ -335,14 +322,14 @@ export class ResponseOptimizer {
     str: string,
     opts: Required<OptimizationOptions>,
     path: string,
-    stringsTruncated: string[],
+    stringsTruncated: string[]
   ): string {
     if (!opts.truncateLargeValues || str.length <= opts.maxStringLength) {
       return str;
     }
 
     stringsTruncated.push(`${path}[${str.length} → ${opts.maxStringLength}]`);
-    return str.slice(0, opts.maxStringLength) + "...";
+    return str.slice(0, opts.maxStringLength) + '...';
   }
 
   /**
@@ -350,11 +337,11 @@ export class ResponseOptimizer {
    */
   private getFieldsToRemove(verbosity: VerbosityLevel): Set<string> {
     switch (verbosity) {
-      case "minimal":
+      case 'minimal':
         return MINIMAL_REMOVE_FIELDS;
-      case "standard":
+      case 'standard':
         return STANDARD_REMOVE_FIELDS;
-      case "verbose":
+      case 'verbose':
         return new Set(); // Keep everything
       default:
         return STANDARD_REMOVE_FIELDS;
@@ -386,7 +373,7 @@ export class ResponseOptimizer {
         ? Math.round(
             ((this.stats.totalBytesOriginal - this.stats.totalBytesOptimized) /
               this.stats.totalBytesOriginal) *
-              100,
+              100
           )
         : 0;
 
@@ -420,9 +407,7 @@ let optimizerInstance: ResponseOptimizer | null = null;
 /**
  * Get or create the response optimizer singleton
  */
-export function getResponseOptimizer(
-  options?: OptimizationOptions,
-): ResponseOptimizer {
+export function getResponseOptimizer(options?: OptimizationOptions): ResponseOptimizer {
   if (!optimizerInstance) {
     optimizerInstance = new ResponseOptimizer(options);
   }
@@ -440,14 +425,14 @@ export function optimizeResponse<T>(data: T, options?: OptimizationOptions): T {
  * Create a minimal response (most compact)
  */
 export function minimalResponse<T>(data: T): T {
-  return optimizeResponse(data, { verbosity: "minimal" });
+  return optimizeResponse(data, { verbosity: 'minimal' });
 }
 
 /**
  * Create a standard response (balanced)
  */
 export function standardResponse<T>(data: T): T {
-  return optimizeResponse(data, { verbosity: "standard" });
+  return optimizeResponse(data, { verbosity: 'standard' });
 }
 
 /**
@@ -455,7 +440,7 @@ export function standardResponse<T>(data: T): T {
  */
 export function verboseResponse<T>(data: T): T {
   return optimizeResponse(data, {
-    verbosity: "verbose",
+    verbosity: 'verbose',
     includeMetadata: true,
     includeSuggestions: true,
     truncateLargeValues: false,
@@ -472,7 +457,7 @@ export function verboseResponse<T>(data: T): T {
  */
 export function compactValuesArray(
   values: unknown[][],
-  options?: { maxRows?: number; includeStats?: boolean },
+  options?: { maxRows?: number; includeStats?: boolean }
 ): {
   values: unknown[][];
   truncated: boolean;
@@ -489,7 +474,7 @@ export function compactValuesArray(
   if (options?.includeStats) {
     for (const row of values) {
       for (const cell of row) {
-        if (cell !== null && cell !== undefined && cell !== "") {
+        if (cell !== null && cell !== undefined && cell !== '') {
           nonEmpty++;
         } else {
           empty++;
@@ -512,7 +497,7 @@ export function compactValuesArray(
  */
 export function summarizeData(
   values: unknown[][],
-  options?: { previewRows?: number; previewCols?: number },
+  options?: { previewRows?: number; previewCols?: number }
 ): {
   preview: unknown[][];
   shape: { rows: number; cols: number };
@@ -524,9 +509,7 @@ export function summarizeData(
   const rows = values.length;
   const cols = Math.max(...values.map((r) => r.length), 0);
 
-  const preview = values
-    .slice(0, previewRows)
-    .map((row) => row.slice(0, previewCols));
+  const preview = values.slice(0, previewRows).map((row) => row.slice(0, previewCols));
 
   return {
     preview,

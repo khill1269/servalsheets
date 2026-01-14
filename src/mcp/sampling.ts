@@ -17,7 +17,7 @@ import type {
   Tool,
   TextContent,
   ModelPreferences,
-} from "@modelcontextprotocol/sdk/types.js";
+} from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
 // Types
@@ -58,7 +58,7 @@ export interface GenerateFormulaOptions {
   /** Maximum tokens */
   maxTokens?: number;
   /** Preferred formula style */
-  style?: "concise" | "readable" | "optimized";
+  style?: 'concise' | 'readable' | 'optimized';
 }
 
 /**
@@ -84,9 +84,7 @@ export interface AgenticResult {
  */
 export interface SamplingServer {
   getClientCapabilities(): ClientCapabilities | undefined;
-  createMessage(
-    params: CreateMessageRequest["params"],
-  ): Promise<CreateMessageResult>;
+  createMessage(params: CreateMessageRequest['params']): Promise<CreateMessageResult>;
 }
 
 // ============================================================================
@@ -97,7 +95,7 @@ export interface SamplingServer {
  * Check if the client supports sampling and its sub-features
  */
 export function checkSamplingSupport(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): SamplingSupport {
   return {
     supported: !!clientCapabilities?.sampling,
@@ -109,11 +107,9 @@ export function checkSamplingSupport(
 /**
  * Assert that sampling is supported, throw if not
  */
-export function assertSamplingSupport(
-  clientCapabilities: ClientCapabilities | undefined,
-): void {
+export function assertSamplingSupport(clientCapabilities: ClientCapabilities | undefined): void {
   if (!clientCapabilities?.sampling) {
-    throw new Error("Client does not support sampling capability");
+    throw new Error('Client does not support sampling capability');
   }
 }
 
@@ -121,11 +117,11 @@ export function assertSamplingSupport(
  * Assert that sampling with tools is supported
  */
 export function assertSamplingToolsSupport(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): void {
   assertSamplingSupport(clientCapabilities);
   if (!clientCapabilities?.sampling?.tools) {
-    throw new Error("Client does not support tool use in sampling");
+    throw new Error('Client does not support tool use in sampling');
   }
 }
 
@@ -137,13 +133,11 @@ export function assertSamplingToolsSupport(
  * Extract text content from sampling result
  */
 export function extractTextFromResult(result: CreateMessageResult): string {
-  const content = Array.isArray(result.content)
-    ? result.content
-    : [result.content];
+  const content = Array.isArray(result.content) ? result.content : [result.content];
   return content
-    .filter((block): block is TextContent => block.type === "text")
+    .filter((block): block is TextContent => block.type === 'text')
     .map((block) => block.text)
-    .join("\n");
+    .join('\n');
 }
 
 /**
@@ -151,8 +145,8 @@ export function extractTextFromResult(result: CreateMessageResult): string {
  */
 export function createUserMessage(text: string): SamplingMessage {
   return {
-    role: "user",
-    content: { type: "text", text },
+    role: 'user',
+    content: { type: 'text', text },
   };
 }
 
@@ -161,8 +155,8 @@ export function createUserMessage(text: string): SamplingMessage {
  */
 export function createAssistantMessage(text: string): SamplingMessage {
   return {
-    role: "assistant",
-    content: { type: "text", text },
+    role: 'assistant',
+    content: { type: 'text', text },
   };
 }
 
@@ -174,14 +168,10 @@ export function formatDataForLLM(
   options: {
     maxRows?: number;
     includeRowNumbers?: boolean;
-    format?: "json" | "csv" | "markdown";
-  } = {},
+    format?: 'json' | 'csv' | 'markdown';
+  } = {}
 ): string {
-  const {
-    maxRows = 100,
-    includeRowNumbers = true,
-    format = "markdown",
-  } = options;
+  const { maxRows = 100, includeRowNumbers = true, format = 'markdown' } = options;
 
   const truncatedData = data.slice(0, maxRows);
   const wasTruncated = data.length > maxRows;
@@ -189,52 +179,48 @@ export function formatDataForLLM(
   let formatted: string;
 
   switch (format) {
-    case "json":
+    case 'json':
       formatted = JSON.stringify(truncatedData, null, 2);
       break;
 
-    case "csv":
+    case 'csv':
       formatted = truncatedData
         .map((row, i) => {
           const cells = row
             .map((cell) =>
-              typeof cell === "string" && cell.includes(",")
-                ? `"${cell}"`
-                : String(cell ?? ""),
+              typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : String(cell ?? '')
             )
-            .join(",");
+            .join(',');
           return includeRowNumbers ? `${i + 1},${cells}` : cells;
         })
-        .join("\n");
+        .join('\n');
       break;
 
-    case "markdown":
+    case 'markdown':
     default:
       if (truncatedData.length === 0) {
-        formatted = "(empty)";
+        formatted = '(empty)';
       } else {
         const headers = truncatedData[0] as unknown[];
         const rows = truncatedData.slice(1);
 
         // Header row
         const headerRow = includeRowNumbers
-          ? `| # | ${headers.map((h) => String(h ?? "")).join(" | ")} |`
-          : `| ${headers.map((h) => String(h ?? "")).join(" | ")} |`;
+          ? `| # | ${headers.map((h) => String(h ?? '')).join(' | ')} |`
+          : `| ${headers.map((h) => String(h ?? '')).join(' | ')} |`;
 
         // Separator
         const separator = includeRowNumbers
-          ? `|---|${headers.map(() => "---").join("|")}|`
-          : `|${headers.map(() => "---").join("|")}|`;
+          ? `|---|${headers.map(() => '---').join('|')}|`
+          : `|${headers.map(() => '---').join('|')}|`;
 
         // Data rows
         const dataRows = rows.map((row, i) => {
-          const cells = (row as unknown[])
-            .map((cell) => String(cell ?? ""))
-            .join(" | ");
+          const cells = (row as unknown[]).map((cell) => String(cell ?? '')).join(' | ');
           return includeRowNumbers ? `| ${i + 2} | ${cells} |` : `| ${cells} |`;
         });
 
-        formatted = [headerRow, separator, ...dataRows].join("\n");
+        formatted = [headerRow, separator, ...dataRows].join('\n');
       }
       break;
   }
@@ -303,7 +289,7 @@ export async function analyzeData(
     question: string;
     context?: string;
   },
-  options: AnalyzeDataOptions = {},
+  options: AnalyzeDataOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
 
@@ -353,20 +339,16 @@ export async function generateFormula(
     sampleData?: unknown[][];
     existingFormulas?: string[];
   },
-  options: GenerateFormulaOptions = {},
+  options: GenerateFormulaOptions = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
 
-  const {
-    includeExplanation = false,
-    maxTokens = 300,
-    style = "readable",
-  } = options;
+  const { includeExplanation = false, maxTokens = 300, style = 'readable' } = options;
 
   let prompt = `Generate a Google Sheets formula for: ${params.description}\n\n`;
 
   if (params.headers) {
-    prompt += `Column headers: ${params.headers.join(", ")}\n`;
+    prompt += `Column headers: ${params.headers.join(', ')}\n`;
   }
 
   if (params.sampleData) {
@@ -374,13 +356,13 @@ export async function generateFormula(
   }
 
   if (params.existingFormulas?.length) {
-    prompt += `\nExisting formulas in sheet (for reference):\n${params.existingFormulas.join("\n")}\n`;
+    prompt += `\nExisting formulas in sheet (for reference):\n${params.existingFormulas.join('\n')}\n`;
   }
 
   prompt += `\nStyle preference: ${style}`;
 
   if (!includeExplanation) {
-    prompt += "\n\nReturn ONLY the formula, no explanation.";
+    prompt += '\n\nReturn ONLY the formula, no explanation.';
   }
 
   const result = await server.createMessage({
@@ -394,12 +376,12 @@ export async function generateFormula(
   // Clean up common formatting issues
   if (!includeExplanation) {
     // Remove markdown code blocks if present
-    formula = formula.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "");
+    formula = formula.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '');
     // Remove leading = if duplicated
-    formula = formula.replace(/^=+/, "=");
+    formula = formula.replace(/^=+/, '=');
     // Ensure formula starts with =
-    if (!formula.startsWith("=")) {
-      formula = "=" + formula;
+    if (!formula.startsWith('=')) {
+      formula = '=' + formula;
     }
   }
 
@@ -415,7 +397,7 @@ export async function recommendChart(
     data: unknown[][];
     purpose?: string;
     audience?: string;
-  },
+  }
 ): Promise<{
   chartType: string;
   reason: string;
@@ -423,7 +405,7 @@ export async function recommendChart(
 }> {
   assertSamplingSupport(server.getClientCapabilities());
 
-  let prompt = "Recommend the best chart type for this data.\n\n";
+  let prompt = 'Recommend the best chart type for this data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 20 })}\n\n`;
 
   if (params.purpose) {
@@ -459,7 +441,7 @@ export async function recommendChart(
   }
 
   return {
-    chartType: "COLUMN",
+    chartType: 'COLUMN',
     reason: text,
     alternatives: [],
   };
@@ -471,7 +453,7 @@ export async function recommendChart(
 export async function explainFormula(
   server: SamplingServer,
   formula: string,
-  options: { detailed?: boolean } = {},
+  options: { detailed?: boolean } = {}
 ): Promise<string> {
   assertSamplingSupport(server.getClientCapabilities());
 
@@ -496,11 +478,11 @@ export async function identifyDataIssues(
   params: {
     data: unknown[][];
     columnTypes?: Record<string, string>;
-  },
+  }
 ): Promise<
   Array<{
     type: string;
-    severity: "critical" | "high" | "medium" | "low";
+    severity: 'critical' | 'high' | 'medium' | 'low';
     location: string;
     description: string;
     suggestedFix: string;
@@ -508,7 +490,7 @@ export async function identifyDataIssues(
 > {
   assertSamplingSupport(server.getClientCapabilities());
 
-  let prompt = "Identify data quality issues in this spreadsheet data.\n\n";
+  let prompt = 'Identify data quality issues in this spreadsheet data.\n\n';
   prompt += `Data:\n${formatDataForLLM(params.data, { maxRows: 50 })}\n\n`;
 
   if (params.columnTypes) {
@@ -553,88 +535,88 @@ export async function identifyDataIssues(
  */
 export const AGENTIC_TOOLS: Tool[] = [
   {
-    name: "read_range",
-    description: "Read values from a spreadsheet range",
+    name: 'read_range',
+    description: 'Read values from a spreadsheet range',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
         range: {
-          type: "string",
+          type: 'string',
           description: 'A1 notation range (e.g., "Sheet1!A1:C10")',
         },
       },
-      required: ["range"],
+      required: ['range'],
     },
   },
   {
-    name: "write_cell",
-    description: "Write a value to a specific cell",
+    name: 'write_cell',
+    description: 'Write a value to a specific cell',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
-        cell: { type: "string", description: 'Cell address (e.g., "A1")' },
-        value: { type: "string", description: "Value to write" },
+        cell: { type: 'string', description: 'Cell address (e.g., "A1")' },
+        value: { type: 'string', description: 'Value to write' },
       },
-      required: ["cell", "value"],
+      required: ['cell', 'value'],
     },
   },
   {
-    name: "find_issues",
-    description: "Find data quality issues in a range",
+    name: 'find_issues',
+    description: 'Find data quality issues in a range',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
-        range: { type: "string", description: "Range to analyze" },
+        range: { type: 'string', description: 'Range to analyze' },
         issueTypes: {
-          type: "array",
-          items: { type: "string" },
-          description: "Types of issues to look for",
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Types of issues to look for',
         },
       },
-      required: ["range"],
+      required: ['range'],
     },
   },
   {
-    name: "apply_fix",
-    description: "Apply a fix to a data issue",
+    name: 'apply_fix',
+    description: 'Apply a fix to a data issue',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
-        cell: { type: "string", description: "Cell to fix" },
-        oldValue: { type: "string", description: "Current value" },
-        newValue: { type: "string", description: "Corrected value" },
-        reason: { type: "string", description: "Why this fix is needed" },
+        cell: { type: 'string', description: 'Cell to fix' },
+        oldValue: { type: 'string', description: 'Current value' },
+        newValue: { type: 'string', description: 'Corrected value' },
+        reason: { type: 'string', description: 'Why this fix is needed' },
       },
-      required: ["cell", "oldValue", "newValue", "reason"],
+      required: ['cell', 'oldValue', 'newValue', 'reason'],
     },
   },
   {
-    name: "add_validation",
-    description: "Add data validation to a range",
+    name: 'add_validation',
+    description: 'Add data validation to a range',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
-        range: { type: "string", description: "Range to validate" },
+        range: { type: 'string', description: 'Range to validate' },
         validationType: {
-          type: "string",
-          enum: ["list", "number", "date", "text_length", "custom"],
-          description: "Type of validation",
+          type: 'string',
+          enum: ['list', 'number', 'date', 'text_length', 'custom'],
+          description: 'Type of validation',
         },
-        criteria: { type: "string", description: "Validation criteria" },
+        criteria: { type: 'string', description: 'Validation criteria' },
       },
-      required: ["range", "validationType", "criteria"],
+      required: ['range', 'validationType', 'criteria'],
     },
   },
   {
-    name: "report_complete",
-    description: "Report that the task is complete",
+    name: 'report_complete',
+    description: 'Report that the task is complete',
     inputSchema: {
-      type: "object",
+      type: 'object',
       properties: {
-        summary: { type: "string", description: "Summary of actions taken" },
-        changesCount: { type: "number", description: "Number of changes made" },
+        summary: { type: 'string', description: 'Summary of actions taken' },
+        changesCount: { type: 'number', description: 'Number of changes made' },
       },
-      required: ["summary", "changesCount"],
+      required: ['summary', 'changesCount'],
     },
   },
 ];
@@ -643,7 +625,7 @@ export const AGENTIC_TOOLS: Tool[] = [
  * Check if client supports agentic operations (sampling with tools)
  */
 export function supportsAgenticOperations(
-  clientCapabilities: ClientCapabilities | undefined,
+  clientCapabilities: ClientCapabilities | undefined
 ): boolean {
   return !!clientCapabilities?.sampling?.tools;
 }
@@ -654,8 +636,8 @@ export function supportsAgenticOperations(
 export function createAgenticRequest(
   task: string,
   context: string,
-  tools: Tool[] = AGENTIC_TOOLS,
-): CreateMessageRequest["params"] {
+  tools: Tool[] = AGENTIC_TOOLS
+): CreateMessageRequest['params'] {
   return {
     messages: [createUserMessage(`${task}\n\nContext:\n${context}`)],
     systemPrompt: `You are an autonomous spreadsheet assistant. Use the available tools to complete the task.
@@ -668,7 +650,7 @@ Work step by step:
 
 Be careful with destructive operations. Always explain your reasoning.`,
     tools,
-    toolChoice: { mode: "auto" },
+    toolChoice: { mode: 'auto' },
     maxTokens: 2000,
   };
 }
@@ -677,10 +659,4 @@ Be careful with destructive operations. Always explain your reasoning.`,
 // Exports
 // ============================================================================
 
-export type {
-  CreateMessageRequest,
-  CreateMessageResult,
-  SamplingMessage,
-  Tool,
-  ModelPreferences,
-};
+export type { CreateMessageRequest, CreateMessageResult, SamplingMessage, Tool, ModelPreferences };

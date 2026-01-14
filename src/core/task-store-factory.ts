@@ -7,16 +7,16 @@
  * MCP Protocol: 2025-11-25 (SEP-1686)
  */
 
-import { TaskStoreAdapter } from "./task-store-adapter.js";
-import { InMemoryTaskStore, RedisTaskStore } from "./task-store.js";
-import { logger as baseLogger } from "../utils/logger.js";
+import { TaskStoreAdapter } from './task-store-adapter.js';
+import { InMemoryTaskStore, RedisTaskStore } from './task-store.js';
+import { logger as baseLogger } from '../utils/logger.js';
 
 export interface TaskStoreConfig {
   /**
    * Force a specific store type (useful for testing)
    * If not specified, determined by environment variables
    */
-  type?: "memory" | "redis";
+  type?: 'memory' | 'redis';
 
   /**
    * Redis connection URL (overrides REDIS_URL env var)
@@ -44,40 +44,38 @@ export interface TaskStoreConfig {
  * @param config Optional configuration overrides
  * @returns TaskStoreAdapter wrapping the appropriate store implementation
  */
-export async function createTaskStore(
-  config: TaskStoreConfig = {},
-): Promise<TaskStoreAdapter> {
-  const logger = baseLogger.child({ component: "TaskStoreFactory" });
+export async function createTaskStore(config: TaskStoreConfig = {}): Promise<TaskStoreAdapter> {
+  const logger = baseLogger.child({ component: 'TaskStoreFactory' });
 
   // Determine store type
-  let storeType: "memory" | "redis";
+  let storeType: 'memory' | 'redis';
 
   if (config.type) {
     storeType = config.type;
     logger.info(`Task store type forced: ${storeType}`);
   } else {
-    const redisUrl = config.redisUrl ?? process.env["REDIS_URL"];
-    storeType = redisUrl ? "redis" : "memory";
+    const redisUrl = config.redisUrl ?? process.env['REDIS_URL'];
+    storeType = redisUrl ? 'redis' : 'memory';
     logger.info(`Task store type determined from environment: ${storeType}`);
   }
 
   // Create appropriate store
-  if (storeType === "redis") {
-    const redisUrl = config.redisUrl ?? process.env["REDIS_URL"];
+  if (storeType === 'redis') {
+    const redisUrl = config.redisUrl ?? process.env['REDIS_URL'];
 
     if (!redisUrl) {
       throw new Error(
-        "Redis task store requested but REDIS_URL not configured. " +
-          "Set REDIS_URL environment variable or use in-memory store for development.",
+        'Redis task store requested but REDIS_URL not configured. ' +
+          'Set REDIS_URL environment variable or use in-memory store for development.'
       );
     }
 
     // Create Redis-backed task store
     const redisStore = new RedisTaskStore(redisUrl);
 
-    logger.info("Task store created", {
-      type: "redis",
-      url: redisUrl.replace(/:[^:]*@/, ":***@"), // Mask password in logs
+    logger.info('Task store created', {
+      type: 'redis',
+      url: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask password in logs
     });
 
     return new TaskStoreAdapter(redisStore);
@@ -85,11 +83,11 @@ export async function createTaskStore(
     // In-memory store
     const memoryStore = new InMemoryTaskStore();
 
-    logger.info("Task store created", {
-      type: "memory",
+    logger.info('Task store created', {
+      type: 'memory',
       warning:
-        process.env["NODE_ENV"] === "production"
-          ? "In-memory store in production - data will be lost on restart"
+        process.env['NODE_ENV'] === 'production'
+          ? 'In-memory store in production - data will be lost on restart'
           : undefined,
     });
 
@@ -102,17 +100,17 @@ export async function createTaskStore(
  *
  * @returns Recommended store type based on environment
  */
-export function getRecommendedTaskStoreType(): "memory" | "redis" {
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const hasRedis = Boolean(process.env["REDIS_URL"]);
+export function getRecommendedTaskStoreType(): 'memory' | 'redis' {
+  const isProduction = process.env['NODE_ENV'] === 'production';
+  const hasRedis = Boolean(process.env['REDIS_URL']);
 
   if (isProduction && !hasRedis) {
     baseLogger.warn(
-      "Production environment detected without Redis. " +
-        "Task store will use in-memory storage (not recommended for production). " +
-        "Set REDIS_URL to enable persistent, multi-instance task storage.",
+      'Production environment detected without Redis. ' +
+        'Task store will use in-memory storage (not recommended for production). ' +
+        'Set REDIS_URL to enable persistent, multi-instance task storage.'
     );
   }
 
-  return hasRedis ? "redis" : "memory";
+  return hasRedis ? 'redis' : 'memory';
 }

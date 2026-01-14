@@ -40,16 +40,10 @@ export const CACHE_CLEANUP_INTERVAL = 300000;
 // ============================================================================
 
 /** Maximum concurrent sessions per user */
-export const MAX_SESSIONS_PER_USER = parseInt(
-  process.env["MAX_SESSIONS_PER_USER"] ?? "5",
-  10,
-);
+export const MAX_SESSIONS_PER_USER = parseInt(process.env['MAX_SESSIONS_PER_USER'] ?? '5', 10);
 
 /** Maximum total active sessions */
-export const MAX_TOTAL_SESSIONS = parseInt(
-  process.env["MAX_TOTAL_SESSIONS"] ?? "100",
-  10,
-);
+export const MAX_TOTAL_SESSIONS = parseInt(process.env['MAX_TOTAL_SESSIONS'] ?? '100', 10);
 
 /** OAuth authorization code TTL (10 minutes, in seconds) */
 export const OAUTH_AUTH_CODE_TTL = 600;
@@ -81,10 +75,7 @@ export const GOOGLE_API_RATE_LIMIT = 100;
 // ============================================================================
 
 /** Maximum concurrent requests */
-export const MAX_CONCURRENT_REQUESTS = parseInt(
-  process.env["MAX_CONCURRENT_REQUESTS"] ?? "10",
-  10,
-);
+export const MAX_CONCURRENT_REQUESTS = parseInt(process.env['MAX_CONCURRENT_REQUESTS'] ?? '10', 10);
 
 /** Request timeout (10 seconds, in milliseconds) */
 export const REQUEST_TIMEOUT = 10000;
@@ -154,13 +145,60 @@ export const CONNECTION_TIMEOUT = 300000;
 export const DEFAULT_HTTP_PORT = 3000;
 
 /** Default HTTP server host */
-export const DEFAULT_HTTP_HOST = "127.0.0.1";
+export const DEFAULT_HTTP_HOST = '127.0.0.1';
 
 /** Maximum HTTP request body size */
-export const MAX_REQUEST_BODY_SIZE = "10mb";
+export const MAX_REQUEST_BODY_SIZE = '10mb';
 
 /** Compression threshold (1KB) */
 export const COMPRESSION_THRESHOLD = 1024;
+
+// ============================================================================
+// Response Size Limits (MCP 2025-11-25 Best Practices)
+// ============================================================================
+
+/**
+ * Maximum response size before using resource URIs (1MB)
+ *
+ * Rationale: Large responses (>1MB) should be stored as MCP resources
+ * and returned as URIs instead of inline data to avoid:
+ * - JavaScript string length limits (~536MB)
+ * - JSON serialization performance issues
+ * - Client memory pressure
+ * - Network transfer overhead
+ *
+ * When comprehensive analysis exceeds this limit, results are stored
+ * in analyze://results/{id} and a URI is returned instead.
+ */
+export const MAX_RESPONSE_SIZE_BYTES = 1024 * 1024; // 1MB
+
+/**
+ * Maximum response size for inline data (5MB)
+ *
+ * Hard limit - responses larger than this will fail serialization.
+ * Used as a safety check before attempting JSON.stringify().
+ */
+export const MAX_INLINE_RESPONSE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+/**
+ * Maximum rows before requiring pagination or resource URIs
+ */
+export const MAX_ROWS_INLINE = 10000;
+
+/**
+ * Maximum sheets before requiring pagination
+ */
+export const MAX_SHEETS_INLINE = 20;
+
+/**
+ * Default page size for paginated responses
+ */
+export const DEFAULT_PAGE_SIZE = 5;
+
+/**
+ * Maximum page size for paginated responses
+ */
+export const MAX_PAGE_SIZE = 50;
 
 // ============================================================================
 // Utility Functions

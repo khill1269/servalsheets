@@ -17,19 +17,19 @@
  * - Same or better latency
  */
 
-import type { sheets_v4 } from "googleapis";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
 
 /**
  * Supported operation types that can be batched
  */
 export type BatchableOperationType =
-  | "values:update"
-  | "values:append"
-  | "values:clear"
-  | "format:update"
-  | "cells:update"
-  | "sheet:update";
+  | 'values:update'
+  | 'values:append'
+  | 'values:clear'
+  | 'format:update'
+  | 'cells:update'
+  | 'sheet:update';
 
 /**
  * Operation to be batched
@@ -174,10 +174,7 @@ export class AdaptiveBatchWindow {
     if (this.windowHistory.length === 0) {
       return this.currentWindowMs;
     }
-    return (
-      this.windowHistory.reduce((sum, val) => sum + val, 0) /
-      this.windowHistory.length
-    );
+    return this.windowHistory.reduce((sum, val) => sum + val, 0) / this.windowHistory.length;
   }
 
   /**
@@ -188,16 +185,10 @@ export class AdaptiveBatchWindow {
 
     if (operationsInWindow < this.lowThreshold) {
       // Too few operations - wait longer to collect more
-      this.currentWindowMs = Math.min(
-        this.maxWindowMs,
-        this.currentWindowMs * this.increaseRate,
-      );
+      this.currentWindowMs = Math.min(this.maxWindowMs, this.currentWindowMs * this.increaseRate);
     } else if (operationsInWindow > this.highThreshold) {
       // Too many operations - flush faster to prevent queue buildup
-      this.currentWindowMs = Math.max(
-        this.minWindowMs,
-        this.currentWindowMs * this.decreaseRate,
-      );
+      this.currentWindowMs = Math.max(this.minWindowMs, this.currentWindowMs * this.decreaseRate);
     }
     // Otherwise keep current window (optimal range)
 
@@ -209,16 +200,16 @@ export class AdaptiveBatchWindow {
 
     // Log adjustments if significant change
     if (Math.abs(this.currentWindowMs - previousWindow) > 1) {
-      logger.debug("Adaptive window adjusted", {
+      logger.debug('Adaptive window adjusted', {
         previousWindow: Math.round(previousWindow),
         newWindow: Math.round(this.currentWindowMs),
         operationsInWindow,
         reason:
           operationsInWindow < this.lowThreshold
-            ? "low traffic"
+            ? 'low traffic'
             : operationsInWindow > this.highThreshold
-              ? "high traffic"
-              : "optimal",
+              ? 'high traffic'
+              : 'optimal',
       });
     }
   }
@@ -276,10 +267,7 @@ export class BatchingSystem {
     batchDurations: [] as number[],
   };
 
-  constructor(
-    sheetsApi: sheets_v4.Sheets,
-    options: BatchingSystemOptions = {},
-  ) {
+  constructor(sheetsApi: sheets_v4.Sheets, options: BatchingSystemOptions = {}) {
     this.sheetsApi = sheetsApi;
     this.enabled = options.enabled ?? true;
     this.windowMs = options.windowMs ?? 50;
@@ -293,7 +281,7 @@ export class BatchingSystem {
     }
 
     if (this.verboseLogging) {
-      logger.info("Batching system initialized", {
+      logger.info('Batching system initialized', {
         enabled: this.enabled,
         windowMs: this.windowMs,
         maxBatchSize: this.maxBatchSize,
@@ -307,7 +295,7 @@ export class BatchingSystem {
    * Execute an operation (with batching if enabled)
    */
   async execute<T>(
-    operation: Omit<BatchableOperation<T>, "resolve" | "reject" | "queuedAt">,
+    operation: Omit<BatchableOperation<T>, 'resolve' | 'reject' | 'queuedAt'>
   ): Promise<T> {
     if (!this.enabled) {
       // Batching disabled, execute immediately
@@ -345,7 +333,7 @@ export class BatchingSystem {
       }
 
       if (this.verboseLogging) {
-        logger.debug("Operation queued for batching", {
+        logger.debug('Operation queued for batching', {
           batchKey,
           operationId: operation.id,
           batchSize: batch.length,
@@ -358,7 +346,7 @@ export class BatchingSystem {
    * Generate batch key for grouping operations
    */
   private getBatchKey(
-    operation: Omit<BatchableOperation, "resolve" | "reject" | "queuedAt">,
+    operation: Omit<BatchableOperation, 'resolve' | 'reject' | 'queuedAt'>
   ): string {
     // Group by spreadsheet + operation type
     return `${operation.spreadsheetId}:${operation.type}`;
@@ -418,25 +406,25 @@ export class BatchingSystem {
       // Merge operations based on type
       const firstOp = operations[0];
       if (!firstOp) {
-        throw new Error("Empty batch");
+        throw new Error('Empty batch');
       }
 
       switch (firstOp.type) {
-        case "values:update":
+        case 'values:update':
           await this.executeBatchValuesUpdate(operations);
           break;
 
-        case "values:append":
+        case 'values:append':
           await this.executeBatchValuesAppend(operations);
           break;
 
-        case "values:clear":
+        case 'values:clear':
           await this.executeBatchValuesClear(operations);
           break;
 
-        case "format:update":
-        case "cells:update":
-        case "sheet:update":
+        case 'format:update':
+        case 'cells:update':
+        case 'sheet:update':
           await this.executeBatchBatchUpdate(operations);
           break;
 
@@ -450,14 +438,14 @@ export class BatchingSystem {
       this.stats.batchDurations.push(duration);
 
       if (this.verboseLogging) {
-        logger.info("Batch executed successfully", {
+        logger.info('Batch executed successfully', {
           batchKey,
           operationCount: operations.length,
           duration,
         });
       }
     } catch (error) {
-      logger.error("Batch execution failed", {
+      logger.error('Batch execution failed', {
         batchKey,
         operationCount: operations.length,
         error: error instanceof Error ? error.message : String(error),
@@ -472,9 +460,7 @@ export class BatchingSystem {
   /**
    * Execute batch of values.update operations
    */
-  private async executeBatchValuesUpdate(
-    operations: BatchableOperation[],
-  ): Promise<void> {
+  private async executeBatchValuesUpdate(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
 
     // Use values.batchUpdate
@@ -487,8 +473,7 @@ export class BatchingSystem {
       spreadsheetId,
       requestBody: {
         data,
-        valueInputOption:
-          operations[0]!.params.valueInputOption || "USER_ENTERED",
+        valueInputOption: operations[0]!.params.valueInputOption || 'USER_ENTERED',
       },
     });
 
@@ -505,15 +490,13 @@ export class BatchingSystem {
    * Converts multiple append operations into a single batchUpdate call with appendCells requests.
    * This is the critical fix for the 80-90% quota waste bug.
    */
-  private async executeBatchValuesAppend(
-    operations: BatchableOperation[],
-  ): Promise<void> {
+  private async executeBatchValuesAppend(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
 
     // Get spreadsheet metadata to resolve ranges to sheet IDs
     const spreadsheetMetadata = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
-      fields: "sheets(properties(sheetId,title))",
+      fields: 'sheets(properties(sheetId,title))',
     });
 
     const sheetIdMap = new Map<string, number>();
@@ -542,52 +525,43 @@ export class BatchingSystem {
 
       if (sheetId === undefined) {
         // If we can't resolve sheet ID, fall back to individual append
-        op.reject(
-          new Error(`Could not resolve sheet ID for range: ${op.params.range}`),
-        );
+        op.reject(new Error(`Could not resolve sheet ID for range: ${op.params.range}`));
         continue;
       }
 
       // Create appendCells request with the values
-      const rows: sheets_v4.Schema$RowData[] = op.params.values.map(
-        (rowValues: unknown[]) => ({
-          values: rowValues.map((cellValue: unknown) => {
-            // Determine if value should be parsed as formula or literal
-            const isFormula =
-              typeof cellValue === "string" && cellValue.startsWith("=");
-            const valueInputOption =
-              op.params.valueInputOption || "USER_ENTERED";
+      const rows: sheets_v4.Schema$RowData[] = op.params.values.map((rowValues: unknown[]) => ({
+        values: rowValues.map((cellValue: unknown) => {
+          // Determine if value should be parsed as formula or literal
+          const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
+          const valueInputOption = op.params.valueInputOption || 'USER_ENTERED';
 
-            if (
-              valueInputOption === "USER_ENTERED" ||
-              valueInputOption === "RAW"
-            ) {
-              // For USER_ENTERED or RAW, store as userEnteredValue
-              if (isFormula) {
-                return {
-                  userEnteredValue: { formulaValue: cellValue as string },
-                };
-              } else if (typeof cellValue === "number") {
-                return { userEnteredValue: { numberValue: cellValue } };
-              } else if (typeof cellValue === "boolean") {
-                return { userEnteredValue: { boolValue: cellValue } };
-              } else {
-                return { userEnteredValue: { stringValue: String(cellValue) } };
-              }
+          if (valueInputOption === 'USER_ENTERED' || valueInputOption === 'RAW') {
+            // For USER_ENTERED or RAW, store as userEnteredValue
+            if (isFormula) {
+              return {
+                userEnteredValue: { formulaValue: cellValue as string },
+              };
+            } else if (typeof cellValue === 'number') {
+              return { userEnteredValue: { numberValue: cellValue } };
+            } else if (typeof cellValue === 'boolean') {
+              return { userEnteredValue: { boolValue: cellValue } };
             } else {
-              // For INPUT_VALUE_OPTION_UNSPECIFIED, store as formatted string
               return { userEnteredValue: { stringValue: String(cellValue) } };
             }
-          }),
+          } else {
+            // For INPUT_VALUE_OPTION_UNSPECIFIED, store as formatted string
+            return { userEnteredValue: { stringValue: String(cellValue) } };
+          }
         }),
-      );
+      }));
 
       const requestIndex = requests.length;
       requests.push({
         appendCells: {
           sheetId,
           rows,
-          fields: "userEnteredValue",
+          fields: 'userEnteredValue',
         },
       });
 
@@ -624,7 +598,7 @@ export class BatchingSystem {
           updatedColumns: operation.params.values[0]?.length || 0,
           updatedCells: operation.params.values.reduce(
             (sum: number, row: unknown[]) => sum + row.length,
-            0,
+            0
           ),
         },
         tableRange: operation.params.range,
@@ -637,9 +611,7 @@ export class BatchingSystem {
   /**
    * Execute batch of values.clear operations
    */
-  private async executeBatchValuesClear(
-    operations: BatchableOperation[],
-  ): Promise<void> {
+  private async executeBatchValuesClear(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
 
     // Use values.batchClear
@@ -661,15 +633,11 @@ export class BatchingSystem {
   /**
    * Execute batch using batchUpdate (for format/cell/sheet operations)
    */
-  private async executeBatchBatchUpdate(
-    operations: BatchableOperation[],
-  ): Promise<void> {
+  private async executeBatchBatchUpdate(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
 
     // Merge all requests
-    const requests = operations.flatMap(
-      (op) => op.params.requests || [op.params.request],
-    );
+    const requests = operations.flatMap((op) => op.params.requests || [op.params.request]);
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId,
@@ -690,38 +658,38 @@ export class BatchingSystem {
    * Execute operation immediately (without batching)
    */
   private async executeImmediate<T>(
-    operation: Omit<BatchableOperation<T>, "resolve" | "reject" | "queuedAt">,
+    operation: Omit<BatchableOperation<T>, 'resolve' | 'reject' | 'queuedAt'>
   ): Promise<T> {
     switch (operation.type) {
-      case "values:update":
+      case 'values:update':
         return (await this.sheetsApi.spreadsheets.values.update({
           spreadsheetId: operation.spreadsheetId,
           range: operation.params.range,
-          valueInputOption: operation.params.valueInputOption || "USER_ENTERED",
+          valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
           requestBody: {
             values: operation.params.values,
           },
         })) as T;
 
-      case "values:append":
+      case 'values:append':
         return (await this.sheetsApi.spreadsheets.values.append({
           spreadsheetId: operation.spreadsheetId,
           range: operation.params.range,
-          valueInputOption: operation.params.valueInputOption || "USER_ENTERED",
+          valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
           requestBody: {
             values: operation.params.values,
           },
         })) as T;
 
-      case "values:clear":
+      case 'values:clear':
         return (await this.sheetsApi.spreadsheets.values.clear({
           spreadsheetId: operation.spreadsheetId,
           range: operation.params.range,
         })) as T;
 
-      case "format:update":
-      case "cells:update":
-      case "sheet:update":
+      case 'format:update':
+      case 'cells:update':
+      case 'sheet:update':
         return (await this.sheetsApi.spreadsheets.batchUpdate({
           spreadsheetId: operation.spreadsheetId,
           requestBody: {
@@ -740,21 +708,17 @@ export class BatchingSystem {
   getStats(): BatchingStats {
     const avgBatchSize =
       this.stats.batchSizes.length > 0
-        ? this.stats.batchSizes.reduce((a, b) => a + b, 0) /
-          this.stats.batchSizes.length
+        ? this.stats.batchSizes.reduce((a, b) => a + b, 0) / this.stats.batchSizes.length
         : 0;
 
     const avgBatchDuration =
       this.stats.batchDurations.length > 0
-        ? this.stats.batchDurations.reduce((a, b) => a + b, 0) /
-          this.stats.batchDurations.length
+        ? this.stats.batchDurations.reduce((a, b) => a + b, 0) / this.stats.batchDurations.length
         : 0;
 
     const apiCallsSaved = this.stats.totalOperations - this.stats.totalApiCalls;
     const reductionPercentage =
-      this.stats.totalOperations > 0
-        ? (apiCallsSaved / this.stats.totalOperations) * 100
-        : 0;
+      this.stats.totalOperations > 0 ? (apiCallsSaved / this.stats.totalOperations) * 100 : 0;
 
     const baseStats: BatchingStats = {
       totalOperations: this.stats.totalOperations,
@@ -764,24 +728,14 @@ export class BatchingSystem {
       reductionPercentage,
       avgBatchSize,
       avgBatchDuration,
-      maxBatchSize:
-        this.stats.batchSizes.length > 0
-          ? Math.max(...this.stats.batchSizes)
-          : 0,
-      minBatchSize:
-        this.stats.batchSizes.length > 0
-          ? Math.min(...this.stats.batchSizes)
-          : 0,
+      maxBatchSize: this.stats.batchSizes.length > 0 ? Math.max(...this.stats.batchSizes) : 0,
+      minBatchSize: this.stats.batchSizes.length > 0 ? Math.min(...this.stats.batchSizes) : 0,
     };
 
     // Add adaptive window stats if enabled
     if (this.useAdaptiveWindow && this.adaptiveWindow) {
-      baseStats.currentWindowMs = Math.round(
-        this.adaptiveWindow.getCurrentWindow(),
-      );
-      baseStats.avgWindowMs = Math.round(
-        this.adaptiveWindow.getAverageWindow(),
-      );
+      baseStats.currentWindowMs = Math.round(this.adaptiveWindow.getCurrentWindow());
+      baseStats.avgWindowMs = Math.round(this.adaptiveWindow.getAverageWindow());
     }
 
     return baseStats;
@@ -834,15 +788,13 @@ let batchingSystem: BatchingSystem | null = null;
 /**
  * Initialize the batching system
  */
-export function initBatchingSystem(
-  sheetsApi: sheets_v4.Sheets,
-): BatchingSystem {
+export function initBatchingSystem(sheetsApi: sheets_v4.Sheets): BatchingSystem {
   if (!batchingSystem) {
     batchingSystem = new BatchingSystem(sheetsApi, {
-      enabled: process.env["BATCHING_ENABLED"] !== "false",
-      windowMs: parseInt(process.env["BATCHING_WINDOW_MS"] || "50", 10),
-      maxBatchSize: parseInt(process.env["BATCHING_MAX_SIZE"] || "100", 10),
-      verboseLogging: process.env["BATCHING_VERBOSE"] === "true",
+      enabled: process.env['BATCHING_ENABLED'] !== 'false',
+      windowMs: parseInt(process.env['BATCHING_WINDOW_MS'] || '50', 10),
+      maxBatchSize: parseInt(process.env['BATCHING_MAX_SIZE'] || '100', 10),
+      verboseLogging: process.env['BATCHING_VERBOSE'] === 'true',
     });
   }
   return batchingSystem;
@@ -860,10 +812,8 @@ export function getBatchingSystem(): BatchingSystem | null {
  * @internal
  */
 export function resetBatchingSystem(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetBatchingSystem() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetBatchingSystem() can only be called in test environment');
   }
   if (batchingSystem) {
     batchingSystem.destroy();

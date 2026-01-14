@@ -23,7 +23,9 @@ import { dirname, join } from 'path';
 // Import version from package.json
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8')) as { version: string };
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8')) as {
+  version: string;
+};
 const PACKAGE_VERSION = packageJson.version;
 import PQueue from 'p-queue';
 import {
@@ -54,7 +56,12 @@ import { initValidationEngine } from './services/validation-engine.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
-import { checkAuth, buildAuthErrorResponse, isGoogleAuthError, convertGoogleAuthError } from './utils/auth-guard.js';
+import {
+  checkAuth,
+  buildAuthErrorResponse,
+  isGoogleAuthError,
+  convertGoogleAuthError,
+} from './utils/auth-guard.js';
 import { logger as baseLogger } from './utils/logger.js';
 import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
@@ -67,7 +74,20 @@ import {
   prepareSchemaForRegistration,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
-import { registerKnowledgeResources, registerHistoryResources, registerCacheResources, registerTransactionResources, registerConflictResources, registerImpactResources, registerValidationResources, registerMetricsResources, registerConfirmResources, registerAnalyzeResources, registerReferenceResources } from './resources/index.js';
+import {
+  registerKnowledgeResources,
+  registerHistoryResources,
+  registerCacheResources,
+  registerTransactionResources,
+  registerConflictResources,
+  registerImpactResources,
+  registerValidationResources,
+  registerMetricsResources,
+  registerConfirmResources,
+  registerAnalyzeResources,
+  registerReferenceResources,
+  registerSheetResources,
+} from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
 
@@ -138,7 +158,7 @@ export class ServalSheetsServer {
     // Initialize Google API client
     if (this.options.googleApiOptions) {
       this.googleClient = await createGoogleApiClient(this.options.googleApiOptions);
-      
+
       // Update AuthHandler with the initialized googleClient
       this.authHandler = new AuthHandler({
         googleClient: this.googleClient,
@@ -148,7 +168,7 @@ export class ServalSheetsServer {
       const snapshotService = new SnapshotService({ driveApi: this.googleClient.drive });
 
       // Initialize batching system for time-window operation batching
-      const { initBatchingSystem } = await import("./services/batching-system.js");
+      const { initBatchingSystem } = await import('./services/batching-system.js');
       const batchingSystem = initBatchingSystem(this.googleClient.sheets);
 
       // Create reusable context and handlers
@@ -181,6 +201,7 @@ export class ServalSheetsServer {
         samplingServer: this._server.server, // Pass underlying Server instance for sampling
         server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
         requestDeduplicator, // Pass request deduplicator for preventing duplicate API calls
+        taskStore: this.taskStore, // For task-based execution (SEP-1686)
       };
 
       const handlers = createHandlers({
@@ -194,10 +215,10 @@ export class ServalSheetsServer {
       // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
 
       // Initialize Phase 4 advanced features
-      initTransactionManager(this.googleClient);           // Phase 4, Task 4.1
-      initConflictDetector(this.googleClient);             // Phase 4, Task 4.2
-      initImpactAnalyzer(this.googleClient);               // Phase 4, Task 4.3
-      initValidationEngine(this.googleClient);             // Phase 4, Task 4.4
+      initTransactionManager(this.googleClient); // Phase 4, Task 4.1
+      initConflictDetector(this.googleClient); // Phase 4, Task 4.2
+      initImpactAnalyzer(this.googleClient); // Phase 4, Task 4.3
+      initValidationEngine(this.googleClient); // Phase 4, Task 4.4
     }
 
     // Register all tools
@@ -230,15 +251,21 @@ export class ServalSheetsServer {
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
       // Prepare schemas for SDK registration (shared with HTTP/remote servers)
-      const inputSchemaForRegistration = prepareSchemaForRegistration(tool.inputSchema) as unknown as AnySchema;
-      const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema) as unknown as AnySchema;
+      const inputSchemaForRegistration = prepareSchemaForRegistration(
+        tool.inputSchema
+      ) as unknown as AnySchema;
+      const outputSchemaForRegistration = prepareSchemaForRegistration(
+        tool.outputSchema
+      ) as unknown as AnySchema;
 
       // SAFETY CHECK: Verify schemas are properly transformed JSON Schema objects (not Zod objects)
       // This prevents "v3Schema.safeParseAsync is not a function" errors
       // Only run in development to avoid performance overhead in production
       if (process.env['NODE_ENV'] !== 'production') {
         const isZodSchema = (schema: unknown): boolean =>
-          Boolean(schema && typeof schema === 'object' && '_def' in (schema as Record<string, unknown>));
+          Boolean(
+            schema && typeof schema === 'object' && '_def' in (schema as Record<string, unknown>)
+          );
 
         if (!isZodSchema(inputSchemaForRegistration)) {
           verifyJsonSchema(inputSchemaForRegistration);
@@ -280,23 +307,25 @@ export class ServalSheetsServer {
       // Register tool with transformed schemas
       // Note: Using type assertion to avoid TypeScript's "excessively deep type instantiation" error
       // See registration.ts for detailed explanation
-      (this._server.registerTool as (
-        name: string,
-        config: {
-          title?: string;
-          description?: string;
-          inputSchema?: unknown;
-          outputSchema?: unknown;
-          annotations?: import('@modelcontextprotocol/sdk/types.js').ToolAnnotations;
-          icons?: import('@modelcontextprotocol/sdk/types.js').Icon[];
-          execution?: import('@modelcontextprotocol/sdk/types.js').ToolExecution;
-        },
-        cb: (
-          args: Record<string, unknown>,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          extra: any  // Use 'any' to accept full RequestHandlerExtra from SDK with all fields
-        ) => Promise<CallToolResult>
-      ) => void)(
+      (
+        this._server.registerTool as (
+          name: string,
+          config: {
+            title?: string;
+            description?: string;
+            inputSchema?: unknown;
+            outputSchema?: unknown;
+            annotations?: import('@modelcontextprotocol/sdk/types.js').ToolAnnotations;
+            icons?: import('@modelcontextprotocol/sdk/types.js').Icon[];
+            execution?: import('@modelcontextprotocol/sdk/types.js').ToolExecution;
+          },
+          cb: (
+            args: Record<string, unknown>,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            extra: any // Use 'any' to accept full RequestHandlerExtra from SDK with all fields
+          ) => Promise<CallToolResult>
+        ) => void
+      )(
         tool.name,
         {
           title: tool.annotations.title,
@@ -311,13 +340,16 @@ export class ServalSheetsServer {
         },
         async (args: Record<string, unknown>, extra) => {
           // Extract progress token from request metadata
-          const progressToken = extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
+          const progressToken =
+            extra.requestInfo?._meta?.progressToken ?? extra._meta?.progressToken;
           // Forward complete MCP context (Task 1.1)
           return this.handleToolCall(tool.name, args, {
-            ...extra,  // Forward all fields: signal, requestId, sendRequest, sendNotification, etc.
-            sendNotification: extra.sendNotification as (n: import('@modelcontextprotocol/sdk/types.js').ServerNotification) => Promise<void>,
+            ...extra, // Forward all fields: signal, requestId, sendRequest, sendNotification, etc.
+            sendNotification: extra.sendNotification as (
+              n: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+            ) => Promise<void>,
             progressToken,
-            abortSignal: extra.signal,  // Make signal available as abortSignal for clarity
+            abortSignal: extra.signal, // Make signal available as abortSignal for clarity
           });
         }
       );
@@ -360,14 +392,10 @@ export class ServalSheetsServer {
             }
 
             // Execute with abort signal
-            const result = await this.handleToolCall(
-              toolName,
-              args as Record<string, unknown>,
-              {
-                ...extra,
-                abortSignal: abortController.signal,
-              }
-            );
+            const result = await this.handleToolCall(toolName, args as Record<string, unknown>, {
+              ...extra,
+              abortSignal: abortController.signal,
+            });
 
             // Check cancellation again before storing result
             if (await this.taskStore.isTaskCancelled(task.taskId)) {
@@ -428,7 +456,7 @@ export class ServalSheetsServer {
         if (!extra.taskStore) {
           throw new Error(`[${toolName}] Task store not configured`);
         }
-        return await extra.taskStore.getTaskResult(extra.taskId) as CallToolResult;
+        return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
       },
     };
   }
@@ -468,11 +496,13 @@ export class ServalSheetsServer {
     toolName: string,
     args: Record<string, unknown>,
     extra?: {
-      sendNotification?: (notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification) => Promise<void>;
+      sendNotification?: (
+        notification: import('@modelcontextprotocol/sdk/types.js').ServerNotification
+      ) => Promise<void>;
       progressToken?: string | number;
-      elicit?: unknown;  // SEP-1036: Elicitation capability for sheets_confirm
-      sample?: unknown;  // SEP-1577: Sampling capability for sheets_analyze
-      abortSignal?: AbortSignal;  // Task cancellation support
+      elicit?: unknown; // SEP-1036: Elicitation capability for sheets_confirm
+      sample?: unknown; // SEP-1577: Sampling capability for sheets_analyze
+      abortSignal?: AbortSignal; // Task cancellation support
     }
   ): Promise<CallToolResult> {
     const startTime = Date.now();
@@ -551,7 +581,7 @@ export class ServalSheetsServer {
 
           const handler = handlerMap[toolName];
           if (!handler) {
-          return buildToolResponse({
+            return buildToolResponse({
               response: {
                 success: false,
                 error: {
@@ -559,11 +589,13 @@ export class ServalSheetsServer {
                   message: `Handler for ${toolName} not yet implemented`,
                   retryable: false,
                   suggestedFix: 'This tool is planned for a future release',
-                  alternatives: [{
-                    tool: 'sheets_values',
-                    action: 'read',
-                    description: 'Use sheets_values for basic read/write operations',
-                  }],
+                  alternatives: [
+                    {
+                      tool: 'sheets_values',
+                      action: 'read',
+                      description: 'Use sheets_values for basic read/write operations',
+                    },
+                  ],
                 },
               },
             });
@@ -594,29 +626,34 @@ export class ServalSheetsServer {
           const duration = (Date.now() - startTime) / 1000;
 
           // Get action from args if available
-          const action = typeof args === 'object' && args !== null
-            ? (() => {
-                const record = args as Record<string, unknown>;
-                if (typeof record['action'] === 'string') return record['action'];
-                const request = record['request'];
-                if (request && typeof request === 'object') {
-                  const nested = request as Record<string, unknown>;
-                  if (nested['action']) return String(nested['action']);
-                }
-                return 'unknown';
-              })()
-            : 'unknown';
+          const action =
+            typeof args === 'object' && args !== null
+              ? (() => {
+                  const record = args as Record<string, unknown>;
+                  if (typeof record['action'] === 'string') return record['action'];
+                  const request = record['request'];
+                  if (request && typeof request === 'object') {
+                    const nested = request as Record<string, unknown>;
+                    if (nested['action']) return String(nested['action']);
+                  }
+                  return 'unknown';
+                })()
+              : 'unknown';
 
-          const response = (typeof result === 'object' && result !== null)
-            ? (result as { response?: { success?: boolean; error?: unknown } }).response
-            : undefined;
-          const isError = response?.success === false
-            || (typeof result === 'object' && result !== null && 'success' in result && (result as { success?: boolean }).success === false);
+          const response =
+            typeof result === 'object' && result !== null
+              ? (result as { response?: { success?: boolean; error?: unknown } }).response
+              : undefined;
+          const isError =
+            response?.success === false ||
+            (typeof result === 'object' &&
+              result !== null &&
+              'success' in result &&
+              (result as { success?: boolean }).success === false);
 
           if (isError) {
-            const errorDetail = response?.success === false
-              ? response.error
-              : (result as { error?: unknown }).error;
+            const errorDetail =
+              response?.success === false ? response.error : (result as { error?: unknown }).error;
             logger.warn('Tool call failed', {
               tool: toolName,
               error: errorDetail,
@@ -631,18 +668,19 @@ export class ServalSheetsServer {
           return buildToolResponse(result);
         } catch (error) {
           const duration = (Date.now() - startTime) / 1000;
-          const action = typeof args === 'object' && args !== null
-            ? (() => {
-                const record = args as Record<string, unknown>;
-                if (typeof record['action'] === 'string') return record['action'];
-                const request = record['request'];
-                if (request && typeof request === 'object') {
-                  const nested = request as Record<string, unknown>;
-                  if (nested['action']) return String(nested['action']);
-                }
-                return 'unknown';
-              })()
-            : 'unknown';
+          const action =
+            typeof args === 'object' && args !== null
+              ? (() => {
+                  const record = args as Record<string, unknown>;
+                  if (typeof record['action'] === 'string') return record['action'];
+                  const request = record['request'];
+                  if (request && typeof request === 'object') {
+                    const nested = request as Record<string, unknown>;
+                    if (nested['action']) return String(nested['action']);
+                  }
+                  return 'unknown';
+                })()
+              : 'unknown';
 
           logger.error('Tool call threw exception', { tool: toolName, error });
 
@@ -652,7 +690,9 @@ export class ServalSheetsServer {
           // Check if this is a Google authentication error
           // If so, convert it to a user-friendly auth error with clear instructions
           if (isGoogleAuthError(error)) {
-            logger.info('Detected Google auth error, converting to auth flow guidance', { tool: toolName });
+            logger.info('Detected Google auth error, converting to auth flow guidance', {
+              tool: toolName,
+            });
             return buildToolResponse(convertGoogleAuthError(error));
           }
 
@@ -708,11 +748,16 @@ export class ServalSheetsServer {
     }
 
     // Register MCP-native resources (Elicitation & Sampling)
-    registerConfirmResources(this._server);  // Confirmation via Elicitation (SEP-1036)
-    registerAnalyzeResources(this._server);  // AI analysis via Sampling (SEP-1577)
+    registerConfirmResources(this._server); // Confirmation via Elicitation (SEP-1036)
+    registerAnalyzeResources(this._server); // AI analysis via Sampling (SEP-1577)
+
+    // Register dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
+    if (this.googleClient && this.context) {
+      registerSheetResources(this._server, this.context);
+    }
 
     // Register static reference resources (LLM reference documentation)
-    registerReferenceResources(this._server);  // Colors, formulas, formats, API limits
+    registerReferenceResources(this._server); // Colors, formulas, formats, API limits
   }
 
   /**
@@ -737,7 +782,9 @@ export class ServalSheetsServer {
         // Our handleTaskCancel method provides the implementation
         baseLogger.info('Task cancellation support enabled');
       } else {
-        baseLogger.warn('Task cancellation not available (SDK does not support experimental.tasks)');
+        baseLogger.warn(
+          'Task cancellation not available (SDK does not support experimental.tasks)'
+        );
       }
     } catch (error) {
       baseLogger.error('Failed to register task cancel handler', { error });
@@ -862,7 +909,9 @@ export class ServalSheetsServer {
 
     // Connect after initialization (handlers are registered)
     await this._server.connect(transport);
-    baseLogger.info(`ServalSheets MCP Server started (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`);
+    baseLogger.info(
+      `ServalSheets MCP Server started (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`
+    );
   }
 
   /**

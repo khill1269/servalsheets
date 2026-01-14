@@ -5,9 +5,9 @@
  * Uses MCP Sampling (SEP-1577) for AI-powered analysis.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getSamplingAnalysisService } from "../services/sampling-analysis.js";
-import type { AnalyzeResponse } from "../schemas/analyze.js";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getSamplingAnalysisService } from '../services/sampling-analysis.js';
+import type { AnalyzeResponse } from '../schemas/analyze.js';
 
 /**
  * In-memory store for analysis results
@@ -28,15 +28,12 @@ let nextAnalysisId = 1;
  * Store an analysis result for later retrieval via MCP Resources
  * Returns the analysis ID for referencing
  */
-export function storeAnalysisResult(
-  spreadsheetId: string,
-  result: AnalyzeResponse,
-): string {
+export function storeAnalysisResult(spreadsheetId: string, result: AnalyzeResponse): string {
   const id = `analysis-${nextAnalysisId++}`;
   const summary =
-    result.success && "summary" in result
-      ? (result.summary ?? "Analysis completed")
-      : "Analysis failed";
+    result.success && 'summary' in result
+      ? (result.summary ?? 'Analysis completed')
+      : 'Analysis failed';
 
   analysisResultsStore.set(id, {
     id,
@@ -60,9 +57,7 @@ export function storeAnalysisResult(
 /**
  * Get a stored analysis result by ID
  */
-export function getAnalysisResult(
-  id: string,
-): StoredAnalysisResult | undefined {
+export function getAnalysisResult(id: string): StoredAnalysisResult | undefined {
   return analysisResultsStore.get(id);
 }
 
@@ -70,9 +65,7 @@ export function getAnalysisResult(
  * List all stored analysis results
  */
 export function listAnalysisResults(): StoredAnalysisResult[] {
-  return Array.from(analysisResultsStore.values()).sort(
-    (a, b) => b.timestamp - a.timestamp,
-  );
+  return Array.from(analysisResultsStore.values()).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 /**
@@ -83,12 +76,11 @@ export function registerAnalyzeResources(server: McpServer): number {
 
   // Resource 1: analyze://stats - Analysis service statistics
   server.registerResource(
-    "AI Analysis Statistics",
-    "analyze://stats",
+    'AI Analysis Statistics',
+    'analyze://stats',
     {
-      description:
-        "AI analysis service statistics: requests, success rate, response times",
-      mimeType: "application/json",
+      description: 'AI analysis service statistics: requests, success rate, response times',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -97,8 +89,8 @@ export function registerAnalyzeResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   stats: {
@@ -112,42 +104,40 @@ export function registerAnalyzeResources(server: McpServer): number {
                   summary: `${stats.successfulRequests}/${stats.totalRequests} analysis requests successful (${stats.successRate.toFixed(1)}% success rate)`,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch analysis statistics",
+                  error: 'Failed to fetch analysis statistics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource 2: analyze://help - Analysis capabilities documentation
   server.registerResource(
-    "AI Analysis Help",
-    "analyze://help",
+    'AI Analysis Help',
+    'analyze://help',
     {
-      description:
-        "Documentation for AI-powered data analysis using MCP Sampling",
-      mimeType: "text/markdown",
+      description: 'Documentation for AI-powered data analysis using MCP Sampling',
+      mimeType: 'text/markdown',
     },
     async (uri) => {
       try {
@@ -257,36 +247,34 @@ View analysis statistics at: analyze://stats
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/markdown",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/markdown',
               text: helpText,
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/plain",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/plain',
               text: `Error fetching analysis help: ${errorMessage}`,
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource 3: analyze://results - List recent analysis results
   server.registerResource(
-    "Analysis Results List",
-    "analyze://results",
+    'Analysis Results List',
+    'analyze://results',
     {
-      description:
-        "List of recent analysis results with IDs for retrieval (P1: MCP Resources)",
-      mimeType: "application/json",
+      description: 'List of recent analysis results with IDs for retrieval (P1: MCP Resources)',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -295,8 +283,8 @@ View analysis statistics at: analyze://stats
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   count: results.length,
@@ -311,46 +299,44 @@ View analysis statistics at: analyze://stats
                   usage: `Reference a specific result with: analyze://results/{id}`,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch analysis results list",
+                  error: 'Failed to fetch analysis results list',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource 4: analyze://results/{id} - Get specific analysis result
   server.registerResource(
-    "Specific Analysis Result",
-    "analyze://results/{id}",
+    'Specific Analysis Result',
+    'analyze://results/{id}',
     {
-      description:
-        "Retrieve a specific analysis result by ID (P1: MCP Resources)",
-      mimeType: "application/json",
+      description: 'Retrieve a specific analysis result by ID (P1: MCP Resources)',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
-        const uriStr = typeof uri === "string" ? uri : uri.toString();
+        const uriStr = typeof uri === 'string' ? uri : uri.toString();
         const match = uriStr.match(/analyze:\/\/results\/(.+)/);
         const id = match?.[1];
 
@@ -359,15 +345,15 @@ View analysis statistics at: analyze://stats
             contents: [
               {
                 uri: uriStr,
-                mimeType: "application/json",
+                mimeType: 'application/json',
                 text: JSON.stringify(
                   {
-                    error: "Invalid URI format",
-                    expected: "analyze://results/{id}",
+                    error: 'Invalid URI format',
+                    expected: 'analyze://results/{id}',
                     received: uriStr,
                   },
                   null,
-                  2,
+                  2
                 ),
               },
             ],
@@ -381,15 +367,15 @@ View analysis statistics at: analyze://stats
             contents: [
               {
                 uri: uriStr,
-                mimeType: "application/json",
+                mimeType: 'application/json',
                 text: JSON.stringify(
                   {
-                    error: "Analysis result not found",
+                    error: 'Analysis result not found',
                     id,
-                    hint: "Use analyze://results to list available results",
+                    hint: 'Use analyze://results to list available results',
                   },
                   null,
-                  2,
+                  2
                 ),
               },
             ],
@@ -400,7 +386,7 @@ View analysis statistics at: analyze://stats
           contents: [
             {
               uri: uriStr,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   id: result.id,
@@ -409,40 +395,39 @@ View analysis statistics at: analyze://stats
                   result: result.result,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const uriStr = typeof uri === "string" ? uri : uri.toString();
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const uriStr = typeof uri === 'string' ? uri : uri.toString();
         return {
           contents: [
             {
               uri: uriStr,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch analysis result",
+                  error: 'Failed to fetch analysis result',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
-  console.error("[ServalSheets] Registered 4 analyze resources:");
-  console.error("  - analyze://stats (analysis service statistics)");
-  console.error("  - analyze://help (AI analysis documentation)");
-  console.error("  - analyze://results (list recent analysis results) [P1]");
-  console.error("  - analyze://results/{id} (get specific result) [P1]");
+  console.error('[ServalSheets] Registered 4 analyze resources:');
+  console.error('  - analyze://stats (analysis service statistics)');
+  console.error('  - analyze://help (AI analysis documentation)');
+  console.error('  - analyze://results (list recent analysis results) [P1]');
+  console.error('  - analyze://results/{id} (get specific result) [P1]');
 
   return 4;
 }

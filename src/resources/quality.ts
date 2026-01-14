@@ -1,48 +1,38 @@
-import {
-  McpServer,
-  ResourceTemplate,
-} from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { sheets_v4 } from "googleapis";
-import {
-  requestDeduplicator,
-  createRequestKey,
-} from "../utils/request-deduplication.js";
-import { completeSpreadsheetId } from "../mcp/completions.js";
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { sheets_v4 } from 'googleapis';
+import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
+import { completeSpreadsheetId } from '../mcp/completions.js';
 
 interface QualityIssue {
   type: string;
   location: string;
-  severity: "low" | "medium" | "high";
+  severity: 'low' | 'medium' | 'high';
   description: string;
 }
 
 export function registerQualityResources(
   server: McpServer,
-  googleClient: sheets_v4.Sheets | null,
+  googleClient: sheets_v4.Sheets | null
 ): number {
-  const qualityTemplate = new ResourceTemplate(
-    "sheets:///{spreadsheetId}/quality",
-    {
-      list: undefined,
-      complete: {
-        spreadsheetId: async (value) => completeSpreadsheetId(value),
-      },
+  const qualityTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/quality', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
     },
-  );
+  });
 
   server.registerResource(
-    "Data Quality Report",
+    'Data Quality Report',
     qualityTemplate,
     {
-      title: "Data Quality Analysis",
-      description:
-        "Data quality issues, anomalies, and validation errors in spreadsheet",
-      mimeType: "application/json",
+      title: 'Data Quality Analysis',
+      description: 'Data quality issues, anomalies, and validation errors in spreadsheet',
+      mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const spreadsheetId = Array.isArray(variables["spreadsheetId"])
-        ? variables["spreadsheetId"][0]
-        : variables["spreadsheetId"];
+      const spreadsheetId = Array.isArray(variables['spreadsheetId'])
+        ? variables['spreadsheetId'][0]
+        : variables['spreadsheetId'];
 
       if (!spreadsheetId || !googleClient) {
         return { contents: [] };
@@ -50,12 +40,12 @@ export function registerQualityResources(
 
       try {
         const data = await requestDeduplicator.deduplicate(
-          createRequestKey("quality:analyze", { spreadsheetId }),
+          createRequestKey('quality:analyze', { spreadsheetId }),
           async () => {
             // Fetch first 200 rows from first sheet
             const valuesResponse = await googleClient.spreadsheets.values.get({
               spreadsheetId,
-              range: "A1:Z200",
+              range: 'A1:Z200',
             });
 
             const values = valuesResponse.data.values || [];
@@ -77,19 +67,19 @@ export function registerQualityResources(
 
             // Check headers
             for (let i = 0; i < headers.length; i++) {
-              const header = String(headers[i] || "").trim();
+              const header = String(headers[i] || '').trim();
               if (!header) {
                 issues.push({
-                  type: "EMPTY_HEADER",
+                  type: 'EMPTY_HEADER',
                   location: `Column ${String.fromCharCode(65 + i)}`,
-                  severity: "high",
-                  description: "Column header is empty",
+                  severity: 'high',
+                  description: 'Column header is empty',
                 });
               } else if (seenHeaders.has(header)) {
                 issues.push({
-                  type: "DUPLICATE_HEADER",
+                  type: 'DUPLICATE_HEADER',
                   location: `Column ${String.fromCharCode(65 + i)}`,
-                  severity: "high",
+                  severity: 'high',
                   description: `Duplicate header found: "${header}"`,
                 });
               }
@@ -99,14 +89,12 @@ export function registerQualityResources(
             // Check for empty rows
             for (let row = 1; row < Math.min(values.length, 100); row++) {
               const rowData = values[row] || [];
-              if (
-                rowData.every((cell) => !cell || String(cell).trim() === "")
-              ) {
+              if (rowData.every((cell) => !cell || String(cell).trim() === '')) {
                 issues.push({
-                  type: "EMPTY_ROW",
+                  type: 'EMPTY_ROW',
                   location: `Row ${row + 1}`,
-                  severity: "medium",
-                  description: "Entire row is empty",
+                  severity: 'medium',
+                  description: 'Entire row is empty',
                 });
               }
             }
@@ -123,14 +111,14 @@ export function registerQualityResources(
               score,
               analyzedRows: Math.min(values.length, 100),
             };
-          },
+          }
         );
 
         return {
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(data, null, 2),
             },
           ],
@@ -140,21 +128,21 @@ export function registerQualityResources(
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   error: error instanceof Error ? error.message : String(error),
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
-  console.error("[ServalSheets] Registered 1 quality resource");
+  console.error('[ServalSheets] Registered 1 quality resource');
   return 1;
 }

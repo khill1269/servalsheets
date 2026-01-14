@@ -5,8 +5,8 @@
  * Starts on-demand, captures the authorization code, and auto-closes.
  */
 
-import http from "http";
-import { URL } from "url";
+import http from 'http';
+import { URL } from 'url';
 
 export interface CallbackServerOptions {
   port?: number;
@@ -25,40 +25,40 @@ export interface CallbackResult {
  * Returns the authorization code when received
  */
 export async function startCallbackServer(
-  options: CallbackServerOptions = {},
+  options: CallbackServerOptions = {}
 ): Promise<CallbackResult> {
   const port = options.port ?? 3000;
-  const host = options.host ?? "localhost";
+  const host = options.host ?? 'localhost';
   const timeout = options.timeout ?? 120000; // 2 minutes default
 
   return new Promise((resolve, reject) => {
     let resolved = false;
     const server = http.createServer((req, res) => {
       if (resolved) {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<html><body><h1>Already processed</h1></body></html>");
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h1>Already processed</h1></body></html>');
         return;
       }
 
       // Parse the callback URL
-      const reqUrl = new URL(req.url || "/", `http://${host}:${port}`);
+      const reqUrl = new URL(req.url || '/', `http://${host}:${port}`);
 
       // Only handle /callback path
-      if (reqUrl.pathname !== "/callback") {
-        res.writeHead(404, { "Content-Type": "text/html" });
-        res.end("<html><body><h1>404 - Not Found</h1></body></html>");
+      if (reqUrl.pathname !== '/callback') {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h1>404 - Not Found</h1></body></html>');
         return;
       }
 
-      const code = reqUrl.searchParams.get("code");
-      const error = reqUrl.searchParams.get("error");
-      const state = reqUrl.searchParams.get("state");
+      const code = reqUrl.searchParams.get('code');
+      const error = reqUrl.searchParams.get('error');
+      const state = reqUrl.searchParams.get('state');
 
       resolved = true;
 
       if (error) {
         // OAuth error
-        res.writeHead(400, { "Content-Type": "text/html" });
+        res.writeHead(400, { 'Content-Type': 'text/html' });
         res.end(`
           <html>
             <head>
@@ -87,7 +87,7 @@ export async function startCallbackServer(
 
       if (code) {
         // Success!
-        res.writeHead(200, { "Content-Type": "text/html" });
+        res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <html>
             <head>
@@ -122,7 +122,7 @@ export async function startCallbackServer(
       }
 
       // No code or error
-      res.writeHead(400, { "Content-Type": "text/html" });
+      res.writeHead(400, { 'Content-Type': 'text/html' });
       res.end(`
         <html>
           <head>
@@ -141,11 +141,11 @@ export async function startCallbackServer(
       `);
 
       server.close();
-      resolve({ error: "no_code" });
+      resolve({ error: 'no_code' });
     });
 
     // Handle server errors
-    server.on("error", (err) => {
+    server.on('error', (err) => {
       if (!resolved) {
         resolved = true;
         reject(new Error(`Failed to start callback server: ${err.message}`));
@@ -155,9 +155,7 @@ export async function startCallbackServer(
     // Start the server
     server.listen(port, host, () => {
       // eslint-disable-next-line no-console
-      console.log(
-        `OAuth callback server listening on http://${host}:${port}/callback`,
-      ); // User-facing server status message
+      console.log(`OAuth callback server listening on http://${host}:${port}/callback`); // User-facing server status message
     });
 
     // Timeout after specified duration
@@ -170,7 +168,7 @@ export async function startCallbackServer(
     }, timeout);
 
     // Clean up timeout when server closes
-    server.on("close", () => {
+    server.on('close', () => {
       clearTimeout(timeoutId);
     });
   });

@@ -4,8 +4,8 @@
  * Monitors and logs batch efficiency metrics
  */
 
-import { logger } from "./logger.js";
-import type { Intent } from "../core/intent.js";
+import { logger } from './logger.js';
+import type { Intent } from '../core/intent.js';
 
 export interface BatchEfficiencyMetrics {
   intentCount: number;
@@ -22,27 +22,21 @@ const MAX_HISTORY = 100;
 /**
  * Analyze batch efficiency and log warnings if suboptimal
  */
-export function analyzeBatchEfficiency(
-  intents: Intent[],
-): BatchEfficiencyMetrics {
+export function analyzeBatchEfficiency(intents: Intent[]): BatchEfficiencyMetrics {
   const spreadsheetIds = new Set(intents.map((i) => i.target.spreadsheetId));
   const spreadsheetCount = spreadsheetIds.size;
   const intentCount = intents.length;
-  const averageIntentsPerSpreadsheet =
-    intentCount / Math.max(spreadsheetCount, 1);
+  const averageIntentsPerSpreadsheet = intentCount / Math.max(spreadsheetCount, 1);
 
   // Calculate potential savings
   // If we have < 5 intents per spreadsheet, there's room for improvement
   const potentialSavings =
-    spreadsheetCount > 1
-      ? Math.max(0, spreadsheetCount - Math.ceil(intentCount / 10))
-      : 0;
+    spreadsheetCount > 1 ? Math.max(0, spreadsheetCount - Math.ceil(intentCount / 10)) : 0;
 
   const metrics: BatchEfficiencyMetrics = {
     intentCount,
     spreadsheetCount,
-    averageIntentsPerSpreadsheet:
-      Math.round(averageIntentsPerSpreadsheet * 100) / 100,
+    averageIntentsPerSpreadsheet: Math.round(averageIntentsPerSpreadsheet * 100) / 100,
     potentialSavings,
     timestamp: new Date().toISOString(),
   };
@@ -55,17 +49,16 @@ export function analyzeBatchEfficiency(
 
   // Log warning for inefficient batching
   if (intentCount === 1) {
-    logger.debug("Single-intent batch", {
+    logger.debug('Single-intent batch', {
       spreadsheetId: intents[0]?.target.spreadsheetId,
       intentType: intents[0]?.type,
     });
   } else if (intentCount < 5 && spreadsheetCount === 1) {
-    logger.debug("Small batch detected", metrics);
+    logger.debug('Small batch detected', metrics);
   } else if (averageIntentsPerSpreadsheet < 3 && spreadsheetCount > 1) {
-    logger.warn("Inefficient batch distribution", {
+    logger.warn('Inefficient batch distribution', {
       ...metrics,
-      recommendation:
-        "Consider grouping operations by spreadsheet before execution",
+      recommendation: 'Consider grouping operations by spreadsheet before execution',
     });
   }
 
@@ -90,23 +83,13 @@ export function getBatchEfficiencyStats(): {
     };
   }
 
-  const totalIntents = efficiencyHistory.reduce(
-    (sum, m) => sum + m.intentCount,
-    0,
-  );
-  const totalSpreadsheets = efficiencyHistory.reduce(
-    (sum, m) => sum + m.spreadsheetCount,
-    0,
-  );
-  const totalPotentialSavings = efficiencyHistory.reduce(
-    (sum, m) => sum + m.potentialSavings,
-    0,
-  );
+  const totalIntents = efficiencyHistory.reduce((sum, m) => sum + m.intentCount, 0);
+  const totalSpreadsheets = efficiencyHistory.reduce((sum, m) => sum + m.spreadsheetCount, 0);
+  const totalPotentialSavings = efficiencyHistory.reduce((sum, m) => sum + m.potentialSavings, 0);
 
   return {
     totalBatches: efficiencyHistory.length,
-    averageIntentsPerBatch:
-      Math.round((totalIntents / efficiencyHistory.length) * 100) / 100,
+    averageIntentsPerBatch: Math.round((totalIntents / efficiencyHistory.length) * 100) / 100,
     averageSpreadsheetsPerBatch:
       Math.round((totalSpreadsheets / efficiencyHistory.length) * 100) / 100,
     totalPotentialSavings,
@@ -129,22 +112,19 @@ export function suggestBatchOptimizations(intents: Intent[]): string[] {
 
   if (metrics.intentCount === 1) {
     suggestions.push(
-      "Single operation - consider accumulating multiple operations before execution",
+      'Single operation - consider accumulating multiple operations before execution'
     );
   }
 
-  if (
-    metrics.averageIntentsPerSpreadsheet < 3 &&
-    metrics.spreadsheetCount > 1
-  ) {
+  if (metrics.averageIntentsPerSpreadsheet < 3 && metrics.spreadsheetCount > 1) {
     suggestions.push(
-      `Low intents per spreadsheet (${metrics.averageIntentsPerSpreadsheet}) - group by spreadsheet ID before batching`,
+      `Low intents per spreadsheet (${metrics.averageIntentsPerSpreadsheet}) - group by spreadsheet ID before batching`
     );
   }
 
   if (metrics.intentCount > 100) {
     suggestions.push(
-      "Large batch detected - consider chunking into smaller batches for better error handling",
+      'Large batch detected - consider chunking into smaller batches for better error handling'
     );
   }
 
@@ -155,7 +135,7 @@ export function suggestBatchOptimizations(intents: Intent[]): string[] {
 
   if (compatibleTypes.size > 10) {
     suggestions.push(
-      "Many different intent types - ensure they are actually compatible for batching",
+      'Many different intent types - ensure they are actually compatible for batching'
     );
   }
 

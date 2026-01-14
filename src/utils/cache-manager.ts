@@ -20,8 +20,8 @@
  * Note: For multi-instance Redis caching, use cache-store.ts and cache-factory.ts
  */
 
-import { logger } from "./logger.js";
-import type { RequestMerger } from "../services/request-merger.js";
+import { logger } from './logger.js';
+import type { RequestMerger } from '../services/request-merger.js';
 
 export interface CacheEntry<T = unknown> {
   value: T;
@@ -83,36 +83,30 @@ export class CacheManager {
       defaultTTL?: number;
       maxSizeMB?: number;
       cleanupInterval?: number;
-    } = {},
+    } = {}
   ) {
     this.cache = new Map();
     this.rangeDependencies = new Map();
 
-    const envEnabled = process.env["CACHE_ENABLED"];
-    const isTestEnv = process.env["NODE_ENV"] === "test";
+    const envEnabled = process.env['CACHE_ENABLED'];
+    const isTestEnv = process.env['NODE_ENV'] === 'test';
     this.enabled =
-      options.enabled ??
-      (envEnabled !== undefined ? envEnabled !== "false" : !isTestEnv);
+      options.enabled ?? (envEnabled !== undefined ? envEnabled !== 'false' : !isTestEnv);
     this.defaultTTL =
-      options.defaultTTL ??
-      parseInt(process.env["CACHE_DEFAULT_TTL"] || "300000", 10);
+      options.defaultTTL ?? parseInt(process.env['CACHE_DEFAULT_TTL'] || '300000', 10);
     this.maxSizeBytes =
-      (options.maxSizeMB ??
-        parseInt(process.env["CACHE_MAX_SIZE"] || "100", 10)) *
-      1024 *
-      1024;
+      (options.maxSizeMB ?? parseInt(process.env['CACHE_MAX_SIZE'] || '100', 10)) * 1024 * 1024;
     this.cleanupInterval =
-      options.cleanupInterval ??
-      parseInt(process.env["CACHE_CLEANUP_INTERVAL"] || "300000", 10);
+      options.cleanupInterval ?? parseInt(process.env['CACHE_CLEANUP_INTERVAL'] || '300000', 10);
 
     if (this.enabled) {
-      logger.info("Cache manager initialized", {
+      logger.info('Cache manager initialized', {
         defaultTTL: `${this.defaultTTL}ms`,
         maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
         cleanupInterval: `${this.cleanupInterval}ms`,
       });
     } else {
-      logger.info("Cache manager disabled");
+      logger.info('Cache manager disabled');
     }
   }
 
@@ -133,7 +127,7 @@ export class CacheManager {
       this.cleanupTimer.unref();
     }
 
-    logger.debug("Cache cleanup task started", {
+    logger.debug('Cache cleanup task started', {
       intervalMs: this.cleanupInterval,
     });
   }
@@ -145,7 +139,7 @@ export class CacheManager {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = undefined;
-      logger.debug("Cache cleanup task stopped");
+      logger.debug('Cache cleanup task stopped');
     }
   }
 
@@ -172,12 +166,12 @@ export class CacheManager {
     if (Date.now() > entry.expires) {
       this.cache.delete(cacheKey);
       this.misses++;
-      logger.debug("Cache entry expired", { key, namespace });
+      logger.debug('Cache entry expired', { key, namespace });
       return undefined;
     }
 
     this.hits++;
-    logger.debug("Cache hit", { key, namespace });
+    logger.debug('Cache hit', { key, namespace });
     return entry.value;
   }
 
@@ -196,7 +190,7 @@ export class CacheManager {
     // Check if adding this entry would exceed max size
     const currentSize = this.getTotalSize();
     if (currentSize + size > this.maxSizeBytes) {
-      logger.warn("Cache size limit approaching, cleaning up", {
+      logger.warn('Cache size limit approaching, cleaning up', {
         currentSize: `${(currentSize / 1024 / 1024).toFixed(2)}MB`,
         maxSize: `${(this.maxSizeBytes / 1024 / 1024).toFixed(0)}MB`,
       });
@@ -211,7 +205,7 @@ export class CacheManager {
     };
 
     this.cache.set(cacheKey, entry);
-    logger.debug("Cache entry set", {
+    logger.debug('Cache entry set', {
       key,
       namespace: options.namespace,
       ttl,
@@ -227,7 +221,7 @@ export class CacheManager {
     const deleted = this.cache.delete(cacheKey);
 
     if (deleted) {
-      logger.debug("Cache entry deleted", { key, namespace });
+      logger.debug('Cache entry deleted', { key, namespace });
     }
 
     return deleted;
@@ -261,7 +255,7 @@ export class CacheManager {
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
-    options: CacheOptions = {},
+    options: CacheOptions = {}
   ): Promise<T> {
     const cached = this.get<T>(key, options.namespace);
     if (cached !== undefined) {
@@ -277,7 +271,7 @@ export class CacheManager {
    * Invalidate all entries matching a pattern
    */
   invalidatePattern(pattern: RegExp | string, namespace?: string): number {
-    const regex = typeof pattern === "string" ? new RegExp(pattern) : pattern;
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
     let count = 0;
 
     for (const [key] of this.cache) {
@@ -291,7 +285,7 @@ export class CacheManager {
     }
 
     if (count > 0) {
-      logger.debug("Cache pattern invalidated", {
+      logger.debug('Cache pattern invalidated', {
         pattern: pattern.toString(),
         namespace,
         count,
@@ -316,7 +310,7 @@ export class CacheManager {
     }
 
     if (count > 0) {
-      logger.debug("Cache namespace cleared", { namespace, count });
+      logger.debug('Cache namespace cleared', { namespace, count });
     }
 
     return count;
@@ -328,7 +322,7 @@ export class CacheManager {
   clear(): void {
     const count = this.cache.size;
     this.cache.clear();
-    logger.debug("Cache cleared", { entriesCleared: count });
+    logger.debug('Cache cleared', { entriesCleared: count });
   }
 
   /**
@@ -346,7 +340,7 @@ export class CacheManager {
     }
 
     if (expired > 0) {
-      logger.debug("Cache cleanup completed", {
+      logger.debug('Cache cleanup completed', {
         expired,
         remaining: this.cache.size,
       });
@@ -361,7 +355,7 @@ export class CacheManager {
    */
   getExpiringEntries(
     thresholdMs: number,
-    namespace?: string,
+    namespace?: string
   ): Array<{ key: string; expiresIn: number }> {
     const now = Date.now();
     const expiringThreshold = now + thresholdMs;
@@ -400,7 +394,7 @@ export class CacheManager {
       this.cache.delete(key);
     });
 
-    logger.debug("Evicted oldest cache entries", {
+    logger.debug('Evicted oldest cache entries', {
       removed: countToRemove,
       remaining: this.cache.size,
     });
@@ -425,7 +419,7 @@ export class CacheManager {
         newestExpiry = entry.expires;
       }
 
-      const ns = entry.namespace || "default";
+      const ns = entry.namespace || 'default';
       byNamespace[ns] = (byNamespace[ns] || 0) + 1;
     }
 
@@ -458,7 +452,7 @@ export class CacheManager {
    */
   setRequestMerger(merger: RequestMerger): void {
     this.requestMerger = merger;
-    logger.info("RequestMerger attached to CacheManager");
+    logger.info('RequestMerger attached to CacheManager');
   }
 
   /**
@@ -481,7 +475,7 @@ export class CacheManager {
   private estimateSize(value: unknown): number {
     try {
       // Accurate UTF-8 byte length calculation
-      return Buffer.byteLength(JSON.stringify(value), "utf8");
+      return Buffer.byteLength(JSON.stringify(value), 'utf8');
     } catch {
       // Fallback to a conservative estimate
       return 1024; // 1KB default
@@ -503,11 +497,7 @@ export class CacheManager {
    * Track range dependency for cache invalidation
    * Associates a cache key with a spreadsheet range
    */
-  trackRangeDependency(
-    spreadsheetId: string,
-    range: string,
-    cacheKey: string,
-  ): void {
+  trackRangeDependency(spreadsheetId: string, range: string, cacheKey: string): void {
     const depKey = `${spreadsheetId}:${range}`;
     if (!this.rangeDependencies.has(depKey)) {
       this.rangeDependencies.set(depKey, new Set());
@@ -543,7 +533,7 @@ export class CacheManager {
     }
 
     if (count > 0) {
-      logger.debug("Range-specific cache invalidation", {
+      logger.debug('Range-specific cache invalidation', {
         spreadsheetId,
         writeRange: range,
         keysInvalidated: count,
@@ -551,7 +541,7 @@ export class CacheManager {
         invalidatedRanges,
       });
     } else {
-      logger.debug("No cache entries to invalidate", {
+      logger.debug('No cache entries to invalidate', {
         spreadsheetId,
         writeRange: range,
         checkedRanges: affected.length,
@@ -565,23 +555,20 @@ export class CacheManager {
    * Find ranges that overlap with the given range
    * Uses precise intersection algorithm to minimize false positives
    */
-  private findOverlappingRanges(
-    spreadsheetId: string,
-    range: string,
-  ): string[] {
+  private findOverlappingRanges(spreadsheetId: string, range: string): string[] {
     const overlapping: string[] = [];
 
     // Check all tracked ranges for overlaps
     for (const depKey of this.rangeDependencies.keys()) {
       // Parse depKey format: "spreadsheetId:range"
-      const parts = depKey.split(":");
+      const parts = depKey.split(':');
       if (parts.length < 2) continue;
 
       const depSpreadsheetId = parts[0];
       if (depSpreadsheetId !== spreadsheetId) continue;
 
       // Reconstruct the range (handle cases where range contains ":")
-      const existingRange = parts.slice(1).join(":");
+      const existingRange = parts.slice(1).join(':');
 
       // Check if ranges overlap using precise intersection
       if (this.rangesOverlap(range, existingRange)) {
@@ -614,7 +601,7 @@ export class CacheManager {
       return this.rangesIntersect(parsed1, parsed2);
     } catch (error) {
       // Fallback to conservative behavior if parsing fails
-      logger.warn("Failed to parse A1 notation for overlap check", {
+      logger.warn('Failed to parse A1 notation for overlap check', {
         range1,
         range2,
         error,
@@ -632,8 +619,8 @@ export class CacheManager {
     let cellRange = range;
 
     // Extract sheet name if present
-    if (range.includes("!")) {
-      const parts = range.split("!");
+    if (range.includes('!')) {
+      const parts = range.split('!');
       if (parts.length === 2 && parts[0] && parts[1]) {
         sheetName = parts[0];
         cellRange = parts[1];
@@ -645,7 +632,7 @@ export class CacheManager {
     }
 
     // Handle special cases
-    if (!cellRange || cellRange.trim() === "") {
+    if (!cellRange || cellRange.trim() === '') {
       // Just sheet name - entire sheet
       return {
         sheetName,
@@ -683,7 +670,7 @@ export class CacheManager {
     }
 
     // Parse cell range (A1 or A1:B10)
-    const rangeParts = cellRange.split(":");
+    const rangeParts = cellRange.split(':');
     if (rangeParts.length === 1) {
       // Single cell
       const cell = this.parseCell(rangeParts[0]!);
@@ -746,12 +733,10 @@ export class CacheManager {
     }
 
     // Check row intersection
-    const rowsIntersect =
-      range1.startRow <= range2.endRow && range1.endRow >= range2.startRow;
+    const rowsIntersect = range1.startRow <= range2.endRow && range1.endRow >= range2.startRow;
 
     // Check column intersection
-    const colsIntersect =
-      range1.startCol <= range2.endCol && range1.endCol >= range2.startCol;
+    const colsIntersect = range1.startCol <= range2.endCol && range1.endCol >= range2.startCol;
 
     return rowsIntersect && colsIntersect;
   }
@@ -765,15 +750,10 @@ export const cacheManager = new CacheManager();
 /**
  * Helper: Create a cache key for API operations
  */
-export function createCacheKey(
-  operation: string,
-  params: Record<string, unknown>,
-): string {
+export function createCacheKey(operation: string, params: Record<string, unknown>): string {
   // Sort keys for consistent hashing
   const sortedKeys = Object.keys(params).sort();
-  const serialized = sortedKeys
-    .map((key) => `${key}=${JSON.stringify(params[key])}`)
-    .join("&");
+  const serialized = sortedKeys.map((key) => `${key}=${JSON.stringify(params[key])}`).join('&');
 
   return `${operation}:${serialized}`;
 }

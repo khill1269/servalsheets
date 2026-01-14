@@ -5,32 +5,29 @@
  * MCP Protocol: 2025-11-25
  */
 
-import type { Intent } from "../core/intent.js";
-import type { BatchCompiler, ExecutionResult } from "../core/batch-compiler.js";
-import type { RangeResolver } from "../core/range-resolver.js";
+import type { Intent } from '../core/intent.js';
+import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
+import type { RangeResolver } from '../core/range-resolver.js';
 import type {
   SafetyOptions,
   ErrorDetail,
   MutationSummary,
   RangeInput,
   ResponseMeta,
-} from "../schemas/shared.js";
-import { getRequestLogger } from "../utils/request-context.js";
+} from '../schemas/shared.js';
+import { getRequestLogger } from '../utils/request-context.js';
 import {
   createPermissionError,
   createRateLimitError,
   createNotFoundError,
   createValidationError,
   parseGoogleApiError,
-} from "../utils/error-factory.js";
-import {
-  enhanceResponse,
-  type EnhancementContext,
-} from "../utils/response-enhancer.js";
-import type { SamplingServer } from "../mcp/sampling.js";
-import type { RequestDeduplicator } from "../utils/request-deduplication.js";
-import type { CircuitBreaker } from "../utils/circuit-breaker.js";
-import { getContextManager } from "../services/context-manager.js";
+} from '../utils/error-factory.js';
+import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
+import type { SamplingServer } from '../mcp/sampling.js';
+import type { RequestDeduplicator } from '../utils/request-deduplication.js';
+import type { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getContextManager } from '../services/context-manager.js';
 import {
   requiresConfirmation,
   generateSafetyWarnings,
@@ -41,15 +38,15 @@ import {
   type SafetyContext,
   type SafetyWarning,
   type SnapshotResult,
-} from "../utils/safety-helpers.js";
-import { createEnhancedError } from "../utils/enhanced-errors.js";
+} from '../utils/safety-helpers.js';
+import { createEnhancedError } from '../utils/enhanced-errors.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
-  googleClient?: import("../services/google-api.js").GoogleApiClient | null; // For authentication checks
-  batchingSystem?: import("../services/batching-system.js").BatchingSystem;
-  snapshotService?: import("../services/snapshot.js").SnapshotService; // For undo/revert operations
+  googleClient?: import('../services/google-api.js').GoogleApiClient | null; // For authentication checks
+  batchingSystem?: import('../services/batching-system.js').BatchingSystem;
+  snapshotService?: import('../services/snapshot.js').SnapshotService; // For undo/revert operations
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];
@@ -57,8 +54,9 @@ export interface HandlerContext {
   samplingServer?: SamplingServer;
   requestDeduplicator?: RequestDeduplicator;
   circuitBreaker?: CircuitBreaker;
-  elicitationServer?: import("../mcp/elicitation.js").ElicitationServer;
-  server?: import("@modelcontextprotocol/sdk/server/index.js").Server; // MCP Server instance for elicitation/sampling
+  elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+  server?: import('@modelcontextprotocol/sdk/server/index.js').Server; // MCP Server instance for elicitation/sampling
+  taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter; // For task-based execution (SEP-1686)
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;
@@ -91,9 +89,7 @@ export interface HandlerError {
 /**
  * Combined output type
  */
-export type HandlerOutput<T extends Record<string, unknown>> =
-  | HandlerResult<T>
-  | HandlerError;
+export type HandlerOutput<T extends Record<string, unknown>> = HandlerResult<T> | HandlerError;
 
 /**
  * Base handler with common utilities
@@ -115,19 +111,19 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected requireAuth(): void {
     if (!this.context.googleClient) {
       const error = createEnhancedError(
-        "AUTH_REQUIRED",
+        'AUTH_REQUIRED',
         `Authentication required for ${this.toolName}. Call sheets_auth with action "status" to check authentication, or action "login" to authenticate.`,
         {
           tool: this.toolName,
-          hint: "Authentication is required before using this tool",
-          resolution: "Authenticate using sheets_auth tool",
+          hint: 'Authentication is required before using this tool',
+          resolution: 'Authenticate using sheets_auth tool',
           steps: [
             '1. Check auth status: sheets_auth action="status"',
             '2. If not authenticated: sheets_auth action="login"',
-            "3. Follow the OAuth flow to complete authentication",
-            "4. Retry this operation",
+            '3. Follow the OAuth flow to complete authentication',
+            '4. Retry this operation',
           ],
-        },
+        }
       );
       throw error;
     }
@@ -148,7 +144,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected async executeIntents(
     intents: Intent[],
-    safety?: SafetyOptions,
+    safety?: SafetyOptions
   ): Promise<ExecutionResult[]> {
     const batches = await this.context.batchCompiler.compile(intents);
     return this.context.batchCompiler.executeAll(batches, safety);
@@ -157,14 +153,8 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Resolve a range input to A1 notation
    */
-  protected async resolveRange(
-    spreadsheetId: string,
-    range: RangeInput,
-  ): Promise<string> {
-    const resolved = await this.context.rangeResolver.resolve(
-      spreadsheetId,
-      range,
-    );
+  protected async resolveRange(spreadsheetId: string, range: RangeInput): Promise<string> {
+    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, range);
     return resolved.a1Notation;
   }
 
@@ -178,7 +168,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     data: T,
     mutation?: MutationSummary,
     dryRun?: boolean,
-    meta?: ResponseMeta,
+    meta?: ResponseMeta
   ): T & {
     success: true;
     action: string;
@@ -217,9 +207,9 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
 
     // DEBUG: Log response structure for sheets_sharing to diagnose validation issue
-    if (this.toolName === "sheets_sharing") {
+    if (this.toolName === 'sheets_sharing') {
       const logger = getRequestLogger();
-      logger.info("[DEBUG] sheets_sharing response", {
+      logger.info('[DEBUG] sheets_sharing response', {
         toolName: this.toolName,
         action,
         successField: result.success,
@@ -236,17 +226,14 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Extract cells affected count from result data
    */
-  private extractCellsAffected(
-    data: Record<string, unknown>,
-  ): number | undefined {
+  private extractCellsAffected(data: Record<string, unknown>): number | undefined {
     // Try common field names
-    if (typeof data["updatedCells"] === "number") return data["updatedCells"];
-    if (typeof data["cellsAffected"] === "number") return data["cellsAffected"];
-    if (typeof data["cellsFormatted"] === "number")
-      return data["cellsFormatted"];
+    if (typeof data['updatedCells'] === 'number') return data['updatedCells'];
+    if (typeof data['cellsAffected'] === 'number') return data['cellsAffected'];
+    if (typeof data['cellsFormatted'] === 'number') return data['cellsFormatted'];
 
     // Try to infer from values array
-    const values = data["values"];
+    const values = data['values'];
     if (Array.isArray(values)) {
       return values.reduce((sum: number, row: unknown) => {
         return sum + (Array.isArray(row) ? row.length : 0);
@@ -268,7 +255,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       cellsAffected?: number;
       apiCallsMade?: number;
       duration?: number;
-    },
+    }
   ): ResponseMeta {
     const context: EnhancementContext = {
       tool: this.toolName,
@@ -299,7 +286,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected enhancedError(
     code: string,
     message: string,
-    context?: Record<string, unknown>,
+    context?: Record<string, unknown>
   ): HandlerError {
     return createEnhancedError(code, message, context);
   }
@@ -310,10 +297,10 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected notFoundError(
     resourceType: string,
     identifier: string | number,
-    details?: Record<string, unknown>,
+    details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: "SHEET_NOT_FOUND",
+      code: 'SHEET_NOT_FOUND',
       message: `${resourceType} ${identifier} not found`,
       retryable: false,
       details,
@@ -326,10 +313,10 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected invalidError(
     what: string,
     why: string,
-    details?: Record<string, unknown>,
+    details?: Record<string, unknown>
   ): HandlerError {
     return this.error({
-      code: "INVALID_REQUEST",
+      code: 'INVALID_REQUEST',
       message: `Invalid ${what}: ${why}`,
       retryable: false,
       details,
@@ -344,14 +331,14 @@ export abstract class BaseHandler<TInput, TOutput> {
     if (err instanceof Error) {
       // Check if it's already a structured error (from RangeResolver, PolicyEnforcer, etc.)
       const errAny = err as unknown as Record<string, unknown>;
-      if ("code" in err && typeof errAny["code"] === "string") {
+      if ('code' in err && typeof errAny['code'] === 'string') {
         const structured = err as Error & {
           code: string;
           details?: Record<string, unknown>;
           retryable?: boolean;
         };
         return this.error({
-          code: structured.code as ErrorDetail["code"],
+          code: structured.code as ErrorDetail['code'],
           message: structured.message,
           details: structured.details,
           retryable: structured.retryable ?? false,
@@ -360,15 +347,15 @@ export abstract class BaseHandler<TInput, TOutput> {
 
       // Map Google API errors
       const mapped = this.mapGoogleApiError(err);
-      if (mapped.code === "INTERNAL_ERROR" || mapped.code === "UNKNOWN_ERROR") {
-        logger.error("Handler error", { tool: this.toolName, error: err });
+      if (mapped.code === 'INTERNAL_ERROR' || mapped.code === 'UNKNOWN_ERROR') {
+        logger.error('Handler error', { tool: this.toolName, error: err });
       }
       return this.error(mapped);
     }
 
-    logger.error("Handler error", { tool: this.toolName, error: err });
+    logger.error('Handler error', { tool: this.toolName, error: err });
     return this.error({
-      code: "UNKNOWN_ERROR",
+      code: 'UNKNOWN_ERROR',
       message: String(err),
       retryable: false,
     });
@@ -382,7 +369,7 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     // Try to extract structured error info from Google API error
     const errorAny = error as unknown as Record<string, unknown>;
-    if ("code" in errorAny && typeof errorAny["code"] === "number") {
+    if ('code' in errorAny && typeof errorAny['code'] === 'number') {
       // Use error factory for structured Google API errors
       const googleError = errorAny as {
         code: number;
@@ -392,17 +379,11 @@ export abstract class BaseHandler<TInput, TOutput> {
       const parsed = parseGoogleApiError(googleError);
 
       // Fix "unknown" resourceId if we have actual spreadsheet ID
-      if (
-        this.currentSpreadsheetId &&
-        parsed.details?.["resourceId"] === "unknown"
-      ) {
-        parsed.details["resourceId"] = this.currentSpreadsheetId;
+      if (this.currentSpreadsheetId && parsed.details?.['resourceId'] === 'unknown') {
+        parsed.details['resourceId'] = this.currentSpreadsheetId;
         // Also fix the message text
         if (parsed.message) {
-          parsed.message = parsed.message.replace(
-            "unknown",
-            this.currentSpreadsheetId,
-          );
+          parsed.message = parsed.message.replace('unknown', this.currentSpreadsheetId);
         }
       }
 
@@ -412,86 +393,81 @@ export abstract class BaseHandler<TInput, TOutput> {
     // Fallback: Parse from message string
 
     // Rate limit (429)
-    if (message.includes("429") || message.includes("rate limit")) {
+    if (message.includes('429') || message.includes('rate limit')) {
       return createRateLimitError({
-        quotaType: "requests",
+        quotaType: 'requests',
         retryAfterMs: 60000,
       });
     }
 
     // Quota exceeded
-    if (message.includes("quota exceeded") || message.includes("quota")) {
+    if (message.includes('quota exceeded') || message.includes('quota')) {
       return createRateLimitError({
-        quotaType: "requests",
+        quotaType: 'requests',
         retryAfterMs: 3600000,
       });
     }
 
     // Permission denied (403)
     if (
-      message.includes("403") ||
-      message.includes("permission") ||
-      message.includes("forbidden")
+      message.includes('403') ||
+      message.includes('permission') ||
+      message.includes('forbidden')
     ) {
       return createPermissionError({
-        operation: "perform this operation",
-        resourceType: "spreadsheet",
-        currentPermission: "view",
-        requiredPermission: "edit",
+        operation: 'perform this operation',
+        resourceType: 'spreadsheet',
+        currentPermission: 'view',
+        requiredPermission: 'edit',
       });
     }
 
     // Not found (404)
     if (
-      message.includes("404") ||
-      message.includes("not found") ||
-      message.includes("requested entity was not found")
+      message.includes('404') ||
+      message.includes('not found') ||
+      message.includes('requested entity was not found')
     ) {
       return createNotFoundError({
-        resourceType: "spreadsheet",
-        resourceId:
-          this.currentSpreadsheetId || "unknown (check spreadsheet ID)",
-        searchSuggestion:
-          "Verify the spreadsheet URL and your access permissions",
+        resourceType: 'spreadsheet',
+        resourceId: this.currentSpreadsheetId || 'unknown (check spreadsheet ID)',
+        searchSuggestion: 'Verify the spreadsheet URL and your access permissions',
       });
     }
 
     // Invalid range
-    if (
-      message.includes("unable to parse range") ||
-      message.includes("invalid range")
-    ) {
+    if (message.includes('unable to parse range') || message.includes('invalid range')) {
       return createValidationError({
-        field: "range",
-        value: "invalid",
+        field: 'range',
+        value: 'invalid',
         expectedFormat: 'A1 notation (e.g., "Sheet1!A1:C10")',
-        reason: "Range specification could not be parsed",
+        reason: 'Range specification could not be parsed',
       });
     }
 
     // Circular reference
-    if (message.includes("circular")) {
+    if (message.includes('circular')) {
       return createValidationError({
-        field: "formula",
-        value: "contains circular reference",
-        reason: "Formula creates a circular dependency",
+        field: 'formula',
+        value: 'contains circular reference',
+        reason: 'Formula creates a circular dependency',
       });
     }
 
     // Default: internal error
     return {
-      code: "INTERNAL_ERROR",
+      code: 'INTERNAL_ERROR',
       message: error.message,
-      category: "server",
-      severity: "high",
+      category: 'server',
+      severity: 'high',
       retryable: false,
-      retryStrategy: "none",
+      retryStrategy: 'none',
       resolution:
-        "This is an internal error. Check the error message for details or contact support.",
+        'This is an internal error. Check the error message for details or contact support.',
       resolutionSteps: [
-        "1. Check the error message for specific details",
-        "2. Verify your request parameters are correct",
-        "3. If the error persists, report it with the full error message",
+        '1. Check the error message for specific details',
+        '2. Verify your request parameters are correct',
+        '3. If the error persists, report it with the full error message',
       ],
     };
   }
@@ -499,9 +475,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Create mutation summary from execution results
    */
-  protected createMutationSummary(
-    results: ExecutionResult[],
-  ): MutationSummary | undefined {
+  protected createMutationSummary(results: ExecutionResult[]): MutationSummary | undefined {
     // OK: Explicit empty - typed as optional, no results to summarize
     if (results.length === 0) return undefined;
 
@@ -511,9 +485,9 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     return {
       cellsAffected:
-        firstResult.diff?.tier === "METADATA"
+        firstResult.diff?.tier === 'METADATA'
           ? firstResult.diff.summary.estimatedCellsChanged
-          : firstResult.diff?.tier === "FULL"
+          : firstResult.diff?.tier === 'FULL'
             ? firstResult.diff.summary.cellsChanged
             : 0,
       diff: firstResult.diff,
@@ -526,7 +500,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    * Convert column index (0-based) to letter (A, B, ..., Z, AA, AB, ...)
    */
   protected columnToLetter(index: number): string {
-    let letter = "";
+    let letter = '';
     let temp = index + 1;
     while (temp > 0) {
       const mod = (temp - 1) % 26;
@@ -565,9 +539,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    * Automatically fills in spreadsheetId, sheetId, and range from recent operations
    * when they're missing from the current request.
    */
-  protected inferRequestParameters<T extends Record<string, unknown>>(
-    request: T,
-  ): T {
+  protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
     const contextManager = getContextManager();
     return contextManager.inferParameters(request);
   }
@@ -602,7 +574,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected getSafetyWarnings(
     context: SafetyContext,
-    safetyOptions?: SafetyOptions,
+    safetyOptions?: SafetyOptions
   ): SafetyWarning[] {
     return generateSafetyWarnings(context, safetyOptions);
   }
@@ -612,13 +584,9 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected async createSafetySnapshot(
     context: SafetyContext,
-    safetyOptions?: SafetyOptions,
+    safetyOptions?: SafetyOptions
   ): Promise<SnapshotResult | null> {
-    return createSnapshotIfNeeded(
-      this.context.snapshotService,
-      context,
-      safetyOptions,
-    );
+    return createSnapshotIfNeeded(this.context.snapshotService, context, safetyOptions);
   }
 
   /**
@@ -638,9 +606,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   /**
    * Build snapshot info for response
    */
-  protected snapshotInfo(
-    snapshot: SnapshotResult | null,
-  ): Record<string, unknown> | undefined {
+  protected snapshotInfo(snapshot: SnapshotResult | null): Record<string, unknown> | undefined {
     return buildSnapshotInfo(snapshot);
   }
 
@@ -669,19 +635,19 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected async fetchComprehensiveMetadata(
     spreadsheetId: string,
-    sheetsApi: import("googleapis").sheets_v4.Sheets,
-  ): Promise<import("googleapis").sheets_v4.Schema$Spreadsheet> {
-    const { cacheManager, createCacheKey } =
-      await import("../utils/cache-manager.js");
-    const { CACHE_TTL_SPREADSHEET } = await import("../config/constants.js");
+    sheetsApi: import('googleapis').sheets_v4.Sheets
+  ): Promise<import('googleapis').sheets_v4.Schema$Spreadsheet> {
+    const { cacheManager, createCacheKey } = await import('../utils/cache-manager.js');
+    const { CACHE_TTL_SPREADSHEET } = await import('../config/constants.js');
 
     // Check cache first
-    const cacheKey = createCacheKey("spreadsheet:comprehensive", {
+    const cacheKey = createCacheKey('spreadsheet:comprehensive', {
       spreadsheetId,
     });
-    const cached = cacheManager.get<
-      import("googleapis").sheets_v4.Schema$Spreadsheet
-    >(cacheKey, "spreadsheet");
+    const cached = cacheManager.get<import('googleapis').sheets_v4.Schema$Spreadsheet>(
+      cacheKey,
+      'spreadsheet'
+    );
 
     if (cached) {
       return cached;
@@ -689,11 +655,11 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     // Fetch comprehensive metadata in ONE call
     const fields = [
-      "spreadsheetId",
-      "properties",
-      "namedRanges",
-      "sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
-    ].join(",");
+      'spreadsheetId',
+      'properties',
+      'namedRanges',
+      'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
+    ].join(',');
 
     const response = await sheetsApi.spreadsheets.get({
       spreadsheetId,
@@ -704,7 +670,7 @@ export abstract class BaseHandler<TInput, TOutput> {
     // Cache for 5 minutes
     cacheManager.set(cacheKey, response.data, {
       ttl: CACHE_TTL_SPREADSHEET,
-      namespace: "spreadsheet",
+      namespace: 'spreadsheet',
     });
 
     return response.data;
@@ -719,35 +685,35 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected async getSheetId(
     spreadsheetId: string,
     sheetName?: string,
-    sheetsApi?: import("googleapis").sheets_v4.Sheets,
+    sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
-    const { cacheManager, createCacheKey } =
-      await import("../utils/cache-manager.js");
-    const { CACHE_TTL_SPREADSHEET } = await import("../config/constants.js");
+    const { cacheManager, createCacheKey } = await import('../utils/cache-manager.js');
+    const { CACHE_TTL_SPREADSHEET } = await import('../config/constants.js');
 
     // Check cache first
-    const cacheKey = createCacheKey("spreadsheet:metadata", {
+    const cacheKey = createCacheKey('spreadsheet:metadata', {
       spreadsheetId,
     });
-    let metadata = cacheManager.get<
-      import("googleapis").sheets_v4.Schema$Spreadsheet
-    >(cacheKey, "spreadsheet");
+    let metadata = cacheManager.get<import('googleapis').sheets_v4.Schema$Spreadsheet>(
+      cacheKey,
+      'spreadsheet'
+    );
 
     // Fetch if not cached
     if (!metadata) {
       if (!sheetsApi) {
-        throw new Error("sheetsApi required when metadata not cached");
+        throw new Error('sheetsApi required when metadata not cached');
       }
       const response = await sheetsApi.spreadsheets.get({
         spreadsheetId,
-        fields: "sheets.properties",
+        fields: 'sheets.properties',
       });
       metadata = response.data;
 
       // Cache for 5 minutes
       cacheManager.set(cacheKey, metadata, {
         ttl: CACHE_TTL_SPREADSHEET,
-        namespace: "spreadsheet",
+        namespace: 'spreadsheet',
       });
     }
 
@@ -758,13 +724,12 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     const match = sheets.find((s) => s.properties?.title === sheetName);
     if (!match) {
-      const RangeResolutionError = (await import("../core/range-resolver.js"))
-        .RangeResolutionError;
+      const RangeResolutionError = (await import('../core/range-resolver.js')).RangeResolutionError;
       throw new RangeResolutionError(
         `Sheet "${sheetName}" not found`,
-        "SHEET_NOT_FOUND",
+        'SHEET_NOT_FOUND',
         { sheetName, spreadsheetId },
-        false,
+        false
       );
     }
     return match.properties?.sheetId ?? 0;

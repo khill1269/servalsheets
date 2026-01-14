@@ -56,10 +56,28 @@ const createMockContext = (): HandlerContext => ({
       a1Notation: 'Sheet1!A1:B2',
       sheetId: 0,
       sheetName: 'Sheet1',
-      gridRange: { sheetId: 0 },
+      gridRange: { sheetId: 0, startRowIndex: 0, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 2 },
       resolution: { method: 'a1_direct', confidence: 1.0, path: '' },
     }),
     clearCache: vi.fn(),
+  } as any,
+  // Add authentication mock to prevent AUTH_REQUIRED errors
+  isAuthenticated: true,
+  googleClient: {
+    sheets: {
+      spreadsheets: {
+        values: {
+          get: vi.fn(),
+          update: vi.fn(),
+          append: vi.fn(),
+          clear: vi.fn(),
+          batchGet: vi.fn(),
+          batchUpdate: vi.fn(),
+          batchClear: vi.fn(),
+        },
+        batchUpdate: vi.fn(),
+      },
+    },
   } as any,
 });
 

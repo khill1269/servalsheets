@@ -11,7 +11,7 @@
  * Phase 4, Task 4.4
  */
 
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from 'uuid';
 import {
   ValidationRule,
   ValidationRuleType as _ValidationRuleType,
@@ -26,20 +26,17 @@ import {
   DataTypeValidation as _DataTypeValidation,
   RangeValidation as _RangeValidation,
   FormatValidation as _FormatValidation,
-} from "../types/validation.js";
+} from '../types/validation.js';
 
 /**
  * Validation Engine - Comprehensive data validation
  */
 export class ValidationEngine {
-  private config: Required<Omit<ValidationEngineConfig, "googleClient">>;
-  private googleClient?: ValidationEngineConfig["googleClient"];
+  private config: Required<Omit<ValidationEngineConfig, 'googleClient'>>;
+  private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
   private rules: Map<string, ValidationRule>;
-  private validationCache: Map<
-    string,
-    { result: ValidationResult; timestamp: number }
-  >;
+  private validationCache: Map<string, { result: ValidationResult; timestamp: number }>;
 
   constructor(config: ValidationEngineConfig = {}) {
     this.googleClient = config.googleClient;
@@ -99,10 +96,7 @@ export class ValidationEngine {
   /**
    * Validate a value against all applicable rules
    */
-  async validate(
-    value: unknown,
-    context?: ValidationContext,
-  ): Promise<ValidationReport> {
+  async validate(value: unknown, context?: ValidationContext): Promise<ValidationReport> {
     if (!this.config.enabled) {
       return this.createEmptyReport(context);
     }
@@ -132,15 +126,7 @@ export class ValidationEngine {
           if (result.valid) {
             passedChecks++;
           } else {
-            this.addError(
-              result,
-              rule,
-              value,
-              errors,
-              warnings,
-              infoMessages,
-              context,
-            );
+            this.addError(result, rule, value, errors, warnings, infoMessages, context);
           }
           continue;
         }
@@ -159,17 +145,9 @@ export class ValidationEngine {
         if (result.valid) {
           passedChecks++;
         } else {
-          this.addError(
-            result,
-            rule,
-            value,
-            errors,
-            warnings,
-            infoMessages,
-            context,
-          );
+          this.addError(result, rule, value, errors, warnings, infoMessages, context);
 
-          if (this.config.stopOnFirstError && rule.severity === "error") {
+          if (this.config.stopOnFirstError && rule.severity === 'error') {
             break;
           }
         }
@@ -192,13 +170,11 @@ export class ValidationEngine {
       this.stats.failedValidations++;
     }
 
-    this.stats.successRate =
-      this.stats.passedValidations / this.stats.totalValidations;
+    this.stats.successRate = this.stats.passedValidations / this.stats.totalValidations;
 
     const duration = Date.now() - startTime;
     this.stats.avgValidationTime =
-      (this.stats.avgValidationTime * (this.stats.totalValidations - 1) +
-        duration) /
+      (this.stats.avgValidationTime * (this.stats.totalValidations - 1) + duration) /
       this.stats.totalValidations;
 
     // Update error statistics
@@ -227,10 +203,7 @@ export class ValidationEngine {
   /**
    * Validate multiple values
    */
-  async validateBatch(
-    values: unknown[],
-    context?: ValidationContext,
-  ): Promise<ValidationReport[]> {
+  async validateBatch(values: unknown[], context?: ValidationContext): Promise<ValidationReport[]> {
     const reports: ValidationReport[] = [];
 
     for (const value of values) {
@@ -247,13 +220,10 @@ export class ValidationEngine {
   private async executeValidator(
     rule: ValidationRule,
     value: unknown,
-    context?: ValidationContext,
+    context?: ValidationContext
   ): Promise<ValidationResult> {
     const timeout = new Promise<ValidationResult>((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Validator timeout")),
-        this.config.asyncTimeout,
-      ),
+      setTimeout(() => reject(new Error('Validator timeout')), this.config.asyncTimeout)
     );
 
     const validation = Promise.resolve(rule.validator(value, context));
@@ -263,7 +233,7 @@ export class ValidationEngine {
     } catch (error) {
       return {
         valid: false,
-        message: error instanceof Error ? error.message : "Validation failed",
+        message: error instanceof Error ? error.message : 'Validation failed',
         severity: rule.severity,
       };
     }
@@ -279,7 +249,7 @@ export class ValidationEngine {
     errors: ValidationError[],
     warnings: ValidationError[],
     infoMessages: ValidationError[],
-    context?: ValidationContext,
+    context?: ValidationContext
   ): void {
     const error: ValidationError = {
       id: uuidv4(),
@@ -292,13 +262,13 @@ export class ValidationEngine {
     };
 
     switch (error.severity) {
-      case "error":
+      case 'error':
         errors.push(error);
         break;
-      case "warning":
+      case 'warning':
         warnings.push(error);
         break;
-      case "info":
+      case 'info':
         infoMessages.push(error);
         break;
     }
@@ -327,64 +297,64 @@ export class ValidationEngine {
   private registerDataTypeValidators(): void {
     // String validator
     this.registerRule({
-      id: "builtin_string",
-      name: "String Type",
-      type: "data_type",
-      description: "Validates that value is a string",
+      id: 'builtin_string',
+      name: 'String Type',
+      type: 'data_type',
+      description: 'Validates that value is a string',
       validator: (value) => ({
-        valid: typeof value === "string",
+        valid: typeof value === 'string',
         message: `Expected string, got ${typeof value}`,
       }),
-      severity: "error",
-      errorMessage: "Value must be a string",
+      severity: 'error',
+      errorMessage: 'Value must be a string',
       enabled: true,
     });
 
     // Number validator
     this.registerRule({
-      id: "builtin_number",
-      name: "Number Type",
-      type: "data_type",
-      description: "Validates that value is a number",
+      id: 'builtin_number',
+      name: 'Number Type',
+      type: 'data_type',
+      description: 'Validates that value is a number',
       validator: (value) => ({
-        valid: typeof value === "number" && !isNaN(value),
+        valid: typeof value === 'number' && !isNaN(value),
         message: `Expected number, got ${typeof value}`,
       }),
-      severity: "error",
-      errorMessage: "Value must be a number",
+      severity: 'error',
+      errorMessage: 'Value must be a number',
       enabled: true,
     });
 
     // Boolean validator
     this.registerRule({
-      id: "builtin_boolean",
-      name: "Boolean Type",
-      type: "data_type",
-      description: "Validates that value is a boolean",
+      id: 'builtin_boolean',
+      name: 'Boolean Type',
+      type: 'data_type',
+      description: 'Validates that value is a boolean',
       validator: (value) => ({
-        valid: typeof value === "boolean",
+        valid: typeof value === 'boolean',
         message: `Expected boolean, got ${typeof value}`,
       }),
-      severity: "error",
-      errorMessage: "Value must be a boolean",
+      severity: 'error',
+      errorMessage: 'Value must be a boolean',
       enabled: true,
     });
 
     // Date validator
     this.registerRule({
-      id: "builtin_date",
-      name: "Date Type",
-      type: "data_type",
-      description: "Validates that value is a valid date",
+      id: 'builtin_date',
+      name: 'Date Type',
+      type: 'data_type',
+      description: 'Validates that value is a valid date',
       validator: (value) => {
         const date = new Date(value as string);
         return {
           valid: !isNaN(date.getTime()),
-          message: "Invalid date format",
+          message: 'Invalid date format',
         };
       },
-      severity: "error",
-      errorMessage: "Value must be a valid date",
+      severity: 'error',
+      errorMessage: 'Value must be a valid date',
       enabled: true,
     });
   }
@@ -395,31 +365,31 @@ export class ValidationEngine {
   private registerRangeValidators(): void {
     // Positive number
     this.registerRule({
-      id: "builtin_positive",
-      name: "Positive Number",
-      type: "range",
-      description: "Validates that number is positive",
+      id: 'builtin_positive',
+      name: 'Positive Number',
+      type: 'range',
+      description: 'Validates that number is positive',
       validator: (value) => ({
-        valid: typeof value === "number" && value > 0,
-        message: "Value must be positive",
+        valid: typeof value === 'number' && value > 0,
+        message: 'Value must be positive',
       }),
-      severity: "error",
-      errorMessage: "Value must be positive",
+      severity: 'error',
+      errorMessage: 'Value must be positive',
       enabled: true,
     });
 
     // Non-negative number
     this.registerRule({
-      id: "builtin_non_negative",
-      name: "Non-Negative Number",
-      type: "range",
-      description: "Validates that number is non-negative",
+      id: 'builtin_non_negative',
+      name: 'Non-Negative Number',
+      type: 'range',
+      description: 'Validates that number is non-negative',
       validator: (value) => ({
-        valid: typeof value === "number" && value >= 0,
-        message: "Value must be non-negative",
+        valid: typeof value === 'number' && value >= 0,
+        message: 'Value must be non-negative',
       }),
-      severity: "error",
-      errorMessage: "Value must be non-negative",
+      severity: 'error',
+      errorMessage: 'Value must be non-negative',
       enabled: true,
     });
   }
@@ -430,59 +400,56 @@ export class ValidationEngine {
   private registerFormatValidators(): void {
     // Email validator
     this.registerRule({
-      id: "builtin_email",
-      name: "Email Format",
-      type: "format",
-      description: "Validates email format",
+      id: 'builtin_email',
+      name: 'Email Format',
+      type: 'format',
+      description: 'Validates email format',
       validator: (value) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return {
-          valid: typeof value === "string" && emailRegex.test(value),
-          message: "Invalid email format",
+          valid: typeof value === 'string' && emailRegex.test(value),
+          message: 'Invalid email format',
         };
       },
-      severity: "error",
-      errorMessage: "Value must be a valid email address",
+      severity: 'error',
+      errorMessage: 'Value must be a valid email address',
       enabled: true,
     });
 
     // URL validator
     this.registerRule({
-      id: "builtin_url",
-      name: "URL Format",
-      type: "format",
-      description: "Validates URL format",
+      id: 'builtin_url',
+      name: 'URL Format',
+      type: 'format',
+      description: 'Validates URL format',
       validator: (value) => {
         try {
           new URL(value as string);
           return { valid: true };
         } catch {
-          return { valid: false, message: "Invalid URL format" };
+          return { valid: false, message: 'Invalid URL format' };
         }
       },
-      severity: "error",
-      errorMessage: "Value must be a valid URL",
+      severity: 'error',
+      errorMessage: 'Value must be a valid URL',
       enabled: true,
     });
 
     // Phone validator (basic)
     this.registerRule({
-      id: "builtin_phone",
-      name: "Phone Format",
-      type: "format",
-      description: "Validates phone format",
+      id: 'builtin_phone',
+      name: 'Phone Format',
+      type: 'format',
+      description: 'Validates phone format',
       validator: (value) => {
         const phoneRegex = /^\+?[\d\s\-()]+$/;
         return {
-          valid:
-            typeof value === "string" &&
-            phoneRegex.test(value) &&
-            value.length >= 10,
-          message: "Invalid phone format",
+          valid: typeof value === 'string' && phoneRegex.test(value) && value.length >= 10,
+          message: 'Invalid phone format',
         };
       },
-      severity: "error",
-      errorMessage: "Value must be a valid phone number",
+      severity: 'error',
+      errorMessage: 'Value must be a valid phone number',
       enabled: true,
     });
   }
@@ -493,31 +460,31 @@ export class ValidationEngine {
   private registerCommonValidators(): void {
     // Required (not empty)
     this.registerRule({
-      id: "builtin_required",
-      name: "Required",
-      type: "required",
-      description: "Validates that value is not empty",
+      id: 'builtin_required',
+      name: 'Required',
+      type: 'required',
+      description: 'Validates that value is not empty',
       validator: (value) => ({
-        valid: value !== null && value !== undefined && value !== "",
-        message: "Value is required",
+        valid: value !== null && value !== undefined && value !== '',
+        message: 'Value is required',
       }),
-      severity: "error",
-      errorMessage: "This field is required",
+      severity: 'error',
+      errorMessage: 'This field is required',
       enabled: true,
     });
 
     // Non-empty string
     this.registerRule({
-      id: "builtin_non_empty_string",
-      name: "Non-Empty String",
-      type: "required",
-      description: "Validates that string is not empty",
+      id: 'builtin_non_empty_string',
+      name: 'Non-Empty String',
+      type: 'required',
+      description: 'Validates that string is not empty',
       validator: (value) => ({
-        valid: typeof value === "string" && value.trim().length > 0,
-        message: "String cannot be empty",
+        valid: typeof value === 'string' && value.trim().length > 0,
+        message: 'String cannot be empty',
       }),
-      severity: "error",
-      errorMessage: "Value cannot be empty",
+      severity: 'error',
+      errorMessage: 'Value cannot be empty',
       enabled: true,
     });
   }
@@ -648,20 +615,18 @@ let validationEngineInstance: ValidationEngine | null = null;
  * Initialize validation engine (call once during server startup)
  */
 export function initValidationEngine(
-  googleClient?: ValidationEngineConfig["googleClient"],
+  googleClient?: ValidationEngineConfig['googleClient']
 ): ValidationEngine {
   if (!validationEngineInstance) {
     validationEngineInstance = new ValidationEngine({
-      enabled: process.env["VALIDATION_ENABLED"] !== "false",
-      validateBeforeOperations:
-        process.env["VALIDATION_BEFORE_OPERATIONS"] !== "false",
-      stopOnFirstError:
-        process.env["VALIDATION_STOP_ON_FIRST_ERROR"] === "true",
-      maxErrors: parseInt(process.env["VALIDATION_MAX_ERRORS"] || "100"),
-      asyncTimeout: parseInt(process.env["VALIDATION_ASYNC_TIMEOUT"] || "5000"),
-      enableCaching: process.env["VALIDATION_ENABLE_CACHING"] !== "false",
-      cacheTtl: parseInt(process.env["VALIDATION_CACHE_TTL"] || "300000"), // 5 minutes - aligned with CACHE_TTL_* constants
-      verboseLogging: process.env["VALIDATION_VERBOSE"] === "true",
+      enabled: process.env['VALIDATION_ENABLED'] !== 'false',
+      validateBeforeOperations: process.env['VALIDATION_BEFORE_OPERATIONS'] !== 'false',
+      stopOnFirstError: process.env['VALIDATION_STOP_ON_FIRST_ERROR'] === 'true',
+      maxErrors: parseInt(process.env['VALIDATION_MAX_ERRORS'] || '100'),
+      asyncTimeout: parseInt(process.env['VALIDATION_ASYNC_TIMEOUT'] || '5000'),
+      enableCaching: process.env['VALIDATION_ENABLE_CACHING'] !== 'false',
+      cacheTtl: parseInt(process.env['VALIDATION_CACHE_TTL'] || '300000'), // 5 minutes - aligned with CACHE_TTL_* constants
+      verboseLogging: process.env['VALIDATION_VERBOSE'] === 'true',
       googleClient,
     });
   }
@@ -673,9 +638,7 @@ export function initValidationEngine(
  */
 export function getValidationEngine(): ValidationEngine {
   if (!validationEngineInstance) {
-    throw new Error(
-      "Validation engine not initialized. Call initValidationEngine() first.",
-    );
+    throw new Error('Validation engine not initialized. Call initValidationEngine() first.');
   }
   return validationEngineInstance;
 }
@@ -685,10 +648,8 @@ export function getValidationEngine(): ValidationEngine {
  * @internal
  */
 export function resetValidationEngine(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetValidationEngine() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetValidationEngine() can only be called in test environment');
   }
   validationEngineInstance = null;
 }

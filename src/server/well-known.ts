@@ -14,15 +14,11 @@
  * @see https://www.rfc-editor.org/rfc/rfc9728 - OAuth 2.0 Protected Resource Metadata
  */
 
-import type { Request, Response } from "express";
-import type { Icon } from "@modelcontextprotocol/sdk/types.js";
-import { VERSION, SERVER_INFO, SERVER_ICONS } from "../version.js";
-import { TOOL_COUNT, ACTION_COUNT } from "../schemas/index.js";
-import {
-  DEFAULT_SCOPES,
-  ELEVATED_SCOPES,
-  READONLY_SCOPES,
-} from "../services/google-api.js";
+import type { Request, Response } from 'express';
+import type { Icon } from '@modelcontextprotocol/sdk/types.js';
+import { VERSION, SERVER_INFO, SERVER_ICONS } from '../version.js';
+import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
+import { DEFAULT_SCOPES, ELEVATED_SCOPES, READONLY_SCOPES } from '../services/google-api.js';
 
 /**
  * MCP Server Configuration
@@ -72,11 +68,11 @@ export interface McpServerConfiguration {
     };
   };
   /** Supported transports */
-  transports: ("stdio" | "sse" | "streamable-http")[];
+  transports: ('stdio' | 'sse' | 'streamable-http')[];
   /** Authentication requirements */
   authentication: {
-    type: "oauth2";
-    flows: ("authorization_code" | "client_credentials")[];
+    type: 'oauth2';
+    flows: ('authorization_code' | 'client_credentials')[];
     pkce_required: boolean;
     default_scopes: string[];
     elevated_scopes: string[];
@@ -127,7 +123,7 @@ export function getMcpConfiguration(): McpServerConfiguration {
     name: SERVER_INFO.name,
     version: VERSION,
     description:
-      "Production-grade Google Sheets MCP server with AI-powered analytics, transactions, and enterprise features",
+      'Production-grade Google Sheets MCP server with AI-powered analytics, transactions, and enterprise features',
     icons: SERVER_ICONS,
     protocol_version: SERVER_INFO.protocolVersion,
     capabilities: {
@@ -161,20 +157,20 @@ export function getMcpConfiguration(): McpServerConfiguration {
         supported: true,
       },
     },
-    transports: ["stdio", "sse", "streamable-http"],
+    transports: ['stdio', 'sse', 'streamable-http'],
     authentication: {
-      type: "oauth2",
-      flows: ["authorization_code"],
+      type: 'oauth2',
+      flows: ['authorization_code'],
       pkce_required: true,
       default_scopes: DEFAULT_SCOPES,
       elevated_scopes: ELEVATED_SCOPES,
       readonly_scopes: READONLY_SCOPES,
     },
     links: {
-      documentation: "https://github.com/khill1269/servalsheets#readme",
-      repository: "https://github.com/khill1269/servalsheets",
-      issues: "https://github.com/khill1269/servalsheets/issues",
-      homepage: "https://github.com/khill1269/servalsheets",
+      documentation: 'https://github.com/khill1269/servalsheets#readme',
+      repository: 'https://github.com/khill1269/servalsheets',
+      issues: 'https://github.com/khill1269/servalsheets/issues',
+      homepage: 'https://github.com/khill1269/servalsheets',
     },
   };
 }
@@ -184,35 +180,28 @@ export function getMcpConfiguration(): McpServerConfiguration {
  * Points to Google's OAuth server or custom issuer
  */
 export function getOAuthAuthorizationServerMetadata(
-  issuer?: string,
+  issuer?: string
 ): OAuthAuthorizationServerMetadata {
-  const serverIssuer = issuer || "https://accounts.google.com";
+  const serverIssuer = issuer || 'https://accounts.google.com';
 
   // Use Google endpoints if no issuer provided or if issuer is Google
   const isGoogleIssuer =
-    !issuer ||
-    issuer.includes("google.com") ||
-    issuer.includes("accounts.google.com");
+    !issuer || issuer.includes('google.com') || issuer.includes('accounts.google.com');
 
   if (isGoogleIssuer) {
     return {
-      issuer: "https://accounts.google.com",
-      authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-      token_endpoint: "https://oauth2.googleapis.com/token",
-      revocation_endpoint: "https://oauth2.googleapis.com/revoke",
-      jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
-      scopes_supported: [
-        ...DEFAULT_SCOPES,
-        ...ELEVATED_SCOPES,
-        ...READONLY_SCOPES,
-      ].filter((v, i, a) => a.indexOf(v) === i), // Deduplicate
-      response_types_supported: ["code"],
-      grant_types_supported: ["authorization_code", "refresh_token"],
-      token_endpoint_auth_methods_supported: [
-        "client_secret_post",
-        "client_secret_basic",
-      ],
-      code_challenge_methods_supported: ["S256"],
+      issuer: 'https://accounts.google.com',
+      authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      token_endpoint: 'https://oauth2.googleapis.com/token',
+      revocation_endpoint: 'https://oauth2.googleapis.com/revoke',
+      jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+      scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
+        (v, i, a) => a.indexOf(v) === i
+      ), // Deduplicate
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
+      code_challenge_methods_supported: ['S256'],
     };
   }
 
@@ -223,18 +212,13 @@ export function getOAuthAuthorizationServerMetadata(
     token_endpoint: `${serverIssuer}/oauth/token`,
     revocation_endpoint: `${serverIssuer}/oauth/revoke`,
     jwks_uri: `${serverIssuer}/.well-known/jwks.json`,
-    scopes_supported: [
-      ...DEFAULT_SCOPES,
-      ...ELEVATED_SCOPES,
-      ...READONLY_SCOPES,
-    ].filter((v, i, a) => a.indexOf(v) === i),
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: [
-      "client_secret_post",
-      "client_secret_basic",
-    ],
-    code_challenge_methods_supported: ["S256"],
+    scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
+      (v, i, a) => a.indexOf(v) === i
+    ),
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
+    code_challenge_methods_supported: ['S256'],
   };
 }
 
@@ -243,18 +227,16 @@ export function getOAuthAuthorizationServerMetadata(
  * Describes this server as an OAuth-protected resource
  */
 export function getOAuthProtectedResourceMetadata(
-  serverUrl: string,
+  serverUrl: string
 ): OAuthProtectedResourceMetadata {
   return {
     resource: serverUrl,
-    authorization_servers: ["https://accounts.google.com"],
-    scopes_supported: [
-      ...DEFAULT_SCOPES,
-      ...ELEVATED_SCOPES,
-      ...READONLY_SCOPES,
-    ].filter((v, i, a) => a.indexOf(v) === i),
-    bearer_methods_supported: ["header"],
-    resource_documentation: "https://github.com/khill1269/servalsheets#readme",
+    authorization_servers: ['https://accounts.google.com'],
+    scopes_supported: [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
+      (v, i, a) => a.indexOf(v) === i
+    ),
+    bearer_methods_supported: ['header'],
+    resource_documentation: 'https://github.com/khill1269/servalsheets#readme',
   };
 }
 
@@ -262,44 +244,34 @@ export function getOAuthProtectedResourceMetadata(
  * Express handler for /.well-known/mcp-configuration
  */
 export function mcpConfigurationHandler(_req: Request, res: Response): void {
-  res.set("Content-Type", "application/json");
-  res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
-  res.set("Access-Control-Allow-Origin", "*"); // Allow discovery from any origin
+  res.set('Content-Type', 'application/json');
+  res.set('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+  res.set('Access-Control-Allow-Origin', '*'); // Allow discovery from any origin
   res.json(getMcpConfiguration());
 }
 
 /**
  * Express handler for /.well-known/oauth-authorization-server
  */
-export function oauthAuthorizationServerHandler(
-  _req: Request,
-  res: Response,
-): void {
-  res.set("Content-Type", "application/json");
-  res.set("Cache-Control", "public, max-age=86400"); // Cache for 24 hours
-  res.set("Access-Control-Allow-Origin", "*");
+export function oauthAuthorizationServerHandler(_req: Request, res: Response): void {
+  res.set('Content-Type', 'application/json');
+  res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+  res.set('Access-Control-Allow-Origin', '*');
   res.json(getOAuthAuthorizationServerMetadata());
 }
 
 /**
  * Express handler for /.well-known/oauth-protected-resource
  */
-export function oauthProtectedResourceHandler(
-  req: Request,
-  res: Response,
-): void {
+export function oauthProtectedResourceHandler(req: Request, res: Response): void {
   // Determine server URL from request
-  const protocol =
-    req.secure || req.headers["x-forwarded-proto"] === "https"
-      ? "https"
-      : "http";
-  const host =
-    req.headers["x-forwarded-host"] || req.headers.host || "localhost:3000";
+  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const serverUrl = `${protocol}://${host}`;
 
-  res.set("Content-Type", "application/json");
-  res.set("Cache-Control", "public, max-age=86400");
-  res.set("Access-Control-Allow-Origin", "*");
+  res.set('Content-Type', 'application/json');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.set('Access-Control-Allow-Origin', '*');
   res.json(getOAuthProtectedResourceMetadata(serverUrl));
 }
 
@@ -309,15 +281,9 @@ export function oauthProtectedResourceHandler(
 export function registerWellKnownHandlers(app: {
   get: (path: string, handler: (req: Request, res: Response) => void) => void;
 }): void {
-  app.get("/.well-known/mcp-configuration", mcpConfigurationHandler);
-  app.get(
-    "/.well-known/oauth-authorization-server",
-    oauthAuthorizationServerHandler,
-  );
-  app.get(
-    "/.well-known/oauth-protected-resource",
-    oauthProtectedResourceHandler,
-  );
+  app.get('/.well-known/mcp-configuration', mcpConfigurationHandler);
+  app.get('/.well-known/oauth-authorization-server', oauthAuthorizationServerHandler);
+  app.get('/.well-known/oauth-protected-resource', oauthProtectedResourceHandler);
 }
 
 // Aliases for backward compatibility with tests
@@ -325,12 +291,10 @@ export function registerWellKnownHandlers(app: {
 export const buildMcpConfiguration = getMcpConfiguration;
 
 /** @deprecated Use getOAuthAuthorizationServerMetadata instead */
-export const buildOAuthAuthorizationServerMetadata =
-  getOAuthAuthorizationServerMetadata;
+export const buildOAuthAuthorizationServerMetadata = getOAuthAuthorizationServerMetadata;
 
 /** @deprecated Use getOAuthProtectedResourceMetadata instead */
-export const buildOAuthProtectedResourceMetadata =
-  getOAuthProtectedResourceMetadata;
+export const buildOAuthProtectedResourceMetadata = getOAuthProtectedResourceMetadata;
 
 /** @deprecated Use mcpConfigurationHandler instead */
 export const handleMcpConfiguration = mcpConfigurationHandler;

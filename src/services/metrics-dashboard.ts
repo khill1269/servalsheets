@@ -7,7 +7,7 @@
  * @module services/metrics-dashboard
  */
 
-import { register } from "prom-client";
+import { register } from 'prom-client';
 
 // Note: We query metrics by name from the registry rather than using
 // the metric objects directly, so we only need the register object.
@@ -114,7 +114,7 @@ const START_TIME = Date.now();
  */
 async function getMetricValue(
   metricName: string,
-  labels: Record<string, string> = {},
+  labels: Record<string, string> = {}
 ): Promise<number> {
   const metrics = await register.getMetricsAsJSON();
   const metric = metrics.find((m) => m.name === metricName);
@@ -123,7 +123,7 @@ async function getMetricValue(
   // Type assertion for Prometheus metric types
   const metricType = String(metric.type);
 
-  if (metricType === "counter" || metricType === "gauge") {
+  if (metricType === 'counter' || metricType === 'gauge') {
     if (!metric.values || metric.values.length === 0) return 0;
 
     // If no labels specified, sum all values
@@ -133,14 +133,12 @@ async function getMetricValue(
 
     // Find matching label
     const match = metric.values.find((v) => {
-      return Object.entries(labels).every(
-        ([key, value]) => v.labels?.[key] === value,
-      );
+      return Object.entries(labels).every(([key, value]) => v.labels?.[key] === value);
     });
     return Number(match?.value) || 0;
   }
 
-  if (metricType === "histogram") {
+  if (metricType === 'histogram') {
     const sumMetric = metrics.find((m) => m.name === `${metricName}_sum`);
     const countMetric = metrics.find((m) => m.name === `${metricName}_count`);
     if (!sumMetric || !countMetric) return 0;
@@ -158,7 +156,7 @@ async function getMetricValue(
  */
 async function getMetricsByLabel(
   metricName: string,
-  labelName: string,
+  labelName: string
 ): Promise<Map<string, number>> {
   const metrics = await register.getMetricsAsJSON();
   const metric = metrics.find((m) => m.name === metricName);
@@ -168,10 +166,7 @@ async function getMetricsByLabel(
   for (const value of metric.values) {
     if (value.labels?.[labelName]) {
       const labelValue = String(value.labels[labelName]);
-      result.set(
-        labelValue,
-        (result.get(labelValue) || 0) + (Number(value.value) || 0),
-      );
+      result.set(labelValue, (result.get(labelValue) || 0) + (Number(value.value) || 0));
     }
   }
   return result;
@@ -182,89 +177,60 @@ async function getMetricsByLabel(
  */
 export async function generateMetricsDashboard(): Promise<MetricsDashboard> {
   // Get raw metrics
-  const totalApiCalls = await getMetricValue(
-    "servalsheets_google_api_calls_total",
-  );
-  const totalBatchRequests = await getMetricValue(
-    "servalsheets_batch_requests_total",
-  );
-  const batchEfficiency = await getMetricValue(
-    "servalsheets_batch_efficiency_ratio",
-  );
-  const cacheHits = await getMetricValue("servalsheets_cache_hits_total");
-  const cacheMisses = await getMetricValue("servalsheets_cache_misses_total");
-  const totalToolCalls = await getMetricValue("servalsheets_tool_calls_total");
-  const successfulCalls = await getMetricValue(
-    "servalsheets_tool_calls_total",
-    {
-      status: "success",
-    },
-  );
+  const totalApiCalls = await getMetricValue('servalsheets_google_api_calls_total');
+  const totalBatchRequests = await getMetricValue('servalsheets_batch_requests_total');
+  const batchEfficiency = await getMetricValue('servalsheets_batch_efficiency_ratio');
+  const cacheHits = await getMetricValue('servalsheets_cache_hits_total');
+  const cacheMisses = await getMetricValue('servalsheets_cache_misses_total');
+  const totalToolCalls = await getMetricValue('servalsheets_tool_calls_total');
+  const successfulCalls = await getMetricValue('servalsheets_tool_calls_total', {
+    status: 'success',
+  });
 
   // Calculate API efficiency
   const averageBatchSize = totalBatchRequests > 0 ? batchEfficiency * 10 : 1; // Estimated
   const callsSavedByBatching = totalBatchRequests * (averageBatchSize - 1);
   const callsSavedByCache = cacheHits;
   const callsSavedByDedup = totalApiCalls * 0.15; // Estimated 15% dedup rate
-  const totalCallsSaved =
-    callsSavedByBatching + callsSavedByCache + callsSavedByDedup;
+  const totalCallsSaved = callsSavedByBatching + callsSavedByCache + callsSavedByDedup;
   const estimatedUnoptimizedCalls = totalApiCalls + totalCallsSaved;
   const efficiencyGain =
     estimatedUnoptimizedCalls > 0
       ? `${((totalCallsSaved / estimatedUnoptimizedCalls) * 100).toFixed(1)}%`
-      : "0%";
+      : '0%';
 
   // Calculate cache hit rate
   const totalCacheAccess = cacheHits + cacheMisses;
   const cacheHitRate =
-    totalCacheAccess > 0
-      ? `${((cacheHits / totalCacheAccess) * 100).toFixed(1)}%`
-      : "0%";
+    totalCacheAccess > 0 ? `${((cacheHits / totalCacheAccess) * 100).toFixed(1)}%` : '0%';
 
   // Calculate success rate
   const successRate =
-    totalToolCalls > 0
-      ? `${((successfulCalls / totalToolCalls) * 100).toFixed(1)}%`
-      : "0%";
+    totalToolCalls > 0 ? `${((successfulCalls / totalToolCalls) * 100).toFixed(1)}%` : '0%';
 
   // Get top tools
-  const toolCallsByName = await getMetricsByLabel(
-    "servalsheets_tool_calls_total",
-    "tool",
-  );
+  const toolCallsByName = await getMetricsByLabel('servalsheets_tool_calls_total', 'tool');
   const topTools = Array.from(toolCallsByName.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([name, calls]) => ({
       name,
       calls,
-      percentage:
-        totalToolCalls > 0
-          ? `${((calls / totalToolCalls) * 100).toFixed(1)}%`
-          : "0%",
+      percentage: totalToolCalls > 0 ? `${((calls / totalToolCalls) * 100).toFixed(1)}%` : '0%',
     }));
 
   // Calculate durations
-  const avgToolCallDuration = await getMetricValue(
-    "servalsheets_tool_call_duration_seconds",
-  );
-  const avgApiCallDuration = await getMetricValue(
-    "servalsheets_google_api_duration_seconds",
-  );
+  const avgToolCallDuration = await getMetricValue('servalsheets_tool_call_duration_seconds');
+  const avgApiCallDuration = await getMetricValue('servalsheets_google_api_duration_seconds');
 
   // Calculate uptime
   const uptimeSeconds = Math.floor((Date.now() - START_TIME) / 1000);
   const operationsPerMinute =
-    uptimeSeconds > 0
-      ? (totalToolCalls / (uptimeSeconds / 60)).toFixed(2)
-      : "0";
+    uptimeSeconds > 0 ? (totalToolCalls / (uptimeSeconds / 60)).toFixed(2) : '0';
 
   // Calculate cost savings (Google Sheets API: $4 per 1M requests, ~$0.0004 per 100)
   const costPer100Calls = 0.0004;
-  const estimatedUnoptimizedCost = (
-    (estimatedUnoptimizedCalls / 100) *
-    costPer100Calls
-  ).toFixed(4);
+  const estimatedUnoptimizedCost = ((estimatedUnoptimizedCalls / 100) * costPer100Calls).toFixed(4);
   const actualCost = ((totalApiCalls / 100) * costPer100Calls).toFixed(4);
   const savings = ((totalCallsSaved / 100) * costPer100Calls).toFixed(4);
 
@@ -352,7 +318,7 @@ export function formatDashboardAsText(dashboard: MetricsDashboard): string {
   Success Rate:   ${toolUsage.successRate}
 
   Top Tools:
-${toolUsage.topTools.map((t, i) => `    ${i + 1}. ${t.name.padEnd(25)} ${t.calls.toString().padStart(6)} calls (${t.percentage})`).join("\n")}
+${toolUsage.topTools.map((t, i) => `    ${i + 1}. ${t.name.padEnd(25)} ${t.calls.toString().padStart(6)} calls (${t.percentage})`).join('\n')}
 
 💰 COST SAVINGS (Google Sheets API @ $4/1M requests)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

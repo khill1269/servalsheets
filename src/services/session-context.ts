@@ -11,7 +11,7 @@
  * @module services/session-context
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 
 // ============================================================================
 // TYPES
@@ -55,7 +55,7 @@ export interface OperationRecord {
 
 export interface UserPreferences {
   /** Preferred confirmation level: always, destructive, never */
-  confirmationLevel: "always" | "destructive" | "never";
+  confirmationLevel: 'always' | 'destructive' | 'never';
   /** Default safety options */
   defaultSafety: {
     dryRun: boolean;
@@ -63,7 +63,7 @@ export interface UserPreferences {
   };
   /** Formatting preferences */
   formatting: {
-    headerStyle: "bold" | "bold-colored" | "minimal";
+    headerStyle: 'bold' | 'bold-colored' | 'minimal';
     dateFormat: string;
     currencyFormat: string;
   };
@@ -96,15 +96,15 @@ export interface SessionState {
 // ============================================================================
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  confirmationLevel: "destructive",
+  confirmationLevel: 'destructive',
   defaultSafety: {
     dryRun: false,
     createSnapshot: true,
   },
   formatting: {
-    headerStyle: "bold-colored",
-    dateFormat: "YYYY-MM-DD",
-    currencyFormat: "$#,##0.00",
+    headerStyle: 'bold-colored',
+    dateFormat: 'YYYY-MM-DD',
+    currencyFormat: '$#,##0.00',
   },
 };
 
@@ -178,8 +178,8 @@ export class SessionContextManager {
   requireActiveSpreadsheet(): SpreadsheetContext {
     if (!this.state.activeSpreadsheet) {
       throw new Error(
-        "No active spreadsheet. Please specify which spreadsheet to work with, " +
-          "or say 'open [spreadsheet name]' to set one as active.",
+        'No active spreadsheet. Please specify which spreadsheet to work with, ' +
+          "or say 'open [spreadsheet name]' to set one as active."
       );
     }
     return this.state.activeSpreadsheet;
@@ -219,7 +219,7 @@ export class SessionContextManager {
     }
 
     // Handle "the X" or "my X"
-    const stripped = reference.replace(/^(the|my|our)\s+/, "");
+    const stripped = reference.replace(/^(the|my|our)\s+/, '');
     if (lowerTitle.includes(stripped)) {
       return true;
     }
@@ -237,7 +237,7 @@ export class SessionContextManager {
   private addToRecent(context: SpreadsheetContext): void {
     // Remove if already in recent
     this.state.recentSpreadsheets = this.state.recentSpreadsheets.filter(
-      (ss) => ss.spreadsheetId !== context.spreadsheetId,
+      (ss) => ss.spreadsheetId !== context.spreadsheetId
     );
 
     // Add to front
@@ -247,7 +247,7 @@ export class SessionContextManager {
     if (this.state.recentSpreadsheets.length > this.maxRecentSpreadsheets) {
       this.state.recentSpreadsheets = this.state.recentSpreadsheets.slice(
         0,
-        this.maxRecentSpreadsheets,
+        this.maxRecentSpreadsheets
       );
     }
   }
@@ -269,7 +269,7 @@ export class SessionContextManager {
   /**
    * Record an operation for "undo" support
    */
-  recordOperation(record: Omit<OperationRecord, "id" | "timestamp">): string {
+  recordOperation(record: Omit<OperationRecord, 'id' | 'timestamp'>): string {
     const id = `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const fullRecord: OperationRecord = {
@@ -282,10 +282,7 @@ export class SessionContextManager {
 
     // Trim to max
     if (this.state.operationHistory.length > this.maxOperationHistory) {
-      this.state.operationHistory = this.state.operationHistory.slice(
-        0,
-        this.maxOperationHistory,
-      );
+      this.state.operationHistory = this.state.operationHistory.slice(0, this.maxOperationHistory);
     }
 
     this.state.lastActivityAt = Date.now();
@@ -322,7 +319,7 @@ export class SessionContextManager {
     const lowerRef = reference.toLowerCase();
 
     // "that" or "the last" = most recent
-    if (lowerRef === "that" || lowerRef === "the last" || lowerRef === "it") {
+    if (lowerRef === 'that' || lowerRef === 'the last' || lowerRef === 'it') {
       return this.getLastOperation();
     }
 
@@ -332,9 +329,7 @@ export class SessionContextManager {
       const action = actionMatch[1]!;
       return (
         this.state.operationHistory.find(
-          (op) =>
-            op.action.toLowerCase().includes(action) ||
-            op.tool.toLowerCase().includes(action),
+          (op) => op.action.toLowerCase().includes(action) || op.tool.toLowerCase().includes(action)
         ) ?? null
       );
     }
@@ -371,19 +366,19 @@ export class SessionContextManager {
    */
   learnPreference(key: string, value: unknown): void {
     switch (key) {
-      case "skipConfirmation":
-        this.state.preferences.confirmationLevel = "never";
+      case 'skipConfirmation':
+        this.state.preferences.confirmationLevel = 'never';
         break;
-      case "alwaysConfirm":
-        this.state.preferences.confirmationLevel = "always";
+      case 'alwaysConfirm':
+        this.state.preferences.confirmationLevel = 'always';
         break;
-      case "dateFormat":
-        if (typeof value === "string") {
+      case 'dateFormat':
+        if (typeof value === 'string') {
           this.state.preferences.formatting.dateFormat = value;
         }
         break;
-      case "currencyFormat":
-        if (typeof value === "string") {
+      case 'currencyFormat':
+        if (typeof value === 'string') {
           this.state.preferences.formatting.currencyFormat = value;
         }
         break;
@@ -400,7 +395,7 @@ export class SessionContextManager {
    *
    * For complex operations that span multiple turns.
    */
-  setPendingOperation(operation: SessionState["pendingOperation"]): void {
+  setPendingOperation(operation: SessionState['pendingOperation']): void {
     this.state.pendingOperation = operation;
     this.state.lastActivityAt = Date.now();
   }
@@ -408,7 +403,7 @@ export class SessionContextManager {
   /**
    * Get pending operation (for "continue" commands)
    */
-  getPendingOperation(): SessionState["pendingOperation"] {
+  getPendingOperation(): SessionState['pendingOperation'] {
     return this.state.pendingOperation;
   }
 
@@ -456,8 +451,8 @@ export class SessionContextManager {
         ...imported,
       };
     } catch (error) {
-      logger.error("Failed to import session state", {
-        component: "session-context",
+      logger.error('Failed to import session state', {
+        component: 'session-context',
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
@@ -482,15 +477,15 @@ export class SessionContextManager {
       parts.push(
         `Currently working with: "${this.state.activeSpreadsheet.title}" ` +
           `(${this.state.activeSpreadsheet.sheetNames.length} sheets: ` +
-          `${this.state.activeSpreadsheet.sheetNames.slice(0, 3).join(", ")}` +
-          `${this.state.activeSpreadsheet.sheetNames.length > 3 ? "..." : ""})`,
+          `${this.state.activeSpreadsheet.sheetNames.slice(0, 3).join(', ')}` +
+          `${this.state.activeSpreadsheet.sheetNames.length > 3 ? '...' : ''})`
       );
 
       if (this.state.activeSpreadsheet.lastRange) {
         parts.push(`Last accessed: ${this.state.activeSpreadsheet.lastRange}`);
       }
     } else {
-      parts.push("No spreadsheet currently active.");
+      parts.push('No spreadsheet currently active.');
     }
 
     // Last operation
@@ -503,11 +498,11 @@ export class SessionContextManager {
     if (this.state.pendingOperation) {
       parts.push(
         `Pending: ${this.state.pendingOperation.type} ` +
-          `(step ${this.state.pendingOperation.step}/${this.state.pendingOperation.totalSteps})`,
+          `(step ${this.state.pendingOperation.step}/${this.state.pendingOperation.totalSteps})`
       );
     }
 
-    return parts.join("\n");
+    return parts.join('\n');
   }
 
   /**
@@ -517,20 +512,18 @@ export class SessionContextManager {
     const suggestions: string[] = [];
 
     if (!this.state.activeSpreadsheet) {
-      suggestions.push("Open or create a spreadsheet to get started");
+      suggestions.push('Open or create a spreadsheet to get started');
       if (this.state.recentSpreadsheets.length > 0) {
-        suggestions.push(
-          `Switch to recent: ${this.state.recentSpreadsheets[0]!.title}`,
-        );
+        suggestions.push(`Switch to recent: ${this.state.recentSpreadsheets[0]!.title}`);
       }
     } else {
       const lastOp = this.getLastOperation();
-      if (lastOp?.action === "read") {
-        suggestions.push("Analyze the data for quality issues");
-        suggestions.push("Create a chart from this data");
-      } else if (lastOp?.action === "write") {
-        suggestions.push("Format the cells you just updated");
-        suggestions.push("Verify the changes look correct");
+      if (lastOp?.action === 'read') {
+        suggestions.push('Analyze the data for quality issues');
+        suggestions.push('Create a chart from this data');
+      } else if (lastOp?.action === 'write') {
+        suggestions.push('Format the cells you just updated');
+        suggestions.push('Verify the changes look correct');
       }
     }
 

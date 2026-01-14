@@ -7,14 +7,14 @@
  * @module resources/confirmation
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   analyzeOperation,
   shouldConfirm,
   getConfirmationGuidance,
   CONFIRMATION_THRESHOLDS,
-} from "../services/confirmation-policy.js";
+} from '../services/confirmation-policy.js';
 
 // ============================================================================
 // RESOURCE REGISTRATION
@@ -26,12 +26,12 @@ import {
 export function registerConfirmationResources(server: McpServer): void {
   // Static resource: Confirmation guide
   server.registerResource(
-    "confirmation_guide",
-    new ResourceTemplate("sheets:///confirmation/guide", { list: undefined }),
+    'confirmation_guide',
+    new ResourceTemplate('sheets:///confirmation/guide', { list: undefined }),
     {
-      title: "Confirmation Guide",
-      description: "When and how Claude should request user confirmation",
-      mimeType: "text/markdown",
+      title: 'Confirmation Guide',
+      description: 'When and how Claude should request user confirmation',
+      mimeType: 'text/markdown',
     },
     async () => {
       const guide = getConfirmationGuidance();
@@ -57,44 +57,41 @@ export function registerConfirmationResources(server: McpServer): void {
       return {
         contents: [
           {
-            uri: "sheets:///confirmation/guide",
-            mimeType: "text/markdown",
+            uri: 'sheets:///confirmation/guide',
+            mimeType: 'text/markdown',
             text: guide + thresholds,
           },
         ],
       };
-    },
+    }
   );
 
   // Dynamic resource: Check if operation needs confirmation
-  const checkTemplate = new ResourceTemplate(
-    "sheets:///confirmation/check/{tool}/{action}",
-    { list: undefined },
-  );
+  const checkTemplate = new ResourceTemplate('sheets:///confirmation/check/{tool}/{action}', {
+    list: undefined,
+  });
 
   server.registerResource(
-    "confirmation_check",
+    'confirmation_check',
     checkTemplate,
     {
-      title: "Check Confirmation Requirement",
-      description: "Check if a specific operation requires user confirmation",
-      mimeType: "application/json",
+      title: 'Check Confirmation Requirement',
+      description: 'Check if a specific operation requires user confirmation',
+      mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const tool = Array.isArray(variables["tool"])
-        ? variables["tool"][0]
-        : variables["tool"];
-      const action = Array.isArray(variables["action"])
-        ? variables["action"][0]
-        : variables["action"];
+      const tool = Array.isArray(variables['tool']) ? variables['tool'][0] : variables['tool'];
+      const action = Array.isArray(variables['action'])
+        ? variables['action'][0]
+        : variables['action'];
 
       if (!tool || !action) {
         return {
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
-              text: JSON.stringify({ error: "Missing tool or action" }),
+              mimeType: 'application/json',
+              text: JSON.stringify({ error: 'Missing tool or action' }),
             },
           ],
         };
@@ -115,7 +112,7 @@ export function registerConfirmationResources(server: McpServer): void {
         contents: [
           {
             uri: uri.href,
-            mimeType: "application/json",
+            mimeType: 'application/json',
             text: JSON.stringify(
               {
                 tool,
@@ -135,98 +132,97 @@ export function registerConfirmationResources(server: McpServer): void {
                 guidance: analysis.risk.warning || null,
               },
               null,
-              2,
+              2
             ),
           },
         ],
       };
-    },
+    }
   );
 
   // Resource: Quick reference for destructive operations
   server.registerResource(
-    "destructive_operations",
-    new ResourceTemplate("sheets:///confirmation/destructive", {
+    'destructive_operations',
+    new ResourceTemplate('sheets:///confirmation/destructive', {
       list: undefined,
     }),
     {
-      title: "Destructive Operations List",
-      description:
-        "List of operations that are destructive and require confirmation",
-      mimeType: "application/json",
+      title: 'Destructive Operations List',
+      description: 'List of operations that are destructive and require confirmation',
+      mimeType: 'application/json',
     },
     async () => {
       const destructive = [
         {
-          tool: "sheets_values",
-          action: "clear",
-          description: "Clear cell contents",
+          tool: 'sheets_values',
+          action: 'clear',
+          description: 'Clear cell contents',
         },
         {
-          tool: "sheets_sheet",
-          action: "delete",
-          description: "Delete entire sheet",
+          tool: 'sheets_sheet',
+          action: 'delete',
+          description: 'Delete entire sheet',
         },
         {
-          tool: "sheets_dimensions",
-          action: "delete_rows",
-          description: "Delete rows",
+          tool: 'sheets_dimensions',
+          action: 'delete_rows',
+          description: 'Delete rows',
         },
         {
-          tool: "sheets_dimensions",
-          action: "delete_columns",
-          description: "Delete columns",
+          tool: 'sheets_dimensions',
+          action: 'delete_columns',
+          description: 'Delete columns',
         },
         {
-          tool: "sheets_rules",
-          action: "remove_rule",
-          description: "Remove validation/formatting rules",
+          tool: 'sheets_rules',
+          action: 'remove_rule',
+          description: 'Remove validation/formatting rules',
         },
         {
-          tool: "sheets_charts",
-          action: "delete",
-          description: "Delete chart",
+          tool: 'sheets_charts',
+          action: 'delete',
+          description: 'Delete chart',
         },
         {
-          tool: "sheets_pivot",
-          action: "delete",
-          description: "Delete pivot table",
+          tool: 'sheets_pivot',
+          action: 'delete',
+          description: 'Delete pivot table',
         },
         {
-          tool: "sheets_advanced",
-          action: "remove_protection",
-          description: "Remove sheet/range protection",
+          tool: 'sheets_advanced',
+          action: 'remove_protection',
+          description: 'Remove sheet/range protection',
         },
         {
-          tool: "sheets_sharing",
-          action: "revoke",
-          description: "Revoke user access",
+          tool: 'sheets_sharing',
+          action: 'revoke',
+          description: 'Revoke user access',
         },
         {
-          tool: "sheets_comments",
-          action: "delete",
-          description: "Delete comments",
+          tool: 'sheets_comments',
+          action: 'delete',
+          description: 'Delete comments',
         },
       ];
 
       return {
         contents: [
           {
-            uri: "sheets:///confirmation/destructive",
-            mimeType: "application/json",
+            uri: 'sheets:///confirmation/destructive',
+            mimeType: 'application/json',
             text: JSON.stringify(
               {
-                title: "Destructive Operations - ALWAYS Confirm",
+                title: 'Destructive Operations - ALWAYS Confirm',
                 operations: destructive,
-                rule: "These operations can cause data loss. ALWAYS use sheets_confirm before executing.",
+                rule: 'These operations can cause data loss. ALWAYS use sheets_confirm before executing.',
               },
               null,
-              2,
+              2
             ),
           },
         ],
       };
-    },
+    }
   );
 }
 

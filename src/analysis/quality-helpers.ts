@@ -105,7 +105,7 @@ export interface NearDuplicate {
 export function findNearDuplicates(
   data: unknown[][],
   threshold: number = 0.9,
-  maxSample: number = 1000,
+  maxSample: number = 1000
 ): NearDuplicate[] {
   const nearDuplicates: NearDuplicate[] = [];
 
@@ -123,6 +123,7 @@ export function findNearDuplicates(
 
       const row1 = data[idx1];
       const row2 = data[idx2];
+      if (!row1 || !row2) continue;
 
       if (row1.length !== row2.length) continue;
 
@@ -207,7 +208,7 @@ export function analyzeColumnTypes(data: unknown[][]): ColumnTypeAnalysis[] {
     for (let row = 0; row < data.length; row++) {
       const value = data[row]?.[col];
 
-      if (value === null || value === undefined || value === "") {
+      if (value === null || value === undefined || value === '') {
         nullCount++;
         continue;
       }
@@ -217,7 +218,7 @@ export function analyzeColumnTypes(data: unknown[][]): ColumnTypeAnalysis[] {
     }
 
     // Determine dominant type
-    let dominantType = "empty";
+    let dominantType = 'empty';
     let maxCount = 0;
 
     for (const [type, count] of Object.entries(types)) {
@@ -229,12 +230,11 @@ export function analyzeColumnTypes(data: unknown[][]): ColumnTypeAnalysis[] {
 
     // Calculate consistency (% of dominant type)
     const totalNonNull = data.length - nullCount;
-    const consistency =
-      totalNonNull > 0 ? (maxCount / totalNonNull) * 100 : 100;
+    const consistency = totalNonNull > 0 ? (maxCount / totalNonNull) * 100 : 100;
 
     // Mixed if consistency < 80%
     if (consistency < 80 && Object.keys(types).length > 1) {
-      dominantType = "mixed";
+      dominantType = 'mixed';
     }
 
     results.push({
@@ -287,45 +287,45 @@ export function validateEmails(values: string[]): EmailValidation[] {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   for (let i = 0; i < values.length; i++) {
-    const value = String(values[i] ?? "").trim();
+    const value = String(values[i] ?? '').trim();
 
-    if (value === "") {
+    if (value === '') {
       results.push({
         index: i,
         value,
         isValid: false,
-        issue: "Empty value",
+        issue: 'Empty value',
       });
       continue;
     }
 
-    if (!value.includes("@")) {
+    if (!value.includes('@')) {
       results.push({
         index: i,
         value,
         isValid: false,
-        issue: "Missing @ symbol",
+        issue: 'Missing @ symbol',
       });
       continue;
     }
 
-    const parts = value.split("@");
+    const parts = value.split('@');
     if (parts.length !== 2) {
       results.push({
         index: i,
         value,
         isValid: false,
-        issue: "Multiple @ symbols",
+        issue: 'Multiple @ symbols',
       });
       continue;
     }
 
-    if (!parts[1]?.includes(".")) {
+    if (!parts[1]?.includes('.')) {
       results.push({
         index: i,
         value,
         isValid: false,
-        issue: "Missing domain extension",
+        issue: 'Missing domain extension',
       });
       continue;
     }
@@ -335,7 +335,7 @@ export function validateEmails(values: string[]): EmailValidation[] {
       index: i,
       value,
       isValid,
-      issue: isValid ? undefined : "Invalid format",
+      issue: isValid ? undefined : 'Invalid format',
     });
   }
 
@@ -381,19 +381,19 @@ export function validateDates(values: unknown[]): DateValidation[] {
 
   const formats = [
     {
-      name: "ISO 8601",
+      name: 'ISO 8601',
       test: (v: string) => /^\d{4}-\d{2}-\d{2}/.test(v),
     },
     {
-      name: "MM/DD/YYYY",
+      name: 'MM/DD/YYYY',
       test: (v: string) => /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v),
     },
     {
-      name: "DD/MM/YYYY",
+      name: 'DD/MM/YYYY',
       test: (v: string) => /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v),
     },
     {
-      name: "YYYY/MM/DD",
+      name: 'YYYY/MM/DD',
       test: (v: string) => /^\d{4}\/\d{2}\/\d{2}/.test(v),
     },
   ];
@@ -408,21 +408,21 @@ export function validateDates(values: unknown[]): DateValidation[] {
         index: i,
         value,
         isValid,
-        inferredFormat: "Date object",
+        inferredFormat: 'Date object',
         parsedDate: isValid ? value : undefined,
-        issue: isValid ? undefined : "Invalid Date object",
+        issue: isValid ? undefined : 'Invalid Date object',
       });
       continue;
     }
 
-    const stringValue = String(value ?? "").trim();
+    const stringValue = String(value ?? '').trim();
 
-    if (stringValue === "") {
+    if (stringValue === '') {
       results.push({
         index: i,
         value,
         isValid: false,
-        issue: "Empty value",
+        issue: 'Empty value',
       });
       continue;
     }
@@ -431,7 +431,7 @@ export function validateDates(values: unknown[]): DateValidation[] {
     const parsed = new Date(stringValue);
     if (!isNaN(parsed.getTime())) {
       // Find matching format
-      let inferredFormat = "Unknown format";
+      let inferredFormat = 'Unknown format';
       for (const format of formats) {
         if (format.test(stringValue)) {
           inferredFormat = format.name;
@@ -451,7 +451,7 @@ export function validateDates(values: unknown[]): DateValidation[] {
         index: i,
         value,
         isValid: false,
-        issue: "Unable to parse as date",
+        issue: 'Unable to parse as date',
       });
     }
   }
@@ -466,7 +466,7 @@ export interface WhitespaceIssue {
   row: number;
   column: number;
   value: string;
-  type: "leading" | "trailing" | "both" | "multiple_spaces";
+  type: 'leading' | 'trailing' | 'both' | 'multiple_spaces';
   suggestion: string;
 }
 
@@ -497,7 +497,7 @@ export function findWhitespaceIssues(data: unknown[][]): WhitespaceIssue[] {
 
     for (let col = 0; col < rowData.length; col++) {
       const value = rowData[col];
-      if (typeof value !== "string") continue;
+      if (typeof value !== 'string') continue;
 
       const trimmed = value.trim();
       const hasLeading = value !== value.trimStart();
@@ -505,16 +505,16 @@ export function findWhitespaceIssues(data: unknown[][]): WhitespaceIssue[] {
       const hasMultiple = /\s{2,}/.test(value);
 
       if (hasLeading || hasTrailing || hasMultiple) {
-        let type: "leading" | "trailing" | "both" | "multiple_spaces";
+        let type: 'leading' | 'trailing' | 'both' | 'multiple_spaces';
 
         if (hasLeading && hasTrailing) {
-          type = "both";
+          type = 'both';
         } else if (hasLeading) {
-          type = "leading";
+          type = 'leading';
         } else if (hasTrailing) {
-          type = "trailing";
+          type = 'trailing';
         } else {
-          type = "multiple_spaces";
+          type = 'multiple_spaces';
         }
 
         issues.push({
@@ -522,7 +522,7 @@ export function findWhitespaceIssues(data: unknown[][]): WhitespaceIssue[] {
           column: col,
           value,
           type,
-          suggestion: trimmed.replace(/\s{2,}/g, " "),
+          suggestion: trimmed.replace(/\s{2,}/g, ' '),
         });
       }
     }
@@ -574,7 +574,7 @@ export interface FormatInconsistency {
  */
 export function findFormatInconsistencies(
   data: unknown[][],
-  minPatternCount: number = 2,
+  minPatternCount: number = 2
 ): FormatInconsistency[] {
   if (data.length === 0) return [];
 
@@ -586,11 +586,11 @@ export function findFormatInconsistencies(
 
     for (let row = 0; row < data.length; row++) {
       const value = data[row]?.[col];
-      if (value === null || value === undefined || value === "") continue;
+      if (value === null || value === undefined || value === '') continue;
 
       const stringValue = String(value);
       // Convert to pattern (X = alphanumeric, others preserved)
-      const pattern = stringValue.replace(/[a-zA-Z0-9]/g, "X");
+      const pattern = stringValue.replace(/[a-zA-Z0-9]/g, 'X');
 
       const existing = patterns.get(pattern) ?? [];
       existing.push({ row, value: stringValue });
@@ -610,17 +610,15 @@ export function findFormatInconsistencies(
     if (significantPatterns.length > 1) {
       const totalValues = Array.from(patterns.values()).reduce(
         (sum, examples) => sum + examples.length,
-        0,
+        0
       );
       const dominantCount = significantPatterns[0]?.count ?? 0;
-      const inconsistencyRate = Math.round(
-        ((totalValues - dominantCount) / totalValues) * 100,
-      );
+      const inconsistencyRate = Math.round(((totalValues - dominantCount) / totalValues) * 100);
 
       results.push({
         column: col,
         patterns: significantPatterns,
-        dominantPattern: significantPatterns[0]?.pattern ?? "Unknown",
+        dominantPattern: significantPatterns[0]?.pattern ?? 'Unknown',
         inconsistencyRate,
       });
     }

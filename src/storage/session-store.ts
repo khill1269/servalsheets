@@ -5,7 +5,7 @@
  * Implementations: in-memory (development), Redis (production)
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 
 /**
  * Session store interface for storing temporary data with TTL
@@ -17,11 +17,7 @@ export interface SessionStore {
    * @param value Value to store (will be JSON serialized)
    * @param options TTL options - can be number (seconds) or object with ttlMs
    */
-  set(
-    key: string,
-    value: unknown,
-    options?: number | { ttlMs: number },
-  ): Promise<void>;
+  set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void>;
 
   /**
    * Retrieve a value by key
@@ -80,16 +76,12 @@ export class InMemorySessionStore implements SessionStore {
     }, cleanupIntervalMs);
   }
 
-  async set(
-    key: string,
-    value: unknown,
-    options?: number | { ttlMs: number },
-  ): Promise<void> {
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlMs: number;
-    if (typeof options === "number") {
+    if (typeof options === 'number') {
       ttlMs = options * 1000; // Convert seconds to milliseconds
-    } else if (options && typeof options === "object" && "ttlMs" in options) {
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
       ttlMs = options.ttlMs;
     } else {
       ttlMs = 3600000; // 1 hour default
@@ -138,7 +130,7 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     // Simple glob pattern matching (supports * wildcard)
-    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
     return allKeys.filter((key) => regex.test(key));
   }
 
@@ -157,7 +149,7 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     if (keysToDelete.length > 0) {
-      logger.info("Session store cleanup completed", {
+      logger.info('Session store cleanup completed', {
         expiredEntries: keysToDelete.length,
         remainingKeys: this.store.size,
         cleanupTimestamp: new Date().toISOString(),
@@ -217,40 +209,36 @@ export class RedisSessionStore implements SessionStore {
     try {
       // Dynamic import to make Redis optional
       // @ts-ignore - Redis is an optional peer dependency
-      const { createClient } = await import("redis");
+      const { createClient } = await import('redis');
 
       this.client = createClient({
         url: this.redisUrl,
       });
 
-      this.client.on("error", (err: Error) => {
-        console.error("[RedisSessionStore] Redis error:", err);
+      this.client.on('error', (err: Error) => {
+        console.error('[RedisSessionStore] Redis error:', err);
       });
 
       await this.client.connect();
       this.connected = true;
-      console.error("[RedisSessionStore] Connected to Redis");
+      console.error('[RedisSessionStore] Connected to Redis');
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
           `Make sure Redis is installed (npm install redis) and running. ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`,
+          `Error: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
 
-  async set(
-    key: string,
-    value: unknown,
-    options?: number | { ttlMs: number },
-  ): Promise<void> {
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
     await this.ensureConnected();
 
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlSeconds: number;
-    if (typeof options === "number") {
+    if (typeof options === 'number') {
       ttlSeconds = options;
-    } else if (options && typeof options === "object" && "ttlMs" in options) {
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
       ttlSeconds = Math.floor(options.ttlMs / 1000);
     } else {
       ttlSeconds = 3600; // 1 hour default
@@ -292,7 +280,7 @@ export class RedisSessionStore implements SessionStore {
 
   async keys(pattern?: string): Promise<string[]> {
     await this.ensureConnected();
-    return await this.client.keys(pattern || "*");
+    return await this.client.keys(pattern || '*');
   }
 
   async cleanup(): Promise<void> {
@@ -325,11 +313,11 @@ export class RedisSessionStore implements SessionStore {
  */
 export function createSessionStore(redisUrl?: string): SessionStore {
   if (redisUrl) {
-    console.error("[SessionStore] Using Redis session store");
+    console.error('[SessionStore] Using Redis session store');
     return new RedisSessionStore(redisUrl);
   }
 
-  console.error("[SessionStore] Using in-memory session store");
+  console.error('[SessionStore] Using in-memory session store');
   return new InMemorySessionStore();
 }
 
@@ -363,11 +351,7 @@ export class MemorySessionStore implements SessionStore {
     }, cleanupIntervalMs);
   }
 
-  async set(
-    key: string,
-    value: unknown,
-    options?: number | { ttlMs: number },
-  ): Promise<void> {
+  async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
     // Enforce max entries limit
     if (this.store.size >= this.maxEntries && !this.store.has(key)) {
       // Remove oldest entry
@@ -379,9 +363,9 @@ export class MemorySessionStore implements SessionStore {
 
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlMs: number;
-    if (typeof options === "number") {
+    if (typeof options === 'number') {
       ttlMs = options * 1000; // Convert seconds to milliseconds
-    } else if (options && typeof options === "object" && "ttlMs" in options) {
+    } else if (options && typeof options === 'object' && 'ttlMs' in options) {
       ttlMs = options.ttlMs;
     } else {
       ttlMs = this.defaultTtlMs;
@@ -430,7 +414,7 @@ export class MemorySessionStore implements SessionStore {
     }
 
     // Simple glob pattern matching (supports * wildcard)
-    const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
+    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
     return allKeys.filter((key) => regex.test(key));
   }
 

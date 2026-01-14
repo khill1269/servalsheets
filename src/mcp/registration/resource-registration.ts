@@ -6,15 +6,12 @@
  * @module mcp/registration/resource-registration
  */
 
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { GoogleApiClient } from "../../services/google-api.js";
-import {
-  completeRange,
-  completeSpreadsheetId,
-} from "../completions.js";
-import { registerChartResources } from "../../resources/charts.js";
-import { registerPivotResources } from "../../resources/pivots.js";
-import { registerQualityResources } from "../../resources/quality.js";
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { GoogleApiClient } from '../../services/google-api.js';
+import { completeRange, completeSpreadsheetId } from '../completions.js';
+import { registerChartResources } from '../../resources/charts.js';
+import { registerPivotResources } from '../../resources/pivots.js';
+import { registerQualityResources } from '../../resources/quality.js';
 
 // ============================================================================
 // RESOURCES REGISTRATION
@@ -30,45 +27,38 @@ import { registerQualityResources } from "../../resources/quality.js";
  */
 export function registerServalSheetsResources(
   server: McpServer,
-  googleClient: GoogleApiClient | null,
+  googleClient: GoogleApiClient | null
 ): void {
-  const spreadsheetTemplate = new ResourceTemplate(
-    "sheets:///{spreadsheetId}",
-    {
-      list: undefined,
-      complete: {
-        spreadsheetId: async (value) => completeSpreadsheetId(value),
-      },
+  const spreadsheetTemplate = new ResourceTemplate('sheets:///{spreadsheetId}', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
     },
-  );
+  });
 
-  const rangeTemplate = new ResourceTemplate(
-    "sheets:///{spreadsheetId}/{range}",
-    {
-      list: undefined,
-      complete: {
-        spreadsheetId: async (value) => completeSpreadsheetId(value),
-        range: async (value) => completeRange(value),
-      },
+  const rangeTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/{range}', {
+    list: undefined,
+    complete: {
+      spreadsheetId: async (value) => completeSpreadsheetId(value),
+      range: async (value) => completeRange(value),
     },
-  );
+  });
 
   server.registerResource(
-    "spreadsheet",
+    'spreadsheet',
     spreadsheetTemplate,
     {
-      title: "Spreadsheet",
-      description:
-        "Google Sheets spreadsheet metadata (properties and sheet list)",
-      mimeType: "application/json",
+      title: 'Spreadsheet',
+      description: 'Google Sheets spreadsheet metadata (properties and sheet list)',
+      mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const rawSpreadsheetId = variables["spreadsheetId"];
+      const rawSpreadsheetId = variables['spreadsheetId'];
       const spreadsheetId = Array.isArray(rawSpreadsheetId)
         ? rawSpreadsheetId[0]
         : rawSpreadsheetId;
 
-      if (!spreadsheetId || typeof spreadsheetId !== "string") {
+      if (!spreadsheetId || typeof spreadsheetId !== 'string') {
         return { contents: [] };
       }
 
@@ -77,8 +67,8 @@ export function registerServalSheetsResources(
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
-              text: JSON.stringify({ error: "Not authenticated" }),
+              mimeType: 'application/json',
+              text: JSON.stringify({ error: 'Not authenticated' }),
             },
           ],
         };
@@ -87,14 +77,14 @@ export function registerServalSheetsResources(
       try {
         const sheetsResponse = await googleClient.sheets.spreadsheets.get({
           spreadsheetId,
-          fields: "properties,sheets.properties",
+          fields: 'properties,sheets.properties',
         });
 
         return {
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(sheetsResponse.data, null, 2),
             },
           ],
@@ -104,7 +94,7 @@ export function registerServalSheetsResources(
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify({
                 error: error instanceof Error ? error.message : String(error),
               }),
@@ -112,30 +102,27 @@ export function registerServalSheetsResources(
           ],
         };
       }
-    },
+    }
   );
 
   server.registerResource(
-    "spreadsheet_range",
+    'spreadsheet_range',
     rangeTemplate,
     {
-      title: "Spreadsheet Range",
-      description: "Google Sheets range values (A1 notation)",
-      mimeType: "application/json",
+      title: 'Spreadsheet Range',
+      description: 'Google Sheets range values (A1 notation)',
+      mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const rawSpreadsheetId = variables["spreadsheetId"];
-      const rawRange = variables["range"];
+      const rawSpreadsheetId = variables['spreadsheetId'];
+      const rawRange = variables['range'];
       const spreadsheetId = Array.isArray(rawSpreadsheetId)
         ? rawSpreadsheetId[0]
         : rawSpreadsheetId;
       const encodedRange = Array.isArray(rawRange) ? rawRange[0] : rawRange;
-      const range =
-        typeof encodedRange === "string"
-          ? decodeURIComponent(encodedRange)
-          : undefined;
+      const range = typeof encodedRange === 'string' ? decodeURIComponent(encodedRange) : undefined;
 
-      if (!spreadsheetId || typeof spreadsheetId !== "string" || !range) {
+      if (!spreadsheetId || typeof spreadsheetId !== 'string' || !range) {
         return { contents: [] };
       }
 
@@ -144,25 +131,24 @@ export function registerServalSheetsResources(
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
-              text: JSON.stringify({ error: "Not authenticated" }),
+              mimeType: 'application/json',
+              text: JSON.stringify({ error: 'Not authenticated' }),
             },
           ],
         };
       }
 
       try {
-        const valuesResponse =
-          await googleClient.sheets.spreadsheets.values.get({
-            spreadsheetId,
-            range,
-          });
+        const valuesResponse = await googleClient.sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range,
+        });
 
         return {
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify(valuesResponse.data, null, 2),
             },
           ],
@@ -172,7 +158,7 @@ export function registerServalSheetsResources(
           contents: [
             {
               uri: uri.href,
-              mimeType: "application/json",
+              mimeType: 'application/json',
               text: JSON.stringify({
                 error: error instanceof Error ? error.message : String(error),
               }),
@@ -180,7 +166,7 @@ export function registerServalSheetsResources(
           ],
         };
       }
-    },
+    }
   );
 
   // Register additional data exploration resources

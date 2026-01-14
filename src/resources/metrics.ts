@@ -5,9 +5,9 @@
  * Phase 6, Task 6.1
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getMetricsService } from "../services/metrics.js";
-import { getServiceContext } from "../utils/logger-context.js";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getMetricsService } from '../services/metrics.js';
+import { getServiceContext } from '../utils/logger-context.js';
 
 /**
  * Register metrics resources with the MCP server
@@ -17,12 +17,12 @@ export function registerMetricsResources(server: McpServer): number {
 
   // Resource: metrics://summary - Complete metrics summary
   server.registerResource(
-    "Performance Metrics Summary",
-    "metrics://summary",
+    'Performance Metrics Summary',
+    'metrics://summary',
     {
       description:
-        "Comprehensive performance metrics including operations, cache, API, and system stats",
-      mimeType: "application/json",
+        'Comprehensive performance metrics including operations, cache, API, and system stats',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -30,43 +30,41 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(summary, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch metrics summary",
+                  error: 'Failed to fetch metrics summary',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: metrics://operations - Operation metrics
   server.registerResource(
-    "Operation Metrics",
-    "metrics://operations",
+    'Operation Metrics',
+    'metrics://operations',
     {
-      description:
-        "Detailed metrics for all recorded operations (count, duration, success rate)",
-      mimeType: "application/json",
+      description: 'Detailed metrics for all recorded operations (count, duration, success rate)',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -74,42 +72,41 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify({ operations }, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch operation metrics",
+                  error: 'Failed to fetch operation metrics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: metrics://cache - Cache metrics
   server.registerResource(
-    "Cache Metrics",
-    "metrics://cache",
+    'Cache Metrics',
+    'metrics://cache',
     {
-      description: "Cache hit rate and performance statistics",
-      mimeType: "application/json",
+      description: 'Cache hit rate and performance statistics',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -117,42 +114,41 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify({ cache }, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch cache metrics",
+                  error: 'Failed to fetch cache metrics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: metrics://api - API call metrics
   server.registerResource(
-    "API Metrics",
-    "metrics://api",
+    'API Metrics',
+    'metrics://api',
     {
-      description: "Google Sheets API call statistics and error rates",
-      mimeType: "application/json",
+      description: 'Google Sheets API call statistics and error rates',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -160,39 +156,38 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify({ api }, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
-                { error: "Failed to fetch API metrics", message: errorMessage },
+                { error: 'Failed to fetch API metrics', message: errorMessage },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: metrics://system - System resource metrics
   server.registerResource(
-    "System Metrics",
-    "metrics://system",
+    'System Metrics',
+    'metrics://system',
     {
-      description: "System resource usage (memory, CPU, active requests)",
-      mimeType: "application/json",
+      description: 'System resource usage (memory, CPU, active requests)',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -200,43 +195,41 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify({ system }, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch system metrics",
+                  error: 'Failed to fetch system metrics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: metrics://service - Service information
   server.registerResource(
-    "Service Information",
-    "metrics://service",
+    'Service Information',
+    'metrics://service',
     {
-      description:
-        "Service metadata (version, environment, hostname, instance ID)",
-      mimeType: "application/json",
+      description: 'Service metadata (version, environment, hostname, instance ID)',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -244,42 +237,41 @@ export function registerMetricsResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify({ service }, null, 2),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch service information",
+                  error: 'Failed to fetch service information',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
-  console.error("[ServalSheets] Registered 6 metrics resources:");
-  console.error("  - metrics://summary (comprehensive metrics)");
-  console.error("  - metrics://operations (operation performance)");
-  console.error("  - metrics://cache (cache statistics)");
-  console.error("  - metrics://api (API call statistics)");
-  console.error("  - metrics://system (system resources)");
-  console.error("  - metrics://service (service metadata)");
+  console.error('[ServalSheets] Registered 6 metrics resources:');
+  console.error('  - metrics://summary (comprehensive metrics)');
+  console.error('  - metrics://operations (operation performance)');
+  console.error('  - metrics://cache (cache statistics)');
+  console.error('  - metrics://api (API call statistics)');
+  console.error('  - metrics://system (system resources)');
+  console.error('  - metrics://service (service metadata)');
 
   return 6;
 }

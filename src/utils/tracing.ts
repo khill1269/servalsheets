@@ -15,17 +15,12 @@
  * - OTEL_LOG_SPANS: 'true' to log spans to console (default: 'false')
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 // ==================== Types ====================
 
-export type SpanKind =
-  | "internal"
-  | "server"
-  | "client"
-  | "producer"
-  | "consumer";
-export type SpanStatus = "ok" | "error" | "unset";
+export type SpanKind = 'internal' | 'server' | 'client' | 'producer' | 'consumer';
+export type SpanStatus = 'ok' | 'error' | 'unset';
 
 export interface SpanAttributes {
   [key: string]: string | number | boolean | undefined;
@@ -68,8 +63,8 @@ export interface TracerOptions {
  * Generate a random hex ID
  */
 function generateId(length: number): string {
-  const chars = "0123456789abcdef";
-  let result = "";
+  const chars = '0123456789abcdef';
+  let result = '';
   for (let i = 0; i < length; i++) {
     result += chars[Math.floor(Math.random() * chars.length)];
   }
@@ -105,7 +100,7 @@ class SpanImpl implements Span {
   startTime: number;
   endTime?: number;
   attributes: SpanAttributes;
-  status: SpanStatus = "unset";
+  status: SpanStatus = 'unset';
   statusMessage?: string;
   parentSpanId?: string;
   context: SpanContext;
@@ -119,7 +114,7 @@ class SpanImpl implements Span {
     name: string,
     kind: SpanKind,
     parentContext?: SpanContext,
-    attributes?: SpanAttributes,
+    attributes?: SpanAttributes
   ) {
     this.tracer = tracer;
     this.name = name;
@@ -134,10 +129,7 @@ class SpanImpl implements Span {
     };
   }
 
-  setAttribute(
-    key: string,
-    value: string | number | boolean | undefined,
-  ): this {
+  setAttribute(key: string, value: string | number | boolean | undefined): this {
     if (!this.ended) {
       this.attributes[key] = value;
     }
@@ -172,12 +164,12 @@ class SpanImpl implements Span {
 
   recordException(error: Error): this {
     if (!this.ended) {
-      this.addEvent("exception", {
-        "exception.type": error.name,
-        "exception.message": error.message,
-        "exception.stacktrace": error.stack,
+      this.addEvent('exception', {
+        'exception.type': error.name,
+        'exception.message': error.message,
+        'exception.stacktrace': error.stack,
       });
-      this.setStatus("error", error.message);
+      this.setStatus('error', error.message);
     }
     return this;
   }
@@ -206,13 +198,12 @@ class TracerImpl {
   private currentSpan: SpanImpl | undefined;
 
   constructor(options: TracerOptions = {}) {
-    this.serviceName = options.serviceName || "servalsheets";
-    this.enabled = options.enabled ?? process.env["OTEL_ENABLED"] === "true";
-    this.logSpans =
-      options.logSpans ?? process.env["OTEL_LOG_SPANS"] === "true";
+    this.serviceName = options.serviceName || 'servalsheets';
+    this.enabled = options.enabled ?? process.env['OTEL_ENABLED'] === 'true';
+    this.logSpans = options.logSpans ?? process.env['OTEL_LOG_SPANS'] === 'true';
 
     if (this.enabled) {
-      logger.info("OpenTelemetry tracing enabled", {
+      logger.info('OpenTelemetry tracing enabled', {
         serviceName: this.serviceName,
         logSpans: this.logSpans,
       });
@@ -242,14 +233,14 @@ class TracerImpl {
       kind?: SpanKind;
       attributes?: SpanAttributes;
       parent?: SpanContext;
-    } = {},
+    } = {}
   ): SpanImpl {
     const span = new SpanImpl(
       this,
       name,
-      options.kind || "internal",
+      options.kind || 'internal',
       options.parent || this.currentSpan?.context,
-      options.attributes,
+      options.attributes
     );
 
     if (this.enabled) {
@@ -275,24 +266,24 @@ class TracerImpl {
     options: {
       kind?: SpanKind;
       attributes?: SpanAttributes;
-    } = {},
+    } = {}
   ): Promise<T> {
     if (!this.enabled) {
       // Create a no-op span when disabled
-      const noopSpan = new SpanImpl(this, name, "internal");
+      const noopSpan = new SpanImpl(this, name, 'internal');
       return fn(noopSpan);
     }
 
     const span = this.startSpan(name, options);
     try {
       const result = await fn(span);
-      span.setStatus("ok");
+      span.setStatus('ok');
       return result;
     } catch (error) {
       if (error instanceof Error) {
         span.recordException(error);
       } else {
-        span.setStatus("error", String(error));
+        span.setStatus('error', String(error));
       }
       throw error;
     } finally {
@@ -309,23 +300,23 @@ class TracerImpl {
     options: {
       kind?: SpanKind;
       attributes?: SpanAttributes;
-    } = {},
+    } = {}
   ): T {
     if (!this.enabled) {
-      const noopSpan = new SpanImpl(this, name, "internal");
+      const noopSpan = new SpanImpl(this, name, 'internal');
       return fn(noopSpan);
     }
 
     const span = this.startSpan(name, options);
     try {
       const result = fn(span);
-      span.setStatus("ok");
+      span.setStatus('ok');
       return result;
     } catch (error) {
       if (error instanceof Error) {
         span.recordException(error);
       } else {
-        span.setStatus("error", String(error));
+        span.setStatus('error', String(error));
       }
       throw error;
     } finally {
@@ -351,9 +342,7 @@ class TracerImpl {
 
     // Log span if configured
     if (this.logSpans) {
-      const duration = span.endTime
-        ? (span.endTime - span.startTime) / 1000
-        : 0;
+      const duration = span.endTime ? (span.endTime - span.startTime) / 1000 : 0;
       logger.debug(`SPAN: ${span.name}`, {
         traceId: span.context.traceId,
         spanId: span.context.spanId,
@@ -372,8 +361,7 @@ class TracerImpl {
     // Lazy import to avoid circular dependencies
     void (async () => {
       try {
-        const { getOtlpExporter } =
-          await import("../observability/otel-export.js");
+        const { getOtlpExporter } = await import('../observability/otel-export.js');
         const exporter = getOtlpExporter();
 
         // Convert to ServalSpan format
@@ -382,21 +370,16 @@ class TracerImpl {
           spanId: span.context.spanId,
           parentId: span.parentSpanId,
           name: span.name,
-          kind: span.kind as "server" | "client" | "internal",
+          kind: span.kind as 'server' | 'client' | 'internal',
           startTime: span.startTime,
           endTime: span.endTime ?? span.startTime,
-          attributes: span.attributes as Record<
-            string,
-            string | number | boolean
-          >,
+          attributes: span.attributes as Record<string, string | number | boolean>,
           status: span.status,
           statusMessage: span.statusMessage,
           events: span.events.map((e) => ({
             name: e.name,
             time: e.timestamp,
-            attributes: e.attributes as
-              | Record<string, string | number | boolean>
-              | undefined,
+            attributes: e.attributes as Record<string, string | number | boolean> | undefined,
           })),
         });
       } catch {
@@ -506,14 +489,11 @@ export async function shutdownTracer(): Promise<void> {
 /**
  * Start a span for tool execution
  */
-export function startToolSpan(
-  toolName: string,
-  attributes?: SpanAttributes,
-): SpanImpl {
+export function startToolSpan(toolName: string, attributes?: SpanAttributes): SpanImpl {
   return getTracer().startSpan(`tool.${toolName}`, {
-    kind: "server",
+    kind: 'server',
     attributes: {
-      "tool.name": toolName,
+      'tool.name': toolName,
       ...attributes,
     },
   });
@@ -525,13 +505,13 @@ export function startToolSpan(
 export function startApiSpan(
   method: string,
   endpoint: string,
-  attributes?: SpanAttributes,
+  attributes?: SpanAttributes
 ): SpanImpl {
   return getTracer().startSpan(`api.${method}`, {
-    kind: "client",
+    kind: 'client',
     attributes: {
-      "http.method": method,
-      "http.url": endpoint,
+      'http.method': method,
+      'http.url': endpoint,
       ...attributes,
     },
   });
@@ -540,12 +520,9 @@ export function startApiSpan(
 /**
  * Start a span for operations
  */
-export function startOperationSpan(
-  operation: string,
-  attributes?: SpanAttributes,
-): SpanImpl {
+export function startOperationSpan(operation: string, attributes?: SpanAttributes): SpanImpl {
   return getTracer().startSpan(operation, {
-    kind: "internal",
+    kind: 'internal',
     attributes,
   });
 }
@@ -556,12 +533,12 @@ export function startOperationSpan(
 export async function withToolSpan<T>(
   toolName: string,
   fn: (span: SpanImpl) => Promise<T>,
-  attributes?: SpanAttributes,
+  attributes?: SpanAttributes
 ): Promise<T> {
   return getTracer().withSpan(`tool.${toolName}`, fn, {
-    kind: "server",
+    kind: 'server',
     attributes: {
-      "tool.name": toolName,
+      'tool.name': toolName,
       ...attributes,
     },
   });
@@ -574,13 +551,13 @@ export async function withApiSpan<T>(
   method: string,
   endpoint: string,
   fn: (span: SpanImpl) => Promise<T>,
-  attributes?: SpanAttributes,
+  attributes?: SpanAttributes
 ): Promise<T> {
   return getTracer().withSpan(`api.${method}`, fn, {
-    kind: "client",
+    kind: 'client',
     attributes: {
-      "http.method": method,
-      "http.url": endpoint,
+      'http.method': method,
+      'http.url': endpoint,
       ...attributes,
     },
   });
@@ -592,10 +569,10 @@ export async function withApiSpan<T>(
 export async function withOperationSpan<T>(
   operation: string,
   fn: (span: SpanImpl) => Promise<T>,
-  attributes?: SpanAttributes,
+  attributes?: SpanAttributes
 ): Promise<T> {
   return getTracer().withSpan(operation, fn, {
-    kind: "internal",
+    kind: 'internal',
     attributes,
   });
 }

@@ -8,9 +8,9 @@
  * @module sheet-extractor
  */
 
-import type { sheets_v4, drive_v3 } from "googleapis";
-import { logger } from "../utils/logger.js";
-import { cacheManager } from "../utils/cache-manager.js";
+import type { sheets_v4, drive_v3 } from 'googleapis';
+import { logger } from '../utils/logger.js';
+import { cacheManager } from '../utils/cache-manager.js';
 import {
   type ExtractionTier,
   type TestCategory,
@@ -21,7 +21,7 @@ import {
   getMinTTL,
   requiresDriveApi,
   getAllCategories,
-} from "../constants/extraction-fields.js";
+} from '../constants/extraction-fields.js';
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -36,7 +36,7 @@ export type ExtractProgressCallback = (progress: ExtractProgress) => void;
  * Progress information during extraction
  */
 export interface ExtractProgress {
-  phase: "initializing" | "fetching" | "processing" | "complete";
+  phase: 'initializing' | 'fetching' | 'processing' | 'complete';
   tier?: ExtractionTier;
   tiersCompleted: number;
   tiersTotal: number;
@@ -224,14 +224,8 @@ export interface ExtractedPivotTable {
  */
 export interface ExtractedPermission {
   id: string;
-  type: "user" | "group" | "domain" | "anyone";
-  role:
-    | "owner"
-    | "organizer"
-    | "fileOrganizer"
-    | "writer"
-    | "commenter"
-    | "reader";
+  type: 'user' | 'group' | 'domain' | 'anyone';
+  role: 'owner' | 'organizer' | 'fileOrganizer' | 'writer' | 'commenter' | 'reader';
   emailAddress?: string;
   domain?: string;
   displayName?: string;
@@ -320,10 +314,7 @@ export interface ExtractionResult {
   pivotTables: Map<number, ExtractedPivotTable[]>;
 
   /** Data validation rules by sheet (sheetId -> row -> col -> rule) */
-  dataValidation: Map<
-    number,
-    Map<number, Map<number, sheets_v4.Schema$DataValidationRule>>
-  >;
+  dataValidation: Map<number, Map<number, Map<number, sheets_v4.Schema$DataValidationRule>>>;
 
   /** Sharing permissions (requires Drive API) */
   permissions?: ExtractedPermission[];
@@ -350,17 +341,14 @@ export interface ExtractionResult {
 // CACHE CONFIGURATION
 // ============================================================================
 
-const CACHE_NAMESPACE = "sheet-extractor";
-const CACHE_VERSION = "v1";
+const CACHE_NAMESPACE = 'sheet-extractor';
+const CACHE_VERSION = 'v1';
 
 /**
  * Create cache key for extraction
  */
-function createExtractionCacheKey(
-  spreadsheetId: string,
-  tiers: ExtractionTier[],
-): string {
-  const tierKey = tiers.sort().join("-");
+function createExtractionCacheKey(spreadsheetId: string, tiers: ExtractionTier[]): string {
+  const tierKey = tiers.sort().join('-');
   return `${CACHE_NAMESPACE}:${CACHE_VERSION}:${spreadsheetId}:${tierKey}`;
 }
 
@@ -398,10 +386,7 @@ export class SheetExtractor {
    * @param options - Extraction options
    * @returns Complete extraction result
    */
-  async extract(
-    spreadsheetId: string,
-    options: ExtractOptions = {},
-  ): Promise<ExtractionResult> {
+  async extract(spreadsheetId: string, options: ExtractOptions = {}): Promise<ExtractionResult> {
     const startTime = Date.now();
 
     // Determine which tiers to extract
@@ -409,12 +394,12 @@ export class SheetExtractor {
 
     // Check for abort
     if (options.abortSignal?.aborted) {
-      throw new Error("Extraction aborted");
+      throw new Error('Extraction aborted');
     }
 
     // Report progress
     this.reportProgress(options.onProgress, {
-      phase: "initializing",
+      phase: 'initializing',
       tiersCompleted: 0,
       tiersTotal: tiers.length,
       message: `Preparing to extract ${tiers.length} tier(s)`,
@@ -425,7 +410,7 @@ export class SheetExtractor {
     if (!options.skipCache) {
       const cached = await this.getFromCache(spreadsheetId, tiers);
       if (cached) {
-        logger.debug("Extraction cache hit", { spreadsheetId, tiers });
+        logger.debug('Extraction cache hit', { spreadsheetId, tiers });
         return {
           ...cached,
           fromCache: true,
@@ -438,10 +423,10 @@ export class SheetExtractor {
     const result: ExtractionResult = {
       spreadsheetId,
       metadata: {
-        title: "",
-        locale: "",
-        timeZone: "",
-        url: "",
+        title: '',
+        locale: '',
+        timeZone: '',
+        url: '',
       },
       tiersExtracted: [],
       extractedAt: new Date().toISOString(),
@@ -467,12 +452,12 @@ export class SheetExtractor {
 
       // Check for abort
       if (options.abortSignal?.aborted) {
-        throw new Error("Extraction aborted");
+        throw new Error('Extraction aborted');
       }
 
       // Report progress
       this.reportProgress(options.onProgress, {
-        phase: "fetching",
+        phase: 'fetching',
         tier,
         tiersCompleted: i,
         tiersTotal: tiers.length,
@@ -484,9 +469,8 @@ export class SheetExtractor {
         await this.extractTier(spreadsheetId, tier, result, options);
         result.tiersExtracted.push(tier);
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error("Tier extraction failed", { tier, error: errorMessage });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('Tier extraction failed', { tier, error: errorMessage });
         result.errors.push({
           tier,
           message: errorMessage,
@@ -500,11 +484,10 @@ export class SheetExtractor {
       try {
         await this.extractDriveData(spreadsheetId, result, options);
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.warn("Drive API extraction failed", { error: errorMessage });
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn('Drive API extraction failed', { error: errorMessage });
         result.errors.push({
-          tier: "COLLABORATION",
+          tier: 'COLLABORATION',
           message: `Drive API: ${errorMessage}`,
           recoverable: true,
         });
@@ -513,10 +496,10 @@ export class SheetExtractor {
 
     // Process and finalize
     this.reportProgress(options.onProgress, {
-      phase: "processing",
+      phase: 'processing',
       tiersCompleted: tiers.length,
       tiersTotal: tiers.length,
-      message: "Processing extracted data",
+      message: 'Processing extracted data',
       percentComplete: 90,
     });
 
@@ -530,7 +513,7 @@ export class SheetExtractor {
 
     // Report completion
     this.reportProgress(options.onProgress, {
-      phase: "complete",
+      phase: 'complete',
       tiersCompleted: tiers.length,
       tiersTotal: tiers.length,
       message: `Extraction complete (${result.extractionTimeMs}ms)`,
@@ -546,7 +529,7 @@ export class SheetExtractor {
   async extractCategories(
     spreadsheetId: string,
     categories: TestCategory[],
-    options: Omit<ExtractOptions, "categories"> = {},
+    options: Omit<ExtractOptions, 'categories'> = {}
   ): Promise<ExtractionResult> {
     return this.extract(spreadsheetId, { ...options, categories });
   }
@@ -557,7 +540,7 @@ export class SheetExtractor {
   async extractDomains(
     spreadsheetId: string,
     domains: TestDomain[],
-    options: Omit<ExtractOptions, "domains"> = {},
+    options: Omit<ExtractOptions, 'domains'> = {}
   ): Promise<ExtractionResult> {
     return this.extract(spreadsheetId, { ...options, domains });
   }
@@ -567,9 +550,9 @@ export class SheetExtractor {
    */
   async extractMinimal(
     spreadsheetId: string,
-    options: Omit<ExtractOptions, "tiers"> = {},
+    options: Omit<ExtractOptions, 'tiers'> = {}
   ): Promise<ExtractionResult> {
-    return this.extract(spreadsheetId, { ...options, tiers: ["MINIMAL"] });
+    return this.extract(spreadsheetId, { ...options, tiers: ['MINIMAL'] });
   }
 
   /**
@@ -577,11 +560,11 @@ export class SheetExtractor {
    */
   async extractComprehensive(
     spreadsheetId: string,
-    options: Omit<ExtractOptions, "tiers"> = {},
+    options: Omit<ExtractOptions, 'tiers'> = {}
   ): Promise<ExtractionResult> {
     return this.extract(spreadsheetId, {
       ...options,
-      tiers: ["COMPREHENSIVE"],
+      tiers: ['COMPREHENSIVE'],
     });
   }
 
@@ -608,7 +591,7 @@ export class SheetExtractor {
       const categories: TestCategory[] = [];
       for (const domain of options.domains) {
         const domainCategories = getAllCategories().filter((cat) =>
-          EXTRACTION_TIERS[CATEGORY_TO_TIER[cat]].domains.includes(domain),
+          EXTRACTION_TIERS[CATEGORY_TO_TIER[cat]].domains.includes(domain)
         );
         categories.push(...domainCategories);
       }
@@ -616,7 +599,7 @@ export class SheetExtractor {
     }
 
     // Default: STRUCTURAL tier for basic testing
-    return ["STRUCTURAL"];
+    return ['STRUCTURAL'];
   }
 
   // ==========================================================================
@@ -630,20 +613,20 @@ export class SheetExtractor {
     spreadsheetId: string,
     tier: ExtractionTier,
     result: ExtractionResult,
-    options: ExtractOptions,
+    options: ExtractOptions
   ): Promise<void> {
     const tierConfig = EXTRACTION_TIERS[tier];
 
-    logger.debug("Extracting tier", {
+    logger.debug('Extracting tier', {
       tier,
-      fieldMask: tierConfig.fieldMask.substring(0, 100) + "...",
+      fieldMask: tierConfig.fieldMask.substring(0, 100) + '...',
       requiresGridData: tierConfig.requiresGridData,
     });
 
     // Build API request parameters
     const requestParams: sheets_v4.Params$Resource$Spreadsheets$Get = {
       spreadsheetId,
-      fields: tierConfig.fieldMask === "*" ? undefined : tierConfig.fieldMask,
+      fields: tierConfig.fieldMask === '*' ? undefined : tierConfig.fieldMask,
       includeGridData: tierConfig.requiresGridData,
     };
 
@@ -652,7 +635,7 @@ export class SheetExtractor {
     const spreadsheet = response.data;
 
     if (!spreadsheet) {
-      throw new Error("No spreadsheet data returned");
+      throw new Error('No spreadsheet data returned');
     }
 
     // Store raw response if requested
@@ -672,13 +655,13 @@ export class SheetExtractor {
     spreadsheet: sheets_v4.Schema$Spreadsheet,
     tier: ExtractionTier,
     result: ExtractionResult,
-    options: ExtractOptions,
+    options: ExtractOptions
   ): void {
     // Extract metadata (always available)
     if (spreadsheet.properties) {
-      result.metadata.title = spreadsheet.properties.title || "";
-      result.metadata.locale = spreadsheet.properties.locale || "";
-      result.metadata.timeZone = spreadsheet.properties.timeZone || "";
+      result.metadata.title = spreadsheet.properties.title || '';
+      result.metadata.locale = spreadsheet.properties.locale || '';
+      result.metadata.timeZone = spreadsheet.properties.timeZone || '';
     }
     if (spreadsheet.spreadsheetUrl) {
       result.metadata.url = spreadsheet.spreadsheetUrl;
@@ -704,7 +687,7 @@ export class SheetExtractor {
     sheet: sheets_v4.Schema$Sheet,
     tier: ExtractionTier,
     result: ExtractionResult,
-    options: ExtractOptions,
+    options: ExtractOptions
   ): void {
     const props = sheet.properties;
     if (!props || props.sheetId === undefined) {
@@ -716,7 +699,7 @@ export class SheetExtractor {
     // Extract sheet metadata
     const sheetMeta: ExtractedSheetMeta = {
       sheetId,
-      title: props.title ?? "",
+      title: props.title ?? '',
       index: props.index ?? 0,
       hidden: props.hidden ?? false,
       gridProperties: {
@@ -770,7 +753,7 @@ export class SheetExtractor {
     }
 
     // Process grid data (cell values, formatting, validation)
-    if (sheet.data && tier !== "MINIMAL" && tier !== "STRUCTURAL") {
+    if (sheet.data && tier !== 'MINIMAL' && tier !== 'STRUCTURAL') {
       this.processGridData(sheet.data, sheetId, result, options);
     }
   }
@@ -786,7 +769,7 @@ export class SheetExtractor {
     gridData: sheets_v4.Schema$GridData[],
     sheetId: number,
     result: ExtractionResult,
-    options: ExtractOptions,
+    options: ExtractOptions
   ): void {
     // Initialize maps for this sheet
     if (!result.cellData.has(sheetId)) {
@@ -808,11 +791,7 @@ export class SheetExtractor {
 
       if (!grid.rowData) continue;
 
-      for (
-        let rowIdx = 0;
-        rowIdx < grid.rowData.length && startRow + rowIdx < maxRows;
-        rowIdx++
-      ) {
+      for (let rowIdx = 0; rowIdx < grid.rowData.length && startRow + rowIdx < maxRows; rowIdx++) {
         const row = grid.rowData[rowIdx];
         if (!row?.values) continue;
 
@@ -828,11 +807,7 @@ export class SheetExtractor {
         const rowCells = cellMap.get(absoluteRow)!;
         const rowValidation = validationMap.get(absoluteRow)!;
 
-        for (
-          let colIdx = 0;
-          colIdx < row.values.length && startCol + colIdx < maxCols;
-          colIdx++
-        ) {
+        for (let colIdx = 0; colIdx < row.values.length && startCol + colIdx < maxCols; colIdx++) {
           const cell = row.values[colIdx];
           if (!cell) continue;
 
@@ -889,7 +864,7 @@ export class SheetExtractor {
   private processMerges(
     merges: sheets_v4.Schema$GridRange[],
     sheetId: number,
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     for (const merge of merges) {
       if (merge.sheetId !== sheetId) continue;
@@ -909,7 +884,7 @@ export class SheetExtractor {
    */
   private processNamedRanges(
     namedRanges: sheets_v4.Schema$NamedRange[],
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     for (const nr of namedRanges) {
       if (!nr.namedRangeId || !nr.name || !nr.range) continue;
@@ -934,7 +909,7 @@ export class SheetExtractor {
   private processConditionalFormats(
     formats: sheets_v4.Schema$ConditionalFormatRule[],
     sheetId: number,
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     if (!result.conditionalFormats.has(sheetId)) {
       result.conditionalFormats.set(sheetId, []);
@@ -967,7 +942,7 @@ export class SheetExtractor {
   private processFilterViews(
     filterViews: sheets_v4.Schema$FilterView[],
     sheetId: number,
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     if (!result.filterViews.has(sheetId)) {
       result.filterViews.set(sheetId, []);
@@ -980,7 +955,7 @@ export class SheetExtractor {
 
       sheetFilterViews.push({
         filterViewId: fv.filterViewId,
-        title: fv.title ?? "",
+        title: fv.title ?? '',
         range: {
           sheetId: fv.range.sheetId ?? sheetId,
           startRowIndex: fv.range.startRowIndex ?? 0,
@@ -999,7 +974,7 @@ export class SheetExtractor {
   private processProtectedRanges(
     protectedRanges: sheets_v4.Schema$ProtectedRange[],
     sheetId: number,
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     for (const pr of protectedRanges) {
       if (!pr.protectedRangeId) continue;
@@ -1038,7 +1013,7 @@ export class SheetExtractor {
   private processCharts(
     charts: sheets_v4.Schema$EmbeddedChart[],
     sheetId: number,
-    result: ExtractionResult,
+    result: ExtractionResult
   ): void {
     if (!result.charts.has(sheetId)) {
       result.charts.set(sheetId, []);
@@ -1078,23 +1053,23 @@ export class SheetExtractor {
 
       // Determine chart type from spec
       if (chart.spec?.basicChart) {
-        extracted.chartType = chart.spec.basicChart.chartType ?? "UNKNOWN";
+        extracted.chartType = chart.spec.basicChart.chartType ?? 'UNKNOWN';
       } else if (chart.spec?.pieChart) {
-        extracted.chartType = "PIE";
+        extracted.chartType = 'PIE';
       } else if (chart.spec?.bubbleChart) {
-        extracted.chartType = "BUBBLE";
+        extracted.chartType = 'BUBBLE';
       } else if (chart.spec?.candlestickChart) {
-        extracted.chartType = "CANDLESTICK";
+        extracted.chartType = 'CANDLESTICK';
       } else if (chart.spec?.orgChart) {
-        extracted.chartType = "ORG";
+        extracted.chartType = 'ORG';
       } else if (chart.spec?.histogramChart) {
-        extracted.chartType = "HISTOGRAM";
+        extracted.chartType = 'HISTOGRAM';
       } else if (chart.spec?.waterfallChart) {
-        extracted.chartType = "WATERFALL";
+        extracted.chartType = 'WATERFALL';
       } else if (chart.spec?.treemapChart) {
-        extracted.chartType = "TREEMAP";
+        extracted.chartType = 'TREEMAP';
       } else if (chart.spec?.scorecardChart) {
-        extracted.chartType = "SCORECARD";
+        extracted.chartType = 'SCORECARD';
       }
 
       sheetCharts.push(extracted);
@@ -1111,12 +1086,10 @@ export class SheetExtractor {
   private async extractDriveData(
     spreadsheetId: string,
     result: ExtractionResult,
-    options: ExtractOptions,
+    options: ExtractOptions
   ): Promise<void> {
     if (!this.driveApi) {
-      logger.debug(
-        "Drive API not available, skipping collaboration data extraction",
-      );
+      logger.debug('Drive API not available, skipping collaboration data extraction');
       return;
     }
 
@@ -1124,21 +1097,21 @@ export class SheetExtractor {
     try {
       const permResponse = await this.driveApi.permissions.list({
         fileId: spreadsheetId,
-        fields: "permissions(id,type,role,emailAddress,domain,displayName)",
+        fields: 'permissions(id,type,role,emailAddress,domain,displayName)',
       });
 
       if (permResponse.data.permissions) {
         result.permissions = permResponse.data.permissions.map((p) => ({
-          id: p.id || "",
-          type: (p.type as ExtractedPermission["type"]) || "user",
-          role: (p.role as ExtractedPermission["role"]) || "reader",
+          id: p.id || '',
+          type: (p.type as ExtractedPermission['type']) || 'user',
+          role: (p.role as ExtractedPermission['role']) || 'reader',
           emailAddress: p.emailAddress || undefined,
           domain: p.domain || undefined,
           displayName: p.displayName || undefined,
         }));
 
         // Extract owner email
-        const owner = result.permissions.find((p) => p.role === "owner");
+        const owner = result.permissions.find((p) => p.role === 'owner');
         if (owner?.emailAddress) {
           result.metadata.ownerEmail = owner.emailAddress;
         }
@@ -1149,37 +1122,36 @@ export class SheetExtractor {
         result.raw.permissions = permResponse.data;
       }
     } catch (error) {
-      logger.warn("Failed to fetch permissions", { error });
+      logger.warn('Failed to fetch permissions', { error });
     }
 
     // Extract comments
     try {
       const commentsResponse = await this.driveApi.comments.list({
         fileId: spreadsheetId,
-        fields:
-          "comments(id,author,content,createdTime,modifiedTime,resolved,anchor,replies)",
+        fields: 'comments(id,author,content,createdTime,modifiedTime,resolved,anchor,replies)',
       });
 
       if (commentsResponse.data.comments) {
         result.comments = commentsResponse.data.comments.map((c) => ({
-          id: c.id || "",
+          id: c.id || '',
           author: {
-            displayName: c.author?.displayName || "Unknown",
+            displayName: c.author?.displayName || 'Unknown',
             emailAddress: c.author?.emailAddress || undefined,
           },
-          content: c.content || "",
-          createdTime: c.createdTime || "",
+          content: c.content || '',
+          createdTime: c.createdTime || '',
           modifiedTime: c.modifiedTime || undefined,
           resolved: c.resolved || false,
           anchor: c.anchor || undefined,
           replies: c.replies?.map((r) => ({
-            id: r.id || "",
+            id: r.id || '',
             author: {
-              displayName: r.author?.displayName || "Unknown",
+              displayName: r.author?.displayName || 'Unknown',
               emailAddress: r.author?.emailAddress || undefined,
             },
-            content: r.content || "",
-            createdTime: r.createdTime || "",
+            content: r.content || '',
+            createdTime: r.createdTime || '',
           })),
         }));
       }
@@ -1189,14 +1161,14 @@ export class SheetExtractor {
         result.raw.comments = commentsResponse.data;
       }
     } catch (error) {
-      logger.warn("Failed to fetch comments", { error });
+      logger.warn('Failed to fetch comments', { error });
     }
 
     // Get file metadata for timestamps
     try {
       const fileResponse = await this.driveApi.files.get({
         fileId: spreadsheetId,
-        fields: "createdTime,modifiedTime",
+        fields: 'createdTime,modifiedTime',
       });
 
       if (fileResponse.data.createdTime) {
@@ -1206,7 +1178,7 @@ export class SheetExtractor {
         result.metadata.modifiedTime = fileResponse.data.modifiedTime;
       }
     } catch (error) {
-      logger.warn("Failed to fetch file metadata", { error });
+      logger.warn('Failed to fetch file metadata', { error });
     }
   }
 
@@ -1219,22 +1191,19 @@ export class SheetExtractor {
    */
   private async getFromCache(
     spreadsheetId: string,
-    tiers: ExtractionTier[],
+    tiers: ExtractionTier[]
   ): Promise<ExtractionResult | null> {
     const cacheKey = createExtractionCacheKey(spreadsheetId, tiers);
 
     try {
-      const cached = cacheManager.get<Record<string, unknown>>(
-        cacheKey,
-        CACHE_NAMESPACE,
-      );
+      const cached = cacheManager.get<Record<string, unknown>>(cacheKey, CACHE_NAMESPACE);
 
       if (cached) {
         // Reconstruct Maps from cached data
         return this.reconstructMaps(cached);
       }
     } catch (error) {
-      logger.debug("Cache retrieval failed", { error });
+      logger.debug('Cache retrieval failed', { error });
     }
 
     return null;
@@ -1246,7 +1215,7 @@ export class SheetExtractor {
   private async saveToCache(
     spreadsheetId: string,
     tiers: ExtractionTier[],
-    result: ExtractionResult,
+    result: ExtractionResult
   ): Promise<void> {
     const cacheKey = createExtractionCacheKey(spreadsheetId, tiers);
     const ttl = getMinTTL(tiers);
@@ -1260,7 +1229,7 @@ export class SheetExtractor {
         namespace: CACHE_NAMESPACE,
       });
     } catch (error) {
-      logger.debug("Cache save failed", { error });
+      logger.debug('Cache save failed', { error });
     }
   }
 
@@ -1271,14 +1240,14 @@ export class SheetExtractor {
     return {
       ...result,
       cellData: this.mapToObject(result.cellData, (rowMap) =>
-        this.mapToObject(rowMap, (colMap) => this.mapToObject(colMap)),
+        this.mapToObject(rowMap, (colMap) => this.mapToObject(colMap))
       ),
       conditionalFormats: this.mapToObject(result.conditionalFormats),
       filterViews: this.mapToObject(result.filterViews),
       charts: this.mapToObject(result.charts),
       pivotTables: this.mapToObject(result.pivotTables),
       dataValidation: this.mapToObject(result.dataValidation, (rowMap) =>
-        this.mapToObject(rowMap, (colMap) => this.mapToObject(colMap)),
+        this.mapToObject(rowMap, (colMap) => this.mapToObject(colMap))
       ),
     };
   }
@@ -1290,13 +1259,11 @@ export class SheetExtractor {
     const result = cached as unknown as ExtractionResult;
 
     // Reconstruct cellData
-    if (cached["cellData"] && typeof cached["cellData"] === "object") {
-      result.cellData = this.objectToMap(
-        cached["cellData"] as Record<string, unknown>,
-        (rowObj) =>
-          this.objectToMap(rowObj as Record<string, unknown>, (colObj) =>
-            this.objectToMap(colObj as Record<string, unknown>),
-          ),
+    if (cached['cellData'] && typeof cached['cellData'] === 'object') {
+      result.cellData = this.objectToMap(cached['cellData'] as Record<string, unknown>, (rowObj) =>
+        this.objectToMap(rowObj as Record<string, unknown>, (colObj) =>
+          this.objectToMap(colObj as Record<string, unknown>)
+        )
       );
     } else {
       result.cellData = new Map();
@@ -1304,29 +1271,20 @@ export class SheetExtractor {
 
     // Reconstruct other maps
     result.conditionalFormats = this.objectToMap(
-      (cached["conditionalFormats"] as Record<string, unknown>) || {},
+      (cached['conditionalFormats'] as Record<string, unknown>) || {}
     );
-    result.filterViews = this.objectToMap(
-      (cached["filterViews"] as Record<string, unknown>) || {},
-    );
-    result.charts = this.objectToMap(
-      (cached["charts"] as Record<string, unknown>) || {},
-    );
-    result.pivotTables = this.objectToMap(
-      (cached["pivotTables"] as Record<string, unknown>) || {},
-    );
+    result.filterViews = this.objectToMap((cached['filterViews'] as Record<string, unknown>) || {});
+    result.charts = this.objectToMap((cached['charts'] as Record<string, unknown>) || {});
+    result.pivotTables = this.objectToMap((cached['pivotTables'] as Record<string, unknown>) || {});
 
     // Reconstruct dataValidation
-    if (
-      cached["dataValidation"] &&
-      typeof cached["dataValidation"] === "object"
-    ) {
+    if (cached['dataValidation'] && typeof cached['dataValidation'] === 'object') {
       result.dataValidation = this.objectToMap(
-        cached["dataValidation"] as Record<string, unknown>,
+        cached['dataValidation'] as Record<string, unknown>,
         (rowObj) =>
           this.objectToMap(rowObj as Record<string, unknown>, (colObj) =>
-            this.objectToMap(colObj as Record<string, unknown>),
-          ),
+            this.objectToMap(colObj as Record<string, unknown>)
+          )
       );
     } else {
       result.dataValidation = new Map();
@@ -1340,7 +1298,7 @@ export class SheetExtractor {
    */
   private mapToObject<K extends string | number, V>(
     map: Map<K, V>,
-    valueTransform?: (value: V) => unknown,
+    valueTransform?: (value: V) => unknown
   ): Record<string, unknown> {
     const obj: Record<string, unknown> = {};
     for (const [key, value] of map.entries()) {
@@ -1354,7 +1312,7 @@ export class SheetExtractor {
    */
   private objectToMap<V>(
     obj: Record<string, unknown>,
-    valueTransform?: (value: unknown) => V,
+    valueTransform?: (value: unknown) => V
   ): Map<number, V> {
     const map = new Map<number, V>();
     for (const [key, value] of Object.entries(obj)) {
@@ -1375,13 +1333,13 @@ export class SheetExtractor {
    */
   private reportProgress(
     callback: ExtractProgressCallback | undefined,
-    progress: ExtractProgress,
+    progress: ExtractProgress
   ): void {
     if (callback) {
       try {
         callback(progress);
       } catch (error) {
-        logger.debug("Progress callback error", { error });
+        logger.debug('Progress callback error', { error });
       }
     }
   }
@@ -1394,22 +1352,22 @@ export class SheetExtractor {
       const message = error.message.toLowerCase();
 
       // Permission errors are not recoverable
-      if (message.includes("permission") || message.includes("forbidden")) {
+      if (message.includes('permission') || message.includes('forbidden')) {
         return false;
       }
 
       // Not found errors are not recoverable
-      if (message.includes("not found") || message.includes("404")) {
+      if (message.includes('not found') || message.includes('404')) {
         return false;
       }
 
       // Rate limit errors might be recoverable with retry
-      if (message.includes("rate") || message.includes("quota")) {
+      if (message.includes('rate') || message.includes('quota')) {
         return true;
       }
 
       // Network errors might be recoverable
-      if (message.includes("network") || message.includes("timeout")) {
+      if (message.includes('network') || message.includes('timeout')) {
         return true;
       }
     }
@@ -1423,12 +1381,12 @@ export class SheetExtractor {
   invalidateCache(spreadsheetId: string): void {
     // Invalidate all tier combinations for this spreadsheet
     const allTiers: ExtractionTier[] = [
-      "MINIMAL",
-      "STRUCTURAL",
-      "FORMATTING",
-      "DATA_COMPLETE",
-      "COLLABORATION",
-      "COMPREHENSIVE",
+      'MINIMAL',
+      'STRUCTURAL',
+      'FORMATTING',
+      'DATA_COMPLETE',
+      'COLLABORATION',
+      'COMPREHENSIVE',
     ];
 
     for (const tier of allTiers) {
@@ -1436,7 +1394,7 @@ export class SheetExtractor {
       cacheManager.delete(cacheKey);
     }
 
-    logger.debug("Invalidated extraction cache", { spreadsheetId });
+    logger.debug('Invalidated extraction cache', { spreadsheetId });
   }
 
   /**
@@ -1465,7 +1423,7 @@ export class SheetExtractor {
  */
 export function createSheetExtractor(
   sheetsApi: sheets_v4.Sheets,
-  driveApi?: drive_v3.Drive,
+  driveApi?: drive_v3.Drive
 ): SheetExtractor {
   return new SheetExtractor(sheetsApi, driveApi);
 }
@@ -1481,7 +1439,7 @@ export function getCellValue(
   result: ExtractionResult,
   sheetId: number,
   row: number,
-  col: number,
+  col: number
 ): ExtractedCellValue | undefined {
   return result.cellData.get(sheetId)?.get(row)?.get(col);
 }
@@ -1489,10 +1447,7 @@ export function getCellValue(
 /**
  * Get all cell values for a sheet
  */
-export function getSheetCells(
-  result: ExtractionResult,
-  sheetId: number,
-): ExtractedCellValue[] {
+export function getSheetCells(result: ExtractionResult, sheetId: number): ExtractedCellValue[] {
   const cells: ExtractedCellValue[] = [];
   const sheetData = result.cellData.get(sheetId);
 
@@ -1512,7 +1467,7 @@ export function getSheetCells(
  */
 export function getSheetById(
   result: ExtractionResult,
-  sheetId: number,
+  sheetId: number
 ): ExtractedSheetMeta | undefined {
   return result.sheets.find((s) => s.sheetId === sheetId);
 }
@@ -1522,7 +1477,7 @@ export function getSheetById(
  */
 export function getSheetByName(
   result: ExtractionResult,
-  name: string,
+  name: string
 ): ExtractedSheetMeta | undefined {
   return result.sheets.find((s) => s.title === name);
 }
@@ -1552,8 +1507,6 @@ export function hasExtractionErrors(result: ExtractionResult): boolean {
 /**
  * Get non-recoverable errors
  */
-export function getCriticalErrors(
-  result: ExtractionResult,
-): ExtractionResult["errors"] {
+export function getCriticalErrors(result: ExtractionResult): ExtractionResult['errors'] {
   return result.errors.filter((e) => !e.recoverable);
 }

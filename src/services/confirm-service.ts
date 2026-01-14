@@ -12,7 +12,7 @@
 /**
  * Risk level for operations
  */
-export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 /**
  * A single step in an operation plan
@@ -67,7 +67,7 @@ export interface ConfirmationResult {
   /** Whether the user approved */
   approved: boolean;
   /** Action taken: accept, decline, cancel */
-  action: "accept" | "decline" | "cancel";
+  action: 'accept' | 'decline' | 'cancel';
   /** User's modifications (if any) */
   modifications?: string;
   /** Timestamp of confirmation */
@@ -78,10 +78,10 @@ export interface ConfirmationResult {
  * Elicitation request for plan confirmation
  */
 export interface ElicitationRequest {
-  mode: "form";
+  mode: 'form';
   message: string;
   requestedSchema: {
-    type: "object";
+    type: 'object';
     properties: Record<string, unknown>;
     required?: string[];
   };
@@ -126,24 +126,16 @@ class ConfirmationService {
    * Format a plan for display in elicitation message
    */
   formatPlanForDisplay(plan: OperationPlan): string {
-    const lines: string[] = [
-      `📋 **${plan.title}**`,
-      "",
-      plan.description,
-      "",
-      "### Steps:",
-    ];
+    const lines: string[] = [`📋 **${plan.title}**`, '', plan.description, '', '### Steps:'];
 
     for (const step of plan.steps) {
       const riskEmoji = this.getRiskEmoji(step.risk);
-      const destructiveNote = step.isDestructive ? " ⚠️" : "";
-      lines.push(
-        `${step.stepNumber}. ${step.description} ${riskEmoji}${destructiveNote}`,
-      );
+      const destructiveNote = step.isDestructive ? ' ⚠️' : '';
+      lines.push(`${step.stepNumber}. ${step.description} ${riskEmoji}${destructiveNote}`);
     }
 
-    lines.push("");
-    lines.push("### Summary:");
+    lines.push('');
+    lines.push('### Summary:');
     lines.push(`- **Total steps:** ${plan.steps.length}`);
     lines.push(`- **Estimated API calls:** ${plan.totalApiCalls}`);
     lines.push(`- **Estimated time:** ${plan.estimatedTime}s`);
@@ -154,14 +146,14 @@ class ConfirmationService {
     }
 
     if (plan.warnings.length > 0) {
-      lines.push("");
-      lines.push("### ⚠️ Warnings:");
+      lines.push('');
+      lines.push('### ⚠️ Warnings:');
       for (const warning of plan.warnings) {
         lines.push(`- ${warning}`);
       }
     }
 
-    return lines.join("\n");
+    return lines.join('\n');
   }
 
   /**
@@ -169,14 +161,14 @@ class ConfirmationService {
    */
   private getRiskEmoji(risk: RiskLevel): string {
     switch (risk) {
-      case "low":
-        return "🟢";
-      case "medium":
-        return "🟡";
-      case "high":
-        return "🟠";
-      case "critical":
-        return "🔴";
+      case 'low':
+        return '🟢';
+      case 'medium':
+        return '🟡';
+      case 'high':
+        return '🟠';
+      case 'critical':
+        return '🔴';
     }
   }
 
@@ -185,31 +177,31 @@ class ConfirmationService {
    */
   buildElicitationRequest(plan: OperationPlan): ElicitationRequest {
     return {
-      mode: "form",
+      mode: 'form',
       message: this.formatPlanForDisplay(plan),
       requestedSchema: {
-        type: "object",
+        type: 'object',
         properties: {
           approved: {
-            type: "boolean",
-            title: "Execute this plan?",
-            description: "Check to approve and execute the plan",
+            type: 'boolean',
+            title: 'Execute this plan?',
+            description: 'Check to approve and execute the plan',
             default: true,
           },
           modifications: {
-            type: "string",
-            title: "Modifications (optional)",
-            description: "Any changes you would like to make to the plan",
+            type: 'string',
+            title: 'Modifications (optional)',
+            description: 'Any changes you would like to make to the plan',
           },
           skipSnapshot: {
-            type: "boolean",
-            title: "Skip snapshot?",
+            type: 'boolean',
+            title: 'Skip snapshot?',
             description:
-              "Skip creating a backup snapshot (not recommended for destructive operations)",
+              'Skip creating a backup snapshot (not recommended for destructive operations)',
             default: false,
           },
         },
-        required: ["approved"],
+        required: ['approved'],
       },
     };
   }
@@ -219,7 +211,7 @@ class ConfirmationService {
    */
   processElicitationResult(
     elicitResult: { action: string; content?: Record<string, unknown> },
-    startTime: number,
+    startTime: number
   ): ConfirmationResult {
     const responseTime = Date.now() - startTime;
     this.recordResponseTime(responseTime);
@@ -228,31 +220,26 @@ class ConfirmationService {
 
     let result: ConfirmationResult;
 
-    if (
-      elicitResult.action === "accept" &&
-      elicitResult.content?.["approved"]
-    ) {
+    if (elicitResult.action === 'accept' && elicitResult.content?.['approved']) {
       this.stats.approved++;
       result = {
         approved: true,
-        action: "accept",
-        modifications: elicitResult.content?.["modifications"] as
-          | string
-          | undefined,
+        action: 'accept',
+        modifications: elicitResult.content?.['modifications'] as string | undefined,
         timestamp: Date.now(),
       };
-    } else if (elicitResult.action === "decline") {
+    } else if (elicitResult.action === 'decline') {
       this.stats.declined++;
       result = {
         approved: false,
-        action: "decline",
+        action: 'decline',
         timestamp: Date.now(),
       };
     } else {
       this.stats.cancelled++;
       result = {
         approved: false,
-        action: "cancel",
+        action: 'cancel',
         timestamp: Date.now(),
       };
     }
@@ -278,8 +265,7 @@ class ConfirmationService {
    */
   private updateApprovalRate(): void {
     if (this.stats.totalConfirmations > 0) {
-      this.stats.approvalRate =
-        (this.stats.approved / this.stats.totalConfirmations) * 100;
+      this.stats.approvalRate = (this.stats.approved / this.stats.totalConfirmations) * 100;
     }
   }
 
@@ -287,7 +273,7 @@ class ConfirmationService {
    * Calculate risk level from steps
    */
   calculateOverallRisk(steps: PlanStep[]): RiskLevel {
-    const riskOrder: RiskLevel[] = ["low", "medium", "high", "critical"];
+    const riskOrder: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
     let maxRiskIndex = 0;
 
     for (const step of steps) {
@@ -308,7 +294,7 @@ class ConfirmationService {
       maxRiskIndex = Math.min(maxRiskIndex + 1, 3);
     }
 
-    return riskOrder[maxRiskIndex] ?? "medium";
+    return riskOrder[maxRiskIndex] ?? 'medium';
   }
 
   /**
@@ -320,24 +306,18 @@ class ConfirmationService {
     // Check for destructive operations
     const destructiveSteps = plan.steps.filter((s) => s.isDestructive);
     if (destructiveSteps.length > 0) {
-      warnings.push(
-        `${destructiveSteps.length} step(s) will modify or delete data`,
-      );
+      warnings.push(`${destructiveSteps.length} step(s) will modify or delete data`);
     }
 
     // Check for non-undoable operations
     const nonUndoable = plan.steps.filter((s) => !s.canUndo);
     if (nonUndoable.length > 0) {
-      warnings.push(
-        `${nonUndoable.length} step(s) cannot be automatically undone`,
-      );
+      warnings.push(`${nonUndoable.length} step(s) cannot be automatically undone`);
     }
 
     // Check for high API usage
     if (plan.totalApiCalls > 20) {
-      warnings.push(
-        `High API usage: ${plan.totalApiCalls} calls (may impact quota)`,
-      );
+      warnings.push(`High API usage: ${plan.totalApiCalls} calls (may impact quota)`);
     }
 
     // Check for long execution time
@@ -346,8 +326,8 @@ class ConfirmationService {
     }
 
     // Check for critical risk
-    if (plan.overallRisk === "critical") {
-      warnings.push("This plan has CRITICAL risk level - review carefully");
+    if (plan.overallRisk === 'critical') {
+      warnings.push('This plan has CRITICAL risk level - review carefully');
     }
 
     return warnings;
@@ -363,14 +343,11 @@ class ConfirmationService {
     options: {
       willCreateSnapshot?: boolean;
       additionalWarnings?: string[];
-    } = {},
+    } = {}
   ): OperationPlan {
     const id = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const overallRisk = this.calculateOverallRisk(steps);
-    const totalApiCalls = steps.reduce(
-      (sum, s) => sum + (s.estimatedApiCalls ?? 1),
-      0,
-    );
+    const totalApiCalls = steps.reduce((sum, s) => sum + (s.estimatedApiCalls ?? 1), 0);
     const estimatedTime = Math.ceil(totalApiCalls * 0.5); // ~0.5s per API call
 
     const plan: OperationPlan = {
@@ -385,10 +362,7 @@ class ConfirmationService {
       warnings: [],
     };
 
-    plan.warnings = [
-      ...this.generateWarnings(plan),
-      ...(options.additionalWarnings ?? []),
-    ];
+    plan.warnings = [...this.generateWarnings(plan), ...(options.additionalWarnings ?? [])];
 
     return plan;
   }
@@ -434,10 +408,8 @@ export function getConfirmationService(): ConfirmationService {
  * @internal
  */
 export function resetConfirmationService(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetConfirmationService() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetConfirmationService() can only be called in test environment');
   }
   confirmationService = null;
 }

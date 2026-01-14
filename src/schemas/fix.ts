@@ -5,29 +5,29 @@
  * Takes issues from sheets_analysis and applies fixes.
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // Issue types that can be auto-fixed
 export const FixableIssueTypeSchema = z.enum([
-  "MULTIPLE_TODAY",
-  "FULL_COLUMN_REFS",
-  "NO_FROZEN_HEADERS",
-  "NO_FROZEN_COLUMNS",
-  "NO_PROTECTION",
-  "NESTED_IFERROR",
-  "EXCESSIVE_CF_RULES",
+  'MULTIPLE_TODAY',
+  'FULL_COLUMN_REFS',
+  'NO_FROZEN_HEADERS',
+  'NO_FROZEN_COLUMNS',
+  'NO_PROTECTION',
+  'NESTED_IFERROR',
+  'EXCESSIVE_CF_RULES',
 ]);
 
 export type FixableIssueType = z.infer<typeof FixableIssueTypeSchema>;
 
 // Fix modes
-export const FixModeSchema = z.enum(["preview", "apply"]);
+export const FixModeSchema = z.enum(['preview', 'apply']);
 export type FixMode = z.infer<typeof FixModeSchema>;
 
 // Individual issue to fix
 export const IssueToFixSchema = z.object({
   type: FixableIssueTypeSchema,
-  severity: z.enum(["low", "medium", "high"]),
+  severity: z.enum(['low', 'medium', 'high']),
   sheet: z.string().optional(),
   description: z.string(),
   metadata: z.record(z.string(), z.unknown()).optional(), // Extra context
@@ -38,52 +38,29 @@ export type IssueToFix = z.infer<typeof IssueToFixSchema>;
 // Fix request filters
 const FixFiltersSchema = z.object({
   severity: z
-    .array(z.enum(["low", "medium", "high"]))
+    .array(z.enum(['low', 'medium', 'high']))
     .optional()
-    .describe("Only fix these severities"),
-  types: z
-    .array(FixableIssueTypeSchema)
-    .optional()
-    .describe("Only fix these issue types"),
-  sheets: z
-    .array(z.string())
-    .optional()
-    .describe("Only fix issues in these sheets"),
-  limit: z
-    .number()
-    .min(1)
-    .max(100)
-    .optional()
-    .describe("Max number of fixes to apply"),
+    .describe('Only fix these severities'),
+  types: z.array(FixableIssueTypeSchema).optional().describe('Only fix these issue types'),
+  sheets: z.array(z.string()).optional().describe('Only fix issues in these sheets'),
+  limit: z.number().min(1).max(100).optional().describe('Max number of fixes to apply'),
 });
 
 // Fix safety options
 const FixSafetySchema = z.object({
-  createSnapshot: z
-    .boolean()
-    .default(true)
-    .describe("Create snapshot before applying fixes"),
-  dryRun: z
-    .boolean()
-    .default(false)
-    .describe("Simulate fixes without applying"),
+  createSnapshot: z.boolean().default(true).describe('Create snapshot before applying fixes'),
+  dryRun: z.boolean().default(false).describe('Simulate fixes without applying'),
 });
 
 // Operation that will be executed
 export const FixOperationSchema = z.object({
-  id: z.string().describe("Unique operation ID"),
+  id: z.string().describe('Unique operation ID'),
   issueType: FixableIssueTypeSchema,
-  tool: z
-    .string()
-    .describe("Tool to call (e.g., sheets_values, sheets_dimensions)"),
-  action: z.string().describe("Action to perform"),
-  parameters: z
-    .record(z.string(), z.unknown())
-    .describe("Parameters for the tool"),
-  estimatedImpact: z.string().describe("What this operation will change"),
-  risk: z
-    .enum(["low", "medium", "high"])
-    .describe("Risk level of this operation"),
+  tool: z.string().describe('Tool to call (e.g., sheets_values, sheets_dimensions)'),
+  action: z.string().describe('Action to perform'),
+  parameters: z.record(z.string(), z.unknown()).describe('Parameters for the tool'),
+  estimatedImpact: z.string().describe('What this operation will change'),
+  risk: z.enum(['low', 'medium', 'high']).describe('Risk level of this operation'),
 });
 
 export type FixOperation = z.infer<typeof FixOperationSchema>;
@@ -99,18 +76,13 @@ export const FixResultSchema = z.object({
 export type FixResult = z.infer<typeof FixResultSchema>;
 
 // Response from sheets_fix
-export const SheetsFixResponseSchema = z.discriminatedUnion("success", [
+export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     mode: FixModeSchema,
-    operations: z
-      .array(FixOperationSchema)
-      .describe("Operations that were/will be executed"),
-    results: z
-      .array(FixResultSchema)
-      .optional()
-      .describe("Results (only in apply mode)"),
-    snapshotId: z.string().optional().describe("Snapshot ID for rollback"),
+    operations: z.array(FixOperationSchema).describe('Operations that were/will be executed'),
+    results: z.array(FixResultSchema).optional().describe('Results (only in apply mode)'),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback'),
     summary: z.object({
       total: z.number(),
       applied: z.number().optional(),
@@ -118,12 +90,7 @@ export const SheetsFixResponseSchema = z.discriminatedUnion("success", [
       skipped: z.number().optional(),
     }),
     message: z.string(),
-    verificationScore: z
-      .number()
-      .min(0)
-      .max(100)
-      .optional()
-      .describe("Re-analyzed quality score"),
+    verificationScore: z.number().min(0).max(100).optional().describe('Re-analyzed quality score'),
   }),
   z.object({
     success: z.literal(false),
@@ -145,39 +112,31 @@ export type SheetsFixResponse = z.infer<typeof SheetsFixResponseSchema>;
 export const SheetsFixInputSchema = z
   .object({
     // Required action discriminator
-    action: z
-      .enum(["fix"])
-      .describe("Apply automated fixes to identified issues"),
+    action: z.enum(['fix']).describe('Apply automated fixes to identified issues'),
 
     // Fields for FIX action
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe("Spreadsheet ID to fix (required for: fix)"),
+    spreadsheetId: z.string().optional().describe('Spreadsheet ID to fix (required for: fix)'),
     issues: z
       .array(IssueToFixSchema)
       .optional()
-      .describe("Issues to fix (from sheets_analysis) (required for: fix)"),
+      .describe('Issues to fix (from sheets_analysis) (required for: fix)'),
     mode: FixModeSchema.optional().describe(
-      "preview = show what would be fixed, apply = actually fix (fix only)",
+      'preview = show what would be fixed, apply = actually fix (fix only)'
     ),
-    filters: FixFiltersSchema.optional().describe(
-      "Filter issues to fix (fix only)",
-    ),
-    safety: FixSafetySchema.optional().describe("Safety options (fix only)"),
+    filters: FixFiltersSchema.optional().describe('Filter issues to fix (fix only)'),
+    safety: FixSafetySchema.optional().describe('Safety options (fix only)'),
   })
   .refine(
     (data) => {
       // Validate required fields based on action
-      if (data.action === "fix") {
+      if (data.action === 'fix') {
         return !!data.spreadsheetId && !!data.issues;
       }
       return true;
     },
     {
-      message:
-        "Missing required fields: spreadsheetId and issues are required for fix action",
-    },
+      message: 'Missing required fields: spreadsheetId and issues are required for fix action',
+    }
   );
 
 export const SheetsFixOutputSchema = z.object({
@@ -190,16 +149,16 @@ export type SheetsFixOutput = z.infer<typeof SheetsFixOutputSchema>;
 // Type narrowing helper for handler methods
 // This provides type safety similar to discriminated union Extract<>
 export type FixInput = SheetsFixInput & {
-  action: "fix";
+  action: 'fix';
   spreadsheetId: string;
   issues: IssueToFix[];
 };
 
 // Tool annotations for MCP registration
-import type { ToolAnnotations } from "./shared.js";
+import type { ToolAnnotations } from './shared.js';
 
 export const SHEETS_FIX_ANNOTATIONS: ToolAnnotations = {
-  title: "Automated Issue Fixing",
+  title: 'Automated Issue Fixing',
   readOnlyHint: false,
   destructiveHint: true,
   idempotentHint: false,

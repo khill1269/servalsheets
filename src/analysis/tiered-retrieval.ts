@@ -15,9 +15,9 @@
  * - Cache-friendly: different TTLs per tier
  */
 
-import type { sheets_v4 } from "googleapis";
-import type { HotCache } from "../utils/hot-cache.js";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import type { HotCache } from '../utils/hot-cache.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Level 1: Metadata
@@ -41,7 +41,7 @@ export interface SheetMetadata {
  * Level 2: Structure
  * Includes metadata + structural elements (no cell data)
  */
-export interface SheetStructure extends Omit<SheetMetadata, "tier"> {
+export interface SheetStructure extends Omit<SheetMetadata, 'tier'> {
   tier: 2;
   structure: {
     merges: number;
@@ -63,14 +63,14 @@ export interface SheetStructure extends Omit<SheetMetadata, "tier"> {
  * Level 3: Sample
  * Includes structure + representative data sample
  */
-export interface SheetSample extends Omit<SheetStructure, "tier"> {
+export interface SheetSample extends Omit<SheetStructure, 'tier'> {
   tier: 3;
   sampleData: {
     headers: unknown[];
     rows: unknown[][];
     sampleSize: number;
     totalRows: number;
-    samplingMethod: "top" | "random" | "stratified";
+    samplingMethod: 'top' | 'random' | 'stratified';
   };
 }
 
@@ -78,7 +78,7 @@ export interface SheetSample extends Omit<SheetStructure, "tier"> {
  * Level 4: Full
  * Complete sheet data (use sparingly)
  */
-export interface SheetFull extends Omit<SheetSample, "tier"> {
+export interface SheetFull extends Omit<SheetSample, 'tier'> {
   tier: 4;
   fullData: {
     values: unknown[][];
@@ -90,11 +90,7 @@ export interface SheetFull extends Omit<SheetSample, "tier"> {
 /**
  * Union type for all tiers
  */
-export type SheetData =
-  | SheetMetadata
-  | SheetStructure
-  | SheetSample
-  | SheetFull;
+export type SheetData = SheetMetadata | SheetStructure | SheetSample | SheetFull;
 
 /**
  * Tiered Retrieval Configuration
@@ -142,28 +138,28 @@ export class TieredRetrieval {
     const cacheKey = `tier:1:${spreadsheetId}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      logger.debug("Tier 1 cache hit", { spreadsheetId });
+      logger.debug('Tier 1 cache hit', { spreadsheetId });
       return cached as SheetMetadata;
     }
 
-    logger.debug("Tier 1 fetching metadata", { spreadsheetId });
+    logger.debug('Tier 1 fetching metadata', { spreadsheetId });
 
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
       fields:
-        "spreadsheetId,properties.title,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))",
+        'spreadsheetId,properties.title,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
     });
 
     if (!response.data.sheets) {
-      throw new Error("No sheets found in spreadsheet");
+      throw new Error('No sheets found in spreadsheet');
     }
 
     const metadata: SheetMetadata = {
       spreadsheetId,
-      title: response.data.properties?.title ?? "Untitled",
+      title: response.data.properties?.title ?? 'Untitled',
       sheets: response.data.sheets.map((sheet) => ({
         sheetId: sheet.properties?.sheetId ?? 0,
-        title: sheet.properties?.title ?? "Sheet1",
+        title: sheet.properties?.title ?? 'Sheet1',
         rowCount: sheet.properties?.gridProperties?.rowCount ?? 1000,
         columnCount: sheet.properties?.gridProperties?.columnCount ?? 26,
         index: sheet.properties?.index ?? 0,
@@ -173,7 +169,7 @@ export class TieredRetrieval {
     };
 
     this.cache.set(cacheKey, metadata, TIER_TTL[1]);
-    logger.info("Tier 1 metadata retrieved", {
+    logger.info('Tier 1 metadata retrieved', {
       spreadsheetId,
       sheetCount: metadata.sheets.length,
       responseSize: JSON.stringify(response.data).length,
@@ -190,11 +186,11 @@ export class TieredRetrieval {
     const cacheKey = `tier:2:${spreadsheetId}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      logger.debug("Tier 2 cache hit", { spreadsheetId });
+      logger.debug('Tier 2 cache hit', { spreadsheetId });
       return cached as SheetStructure;
     }
 
-    logger.debug("Tier 2 fetching structure", { spreadsheetId });
+    logger.debug('Tier 2 fetching structure', { spreadsheetId });
 
     // First get metadata
     const metadata = await this.getMetadata(spreadsheetId);
@@ -204,11 +200,11 @@ export class TieredRetrieval {
       spreadsheetId,
       includeGridData: false,
       fields:
-        "spreadsheetId,properties.title,sheets(properties,merges,conditionalFormats,protectedRanges,basicFilter,charts,data(rowMetadata,columnMetadata)),namedRanges",
+        'spreadsheetId,properties.title,sheets(properties,merges,conditionalFormats,protectedRanges,basicFilter,charts,data(rowMetadata,columnMetadata)),namedRanges',
     });
 
     if (!response.data.sheets) {
-      throw new Error("No sheets found in spreadsheet");
+      throw new Error('No sheets found in spreadsheet');
     }
 
     // Count structural elements
@@ -226,22 +222,19 @@ export class TieredRetrieval {
       protectedRanges += sheet.protectedRanges?.length ?? 0;
       charts += sheet.charts?.length ?? 0;
       if (sheet.basicFilter) filters++;
-      frozenRows = Math.max(
-        frozenRows,
-        sheet.properties?.gridProperties?.frozenRowCount ?? 0,
-      );
+      frozenRows = Math.max(frozenRows, sheet.properties?.gridProperties?.frozenRowCount ?? 0);
       frozenColumns = Math.max(
         frozenColumns,
-        sheet.properties?.gridProperties?.frozenColumnCount ?? 0,
+        sheet.properties?.gridProperties?.frozenColumnCount ?? 0
       );
     }
 
     const namedRanges =
       response.data.namedRanges?.map((nr) => ({
-        name: nr.name ?? "Unnamed",
+        name: nr.name ?? 'Unnamed',
         range: nr.range?.startRowIndex
           ? `${nr.range.startRowIndex}:${nr.range.endRowIndex}`
-          : "Unknown",
+          : 'Unknown',
       })) ?? [];
 
     // Count pivot tables
@@ -266,7 +259,7 @@ export class TieredRetrieval {
     };
 
     this.cache.set(cacheKey, structure, TIER_TTL[2]);
-    logger.info("Tier 2 structure retrieved", {
+    logger.info('Tier 2 structure retrieved', {
       spreadsheetId,
       elements: {
         merges,
@@ -288,16 +281,16 @@ export class TieredRetrieval {
   async getSample(
     spreadsheetId: string,
     sheetId?: number,
-    sampleSize?: number,
+    sampleSize?: number
   ): Promise<SheetSample> {
-    const cacheKey = `tier:3:${spreadsheetId}:${sheetId ?? "all"}`;
+    const cacheKey = `tier:3:${spreadsheetId}:${sheetId ?? 'all'}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      logger.debug("Tier 3 cache hit", { spreadsheetId, sheetId });
+      logger.debug('Tier 3 cache hit', { spreadsheetId, sheetId });
       return cached as SheetSample;
     }
 
-    logger.debug("Tier 3 fetching sample", { spreadsheetId, sheetId });
+    logger.debug('Tier 3 fetching sample', { spreadsheetId, sheetId });
 
     // First get structure
     const structure = await this.getStructure(spreadsheetId);
@@ -315,7 +308,7 @@ export class TieredRetrieval {
     const effectiveSampleSize = Math.min(
       sampleSize ?? this.defaultSampleSize,
       this.maxSampleSize,
-      targetSheet.rowCount,
+      targetSheet.rowCount
     );
 
     // Fetch sample data (first N rows including headers)
@@ -324,7 +317,7 @@ export class TieredRetrieval {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
       range,
-      valueRenderOption: "UNFORMATTED_VALUE",
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
 
     const values = (response.data.values as unknown[][]) ?? [];
@@ -339,12 +332,12 @@ export class TieredRetrieval {
         rows,
         sampleSize: rows.length,
         totalRows: targetSheet.rowCount - 1, // Exclude header
-        samplingMethod: "top", // For now, always top-N
+        samplingMethod: 'top', // For now, always top-N
       },
     };
 
     this.cache.set(cacheKey, sample, TIER_TTL[3]);
-    logger.info("Tier 3 sample retrieved", {
+    logger.info('Tier 3 sample retrieved', {
       spreadsheetId,
       sheetId: targetSheet.sheetId,
       sampleSize: rows.length,
@@ -360,15 +353,15 @@ export class TieredRetrieval {
    * Complete sheet data (use sparingly due to size)
    */
   async getFull(spreadsheetId: string, sheetId?: number): Promise<SheetFull> {
-    const cacheKey = `tier:4:${spreadsheetId}:${sheetId ?? "all"}`;
+    const cacheKey = `tier:4:${spreadsheetId}:${sheetId ?? 'all'}`;
     const cached = this.cache.get(cacheKey);
     if (cached) {
-      logger.debug("Tier 4 cache hit", { spreadsheetId, sheetId });
+      logger.debug('Tier 4 cache hit', { spreadsheetId, sheetId });
       return cached as SheetFull;
     }
 
-    logger.debug("Tier 4 fetching full data", { spreadsheetId, sheetId });
-    logger.warn("Fetching full sheet data - this may be slow for large sheets");
+    logger.debug('Tier 4 fetching full data', { spreadsheetId, sheetId });
+    logger.warn('Fetching full sheet data - this may be slow for large sheets');
 
     // First get sample (includes structure and metadata)
     const sample = await this.getSample(spreadsheetId, sheetId, 100);
@@ -388,7 +381,7 @@ export class TieredRetrieval {
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
       range,
-      valueRenderOption: "UNFORMATTED_VALUE",
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
 
     const values = (response.data.values as unknown[][]) ?? [];
@@ -405,7 +398,7 @@ export class TieredRetrieval {
 
     // Shorter TTL for full data due to size
     this.cache.set(cacheKey, full, TIER_TTL[4]);
-    logger.info("Tier 4 full data retrieved", {
+    logger.info('Tier 4 full data retrieved', {
       spreadsheetId,
       sheetId: targetSheet.sheetId,
       rowCount: values.length,
@@ -420,7 +413,7 @@ export class TieredRetrieval {
    * Convert column index to A1 notation letter (0 = A, 25 = Z, 26 = AA)
    */
   private columnIndexToLetter(index: number): string {
-    let letter = "";
+    let letter = '';
     let num = index;
     while (num >= 0) {
       letter = String.fromCharCode((num % 26) + 65) + letter;
@@ -433,8 +426,6 @@ export class TieredRetrieval {
 /**
  * Create tiered retrieval instance
  */
-export function createTieredRetrieval(
-  config: TieredRetrievalConfig,
-): TieredRetrieval {
+export function createTieredRetrieval(config: TieredRetrievalConfig): TieredRetrieval {
   return new TieredRetrieval(config);
 }

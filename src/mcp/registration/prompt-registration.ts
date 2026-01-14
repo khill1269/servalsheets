@@ -6,8 +6,8 @@
  * @module mcp/registration/prompt-registration
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import {
   FirstOperationPromptArgsSchema,
   AnalyzeSpreadsheetPromptArgsSchema,
@@ -22,7 +22,7 @@ import {
   SafeOperationPromptArgsSchema,
   BulkImportPromptArgsSchema,
   UndoChangesPromptArgsSchema,
-} from "../../schemas/prompts.js";
+} from '../../schemas/prompts.js';
 
 // ============================================================================
 // PROMPTS REGISTRATION
@@ -39,19 +39,18 @@ export function registerServalSheetsPrompts(server: McpServer): void {
   // === ONBOARDING PROMPTS ===
 
   server.registerPrompt(
-    "welcome",
+    'welcome',
     {
-      description:
-        "🎉 Welcome to ServalSheets! Get started with this guided introduction.",
+      description: '🎉 Welcome to ServalSheets! Get started with this guided introduction.',
       argsSchema: {},
     },
     async () => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
 I'm your Google Sheets assistant with 24 powerful tools and 188 actions.
@@ -75,23 +74,22 @@ What would you like to do first?`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "test_connection",
+    'test_connection',
     {
-      description:
-        "🔍 Test your ServalSheets connection with a public spreadsheet",
+      description: '🔍 Test your ServalSheets connection with a public spreadsheet',
       argsSchema: {},
     },
     async () => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔍 Testing ServalSheets connection!
 
 Test spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
@@ -108,25 +106,23 @@ If auth fails, follow the authentication flow first.`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "first_operation",
+    'first_operation',
     {
-      description:
-        "👶 Your first ServalSheets operation - a guided walkthrough",
+      description: '👶 Your first ServalSheets operation - a guided walkthrough',
       argsSchema: FirstOperationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const spreadsheetId =
-        args["spreadsheetId"] || "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms";
+      const spreadsheetId = args['spreadsheetId'] || '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `👶 First ServalSheets operation!
 
 Spreadsheet: ${spreadsheetId}
@@ -142,26 +138,25 @@ Safety tips: Always read before modify, use dryRun for destructive ops.`,
           },
         ],
       };
-    },
+    }
   );
 
   // === ANALYSIS PROMPTS ===
 
   server.registerPrompt(
-    "analyze_spreadsheet",
+    'analyze_spreadsheet',
     {
-      description:
-        "🔬 Comprehensive analysis of spreadsheet data quality and structure",
+      description: '🔬 Comprehensive analysis of spreadsheet data quality and structure',
       argsSchema: AnalyzeSpreadsheetPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
-              text: `🔬 Analyzing: ${args["spreadsheetId"]}
+              type: 'text' as const,
+              text: `🔬 Analyzing: ${args['spreadsheetId']}
 
 Run comprehensive analysis:
 1. Metadata: sheets_spreadsheet action "get"
@@ -175,28 +170,27 @@ Provide: quality score, issues found, recommended fixes.`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "transform_data",
+    'transform_data',
     {
-      description:
-        "🔄 Transform data in a spreadsheet range with safety checks",
+      description: '🔄 Transform data in a spreadsheet range with safety checks',
       argsSchema: TransformDataPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔄 Transform data
 
-Spreadsheet: ${args["spreadsheetId"]}
-Range: ${args["range"]}
-Transform: ${args["transformation"]}
+Spreadsheet: ${args['spreadsheetId']}
+Range: ${args['range']}
+Transform: ${args['transformation']}
 
 Workflow:
 1. Read current data
@@ -208,53 +202,53 @@ Workflow:
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "create_report",
+    'create_report',
     {
-      description: "📈 Generate a formatted report from spreadsheet data",
+      description: '📈 Generate a formatted report from spreadsheet data',
       argsSchema: CreateReportPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const reportType = args["reportType"] || "summary";
+      const reportType = args['reportType'] || 'summary';
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
-              text: `📈 Creating ${reportType} report from ${args["spreadsheetId"]}
+              type: 'text' as const,
+              text: `📈 Creating ${reportType} report from ${args['spreadsheetId']}
 
 Steps:
 1. Read source data
 2. Create "Report" sheet
 3. Add summary statistics
 4. Apply formatting
-${reportType === "charts" ? "5. Add charts (use sheets_analyze to suggest best chart types)\n" : ""}
+${reportType === 'charts' ? '5. Add charts (use sheets_analyze to suggest best chart types)\n' : ''}
 Final: Auto-resize, freeze header, add timestamp`,
             },
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "clean_data",
+    'clean_data',
     {
-      description: "🧹 Clean and standardize data in a spreadsheet range",
+      description: '🧹 Clean and standardize data in a spreadsheet range',
       argsSchema: CleanDataPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
-              text: `🧹 Cleaning data: ${args["spreadsheetId"]}, range ${args["range"]}
+              type: 'text' as const,
+              text: `🧹 Cleaning data: ${args['spreadsheetId']}, range ${args['range']}
 
 Phases:
 1. Analysis: Run data quality check + AI analysis (sheets_analyze)
@@ -266,28 +260,28 @@ Phases:
           },
         ],
       };
-    },
+    }
   );
 
   // === NEW WORKFLOW PROMPTS ===
 
   server.registerPrompt(
-    "migrate_data",
+    'migrate_data',
     {
-      description: "📦 Migrate data between spreadsheets with validation",
+      description: '📦 Migrate data between spreadsheets with validation',
       argsSchema: MigrateDataPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📦 Data Migration
 
-Source: ${args["sourceSpreadsheetId"]} (${args["sourceRange"]})
-Target: ${args["targetSpreadsheetId"]} (${args["targetRange"] || "auto-detect"})
+Source: ${args['sourceSpreadsheetId']} (${args['sourceRange']})
+Target: ${args['targetSpreadsheetId']} (${args['targetRange'] || 'auto-detect'})
 
 Migration Workflow:
 1. Read source data: sheets_values action "read"
@@ -303,28 +297,27 @@ Safety: Creates snapshots of both sheets before migration.`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "setup_budget",
+    'setup_budget',
     {
-      description:
-        "💰 Create a budget tracking spreadsheet with formulas and formatting",
+      description: '💰 Create a budget tracking spreadsheet with formulas and formatting',
       argsSchema: SetupBudgetPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const budgetType = args["budgetType"] || "personal";
-      const spreadsheetId = args["spreadsheetId"];
+      const budgetType = args['budgetType'] || 'personal';
+      const spreadsheetId = args['spreadsheetId'];
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `💰 Setting up ${budgetType} budget tracker
-${spreadsheetId ? `Spreadsheet: ${spreadsheetId}` : "Creating new spreadsheet"}
+${spreadsheetId ? `Spreadsheet: ${spreadsheetId}` : 'Creating new spreadsheet'}
 
 Budget Setup:
 1. Create structure:
@@ -357,28 +350,27 @@ Final: Apply professional formatting, add instructions sheet.`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "import_data",
+    'import_data',
     {
-      description:
-        "📥 Import external data into Google Sheets with transformation",
+      description: '📥 Import external data into Google Sheets with transformation',
       argsSchema: ImportDataPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📥 Data Import Workflow
 
-Spreadsheet: ${args["spreadsheetId"]}
-Data source: ${args["dataSource"]}
-Target: ${args["targetSheet"] || "new sheet"}
+Spreadsheet: ${args['spreadsheetId']}
+Data source: ${args['dataSource']}
+Target: ${args['targetSheet'] || 'new sheet'}
 
 Import Steps:
 1. Prepare data:
@@ -410,34 +402,33 @@ Pro tip: Use sheets_transaction to batch all operations into 1 API call.`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "setup_collaboration",
+    'setup_collaboration',
     {
-      description:
-        "👥 Configure sharing and permissions for team collaboration",
+      description: '👥 Configure sharing and permissions for team collaboration',
       argsSchema: SetupCollaborationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const role = args["role"] || "writer";
-      const collaborators = args["collaborators"] as string[];
+      const role = args['role'] || 'writer';
+      const collaborators = args['collaborators'] as string[];
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `👥 Setting up collaboration
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 Adding ${collaborators.length} collaborator(s) as "${role}"
 
 Collaboration Setup:
 1. Share spreadsheet:
-   ${collaborators.map((email, i) => `   ${i + 1}. sheets_sharing action "share", email: "${email}", role: "${role}"`).join("\n")}
+   ${collaborators.map((email, i) => `   ${i + 1}. sheets_sharing action "share", email: "${email}", role: "${role}"`).join('\n')}
 
 2. Setup protected ranges:
    - Lock critical formulas/headers
@@ -464,27 +455,27 @@ Best practices:
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "diagnose_errors",
+    'diagnose_errors',
     {
-      description: "🔧 Troubleshoot and diagnose spreadsheet issues",
+      description: '🔧 Troubleshoot and diagnose spreadsheet issues',
       argsSchema: DiagnoseErrorsPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const errorDesc = args["errorDescription"] || "general diagnostics";
+      const errorDesc = args['errorDescription'] || 'general diagnostics';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔧 Diagnosing: ${errorDesc}
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 
 Diagnostic Workflow:
 1. Basic checks:
@@ -525,32 +516,27 @@ Report:
           },
         ],
       };
-    },
+    }
   );
 
   // Error Recovery Prompt - AI-powered troubleshooting
   server.registerPrompt(
-    "recover_from_error",
+    'recover_from_error',
     {
       description:
-        "🔧 Recover from ServalSheets errors - AI-powered troubleshooting and self-healing",
+        '🔧 Recover from ServalSheets errors - AI-powered troubleshooting and self-healing',
       argsSchema: {
-        errorCode: z
-          .string()
-          .describe("The error code from the failed operation"),
-        errorMessage: z.string().optional().describe("The full error message"),
-        toolName: z
-          .string()
-          .optional()
-          .describe("The tool that failed (e.g., sheets_values)"),
-        context: z.string().optional().describe("What you were trying to do"),
+        errorCode: z.string().describe('The error code from the failed operation'),
+        errorMessage: z.string().optional().describe('The full error message'),
+        toolName: z.string().optional().describe('The tool that failed (e.g., sheets_values)'),
+        context: z.string().optional().describe('What you were trying to do'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const errorCode = (args["errorCode"] as string) || "UNKNOWN_ERROR";
-      const errorMessage = (args["errorMessage"] as string) || "";
-      const toolName = (args["toolName"] as string) || "";
-      const context = (args["context"] as string) || "";
+      const errorCode = (args['errorCode'] as string) || 'UNKNOWN_ERROR';
+      const errorMessage = (args['errorMessage'] as string) || '';
+      const toolName = (args['toolName'] as string) || '';
+      const context = (args['context'] as string) || '';
 
       const recoveryGuide: Record<string, string> = {
         INTERNAL_ERROR: `🔴 INTERNAL_ERROR - Likely Fixed in v1.3.0-hotfix.1
@@ -686,9 +672,9 @@ Common Issues:
         recoveryGuide[errorCode] ||
         `🔧 ${errorCode} Recovery
 
-Tool: ${toolName || "unknown"}
-Message: ${errorMessage || "No message provided"}
-Context: ${context || "No context provided"}
+Tool: ${toolName || 'unknown'}
+Message: ${errorMessage || 'No message provided'}
+Context: ${context || 'No context provided'}
 
 General Recovery:
 1. Check tool description for correct format (see Quick Examples)
@@ -711,43 +697,43 @@ Still Stuck?
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: recovery,
             },
           },
         ],
       };
-    },
+    }
   );
 
   // Performance Troubleshooting Prompt
   server.registerPrompt(
-    "troubleshoot_performance",
+    'troubleshoot_performance',
     {
-      description: "⚡ Diagnose and fix slow spreadsheet operations",
+      description: '⚡ Diagnose and fix slow spreadsheet operations',
       argsSchema: {
-        spreadsheetId: z.string().describe("The spreadsheet ID"),
-        operation: z.string().optional().describe("What operation was slow"),
-        responseTime: z.number().optional().describe("How long it took (ms)"),
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        operation: z.string().optional().describe('What operation was slow'),
+        responseTime: z.number().optional().describe('How long it took (ms)'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const spreadsheetId = args["spreadsheetId"] as string;
-      const operation = (args["operation"] as string) || "unknown";
-      const responseTime = (args["responseTime"] as number) || 0;
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const operation = (args['operation'] as string) || 'unknown';
+      const responseTime = (args['responseTime'] as number) || 0;
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `⚡ Performance Troubleshooting for ${spreadsheetId}
 
 Operation: ${operation}
-${responseTime > 0 ? `Response Time: ${responseTime}ms` : ""}
+${responseTime > 0 ? `Response Time: ${responseTime}ms` : ''}
 
 Common Performance Issues:
 
@@ -811,34 +797,34 @@ Apply fixes and retest!`,
           },
         ],
       };
-    },
+    }
   );
 
   // Data Quality Fix Prompt
   server.registerPrompt(
-    "fix_data_quality",
+    'fix_data_quality',
     {
-      description: "🔍 Identify and fix data quality issues",
+      description: '🔍 Identify and fix data quality issues',
       argsSchema: {
-        spreadsheetId: z.string().describe("The spreadsheet ID"),
-        range: z.string().describe("Range to analyze"),
-        issues: z.string().optional().describe("Known issues"),
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        range: z.string().describe('Range to analyze'),
+        issues: z.string().optional().describe('Known issues'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const spreadsheetId = args["spreadsheetId"] as string;
-      const range = args["range"] as string;
-      const issues = (args["issues"] as string) || "auto-detect";
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const range = args['range'] as string;
+      const issues = (args['issues'] as string) || 'auto-detect';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔍 Data Quality Analysis for ${spreadsheetId}
 Range: ${range}
-${issues !== "auto-detect" ? `Known Issues: ${issues}` : ""}
+${issues !== 'auto-detect' ? `Known Issues: ${issues}` : ''}
 
 Step 1: Detect Issues
 Run: sheets_analysis action="analyze" spreadsheetId="${spreadsheetId}" range="${range}"
@@ -903,31 +889,31 @@ After cleanup, consider:
           },
         ],
       };
-    },
+    }
   );
 
   // Formula Optimization Prompt
   server.registerPrompt(
-    "optimize_formulas",
+    'optimize_formulas',
     {
-      description: "📊 Optimize slow or inefficient formulas",
+      description: '📊 Optimize slow or inefficient formulas',
       argsSchema: {
-        spreadsheetId: z.string().describe("The spreadsheet ID"),
-        range: z.string().optional().describe("Range with slow formulas"),
+        spreadsheetId: z.string().describe('The spreadsheet ID'),
+        range: z.string().optional().describe('Range with slow formulas'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const spreadsheetId = args["spreadsheetId"] as string;
-      const range = (args["range"] as string) || "entire sheet";
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const range = (args['range'] as string) || 'entire sheet';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📊 Formula Optimization for ${spreadsheetId}
-${range !== "entire sheet" ? `Range: ${range}` : ""}
+${range !== 'entire sheet' ? `Range: ${range}` : ''}
 
 Step 1: Audit Formulas
 Run: sheets_analysis action="formula_audit" spreadsheetId="${spreadsheetId}"
@@ -1008,34 +994,34 @@ After optimization:
           },
         ],
       };
-    },
+    }
   );
 
   // Bulk Import Workflow Prompt
   server.registerPrompt(
-    "bulk_import_data",
+    'bulk_import_data',
     {
-      description: "📥 Efficiently import large datasets",
+      description: '📥 Efficiently import large datasets',
       argsSchema: {
-        spreadsheetId: z.string().describe("Target spreadsheet ID"),
-        dataSize: z.number().optional().describe("Approximate row count"),
-        dataSource: z.string().optional().describe("Source description"),
+        spreadsheetId: z.string().describe('Target spreadsheet ID'),
+        dataSize: z.number().optional().describe('Approximate row count'),
+        dataSource: z.string().optional().describe('Source description'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const spreadsheetId = args["spreadsheetId"] as string;
-      const dataSize = (args["dataSize"] as number) || 0;
-      const dataSource = (args["dataSource"] as string) || "external source";
+      const spreadsheetId = args['spreadsheetId'] as string;
+      const dataSize = (args['dataSize'] as number) || 0;
+      const dataSource = (args['dataSource'] as string) || 'external source';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📥 Bulk Data Import Workflow for ${spreadsheetId}
 Source: ${dataSource}
-${dataSize > 0 ? `Estimated Rows: ${dataSize}` : ""}
+${dataSize > 0 ? `Estimated Rows: ${dataSize}` : ''}
 
 Optimal Import Strategy:
 
@@ -1043,12 +1029,12 @@ ${
   dataSize > 10000
     ? `⚠️ LARGE DATASET (${dataSize} rows)
 Use chunked imports with transactions`
-    : ""
+    : ''
 }
 
 Step 1: Prepare Target Sheet
 1. Create or clear target sheet:
-   sheets_sheet action="add" title="Import_${new Date().toISOString().split("T")[0]}"
+   sheets_sheet action="add" title="Import_${new Date().toISOString().split('T')[0]}"
 
 2. Setup structure:
    • Headers: sheets_values action="write" range="A1:Z1" values=[["Col1","Col2",...]]
@@ -1133,31 +1119,31 @@ Import complete! ✅`,
           },
         ],
       };
-    },
+    }
   );
 
   // ===Safety Workflow Prompts ===
 
   server.registerPrompt(
-    "safe_operation",
+    'safe_operation',
     {
       description:
-        "🛡️ Execute destructive operations safely with dry-run → confirm → execute workflow",
+        '🛡️ Execute destructive operations safely with dry-run → confirm → execute workflow',
       argsSchema: SafeOperationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const operationType = args["operationType"] as string;
-      const affectedRange = (args["affectedRange"] as string) || "auto-detect";
+      const operationType = args['operationType'] as string;
+      const affectedRange = (args['affectedRange'] as string) || 'auto-detect';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🛡️ Safe ${operationType} Workflow
-Spreadsheet: ${args["spreadsheetId"]}
-${affectedRange !== "auto-detect" ? `Range: ${affectedRange}` : ""}
+Spreadsheet: ${args['spreadsheetId']}
+${affectedRange !== 'auto-detect' ? `Range: ${affectedRange}` : ''}
 
 ⚠️ CRITICAL: ${operationType} operations are PERMANENT. Follow this workflow:
 
@@ -1181,10 +1167,10 @@ Phase 2: IMPACT ANALYSIS
 │ 4. Identify broken references     │
 └────────────────────────────────────┘
 
-Phase 3: USER CONFIRMATION ${affectedRange.includes(":") && affectedRange.split(":").length > 1 ? "(REQUIRED)" : ""}
+Phase 3: USER CONFIRMATION ${affectedRange.includes(':') && affectedRange.split(':').length > 1 ? '(REQUIRED)' : ''}
 ┌────────────────────────────────────┐
 │ MUST use sheets_confirm for:      │
-│ • ${operationType === "delete" ? "Deleting >10 rows/columns" : ""}${operationType === "bulk_update" ? "Updating >100 cells" : ""}${operationType === "format" ? "Formatting >100 cells" : ""}${operationType === "formula" ? "Changing complex formulas" : ""}  │
+│ • ${operationType === 'delete' ? 'Deleting >10 rows/columns' : ''}${operationType === 'bulk_update' ? 'Updating >100 cells' : ''}${operationType === 'format' ? 'Formatting >100 cells' : ''}${operationType === 'formula' ? 'Changing complex formulas' : ''}  │
 │                                    │
 │ Build confirmation plan:          │
 │ {                                 │
@@ -1239,38 +1225,37 @@ Remember: DRY-RUN → IMPACT → CONFIRM → SNAPSHOT → EXECUTE → VERIFY`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "bulk_import",
+    'bulk_import',
     {
-      description:
-        "📦 Import large datasets efficiently using transactions (80% quota savings)",
+      description: '📦 Import large datasets efficiently using transactions (80% quota savings)',
       argsSchema: BulkImportPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const rowCount = (args["rowCount"] as number) || 0;
-      const targetSheet = (args["targetSheet"] as string) || "new sheet";
+      const rowCount = (args['rowCount'] as number) || 0;
+      const targetSheet = (args['targetSheet'] as string) || 'new sheet';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📦 Bulk Import Workflow
-Spreadsheet: ${args["spreadsheetId"]}
-Data: ${args["dataDescription"]}
+Spreadsheet: ${args['spreadsheetId']}
+Data: ${args['dataDescription']}
 Target: ${targetSheet}
-${rowCount > 0 ? `Rows: ~${rowCount}` : ""}
+${rowCount > 0 ? `Rows: ~${rowCount}` : ''}
 
 🚀 TRANSACTION WORKFLOW (Required for efficiency):
 
 Step 1: BEGIN Transaction
 ┌────────────────────────────────────┐
 │ sheets_transaction action="begin" │
-│ spreadsheetId="${args["spreadsheetId"]}"   │
+│ spreadsheetId="${args['spreadsheetId']}"   │
 │ autoRollback=true                 │
 └────────────────────────────────────┘
 → Returns: transactionId="tx_..."
@@ -1301,7 +1286,7 @@ Step 3: COMMIT All Operations
 → Executes ALL operations in 1 API call!
 
 Performance Benefits:
-✅ 1 API call instead of ${rowCount > 0 ? Math.ceil(rowCount / 1000) : "N"} calls
+✅ 1 API call instead of ${rowCount > 0 ? Math.ceil(rowCount / 1000) : 'N'} calls
 ✅ 80-95% quota savings
 ✅ 10x faster execution
 ✅ Atomic execution (all-or-nothing)
@@ -1309,9 +1294,9 @@ Performance Benefits:
 
 Optimal Strategy by Size:
 
-${rowCount < 1000 ? "📘 SMALL (<1000 rows): Single transaction, all data at once" : ""}
-${rowCount >= 1000 && rowCount < 10000 ? "📗 MEDIUM (1K-10K): Single transaction, chunked into 1000-row writes" : ""}
-${rowCount >= 10000 ? "📕 LARGE (>10K): Multiple transactions, 5000 rows each, 2s pause between" : ""}
+${rowCount < 1000 ? '📘 SMALL (<1000 rows): Single transaction, all data at once' : ''}
+${rowCount >= 1000 && rowCount < 10000 ? '📗 MEDIUM (1K-10K): Single transaction, chunked into 1000-row writes' : ''}
+${rowCount >= 10000 ? '📕 LARGE (>10K): Multiple transactions, 5000 rows each, 2s pause between' : ''}
 
 Complete Example:
 \`\`\`
@@ -1344,35 +1329,33 @@ Transaction = Speed + Safety + Atomicity`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "undo_changes",
+    'undo_changes',
     {
-      description:
-        "⏪ Undo recent changes using version history or operation history",
+      description: '⏪ Undo recent changes using version history or operation history',
       argsSchema: UndoChangesPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
-      const changeDesc =
-        (args["changeDescription"] as string) || "recent changes";
+      const changeDesc = (args['changeDescription'] as string) || 'recent changes';
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `⏪ Undo: ${changeDesc}
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 
 🔍 Step 1: Identify What to Undo
 
 Option A: Recent Operations (Last 100 ops)
 ┌────────────────────────────────────┐
 │ sheets_history action="list"      │
-│ spreadsheetId="${args["spreadsheetId"]}"   │
+│ spreadsheetId="${args['spreadsheetId']}"   │
 │ limit=20                          │
 └────────────────────────────────────┘
 → Shows recent operations with IDs
@@ -1380,7 +1363,7 @@ Option A: Recent Operations (Last 100 ops)
 Option B: Version History (Google's snapshots)
 ┌────────────────────────────────────┐
 │ sheets_versions action="list_revisions"│
-│ spreadsheetId="${args["spreadsheetId"]}"   │
+│ spreadsheetId="${args['spreadsheetId']}"   │
 │ limit=10                          │
 └────────────────────────────────────┘
 → Shows saved snapshots
@@ -1392,7 +1375,7 @@ Method 1: HISTORY ROLLBACK (Precise)
 │ Best for: Specific operation undo  │
 │                                    │
 │ sheets_history action="undo"      │
-│ spreadsheetId="${args["spreadsheetId"]}"   │
+│ spreadsheetId="${args['spreadsheetId']}"   │
 │ operationId="op_12345"            │
 │                                    │
 │ OR revert to specific point:      │
@@ -1406,7 +1389,7 @@ Method 2: VERSION RESTORE (Full restore)
 │ Best for: Major undo, "go back"   │
 │                                    │
 │ sheets_versions action="restore"  │
-│ spreadsheetId="${args["spreadsheetId"]}"   │
+│ spreadsheetId="${args['spreadsheetId']}"   │
 │ revisionId="rev_abc123"           │
 │                                    │
 │ Restores ENTIRE spreadsheet to    │
@@ -1473,25 +1456,24 @@ Then you'll always have an easy undo path!`,
           },
         ],
       };
-    },
+    }
   );
 
   // === CONFIRMATION GUIDE PROMPTS ===
 
   server.registerPrompt(
-    "when_to_confirm",
+    'when_to_confirm',
     {
-      description:
-        "🛡️ Learn when and how to request user confirmation before operations",
+      description: '🛡️ Learn when and how to request user confirmation before operations',
       argsSchema: {},
     },
     async () => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🛡️ When to Request User Confirmation
 
 This guide tells you EXACTLY when to use sheets_confirm.
@@ -1618,23 +1600,22 @@ because it shows a proper UI and creates an audit trail.
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "confirmation_examples",
+    'confirmation_examples',
     {
-      description:
-        "📝 Examples of good vs bad confirmation behavior",
+      description: '📝 Examples of good vs bad confirmation behavior',
       argsSchema: {},
     },
     async () => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📝 Confirmation Examples: Good vs Bad
 
 Learn from these examples of proper confirmation behavior.
@@ -1755,49 +1736,42 @@ KEY TAKEAWAYS:
           },
         ],
       };
-    },
+    }
   );
 
   // === ADVANCED WORKFLOW PROMPTS ===
 
   server.registerPrompt(
-    "advanced_data_migration",
+    'advanced_data_migration',
     {
       description:
-        "🚀 Advanced multi-sheet, multi-spreadsheet data migration with transformation and validation",
+        '🚀 Advanced multi-sheet, multi-spreadsheet data migration with transformation and validation',
       argsSchema: {
-        sourceSpreadsheetId: z
-          .string()
-          .describe("Source spreadsheet ID"),
-        targetSpreadsheetId: z
-          .string()
-          .describe("Target spreadsheet ID"),
+        sourceSpreadsheetId: z.string().describe('Source spreadsheet ID'),
+        targetSpreadsheetId: z.string().describe('Target spreadsheet ID'),
         migrationType: z
-          .enum(["full", "incremental", "selective"])
+          .enum(['full', 'incremental', 'selective'])
           .optional()
-          .describe("Migration type: full, incremental, or selective"),
-        transformations: z
-          .string()
-          .optional()
-          .describe("Data transformations to apply"),
+          .describe('Migration type: full, incremental, or selective'),
+        transformations: z.string().optional().describe('Data transformations to apply'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const migrationType = (args["migrationType"] as string) || "full";
-      const hasTransformations = Boolean(args["transformations"]);
+      const migrationType = (args['migrationType'] as string) || 'full';
+      const hasTransformations = Boolean(args['transformations']);
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🚀 Advanced Data Migration Workflow
 
-Source: ${args["sourceSpreadsheetId"]}
-Target: ${args["targetSpreadsheetId"]}
+Source: ${args['sourceSpreadsheetId']}
+Target: ${args['targetSpreadsheetId']}
 Type: ${migrationType}
-${hasTransformations ? `Transformations: ${args["transformations"]}` : ""}
+${hasTransformations ? `Transformations: ${args['transformations']}` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1839,14 +1813,14 @@ ${hasTransformations ? `Transformations: ${args["transformations"]}` : ""}
 
 3. Create Safety Net:
    sheets_versions action="create_snapshot" spreadsheetId=target
-   description="Before ${migrationType} migration from ${args["sourceSpreadsheetId"]}"
+   description="Before ${migrationType} migration from ${args['sourceSpreadsheetId']}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔄 PHASE 3: DATA MIGRATION (Choose Strategy)
 
 ${
-  migrationType === "full"
+  migrationType === 'full'
     ? `
 **FULL MIGRATION Strategy:**
 
@@ -1882,7 +1856,7 @@ For each source sheet:
   │ • Verify formulas work            │
   └────────────────────────────────────┘
 `
-    : migrationType === "incremental"
+    : migrationType === 'incremental'
       ? `
 **INCREMENTAL MIGRATION Strategy:**
 
@@ -2023,37 +1997,33 @@ Ready to execute migration! 🚀`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "performance_audit",
+    'performance_audit',
     {
       description:
-        "⚡ Comprehensive spreadsheet performance audit with optimization recommendations",
+        '⚡ Comprehensive spreadsheet performance audit with optimization recommendations',
       argsSchema: {
-        spreadsheetId: z.string().describe("Spreadsheet ID to audit"),
+        spreadsheetId: z.string().describe('Spreadsheet ID to audit'),
         focusAreas: z
           .array(z.string())
           .optional()
-          .describe(
-            "Focus areas: formulas, data_size, api_usage, caching, structure"
-          ),
+          .describe('Focus areas: formulas, data_size, api_usage, caching, structure'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const focusAreas = (args["focusAreas"] as string[]) || [
-        "all",
-      ];
+      const focusAreas = (args['focusAreas'] as string[]) || ['all'];
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
-              text: `⚡ Performance Audit for ${args["spreadsheetId"]}
-Focus: ${focusAreas.join(", ")}
+              type: 'text' as const,
+              text: `⚡ Performance Audit for ${args['spreadsheetId']}
+Focus: ${focusAreas.join(', ')}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2291,38 +2261,34 @@ Audit complete! Review findings and implement recommendations. 🎯`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "batch_optimizer",
+    'batch_optimizer',
     {
-      description:
-        "🔄 Convert inefficient individual operations to optimized batch operations",
+      description: '🔄 Convert inefficient individual operations to optimized batch operations',
       argsSchema: {
         operationType: z
-          .enum(["read", "write", "update", "format", "mixed"])
-          .describe("Type of operations to optimize"),
-        operationCount: z
-          .number()
-          .optional()
-          .describe("Number of individual operations"),
-        spreadsheetId: z.string().describe("Spreadsheet ID"),
+          .enum(['read', 'write', 'update', 'format', 'mixed'])
+          .describe('Type of operations to optimize'),
+        operationCount: z.number().optional().describe('Number of individual operations'),
+        spreadsheetId: z.string().describe('Spreadsheet ID'),
       },
     },
     async (args: Record<string, unknown>) => {
-      const operationType = args["operationType"] as string;
-      const operationCount = (args["operationCount"] as number) || 10;
+      const operationType = args['operationType'] as string;
+      const operationCount = (args['operationCount'] as number) || 10;
 
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔄 Batch Operation Optimizer
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 Operation Type: ${operationType}
 Current: ${operationCount} individual operations
 
@@ -2331,7 +2297,7 @@ Current: ${operationCount} individual operations
 📊 CURRENT INEFFICIENCY ANALYSIS
 
 ${
-  operationType === "read"
+  operationType === 'read'
     ? `
 **READING ${operationCount} RANGES INDIVIDUALLY**
 
@@ -2361,12 +2327,12 @@ sheets_values action="batch_read" ranges=[
 Savings Analysis:
 • API Calls: 1 (${operationCount - 1} saved!)
 • Time: ~0.5s (${(operationCount * 0.3 - 0.5).toFixed(1)}s faster)
-• Quota Savings: ${((operationCount - 1) / operationCount * 100).toFixed(0)}%
+• Quota Savings: ${(((operationCount - 1) / operationCount) * 100).toFixed(0)}%
 • Failure Risk: 1 call to monitor
 
-🎯 IMPROVEMENT: ${((operationCount - 1) / operationCount * 100).toFixed(0)}% fewer API calls
+🎯 IMPROVEMENT: ${(((operationCount - 1) / operationCount) * 100).toFixed(0)}% fewer API calls
 `
-    : operationType === "write"
+    : operationType === 'write'
       ? `
 **WRITING ${operationCount} RANGES INDIVIDUALLY**
 
@@ -2388,7 +2354,7 @@ sheets_values action="batch_write" data=[
   ...${operationCount} writes
 ]
 \`\`\`
-Savings: ${((operationCount - 1) / operationCount * 100).toFixed(0)}% fewer API calls
+Savings: ${(((operationCount - 1) / operationCount) * 100).toFixed(0)}% fewer API calls
 
 ✅ Option 2: Transaction (BEST - Atomic)
 \`\`\`
@@ -2409,11 +2375,11 @@ Benefits:
 • **Atomicity**: All succeed or all fail (no partial writes)
 • **Rollback**: Auto-rollback on error
 • **Performance**: 80-95% faster
-• **Quota Savings**: ${Math.floor((operationCount - 3) / operationCount * 100)}%
+• **Quota Savings**: ${Math.floor(((operationCount - 3) / operationCount) * 100)}%
 
-🎯 IMPROVEMENT: ${Math.floor((operationCount - 3) / operationCount * 100)}% fewer API calls + atomicity guarantee
+🎯 IMPROVEMENT: ${Math.floor(((operationCount - 3) / operationCount) * 100)}% fewer API calls + atomicity guarantee
 `
-      : operationType === "update"
+      : operationType === 'update'
         ? `
 **UPDATING ${operationCount} CELLS/RANGES**
 
@@ -2423,7 +2389,7 @@ Multiple individual update calls
 ✅ Optimized: Use sheets_composite bulk_update
 
 sheets_composite action="bulk_update"
-  spreadsheetId="${args["spreadsheetId"]}"
+  spreadsheetId="${args['spreadsheetId']}"
   sheet="Sheet1"
   keyColumn="ID"
   updates=[
@@ -2441,7 +2407,7 @@ Features:
 
 🎯 IMPROVEMENT: ${operationCount} operations → 1 API call
 `
-        : operationType === "format"
+        : operationType === 'format'
           ? `
 **FORMATTING ${operationCount} RANGES**
 
@@ -2476,7 +2442,7 @@ For mixed operation types, use Transaction Manager:
 Step 1: Begin Transaction
 \`\`\`
 sheets_transaction action="begin"
-  spreadsheetId="${args["spreadsheetId"]}"
+  spreadsheetId="${args['spreadsheetId']}"
   autoRollback=true
 → Returns: transactionId="tx_..."
 \`\`\`
@@ -2522,13 +2488,13 @@ sheets_transaction action="commit"
 Result: All ${operationCount} operations execute in single API call!
 
 Benefits:
-• ${operationCount} → 1 API call (${Math.floor((operationCount - 1) / operationCount * 100)}% reduction)
+• ${operationCount} → 1 API call (${Math.floor(((operationCount - 1) / operationCount) * 100)}% reduction)
 • Atomic execution (all-or-nothing)
 • Auto-rollback on failure
 • Preserves operation order
-• ${Math.floor((operationCount - 1) / operationCount * 100)}% quota savings
+• ${Math.floor(((operationCount - 1) / operationCount) * 100)}% quota savings
 
-🎯 IMPROVEMENT: ${Math.floor((operationCount - 1) / operationCount * 100)}% API reduction + atomicity
+🎯 IMPROVEMENT: ${Math.floor(((operationCount - 1) / operationCount) * 100)}% API reduction + atomicity
 `
 }
 
@@ -2537,7 +2503,7 @@ Benefits:
 📋 IMPLEMENTATION GUIDE
 
 ${
-  operationType === "read"
+  operationType === 'read'
     ? `
 **Step-by-Step: Convert to Batch Read**
 
@@ -2546,7 +2512,7 @@ ${
 
 2. Single batch read call:
    sheets_values action="batch_read"
-     spreadsheetId="${args["spreadsheetId"]}"
+     spreadsheetId="${args['spreadsheetId']}"
      ranges=ranges
 
 3. Process results:
@@ -2557,7 +2523,7 @@ Example:
 \`\`\`json
 {
   "action": "batch_read",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "ranges": [
     "Sheet1!A1:B10",
     "Sheet1!D1:E10",
@@ -2568,7 +2534,7 @@ Example:
 
 Result: 1 API call instead of ${operationCount}!
 `
-    : operationType === "write"
+    : operationType === 'write'
       ? `
 **Step-by-Step: Convert to Transaction**
 
@@ -2577,7 +2543,7 @@ Result: 1 API call instead of ${operationCount}!
 {
   "tool": "sheets_transaction",
   "action": "begin",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "autoRollback": true
 }
 \`\`\`
@@ -2593,7 +2559,7 @@ Result: 1 API call instead of ${operationCount}!
     "tool": "sheets_values",
     "action": "write",
     "params": {
-      "spreadsheetId": "${args["spreadsheetId"]}",
+      "spreadsheetId": "${args['spreadsheetId']}",
       "range": "A1:B10",
       "values": [[1, 2], [3, 4], ...]
     }
@@ -2669,12 +2635,12 @@ Before Optimization:
 • Quota Usage: ${operationCount} requests
 
 After Optimization:
-• API Calls: ${operationType === "write" || operationType === "mixed" ? "3 (1 effective)" : "1"}
+• API Calls: ${operationType === 'write' || operationType === 'mixed' ? '3 (1 effective)' : '1'}
 • Time: ~0.5-1s
 • Failure Risk: 1 point
-• Quota Saved: ${Math.floor((operationCount - (operationType === "write" || operationType === "mixed" ? 3 : 1)) / operationCount * 100)}%
+• Quota Saved: ${Math.floor(((operationCount - (operationType === 'write' || operationType === 'mixed' ? 3 : 1)) / operationCount) * 100)}%
 
-**Performance Gain: ${Math.floor((operationCount - (operationType === "write" || operationType === "mixed" ? 3 : 1)) / operationCount * 100)}% fewer API calls** ⚡
+**Performance Gain: ${Math.floor(((operationCount - (operationType === 'write' || operationType === 'mixed' ? 3 : 1)) / operationCount) * 100)}% fewer API calls** ⚡
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2683,32 +2649,29 @@ Ready to optimize! Convert your operations now. 🚀`,
           },
         ],
       };
-    },
+    }
   );
 
   // === ULTIMATE ANALYSIS TOOL PROMPTS (P2) ===
 
   server.registerPrompt(
-    "ultimate_analysis",
+    'ultimate_analysis',
     {
-      description:
-        "🧠 Ultimate Analysis Tool - Intelligent routing for data analysis",
+      description: '🧠 Ultimate Analysis Tool - Intelligent routing for data analysis',
       argsSchema: {
-        spreadsheetId: z
-          .string()
-          .describe("Spreadsheet ID from URL (required)"),
+        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
       },
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🧠 Ultimate Analysis Tool
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 
 ## 🎯 INTELLIGENT ROUTING
 
@@ -2736,7 +2699,7 @@ Basic Analysis:
 {
   "tool": "sheets_analyze",
   "action": "analyze_data",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "analysisTypes": ["summary", "quality", "patterns"]
 }
 \`\`\`
@@ -2770,30 +2733,27 @@ Ready to analyze! What insights do you need? 🚀`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "create_visualization",
+    'create_visualization',
     {
-      description:
-        "📊 Create charts/pivots with AI recommendations and user confirmation",
+      description: '📊 Create charts/pivots with AI recommendations and user confirmation',
       argsSchema: {
-        spreadsheetId: z
-          .string()
-          .describe("Spreadsheet ID from URL (required)"),
+        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
       },
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `📊 Create Visualization with AI
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 
 ## 🎨 WORKFLOW (3 Steps)
 
@@ -2802,7 +2762,7 @@ Spreadsheet: ${args["spreadsheetId"]}
 {
   "tool": "sheets_analyze",
   "action": "suggest_visualization",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "range": { "a1": "Sheet1!A1:D100" }
 }
 \`\`\`
@@ -2819,7 +2779,7 @@ When you create a chart/pivot, MCP Elicitation will prompt:
 \`\`\`
 ⚠️ Create Chart
 
-You are about to create a LINE chart in spreadsheet ${args["spreadsheetId"]}.
+You are about to create a LINE chart in spreadsheet ${args['spreadsheetId']}.
 
 The chart will use data from range A1:D100.
 
@@ -2833,7 +2793,7 @@ This will modify the spreadsheet by adding a new chart object.
 {
   "tool": "sheets_analyze",
   "action": "create_recommended_chart",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "chartType": "LINE",
   "range": { "a1": "Sheet1!A1:D100" }
 }
@@ -2857,7 +2817,7 @@ For pivot tables:
 {
   "tool": "sheets_analyze",
   "action": "create_recommended_pivot",
-  "spreadsheetId": "${args["spreadsheetId"]}",
+  "spreadsheetId": "${args['spreadsheetId']}",
   "range": { "a1": "Data!A1:F1000" }
 }
 \`\`\`
@@ -2876,30 +2836,27 @@ Ready to visualize your data! 🎨`,
           },
         ],
       };
-    },
+    }
   );
 
   server.registerPrompt(
-    "analyze_with_history",
+    'analyze_with_history',
     {
-      description:
-        "🔗 Reference previous analysis results via MCP Resources",
+      description: '🔗 Reference previous analysis results via MCP Resources',
       argsSchema: {
-        spreadsheetId: z
-          .string()
-          .describe("Spreadsheet ID from URL (required)"),
+        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
       },
     },
     async (args: Record<string, unknown>) => {
       return {
         messages: [
           {
-            role: "user" as const,
+            role: 'user' as const,
             content: {
-              type: "text" as const,
+              type: 'text' as const,
               text: `🔗 Analysis History via MCP Resources
 
-Spreadsheet: ${args["spreadsheetId"]}
+Spreadsheet: ${args['spreadsheetId']}
 
 ## 📚 STORED ANALYSIS RESULTS
 
@@ -2920,7 +2877,7 @@ Returns:
   "results": [
     {
       "id": "analysis-1",
-      "spreadsheetId": "${args["spreadsheetId"]}",
+      "spreadsheetId": "${args['spreadsheetId']}",
       "timestamp": "2026-01-12T10:30:00Z",
       "summary": "Fast statistical analysis complete...",
       "uri": "analyze://results/analysis-1"
@@ -2992,6 +2949,6 @@ Ready to leverage analysis history! 🔗`,
           },
         ],
       };
-    },
+    }
   );
 }

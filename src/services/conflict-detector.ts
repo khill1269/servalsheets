@@ -10,8 +10,8 @@
  * Phase 4, Task 4.2
  */
 
-import { v4 as uuidv4 } from "uuid";
-import crypto from "crypto";
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import {
   Conflict,
   ConflictType as _ConflictType,
@@ -29,14 +29,14 @@ import {
   ConflictDetectorConfig,
   ConflictDetectorStats,
   MergeResult,
-} from "../types/conflict.js";
+} from '../types/conflict.js';
 
 /**
  * Conflict Detector - Detects and resolves multi-user conflicts
  */
 export class ConflictDetector {
-  private config: Required<Omit<ConflictDetectorConfig, "googleClient">>;
-  private googleClient?: ConflictDetectorConfig["googleClient"];
+  private config: Required<Omit<ConflictDetectorConfig, 'googleClient'>>;
+  private googleClient?: ConflictDetectorConfig['googleClient'];
   private stats: ConflictDetectorStats;
   private versionCache: Map<string, VersionCacheEntry>;
   private locks: Map<string, OptimisticLock>;
@@ -49,7 +49,7 @@ export class ConflictDetector {
       enabled: config.enabled ?? true,
       checkBeforeWrite: config.checkBeforeWrite ?? true,
       autoResolve: config.autoResolve ?? false,
-      defaultResolution: config.defaultResolution ?? "manual",
+      defaultResolution: config.defaultResolution ?? 'manual',
       versionCacheTtl: config.versionCacheTtl ?? 300000, // 5 minutes
       maxVersionsToCache: config.maxVersionsToCache ?? 1000,
       optimisticLocking: config.optimisticLocking ?? false,
@@ -95,7 +95,7 @@ export class ConflictDetector {
     spreadsheetId: string,
     range: string,
     modifiedBy: string,
-    data?: unknown,
+    data?: unknown
   ): Promise<RangeVersion> {
     this.log(`Tracking version for range: ${range}`);
 
@@ -130,7 +130,7 @@ export class ConflictDetector {
   async detectConflict(
     spreadsheetId: string,
     range: string,
-    expectedVersion?: RangeVersion,
+    expectedVersion?: RangeVersion
   ): Promise<Conflict | null> {
     if (!this.config.enabled || !this.config.checkBeforeWrite) {
       return null;
@@ -153,8 +153,7 @@ export class ConflictDetector {
     if (this.hasConflict(expectedVersion, currentVersion)) {
       const conflict = this.createConflict(expectedVersion, currentVersion);
       this.stats.conflictsDetected++;
-      this.stats.detectionRate =
-        this.stats.conflictsDetected / this.stats.totalChecks;
+      this.stats.detectionRate = this.stats.conflictsDetected / this.stats.totalChecks;
 
       this.activeConflicts.set(conflict.id, conflict);
       this.log(`Conflict detected: ${conflict.id}`);
@@ -176,9 +175,7 @@ export class ConflictDetector {
   /**
    * Resolve a conflict
    */
-  async resolveConflict(
-    resolution: ConflictResolution,
-  ): Promise<ConflictResolutionResult> {
+  async resolveConflict(resolution: ConflictResolution): Promise<ConflictResolutionResult> {
     const startTime = Date.now();
     const conflict = this.activeConflicts.get(resolution.conflictId);
 
@@ -188,35 +185,33 @@ export class ConflictDetector {
         success: false,
         strategyUsed: resolution.strategy,
         duration: Date.now() - startTime,
-        error: new Error("Conflict not found"),
+        error: new Error('Conflict not found'),
       };
     }
 
-    this.log(
-      `Resolving conflict ${resolution.conflictId} with strategy: ${resolution.strategy}`,
-    );
+    this.log(`Resolving conflict ${resolution.conflictId} with strategy: ${resolution.strategy}`);
 
     try {
       let result: ConflictResolutionResult;
 
       switch (resolution.strategy) {
-        case "overwrite":
+        case 'overwrite':
           result = await this.resolveOverwrite(conflict);
           break;
 
-        case "merge":
+        case 'merge':
           result = await this.resolveMerge(conflict, resolution.mergeData);
           break;
 
-        case "cancel":
+        case 'cancel':
           result = await this.resolveCancel(conflict);
           break;
 
-        case "last_write_wins":
+        case 'last_write_wins':
           result = await this.resolveLastWriteWins(conflict);
           break;
 
-        case "first_write_wins":
+        case 'first_write_wins':
           result = await this.resolveFirstWriteWins(conflict);
           break;
 
@@ -226,9 +221,7 @@ export class ConflictDetector {
             success: false,
             strategyUsed: resolution.strategy,
             duration: Date.now() - startTime,
-            error: new Error(
-              `Unknown resolution strategy: ${resolution.strategy}`,
-            ),
+            error: new Error(`Unknown resolution strategy: ${resolution.strategy}`),
           };
       }
 
@@ -247,8 +240,7 @@ export class ConflictDetector {
 
       const duration = Date.now() - startTime;
       this.stats.avgResolutionTime =
-        (this.stats.avgResolutionTime * (this.stats.conflictsResolved - 1) +
-          duration) /
+        (this.stats.avgResolutionTime * (this.stats.conflictsResolved - 1) + duration) /
         this.stats.conflictsResolved;
 
       // Remove from active conflicts
@@ -275,9 +267,7 @@ export class ConflictDetector {
    * This follows the separation of concerns where conflict-detector
    * handles versioning and conflict state, not data mutations.
    */
-  private async resolveOverwrite(
-    conflict: Conflict,
-  ): Promise<ConflictResolutionResult> {
+  private async resolveOverwrite(conflict: Conflict): Promise<ConflictResolutionResult> {
     const startTime = Date.now();
     this.log(`Resolving conflict ${conflict.id} with overwrite strategy`);
 
@@ -297,14 +287,12 @@ export class ConflictDetector {
       accessCount: 1,
     });
 
-    this.log(
-      `Conflict ${conflict.id} resolved: version ${finalVersion.version} will overwrite`,
-    );
+    this.log(`Conflict ${conflict.id} resolved: version ${finalVersion.version} will overwrite`);
 
     return {
       conflictId: conflict.id,
       success: true,
-      strategyUsed: "overwrite",
+      strategyUsed: 'overwrite',
       finalVersion,
       duration: Date.now() - startTime,
     };
@@ -323,7 +311,7 @@ export class ConflictDetector {
    */
   private async resolveMerge(
     conflict: Conflict,
-    mergeData?: unknown,
+    mergeData?: unknown
   ): Promise<ConflictResolutionResult> {
     const startTime = Date.now();
     this.log(`Resolving conflict ${conflict.id} with merge strategy`);
@@ -334,7 +322,7 @@ export class ConflictDetector {
         await this.googleClient.sheets.spreadsheets.values.update({
           spreadsheetId: conflict.spreadsheetId,
           range: conflict.range,
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: 'USER_ENTERED',
           requestBody: {
             values: mergeData as unknown[][],
           },
@@ -342,12 +330,12 @@ export class ConflictDetector {
         this.log(`Merged data written to ${conflict.range}`);
       } catch (error) {
         this.log(
-          `Failed to write merged data: ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to write merged data: ${error instanceof Error ? error.message : String(error)}`
         );
         return {
           conflictId: conflict.id,
           success: false,
-          strategyUsed: "merge",
+          strategyUsed: 'merge',
           duration: Date.now() - startTime,
           error: error instanceof Error ? error : new Error(String(error)),
         };
@@ -365,10 +353,7 @@ export class ConflictDetector {
       changes: {
         range: conflict.range,
         totalChanges: Array.isArray(mergeData)
-          ? mergeData.reduce(
-              (sum, row) => sum + (Array.isArray(row) ? row.length : 0),
-              0,
-            )
+          ? mergeData.reduce((sum, row) => sum + (Array.isArray(row) ? row.length : 0), 0)
           : 0,
       },
     };
@@ -392,7 +377,7 @@ export class ConflictDetector {
     return {
       conflictId: conflict.id,
       success: true,
-      strategyUsed: "merge",
+      strategyUsed: 'merge',
       finalVersion,
       changesApplied: mergeResult.changes,
       duration: Date.now() - startTime,
@@ -402,16 +387,14 @@ export class ConflictDetector {
   /**
    * Resolve by canceling user's changes
    */
-  private async resolveCancel(
-    conflict: Conflict,
-  ): Promise<ConflictResolutionResult> {
+  private async resolveCancel(conflict: Conflict): Promise<ConflictResolutionResult> {
     this.log(`Resolving conflict ${conflict.id} with cancel strategy`);
 
     // Keep current version, discard user's changes
     return {
       conflictId: conflict.id,
       success: true,
-      strategyUsed: "cancel",
+      strategyUsed: 'cancel',
       finalVersion: conflict.currentVersion,
       duration: 0,
     };
@@ -420,9 +403,7 @@ export class ConflictDetector {
   /**
    * Resolve with last write wins
    */
-  private async resolveLastWriteWins(
-    conflict: Conflict,
-  ): Promise<ConflictResolutionResult> {
+  private async resolveLastWriteWins(conflict: Conflict): Promise<ConflictResolutionResult> {
     this.log(`Resolving conflict ${conflict.id} with last_write_wins strategy`);
 
     // Most recent modification wins
@@ -434,7 +415,7 @@ export class ConflictDetector {
     return {
       conflictId: conflict.id,
       success: true,
-      strategyUsed: "last_write_wins",
+      strategyUsed: 'last_write_wins',
       finalVersion: winner,
       duration: 0,
     };
@@ -443,12 +424,8 @@ export class ConflictDetector {
   /**
    * Resolve with first write wins
    */
-  private async resolveFirstWriteWins(
-    conflict: Conflict,
-  ): Promise<ConflictResolutionResult> {
-    this.log(
-      `Resolving conflict ${conflict.id} with first_write_wins strategy`,
-    );
+  private async resolveFirstWriteWins(conflict: Conflict): Promise<ConflictResolutionResult> {
+    this.log(`Resolving conflict ${conflict.id} with first_write_wins strategy`);
 
     // First modification wins
     const winner =
@@ -459,7 +436,7 @@ export class ConflictDetector {
     return {
       conflictId: conflict.id,
       success: true,
-      strategyUsed: "first_write_wins",
+      strategyUsed: 'first_write_wins',
       finalVersion: winner,
       duration: 0,
     };
@@ -484,30 +461,27 @@ export class ConflictDetector {
   /**
    * Create conflict object
    */
-  private createConflict(
-    yourVersion: RangeVersion,
-    currentVersion: RangeVersion,
-  ): Conflict {
+  private createConflict(yourVersion: RangeVersion, currentVersion: RangeVersion): Conflict {
     const timeSinceModification = Date.now() - currentVersion.lastModified;
 
     // Determine severity based on time difference
     let severity: ConflictSeverity;
     if (timeSinceModification < 60000) {
       // < 1 minute
-      severity = "critical";
+      severity = 'critical';
     } else if (timeSinceModification < 300000) {
       // < 5 minutes
-      severity = "error";
+      severity = 'error';
     } else if (timeSinceModification < 1800000) {
       // < 30 minutes
-      severity = "warning";
+      severity = 'warning';
     } else {
-      severity = "info";
+      severity = 'info';
     }
 
     const conflict: Conflict = {
       id: uuidv4(),
-      type: "concurrent_modification",
+      type: 'concurrent_modification',
       severity,
       spreadsheetId: yourVersion.spreadsheetId,
       range: yourVersion.range,
@@ -517,14 +491,9 @@ export class ConflictDetector {
       modifiedBy: currentVersion.modifiedBy,
       description: `Range "${yourVersion.range}" was modified by "${currentVersion.modifiedBy}" ${this.formatTimeSince(timeSinceModification)} ago`,
       suggestedResolution: this.suggestResolution(yourVersion, currentVersion),
-      alternativeResolutions: [
-        "overwrite",
-        "merge",
-        "cancel",
-        "last_write_wins",
-      ],
+      alternativeResolutions: ['overwrite', 'merge', 'cancel', 'last_write_wins'],
       timestamp: Date.now(),
-      autoResolvable: severity === "info" || severity === "warning",
+      autoResolvable: severity === 'info' || severity === 'warning',
     };
 
     return conflict;
@@ -535,23 +504,23 @@ export class ConflictDetector {
    */
   private suggestResolution(
     yourVersion: RangeVersion,
-    currentVersion: RangeVersion,
+    currentVersion: RangeVersion
   ): ResolutionStrategy {
     const timeDiff = Date.now() - currentVersion.lastModified;
 
     // If modification was very recent, suggest manual review
     if (timeDiff < 60000) {
-      return "manual";
+      return 'manual';
     }
 
     // If modification was a while ago, suggest overwrite
     if (timeDiff > 1800000) {
       // 30 minutes
-      return "overwrite";
+      return 'overwrite';
     }
 
     // Default: suggest merge
-    return "merge";
+    return 'merge';
   }
 
   /**
@@ -559,10 +528,7 @@ export class ConflictDetector {
    *
    * PRODUCTION: Fetches actual cell values and metadata from Google Sheets API
    */
-  private async fetchCurrentVersion(
-    spreadsheetId: string,
-    range: string,
-  ): Promise<RangeVersion> {
+  private async fetchCurrentVersion(spreadsheetId: string, range: string): Promise<RangeVersion> {
     this.log(`Fetching current version for range: ${range}`);
 
     const cacheKey = this.getCacheKey(spreadsheetId, range);
@@ -576,8 +542,8 @@ export class ConflictDetector {
 
     if (!this.googleClient) {
       throw new Error(
-        "Conflict detector requires Google API client for version checking. " +
-          "Simulated version checking has been removed for production safety.",
+        'Conflict detector requires Google API client for version checking. ' +
+          'Simulated version checking has been removed for production safety.'
       );
     }
 
@@ -586,8 +552,8 @@ export class ConflictDetector {
       const response = await this.googleClient.sheets.spreadsheets.values.get({
         spreadsheetId,
         range,
-        valueRenderOption: "FORMATTED_VALUE",
-        dateTimeRenderOption: "FORMATTED_STRING",
+        valueRenderOption: 'FORMATTED_VALUE',
+        dateTimeRenderOption: 'FORMATTED_STRING',
       });
 
       const values = response.data.values || [];
@@ -603,7 +569,7 @@ export class ConflictDetector {
         spreadsheetId,
         range,
         lastModified: Date.now(),
-        modifiedBy: "api", // Google Sheets API doesn't provide user info in values response
+        modifiedBy: 'api', // Google Sheets API doesn't provide user info in values response
         checksum,
         version,
       };
@@ -617,13 +583,13 @@ export class ConflictDetector {
       });
 
       this.log(
-        `Fetched version ${version} for ${range} (checksum: ${checksum.substring(0, 8)}...)`,
+        `Fetched version ${version} for ${range} (checksum: ${checksum.substring(0, 8)}...)`
       );
 
       return rangeVersion;
     } catch (error) {
       this.log(
-        `Failed to fetch current version: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to fetch current version: ${error instanceof Error ? error.message : String(error)}`
       );
       throw error;
     }
@@ -633,9 +599,9 @@ export class ConflictDetector {
    * Calculate checksum for data
    */
   private calculateChecksum(data: unknown): string {
-    const hash = crypto.createHash("sha256");
+    const hash = crypto.createHash('sha256');
     hash.update(JSON.stringify(data || {}));
-    return hash.digest("hex");
+    return hash.digest('hex');
   }
 
   /**
@@ -654,10 +620,10 @@ export class ConflictDetector {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days} day${days > 1 ? "s" : ""}`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""}`;
-    if (minutes > 0) return `${minutes} minute${minutes > 1 ? "s" : ""}`;
-    return `${seconds} second${seconds > 1 ? "s" : ""}`;
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''}`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
+    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+    return `${seconds} second${seconds > 1 ? 's' : ''}`;
   }
 
   /**
@@ -683,12 +649,9 @@ export class ConflictDetector {
       if (this.versionCache.size > this.config.maxVersionsToCache) {
         // Remove oldest entries
         const entries = Array.from(this.versionCache.entries()).sort(
-          (a, b) => a[1].cachedAt - b[1].cachedAt,
+          (a, b) => a[1].cachedAt - b[1].cachedAt
         );
-        const toRemove = entries.slice(
-          0,
-          this.versionCache.size - this.config.maxVersionsToCache,
-        );
+        const toRemove = entries.slice(0, this.versionCache.size - this.config.maxVersionsToCache);
         for (const [key] of toRemove) {
           this.versionCache.delete(key);
         }
@@ -791,27 +754,20 @@ let conflictDetectorInstance: ConflictDetector | null = null;
  * Initialize conflict detector (call once during server startup)
  */
 export function initConflictDetector(
-  googleClient?: ConflictDetectorConfig["googleClient"],
+  googleClient?: ConflictDetectorConfig['googleClient']
 ): ConflictDetector {
   if (!conflictDetectorInstance) {
     conflictDetectorInstance = new ConflictDetector({
-      enabled: process.env["CONFLICT_DETECTION_ENABLED"] !== "false",
-      checkBeforeWrite: process.env["CONFLICT_CHECK_BEFORE_WRITE"] !== "false",
-      autoResolve: process.env["CONFLICT_AUTO_RESOLVE"] === "true",
+      enabled: process.env['CONFLICT_DETECTION_ENABLED'] !== 'false',
+      checkBeforeWrite: process.env['CONFLICT_CHECK_BEFORE_WRITE'] !== 'false',
+      autoResolve: process.env['CONFLICT_AUTO_RESOLVE'] === 'true',
       defaultResolution:
-        (process.env["CONFLICT_DEFAULT_RESOLUTION"] as ResolutionStrategy) ||
-        "manual",
-      versionCacheTtl: parseInt(
-        process.env["CONFLICT_VERSION_CACHE_TTL"] || "300000",
-      ),
-      maxVersionsToCache: parseInt(
-        process.env["CONFLICT_MAX_VERSIONS_TO_CACHE"] || "1000",
-      ),
-      optimisticLocking: process.env["CONFLICT_OPTIMISTIC_LOCKING"] === "true",
-      conflictCheckTimeoutMs: parseInt(
-        process.env["CONFLICT_CHECK_TIMEOUT_MS"] || "5000",
-      ),
-      verboseLogging: process.env["CONFLICT_VERBOSE"] === "true",
+        (process.env['CONFLICT_DEFAULT_RESOLUTION'] as ResolutionStrategy) || 'manual',
+      versionCacheTtl: parseInt(process.env['CONFLICT_VERSION_CACHE_TTL'] || '300000'),
+      maxVersionsToCache: parseInt(process.env['CONFLICT_MAX_VERSIONS_TO_CACHE'] || '1000'),
+      optimisticLocking: process.env['CONFLICT_OPTIMISTIC_LOCKING'] === 'true',
+      conflictCheckTimeoutMs: parseInt(process.env['CONFLICT_CHECK_TIMEOUT_MS'] || '5000'),
+      verboseLogging: process.env['CONFLICT_VERBOSE'] === 'true',
       googleClient,
     });
   }
@@ -823,9 +779,7 @@ export function initConflictDetector(
  */
 export function getConflictDetector(): ConflictDetector {
   if (!conflictDetectorInstance) {
-    throw new Error(
-      "Conflict detector not initialized. Call initConflictDetector() first.",
-    );
+    throw new Error('Conflict detector not initialized. Call initConflictDetector() first.');
   }
   return conflictDetectorInstance;
 }
@@ -835,10 +789,8 @@ export function getConflictDetector(): ConflictDetector {
  * @internal
  */
 export function resetConflictDetector(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetConflictDetector() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetConflictDetector() can only be called in test environment');
   }
   conflictDetectorInstance = null;
 }

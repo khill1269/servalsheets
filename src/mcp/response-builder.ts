@@ -13,7 +13,7 @@
  * @module mcp/response-builder
  */
 
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
 // CONSTANTS
@@ -84,16 +84,15 @@ export interface StreamingResponse {
  */
 export function createLazyResponse(
   data: Record<string, unknown>,
-  _options: ResponseOptions = {},
+  _options: ResponseOptions = {}
 ): LazyResponse {
   let cachedResult: CallToolResult | null = null;
   let cachedStructured: Record<string, unknown> | null = null;
   let cachedSize: number | null = null;
 
   const isErrorResponse =
-    data["success"] === false ||
-    (data["response"] as Record<string, unknown> | undefined)?.["success"] ===
-      false;
+    data['success'] === false ||
+    (data['response'] as Record<string, unknown> | undefined)?.['success'] === false;
 
   return {
     toResult(): CallToolResult {
@@ -101,7 +100,7 @@ export function createLazyResponse(
 
       const structured = this.getStructuredContent();
       cachedResult = {
-        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
         structuredContent: structured,
         isError: isErrorResponse ? true : undefined,
       };
@@ -113,9 +112,9 @@ export function createLazyResponse(
       if (cachedStructured) return cachedStructured;
 
       // Wrap in response if needed
-      if ("response" in data) {
+      if ('response' in data) {
         cachedStructured = data;
-      } else if ("success" in data) {
+      } else if ('success' in data) {
         cachedStructured = { response: data };
       } else {
         cachedStructured = { response: data };
@@ -148,10 +147,10 @@ export function createLazyResponse(
 export function buildSuccessResponse<T extends Record<string, unknown>>(
   action: string,
   data: T,
-  options: ResponseOptions = {},
+  options: ResponseOptions = {}
 ): CallToolResult {
   // Check if data contains large arrays
-  const values = data["values"] as unknown[][] | undefined;
+  const values = data['values'] as unknown[][] | undefined;
   if (values && shouldTruncate(values, options)) {
     return buildTruncatedResponse(action, data, values, options);
   }
@@ -165,7 +164,7 @@ export function buildSuccessResponse<T extends Record<string, unknown>>(
   const structured = { response };
 
   return {
-    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
 }
@@ -176,7 +175,7 @@ export function buildSuccessResponse<T extends Record<string, unknown>>(
 export function buildErrorResponse(
   code: string,
   message: string,
-  details?: Record<string, unknown>,
+  details?: Record<string, unknown>
 ): CallToolResult {
   const error: Record<string, unknown> = {
     code,
@@ -185,7 +184,7 @@ export function buildErrorResponse(
   };
 
   if (details) {
-    error["details"] = details;
+    error['details'] = details;
   }
 
   const response = {
@@ -196,7 +195,7 @@ export function buildErrorResponse(
   const structured = { response };
 
   return {
-    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
     isError: true,
   };
@@ -209,7 +208,7 @@ function buildTruncatedResponse<T extends Record<string, unknown>>(
   action: string,
   data: T,
   values: unknown[][],
-  options: ResponseOptions,
+  options: ResponseOptions
 ): CallToolResult {
   const maxRows = options.truncationRows ?? TRUNCATION_ROWS;
   const truncatedValues = values.slice(0, maxRows);
@@ -231,17 +230,16 @@ function buildTruncatedResponse<T extends Record<string, unknown>>(
 
   // Add resource URI for accessing full data
   if (options.includeResourceUri !== false && options.spreadsheetId) {
-    const range = options.range ?? (data["range"] as string);
+    const range = options.range ?? (data['range'] as string);
     if (range) {
-      response["resourceUri"] =
-        `sheets:///${options.spreadsheetId}/${encodeURIComponent(range)}`;
+      response['resourceUri'] = `sheets:///${options.spreadsheetId}/${encodeURIComponent(range)}`;
     }
   }
 
   const structured = { response };
 
   return {
-    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
 }
@@ -262,7 +260,7 @@ export function createStreamingResponse(
   options: ResponseOptions & {
     chunkSize?: number;
     metadata?: Record<string, unknown>;
-  } = {},
+  } = {}
 ): StreamingResponse {
   const chunkSize = options.chunkSize ?? 1000; // rows per chunk
   const totalRows = values.length;
@@ -305,9 +303,7 @@ export function createStreamingResponse(
       currentIndex++;
 
       return {
-        content: [
-          { type: "text", text: JSON.stringify({ response }, null, 2) },
-        ],
+        content: [{ type: 'text', text: JSON.stringify({ response }, null, 2) }],
         structuredContent: { response },
       };
     },
@@ -336,10 +332,10 @@ export function createStreamingResponse(
  */
 export function fastSerialize(data: unknown, indent: boolean = true): string {
   if (data === null || data === undefined) {
-    return "null";
+    return 'null';
   }
 
-  if (typeof data !== "object") {
+  if (typeof data !== 'object') {
     return JSON.stringify(data);
   }
 
@@ -354,7 +350,7 @@ export function fastSerialize(data: unknown, indent: boolean = true): string {
       }
       return value;
     },
-    indent ? 2 : undefined,
+    indent ? 2 : undefined
   );
 }
 
@@ -374,11 +370,11 @@ export function estimateResponseSize(data: Record<string, unknown>): number {
       } else {
         size += value.length * 20; // rough estimate per item
       }
-    } else if (typeof value === "string") {
+    } else if (typeof value === 'string') {
       size += value.length + 2;
-    } else if (typeof value === "number") {
+    } else if (typeof value === 'number') {
       size += 10; // average number length
-    } else if (typeof value === "object" && value !== null) {
+    } else if (typeof value === 'object' && value !== null) {
       size += estimateResponseSize(value as Record<string, unknown>);
     } else {
       size += 10; // boolean, null, etc.
@@ -397,9 +393,9 @@ function estimateValuesArraySize(values: unknown[][]): number {
   for (const row of values) {
     size += 2; // row brackets
     for (const cell of row) {
-      if (typeof cell === "string") {
+      if (typeof cell === 'string') {
         size += cell.length + 2;
-      } else if (typeof cell === "number") {
+      } else if (typeof cell === 'number') {
         size += 10;
       } else {
         size += 10;
@@ -437,10 +433,7 @@ function countCellsFast(values: unknown[][]): number {
 /**
  * Check if values should be truncated
  */
-function shouldTruncate(
-  values: unknown[][],
-  options: ResponseOptions,
-): boolean {
+function shouldTruncate(values: unknown[][], options: ResponseOptions): boolean {
   const maxCells = options.maxInlineCells ?? MAX_INLINE_CELLS;
   const cellCount = countCellsFast(values);
   return cellCount > maxCells;
@@ -451,11 +444,11 @@ function shouldTruncate(
  */
 function isRetryableError(code: string): boolean {
   const retryableCodes = new Set([
-    "RATE_LIMIT",
-    "QUOTA_EXCEEDED",
-    "SERVICE_UNAVAILABLE",
-    "TIMEOUT",
-    "INTERNAL_ERROR",
+    'RATE_LIMIT',
+    'QUOTA_EXCEEDED',
+    'SERVICE_UNAVAILABLE',
+    'TIMEOUT',
+    'INTERNAL_ERROR',
   ]);
   return retryableCodes.has(code);
 }
@@ -470,7 +463,7 @@ const RESPONSE_TEMPLATES = {
   readSuccess: (values: unknown[][], range: string) => ({
     response: {
       success: true,
-      action: "read",
+      action: 'read',
       values,
       range,
     },
@@ -481,11 +474,11 @@ const RESPONSE_TEMPLATES = {
     updatedCells: number,
     updatedRows: number,
     updatedColumns: number,
-    updatedRange: string,
+    updatedRange: string
   ) => ({
     response: {
       success: true,
-      action: "write",
+      action: 'write',
       updatedCells,
       updatedRows,
       updatedColumns,
@@ -498,7 +491,7 @@ const RESPONSE_TEMPLATES = {
     response: {
       success: false,
       error: {
-        code: "NOT_FOUND",
+        code: 'NOT_FOUND',
         message: `${resourceType} '${resourceId}' not found`,
         retryable: false,
       },
@@ -510,7 +503,7 @@ const RESPONSE_TEMPLATES = {
     response: {
       success: false,
       error: {
-        code: "PERMISSION_DENIED",
+        code: 'PERMISSION_DENIED',
         message: `Permission denied to ${operation}`,
         retryable: false,
       },
@@ -522,8 +515,8 @@ const RESPONSE_TEMPLATES = {
     response: {
       success: false,
       error: {
-        code: "RATE_LIMIT",
-        message: "Rate limit exceeded. Please wait before retrying.",
+        code: 'RATE_LIMIT',
+        message: 'Rate limit exceeded. Please wait before retrying.',
         retryable: true,
         retryAfterMs,
       },
@@ -543,11 +536,11 @@ export function buildFromTemplate<K extends keyof typeof RESPONSE_TEMPLATES>(
   ) => Record<string, unknown>;
   const structured = templateFn(...args);
 
-  const response = structured["response"] as Record<string, unknown>;
-  const isError = response?.["success"] === false;
+  const response = structured['response'] as Record<string, unknown>;
+  const isError = response?.['success'] === false;
 
   return {
-    content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
     isError: isError ? true : undefined,
   };

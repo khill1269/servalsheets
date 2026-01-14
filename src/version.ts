@@ -1,6 +1,6 @@
 /**
  * ServalSheets - Version Information
- * 
+ *
  * Single source of truth for version numbers.
  * Import this instead of hardcoding versions.
  */

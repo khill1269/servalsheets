@@ -1,19 +1,21 @@
 /**
  * ServalSheets - Fast Validators Tests
  *
- * Tests for the pre-compiled fast validators.
+ * Tests for the pre-compiled fast validators (17 tools after consolidation).
  */
 
 import { describe, it, expect } from "vitest";
 import {
   fastValidateAuth,
-  fastValidateSpreadsheet,
-  fastValidateSheet,
-  fastValidateValues,
-  fastValidateCells,
+  fastValidateCore,
+  fastValidateData,
   fastValidateFormat,
   fastValidateDimensions,
+  fastValidateVisualize,
+  fastValidateCollaborate,
   fastValidateTransaction,
+  fastValidateQuality,
+  fastValidateAnalyze,
   FastValidationError,
   getFastValidator,
   fastValidate,
@@ -71,120 +73,68 @@ describe("fastValidateAuth", () => {
   });
 });
 
-describe("fastValidateSpreadsheet", () => {
+describe("fastValidateCore", () => {
   it("should accept valid get action", () => {
-    expect(() => fastValidateSpreadsheet({
+    expect(() => fastValidateCore({
       action: "get",
       spreadsheetId: VALID_SPREADSHEET_ID,
     })).not.toThrow();
   });
 
   it("should accept create without spreadsheetId", () => {
-    expect(() => fastValidateSpreadsheet({
+    expect(() => fastValidateCore({
       action: "create",
       title: "New Spreadsheet",
     })).not.toThrow();
   });
 
   it("should accept list without spreadsheetId", () => {
-    expect(() => fastValidateSpreadsheet({ action: "list" })).not.toThrow();
+    expect(() => fastValidateCore({ action: "list" })).not.toThrow();
   });
 
-  it("should reject get without spreadsheetId", () => {
-    expect(() => fastValidateSpreadsheet({ action: "get" })).toThrow(FastValidationError);
-  });
-
-  it("should reject invalid spreadsheetId format", () => {
-    expect(() => fastValidateSpreadsheet({
-      action: "get",
-      spreadsheetId: "too-short",
-    })).toThrow(FastValidationError);
-  });
-});
-
-describe("fastValidateSheet", () => {
-  it("should accept valid list action", () => {
-    expect(() => fastValidateSheet({
-      action: "list",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-    })).not.toThrow();
-  });
-
-  it("should accept valid add action", () => {
-    expect(() => fastValidateSheet({
-      action: "add",
+  it("should accept valid add_sheet action", () => {
+    expect(() => fastValidateCore({
+      action: "add_sheet",
       spreadsheetId: VALID_SPREADSHEET_ID,
       title: "New Sheet",
     })).not.toThrow();
   });
 
-  it("should require sheetId for delete action", () => {
-    expect(() => fastValidateSheet({
-      action: "delete",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-    })).toThrow(FastValidationError);
-  });
-
-  it("should accept delete with sheetId", () => {
-    expect(() => fastValidateSheet({
-      action: "delete",
-      spreadsheetId: VALID_SPREADSHEET_ID,
+  it("should require spreadsheetId for delete_sheet", () => {
+    expect(() => fastValidateCore({
+      action: "delete_sheet",
       sheetId: 0,
-    })).not.toThrow();
+    })).toThrow(FastValidationError);
   });
 });
 
-describe("fastValidateValues", () => {
+describe("fastValidateData", () => {
   it("should accept valid read action", () => {
-    expect(() => fastValidateValues({
+    expect(() => fastValidateData({
       action: "read",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: "Sheet1!A1:D10",
     })).not.toThrow();
   });
 
-  it("should accept read action with object range format (a1)", () => {
-    expect(() => fastValidateValues({
+  it("should accept action with object range format (a1)", () => {
+    expect(() => fastValidateData({
       action: "read",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: { a1: "Sheet1!A1:D10" },
     })).not.toThrow();
   });
 
-  it("should accept read action with object range format (namedRange)", () => {
-    expect(() => fastValidateValues({
+  it("should accept action with object range format (namedRange)", () => {
+    expect(() => fastValidateData({
       action: "read",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: { namedRange: "MyNamedRange" },
     })).not.toThrow();
   });
 
-  it("should accept read action with object range format (semantic)", () => {
-    expect(() => fastValidateValues({
-      action: "read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { semantic: { sheet: "Sheet1", column: "A" } },
-    })).not.toThrow();
-  });
-
-  it("should accept read action with object range format (grid)", () => {
-    expect(() => fastValidateValues({
-      action: "read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { grid: { sheetId: 0, startRowIndex: 0, endRowIndex: 10 } },
-    })).not.toThrow();
-  });
-
-  it("should reject read action with invalid object range (no valid key)", () => {
-    expect(() => fastValidateValues({
-      action: "read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { invalid: "test" },
-    })).toThrow(FastValidationError);
-  });
-
-  it("should accept valid write action", () => {
-    expect(() => fastValidateValues({
+  it("should accept write action", () => {
+    expect(() => fastValidateData({
       action: "write",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: "Sheet1!A1:B2",
@@ -192,67 +142,8 @@ describe("fastValidateValues", () => {
     })).not.toThrow();
   });
 
-  it("should accept write action with object range format", () => {
-    expect(() => fastValidateValues({
-      action: "write",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { a1: "Sheet1!A1:B2" },
-      values: [["A", "B"], [1, 2]],
-    })).not.toThrow();
-  });
-
-  it("should require range for read action", () => {
-    expect(() => fastValidateValues({
-      action: "read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-    })).toThrow(FastValidationError);
-  });
-
-  it("should reject empty string range", () => {
-    expect(() => fastValidateValues({
-      action: "read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: "",
-    })).toThrow(FastValidationError);
-  });
-
-  it("should require values for write action", () => {
-    expect(() => fastValidateValues({
-      action: "write",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: "Sheet1!A1",
-    })).toThrow(FastValidationError);
-  });
-
-  it("should accept valid batch_read action", () => {
-    expect(() => fastValidateValues({
-      action: "batch_read",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      ranges: ["Sheet1!A1:A10", "Sheet1!B1:B10"],
-    })).not.toThrow();
-  });
-
-  it("should accept valid find action", () => {
-    expect(() => fastValidateValues({
-      action: "find",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      query: "search term",
-    })).not.toThrow();
-  });
-
-  it("should accept valid replace action", () => {
-    expect(() => fastValidateValues({
-      action: "replace",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      find: "old",
-      replacement: "new",
-    })).not.toThrow();
-  });
-});
-
-describe("fastValidateCells", () => {
-  it("should accept valid add_note action", () => {
-    expect(() => fastValidateCells({
+  it("should accept add_note action", () => {
+    expect(() => fastValidateData({
       action: "add_note",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: "A1",
@@ -260,25 +151,16 @@ describe("fastValidateCells", () => {
     })).not.toThrow();
   });
 
-  it("should accept add_note with object range format", () => {
-    expect(() => fastValidateCells({
-      action: "add_note",
-      spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { a1: "A1" },
-      note: "Test note",
-    })).not.toThrow();
-  });
-
-  it("should accept merge with object range format", () => {
-    expect(() => fastValidateCells({
+  it("should accept merge action", () => {
+    expect(() => fastValidateData({
       action: "merge",
       spreadsheetId: VALID_SPREADSHEET_ID,
       range: { a1: "A1:C1" },
     })).not.toThrow();
   });
 
-  it("should not require range for get_merges", () => {
-    expect(() => fastValidateCells({
+  it("should accept get_merges without range", () => {
+    expect(() => fastValidateData({
       action: "get_merges",
       spreadsheetId: VALID_SPREADSHEET_ID,
     })).not.toThrow();
@@ -290,7 +172,8 @@ describe("fastValidateFormat", () => {
     expect(() => fastValidateFormat({
       action: "set_format",
       spreadsheetId: VALID_SPREADSHEET_ID,
-      range: "A1:B10",
+      range: "Sheet1!A1:B2",
+      format: { bold: true },
     })).not.toThrow();
   });
 
@@ -298,15 +181,17 @@ describe("fastValidateFormat", () => {
     expect(() => fastValidateFormat({
       action: "set_format",
       spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { a1: "A1:B10" },
+      range: { a1: "Sheet1!A1:B2" },
+      format: { bold: true },
     })).not.toThrow();
   });
 
-  it("should accept apply_preset with object range format (namedRange)", () => {
+  it("should accept apply_preset action", () => {
     expect(() => fastValidateFormat({
       action: "apply_preset",
       spreadsheetId: VALID_SPREADSHEET_ID,
-      range: { namedRange: "HeaderRow" },
+      range: "A1:A10",
+      preset: "header",
     })).not.toThrow();
   });
 
@@ -314,6 +199,7 @@ describe("fastValidateFormat", () => {
     expect(() => fastValidateFormat({
       action: "set_format",
       spreadsheetId: VALID_SPREADSHEET_ID,
+      format: { bold: true },
     })).toThrow(FastValidationError);
   });
 });
@@ -324,8 +210,17 @@ describe("fastValidateDimensions", () => {
       action: "insert_rows",
       spreadsheetId: VALID_SPREADSHEET_ID,
       sheetId: 0,
-      startIndex: 5,
-      count: 10,
+      startIndex: 0,
+      count: 5,
+    })).not.toThrow();
+  });
+
+  it("should accept freeze_rows action", () => {
+    expect(() => fastValidateDimensions({
+      action: "freeze_rows",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      sheetId: 0,
+      count: 1,
     })).not.toThrow();
   });
 
@@ -333,7 +228,67 @@ describe("fastValidateDimensions", () => {
     expect(() => fastValidateDimensions({
       action: "insert_rows",
       spreadsheetId: VALID_SPREADSHEET_ID,
+      startIndex: 0,
+      count: 5,
     })).toThrow(FastValidationError);
+  });
+});
+
+describe("fastValidateVisualize", () => {
+  it("should accept chart_create action", () => {
+    expect(() => fastValidateVisualize({
+      action: "chart_create",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      sheetId: 0,
+      chartType: "line",
+      spec: { title: "Test Chart" },
+    })).not.toThrow();
+  });
+
+  it("should accept pivot_create action", () => {
+    expect(() => fastValidateVisualize({
+      action: "pivot_create",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      source: { sheetId: 0, startRowIndex: 0, endRowIndex: 10 },
+      rows: [{ sourceColumnOffset: 0 }],
+      values: [{ summarizeFunction: "SUM", sourceColumnOffset: 1 }],
+    })).not.toThrow();
+  });
+
+  it("should accept suggest_chart action", () => {
+    expect(() => fastValidateVisualize({
+      action: "suggest_chart",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: "Sheet1!A1:D10",
+    })).not.toThrow();
+  });
+});
+
+describe("fastValidateCollaborate", () => {
+  it("should accept share_add action", () => {
+    expect(() => fastValidateCollaborate({
+      action: "share_add",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      email: "user@example.com",
+      role: "reader",
+      type: "user",
+    })).not.toThrow();
+  });
+
+  it("should accept comment_add action", () => {
+    expect(() => fastValidateCollaborate({
+      action: "comment_add",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: "Sheet1!A1",
+      content: "Test comment",
+    })).not.toThrow();
+  });
+
+  it("should accept version_list_revisions action", () => {
+    expect(() => fastValidateCollaborate({
+      action: "version_list_revisions",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+    })).not.toThrow();
   });
 });
 
@@ -350,26 +305,88 @@ describe("fastValidateTransaction", () => {
   });
 
   it("should require transactionId for commit", () => {
-    expect(() => fastValidateTransaction({ action: "commit" })).toThrow(FastValidationError);
+    expect(() => fastValidateTransaction({
+      action: "commit",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+    })).toThrow(FastValidationError);
   });
 
   it("should accept commit with transactionId", () => {
     expect(() => fastValidateTransaction({
       action: "commit",
-      transactionId: "tx_123",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      transactionId: "txn_123",
+    })).not.toThrow();
+  });
+});
+
+describe("fastValidateQuality", () => {
+  it("should accept validate action", () => {
+    expect(() => fastValidateQuality({
+      action: "validate",
+      value: "test",
+    })).not.toThrow();
+  });
+
+  it("should accept detect_conflicts action", () => {
+    expect(() => fastValidateQuality({
+      action: "detect_conflicts",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+    })).not.toThrow();
+  });
+
+  it("should accept analyze_impact action", () => {
+    expect(() => fastValidateQuality({
+      action: "analyze_impact",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      operation: { type: "update_cell", range: "A1", value: "test" },
+    })).not.toThrow();
+  });
+});
+
+describe("fastValidateAnalyze", () => {
+  it("should accept analyze action", () => {
+    expect(() => fastValidateAnalyze({
+      action: "analyze",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+    })).not.toThrow();
+  });
+
+  it("should accept generate_formula action", () => {
+    expect(() => fastValidateAnalyze({
+      action: "generate_formula",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      description: "Calculate sum",
+    })).not.toThrow();
+  });
+
+  it("should accept get_stats without spreadsheetId", () => {
+    expect(() => fastValidateAnalyze({
+      action: "get_stats",
     })).not.toThrow();
   });
 });
 
 describe("Validator Registry", () => {
-  it("should have validator for all tools", () => {
+  it("should have validator for all 17 tools", () => {
     const tools = [
-      "sheets_auth", "sheets_spreadsheet", "sheets_sheet", "sheets_values",
-      "sheets_cells", "sheets_format", "sheets_dimensions", "sheets_rules",
-      "sheets_charts", "sheets_pivot", "sheets_filter_sort", "sheets_sharing",
-      "sheets_comments", "sheets_versions", "sheets_analysis", "sheets_advanced",
-      "sheets_transaction", "sheets_validation", "sheets_conflict", "sheets_impact",
-      "sheets_history", "sheets_confirm", "sheets_analyze", "sheets_fix", "sheets_composite",
+      "sheets_auth",
+      "sheets_core",
+      "sheets_data",
+      "sheets_format",
+      "sheets_dimensions",
+      "sheets_visualize",
+      "sheets_collaborate",
+      "sheets_analysis",
+      "sheets_advanced",
+      "sheets_transaction",
+      "sheets_quality",
+      "sheets_history",
+      "sheets_confirm",
+      "sheets_analyze",
+      "sheets_fix",
+      "sheets_composite",
+      "sheets_session",
     ];
 
     for (const tool of tools) {

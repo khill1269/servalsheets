@@ -603,7 +603,7 @@ describe("ImpactAnalyzer", () => {
         expect(pivot.sourceRange).toBeTruthy();
         expect(pivot.impactType).toBe("source_data_affected");
         expect(pivot.description).toContain("source data");
-        expect(pivot.description).toContain("refreshed");
+        expect(pivot.description).toContain("overlaps");
       }
     });
 
@@ -656,7 +656,7 @@ describe("ImpactAnalyzer", () => {
       expect(validation.range).toBeTruthy();
       expect(validation.ruleType).toBeTruthy();
       expect(validation.impactType).toBe("may_conflict");
-      expect(validation.description).toContain("validation");
+      expect(validation.description).toContain("Validation");
     });
   });
 

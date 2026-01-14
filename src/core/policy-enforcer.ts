@@ -5,9 +5,9 @@
  * Tighten-up #2: Effect scope guards
  */
 
-import type { Intent } from "./intent.js";
-import { DESTRUCTIVE_INTENTS } from "./intent.js";
-import type { ErrorDetail } from "../schemas/shared.js";
+import type { Intent } from './intent.js';
+import { DESTRUCTIVE_INTENTS } from './intent.js';
+import type { ErrorDetail } from '../schemas/shared.js';
 
 export interface PolicyConfig {
   maxCellsPerOperation: number;
@@ -31,15 +31,15 @@ export class PolicyViolationError extends Error {
   constructor(
     message: string,
     public code: string,
-    public details?: Record<string, unknown>,
+    public details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = "PolicyViolationError";
+    this.name = 'PolicyViolationError';
   }
 
   toErrorDetail(): ErrorDetail {
     return {
-      code: this.code as ErrorDetail["code"],
+      code: this.code as ErrorDetail['code'],
       message: this.message,
       details: this.details,
       retryable: false,
@@ -65,21 +65,19 @@ export class PolicyEnforcer {
     if (intents.length > this.config.maxIntentsPerBatch) {
       throw new PolicyViolationError(
         `Batch contains ${intents.length} intents, max is ${this.config.maxIntentsPerBatch}`,
-        "EFFECT_SCOPE_EXCEEDED",
-        { intentCount: intents.length, max: this.config.maxIntentsPerBatch },
+        'EFFECT_SCOPE_EXCEEDED',
+        { intentCount: intents.length, max: this.config.maxIntentsPerBatch }
       );
     }
 
     // Check for multiple destructive operations
-    const destructiveCount = intents.filter((i) =>
-      DESTRUCTIVE_INTENTS.has(i.type),
-    ).length;
+    const destructiveCount = intents.filter((i) => DESTRUCTIVE_INTENTS.has(i.type)).length;
 
     if (destructiveCount > 1 && !this.config.allowBatchDestructive) {
       throw new PolicyViolationError(
         `Batch contains ${destructiveCount} destructive operations. Split into separate calls for safety.`,
-        "EFFECT_SCOPE_EXCEEDED",
-        { destructiveCount },
+        'EFFECT_SCOPE_EXCEEDED',
+        { destructiveCount }
       );
     }
 
@@ -98,13 +96,13 @@ export class PolicyEnforcer {
     if (estimatedCells > this.config.maxCellsPerOperation) {
       throw new PolicyViolationError(
         `Operation would affect ~${estimatedCells} cells, limit is ${this.config.maxCellsPerOperation}`,
-        "EFFECT_SCOPE_EXCEEDED",
-        { estimatedCells, max: this.config.maxCellsPerOperation },
+        'EFFECT_SCOPE_EXCEEDED',
+        { estimatedCells, max: this.config.maxCellsPerOperation }
       );
     }
 
     // Check delete operations
-    if (intent.type === "DELETE_DIMENSION") {
+    if (intent.type === 'DELETE_DIMENSION') {
       await this.validateDeleteDimension(intent);
     }
 
@@ -115,9 +113,9 @@ export class PolicyEnforcer {
       !intent.target.range
     ) {
       throw new PolicyViolationError(
-        "Destructive operations require an explicit range",
-        "EXPLICIT_RANGE_REQUIRED",
-        { intentType: intent.type },
+        'Destructive operations require an explicit range',
+        'EXPLICIT_RANGE_REQUIRED',
+        { intentType: intent.type }
       );
     }
   }
@@ -134,22 +132,19 @@ export class PolicyEnforcer {
 
     const count = (payload.endIndex ?? 0) - (payload.startIndex ?? 0);
 
-    if (payload.dimension === "ROWS" && count > this.config.maxRowsPerDelete) {
+    if (payload.dimension === 'ROWS' && count > this.config.maxRowsPerDelete) {
       throw new PolicyViolationError(
         `Cannot delete ${count} rows, limit is ${this.config.maxRowsPerDelete}`,
-        "EFFECT_SCOPE_EXCEEDED",
-        { rowCount: count, max: this.config.maxRowsPerDelete },
+        'EFFECT_SCOPE_EXCEEDED',
+        { rowCount: count, max: this.config.maxRowsPerDelete }
       );
     }
 
-    if (
-      payload.dimension === "COLUMNS" &&
-      count > this.config.maxColumnsPerDelete
-    ) {
+    if (payload.dimension === 'COLUMNS' && count > this.config.maxColumnsPerDelete) {
       throw new PolicyViolationError(
         `Cannot delete ${count} columns, limit is ${this.config.maxColumnsPerDelete}`,
-        "EFFECT_SCOPE_EXCEEDED",
-        { columnCount: count, max: this.config.maxColumnsPerDelete },
+        'EFFECT_SCOPE_EXCEEDED',
+        { columnCount: count, max: this.config.maxColumnsPerDelete }
       );
     }
   }

@@ -5,9 +5,9 @@
  * Implements AsyncGenerator pattern with progress tracking and cancellation support.
  */
 
-import type { sheets_v4 } from "googleapis";
-import type { TieredRetrieval, SheetMetadata } from "./tiered-retrieval.js";
-import { logger } from "../utils/logger.js";
+import type { sheets_v4 } from 'googleapis';
+import type { TieredRetrieval, SheetMetadata } from './tiered-retrieval.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Result from a single chunk of analysis
@@ -40,7 +40,7 @@ export interface StreamingAnalysisResult {
     duplicateCount: number;
   };
   duration: number;
-  samplingMethod: "chunked";
+  samplingMethod: 'chunked';
 }
 
 /**
@@ -51,7 +51,7 @@ export class StreamingAnalyzer {
   constructor(
     private sheetsApi: sheets_v4.Sheets,
     private tieredRetrieval: TieredRetrieval,
-    private chunkSize: number = 1000,
+    private chunkSize: number = 1000
   ) {}
 
   /**
@@ -60,20 +60,20 @@ export class StreamingAnalyzer {
   async *analyzeInChunks(
     spreadsheetId: string,
     sheetId: number | undefined,
-    metadata: SheetMetadata,
+    metadata: SheetMetadata
   ): AsyncGenerator<AnalysisChunk> {
     const targetSheet = sheetId
       ? metadata.sheets.find((s) => s.sheetId === sheetId)
       : metadata.sheets[0];
 
     if (!targetSheet) {
-      throw new Error("Target sheet not found in metadata");
+      throw new Error('Target sheet not found in metadata');
     }
 
     const totalRows = targetSheet.rowCount;
     const totalChunks = Math.ceil(totalRows / this.chunkSize);
 
-    logger.info("Starting streaming analysis", {
+    logger.info('Starting streaming analysis', {
       spreadsheetId,
       sheetId,
       totalRows,
@@ -88,19 +88,19 @@ export class StreamingAnalyzer {
       // Fetch chunk data
       const range = `${targetSheet.title}!A${startRow + 1}:ZZ${endRow}`;
 
-      logger.debug("Fetching chunk", { chunkIndex, range });
+      logger.debug('Fetching chunk', { chunkIndex, range });
 
       const chunkData = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId,
         range,
-        valueRenderOption: "UNFORMATTED_VALUE",
+        valueRenderOption: 'UNFORMATTED_VALUE',
       });
 
       const values = chunkData.data.values ?? [];
 
       // Analyze chunk using helpers
       const { analyzeTrends, detectAnomalies, analyzeCorrelationsData } =
-        await import("./helpers.js");
+        await import('./helpers.js');
 
       const trends = analyzeTrends(values);
       const anomalies = detectAnomalies(values);
@@ -113,7 +113,7 @@ export class StreamingAnalyzer {
       const seenRows = new Set<string>();
       for (const row of values) {
         // Check for nulls
-        nullCount += row.filter((cell) => cell === null || cell === "").length;
+        nullCount += row.filter((cell) => cell === null || cell === '').length;
 
         // Check for duplicates
         const rowKey = JSON.stringify(row);
@@ -132,7 +132,7 @@ export class StreamingAnalyzer {
         duplicateCount,
       };
 
-      logger.debug("Chunk analysis complete", {
+      logger.debug('Chunk analysis complete', {
         chunkIndex,
         partialResults,
       });
@@ -146,7 +146,7 @@ export class StreamingAnalyzer {
       };
     }
 
-    logger.info("Streaming analysis complete", {
+    logger.info('Streaming analysis complete', {
       totalChunks,
       totalRows,
     });
@@ -160,7 +160,7 @@ export class StreamingAnalyzer {
     spreadsheetId: string,
     sheetId: number | undefined,
     metadata: SheetMetadata,
-    onProgress?: (chunk: AnalysisChunk) => void | Promise<void>,
+    onProgress?: (chunk: AnalysisChunk) => void | Promise<void>
   ): Promise<StreamingAnalysisResult> {
     const startTime = Date.now();
 
@@ -175,11 +175,7 @@ export class StreamingAnalyzer {
     let totalRowsProcessed = 0;
     let totalChunks = 0;
 
-    for await (const chunk of this.analyzeInChunks(
-      spreadsheetId,
-      sheetId,
-      metadata,
-    )) {
+    for await (const chunk of this.analyzeInChunks(spreadsheetId, sheetId, metadata)) {
       // Aggregate results
       aggregated.trends += chunk.partialResults.trends;
       aggregated.anomalies += chunk.partialResults.anomalies;
@@ -203,7 +199,7 @@ export class StreamingAnalyzer {
       totalChunks,
       aggregatedResults: aggregated,
       duration,
-      samplingMethod: "chunked",
+      samplingMethod: 'chunked',
     };
   }
 
@@ -211,7 +207,7 @@ export class StreamingAnalyzer {
    * Cancel streaming analysis (for task cancellation support)
    */
   cancel(): void {
-    logger.info("Streaming analysis cancelled");
+    logger.info('Streaming analysis cancelled');
     // AsyncGenerator iteration will naturally stop when broken
   }
 }

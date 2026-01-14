@@ -13,7 +13,7 @@
 // TYPES
 // ============================================================================
 
-export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export interface OperationRisk {
   /** Risk level */
@@ -93,70 +93,70 @@ export const CONFIRMATION_THRESHOLDS = {
  * Operations that are always destructive (data loss possible)
  */
 const DESTRUCTIVE_OPERATIONS = new Set([
-  "sheets_values:clear",
-  "sheets_sheet:delete",
-  "sheets_dimensions:delete_rows",
-  "sheets_dimensions:delete_columns",
-  "sheets_rules:remove_rule",
-  "sheets_charts:delete",
-  "sheets_pivot:delete",
-  "sheets_advanced:remove_protection",
-  "sheets_sharing:revoke",
-  "sheets_comments:delete",
+  'sheets_values:clear',
+  'sheets_sheet:delete',
+  'sheets_dimensions:delete_rows',
+  'sheets_dimensions:delete_columns',
+  'sheets_rules:remove_rule',
+  'sheets_charts:delete',
+  'sheets_pivot:delete',
+  'sheets_advanced:remove_protection',
+  'sheets_sharing:revoke',
+  'sheets_comments:delete',
 ]);
 
 /**
  * Operations that modify data (but can often be undone)
  */
 const MODIFYING_OPERATIONS = new Set([
-  "sheets_values:write",
-  "sheets_values:append",
-  "sheets_values:batch_write",
-  "sheets_values:replace",
-  "sheets_cells:merge",
-  "sheets_cells:unmerge",
-  "sheets_format:set_colors",
-  "sheets_format:set_font",
-  "sheets_format:set_borders",
-  "sheets_format:set_number_format",
-  "sheets_format:conditional_format",
-  "sheets_dimensions:insert_rows",
-  "sheets_dimensions:insert_columns",
-  "sheets_dimensions:resize",
-  "sheets_dimensions:freeze_rows",
-  "sheets_dimensions:freeze_columns",
-  "sheets_rules:add_conditional_format",
-  "sheets_rules:add_validation",
-  "sheets_filter_sort:set_filter",
-  "sheets_filter_sort:sort_range",
+  'sheets_values:write',
+  'sheets_values:append',
+  'sheets_values:batch_write',
+  'sheets_values:replace',
+  'sheets_cells:merge',
+  'sheets_cells:unmerge',
+  'sheets_format:set_colors',
+  'sheets_format:set_font',
+  'sheets_format:set_borders',
+  'sheets_format:set_number_format',
+  'sheets_format:conditional_format',
+  'sheets_dimensions:insert_rows',
+  'sheets_dimensions:insert_columns',
+  'sheets_dimensions:resize',
+  'sheets_dimensions:freeze_rows',
+  'sheets_dimensions:freeze_columns',
+  'sheets_rules:add_conditional_format',
+  'sheets_rules:add_validation',
+  'sheets_filter_sort:set_filter',
+  'sheets_filter_sort:sort_range',
 ]);
 
 /**
  * Operations that are read-only (never need confirmation)
  */
 const READONLY_OPERATIONS = new Set([
-  "sheets_auth:status",
-  "sheets_spreadsheet:get",
-  "sheets_spreadsheet:get_url",
-  "sheets_spreadsheet:batch_get",
-  "sheets_sheet:list",
-  "sheets_values:read",
-  "sheets_values:batch_read",
-  "sheets_values:find",
-  "sheets_cells:get_properties",
-  "sheets_analysis:data_quality",
-  "sheets_analysis:formula_audit",
-  "sheets_analysis:statistics",
-  "sheets_analysis:detect_patterns",
-  "sheets_validation:validate_operation",
-  "sheets_validation:check_conflicts",
-  "sheets_impact:analyze",
-  "sheets_impact:get_dependencies",
-  "sheets_history:list",
-  "sheets_history:get",
-  "sheets_versions:list_revisions",
-  "sheets_session:get_context",
-  "sheets_session:get_active",
+  'sheets_auth:status',
+  'sheets_spreadsheet:get',
+  'sheets_spreadsheet:get_url',
+  'sheets_spreadsheet:batch_get',
+  'sheets_sheet:list',
+  'sheets_values:read',
+  'sheets_values:batch_read',
+  'sheets_values:find',
+  'sheets_cells:get_properties',
+  'sheets_analysis:data_quality',
+  'sheets_analysis:formula_audit',
+  'sheets_analysis:statistics',
+  'sheets_analysis:detect_patterns',
+  'sheets_validation:validate_operation',
+  'sheets_validation:check_conflicts',
+  'sheets_impact:analyze',
+  'sheets_impact:get_dependencies',
+  'sheets_history:list',
+  'sheets_history:get',
+  'sheets_versions:list_revisions',
+  'sheets_session:get_context',
+  'sheets_session:get_active',
 ]);
 
 // ============================================================================
@@ -188,8 +188,8 @@ export function analyzeOperation(params: {
       isDestructive: false,
       canUndo: true,
       risk: {
-        level: "low",
-        reason: "Read-only operation",
+        level: 'low',
+        reason: 'Read-only operation',
         requiresConfirmation: false,
       },
       suggestedSafety: {
@@ -217,46 +217,38 @@ export function analyzeOperation(params: {
 
   if (isDestructive) {
     // Destructive operations
-    if (action === "delete" && tool === "sheets_sheet") {
+    if (action === 'delete' && tool === 'sheets_sheet') {
       risk = {
-        level: "critical",
-        reason: "Deleting entire sheet - all data will be lost",
+        level: 'critical',
+        reason: 'Deleting entire sheet - all data will be lost',
         requiresConfirmation: true,
-        warning:
-          "⚠️ CRITICAL: This will permanently delete the entire sheet and all its data!",
+        warning: '⚠️ CRITICAL: This will permanently delete the entire sheet and all its data!',
       };
     } else if (rowCount && rowCount > CONFIRMATION_THRESHOLDS.delete.rows) {
       risk = {
-        level: "high",
+        level: 'high',
         reason: `Deleting ${rowCount} rows`,
         requiresConfirmation: true,
         warning: `⚠️ This will delete ${rowCount} rows of data`,
       };
-    } else if (
-      columnCount &&
-      columnCount > CONFIRMATION_THRESHOLDS.delete.columns
-    ) {
+    } else if (columnCount && columnCount > CONFIRMATION_THRESHOLDS.delete.columns) {
       risk = {
-        level: "high",
+        level: 'high',
         reason: `Deleting ${columnCount} columns`,
         requiresConfirmation: true,
         warning: `⚠️ This will delete ${columnCount} columns of data`,
       };
-    } else if (action === "clear") {
+    } else if (action === 'clear') {
       risk = {
-        level:
-          estimatedCells > CONFIRMATION_THRESHOLDS.cells.high
-            ? "high"
-            : "medium",
+        level: estimatedCells > CONFIRMATION_THRESHOLDS.cells.high ? 'high' : 'medium',
         reason: `Clearing ${estimatedCells} cells`,
-        requiresConfirmation:
-          estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
+        requiresConfirmation: estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
         warning: `⚠️ This will clear ${estimatedCells} cells`,
       };
     } else {
       risk = {
-        level: "medium",
-        reason: "Destructive operation",
+        level: 'medium',
+        reason: 'Destructive operation',
         requiresConfirmation: true,
       };
     }
@@ -264,26 +256,26 @@ export function analyzeOperation(params: {
     // Modifying operations - risk based on cell count
     if (estimatedCells > CONFIRMATION_THRESHOLDS.cells.critical) {
       risk = {
-        level: "high",
+        level: 'high',
         reason: `Modifying ${estimatedCells} cells (large operation)`,
         requiresConfirmation: true,
         warning: `This will modify ${estimatedCells} cells. Consider using dryRun first.`,
       };
     } else if (estimatedCells > CONFIRMATION_THRESHOLDS.cells.high) {
       risk = {
-        level: "medium",
+        level: 'medium',
         reason: `Modifying ${estimatedCells} cells`,
         requiresConfirmation: true,
       };
     } else if (estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium) {
       risk = {
-        level: "medium",
+        level: 'medium',
         reason: `Modifying ${estimatedCells} cells`,
         requiresConfirmation: false, // Suggest but don't require
       };
     } else {
       risk = {
-        level: "low",
+        level: 'low',
         reason: `Small modification (${estimatedCells} cells)`,
         requiresConfirmation: false,
       };
@@ -291,10 +283,9 @@ export function analyzeOperation(params: {
   } else {
     // Unknown operation - be cautious
     risk = {
-      level: "medium",
-      reason: "Unknown operation type",
-      requiresConfirmation:
-        estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
+      level: 'medium',
+      reason: 'Unknown operation type',
+      requiresConfirmation: estimatedCells > CONFIRMATION_THRESHOLDS.cells.medium,
     };
   }
 
@@ -303,12 +294,11 @@ export function analyzeOperation(params: {
     action,
     cellsAffected: estimatedCells,
     isDestructive,
-    canUndo: !isDestructive || action !== "delete",
+    canUndo: !isDestructive || action !== 'delete',
     risk,
     suggestedSafety: {
-      dryRun: risk.level === "high" || risk.level === "critical",
-      createSnapshot:
-        isDestructive || risk.level === "high" || risk.level === "critical",
+      dryRun: risk.level === 'high' || risk.level === 'critical',
+      createSnapshot: isDestructive || risk.level === 'high' || risk.level === 'critical',
     },
   };
 }
@@ -321,14 +311,14 @@ export function analyzeOperationPlan(
     tool: string;
     action: string;
     cellCount?: number;
-  }>,
+  }>
 ): {
   totalRisk: RiskLevel;
   requiresConfirmation: boolean;
   highestRiskStep: number;
   summary: string;
 } {
-  let highestRisk: RiskLevel = "low";
+  let highestRisk: RiskLevel = 'low';
   let highestRiskStep = 0;
   let totalCells = 0;
   let hasDestructive = false;
@@ -340,10 +330,8 @@ export function analyzeOperationPlan(
 
     if (analysis.isDestructive) hasDestructive = true;
 
-    const riskOrder: RiskLevel[] = ["low", "medium", "high", "critical"];
-    if (
-      riskOrder.indexOf(analysis.risk.level) > riskOrder.indexOf(highestRisk)
-    ) {
+    const riskOrder: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
+    if (riskOrder.indexOf(analysis.risk.level) > riskOrder.indexOf(highestRisk)) {
       highestRisk = analysis.risk.level;
       highestRiskStep = i;
     }
@@ -352,22 +340,19 @@ export function analyzeOperationPlan(
   // Multi-step operations get elevated risk
   const stepCount = steps.length;
   let totalRisk = highestRisk;
-  if (
-    stepCount >= CONFIRMATION_THRESHOLDS.operations.steps &&
-    totalRisk === "low"
-  ) {
-    totalRisk = "medium";
+  if (stepCount >= CONFIRMATION_THRESHOLDS.operations.steps && totalRisk === 'low') {
+    totalRisk = 'medium';
   }
 
   return {
     totalRisk,
     requiresConfirmation:
-      totalRisk === "high" ||
-      totalRisk === "critical" ||
+      totalRisk === 'high' ||
+      totalRisk === 'critical' ||
       hasDestructive ||
       stepCount >= CONFIRMATION_THRESHOLDS.operations.steps,
     highestRiskStep,
-    summary: `${stepCount} steps, ${totalCells} cells affected, ${hasDestructive ? "includes destructive operations" : "no destructive operations"}`,
+    summary: `${stepCount} steps, ${totalCells} cells affected, ${hasDestructive ? 'includes destructive operations' : 'no destructive operations'}`,
   };
 }
 
@@ -386,20 +371,20 @@ export function shouldConfirm(params: {
   cellCount?: number;
   rowCount?: number;
   columnCount?: number;
-  userPreference?: "always" | "destructive" | "never";
+  userPreference?: 'always' | 'destructive' | 'never';
 }): {
   confirm: boolean;
   reason: string;
   suggestDryRun: boolean;
   suggestSnapshot: boolean;
 } {
-  const { userPreference = "destructive" } = params;
+  const { userPreference = 'destructive' } = params;
 
   // User said never confirm
-  if (userPreference === "never") {
+  if (userPreference === 'never') {
     return {
       confirm: false,
-      reason: "User preference: never confirm",
+      reason: 'User preference: never confirm',
       suggestDryRun: false,
       suggestSnapshot: false,
     };
@@ -408,13 +393,10 @@ export function shouldConfirm(params: {
   const analysis = analyzeOperation(params);
 
   // User said always confirm
-  if (
-    userPreference === "always" &&
-    !READONLY_OPERATIONS.has(`${params.tool}:${params.action}`)
-  ) {
+  if (userPreference === 'always' && !READONLY_OPERATIONS.has(`${params.tool}:${params.action}`)) {
     return {
       confirm: true,
-      reason: "User preference: always confirm",
+      reason: 'User preference: always confirm',
       suggestDryRun: analysis.suggestedSafety.dryRun,
       suggestSnapshot: analysis.suggestedSafety.createSnapshot,
     };

@@ -22,7 +22,7 @@ export interface VolatileFormula {
   cell: string;
   formula: string;
   volatileFunctions: string[];
-  impact: "low" | "medium" | "high";
+  impact: 'low' | 'medium' | 'high';
   suggestion: string;
 }
 
@@ -30,7 +30,7 @@ export interface FullColumnReference {
   cell: string;
   formula: string;
   references: string[]; // e.g., ["A:A", "B:B"]
-  impact: "low" | "medium" | "high";
+  impact: 'low' | 'medium' | 'high';
   suggestion: string;
 }
 
@@ -45,21 +45,21 @@ export interface FormulaComplexity {
     operators: number;
     length: number;
   };
-  category: "simple" | "moderate" | "complex" | "very_complex";
+  category: 'simple' | 'moderate' | 'complex' | 'very_complex';
   suggestions: string[];
 }
 
 export interface CircularReference {
   cells: string[];
   chain: string; // e.g., "A1 -> B1 -> C1 -> A1"
-  severity: "warning" | "error";
+  severity: 'warning' | 'error';
 }
 
 export interface IndirectUsage {
   cell: string;
   formula: string;
-  function: "INDIRECT" | "OFFSET";
-  impact: "low" | "medium" | "high";
+  function: 'INDIRECT' | 'OFFSET';
+  impact: 'low' | 'medium' | 'high';
   reasoning: string;
   suggestion: string;
 }
@@ -71,26 +71,26 @@ export interface ArrayFormula {
   inputCols: number;
   outputRows: number;
   outputCols: number;
-  complexity: "simple" | "moderate" | "complex";
+  complexity: 'simple' | 'moderate' | 'complex';
 }
 
 export interface BrokenReference {
   cell: string;
   formula: string;
   brokenRefs: string[];
-  errorType: "#REF!" | "#NAME?" | "#VALUE!" | "MISSING_SHEET";
+  errorType: '#REF!' | '#NAME?' | '#VALUE!' | 'MISSING_SHEET';
   suggestion: string;
 }
 
 export interface OptimizationSuggestion {
   type:
-    | "VLOOKUP_TO_INDEX_MATCH"
-    | "SUMIF_TO_SUMIFS"
-    | "REMOVE_VOLATILE"
-    | "SIMPLIFY_NESTED"
-    | "USE_NAMED_RANGE"
-    | "ARRAY_FORMULA";
-  priority: "low" | "medium" | "high";
+    | 'VLOOKUP_TO_INDEX_MATCH'
+    | 'SUMIF_TO_SUMIFS'
+    | 'REMOVE_VOLATILE'
+    | 'SIMPLIFY_NESTED'
+    | 'USE_NAMED_RANGE'
+    | 'ARRAY_FORMULA';
+  priority: 'low' | 'medium' | 'high';
   affectedCells: string[];
   currentFormula: string;
   suggestedFormula: string;
@@ -109,49 +109,35 @@ export interface OptimizationSuggestion {
  * Common volatile functions: NOW, TODAY, RAND, RANDBETWEEN, INDIRECT, OFFSET
  */
 export function findVolatileFormulas(
-  formulas: Array<{ cell: string; formula: string }>,
+  formulas: Array<{ cell: string; formula: string }>
 ): VolatileFormula[] {
-  const volatileFunctions = [
-    "NOW",
-    "TODAY",
-    "RAND",
-    "RANDBETWEEN",
-    "INDIRECT",
-    "OFFSET",
-    "INFO",
-  ];
+  const volatileFunctions = ['NOW', 'TODAY', 'RAND', 'RANDBETWEEN', 'INDIRECT', 'OFFSET', 'INFO'];
 
   const volatileFormulas: VolatileFormula[] = [];
 
   for (const { cell, formula } of formulas) {
     const upperFormula = formula.toUpperCase();
     const foundVolatile = volatileFunctions.filter((fn) =>
-      new RegExp(`\\b${fn}\\s*\\(`).test(upperFormula),
+      new RegExp(`\\b${fn}\\s*\\(`).test(upperFormula)
     );
 
     if (foundVolatile.length > 0) {
       // Determine impact based on how many volatile functions
-      let impact: "low" | "medium" | "high" = "low";
-      if (foundVolatile.length >= 3) impact = "high";
-      else if (foundVolatile.length === 2) impact = "medium";
+      let impact: 'low' | 'medium' | 'high' = 'low';
+      if (foundVolatile.length >= 3) impact = 'high';
+      else if (foundVolatile.length === 2) impact = 'medium';
 
       // Generate suggestion
-      let suggestion = "";
-      if (foundVolatile.includes("NOW") || foundVolatile.includes("TODAY")) {
+      let suggestion = '';
+      if (foundVolatile.includes('NOW') || foundVolatile.includes('TODAY')) {
         suggestion =
-          "Consider calculating these once in a helper cell and referencing that cell instead.";
-      } else if (
-        foundVolatile.includes("RAND") ||
-        foundVolatile.includes("RANDBETWEEN")
-      ) {
+          'Consider calculating these once in a helper cell and referencing that cell instead.';
+      } else if (foundVolatile.includes('RAND') || foundVolatile.includes('RANDBETWEEN')) {
         suggestion =
-          "Random functions are inherently volatile. Use sparingly or calculate once and copy values.";
-      } else if (
-        foundVolatile.includes("INDIRECT") ||
-        foundVolatile.includes("OFFSET")
-      ) {
+          'Random functions are inherently volatile. Use sparingly or calculate once and copy values.';
+      } else if (foundVolatile.includes('INDIRECT') || foundVolatile.includes('OFFSET')) {
         suggestion =
-          "INDIRECT and OFFSET are volatile. Consider using INDEX/MATCH or direct references when possible.";
+          'INDIRECT and OFFSET are volatile. Consider using INDEX/MATCH or direct references when possible.';
       }
 
       volatileFormulas.push({
@@ -177,7 +163,7 @@ export function findVolatileFormulas(
  * Full column references can cause performance issues on large sheets.
  */
 export function findFullColumnRefs(
-  formulas: Array<{ cell: string; formula: string }>,
+  formulas: Array<{ cell: string; formula: string }>
 ): FullColumnReference[] {
   const fullColumnRefs: FullColumnReference[] = [];
   const columnRefPattern = /\b([A-Z]{1,3}):([A-Z]{1,3})\b/g;
@@ -190,9 +176,9 @@ export function findFullColumnRefs(
 
     if (references.length > 0) {
       // Determine impact
-      let impact: "low" | "medium" | "high" = "low";
-      if (references.length >= 3) impact = "high";
-      else if (references.length === 2) impact = "medium";
+      let impact: 'low' | 'medium' | 'high' = 'low';
+      if (references.length >= 3) impact = 'high';
+      else if (references.length === 2) impact = 'medium';
 
       fullColumnRefs.push({
         cell,
@@ -200,7 +186,7 @@ export function findFullColumnRefs(
         references,
         impact,
         suggestion:
-          "Replace full column references with specific ranges (e.g., A1:A1000) to improve performance.",
+          'Replace full column references with specific ranges (e.g., A1:A1000) to improve performance.',
       });
     }
   }
@@ -234,8 +220,8 @@ export function scoreFormulaComplexity(formula: string): number {
   let maxDepth = 0;
   let currentDepth = 0;
   for (const char of formula) {
-    if (char === "(") currentDepth++;
-    if (char === ")") currentDepth--;
+    if (char === '(') currentDepth++;
+    if (char === ')') currentDepth--;
     maxDepth = Math.max(maxDepth, currentDepth);
   }
   score += Math.min(maxDepth * 10, 30);
@@ -246,11 +232,8 @@ export function scoreFormulaComplexity(formula: string): number {
   score += Math.min(cellRefs.length * 2, 20);
 
   // Count operators
-  const operators = ["+", "-", "*", "/", "^", "&", "<", ">", "="];
-  const operatorCount = operators.reduce(
-    (count, op) => count + (formula.split(op).length - 1),
-    0,
-  );
+  const operators = ['+', '-', '*', '/', '^', '&', '<', '>', '='];
+  const operatorCount = operators.reduce((count, op) => count + (formula.split(op).length - 1), 0);
   score += Math.min(operatorCount * 2, 10);
 
   // Length
@@ -262,10 +245,7 @@ export function scoreFormulaComplexity(formula: string): number {
 /**
  * Analyze formula complexity with detailed metrics
  */
-export function analyzeFormulaComplexity(
-  cell: string,
-  formula: string,
-): FormulaComplexity {
+export function analyzeFormulaComplexity(cell: string, formula: string): FormulaComplexity {
   const score = scoreFormulaComplexity(formula);
 
   // Extract metrics
@@ -276,8 +256,8 @@ export function analyzeFormulaComplexity(
   let maxDepth = 0;
   let currentDepth = 0;
   for (const char of formula) {
-    if (char === "(") currentDepth++;
-    if (char === ")") currentDepth--;
+    if (char === '(') currentDepth++;
+    if (char === ')') currentDepth--;
     maxDepth = Math.max(maxDepth, currentDepth);
   }
 
@@ -285,33 +265,28 @@ export function analyzeFormulaComplexity(
   const cellRefs = formula.match(cellRefPattern) || [];
   const referenceCount = cellRefs.length;
 
-  const operators = ["+", "-", "*", "/", "^", "&", "<", ">", "="];
-  const operatorCount = operators.reduce(
-    (count, op) => count + (formula.split(op).length - 1),
-    0,
-  );
+  const operators = ['+', '-', '*', '/', '^', '&', '<', '>', '='];
+  const operatorCount = operators.reduce((count, op) => count + (formula.split(op).length - 1), 0);
 
   // Categorize
-  let category: FormulaComplexity["category"] = "simple";
-  if (score > 70) category = "very_complex";
-  else if (score > 50) category = "complex";
-  else if (score > 30) category = "moderate";
+  let category: FormulaComplexity['category'] = 'simple';
+  if (score > 70) category = 'very_complex';
+  else if (score > 50) category = 'complex';
+  else if (score > 30) category = 'moderate';
 
   // Generate suggestions
   const suggestions: string[] = [];
   if (functionCount > 5) {
-    suggestions.push("Consider breaking down into multiple helper cells");
+    suggestions.push('Consider breaking down into multiple helper cells');
   }
   if (maxDepth > 4) {
-    suggestions.push("High nesting depth - simplify logic where possible");
+    suggestions.push('High nesting depth - simplify logic where possible');
   }
   if (referenceCount > 10) {
-    suggestions.push("Many cell references - consider using named ranges");
+    suggestions.push('Many cell references - consider using named ranges');
   }
   if (formula.length > 200) {
-    suggestions.push(
-      "Very long formula - break into intermediate calculations",
-    );
+    suggestions.push('Very long formula - break into intermediate calculations');
   }
 
   return {
@@ -340,7 +315,7 @@ export function analyzeFormulaComplexity(
  * Note: This is a simplified version. Full detection requires dependency graph.
  */
 export function detectCircularRefs(
-  formulas: Array<{ cell: string; formula: string }>,
+  formulas: Array<{ cell: string; formula: string }>
 ): CircularReference[] {
   const circularRefs: CircularReference[] = [];
   const cellRefPattern = /\b([A-Z]{1,3}[0-9]{1,7})\b/g;
@@ -349,7 +324,9 @@ export function detectCircularRefs(
   const dependencies = new Map<string, Set<string>>();
 
   for (const { cell, formula } of formulas) {
-    const refs = Array.from(formula.matchAll(cellRefPattern)).map((m) => m[1]);
+    const refs = Array.from(formula.matchAll(cellRefPattern))
+      .map((m) => m[1])
+      .filter((ref): ref is string => ref !== undefined);
     dependencies.set(cell, new Set(refs));
   }
 
@@ -364,8 +341,8 @@ export function detectCircularRefs(
       const cyclePath = path.slice(cycleStart).concat(node);
       circularRefs.push({
         cells: cyclePath,
-        chain: cyclePath.join(" -> "),
-        severity: "error",
+        chain: cyclePath.join(' -> '),
+        severity: 'error',
       });
       return true;
     }
@@ -406,7 +383,7 @@ export function detectCircularRefs(
  * Detect usage of INDIRECT and OFFSET functions
  */
 export function findIndirectUsage(
-  formulas: Array<{ cell: string; formula: string }>,
+  formulas: Array<{ cell: string; formula: string }>
 ): IndirectUsage[] {
   const indirectUsage: IndirectUsage[] = [];
 
@@ -416,34 +393,32 @@ export function findIndirectUsage(
     // Check for INDIRECT
     if (/\bINDIRECT\s*\(/.test(upperFormula)) {
       const complexity = scoreFormulaComplexity(formula);
-      const impact: "low" | "medium" | "high" =
-        complexity > 50 ? "high" : complexity > 30 ? "medium" : "low";
+      const impact: 'low' | 'medium' | 'high' =
+        complexity > 50 ? 'high' : complexity > 30 ? 'medium' : 'low';
 
       indirectUsage.push({
         cell,
         formula,
-        function: "INDIRECT",
+        function: 'INDIRECT',
         impact,
-        reasoning:
-          "INDIRECT is volatile and cannot be optimized by the calculation engine",
-        suggestion:
-          "Consider using INDEX/MATCH or direct cell references when possible",
+        reasoning: 'INDIRECT is volatile and cannot be optimized by the calculation engine',
+        suggestion: 'Consider using INDEX/MATCH or direct cell references when possible',
       });
     }
 
     // Check for OFFSET
     if (/\bOFFSET\s*\(/.test(upperFormula)) {
       const complexity = scoreFormulaComplexity(formula);
-      const impact: "low" | "medium" | "high" =
-        complexity > 50 ? "high" : complexity > 30 ? "medium" : "low";
+      const impact: 'low' | 'medium' | 'high' =
+        complexity > 50 ? 'high' : complexity > 30 ? 'medium' : 'low';
 
       indirectUsage.push({
         cell,
         formula,
-        function: "OFFSET",
+        function: 'OFFSET',
         impact,
-        reasoning: "OFFSET is volatile and recalculates on every change",
-        suggestion: "Consider using INDEX with dynamic ranges or named ranges",
+        reasoning: 'OFFSET is volatile and recalculates on every change',
+        suggestion: 'Consider using INDEX with dynamic ranges or named ranges',
       });
     }
   }
@@ -459,22 +434,22 @@ export function findIndirectUsage(
  * Analyze array formulas
  */
 export function findArrayFormulas(
-  formulas: Array<{ cell: string; formula: string; isArrayFormula?: boolean }>,
+  formulas: Array<{ cell: string; formula: string; isArrayFormula?: boolean }>
 ): ArrayFormula[] {
   const arrayFormulas: ArrayFormula[] = [];
 
   for (const { cell, formula, isArrayFormula } of formulas) {
-    if (isArrayFormula || (formula.startsWith("{") && formula.endsWith("}"))) {
+    if (isArrayFormula || (formula.startsWith('{') && formula.endsWith('}'))) {
       // Parse range from cell (e.g., "A1:B10")
       const rangeMatch = cell.match(/([A-Z]+)([0-9]+):([A-Z]+)([0-9]+)/);
-      if (rangeMatch) {
+      if (rangeMatch && rangeMatch[1] && rangeMatch[2] && rangeMatch[3] && rangeMatch[4]) {
         const [, startCol, startRow, endCol, endRow] = rangeMatch;
         const outputRows = parseInt(endRow) - parseInt(startRow) + 1;
         const outputCols = endCol.charCodeAt(0) - startCol.charCodeAt(0) + 1;
 
         const complexity = scoreFormulaComplexity(formula);
-        const complexityCategory: "simple" | "moderate" | "complex" =
-          complexity > 50 ? "complex" : complexity > 30 ? "moderate" : "simple";
+        const complexityCategory: 'simple' | 'moderate' | 'complex' =
+          complexity > 50 ? 'complex' : complexity > 30 ? 'moderate' : 'simple';
 
         arrayFormulas.push({
           range: cell,
@@ -501,7 +476,7 @@ export function findArrayFormulas(
  */
 export function findOrphanedRefs(
   formulas: Array<{ cell: string; formula: string }>,
-  validSheets: string[],
+  validSheets: string[]
 ): BrokenReference[] {
   const brokenRefs: BrokenReference[] = [];
 
@@ -509,14 +484,13 @@ export function findOrphanedRefs(
 
   for (const { cell, formula } of formulas) {
     // Check for #REF! errors
-    if (formula.includes("#REF!")) {
+    if (formula.includes('#REF!')) {
       brokenRefs.push({
         cell,
         formula,
-        brokenRefs: ["#REF!"],
-        errorType: "#REF!",
-        suggestion:
-          "Cell or range was deleted. Update formula with correct reference.",
+        brokenRefs: ['#REF!'],
+        errorType: '#REF!',
+        suggestion: 'Cell or range was deleted. Update formula with correct reference.',
       });
       continue;
     }
@@ -525,15 +499,15 @@ export function findOrphanedRefs(
     const sheetRefs = Array.from(formula.matchAll(sheetRefPattern));
     const missingSheets = sheetRefs
       .map((m) => m[1])
-      .filter((sheet) => !validSheets.includes(sheet));
+      .filter((sheet): sheet is string => sheet !== undefined && !validSheets.includes(sheet));
 
     if (missingSheets.length > 0) {
       brokenRefs.push({
         cell,
         formula,
         brokenRefs: missingSheets,
-        errorType: "MISSING_SHEET",
-        suggestion: `Referenced sheets not found: ${missingSheets.join(", ")}. Check sheet names.`,
+        errorType: 'MISSING_SHEET',
+        suggestion: `Referenced sheets not found: ${missingSheets.join(', ')}. Check sheet names.`,
       });
     }
   }
@@ -549,7 +523,7 @@ export function findOrphanedRefs(
  * Generate optimization suggestions for formulas
  */
 export function generateOptimizations(
-  formulas: Array<{ cell: string; formula: string }>,
+  formulas: Array<{ cell: string; formula: string }>
 ): OptimizationSuggestion[] {
   const suggestions: OptimizationSuggestion[] = [];
 
@@ -559,29 +533,26 @@ export function generateOptimizations(
     // VLOOKUP to INDEX/MATCH
     if (/\bVLOOKUP\s*\(/.test(upperFormula)) {
       suggestions.push({
-        type: "VLOOKUP_TO_INDEX_MATCH",
-        priority: "medium",
+        type: 'VLOOKUP_TO_INDEX_MATCH',
+        priority: 'medium',
         affectedCells: [cell],
         currentFormula: formula,
-        suggestedFormula:
-          "INDEX(return_range, MATCH(lookup_value, lookup_range, 0))",
-        reasoning:
-          "INDEX/MATCH is more flexible and faster than VLOOKUP for large datasets",
-        estimatedSpeedup: "20-50% faster",
+        suggestedFormula: 'INDEX(return_range, MATCH(lookup_value, lookup_range, 0))',
+        reasoning: 'INDEX/MATCH is more flexible and faster than VLOOKUP for large datasets',
+        estimatedSpeedup: '20-50% faster',
       });
     }
 
     // SUMIF to SUMIFS (when multiple conditions detected)
-    if (/\bSUMIF\s*\(/.test(upperFormula) && formula.split("IF").length > 2) {
+    if (/\bSUMIF\s*\(/.test(upperFormula) && formula.split('IF').length > 2) {
       suggestions.push({
-        type: "SUMIF_TO_SUMIFS",
-        priority: "low",
+        type: 'SUMIF_TO_SUMIFS',
+        priority: 'low',
         affectedCells: [cell],
         currentFormula: formula,
-        suggestedFormula: "SUMIFS(sum_range, criteria_range1, criterion1, ...)",
-        reasoning:
-          "SUMIFS is designed for multiple criteria and is more readable",
-        estimatedSpeedup: "Slightly faster, more maintainable",
+        suggestedFormula: 'SUMIFS(sum_range, criteria_range1, criterion1, ...)',
+        reasoning: 'SUMIFS is designed for multiple criteria and is more readable',
+        estimatedSpeedup: 'Slightly faster, more maintainable',
       });
     }
   }

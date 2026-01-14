@@ -21,7 +21,7 @@
  * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,
@@ -29,67 +29,124 @@ import {
   ErrorDetailSchema,
   ResponseMetaSchema,
   type ToolAnnotations,
-} from "./shared.js";
+} from './shared.js';
 
 /**
  * Analysis types available
  */
 const AnalysisTypeSchema = z.enum([
-  "summary", // Overall data summary
-  "patterns", // Pattern recognition
-  "anomalies", // Outlier/anomaly detection
-  "trends", // Trend analysis
-  "quality", // Data quality assessment
-  "correlations", // Relationship discovery
-  "recommendations", // Actionable recommendations
+  'summary', // Overall data summary
+  'patterns', // Pattern recognition
+  'anomalies', // Outlier/anomaly detection
+  'trends', // Trend analysis
+  'quality', // Data quality assessment
+  'correlations', // Relationship discovery
+  'recommendations', // Actionable recommendations
 ]);
 
 /**
- * Data quality issue schema (from sheets_analysis)
+ * Data quality issue schema (from sheets_analysis) - Enhanced with executable fixes
  */
 const DataQualityIssueSchema = z.object({
   type: z.enum([
-    "EMPTY_HEADER",
-    "DUPLICATE_HEADER",
-    "MIXED_DATA_TYPES",
-    "EMPTY_ROW",
-    "EMPTY_COLUMN",
-    "TRAILING_WHITESPACE",
-    "LEADING_WHITESPACE",
-    "INCONSISTENT_FORMAT",
-    "STATISTICAL_OUTLIER",
-    "MISSING_VALUE",
-    "DUPLICATE_ROW",
-    "INVALID_EMAIL",
-    "INVALID_URL",
-    "INVALID_DATE",
-    "FORMULA_ERROR",
+    'EMPTY_HEADER',
+    'DUPLICATE_HEADER',
+    'MIXED_DATA_TYPES',
+    'EMPTY_ROW',
+    'EMPTY_COLUMN',
+    'TRAILING_WHITESPACE',
+    'LEADING_WHITESPACE',
+    'INCONSISTENT_FORMAT',
+    'STATISTICAL_OUTLIER',
+    'MISSING_VALUE',
+    'DUPLICATE_ROW',
+    'INVALID_EMAIL',
+    'INVALID_URL',
+    'INVALID_DATE',
+    'FORMULA_ERROR',
   ]),
-  severity: z.enum(["low", "medium", "high"]),
+  severity: z.enum(['low', 'medium', 'high']),
   location: z.string(),
   description: z.string(),
   autoFixable: z.boolean(),
   fixTool: z.string().optional(),
   fixAction: z.string().optional(),
   fixParams: z.record(z.string(), z.unknown()).optional(),
+  // NEW: Ready-to-execute fix parameters
+  executableFix: z
+    .object({
+      tool: z.string().describe('Tool to use for fix (e.g., sheets_fix, sheets_values)'),
+      action: z.string().describe('Action to perform'),
+      params: z.record(z.string(), z.unknown()).describe('Complete parameters ready to execute'),
+      description: z.string().describe('Human-readable fix description'),
+      estimatedTime: z.string().optional().describe('Estimated time to complete fix'),
+    })
+    .optional()
+    .describe('Fully parameterized fix that can be executed immediately'),
+});
+
+/**
+ * Template detection schema (NEW for Phase 3)
+ */
+const TemplateDetectionSchema = z.object({
+  detectedType: z.enum([
+    'budget',
+    'invoice',
+    'expense_report',
+    'crm',
+    'project_tracker',
+    'inventory',
+    'time_sheet',
+    'sales_report',
+    'dashboard',
+    'data_entry',
+    'custom',
+    'unknown',
+  ]),
+  confidence: z.number().min(0).max(100),
+  characteristics: z.array(z.string()).describe('Key characteristics that match the template'),
+  recommendations: z
+    .array(
+      z.object({
+        type: z.enum(['formula', 'formatting', 'validation', 'chart', 'pivot', 'structure']),
+        suggestion: z.string(),
+        benefit: z.string(),
+        executionParams: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .optional()
+    .describe('Template-specific recommendations to enhance the spreadsheet'),
+  missingFeatures: z
+    .array(z.string())
+    .optional()
+    .describe('Common features of this template type that are missing'),
 });
 
 /**
  * Performance recommendation schema (NEW)
  */
-const PerformanceRecommendationSchema = z.object({
+export const PerformanceRecommendationSchema = z.object({
   type: z.enum([
-    "VOLATILE_FORMULAS",
-    "EXCESSIVE_FORMULAS",
-    "LARGE_RANGES",
-    "CIRCULAR_REFERENCES",
-    "INEFFICIENT_STRUCTURE",
-    "TOO_MANY_SHEETS",
+    'VOLATILE_FORMULAS',
+    'EXCESSIVE_FORMULAS',
+    'LARGE_RANGES',
+    'CIRCULAR_REFERENCES',
+    'INEFFICIENT_STRUCTURE',
+    'TOO_MANY_SHEETS',
   ]),
-  severity: z.enum(["low", "medium", "high"]),
+  severity: z.enum(['low', 'medium', 'high']),
   description: z.string(),
   estimatedImpact: z.string(),
   recommendation: z.string(),
+  executableFix: z
+    .object({
+      tool: z.string(),
+      action: z.string(),
+      params: z.record(z.string(), z.unknown()),
+      description: z.string(),
+    })
+    .optional()
+    .describe('Ready-to-execute optimization'),
 });
 
 /**
@@ -102,144 +159,104 @@ export const SheetsAnalyzeInputSchema = z
     // Required action discriminator
     action: z
       .enum([
-        "analyze_data", // Core: Smart routing (stats OR AI)
-        "suggest_visualization", // Core: Unified chart/pivot recommendations with executable params
-        "generate_formula", // Core: Formula generation with context
-        "detect_patterns", // Core: Anomalies, trends, correlations
-        "analyze_structure", // Specialized: Schema, types, relationships
-        "analyze_quality", // Specialized: Nulls, duplicates, outliers
-        "analyze_performance", // Specialized: Optimization suggestions
-        "analyze_formulas", // Intelligence: Formula analysis and optimization
-        "query_natural_language", // Intelligence: Conversational data queries
-        "explain_analysis", // Utility: Conversational explanations
+        'comprehensive', // ONE TOOL: Complete analysis replacing sheets_spreadsheet + sheets_values + sheets_analysis
+        'analyze_data', // Core: Smart routing (stats OR AI)
+        'suggest_visualization', // Core: Unified chart/pivot recommendations with executable params
+        'generate_formula', // Core: Formula generation with context
+        'detect_patterns', // Core: Anomalies, trends, correlations
+        'analyze_structure', // Specialized: Schema, types, relationships
+        'analyze_quality', // Specialized: Nulls, duplicates, outliers
+        'analyze_performance', // Specialized: Optimization suggestions
+        'analyze_formulas', // Intelligence: Formula analysis and optimization
+        'query_natural_language', // Intelligence: Conversational data queries
+        'explain_analysis', // Utility: Conversational explanations
       ])
-      .describe("The analysis operation to perform"),
+      .describe('The analysis operation to perform'),
 
     // Common fields
     spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      "Spreadsheet ID from URL (required for most actions)",
+      'Spreadsheet ID from URL (required for most actions)'
     ),
-    sheetId: SheetIdSchema.optional().describe("Sheet ID for analysis"),
-    range: RangeInputSchema.optional().describe(
-      "Range to analyze or use for context",
-    ),
+    sheetId: SheetIdSchema.optional().describe('Sheet ID for analysis'),
+    range: RangeInputSchema.optional().describe('Range to analyze or use for context'),
 
     // analyze_data specific fields
     analysisTypes: z
       .array(AnalysisTypeSchema)
       .min(1)
       .optional()
-      .default(["summary", "quality"])
-      .describe("Types of analysis to perform (analyze_data)"),
-    useAI: z
-      .boolean()
-      .optional()
-      .describe("Force AI-powered analysis via MCP Sampling"),
-    context: z
-      .string()
-      .optional()
-      .describe("Additional context for the analysis"),
+      .default(['summary', 'quality'])
+      .describe('Types of analysis to perform (analyze_data)'),
+    useAI: z.boolean().optional().describe('Force AI-powered analysis via MCP Sampling'),
+    context: z.string().optional().describe('Additional context for the analysis'),
     maxTokens: z
       .number()
       .int()
       .positive()
       .max(8192)
       .optional()
-      .describe("Maximum tokens for AI response, default: 4096"),
+      .describe('Maximum tokens for AI response, default: 4096'),
 
     // suggest_visualization specific fields
     goal: z
       .string()
       .optional()
-      .describe(
-        'Visualization goal, e.g., "show trends", "compare categories"',
-      ),
-    preferredTypes: z
-      .array(z.string())
-      .optional()
-      .describe("Preferred chart/pivot types"),
-    includeCharts: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include chart recommendations"),
+      .describe('Visualization goal, e.g., "show trends", "compare categories"'),
+    preferredTypes: z.array(z.string()).optional().describe('Preferred chart/pivot types'),
+    includeCharts: z.boolean().optional().default(true).describe('Include chart recommendations'),
     includePivots: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include pivot table recommendations"),
+      .describe('Include pivot table recommendations'),
 
     // generate_formula specific fields
     description: z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "Natural language description of the formula (required for: generate_formula)",
-      ),
-    targetCell: z
-      .string()
-      .optional()
-      .describe("Target cell for formula context"),
+      .describe('Natural language description of the formula (required for: generate_formula)'),
+    targetCell: z.string().optional().describe('Target cell for formula context'),
     includeExplanation: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include formula explanation"),
+      .describe('Include formula explanation'),
 
     // detect_patterns specific fields
     includeCorrelations: z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include correlation analysis"),
-    includeTrends: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include trend detection"),
+      .describe('Include correlation analysis'),
+    includeTrends: z.boolean().optional().default(true).describe('Include trend detection'),
     includeSeasonality: z
       .boolean()
       .optional()
       .default(false)
-      .describe("Include seasonality patterns"),
-    includeAnomalies: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include anomaly detection"),
+      .describe('Include seasonality patterns'),
+    includeAnomalies: z.boolean().optional().default(true).describe('Include anomaly detection'),
 
     // analyze_structure specific fields
-    detectTables: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Detect table structures"),
-    detectHeaders: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Detect header rows"),
+    detectTables: z.boolean().optional().default(true).describe('Detect table structures'),
+    detectHeaders: z.boolean().optional().default(true).describe('Detect header rows'),
 
     // analyze_quality specific fields
     checks: z
       .array(
         z.enum([
-          "headers",
-          "data_types",
-          "empty_cells",
-          "duplicates",
-          "outliers",
-          "formatting",
-          "validation",
-        ]),
+          'headers',
+          'data_types',
+          'empty_cells',
+          'duplicates',
+          'outliers',
+          'formatting',
+          'validation',
+        ])
       )
       .optional()
-      .describe("Quality checks to perform"),
-    outlierMethod: z
-      .enum(["iqr", "zscore", "modified_zscore"])
-      .optional()
-      .default("iqr"),
+      .describe('Quality checks to perform'),
+    outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
     outlierThreshold: z.number().optional().default(1.5),
 
     // analyze_formulas specific fields
@@ -247,61 +264,114 @@ export const SheetsAnalyzeInputSchema = z
       .boolean()
       .optional()
       .default(true)
-      .describe("Include optimization suggestions"),
-    includeComplexity: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe("Include complexity scoring"),
+      .describe('Include optimization suggestions'),
+    includeComplexity: z.boolean().optional().default(true).describe('Include complexity scoring'),
 
     // query_natural_language specific fields
     query: z
       .string()
       .optional()
-      .describe(
-        "Natural language query (required for: query_natural_language)",
-      ),
-    conversationId: z
-      .string()
-      .optional()
-      .describe("Conversation ID for multi-turn queries"),
+      .describe('Natural language query (required for: query_natural_language)'),
+    conversationId: z.string().optional().describe('Conversation ID for multi-turn queries'),
 
     // explain_analysis specific fields
     analysisResult: z
       .record(z.string(), z.unknown())
       .optional()
-      .describe("Previous analysis result to explain"),
-    question: z
+      .describe('Previous analysis result to explain'),
+    question: z.string().optional().describe('Specific question about the analysis'),
+
+    // comprehensive action specific fields (ONE TOOL TO RULE THEM ALL)
+    // This action replaces: sheets_spreadsheet + sheets_values + sheets_analysis
+    includeFormulas: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Include formula analysis and optimization suggestions (comprehensive)'),
+    includeVisualizations: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Include visualization recommendations with executable params (comprehensive)'),
+    includePerformance: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('Include performance analysis and optimization recommendations (comprehensive)'),
+    forceFullData: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Force full data retrieval instead of sampling (comprehensive)'),
+    samplingThreshold: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .default(10000)
+      .describe('Row count threshold before sampling kicks in (comprehensive)'),
+    sampleSize: z
+      .number()
+      .int()
+      .positive()
+      .max(5000)
+      .optional()
+      .default(500)
+      .describe('Sample size when sampling is used (comprehensive)'),
+
+    // Pagination support (MCP 2025-11-25)
+    cursor: z
       .string()
       .optional()
-      .describe("Specific question about the analysis"),
+      .describe(
+        'Pagination cursor for comprehensive analysis (format: "sheet:N" where N is sheet index)'
+      ),
+    pageSize: z
+      .number()
+      .int()
+      .positive()
+      .min(1)
+      .max(50)
+      .optional()
+      .default(5)
+      .describe('Number of sheets to return per page (comprehensive pagination)'),
+
+    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
+    verbosity: z
+      .enum(['minimal', 'standard', 'detailed'])
+      .optional()
+      .default('standard')
+      .describe(
+        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+      ),
   })
   .refine(
     (data) => {
       // Validate required fields based on action
       switch (data.action) {
-        case "analyze_data":
-        case "analyze_structure":
-        case "analyze_quality":
-        case "analyze_performance":
-        case "analyze_formulas":
+        case 'comprehensive': // ONE TOOL: Only needs spreadsheetId
+        case 'analyze_data':
+        case 'analyze_structure':
+        case 'analyze_quality':
+        case 'analyze_performance':
+        case 'analyze_formulas':
           return !!data.spreadsheetId;
-        case "suggest_visualization":
-        case "detect_patterns":
+        case 'suggest_visualization':
+        case 'detect_patterns':
           return !!data.spreadsheetId && !!data.range;
-        case "generate_formula":
+        case 'generate_formula':
           return !!data.spreadsheetId && !!data.description;
-        case "query_natural_language":
+        case 'query_natural_language':
           return !!data.spreadsheetId && !!data.query;
-        case "explain_analysis":
+        case 'explain_analysis':
           return !!data.analysisResult || !!data.question;
         default:
           return false;
       }
     },
     {
-      message: "Missing required fields for the specified action",
-    },
+      message: 'Missing required fields for the specified action',
+    }
   );
 
 /**
@@ -309,7 +379,7 @@ export const SheetsAnalyzeInputSchema = z
  */
 const AnalysisFindingSchema = z.object({
   type: AnalysisTypeSchema,
-  confidence: z.enum(["high", "medium", "low"]),
+  confidence: z.enum(['high', 'medium', 'low']),
   findings: z.array(z.string()),
   details: z.string(),
   affectedCells: z.array(z.string()).optional(),
@@ -328,7 +398,7 @@ const FormulaSuggestionSchema = z.object({
       z.object({
         formula: z.string(),
         useCase: z.string(),
-      }),
+      })
     )
     .optional(),
   tips: z.array(z.string()).optional(),
@@ -353,8 +423,8 @@ const ChartRecommendationSchema = z.object({
   // NEW: Executable parameters for sheets_charts tool
   executionParams: z
     .object({
-      tool: z.literal("sheets_charts"),
-      action: z.literal("create"),
+      tool: z.literal('sheets_charts'),
+      action: z.literal('create'),
       params: z.object({
         spreadsheetId: z.string(),
         sheetId: z.number().optional(),
@@ -366,7 +436,7 @@ const ChartRecommendationSchema = z.object({
         legendPosition: z.string().optional(),
       }),
     })
-    .describe("Ready-to-execute parameters for sheets_charts:create action"),
+    .describe('Ready-to-execute parameters for sheets_charts:create action'),
 });
 
 /**
@@ -381,16 +451,16 @@ const PivotRecommendationSchema = z.object({
     values: z.array(
       z.object({
         field: z.string(),
-        aggregation: z.enum(["SUM", "AVERAGE", "COUNT", "MIN", "MAX"]),
-      }),
+        aggregation: z.enum(['SUM', 'AVERAGE', 'COUNT', 'MIN', 'MAX']),
+      })
     ),
   }),
   sourceRange: z.string(),
   // NEW: Executable parameters for sheets_pivot tool
   executionParams: z
     .object({
-      tool: z.literal("sheets_pivot"),
-      action: z.literal("create"),
+      tool: z.literal('sheets_pivot'),
+      action: z.literal('create'),
       params: z.object({
         spreadsheetId: z.string(),
         sourceSheetId: z.number().optional(),
@@ -401,11 +471,11 @@ const PivotRecommendationSchema = z.object({
           z.object({
             sourceColumn: z.string(),
             summarizeFunction: z.string(),
-          }),
+          })
         ),
       }),
     })
-    .describe("Ready-to-execute parameters for sheets_pivot:create action"),
+    .describe('Ready-to-execute parameters for sheets_pivot:create action'),
 });
 
 /**
@@ -422,7 +492,7 @@ const StructureAnalysisSchema = z.object({
         range: z.string(),
         headers: z.array(z.string()),
         rowCount: z.number().int(),
-      }),
+      })
     )
     .optional(),
   namedRanges: z
@@ -430,7 +500,7 @@ const StructureAnalysisSchema = z.object({
       z.object({
         name: z.string(),
         range: z.string(),
-      }),
+      })
     )
     .optional(),
 });
@@ -449,10 +519,10 @@ const PatternDetectionSchema = z.object({
     .array(
       z.object({
         column: z.string(),
-        direction: z.enum(["increasing", "decreasing", "stable", "seasonal"]),
+        direction: z.enum(['increasing', 'decreasing', 'stable', 'seasonal']),
         confidence: z.number().min(0).max(100),
         description: z.string(),
-      }),
+      })
     )
     .optional(),
   anomalies: z
@@ -461,8 +531,8 @@ const PatternDetectionSchema = z.object({
         location: z.string(),
         value: z.union([z.string(), z.number()]),
         expectedRange: z.string().optional(),
-        severity: z.enum(["low", "medium", "high"]),
-      }),
+        severity: z.enum(['low', 'medium', 'high']),
+      })
     )
     .optional(),
   seasonality: z
@@ -477,7 +547,7 @@ const PatternDetectionSchema = z.object({
 /**
  * Response schema (consolidated)
  */
-const AnalyzeResponseSchema = z.discriminatedUnion("success", [
+const AnalyzeResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
@@ -488,9 +558,9 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
     overallQualityScore: z.number().min(0).max(100).optional(),
     topInsights: z.array(z.string()).optional(),
     executionPath: z
-      .enum(["fast", "ai", "streaming"])
+      .enum(['fast', 'ai', 'streaming', 'sample', 'full'])
       .optional()
-      .describe("Path used for analysis"),
+      .describe('Path used for analysis'),
 
     // suggest_visualization results
     chartRecommendations: z.array(ChartRecommendationSchema).optional(),
@@ -513,6 +583,9 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
     // analyze_structure results
     structure: StructureAnalysisSchema.optional(),
 
+    // template detection results (Phase 3)
+    templateDetection: TemplateDetectionSchema.optional(),
+
     // analyze_quality results
     dataQuality: z
       .object({
@@ -525,12 +598,13 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
       })
       .optional(),
 
-    // analyze_performance results
+    // analyze_performance results (and comprehensive)
     performance: z
       .object({
-        overallScore: z.number().min(0).max(100),
-        recommendations: z.array(PerformanceRecommendationSchema),
-        estimatedImprovementPotential: z.string(),
+        overallScore: z.number().min(0).max(100).optional(),
+        score: z.number().min(0).max(100).optional(), // Comprehensive uses 'score'
+        recommendations: z.array(z.any()), // Allow different recommendation formats
+        estimatedImprovementPotential: z.string().optional(),
       })
       .optional(),
 
@@ -544,26 +618,26 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
             cell: z.string(),
             formula: z.string(),
             volatileFunctions: z.array(z.string()),
-            impact: z.enum(["low", "medium", "high"]),
+            impact: z.enum(['low', 'medium', 'high']),
             suggestion: z.string(),
-          }),
+          })
         ),
         optimizationOpportunities: z.array(
           z.object({
             type: z.string(),
-            priority: z.enum(["low", "medium", "high"]),
+            priority: z.enum(['low', 'medium', 'high']),
             affectedCells: z.array(z.string()),
             currentFormula: z.string(),
             suggestedFormula: z.string(),
             reasoning: z.string(),
-          }),
+          })
         ),
         circularReferences: z
           .array(
             z.object({
               cells: z.array(z.string()),
               chain: z.string(),
-            }),
+            })
           )
           .optional(),
       })
@@ -597,6 +671,93 @@ const AnalyzeResponseSchema = z.discriminatedUnion("success", [
     // explain_analysis results
     explanation: z.string().optional(),
 
+    // comprehensive results
+    spreadsheet: z
+      .object({
+        id: z.string(),
+        title: z.string(),
+        locale: z.string(),
+        timeZone: z.string(),
+        lastModified: z.string().optional(),
+        owner: z.string().optional(),
+        sheetCount: z.number(),
+        totalRows: z.number(),
+        totalColumns: z.number(),
+        totalCells: z.number(),
+        namedRanges: z.array(z.object({ name: z.string(), range: z.string() })),
+      })
+      .optional(),
+    sheets: z
+      .array(
+        z.object({
+          sheetId: z.number(),
+          sheetName: z.string(),
+          rowCount: z.number(),
+          columnCount: z.number(),
+          dataRowCount: z.number(),
+          columns: z.array(z.any()), // Column stats - detailed type omitted for brevity
+          qualityScore: z.number(),
+          completeness: z.number(),
+          consistency: z.number(),
+          issues: z.array(z.any()), // Quality issues
+          trends: z.array(z.any()), // Trend results
+          anomalies: z.array(z.any()), // Anomaly results
+          correlations: z.array(z.any()), // Correlation results
+          formulas: z
+            .object({
+              total: z.number(),
+              unique: z.number(),
+              volatile: z.number(),
+              complex: z.number(),
+              issues: z.array(z.any()),
+            })
+            .optional(),
+        })
+      )
+      .optional(),
+    aggregate: z
+      .object({
+        totalDataRows: z.number(),
+        totalFormulas: z.number(),
+        overallQualityScore: z.number(),
+        overallCompleteness: z.number(),
+        totalIssues: z.number(),
+        totalAnomalies: z.number(),
+        totalTrends: z.number(),
+        totalCorrelations: z.number(),
+      })
+      .optional(),
+    visualizations: z
+      .array(
+        z.object({
+          chartType: z.string(),
+          suitabilityScore: z.number(),
+          reasoning: z.string(),
+          suggestedConfig: z.any(),
+          executionParams: z.any(),
+        })
+      )
+      .optional(),
+    apiCalls: z.number().optional(),
+    dataRetrieved: z
+      .object({
+        tier: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+        rowsAnalyzed: z.number(),
+        samplingUsed: z.boolean(),
+      })
+      .optional(),
+
+    // Pagination fields (MCP 2025-11-25 - comprehensive only)
+    nextCursor: z
+      .string()
+      .optional()
+      .describe('Next page cursor for pagination (format: "sheet:N")'),
+    hasMore: z.boolean().optional().describe('True if more sheets available'),
+    resourceUri: z
+      .string()
+      .optional()
+      .describe('Resource URI when response is too large (analyze://results/{id})'),
+
     // Common
     duration: z.number().optional(),
     message: z.string().optional(),
@@ -616,7 +777,7 @@ export const SheetsAnalyzeOutputSchema = z.object({
  * Tool annotations following MCP 2025-11-25
  */
 export const SHEETS_ANALYZE_ANNOTATIONS: ToolAnnotations = {
-  title: "Ultimate Data Analysis",
+  title: 'Ultimate Data Analysis',
   readOnlyHint: true, // Pure analysis - does not modify spreadsheets
   destructiveHint: false, // Analysis is non-destructive
   idempotentHint: false, // AI responses may vary
@@ -630,42 +791,44 @@ export type AnalyzeResponse = z.infer<typeof AnalyzeResponseSchema>;
 export type AnalysisType = z.infer<typeof AnalysisTypeSchema>;
 export type AnalysisFinding = z.infer<typeof AnalysisFindingSchema>;
 export type DataQualityIssue = z.infer<typeof DataQualityIssueSchema>;
-export type PerformanceRecommendation = z.infer<
-  typeof PerformanceRecommendationSchema
->;
+export type PerformanceRecommendation = z.infer<typeof PerformanceRecommendationSchema>;
 
 // Type narrowing helpers for handler methods
 export type AnalyzeDataInput = SheetsAnalyzeInput & {
-  action: "analyze_data";
+  action: 'analyze_data';
   spreadsheetId: string;
 };
 export type SuggestVisualizationInput = SheetsAnalyzeInput & {
-  action: "suggest_visualization";
+  action: 'suggest_visualization';
   spreadsheetId: string;
   range: string;
 };
 export type GenerateFormulaInput = SheetsAnalyzeInput & {
-  action: "generate_formula";
+  action: 'generate_formula';
   spreadsheetId: string;
   description: string;
 };
 export type DetectPatternsInput = SheetsAnalyzeInput & {
-  action: "detect_patterns";
+  action: 'detect_patterns';
   spreadsheetId: string;
   range: string;
 };
 export type AnalyzeStructureInput = SheetsAnalyzeInput & {
-  action: "analyze_structure";
+  action: 'analyze_structure';
   spreadsheetId: string;
 };
 export type AnalyzeQualityInput = SheetsAnalyzeInput & {
-  action: "analyze_quality";
+  action: 'analyze_quality';
   spreadsheetId: string;
 };
 export type AnalyzePerformanceInput = SheetsAnalyzeInput & {
-  action: "analyze_performance";
+  action: 'analyze_performance';
   spreadsheetId: string;
 };
 export type ExplainAnalysisInput = SheetsAnalyzeInput & {
-  action: "explain_analysis";
+  action: 'explain_analysis';
+};
+export type ComprehensiveInput = SheetsAnalyzeInput & {
+  action: 'comprehensive';
+  spreadsheetId: string;
 };

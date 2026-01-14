@@ -6,14 +6,8 @@
  * @module handlers/session
  */
 
-import type {
-  SheetsSessionInput,
-  SheetsSessionOutput,
-} from "../schemas/session.js";
-import {
-  getSessionContext,
-  type SpreadsheetContext,
-} from "../services/session-context.js";
+import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
+import { getSessionContext, type SpreadsheetContext } from '../services/session-context.js';
 
 // ============================================================================
 // HANDLER CLASS
@@ -23,8 +17,34 @@ import {
  * Session handler class for lazy loading
  */
 export class SessionHandler {
+  /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: SheetsSessionOutput['response'],
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): SheetsSessionOutput['response'] {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field
+      const { _meta, ...rest } = response as Record<string, unknown>;
+      return rest as SheetsSessionOutput['response'];
+    }
+
+    return response;
+  }
+
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
-    return handleSheetsSession(input);
+    const result = await handleSheetsSession(input);
+
+    // Apply verbosity filtering (LLM optimization)
+    const verbosity = input.verbosity ?? 'standard';
+    const filteredResponse = this.applyVerbosityFilter(result.response, verbosity);
+
+    return { response: filteredResponse };
   }
 }
 
@@ -35,15 +55,13 @@ export class SessionHandler {
 /**
  * Handle session context operations
  */
-export async function handleSheetsSession(
-  input: SheetsSessionInput,
-): Promise<SheetsSessionOutput> {
+export async function handleSheetsSession(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
   const session = getSessionContext();
   const { action } = input;
 
   try {
     switch (action) {
-      case "set_active": {
+      case 'set_active': {
         const { spreadsheetId, title, sheetNames } = input;
         // Type assertion: refine() validates these are defined for set_active action
         const context: SpreadsheetContext = {
@@ -56,28 +74,28 @@ export async function handleSheetsSession(
         return {
           response: {
             success: true,
-            action: "set_active",
+            action: 'set_active',
             spreadsheet: context,
           },
         };
       }
 
-      case "get_active": {
+      case 'get_active': {
         return {
           response: {
             success: true,
-            action: "get_active",
+            action: 'get_active',
             spreadsheet: session.getActiveSpreadsheet(),
             recentSpreadsheets: session.getRecentSpreadsheets(),
           },
         };
       }
 
-      case "get_context": {
+      case 'get_context': {
         return {
           response: {
             success: true,
-            action: "get_context",
+            action: 'get_context',
             summary: session.getContextSummary(),
             activeSpreadsheet: session.getActiveSpreadsheet(),
             lastOperation: session.getLastOperation(),
@@ -87,7 +105,7 @@ export async function handleSheetsSession(
         };
       }
 
-      case "record_operation": {
+      case 'record_operation': {
         const {
           tool,
           toolAction,
@@ -114,43 +132,43 @@ export async function handleSheetsSession(
         return {
           response: {
             success: true,
-            action: "record_operation",
+            action: 'record_operation',
             operationId,
           },
         };
       }
 
-      case "get_last_operation": {
+      case 'get_last_operation': {
         return {
           response: {
             success: true,
-            action: "get_last_operation",
+            action: 'get_last_operation',
             operation: session.getLastOperation(),
           },
         };
       }
 
-      case "get_history": {
+      case 'get_history': {
         const limit = input.limit ?? 10;
         return {
           response: {
             success: true,
-            action: "get_history",
+            action: 'get_history',
             operations: session.getOperationHistory(limit),
           },
         };
       }
 
-      case "find_by_reference": {
+      case 'find_by_reference': {
         const { reference, referenceType } = input;
 
         // Type assertion: refine() validates these are defined for find_by_reference action
-        if (referenceType === "spreadsheet") {
+        if (referenceType === 'spreadsheet') {
           const spreadsheet = session.findSpreadsheetByReference(reference!);
           return {
             response: {
               success: true,
-              action: "find_by_reference",
+              action: 'find_by_reference',
               found: spreadsheet !== null,
               spreadsheet,
             },
@@ -160,7 +178,7 @@ export async function handleSheetsSession(
           return {
             response: {
               success: true,
-              action: "find_by_reference",
+              action: 'find_by_reference',
               found: operation !== null,
               operation,
             },
@@ -168,20 +186,18 @@ export async function handleSheetsSession(
         }
       }
 
-      case "update_preferences": {
+      case 'update_preferences': {
         const { confirmationLevel, dryRunDefault, snapshotDefault } = input;
         const updates: Record<string, unknown> = {};
 
         if (confirmationLevel) {
-          updates["confirmationLevel"] = confirmationLevel;
+          updates['confirmationLevel'] = confirmationLevel;
         }
         if (dryRunDefault !== undefined || snapshotDefault !== undefined) {
-          updates["defaultSafety"] = {
-            dryRun:
-              dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
+          updates['defaultSafety'] = {
+            dryRun: dryRunDefault ?? session.getPreferences().defaultSafety.dryRun,
             createSnapshot:
-              snapshotDefault ??
-              session.getPreferences().defaultSafety.createSnapshot,
+              snapshotDefault ?? session.getPreferences().defaultSafety.createSnapshot,
           };
         }
 
@@ -190,23 +206,23 @@ export async function handleSheetsSession(
         return {
           response: {
             success: true,
-            action: "update_preferences",
+            action: 'update_preferences',
             preferences: session.getPreferences(),
           },
         };
       }
 
-      case "get_preferences": {
+      case 'get_preferences': {
         return {
           response: {
             success: true,
-            action: "get_preferences",
+            action: 'get_preferences',
             preferences: session.getPreferences(),
           },
         };
       }
 
-      case "set_pending": {
+      case 'set_pending': {
         const { type, step, totalSteps, context } = input;
         // Type assertion: refine() validates these are defined for set_pending action
         session.setPendingOperation({
@@ -218,40 +234,40 @@ export async function handleSheetsSession(
         return {
           response: {
             success: true,
-            action: "set_pending",
+            action: 'set_pending',
             pending: session.getPendingOperation(),
           },
         };
       }
 
-      case "get_pending": {
+      case 'get_pending': {
         return {
           response: {
             success: true,
-            action: "get_pending",
+            action: 'get_pending',
             pending: session.getPendingOperation(),
           },
         };
       }
 
-      case "clear_pending": {
+      case 'clear_pending': {
         session.clearPendingOperation();
         return {
           response: {
             success: true,
-            action: "clear_pending",
+            action: 'clear_pending',
             pending: null,
           },
         };
       }
 
-      case "reset": {
+      case 'reset': {
         session.reset();
         return {
           response: {
             success: true,
-            action: "reset",
-            message: "Session context cleared. Ready for a fresh start!",
+            action: 'reset',
+            message: 'Session context cleared. Ready for a fresh start!',
           },
         };
       }
@@ -266,7 +282,7 @@ export async function handleSheetsSession(
       response: {
         success: false,
         error: {
-          code: "SESSION_ERROR",
+          code: 'SESSION_ERROR',
           message: error instanceof Error ? error.message : String(error),
           retryable: false,
         },

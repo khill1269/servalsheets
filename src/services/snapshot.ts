@@ -5,9 +5,9 @@
  * MCP Protocol: 2025-11-25
  */
 
-import type { drive_v3 } from "googleapis";
-import { ServiceError, NotFoundError } from "../core/errors.js";
-import { CircuitBreaker } from "../utils/circuit-breaker.js";
+import type { drive_v3 } from 'googleapis';
+import { ServiceError, NotFoundError } from '../core/errors.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
 
 export interface Snapshot {
   id: string;
@@ -44,7 +44,7 @@ export class SnapshotService {
       failureThreshold: 5,
       successThreshold: 2,
       timeout: 60000, // 60 seconds
-      name: "drive-api",
+      name: 'drive-api',
     });
   }
 
@@ -76,11 +76,11 @@ export class SnapshotService {
     const copyId = response.data?.id;
     if (!copyId) {
       throw new ServiceError(
-        "Failed to create snapshot: Google API did not return a file ID",
-        "SNAPSHOT_CREATION_FAILED",
-        "Google Drive",
+        'Failed to create snapshot: Google API did not return a file ID',
+        'SNAPSHOT_CREATION_FAILED',
+        'Google Drive',
         true,
-        { spreadsheetId, name: snapshotName },
+        { spreadsheetId, name: snapshotName }
       );
     }
 
@@ -136,7 +136,7 @@ export class SnapshotService {
   async restore(snapshotId: string): Promise<string> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new NotFoundError("Snapshot", snapshotId, { operation: "restore" });
+      throw new NotFoundError('Snapshot', snapshotId, { operation: 'restore' });
     }
 
     // Copy snapshot to create restored file (with circuit breaker protection)
@@ -152,11 +152,11 @@ export class SnapshotService {
     const restoredId = response.data?.id;
     if (!restoredId) {
       throw new ServiceError(
-        "Failed to restore snapshot: Google API did not return a file ID",
-        "SNAPSHOT_RESTORE_FAILED",
-        "Google Drive",
+        'Failed to restore snapshot: Google API did not return a file ID',
+        'SNAPSHOT_RESTORE_FAILED',
+        'Google Drive',
         true,
-        { snapshotId },
+        { snapshotId }
       );
     }
 
@@ -169,7 +169,7 @@ export class SnapshotService {
   async delete(snapshotId: string): Promise<void> {
     const snapshot = this.get(snapshotId);
     if (!snapshot) {
-      throw new NotFoundError("Snapshot", snapshotId, { operation: "delete" });
+      throw new NotFoundError('Snapshot', snapshotId, { operation: 'delete' });
     }
 
     // Delete the copy (with circuit breaker protection)

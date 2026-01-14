@@ -5,9 +5,9 @@
  * Phase 1, Task 1.5
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { cacheManager } from "../utils/cache-manager.js";
-import { requestDeduplicator } from "../utils/request-deduplication.js";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { cacheManager } from '../utils/cache-manager.js';
+import { requestDeduplicator } from '../utils/request-deduplication.js';
 
 /**
  * Register cache resources with the MCP server
@@ -15,12 +15,11 @@ import { requestDeduplicator } from "../utils/request-deduplication.js";
 export function registerCacheResources(server: McpServer): number {
   // Resource: cache://stats - Cache statistics
   server.registerResource(
-    "Cache Statistics",
-    "cache://stats",
+    'Cache Statistics',
+    'cache://stats',
     {
-      description:
-        "Cache performance metrics: hit rate, size, entries, and namespace breakdown",
-      mimeType: "application/json",
+      description: 'Cache performance metrics: hit rate, size, entries, and namespace breakdown',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -30,16 +29,12 @@ export function registerCacheResources(server: McpServer): number {
         const totalSizeMB = (stats.totalSize / 1024 / 1024).toFixed(2);
         const totalSizeKB = (stats.totalSize / 1024).toFixed(2);
         const displaySize =
-          stats.totalSize > 1024 * 1024
-            ? `${totalSizeMB} MB`
-            : `${totalSizeKB} KB`;
+          stats.totalSize > 1024 * 1024 ? `${totalSizeMB} MB` : `${totalSizeKB} KB`;
 
         // Calculate additional metrics
         const totalRequests = stats.hits + stats.misses;
         const avgEntrySize =
-          stats.totalEntries > 0
-            ? (stats.totalSize / stats.totalEntries / 1024).toFixed(2)
-            : "0";
+          stats.totalEntries > 0 ? (stats.totalSize / stats.totalEntries / 1024).toFixed(2) : '0';
 
         // Format timestamps
         const oldestEntryDate = stats.oldestEntry
@@ -52,8 +47,8 @@ export function registerCacheResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   stats: {
@@ -83,64 +78,61 @@ export function registerCacheResources(server: McpServer): number {
                   performance: {
                     rating:
                       stats.hitRate >= 80
-                        ? "excellent"
+                        ? 'excellent'
                         : stats.hitRate >= 60
-                          ? "good"
+                          ? 'good'
                           : stats.hitRate >= 40
-                            ? "fair"
-                            : "poor",
+                            ? 'fair'
+                            : 'poor',
                     recommendations: generateRecommendations(stats),
                   },
 
                   // Metadata
                   timestamp: new Date().toISOString(),
-                  note: "Cache statistics are cumulative since server start. Use cache manager resetStats() to reset.",
+                  note: 'Cache statistics are cumulative since server start. Use cache manager resetStats() to reset.',
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch cache statistics",
+                  error: 'Failed to fetch cache statistics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource: cache://deduplication - Request deduplication statistics
   server.registerResource(
-    "Request Deduplication Statistics",
-    "cache://deduplication",
+    'Request Deduplication Statistics',
+    'cache://deduplication',
     {
-      description:
-        "Request deduplication and result caching statistics for API call optimization",
-      mimeType: "application/json",
+      description: 'Request deduplication and result caching statistics for API call optimization',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
         const stats = requestDeduplicator.getStats();
 
         // Calculate actual API calls made
-        const actualApiCalls =
-          stats.totalRequests - stats.deduplicatedRequests - stats.cacheHits;
+        const actualApiCalls = stats.totalRequests - stats.deduplicatedRequests - stats.cacheHits;
 
         // Format oldest request age
         const oldestAge = stats.oldestRequestAge
@@ -150,8 +142,8 @@ export function registerCacheResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   stats: {
@@ -198,55 +190,51 @@ export function registerCacheResources(server: McpServer): number {
                     performance: {
                       rating:
                         stats.totalSavingsRate >= 50
-                          ? "excellent"
+                          ? 'excellent'
                           : stats.totalSavingsRate >= 30
-                            ? "good"
+                            ? 'good'
                             : stats.totalSavingsRate >= 10
-                              ? "fair"
-                              : "needs improvement",
-                      recommendations:
-                        generateDeduplicationRecommendations(stats),
+                              ? 'fair'
+                              : 'needs improvement',
+                      recommendations: generateDeduplicationRecommendations(stats),
                     },
                   },
 
                   // Metadata
                   timestamp: new Date().toISOString(),
-                  note: "Deduplication statistics show API call reduction through in-flight request deduplication and result caching.",
+                  note: 'Deduplication statistics show API call reduction through in-flight request deduplication and result caching.',
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch deduplication statistics",
+                  error: 'Failed to fetch deduplication statistics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
-  console.error("[ServalSheets] Registered 2 cache resources:");
-  console.error("  - cache://stats (cache performance metrics)");
-  console.error(
-    "  - cache://deduplication (request deduplication & result caching stats)",
-  );
+  console.error('[ServalSheets] Registered 2 cache resources:');
+  console.error('  - cache://stats (cache performance metrics)');
+  console.error('  - cache://deduplication (request deduplication & result caching stats)');
 
   return 2;
 }
@@ -264,39 +252,33 @@ function generateRecommendations(stats: {
   // Hit rate recommendations
   if (stats.hitRate < 40) {
     recommendations.push(
-      "Cache hit rate is low (<40%). Consider increasing cache TTL or reviewing cache key strategy.",
+      'Cache hit rate is low (<40%). Consider increasing cache TTL or reviewing cache key strategy.'
     );
   } else if (stats.hitRate < 60) {
     recommendations.push(
-      "Cache hit rate is moderate (40-60%). Review frequently accessed data for better caching opportunities.",
+      'Cache hit rate is moderate (40-60%). Review frequently accessed data for better caching opportunities.'
     );
   } else if (stats.hitRate >= 80) {
-    recommendations.push(
-      "Cache hit rate is excellent (≥80%). Cache is working effectively.",
-    );
+    recommendations.push('Cache hit rate is excellent (≥80%). Cache is working effectively.');
   }
 
   // Size recommendations
   const sizeMB = stats.totalSize / 1024 / 1024;
   if (sizeMB > 80) {
     recommendations.push(
-      "Cache size is approaching limit (>80MB). Consider reducing TTL or max size.",
+      'Cache size is approaching limit (>80MB). Consider reducing TTL or max size.'
     );
   } else if (sizeMB < 10 && stats.totalEntries < 50) {
-    recommendations.push(
-      "Cache is underutilized. Consider caching more frequently accessed data.",
-    );
+    recommendations.push('Cache is underutilized. Consider caching more frequently accessed data.');
   }
 
   // Entry count recommendations
   if (stats.totalEntries === 0) {
     recommendations.push(
-      "Cache is empty. Ensure caching is enabled and operations are creating cache entries.",
+      'Cache is empty. Ensure caching is enabled and operations are creating cache entries.'
     );
   } else if (stats.totalEntries > 1000) {
-    recommendations.push(
-      "High entry count (>1000). Review cache cleanup frequency.",
-    );
+    recommendations.push('High entry count (>1000). Review cache cleanup frequency.');
   }
 
   return recommendations;
@@ -317,14 +299,14 @@ function generateDeduplicationRecommendations(stats: {
 
   if (!stats.enabled) {
     recommendations.push(
-      "Request deduplication is disabled. Enable it for significant API call reduction.",
+      'Request deduplication is disabled. Enable it for significant API call reduction.'
     );
     return recommendations;
   }
 
   if (stats.totalRequests === 0) {
     recommendations.push(
-      "No requests tracked yet. Statistics will be available after the first requests.",
+      'No requests tracked yet. Statistics will be available after the first requests.'
     );
     return recommendations;
   }
@@ -332,41 +314,41 @@ function generateDeduplicationRecommendations(stats: {
   // Overall savings recommendations
   if (stats.totalSavingsRate >= 50) {
     recommendations.push(
-      `Excellent savings rate (${stats.totalSavingsRate.toFixed(1)}%). Deduplication is working very effectively.`,
+      `Excellent savings rate (${stats.totalSavingsRate.toFixed(1)}%). Deduplication is working very effectively.`
     );
   } else if (stats.totalSavingsRate >= 30) {
     recommendations.push(
-      `Good savings rate (${stats.totalSavingsRate.toFixed(1)}%). Consider increasing cache TTL for even better results.`,
+      `Good savings rate (${stats.totalSavingsRate.toFixed(1)}%). Consider increasing cache TTL for even better results.`
     );
   } else if (stats.totalSavingsRate >= 10) {
     recommendations.push(
-      `Fair savings rate (${stats.totalSavingsRate.toFixed(1)}%). Review request patterns for better caching opportunities.`,
+      `Fair savings rate (${stats.totalSavingsRate.toFixed(1)}%). Review request patterns for better caching opportunities.`
     );
   } else {
     recommendations.push(
-      `Low savings rate (${stats.totalSavingsRate.toFixed(1)}%). Check if caching is properly configured.`,
+      `Low savings rate (${stats.totalSavingsRate.toFixed(1)}%). Check if caching is properly configured.`
     );
   }
 
   // Cache-specific recommendations
   if (!stats.resultCacheEnabled) {
     recommendations.push(
-      "Result caching is disabled. Enable it with RESULT_CACHE_ENABLED=true for 30-50% API reduction.",
+      'Result caching is disabled. Enable it with RESULT_CACHE_ENABLED=true for 30-50% API reduction.'
     );
   } else if (stats.cacheHitRate < 20) {
     recommendations.push(
-      `Cache hit rate is low (${stats.cacheHitRate.toFixed(1)}%). Consider increasing RESULT_CACHE_TTL.`,
+      `Cache hit rate is low (${stats.cacheHitRate.toFixed(1)}%). Consider increasing RESULT_CACHE_TTL.`
     );
   } else if (stats.cacheHitRate >= 60) {
     recommendations.push(
-      `Excellent cache hit rate (${stats.cacheHitRate.toFixed(1)}%). Result caching is very effective.`,
+      `Excellent cache hit rate (${stats.cacheHitRate.toFixed(1)}%). Result caching is very effective.`
     );
   }
 
   // Deduplication-specific recommendations
   if (stats.deduplicationRate >= 20) {
     recommendations.push(
-      `High concurrent request deduplication (${stats.deduplicationRate.toFixed(1)}%). Consider optimizing request batching.`,
+      `High concurrent request deduplication (${stats.deduplicationRate.toFixed(1)}%). Consider optimizing request batching.`
     );
   }
 

@@ -8,17 +8,12 @@
  * providing application-level task tracking with progress updates and lifecycle management.
  */
 
-import { logger as baseLogger } from "../utils/logger.js";
+import { logger as baseLogger } from '../utils/logger.js';
 
 /**
  * Task status states
  */
-export type ManagedTaskStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type ManagedTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * Task metadata provided when registering a task
@@ -126,7 +121,7 @@ export class TaskManager {
       cleanupIntervalMs: options.cleanupIntervalMs ?? 60000, // 60 seconds
     };
 
-    baseLogger.debug("TaskManager initialized", {
+    baseLogger.debug('TaskManager initialized', {
       taskTTL: this.options.taskTTL,
       maxTasks: this.options.maxTasks,
     });
@@ -142,25 +137,25 @@ export class TaskManager {
   registerTask(taskId: string, metadata: TaskMetadata): void {
     // Check if task already exists
     if (this.tasks.has(taskId)) {
-      baseLogger.warn("Task already exists, overwriting", { taskId });
+      baseLogger.warn('Task already exists, overwriting', { taskId });
     }
 
     // Enforce max tasks limit (only count active tasks)
     const activeTasks = Array.from(this.tasks.values()).filter(
-      (task) => task.status === "pending" || task.status === "running",
+      (task) => task.status === 'pending' || task.status === 'running'
     );
 
     if (activeTasks.length >= this.options.maxTasks) {
       throw new Error(
         `Maximum concurrent tasks reached (${this.options.maxTasks}). ` +
-          `Please wait for existing tasks to complete or increase the limit.`,
+          `Please wait for existing tasks to complete or increase the limit.`
       );
     }
 
     const now = Date.now();
     const task: Task = {
       taskId,
-      status: "pending",
+      status: 'pending',
       metadata,
       startTime: metadata.startTime,
       lastUpdated: now,
@@ -168,7 +163,7 @@ export class TaskManager {
 
     this.tasks.set(taskId, task);
 
-    baseLogger.debug("Task registered", {
+    baseLogger.debug('Task registered', {
       taskId,
       operation: metadata.operation,
       spreadsheetId: metadata.spreadsheetId,
@@ -185,11 +180,7 @@ export class TaskManager {
    * @param progressMessage - Optional human-readable status message
    * @throws Error if task not found
    */
-  updateTaskProgress(
-    taskId: string,
-    progress: number,
-    progressMessage?: string,
-  ): void {
+  updateTaskProgress(taskId: string, progress: number, progressMessage?: string): void {
     const task = this.tasks.get(taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
@@ -197,13 +188,13 @@ export class TaskManager {
 
     // Validate progress range
     if (progress < 0 || progress > 100) {
-      baseLogger.warn("Invalid progress value, clamping", { taskId, progress });
+      baseLogger.warn('Invalid progress value, clamping', { taskId, progress });
       progress = Math.max(0, Math.min(100, progress));
     }
 
     // Auto-transition from pending to running
-    if (task.status === "pending") {
-      task.status = "running";
+    if (task.status === 'pending') {
+      task.status = 'running';
     }
 
     task.progress = progress;
@@ -212,7 +203,7 @@ export class TaskManager {
 
     this.tasks.set(taskId, task);
 
-    baseLogger.debug("Task progress updated", {
+    baseLogger.debug('Task progress updated', {
       taskId,
       progress,
       message: progressMessage,
@@ -233,7 +224,7 @@ export class TaskManager {
     }
 
     const now = Date.now();
-    task.status = "completed";
+    task.status = 'completed';
     task.result = result;
     task.progress = 100;
     task.endTime = now;
@@ -242,7 +233,7 @@ export class TaskManager {
     this.tasks.set(taskId, task);
 
     const duration = now - task.startTime;
-    baseLogger.info("Task completed", {
+    baseLogger.info('Task completed', {
       taskId,
       operation: task.metadata.operation,
       duration,
@@ -265,7 +256,7 @@ export class TaskManager {
     const now = Date.now();
     const errorMessage = error instanceof Error ? error.message : error;
 
-    task.status = "failed";
+    task.status = 'failed';
     task.error = errorMessage;
     task.endTime = now;
     task.lastUpdated = now;
@@ -273,7 +264,7 @@ export class TaskManager {
     this.tasks.set(taskId, task);
 
     const duration = now - task.startTime;
-    baseLogger.error("Task failed", {
+    baseLogger.error('Task failed', {
       taskId,
       operation: task.metadata.operation,
       error: errorMessage,
@@ -298,12 +289,8 @@ export class TaskManager {
     }
 
     // Cannot cancel already finished tasks
-    if (
-      task.status === "completed" ||
-      task.status === "failed" ||
-      task.status === "cancelled"
-    ) {
-      baseLogger.debug("Cannot cancel task in terminal state", {
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      baseLogger.debug('Cannot cancel task in terminal state', {
         taskId,
         status: task.status,
       });
@@ -311,14 +298,14 @@ export class TaskManager {
     }
 
     const now = Date.now();
-    task.status = "cancelled";
+    task.status = 'cancelled';
     task.endTime = now;
     task.lastUpdated = now;
 
     this.tasks.set(taskId, task);
 
     const duration = now - task.startTime;
-    baseLogger.info("Task cancelled", {
+    baseLogger.info('Task cancelled', {
       taskId,
       operation: task.metadata.operation,
       duration,
@@ -365,7 +352,7 @@ export class TaskManager {
     const activeTasks: ManagedTaskInfo[] = [];
 
     for (const task of this.tasks.values()) {
-      if (task.status === "pending" || task.status === "running") {
+      if (task.status === 'pending' || task.status === 'running') {
         activeTasks.push({
           taskId: task.taskId,
           status: task.status,
@@ -423,9 +410,7 @@ export class TaskManager {
     for (const [taskId, task] of this.tasks.entries()) {
       // Only cleanup terminal state tasks
       const isTerminal =
-        task.status === "completed" ||
-        task.status === "failed" ||
-        task.status === "cancelled";
+        task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled';
 
       if (isTerminal && task.endTime) {
         const age = now - task.endTime;
@@ -437,7 +422,7 @@ export class TaskManager {
     }
 
     if (cleaned > 0) {
-      baseLogger.debug("Cleaned up completed tasks", { count: cleaned });
+      baseLogger.debug('Cleaned up completed tasks', { count: cleaned });
     }
 
     return cleaned;
@@ -450,7 +435,7 @@ export class TaskManager {
    */
   startCleanup(intervalMs?: number): void {
     if (this.cleanupInterval) {
-      baseLogger.warn("Cleanup already running, stopping previous interval");
+      baseLogger.warn('Cleanup already running, stopping previous interval');
       this.stopCleanup();
     }
 
@@ -460,7 +445,7 @@ export class TaskManager {
       this.cleanupCompletedTasks();
     }, interval);
 
-    baseLogger.info("Task cleanup started", { intervalMs: interval });
+    baseLogger.info('Task cleanup started', { intervalMs: interval });
   }
 
   /**
@@ -470,7 +455,7 @@ export class TaskManager {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      baseLogger.info("Task cleanup stopped");
+      baseLogger.info('Task cleanup stopped');
     }
   }
 
@@ -511,6 +496,6 @@ export class TaskManager {
   destroy(): void {
     this.stopCleanup();
     this.tasks.clear();
-    baseLogger.info("TaskManager destroyed");
+    baseLogger.info('TaskManager destroyed');
   }
 }

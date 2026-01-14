@@ -33,8 +33,8 @@
  * @module utils/schema-compat
  */
 
-import { z, type ZodTypeAny } from "zod";
-import { logger } from "./logger.js";
+import { z, type ZodTypeAny } from 'zod';
+import { logger } from './logger.js';
 
 /**
  * Detects if a Zod schema is a discriminated union
@@ -46,7 +46,7 @@ import { logger } from "./logger.js";
  * @returns true if the schema is a discriminated union
  */
 export function isZodDiscriminatedUnion(
-  schema: unknown,
+  schema: unknown
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
 ): schema is z.ZodDiscriminatedUnion<any, any> {
   // ✅ STABLE API: instanceof check instead of _def property access
@@ -62,7 +62,7 @@ export function isZodDiscriminatedUnion(
  * @returns true if the schema is a z.union()
  */
 export function isZodUnion(
-  schema: unknown,
+  schema: unknown
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
 ): schema is z.ZodUnion<any> {
   // ✅ STABLE API: instanceof check instead of _def property access
@@ -77,9 +77,7 @@ export function isZodUnion(
  * @param schema - Any Zod schema
  * @returns true if the schema is a z.object()
  */
-export function isZodObject(
-  schema: unknown,
-): schema is z.ZodObject<z.ZodRawShape> {
+export function isZodObject(schema: unknown): schema is z.ZodObject<z.ZodRawShape> {
   // ✅ STABLE API: instanceof check instead of _def property access
   return schema instanceof z.ZodObject;
 }
@@ -89,9 +87,9 @@ export function isZodObject(
  */
 export interface JsonSchemaOptions {
   /** Strategy for handling $refs (default: 'none') */
-  refStrategy?: "none" | "root" | "relative";
+  refStrategy?: 'none' | 'root' | 'relative';
   /** Target JSON Schema version (default: 'jsonSchema7') */
-  target?: "jsonSchema7" | "jsonSchema2019-09" | "openApi3";
+  target?: 'jsonSchema7' | 'jsonSchema2019-09' | 'openApi3';
   /** Enable strict union handling (default: true) */
   strictUnions?: boolean;
 }
@@ -114,7 +112,7 @@ export interface JsonSchemaOptions {
  */
 export function zodSchemaToJsonSchema(
   schema: ZodTypeAny,
-  _options: JsonSchemaOptions = {},
+  _options: JsonSchemaOptions = {}
 ): Record<string, unknown> {
   try {
     // ✅ Use Zod v4's native JSON Schema conversion
@@ -122,28 +120,25 @@ export function zodSchemaToJsonSchema(
     const jsonSchema = z.toJSONSchema(schema);
 
     // Remove $schema property (MCP doesn't need it)
-    if (typeof jsonSchema === "object" && jsonSchema !== null) {
-      const { $schema: _$schema, ...rest } = jsonSchema as Record<
-        string,
-        unknown
-      >;
+    if (typeof jsonSchema === 'object' && jsonSchema !== null) {
+      const { $schema: _$schema, ...rest } = jsonSchema as Record<string, unknown>;
       return rest;
     }
 
     // Unexpected format from Zod
-    logger.warn("Unexpected JSON Schema format from z.toJSONSchema", {
-      component: "schema-compat",
+    logger.warn('Unexpected JSON Schema format from z.toJSONSchema', {
+      component: 'schema-compat',
       schemaType: typeof jsonSchema,
     });
-    return { type: "object", properties: {} };
+    return { type: 'object', properties: {} };
   } catch (error) {
-    logger.error("JSON Schema conversion failed", {
-      component: "schema-compat",
+    logger.error('JSON Schema conversion failed', {
+      component: 'schema-compat',
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
     // Fallback for conversion failures
-    return { type: "object", properties: {} };
+    return { type: 'object', properties: {} };
   }
 }
 
@@ -159,24 +154,22 @@ export function zodSchemaToJsonSchema(
  * @throws Error if schema is invalid
  */
 export function validateMcpSchema(schema: unknown, name: string): void {
-  if (!schema || typeof schema !== "object") {
+  if (!schema || typeof schema !== 'object') {
     throw new Error(`[${name}] Schema must be an object`);
   }
 
   const obj = schema as Record<string, unknown>;
 
   // Check if it's a Zod schema (has _def)
-  if ("_def" in obj) {
+  if ('_def' in obj) {
     // Zod schema - acceptable for MCP SDK registration
     // The SDK handles both runtime validation and JSON Schema conversion
     return;
   }
 
   // Check if it's a JSON Schema (has type: 'object')
-  if (obj["type"] !== "object" && !obj["oneOf"] && !obj["anyOf"]) {
-    throw new Error(
-      `[${name}] JSON Schema must have type: 'object' or oneOf/anyOf at root`,
-    );
+  if (obj['type'] !== 'object' && !obj['oneOf'] && !obj['anyOf']) {
+    throw new Error(`[${name}] JSON Schema must have type: 'object' or oneOf/anyOf at root`);
   }
 }
 
@@ -204,27 +197,20 @@ export const zodToJsonSchemaCompat = zodSchemaToJsonSchema;
  * @throws Error if the schema contains Zod-specific properties
  */
 export function verifyJsonSchema(schema: unknown): void {
-  if (!schema || typeof schema !== "object") {
+  if (!schema || typeof schema !== 'object') {
     return;
   }
 
   const obj = schema as Record<string, unknown>;
 
   // Check for Zod-specific properties that shouldn't be in JSON Schema
-  const zodProperties = [
-    "_def",
-    "_type",
-    "parse",
-    "safeParse",
-    "parseAsync",
-    "safeParseAsync",
-  ];
+  const zodProperties = ['_def', '_type', 'parse', 'safeParse', 'parseAsync', 'safeParseAsync'];
   const foundZodProps = zodProperties.filter((prop) => prop in obj);
 
   if (foundZodProps.length > 0) {
     throw new Error(
-      `Schema transformation failed: JSON Schema contains Zod properties: ${foundZodProps.join(", ")}\n` +
-        `This means a Zod schema was not properly converted before registration.`,
+      `Schema transformation failed: JSON Schema contains Zod properties: ${foundZodProps.join(', ')}\n` +
+        `This means a Zod schema was not properly converted before registration.`
     );
   }
 }

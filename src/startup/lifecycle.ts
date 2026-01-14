@@ -10,24 +10,19 @@
  * - Signal handlers for SIGTERM/SIGINT
  */
 
-import { logger } from "../utils/logger.js";
-import { randomBytes } from "crypto";
-import {
-  initTracer,
-  shutdownTracer,
-  getTracer,
-  type TracerOptions,
-} from "../utils/tracing.js";
-import { shutdownOtlpExporter } from "../observability/otel-export.js";
+import { logger } from '../utils/logger.js';
+import { randomBytes } from 'crypto';
+import { initTracer, shutdownTracer, getTracer, type TracerOptions } from '../utils/tracing.js';
+import { shutdownOtlpExporter } from '../observability/otel-export.js';
 import {
   startConnectionHealthMonitoring,
   stopConnectionHealthMonitoring,
   getConnectionHealthMonitor,
   type ConnectionHealthConfig,
-} from "../utils/connection-health.js";
-import { cacheManager } from "../utils/cache-manager.js";
-import { requestDeduplicator } from "../utils/request-deduplication.js";
-import { getBatchEfficiencyStats } from "../utils/batch-efficiency.js";
+} from '../utils/connection-health.js';
+import { cacheManager } from '../utils/cache-manager.js';
+import { requestDeduplicator } from '../utils/request-deduplication.js';
+import { getBatchEfficiencyStats } from '../utils/batch-efficiency.js';
 
 // Shutdown timeout (10 seconds)
 const SHUTDOWN_TIMEOUT = 10000;
@@ -43,30 +38,30 @@ const AUTH_EXEMPT_TOOLS = new Set<string>([
  * SEC-001: Requires encryption key for token storage in production
  */
 export function requireEncryptionKeyInProduction(): void {
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const hasEncryptionKey = Boolean(process.env["ENCRYPTION_KEY"]);
+  const isProduction = process.env['NODE_ENV'] === 'production';
+  const hasEncryptionKey = Boolean(process.env['ENCRYPTION_KEY']);
 
   if (isProduction && !hasEncryptionKey) {
     throw new Error(
-      "ENCRYPTION_KEY environment variable is required in production. " +
-        "Generate with: openssl rand -hex 32",
+      'ENCRYPTION_KEY environment variable is required in production. ' +
+        'Generate with: openssl rand -hex 32'
     );
   }
 
   if (!hasEncryptionKey) {
     logger.warn(
-      "ENCRYPTION_KEY not set - tokens will not be encrypted. " +
-        "This is acceptable for development but NOT for production.",
+      'ENCRYPTION_KEY not set - tokens will not be encrypted. ' +
+        'This is acceptable for development but NOT for production.'
     );
   } else {
-    const keyLength = process.env["ENCRYPTION_KEY"]?.length || 0;
+    const keyLength = process.env['ENCRYPTION_KEY']?.length || 0;
     if (keyLength !== 64) {
       throw new Error(
         `ENCRYPTION_KEY must be 64 hex characters (32 bytes), got ${keyLength}. ` +
-          "Generate with: openssl rand -hex 32",
+          'Generate with: openssl rand -hex 32'
       );
     }
-    logger.debug("Encryption key validated (64 hex chars / 32 bytes)");
+    logger.debug('Encryption key validated (64 hex chars / 32 bytes)');
   }
 }
 
@@ -75,29 +70,29 @@ export function requireEncryptionKeyInProduction(): void {
  * SEC-002: OAuth sessions must persist across server restarts in production
  */
 export function requireSessionStoreInProduction(): void {
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const storeType = process.env["SESSION_STORE_TYPE"] ?? "memory";
+  const isProduction = process.env['NODE_ENV'] === 'production';
+  const storeType = process.env['SESSION_STORE_TYPE'] ?? 'memory';
 
-  if (isProduction && storeType === "memory") {
+  if (isProduction && storeType === 'memory') {
     throw new Error(
-      "Production mode requires persistent session store. " +
-        "In-memory session store loses all OAuth sessions on restart. " +
-        "Set SESSION_STORE_TYPE=redis and REDIS_URL=redis://your-redis-host:6379",
+      'Production mode requires persistent session store. ' +
+        'In-memory session store loses all OAuth sessions on restart. ' +
+        'Set SESSION_STORE_TYPE=redis and REDIS_URL=redis://your-redis-host:6379'
     );
   }
 
-  if (storeType === "redis" && !process.env["REDIS_URL"]) {
+  if (storeType === 'redis' && !process.env['REDIS_URL']) {
     throw new Error(
-      "REDIS_URL is required when SESSION_STORE_TYPE=redis. " +
-        "Provide a Redis connection URL (e.g., redis://localhost:6379)",
+      'REDIS_URL is required when SESSION_STORE_TYPE=redis. ' +
+        'Provide a Redis connection URL (e.g., redis://localhost:6379)'
     );
   }
 
-  if (!isProduction && storeType === "memory") {
+  if (!isProduction && storeType === 'memory') {
     logger.warn(
-      "Using in-memory session store. " +
-        "OAuth sessions will be lost on server restart. " +
-        "This is acceptable for development but NOT for production.",
+      'Using in-memory session store. ' +
+        'OAuth sessions will be lost on server restart. ' +
+        'This is acceptable for development but NOT for production.'
     );
   }
 }
@@ -108,40 +103,30 @@ export function requireSessionStoreInProduction(): void {
  */
 export function validateAuthExemptList(): void {
   // Define patterns for tools that are safe to be exempt
-  const SAFE_PATTERNS = [
-    "sheets_auth_status",
-    "sheets_authenticate",
-    "sheets_health_check",
-  ];
+  const SAFE_PATTERNS = ['sheets_auth_status', 'sheets_authenticate', 'sheets_health_check'];
 
   const warnings: string[] = [];
 
   for (const tool of AUTH_EXEMPT_TOOLS) {
-    const isSafe = SAFE_PATTERNS.some(
-      (pattern) => tool.startsWith(pattern) || tool === pattern,
-    );
+    const isSafe = SAFE_PATTERNS.some((pattern) => tool.startsWith(pattern) || tool === pattern);
 
     if (!isSafe) {
-      warnings.push(
-        `Tool '${tool}' in exempt list - verify it doesn't access user data`,
-      );
+      warnings.push(`Tool '${tool}' in exempt list - verify it doesn't access user data`);
     }
   }
 
   if (warnings.length > 0) {
-    logger.warn("Auth exempt list contains non-standard tools", { warnings });
+    logger.warn('Auth exempt list contains non-standard tools', { warnings });
 
     // In production, fail hard if any non-standard tools exist
-    if (process.env["NODE_ENV"] === "production") {
+    if (process.env['NODE_ENV'] === 'production') {
       throw new Error(
-        `AUTH_EXEMPT_TOOLS contains unverified tools in production: ${warnings.join(
-          ", ",
-        )}`,
+        `AUTH_EXEMPT_TOOLS contains unverified tools in production: ${warnings.join(', ')}`
       );
     }
   }
 
-  logger.info("Auth exempt list validated", {
+  logger.info('Auth exempt list validated', {
     totalExempt: AUTH_EXEMPT_TOOLS.size,
     warningCount: warnings.length,
   });
@@ -152,21 +137,19 @@ export function validateAuthExemptList(): void {
  * Checks that required OAuth environment variables are set
  */
 export function validateOAuthConfig(): void {
-  const hasClientId = Boolean(process.env["OAUTH_CLIENT_ID"]);
-  const hasClientSecret = Boolean(process.env["OAUTH_CLIENT_SECRET"]);
-  const hasRedirectUri = Boolean(process.env["OAUTH_REDIRECT_URI"]);
+  const hasClientId = Boolean(process.env['OAUTH_CLIENT_ID']);
+  const hasClientSecret = Boolean(process.env['OAUTH_CLIENT_SECRET']);
+  const hasRedirectUri = Boolean(process.env['OAUTH_REDIRECT_URI']);
 
   if (!hasClientId || !hasClientSecret) {
     logger.warn(
-      "OAuth credentials not configured. HTTP server will require manual token setup. " +
-        'Run "npm run auth" to set up OAuth authentication.',
+      'OAuth credentials not configured. HTTP server will require manual token setup. ' +
+        'Run "npm run auth" to set up OAuth authentication.'
     );
   } else {
-    logger.debug("OAuth configuration validated");
+    logger.debug('OAuth configuration validated');
     if (!hasRedirectUri) {
-      logger.warn(
-        "OAUTH_REDIRECT_URI not set, using default: http://localhost:3000/callback",
-      );
+      logger.warn('OAUTH_REDIRECT_URI not set, using default: http://localhost:3000/callback');
     }
   }
 }
@@ -176,20 +159,20 @@ export function validateOAuthConfig(): void {
  * Returns the encryption key (existing or generated)
  */
 export function ensureEncryptionKey(): string {
-  let encryptionKey = process.env["ENCRYPTION_KEY"];
+  let encryptionKey = process.env['ENCRYPTION_KEY'];
 
   if (!encryptionKey) {
-    if (process.env["NODE_ENV"] === "production") {
-      throw new Error("ENCRYPTION_KEY required in production");
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error('ENCRYPTION_KEY required in production');
     }
 
     // Generate a random key for development
-    encryptionKey = randomBytes(32).toString("hex");
-    process.env["ENCRYPTION_KEY"] = encryptionKey;
+    encryptionKey = randomBytes(32).toString('hex');
+    process.env['ENCRYPTION_KEY'] = encryptionKey;
 
     logger.warn(
-      "Generated temporary encryption key for development. " +
-        "Set ENCRYPTION_KEY in .env for persistent tokens.",
+      'Generated temporary encryption key for development. ' +
+        'Set ENCRYPTION_KEY in .env for persistent tokens.'
     );
   }
 
@@ -201,39 +184,35 @@ export function ensureEncryptionKey(): string {
  */
 export function initializeTracing(options?: TracerOptions): void {
   const tracer = initTracer({
-    serviceName: "servalsheets",
-    enabled: process.env["OTEL_ENABLED"] === "true",
-    logSpans: process.env["OTEL_LOG_SPANS"] === "true",
+    serviceName: 'servalsheets',
+    enabled: process.env['OTEL_ENABLED'] === 'true',
+    logSpans: process.env['OTEL_LOG_SPANS'] === 'true',
     ...options,
   });
 
   if (tracer.isEnabled()) {
-    logger.info("OpenTelemetry tracing enabled", {
+    logger.info('OpenTelemetry tracing enabled', {
       serviceName: tracer.getServiceName(),
     });
   } else {
-    logger.debug(
-      "OpenTelemetry tracing disabled (set OTEL_ENABLED=true to enable)",
-    );
+    logger.debug('OpenTelemetry tracing disabled (set OTEL_ENABLED=true to enable)');
   }
 }
 
 /**
  * Initialize connection health monitoring
  */
-export function initializeConnectionHealth(
-  config?: ConnectionHealthConfig,
-): void {
+export function initializeConnectionHealth(config?: ConnectionHealthConfig): void {
   const monitor = startConnectionHealthMonitoring(config);
 
-  logger.info("Connection health monitoring started", {
+  logger.info('Connection health monitoring started', {
     connectionId: monitor.getConnectionId(),
   });
 
   // Register heartbeat recorder for shutdown callback
   onShutdown(async () => {
     const stats = monitor.getStats();
-    logger.info("Connection health at shutdown", {
+    logger.info('Connection health at shutdown', {
       status: stats.status,
       uptimeSeconds: stats.uptimeSeconds,
       totalHeartbeats: stats.totalHeartbeats,
@@ -250,7 +229,7 @@ export async function startBackgroundTasks(options?: {
   tracing?: TracerOptions;
   connectionHealth?: ConnectionHealthConfig;
 }): Promise<void> {
-  logger.info("Starting background tasks...");
+  logger.info('Starting background tasks...');
 
   // SEC-001: Validate ENCRYPTION_KEY in production
   requireEncryptionKeyInProduction();
@@ -272,26 +251,26 @@ export async function startBackgroundTasks(options?: {
 
   // Start cache cleanup task
   cacheManager.startCleanupTask();
-  logger.info("Cache cleanup task started");
+  logger.info('Cache cleanup task started');
 
   // Register shutdown callbacks
   onShutdown(async () => {
-    logger.debug("Shutting down tracer...");
+    logger.debug('Shutting down tracer...');
     await shutdownTracer();
-    logger.debug("Tracer shutdown complete");
+    logger.debug('Tracer shutdown complete');
   });
 
   onShutdown(async () => {
-    logger.debug("Shutting down OTLP exporter...");
+    logger.debug('Shutting down OTLP exporter...');
     await shutdownOtlpExporter();
-    logger.debug("OTLP exporter shutdown complete");
+    logger.debug('OTLP exporter shutdown complete');
   });
 
   onShutdown(async () => {
-    logger.debug("Stopping cache cleanup...");
+    logger.debug('Stopping cache cleanup...');
     cacheManager.stopCleanupTask();
     const stats = cacheManager.getStats();
-    logger.info("Cache stats at shutdown", {
+    logger.info('Cache stats at shutdown', {
       totalEntries: stats.totalEntries,
       totalSize: `${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`,
       hitRate: `${stats.hitRate.toFixed(1)}%`,
@@ -299,9 +278,9 @@ export async function startBackgroundTasks(options?: {
   });
 
   onShutdown(async () => {
-    logger.debug("Destroying request deduplicator...");
+    logger.debug('Destroying request deduplicator...');
     const stats = requestDeduplicator.getStats();
-    logger.info("Deduplication stats at shutdown", {
+    logger.info('Deduplication stats at shutdown', {
       totalRequests: stats.totalRequests,
       deduplicatedRequests: stats.deduplicatedRequests,
       deduplicationRate: `${stats.deduplicationRate.toFixed(1)}%`,
@@ -310,7 +289,7 @@ export async function startBackgroundTasks(options?: {
     requestDeduplicator.destroy();
   });
 
-  logger.info("Background tasks started");
+  logger.info('Background tasks started');
 }
 
 /**
@@ -333,18 +312,16 @@ export function onShutdown(callback: () => Promise<void>): void {
 export async function gracefulShutdown(signal: string): Promise<void> {
   // Prevent multiple shutdown calls
   if (isShuttingDown) {
-    logger.debug("Shutdown already in progress, ignoring signal", { signal });
+    logger.debug('Shutdown already in progress, ignoring signal', { signal });
     return;
   }
   isShuttingDown = true;
 
-  logger.info("Graceful shutdown initiated", { signal });
+  logger.info('Graceful shutdown initiated', { signal });
 
   // Create shutdown timeout to prevent hanging
   const shutdownTimer = setTimeout(() => {
-    logger.warn(
-      `Shutdown timeout exceeded (${SHUTDOWN_TIMEOUT}ms), forcing exit`,
-    );
+    logger.warn(`Shutdown timeout exceeded (${SHUTDOWN_TIMEOUT}ms), forcing exit`);
     process.exit(1);
   }, SHUTDOWN_TIMEOUT);
 
@@ -355,7 +332,7 @@ export async function gracefulShutdown(signal: string): Promise<void> {
       try {
         await callback();
       } catch (error) {
-        logger.error("Shutdown callback failed", {
+        logger.error('Shutdown callback failed', {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -364,11 +341,11 @@ export async function gracefulShutdown(signal: string): Promise<void> {
     // Clear shutdown callbacks
     shutdownCallbacks = [];
 
-    logger.info("Graceful shutdown complete");
+    logger.info('Graceful shutdown complete');
     clearTimeout(shutdownTimer);
     process.exit(0);
   } catch (error) {
-    logger.error("Shutdown failed", {
+    logger.error('Shutdown failed', {
       error: error instanceof Error ? error.message : String(error),
     });
     clearTimeout(shutdownTimer);
@@ -381,45 +358,45 @@ export async function gracefulShutdown(signal: string): Promise<void> {
  */
 export function registerSignalHandlers(): void {
   // Handle SIGTERM (sent by Kubernetes, Docker, systemd)
-  process.on("SIGTERM", () => {
-    gracefulShutdown("SIGTERM").catch((error) => {
-      logger.error("SIGTERM handler failed", { error });
+  process.on('SIGTERM', () => {
+    gracefulShutdown('SIGTERM').catch((error) => {
+      logger.error('SIGTERM handler failed', { error });
       process.exit(1);
     });
   });
 
   // Handle SIGINT (Ctrl+C in terminal)
-  process.on("SIGINT", () => {
-    gracefulShutdown("SIGINT").catch((error) => {
-      logger.error("SIGINT handler failed", { error });
+  process.on('SIGINT', () => {
+    gracefulShutdown('SIGINT').catch((error) => {
+      logger.error('SIGINT handler failed', { error });
       process.exit(1);
     });
   });
 
   // Handle uncaught exceptions
-  process.on("uncaughtException", (error) => {
-    logger.error("Uncaught exception", {
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception', {
       error: error.message,
       stack: error.stack,
     });
-    gracefulShutdown("uncaughtException").catch(() => {
+    gracefulShutdown('uncaughtException').catch(() => {
       process.exit(1);
     });
   });
 
   // Handle unhandled promise rejections
-  process.on("unhandledRejection", (reason) => {
-    logger.error("Unhandled promise rejection", {
+  process.on('unhandledRejection', (reason) => {
+    logger.error('Unhandled promise rejection', {
       reason: reason instanceof Error ? reason.message : String(reason),
       stack: reason instanceof Error ? reason.stack : undefined,
     });
-    gracefulShutdown("unhandledRejection").catch(() => {
+    gracefulShutdown('unhandledRejection').catch(() => {
       process.exit(1);
     });
   });
 
   logger.info(
-    "Signal handlers registered (SIGTERM, SIGINT, uncaughtException, unhandledRejection)",
+    'Signal handlers registered (SIGTERM, SIGINT, uncaughtException, unhandledRejection)'
   );
 }
 
@@ -503,21 +480,21 @@ export function getBatchEfficiencyStats_(): unknown | null {
  * Log environment configuration for debugging
  */
 export function logEnvironmentConfig(): void {
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const logLevel = process.env["LOG_LEVEL"] || "info";
-  const httpPort = process.env["HTTP_PORT"] || "3000";
-  const otelEnabled = process.env["OTEL_ENABLED"] === "true";
-  const otelLogSpans = process.env["OTEL_LOG_SPANS"] === "true";
-  const cacheEnabled = process.env["CACHE_ENABLED"] !== "false";
-  const deduplicationEnabled = process.env["DEDUPLICATION_ENABLED"] !== "false";
+  const isProduction = process.env['NODE_ENV'] === 'production';
+  const logLevel = process.env['LOG_LEVEL'] || 'info';
+  const httpPort = process.env['HTTP_PORT'] || '3000';
+  const otelEnabled = process.env['OTEL_ENABLED'] === 'true';
+  const otelLogSpans = process.env['OTEL_LOG_SPANS'] === 'true';
+  const cacheEnabled = process.env['CACHE_ENABLED'] !== 'false';
+  const deduplicationEnabled = process.env['DEDUPLICATION_ENABLED'] !== 'false';
 
-  logger.info("Environment configuration", {
-    nodeEnv: isProduction ? "production" : "development",
+  logger.info('Environment configuration', {
+    nodeEnv: isProduction ? 'production' : 'development',
     logLevel,
     httpPort,
-    hasOAuthClientId: Boolean(process.env["OAUTH_CLIENT_ID"]),
-    hasOAuthClientSecret: Boolean(process.env["OAUTH_CLIENT_SECRET"]),
-    hasEncryptionKey: Boolean(process.env["ENCRYPTION_KEY"]),
+    hasOAuthClientId: Boolean(process.env['OAUTH_CLIENT_ID']),
+    hasOAuthClientSecret: Boolean(process.env['OAUTH_CLIENT_SECRET']),
+    hasEncryptionKey: Boolean(process.env['ENCRYPTION_KEY']),
     otelEnabled,
     otelLogSpans,
     cacheEnabled,

@@ -7,20 +7,20 @@
  * MCP Protocol: 2025-11-25
  */
 
-import type { GoogleApiClient } from "../services/google-api.js";
-import { cacheManager } from "../utils/cache-manager.js";
-import { requestDeduplicator } from "../utils/request-deduplication.js";
+import type { GoogleApiClient } from '../services/google-api.js';
+import { cacheManager } from '../utils/cache-manager.js';
+import { requestDeduplicator } from '../utils/request-deduplication.js';
 
 export interface HealthCheck {
   name: string;
-  status: "ok" | "degraded" | "error";
+  status: 'ok' | 'degraded' | 'error';
   message?: string;
   latency?: number;
   metadata?: Record<string, unknown>;
 }
 
 export interface HealthResponse {
-  status: "healthy" | "degraded" | "unhealthy";
+  status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
   uptime: number;
   version: string;
@@ -53,22 +53,20 @@ export class HealthService {
    */
   async checkLiveness(): Promise<HealthResponse> {
     return {
-      status: "healthy",
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env["npm_package_version"] || "1.4.0",
+      version: process.env['npm_package_version'] || '1.4.0',
       checks: [
         {
-          name: "process",
-          status: "ok",
-          message: "Server process is running",
+          name: 'process',
+          status: 'ok',
+          message: 'Server process is running',
           metadata: {
             pid: process.pid,
             nodeVersion: process.version,
             platform: process.platform,
-            memoryUsageMB: Math.round(
-              process.memoryUsage().heapUsed / 1024 / 1024,
-            ),
+            memoryUsageMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
           },
         },
       ],
@@ -88,22 +86,22 @@ export class HealthService {
    */
   async checkReadiness(): Promise<HealthResponse> {
     const checks: HealthCheck[] = [];
-    let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
+    let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
     // Check 1: Authentication
     const authCheck = await this.checkAuth();
     checks.push(authCheck);
-    if (authCheck.status === "error") overallStatus = "unhealthy";
-    else if (authCheck.status === "degraded" && overallStatus === "healthy") {
-      overallStatus = "degraded";
+    if (authCheck.status === 'error') overallStatus = 'unhealthy';
+    else if (authCheck.status === 'degraded' && overallStatus === 'healthy') {
+      overallStatus = 'degraded';
     }
 
     // Check 2: Google API connectivity
     const apiCheck = await this.checkGoogleApi();
     checks.push(apiCheck);
-    if (apiCheck.status === "error") overallStatus = "unhealthy";
-    else if (apiCheck.status === "degraded" && overallStatus === "healthy") {
-      overallStatus = "degraded";
+    if (apiCheck.status === 'error') overallStatus = 'unhealthy';
+    else if (apiCheck.status === 'degraded' && overallStatus === 'healthy') {
+      overallStatus = 'degraded';
     }
 
     // Check 3: Cache health
@@ -120,7 +118,7 @@ export class HealthService {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: Date.now() - this.startTime,
-      version: process.env["npm_package_version"] || "1.4.0",
+      version: process.env['npm_package_version'] || '1.4.0',
       checks,
     };
   }
@@ -133,9 +131,9 @@ export class HealthService {
 
     if (!this.googleClient) {
       return {
-        name: "auth",
-        status: "degraded",
-        message: "No Google API client configured",
+        name: 'auth',
+        status: 'degraded',
+        message: 'No Google API client configured',
         latency: Date.now() - start,
         metadata: {
           configured: false,
@@ -148,9 +146,9 @@ export class HealthService {
       const hasAuth = this.googleClient.isAuthenticated();
 
       return {
-        name: "auth",
-        status: hasAuth ? "ok" : "degraded",
-        message: hasAuth ? "Authenticated" : "Not authenticated",
+        name: 'auth',
+        status: hasAuth ? 'ok' : 'degraded',
+        message: hasAuth ? 'Authenticated' : 'Not authenticated',
         latency: Date.now() - start,
         metadata: {
           hasAuth,
@@ -159,8 +157,8 @@ export class HealthService {
       };
     } catch (error) {
       return {
-        name: "auth",
-        status: "error",
+        name: 'auth',
+        status: 'error',
         message: error instanceof Error ? error.message : String(error),
         latency: Date.now() - start,
       };
@@ -175,9 +173,9 @@ export class HealthService {
 
     if (!this.googleClient) {
       return {
-        name: "google_api",
-        status: "degraded",
-        message: "No Google API client configured",
+        name: 'google_api',
+        status: 'degraded',
+        message: 'No Google API client configured',
         latency: Date.now() - start,
         metadata: {
           configured: false,
@@ -191,9 +189,9 @@ export class HealthService {
       const hasAuth = this.googleClient.isAuthenticated();
 
       return {
-        name: "google_api",
-        status: hasAuth ? "ok" : "degraded",
-        message: hasAuth ? "API client ready" : "API client not authenticated",
+        name: 'google_api',
+        status: hasAuth ? 'ok' : 'degraded',
+        message: hasAuth ? 'API client ready' : 'API client not authenticated',
         latency: Date.now() - start,
         metadata: {
           hasAuth,
@@ -203,8 +201,8 @@ export class HealthService {
       };
     } catch (error) {
       return {
-        name: "google_api",
-        status: "error",
+        name: 'google_api',
+        status: 'error',
         message: error instanceof Error ? error.message : String(error),
         latency: Date.now() - start,
       };
@@ -220,20 +218,13 @@ export class HealthService {
     try {
       const stats = cacheManager.getStats();
       const hitRate =
-        stats.hits + stats.misses > 0
-          ? (stats.hits / (stats.hits + stats.misses)) * 100
-          : 0;
+        stats.hits + stats.misses > 0 ? (stats.hits / (stats.hits + stats.misses)) * 100 : 0;
 
       // Cache is healthy if hit rate is reasonable or no requests yet
-      const status =
-        stats.hits + stats.misses === 0
-          ? "ok"
-          : hitRate > 30
-            ? "ok"
-            : "degraded";
+      const status = stats.hits + stats.misses === 0 ? 'ok' : hitRate > 30 ? 'ok' : 'degraded';
 
       return {
-        name: "cache",
+        name: 'cache',
         status,
         message: `Cache operational, hit rate: ${hitRate.toFixed(1)}%`,
         latency: Date.now() - start,
@@ -247,8 +238,8 @@ export class HealthService {
       };
     } catch (error) {
       return {
-        name: "cache",
-        status: "degraded", // Cache failures are non-critical
+        name: 'cache',
+        status: 'degraded', // Cache failures are non-critical
         message: error instanceof Error ? error.message : String(error),
         latency: Date.now() - start,
       };
@@ -265,11 +256,11 @@ export class HealthService {
       const stats = requestDeduplicator.getStats();
 
       return {
-        name: "request_deduplication",
-        status: stats.enabled ? "ok" : "degraded",
+        name: 'request_deduplication',
+        status: stats.enabled ? 'ok' : 'degraded',
         message: stats.enabled
           ? `Deduplication active, ${stats.totalSavingsRate.toFixed(1)}% savings`
-          : "Deduplication disabled",
+          : 'Deduplication disabled',
         latency: Date.now() - start,
         metadata: {
           enabled: stats.enabled,
@@ -281,8 +272,8 @@ export class HealthService {
       };
     } catch (error) {
       return {
-        name: "request_deduplication",
-        status: "degraded", // Dedup failures are non-critical
+        name: 'request_deduplication',
+        status: 'degraded', // Dedup failures are non-critical
         message: error instanceof Error ? error.message : String(error),
         latency: Date.now() - start,
       };

@@ -12,20 +12,20 @@
  * 6. Reduced object allocations
  */
 
-import type { Intent } from "../core/intent.js";
-import type { BatchCompiler, ExecutionResult } from "../core/batch-compiler.js";
-import type { RangeResolver } from "../core/range-resolver.js";
+import type { Intent } from '../core/intent.js';
+import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
+import type { RangeResolver } from '../core/range-resolver.js';
 import type {
   SafetyOptions,
   ErrorDetail,
   MutationSummary,
   RangeInput,
   ResponseMeta,
-} from "../schemas/shared.js";
-import { parseGoogleApiError } from "../utils/error-factory.js";
-import type { RequestDeduplicator } from "../utils/request-deduplication.js";
-import type { CircuitBreaker } from "../utils/circuit-breaker.js";
-import { getContextManager } from "../services/context-manager.js";
+} from '../schemas/shared.js';
+import { parseGoogleApiError } from '../utils/error-factory.js';
+import type { RequestDeduplicator } from '../utils/request-deduplication.js';
+import type { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getContextManager } from '../services/context-manager.js';
 import {
   requiresConfirmation,
   generateSafetyWarnings,
@@ -36,7 +36,7 @@ import {
   type SafetyContext,
   type SafetyWarning,
   type SnapshotResult,
-} from "../utils/safety-helpers.js";
+} from '../utils/safety-helpers.js';
 
 // ============================================================================
 // PRE-COMPUTED CONSTANTS
@@ -45,7 +45,7 @@ import {
 // Pre-computed column letters (A-ZZ) - 702 columns
 const COLUMN_LETTERS: string[] = [];
 for (let i = 0; i < 702; i++) {
-  let letter = "";
+  let letter = '';
   let temp = i + 1;
   while (temp > 0) {
     const mod = (temp - 1) % 26;
@@ -71,17 +71,17 @@ export { COLUMN_LETTERS, LETTER_TO_COLUMN };
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
-  batchingSystem?: import("../services/batching-system.js").BatchingSystem;
-  snapshotService?: import("../services/snapshot.js").SnapshotService;
+  batchingSystem?: import('../services/batching-system.js').BatchingSystem;
+  snapshotService?: import('../services/snapshot.js').SnapshotService;
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];
   };
-  samplingServer?: import("@modelcontextprotocol/sdk/server/index.js").Server;
+  samplingServer?: import('@modelcontextprotocol/sdk/server/index.js').Server;
   requestDeduplicator?: RequestDeduplicator;
   circuitBreaker?: CircuitBreaker;
-  elicitationServer?: import("../mcp/elicitation.js").ElicitationServer;
-  server?: import("@modelcontextprotocol/sdk/server/index.js").Server;
+  elicitationServer?: import('../mcp/elicitation.js').ElicitationServer;
+  server?: import('@modelcontextprotocol/sdk/server/index.js').Server;
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;
@@ -104,9 +104,7 @@ export interface HandlerError {
   error: ErrorDetail;
 }
 
-export type HandlerOutput<T extends Record<string, unknown>> =
-  | HandlerResult<T>
-  | HandlerError;
+export type HandlerOutput<T extends Record<string, unknown>> = HandlerResult<T> | HandlerError;
 
 // ============================================================================
 // OPTIMIZED BASE HANDLER
@@ -142,7 +140,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
    */
   protected async executeIntents(
     intents: Intent[],
-    safety?: SafetyOptions,
+    safety?: SafetyOptions
   ): Promise<ExecutionResult[]> {
     const batches = await this.context.batchCompiler.compile(intents);
     return this.context.batchCompiler.executeAll(batches, safety);
@@ -151,14 +149,8 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
   /**
    * Resolve range using range resolver
    */
-  protected async resolveRange(
-    spreadsheetId: string,
-    range: RangeInput,
-  ): Promise<string> {
-    const resolved = await this.context.rangeResolver.resolve(
-      spreadsheetId,
-      range,
-    );
+  protected async resolveRange(spreadsheetId: string, range: RangeInput): Promise<string> {
+    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, range);
     return resolved.a1Notation;
   }
 
@@ -171,7 +163,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     action: string,
     data: T,
     mutation?: MutationSummary,
-    dryRun?: boolean,
+    dryRun?: boolean
   ): HandlerResult<T> {
     const result = {
       success: true as const,
@@ -198,7 +190,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
    */
   protected mapError(err: unknown): HandlerError {
     // Fast path: already structured error
-    if (err && typeof err === "object" && "code" in err) {
+    if (err && typeof err === 'object' && 'code' in err) {
       const structured = err as {
         code: string;
         message: string;
@@ -206,7 +198,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
         retryable?: boolean;
       };
       return this.error({
-        code: structured.code as ErrorDetail["code"],
+        code: structured.code as ErrorDetail['code'],
         message: structured.message,
         details: structured.details,
         retryable: structured.retryable ?? false,
@@ -220,7 +212,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
 
     // Unknown error fallback
     return this.error({
-      code: "UNKNOWN_ERROR",
+      code: 'UNKNOWN_ERROR',
       message: String(err),
       retryable: false,
     });
@@ -233,20 +225,17 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     const errorAny = error as unknown as Record<string, unknown>;
 
     // Fast path: structured Google API error with numeric code
-    if (typeof errorAny["code"] === "number") {
+    if (typeof errorAny['code'] === 'number') {
       const parsed = parseGoogleApiError(
         errorAny as {
           code?: number;
           message?: string;
           status?: string;
           errors?: { domain?: string; reason?: string; message?: string }[];
-        },
+        }
       );
-      if (
-        this.currentSpreadsheetId &&
-        parsed.details?.["resourceId"] === "unknown"
-      ) {
-        parsed.details["resourceId"] = this.currentSpreadsheetId;
+      if (this.currentSpreadsheetId && parsed.details?.['resourceId'] === 'unknown') {
+        parsed.details['resourceId'] = this.currentSpreadsheetId;
       }
       return parsed as ErrorDetail;
     }
@@ -254,53 +243,51 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     // String-based detection (slower path)
     const message = error.message.toLowerCase();
 
-    if (message.includes("429") || message.includes("rate limit")) {
+    if (message.includes('429') || message.includes('rate limit')) {
       return {
-        code: "RATE_LIMITED",
-        message: "Rate limited. Retry in 60 seconds.",
+        code: 'RATE_LIMITED',
+        message: 'Rate limited. Retry in 60 seconds.',
         retryable: true,
       };
     }
-    if (message.includes("403") || message.includes("permission")) {
+    if (message.includes('403') || message.includes('permission')) {
       return {
-        code: "PERMISSION_DENIED",
-        message: "Permission denied.",
+        code: 'PERMISSION_DENIED',
+        message: 'Permission denied.',
         retryable: false,
       };
     }
-    if (message.includes("404") || message.includes("not found")) {
+    if (message.includes('404') || message.includes('not found')) {
       return {
-        code: "NOT_FOUND",
-        message: `Resource not found: ${this.currentSpreadsheetId || "unknown"}`,
+        code: 'NOT_FOUND',
+        message: `Resource not found: ${this.currentSpreadsheetId || 'unknown'}`,
         retryable: false,
       };
     }
-    if (message.includes("unable to parse range")) {
+    if (message.includes('unable to parse range')) {
       return {
-        code: "INVALID_PARAMS",
-        message: "Invalid range format",
+        code: 'INVALID_PARAMS',
+        message: 'Invalid range format',
         retryable: false,
       };
     }
 
-    return { code: "INTERNAL_ERROR", message: error.message, retryable: false };
+    return { code: 'INTERNAL_ERROR', message: error.message, retryable: false };
   }
 
   /**
    * Create mutation summary from execution results
    */
-  protected createMutationSummary(
-    results: ExecutionResult[],
-  ): MutationSummary | undefined {
+  protected createMutationSummary(results: ExecutionResult[]): MutationSummary | undefined {
     const firstResult = results[0];
     // OK: Explicit empty - typed as optional, no execution results
     if (!firstResult) return undefined;
 
     return {
       cellsAffected:
-        firstResult.diff?.tier === "METADATA"
+        firstResult.diff?.tier === 'METADATA'
           ? firstResult.diff.summary.estimatedCellsChanged
-          : firstResult.diff?.tier === "FULL"
+          : firstResult.diff?.tier === 'FULL'
             ? firstResult.diff.summary.cellsChanged
             : 0,
       diff: firstResult.diff,
@@ -317,7 +304,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
       return COLUMN_LETTERS[index]!;
     }
     // Fallback for very large indices (beyond ZZ)
-    let letter = "";
+    let letter = '';
     let temp = index + 1;
     while (temp > 0) {
       const mod = (temp - 1) % 26;
@@ -352,9 +339,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
   /**
    * Infer parameters from context - lazy init
    */
-  protected inferRequestParameters<T extends Record<string, unknown>>(
-    request: T,
-  ): T {
+  protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
     if (!this._contextManager) {
       this._contextManager = getContextManager();
     }
@@ -383,20 +368,16 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
 
   protected getSafetyWarnings(
     context: SafetyContext,
-    safetyOptions?: SafetyOptions,
+    safetyOptions?: SafetyOptions
   ): SafetyWarning[] {
     return generateSafetyWarnings(context, safetyOptions);
   }
 
   protected async createSafetySnapshot(
     context: SafetyContext,
-    safetyOptions?: SafetyOptions,
+    safetyOptions?: SafetyOptions
   ): Promise<SnapshotResult | null> {
-    return createSnapshotIfNeeded(
-      this.context.snapshotService,
-      context,
-      safetyOptions,
-    );
+    return createSnapshotIfNeeded(this.context.snapshotService, context, safetyOptions);
   }
 
   protected formatWarnings(warnings: SafetyWarning[]): string[] {
@@ -407,9 +388,7 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
     return shouldReturnPreview(safetyOptions);
   }
 
-  protected snapshotInfo(
-    snapshot: SnapshotResult | null,
-  ): Record<string, unknown> | undefined {
+  protected snapshotInfo(snapshot: SnapshotResult | null): Record<string, unknown> | undefined {
     return buildSnapshotInfo(snapshot);
   }
 
@@ -418,18 +397,18 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
    */
   protected async fetchComprehensiveMetadata(
     spreadsheetId: string,
-    sheetsApi: import("googleapis").sheets_v4.Sheets,
-  ): Promise<import("googleapis").sheets_v4.Schema$Spreadsheet> {
-    const { cacheManager, createCacheKey } =
-      await import("../utils/cache-manager.js");
-    const { CACHE_TTL_SPREADSHEET } = await import("../config/constants.js");
+    sheetsApi: import('googleapis').sheets_v4.Sheets
+  ): Promise<import('googleapis').sheets_v4.Schema$Spreadsheet> {
+    const { cacheManager, createCacheKey } = await import('../utils/cache-manager.js');
+    const { CACHE_TTL_SPREADSHEET } = await import('../config/constants.js');
 
-    const cacheKey = createCacheKey("spreadsheet:comprehensive", {
+    const cacheKey = createCacheKey('spreadsheet:comprehensive', {
       spreadsheetId,
     });
-    const cached = cacheManager.get<
-      import("googleapis").sheets_v4.Schema$Spreadsheet
-    >(cacheKey, "spreadsheet");
+    const cached = cacheManager.get<import('googleapis').sheets_v4.Schema$Spreadsheet>(
+      cacheKey,
+      'spreadsheet'
+    );
 
     if (cached) return cached;
 
@@ -437,12 +416,12 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
       spreadsheetId,
       includeGridData: false,
       fields:
-        "spreadsheetId,properties,namedRanges,sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)",
+        'spreadsheetId,properties,namedRanges,sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
     });
 
     cacheManager.set(cacheKey, response.data, {
       ttl: CACHE_TTL_SPREADSHEET,
-      namespace: "spreadsheet",
+      namespace: 'spreadsheet',
     });
     return response.data;
   }

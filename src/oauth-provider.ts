@@ -25,14 +25,14 @@ export interface OAuthConfig {
   clientId: string;
   clientSecret: string;
   jwtSecret: string;
-  jwtSecretPrevious?: string;  // Previous JWT secret for rotation (optional)
-  stateSecret: string;  // HMAC secret for state tokens
-  allowedRedirectUris: string[];  // Allowlist of redirect URIs
-  accessTokenTtl?: number;  // seconds
+  jwtSecretPrevious?: string; // Previous JWT secret for rotation (optional)
+  stateSecret: string; // HMAC secret for state tokens
+  allowedRedirectUris: string[]; // Allowlist of redirect URIs
+  accessTokenTtl?: number; // seconds
   refreshTokenTtl?: number; // seconds
   googleClientId?: string;
   googleClientSecret?: string;
-  sessionStore?: SessionStore;  // Optional session store (defaults to in-memory)
+  sessionStore?: SessionStore; // Optional session store (defaults to in-memory)
 }
 
 interface TokenPayload {
@@ -51,8 +51,8 @@ interface AuthorizationCode {
   clientId: string;
   redirectUri: string;
   scope: string;
-  codeChallenge: string;  // Now required (PKCE enforced)
-  codeChallengeMethod: string;  // Now required (PKCE enforced)
+  codeChallenge: string; // Now required (PKCE enforced)
+  codeChallengeMethod: string; // Now required (PKCE enforced)
   googleAccessToken: string | undefined;
   googleRefreshToken: string | undefined;
   expiresAt: number;
@@ -85,7 +85,7 @@ interface StoredState {
  * Supported OAuth scopes
  */
 const SUPPORTED_SCOPES = ['sheets:read', 'sheets:write', 'sheets:admin'] as const;
-type SupportedScope = typeof SUPPORTED_SCOPES[number];
+type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
 
 /**
  * Scope hierarchy - higher scopes include lower scopes
@@ -100,7 +100,10 @@ const SCOPE_HIERARCHY: Record<string, string[]> = {
  * OAuth 2.1 Provider for MCP authentication
  */
 export class OAuthProvider {
-  private config: Required<Omit<OAuthConfig, 'sessionStore' | 'jwtSecretPrevious'>> & { sessionStore?: SessionStore; jwtSecretPrevious?: string };
+  private config: Required<Omit<OAuthConfig, 'sessionStore' | 'jwtSecretPrevious'>> & {
+    sessionStore?: SessionStore;
+    jwtSecretPrevious?: string;
+  };
   private sessionStore: SessionStore;
   private cleanupInterval: NodeJS.Timeout;
   private jwtSecrets: string[]; // Active JWT secrets (primary + previous)
@@ -108,8 +111,8 @@ export class OAuthProvider {
 
   constructor(config: OAuthConfig) {
     this.config = {
-      accessTokenTtl: 3600,      // 1 hour
-      refreshTokenTtl: 2592000,  // 30 days
+      accessTokenTtl: 3600, // 1 hour
+      refreshTokenTtl: 2592000, // 30 days
       googleClientId: '',
       googleClientSecret: '',
       ...config,
@@ -137,7 +140,7 @@ export class OAuthProvider {
     if (isProduction && !config.sessionStore && !process.env['REDIS_URL']) {
       throw new Error(
         'Redis session store required in production (REDIS_URL not set). ' +
-        'In-memory session store does not support multiple instances or persist across restarts.'
+          'In-memory session store does not support multiple instances or persist across restarts.'
       );
     }
 
@@ -163,10 +166,12 @@ export class OAuthProvider {
 
     if (isProduction && !config.sessionStore) {
       logger.info('Production mode: Using Redis session store', {
-        redisConfigured: !!process.env['REDIS_URL']
+        redisConfigured: !!process.env['REDIS_URL'],
       });
     } else if (!isProduction) {
-      logger.warn('⚠️  Development mode: Using in-memory session store (not suitable for production)');
+      logger.warn(
+        '⚠️  Development mode: Using in-memory session store (not suitable for production)'
+      );
     }
 
     // Start cleanup task for expired entries
@@ -200,15 +205,14 @@ export class OAuthProvider {
     try {
       const url = new URL(uri);
 
-      return this.config.allowedRedirectUris.some(allowed => {
+      return this.config.allowedRedirectUris.some((allowed) => {
         try {
           const allowedUrl = new URL(allowed);
 
           // Must match origin (protocol + host + port) AND pathname exactly
           // Query parameters are allowed to vary (OAuth state, etc.)
           // Fragments are allowed but origin/pathname must still match
-          return url.origin === allowedUrl.origin &&
-                 url.pathname === allowedUrl.pathname;
+          return url.origin === allowedUrl.origin && url.pathname === allowedUrl.pathname;
         } catch {
           // If allowed URI is invalid, skip it
           return false;
@@ -224,21 +228,25 @@ export class OAuthProvider {
    * Validate and normalize requested scopes
    * Returns normalized scope string or null if invalid
    */
-  private validateScope(requestedScope: string | undefined): { valid: boolean; scope?: string; error?: string } {
+  private validateScope(requestedScope: string | undefined): {
+    valid: boolean;
+    scope?: string;
+    error?: string;
+  } {
     // Default to sheets:read if no scope provided
     if (!requestedScope) {
       return { valid: true, scope: 'sheets:read' };
     }
 
     // Parse requested scopes (space-separated)
-    const scopes = requestedScope.split(' ').filter(s => s.length > 0);
+    const scopes = requestedScope.split(' ').filter((s) => s.length > 0);
 
     // Validate each scope
     for (const scope of scopes) {
       if (!SUPPORTED_SCOPES.includes(scope as SupportedScope)) {
         return {
           valid: false,
-          error: `Invalid scope '${scope}'. Supported scopes: ${SUPPORTED_SCOPES.join(', ')}`
+          error: `Invalid scope '${scope}'. Supported scopes: ${SUPPORTED_SCOPES.join(', ')}`,
         };
       }
     }
@@ -278,9 +286,7 @@ export class OAuthProvider {
     const nonce = randomBytes(16).toString('hex');
     const timestamp = Date.now().toString();
     const payload = `${nonce}:${timestamp}:${clientId}`;
-    const signature = createHmac('sha256', this.config.stateSecret)
-      .update(payload)
-      .digest('hex');
+    const signature = createHmac('sha256', this.config.stateSecret).update(payload).digest('hex');
 
     // Store state with 5-minute TTL
     await this.sessionStore.set(
@@ -289,7 +295,7 @@ export class OAuthProvider {
         created: Date.now(),
         clientId,
         redirectUri,
-        used: false
+        used: false,
       } as StoredState,
       300 // 5 minutes
     );
@@ -300,7 +306,7 @@ export class OAuthProvider {
   /**
    * Verify and consume state token
    */
-  private async verifyState(state: string): Promise<{ clientId: string, redirectUri: string }> {
+  private async verifyState(state: string): Promise<{ clientId: string; redirectUri: string }> {
     const [nonce, timestamp, clientId, signature] = state.split(':');
 
     if (!nonce || !timestamp || !clientId || !signature) {
@@ -424,7 +430,9 @@ export class OAuthProvider {
       }
 
       if (!redirect_uri) {
-        res.status(400).json({ error: 'invalid_request', error_description: 'redirect_uri required' });
+        res
+          .status(400)
+          .json({ error: 'invalid_request', error_description: 'redirect_uri required' });
         return;
       }
 
@@ -432,7 +440,7 @@ export class OAuthProvider {
       if (!this.validateRedirectUri(redirect_uri)) {
         res.status(400).json({
           error: 'invalid_request',
-          error_description: 'redirect_uri not in allowlist'
+          error_description: 'redirect_uri not in allowlist',
         });
         return;
       }
@@ -442,7 +450,7 @@ export class OAuthProvider {
       if (!scopeValidation.valid) {
         res.status(400).json({
           error: 'invalid_scope',
-          error_description: scopeValidation.error
+          error_description: scopeValidation.error,
         });
         return;
       }
@@ -452,7 +460,7 @@ export class OAuthProvider {
       if (!code_challenge || !code_challenge_method) {
         res.status(400).json({
           error: 'invalid_request',
-          error_description: 'code_challenge and code_challenge_method are required (PKCE)'
+          error_description: 'code_challenge and code_challenge_method are required (PKCE)',
         });
         return;
       }
@@ -461,7 +469,7 @@ export class OAuthProvider {
       if (code_challenge_method !== 'S256') {
         res.status(400).json({
           error: 'invalid_request',
-          error_description: 'Only code_challenge_method=S256 is supported'
+          error_description: 'Only code_challenge_method=S256 is supported',
         });
         return;
       }
@@ -470,7 +478,7 @@ export class OAuthProvider {
       if (!/^[A-Za-z0-9_-]{43,128}$/.test(code_challenge)) {
         res.status(400).json({
           error: 'invalid_request',
-          error_description: 'code_challenge must be a 43-128 character base64url string'
+          error_description: 'code_challenge must be a 43-128 character base64url string',
         });
         return;
       }
@@ -479,10 +487,16 @@ export class OAuthProvider {
       if (this.config.googleClientId) {
         const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
         googleAuthUrl.searchParams.set('client_id', this.config.googleClientId);
-        googleAuthUrl.searchParams.set('redirect_uri', `${this.config.issuer}/oauth/google-callback`);
+        googleAuthUrl.searchParams.set(
+          'redirect_uri',
+          `${this.config.issuer}/oauth/google-callback`
+        );
         googleAuthUrl.searchParams.set('response_type', 'code');
         // Match old project's "admin" scope mode: spreadsheets + drive.file + drive.readonly
-        googleAuthUrl.searchParams.set('scope', 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly');
+        googleAuthUrl.searchParams.set(
+          'scope',
+          'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'
+        );
         googleAuthUrl.searchParams.set('access_type', 'offline');
         googleAuthUrl.searchParams.set('prompt', 'consent');
 
@@ -494,7 +508,10 @@ export class OAuthProvider {
           codeChallenge: code_challenge,
           codeChallengeMethod: code_challenge_method,
         };
-        googleAuthUrl.searchParams.set('state', Buffer.from(JSON.stringify(stateData)).toString('base64'));
+        googleAuthUrl.searchParams.set(
+          'state',
+          Buffer.from(JSON.stringify(stateData)).toString('base64')
+        );
 
         res.redirect(googleAuthUrl.toString());
         return;
@@ -521,7 +538,7 @@ export class OAuthProvider {
       const callbackUrl = new URL(redirect_uri);
       callbackUrl.searchParams.set('code', code);
       if (state) callbackUrl.searchParams.set('state', state);
-      
+
       res.redirect(callbackUrl.toString());
     });
 
@@ -535,7 +552,9 @@ export class OAuthProvider {
       }
 
       if (!state || !code) {
-        res.status(400).json({ error: 'invalid_request', error_description: 'Missing code or state' });
+        res
+          .status(400)
+          .json({ error: 'invalid_request', error_description: 'Missing code or state' });
         return;
       }
 
@@ -550,11 +569,11 @@ export class OAuthProvider {
         if (!this.validateRedirectUri(stateData.redirectUri)) {
           res.status(400).json({
             error: 'invalid_request',
-            error_description: 'Invalid redirect URI in state'
+            error_description: 'Invalid redirect URI in state',
           });
           return;
         }
-        
+
         // Exchange code for Google tokens (with circuit breaker protection)
         const googleTokens = await this.oauthCircuit.execute(async () => {
           const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -569,7 +588,7 @@ export class OAuthProvider {
             }),
           });
 
-          return await tokenResponse.json() as {
+          return (await tokenResponse.json()) as {
             access_token: string;
             refresh_token?: string;
           };
@@ -599,11 +618,10 @@ export class OAuthProvider {
         if (stateData.originalState) {
           callbackUrl.searchParams.set('state', stateData.originalState);
         }
-        
-        res.redirect(callbackUrl.toString());
 
+        res.redirect(callbackUrl.toString());
       } catch (err) {
-        res.status(500).json({ 
+        res.status(500).json({
           error: 'token_exchange_failed',
           details: err instanceof Error ? err.message : String(err),
         });
@@ -612,7 +630,15 @@ export class OAuthProvider {
 
     // Token endpoint
     router.post('/oauth/token', express.urlencoded({ extended: false }), async (req, res) => {
-      const { grant_type, code, redirect_uri, client_id, client_secret, refresh_token, code_verifier } = req.body as Record<string, string | undefined>;
+      const {
+        grant_type,
+        code,
+        redirect_uri,
+        client_id,
+        client_secret,
+        refresh_token,
+        code_verifier,
+      } = req.body as Record<string, string | undefined>;
 
       // Validate client
       if (client_id !== this.config.clientId || client_secret !== this.config.clientSecret) {
@@ -662,7 +688,7 @@ export class OAuthProvider {
             algorithms: ['HS256'],
             audience: this.config.clientId,
             issuer: this.config.issuer,
-            clockTolerance: 30
+            clockTolerance: 30,
           }) as TokenPayload;
 
           res.json({
@@ -700,7 +726,12 @@ export class OAuthProvider {
     const authCodeData = await this.sessionStore.get(`authcode:${code}`);
 
     if (!authCodeData) {
-      res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid or expired authorization code' });
+      res
+        .status(400)
+        .json({
+          error: 'invalid_grant',
+          error_description: 'Invalid or expired authorization code',
+        });
       return;
     }
 
@@ -715,20 +746,18 @@ export class OAuthProvider {
     if (!codeVerifier) {
       res.status(400).json({
         error: 'invalid_grant',
-        error_description: 'code_verifier is required (PKCE)'
+        error_description: 'code_verifier is required (PKCE)',
       });
       return;
     }
 
     // authCode.codeChallenge is guaranteed to exist (enforced at auth endpoint)
-    const expectedChallenge = createHash('sha256')
-      .update(codeVerifier)
-      .digest('base64url');
+    const expectedChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
     if (expectedChallenge !== authCode.codeChallenge) {
       res.status(400).json({
         error: 'invalid_grant',
-        error_description: 'Invalid code_verifier (PKCE verification failed)'
+        error_description: 'Invalid code_verifier (PKCE verification failed)',
       });
       return;
     }
@@ -784,7 +813,9 @@ export class OAuthProvider {
     const tokenDataRaw = await this.sessionStore.get(`refresh:${refreshToken}`);
 
     if (!tokenDataRaw) {
-      res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid or expired refresh token' });
+      res
+        .status(400)
+        .json({ error: 'invalid_grant', error_description: 'Invalid or expired refresh token' });
       return;
     }
 
@@ -836,7 +867,12 @@ export class OAuthProvider {
       const authHeader = req.headers.authorization;
 
       if (!authHeader?.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'unauthorized', error_description: 'Missing or invalid authorization header' });
+        res
+          .status(401)
+          .json({
+            error: 'unauthorized',
+            error_description: 'Missing or invalid authorization header',
+          });
         return;
       }
 
@@ -852,7 +888,7 @@ export class OAuthProvider {
             algorithms: ['HS256'],
             audience: this.config.clientId,
             issuer: this.config.issuer,
-            clockTolerance: 30 // 30 second clock skew tolerance
+            clockTolerance: 30, // 30 second clock skew tolerance
           }) as TokenPayload;
 
           (req as Request & { auth: TokenPayload }).auth = payload;

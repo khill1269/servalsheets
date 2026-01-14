@@ -17,8 +17,8 @@
  * @see https://opentelemetry.io/docs/specs/otlp/
  */
 
-import { logger } from "../utils/logger.js";
-import { VERSION } from "../version.js";
+import { logger } from '../utils/logger.js';
+import { VERSION } from '../version.js';
 
 /**
  * OpenTelemetry span status codes
@@ -43,13 +43,7 @@ export enum OtelSpanKind {
 /**
  * OTLP attribute value types
  */
-export type OtelAttributeValue =
-  | string
-  | number
-  | boolean
-  | string[]
-  | number[]
-  | boolean[];
+export type OtelAttributeValue = string | number | boolean | string[] | number[] | boolean[];
 
 /**
  * OTLP span structure
@@ -78,7 +72,7 @@ export interface OtelSpan {
   events?: Array<{
     name: string;
     timeUnixNano: string;
-    attributes?: OtelSpan["attributes"];
+    attributes?: OtelSpan['attributes'];
   }>;
 }
 
@@ -88,7 +82,7 @@ export interface OtelSpan {
 export interface OtlpExportRequest {
   resourceSpans: Array<{
     resource: {
-      attributes: OtelSpan["attributes"];
+      attributes: OtelSpan['attributes'];
     };
     scopeSpans: Array<{
       scope: {
@@ -121,11 +115,11 @@ export interface ServalSpan {
   spanId: string;
   parentId?: string;
   name: string;
-  kind: "server" | "client" | "internal";
+  kind: 'server' | 'client' | 'internal';
   startTime: number; // ms since epoch
   endTime: number; // ms since epoch
   attributes: Record<string, OtelAttributeValue>;
-  status: "ok" | "error" | "unset";
+  status: 'ok' | 'error' | 'unset';
   statusMessage?: string;
   events?: Array<{
     name: string;
@@ -153,22 +147,18 @@ export class OtlpExporter {
 
   constructor(config?: Partial<OtlpExporterConfig>) {
     this.config = {
-      endpoint:
-        process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://localhost:4318",
-      serviceName: process.env["OTEL_SERVICE_NAME"] ?? "servalsheets",
-      serviceVersion: process.env["OTEL_SERVICE_VERSION"] ?? VERSION,
-      enabled: process.env["OTEL_EXPORT_ENABLED"] === "true",
-      batchSize: parseInt(process.env["OTEL_EXPORT_BATCH_SIZE"] ?? "100", 10),
-      exportIntervalMs: parseInt(
-        process.env["OTEL_EXPORT_INTERVAL_MS"] ?? "5000",
-        10,
-      ),
+      endpoint: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://localhost:4318',
+      serviceName: process.env['OTEL_SERVICE_NAME'] ?? 'servalsheets',
+      serviceVersion: process.env['OTEL_SERVICE_VERSION'] ?? VERSION,
+      enabled: process.env['OTEL_EXPORT_ENABLED'] === 'true',
+      batchSize: parseInt(process.env['OTEL_EXPORT_BATCH_SIZE'] ?? '100', 10),
+      exportIntervalMs: parseInt(process.env['OTEL_EXPORT_INTERVAL_MS'] ?? '5000', 10),
       ...config,
     };
 
     if (this.config.enabled) {
       this.startExportTimer();
-      logger.info("OTLP exporter initialized", {
+      logger.info('OTLP exporter initialized', {
         endpoint: this.config.endpoint,
         serviceName: this.config.serviceName,
         batchSize: this.config.batchSize,
@@ -222,9 +212,9 @@ export class OtlpExporter {
     try {
       const request = this.buildOtlpRequest(spans);
       const response = await fetch(`${this.config.endpoint}/v1/traces`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           ...this.config.headers,
         },
         body: JSON.stringify(request),
@@ -232,16 +222,14 @@ export class OtlpExporter {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(
-          `OTLP export failed: ${response.status} - ${errorText}`,
-        );
+        throw new Error(`OTLP export failed: ${response.status} - ${errorText}`);
       }
 
       this.stats.spansExported += spans.length;
       this.stats.lastExportTime = Date.now();
     } catch (error) {
       this.stats.exportErrors++;
-      logger.error("OTLP export error", {
+      logger.error('OTLP export error', {
         error: error instanceof Error ? error.message : String(error),
         spansLost: spans.length,
       });
@@ -261,27 +249,27 @@ export class OtlpExporter {
           resource: {
             attributes: [
               {
-                key: "service.name",
+                key: 'service.name',
                 value: { stringValue: this.config.serviceName },
               },
               {
-                key: "service.version",
+                key: 'service.version',
                 value: { stringValue: this.config.serviceVersion },
               },
               {
-                key: "telemetry.sdk.name",
-                value: { stringValue: "servalsheets-tracing" },
+                key: 'telemetry.sdk.name',
+                value: { stringValue: 'servalsheets-tracing' },
               },
               {
-                key: "telemetry.sdk.language",
-                value: { stringValue: "nodejs" },
+                key: 'telemetry.sdk.language',
+                value: { stringValue: 'nodejs' },
               },
             ],
           },
           scopeSpans: [
             {
               scope: {
-                name: "servalsheets",
+                name: 'servalsheets',
                 version: this.config.serviceVersion,
               },
               spans: spans.map((span) => this.convertSpan(span)),
@@ -318,9 +306,7 @@ export class OtlpExporter {
       otelSpan.events = span.events.map((event) => ({
         name: event.name,
         timeUnixNano: this.msToNano(event.time),
-        attributes: event.attributes
-          ? this.convertAttributes(event.attributes)
-          : undefined,
+        attributes: event.attributes ? this.convertAttributes(event.attributes) : undefined,
       }));
     }
 
@@ -330,13 +316,13 @@ export class OtlpExporter {
   /**
    * Convert span kind
    */
-  private convertKind(kind: ServalSpan["kind"]): OtelSpanKind {
+  private convertKind(kind: ServalSpan['kind']): OtelSpanKind {
     switch (kind) {
-      case "server":
+      case 'server':
         return OtelSpanKind.SERVER;
-      case "client":
+      case 'client':
         return OtelSpanKind.CLIENT;
-      case "internal":
+      case 'internal':
         return OtelSpanKind.INTERNAL;
       default:
         return OtelSpanKind.INTERNAL;
@@ -346,13 +332,13 @@ export class OtlpExporter {
   /**
    * Convert status
    */
-  private convertStatus(status: ServalSpan["status"]): OtelStatusCode {
+  private convertStatus(status: ServalSpan['status']): OtelStatusCode {
     switch (status) {
-      case "ok":
+      case 'ok':
         return OtelStatusCode.OK;
-      case "error":
+      case 'error':
         return OtelStatusCode.ERROR;
-      case "unset":
+      case 'unset':
         return OtelStatusCode.UNSET;
       default:
         return OtelStatusCode.UNSET;
@@ -362,15 +348,13 @@ export class OtlpExporter {
   /**
    * Convert attributes to OTLP format
    */
-  private convertAttributes(
-    attrs: Record<string, OtelAttributeValue>,
-  ): OtelSpan["attributes"] {
+  private convertAttributes(attrs: Record<string, OtelAttributeValue>): OtelSpan['attributes'] {
     return Object.entries(attrs).map(([key, value]) => {
-      if (typeof value === "string") {
+      if (typeof value === 'string') {
         return { key, value: { stringValue: value } };
-      } else if (typeof value === "number") {
+      } else if (typeof value === 'number') {
         return { key, value: { intValue: value.toString() } };
-      } else if (typeof value === "boolean") {
+      } else if (typeof value === 'boolean') {
         return { key, value: { boolValue: value } };
       } else if (Array.isArray(value)) {
         return {
@@ -398,12 +382,12 @@ export class OtlpExporter {
    */
   private padHex(hex: string, length: number): string {
     // Remove any non-hex characters and lowercase
-    const clean = hex.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+    const clean = hex.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
     // Pad or truncate to required length
     if (clean.length >= length) {
       return clean.substring(0, length);
     }
-    return clean.padStart(length, "0");
+    return clean.padStart(length, '0');
   }
 
   /**
@@ -447,7 +431,7 @@ export class OtlpExporter {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    logger.info("OTLP exporter shutdown", this.stats);
+    logger.info('OTLP exporter shutdown', this.stats);
   }
 }
 
@@ -457,9 +441,7 @@ let exporterInstance: OtlpExporter | null = null;
 /**
  * Get or create the OTLP exporter singleton
  */
-export function getOtlpExporter(
-  config?: Partial<OtlpExporterConfig>,
-): OtlpExporter {
+export function getOtlpExporter(config?: Partial<OtlpExporterConfig>): OtlpExporter {
   if (!exporterInstance) {
     exporterInstance = new OtlpExporter(config);
   }

@@ -5,7 +5,7 @@
  * Uses Redis for distributed caching across server restarts.
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 
 // Use generic Redis client type to avoid complex type compatibility issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +41,7 @@ export interface CachedCapabilities {
 }
 
 const CACHE_TTL_SECONDS = 3600; // 1 hour
-const CACHE_KEY_PREFIX = "servalsheets:capabilities:";
+const CACHE_KEY_PREFIX = 'servalsheets:capabilities:';
 
 /**
  * Capability Cache Service
@@ -78,7 +78,7 @@ export class CapabilityCacheService {
     // Check memory cache first (fastest)
     const memCached = this.memoryCache.get(sessionId);
     if (memCached && this.isValid(memCached)) {
-      logger.debug("Capability cache hit (memory)", { sessionId });
+      logger.debug('Capability cache hit (memory)', { sessionId });
       return memCached.capabilities;
     }
 
@@ -92,29 +92,26 @@ export class CapabilityCacheService {
           if (this.isValid(parsed)) {
             // Update memory cache
             this.memoryCache.set(sessionId, parsed);
-            logger.debug("Capability cache hit (Redis)", { sessionId });
+            logger.debug('Capability cache hit (Redis)', { sessionId });
             return parsed.capabilities;
           }
         }
       } catch (error) {
-        logger.warn("Failed to get capabilities from Redis", {
+        logger.warn('Failed to get capabilities from Redis', {
           sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
       }
     }
 
-    logger.debug("Capability cache miss", { sessionId });
+    logger.debug('Capability cache miss', { sessionId });
     return null;
   }
 
   /**
    * Cache capabilities for session
    */
-  async set(
-    sessionId: string,
-    capabilities: ClientCapabilities,
-  ): Promise<void> {
+  async set(sessionId: string, capabilities: ClientCapabilities): Promise<void> {
     const now = Date.now();
     const cached: CachedCapabilities = {
       capabilities,
@@ -129,17 +126,13 @@ export class CapabilityCacheService {
     if (this.redis) {
       try {
         const cacheKey = this.getCacheKey(sessionId);
-        await this.redis.setEx(
-          cacheKey,
-          CACHE_TTL_SECONDS,
-          JSON.stringify(cached),
-        );
-        logger.debug("Capabilities cached", {
+        await this.redis.setEx(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(cached));
+        logger.debug('Capabilities cached', {
           sessionId,
           ttl: CACHE_TTL_SECONDS,
         });
       } catch (error) {
-        logger.warn("Failed to cache capabilities in Redis", {
+        logger.warn('Failed to cache capabilities in Redis', {
           sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -157,9 +150,9 @@ export class CapabilityCacheService {
       try {
         const cacheKey = this.getCacheKey(sessionId);
         await this.redis.del(cacheKey);
-        logger.debug("Capabilities cache cleared", { sessionId });
+        logger.debug('Capabilities cache cleared', { sessionId });
       } catch (error) {
-        logger.warn("Failed to clear capabilities from Redis", {
+        logger.warn('Failed to clear capabilities from Redis', {
           sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -178,10 +171,10 @@ export class CapabilityCacheService {
         const keys = await this.redis.keys(`${CACHE_KEY_PREFIX}*`);
         if (keys.length > 0) {
           await this.redis.del(...keys);
-          logger.info("Cleared all capability caches", { count: keys.length });
+          logger.info('Cleared all capability caches', { count: keys.length });
         }
       } catch (error) {
-        logger.warn("Failed to clear all capabilities from Redis", {
+        logger.warn('Failed to clear all capabilities from Redis', {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -208,9 +201,7 @@ let capabilityCacheService: CapabilityCacheService | null = null;
 /**
  * Initialize capability cache service
  */
-export function initCapabilityCacheService(
-  redis?: RedisClient,
-): CapabilityCacheService {
+export function initCapabilityCacheService(redis?: RedisClient): CapabilityCacheService {
   capabilityCacheService = new CapabilityCacheService(redis);
   return capabilityCacheService;
 }
@@ -231,10 +222,8 @@ export function getCapabilityCacheService(): CapabilityCacheService {
  * @internal
  */
 export function resetCapabilityCacheService(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetCapabilityCacheService() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetCapabilityCacheService() can only be called in test environment');
   }
   capabilityCacheService = null;
 }
@@ -248,7 +237,7 @@ export function resetCapabilityCacheService(): void {
  */
 export async function getCapabilitiesWithCache(
   sessionId: string,
-  server: { getClientCapabilities: () => unknown },
+  server: { getClientCapabilities: () => unknown }
 ): Promise<ClientCapabilities> {
   const cache = getCapabilityCacheService();
 

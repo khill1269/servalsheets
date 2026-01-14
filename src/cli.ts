@@ -41,7 +41,7 @@ const cliOptions: {
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   const nextArg = args[i + 1];
-  
+
   if (arg === '--service-account' && nextArg) {
     cliOptions.serviceAccountKeyPath = nextArg;
     i++;
@@ -123,7 +123,8 @@ Examples:
 
 // Check environment variables
 // Support both GOOGLE_* and OAUTH_* prefixes for flexibility
-const serviceAccountPath = cliOptions.serviceAccountKeyPath ?? process.env['GOOGLE_APPLICATION_CREDENTIALS'];
+const serviceAccountPath =
+  cliOptions.serviceAccountKeyPath ?? process.env['GOOGLE_APPLICATION_CREDENTIALS'];
 const accessToken = cliOptions.accessToken ?? process.env['GOOGLE_ACCESS_TOKEN'];
 const clientId = process.env['GOOGLE_CLIENT_ID'] ?? process.env['OAUTH_CLIENT_ID'];
 const clientSecret = process.env['GOOGLE_CLIENT_SECRET'] ?? process.env['OAUTH_CLIENT_SECRET'];
@@ -179,11 +180,11 @@ if (serviceAccountPath) {
     if (cliOptions.transport === 'http') {
       // Start HTTP server
       const port = cliOptions.port ?? parseInt(process.env['PORT'] ?? '3000', 10);
-      
+
       // Dynamic import to avoid loading HTTP dependencies for STDIO mode
       const { startHttpServer } = await import('./http-server.js');
       await startHttpServer({ port, ...serverOptions });
-      
+
       logger.info(`ServalSheets HTTP server started on port ${port}`);
     } else {
       // Start STDIO server (default)

@@ -7,18 +7,13 @@
  * MCP Protocol: 2025-11-25 (SEP-1686)
  */
 
-import type {
-  Task,
-  RequestId,
-  Result,
-  Request,
-} from "@modelcontextprotocol/sdk/types.js";
+import type { Task, RequestId, Result, Request } from '@modelcontextprotocol/sdk/types.js';
 import type {
   TaskStore as SDKTaskStore,
   CreateTaskOptions,
-} from "@modelcontextprotocol/sdk/experimental/tasks/interfaces.js";
-import type { TaskStore as CustomTaskStore } from "./task-store.js";
-import { InMemoryTaskStore } from "./task-store.js";
+} from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
+import type { TaskStore as CustomTaskStore } from './task-store.js';
+import { InMemoryTaskStore } from './task-store.js';
 
 /**
  * Adapter that implements SDK TaskStore interface and delegates to custom InMemoryTaskStore
@@ -51,7 +46,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
     taskParams: CreateTaskOptions,
     _requestId: RequestId,
     _request: Request,
-    _sessionId?: string,
+    _sessionId?: string
   ): Promise<Task> {
     // Map CreateTaskOptions to custom options
     const customOptions = {
@@ -77,9 +72,9 @@ export class TaskStoreAdapter implements SDKTaskStore {
    */
   async storeTaskResult(
     taskId: string,
-    status: "completed" | "failed" | "cancelled",
+    status: 'completed' | 'failed' | 'cancelled',
     result: Result,
-    _sessionId?: string,
+    _sessionId?: string
   ): Promise<void> {
     // Result and CallToolResult are structurally compatible
     // Both have: content: Content[], isError?: boolean
@@ -87,7 +82,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
     await this.store.storeTaskResult(
       taskId,
       status,
-      result as unknown as Parameters<CustomTaskStore["storeTaskResult"]>[2],
+      result as unknown as Parameters<CustomTaskStore['storeTaskResult']>[2]
     );
   }
 
@@ -110,17 +105,17 @@ export class TaskStoreAdapter implements SDKTaskStore {
    */
   async updateTaskStatus(
     taskId: string,
-    status: Task["status"],
+    status: Task['status'],
     statusMessage?: string,
-    _sessionId?: string,
+    _sessionId?: string
   ): Promise<void> {
     // SDK Task['status'] includes same values as custom TaskStatus
     // 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled'
 
     // When status is 'cancelled', call cancelTask to properly set cancellation flags
     // This ensures isTaskCancelled() returns true and abort signals can be triggered
-    if (status === "cancelled") {
-      await this.cancelTask(taskId, statusMessage || "Task cancelled");
+    if (status === 'cancelled') {
+      await this.cancelTask(taskId, statusMessage || 'Task cancelled');
     } else {
       await this.store.updateTaskStatus(taskId, status, statusMessage);
     }
@@ -134,14 +129,12 @@ export class TaskStoreAdapter implements SDKTaskStore {
    */
   async listTasks(
     cursor?: string,
-    _sessionId?: string,
+    _sessionId?: string
   ): Promise<{ tasks: Task[]; nextCursor?: string }> {
     const PAGE_SIZE = 50;
 
     // Decode cursor to get offset
-    const offset = cursor
-      ? parseInt(Buffer.from(cursor, "base64").toString("utf-8"), 10)
-      : 0;
+    const offset = cursor ? parseInt(Buffer.from(cursor, 'base64').toString('utf-8'), 10) : 0;
 
     // Get all tasks (already sorted by creation time, newest first)
     const allTasks = await this.store.getAllTasks();
@@ -152,9 +145,7 @@ export class TaskStoreAdapter implements SDKTaskStore {
     // Generate next cursor if more tasks exist
     const nextCursor =
       offset + PAGE_SIZE < allTasks.length
-        ? Buffer.from((offset + PAGE_SIZE).toString(), "utf-8").toString(
-            "base64",
-          )
+        ? Buffer.from((offset + PAGE_SIZE).toString(), 'utf-8').toString('base64')
         : undefined;
 
     return {

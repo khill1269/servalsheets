@@ -4,8 +4,8 @@
  * Exposes transaction manager capabilities as MCP resources for discovery and reference.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getTransactionManager } from "../services/transaction-manager.js";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getTransactionManager } from '../services/transaction-manager.js';
 
 /**
  * Register transaction resources with the MCP server
@@ -15,12 +15,12 @@ export function registerTransactionResources(server: McpServer): number {
 
   // Resource 1: transaction://stats - Transaction manager statistics
   server.registerResource(
-    "Transaction Manager Statistics",
-    "transaction://stats",
+    'Transaction Manager Statistics',
+    'transaction://stats',
     {
       description:
-        "Transaction manager statistics: total transactions, success rate, API calls saved",
-      mimeType: "application/json",
+        'Transaction manager statistics: total transactions, success rate, API calls saved',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -29,8 +29,8 @@ export function registerTransactionResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   stats: {
@@ -40,8 +40,7 @@ export function registerTransactionResources(server: McpServer): number {
                     rolledBackTransactions: stats.rolledBackTransactions,
                     successRate: `${(stats.successRate * 100).toFixed(1)}%`,
                     avgTransactionDuration: `${(stats.avgTransactionDuration / 1000).toFixed(2)}s`,
-                    avgOperationsPerTransaction:
-                      stats.avgOperationsPerTransaction.toFixed(1),
+                    avgOperationsPerTransaction: stats.avgOperationsPerTransaction.toFixed(1),
                     apiCallsSaved: stats.apiCallsSaved,
                     snapshotsCreated: stats.snapshotsCreated,
                     activeTransactions: stats.activeTransactions,
@@ -50,42 +49,41 @@ export function registerTransactionResources(server: McpServer): number {
                   summary: `Executed ${stats.successfulTransactions} successful transaction(s) with ${(stats.successRate * 100).toFixed(1)}% success rate, saving ${stats.apiCallsSaved} API call(s)`,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch transaction statistics",
+                  error: 'Failed to fetch transaction statistics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource 2: transaction://help - Transaction capabilities documentation
   server.registerResource(
-    "Transaction Manager Help",
-    "transaction://help",
+    'Transaction Manager Help',
+    'transaction://help',
     {
       description:
-        "Documentation for the transaction manager: atomicity, rollback, batch operations",
-      mimeType: "text/markdown",
+        'Documentation for the transaction manager: atomicity, rollback, batch operations',
+      mimeType: 'text/markdown',
     },
     async (uri) => {
       try {
@@ -294,32 +292,31 @@ Maximum 10 concurrent transactions (configurable) to prevent resource exhaustion
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/markdown",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/markdown',
               text: helpText,
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/plain",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/plain',
               text: `Error fetching transaction help: ${errorMessage}`,
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Note: Using console.error for MCP server startup output (visible to user)
-  console.error("[ServalSheets] Registered 2 transaction resources:");
-  console.error("  - transaction://stats (transaction manager statistics)");
-  console.error("  - transaction://help (transaction manager documentation)");
+  console.error('[ServalSheets] Registered 2 transaction resources:');
+  console.error('  - transaction://stats (transaction manager statistics)');
+  console.error('  - transaction://help (transaction manager documentation)');
 
   return 2;
 }

@@ -12,7 +12,7 @@
  * @module utils/infrastructure
  */
 
-import type { sheets_v4 } from "googleapis";
+import type { sheets_v4 } from 'googleapis';
 
 // ============================================================================
 // CONSTANTS
@@ -87,7 +87,7 @@ export class RequestCoalescer {
     options: {
       coalesceWindowMs?: number;
       maxCoalesceSize?: number;
-    } = {},
+    } = {}
   ) {
     this.coalesceWindowMs = options.coalesceWindowMs ?? COALESCE_WINDOW_MS;
     this.maxCoalesceSize = options.maxCoalesceSize ?? MAX_COALESCE_SIZE;
@@ -99,7 +99,7 @@ export class RequestCoalescer {
   async queue<T>(
     spreadsheetId: string,
     operation: () => Promise<T>,
-    priority: number = 0,
+    priority: number = 0
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const request: PendingRequest<T> = {
@@ -120,10 +120,7 @@ export class RequestCoalescer {
   /**
    * Add request to pending queue
    */
-  private addRequest(
-    spreadsheetId: string,
-    request: PendingRequest<unknown>,
-  ): void {
+  private addRequest(spreadsheetId: string, request: PendingRequest<unknown>): void {
     let pending = this.pendingRequests.get(spreadsheetId);
     if (!pending) {
       pending = [];
@@ -132,7 +129,7 @@ export class RequestCoalescer {
 
     // Enforce max pending limit
     if (pending.length >= MAX_PENDING_PER_SPREADSHEET) {
-      request.reject(new Error("Too many pending requests for spreadsheet"));
+      request.reject(new Error('Too many pending requests for spreadsheet'));
       return;
     }
 
@@ -200,12 +197,10 @@ export class RequestCoalescer {
           this.stats.executed++;
           this.stats.pending--;
         } catch (error) {
-          request.reject(
-            error instanceof Error ? error : new Error(String(error)),
-          );
+          request.reject(error instanceof Error ? error : new Error(String(error)));
           this.stats.pending--;
         }
-      }),
+      })
     );
 
     this.stats.totalLatency += Date.now() - startTime;
@@ -228,13 +223,8 @@ export class RequestCoalescer {
       coalesced: this.stats.coalesced,
       executed: this.stats.executed,
       avgCoalesceSize:
-        this.stats.batchCount > 0
-          ? this.stats.totalCoalesceSize / this.stats.batchCount
-          : 0,
-      avgLatencyMs:
-        this.stats.batchCount > 0
-          ? this.stats.totalLatency / this.stats.batchCount
-          : 0,
+        this.stats.batchCount > 0 ? this.stats.totalCoalesceSize / this.stats.batchCount : 0,
+      avgLatencyMs: this.stats.batchCount > 0 ? this.stats.totalLatency / this.stats.batchCount : 0,
     };
   }
 
@@ -267,10 +257,7 @@ export class PrefetchPredictor {
     timestamp: number;
   }> = [];
   private maxHistory = 100;
-  private prefetchCache = new Map<
-    string,
-    { data: unknown; timestamp: number }
-  >();
+  private prefetchCache = new Map<string, { data: unknown; timestamp: number }>();
   private prefetchTtl = 30000; // 30 seconds
 
   /**
@@ -296,10 +283,7 @@ export class PrefetchPredictor {
   /**
    * Predict next ranges based on access patterns
    */
-  private predictNextRanges(
-    spreadsheetId: string,
-    currentRange: string,
-  ): string[] {
+  private predictNextRanges(spreadsheetId: string, currentRange: string): string[] {
     const predictions: string[] = [];
 
     // Pattern 1: Sequential row access (A1:E10 -> A11:E20)
@@ -309,10 +293,7 @@ export class PrefetchPredictor {
     }
 
     // Pattern 2: Common follow-up ranges from history
-    const historicalNext = this.findHistoricalPatterns(
-      spreadsheetId,
-      currentRange,
-    );
+    const historicalNext = this.findHistoricalPatterns(spreadsheetId, currentRange);
     predictions.push(...historicalNext);
 
     return predictions.slice(0, PREFETCH_LOOKAHEAD);
@@ -331,16 +312,13 @@ export class PrefetchPredictor {
     const nextStartRow = parseInt(endRow!) + 1;
     const nextEndRow = nextStartRow + rowCount - 1;
 
-    return `${sheetPrefix ?? ""}${startCol}${nextStartRow}:${endCol}${nextEndRow}`;
+    return `${sheetPrefix ?? ''}${startCol}${nextStartRow}:${endCol}${nextEndRow}`;
   }
 
   /**
    * Find patterns from history
    */
-  private findHistoricalPatterns(
-    spreadsheetId: string,
-    currentRange: string,
-  ): string[] {
+  private findHistoricalPatterns(spreadsheetId: string, currentRange: string): string[] {
     const patterns: string[] = [];
 
     // Find sequences where currentRange was followed by another range
@@ -436,7 +414,7 @@ export class BatchRequestScheduler {
     options: {
       batchWindowMs?: number;
       maxBatchSize?: number;
-    } = {},
+    } = {}
   ) {
     this.sheetsApi = sheetsApi;
     this.batchWindowMs = options.batchWindowMs ?? 10;
@@ -448,7 +426,7 @@ export class BatchRequestScheduler {
    */
   async scheduleRequests(
     spreadsheetId: string,
-    requests: sheets_v4.Schema$Request[],
+    requests: sheets_v4.Schema$Request[]
   ): Promise<sheets_v4.Schema$Response[]> {
     return new Promise((resolve, reject) => {
       let batch = this.pendingBatches.get(spreadsheetId);
@@ -471,10 +449,7 @@ export class BatchRequestScheduler {
       batch.callbacks.push({
         resolve,
         reject,
-        requestIndices: Array.from(
-          { length: endIndex - startIndex },
-          (_, i) => startIndex + i,
-        ),
+        requestIndices: Array.from({ length: endIndex - startIndex }, (_, i) => startIndex + i),
       });
 
       // Check if batch is full
@@ -529,9 +504,7 @@ export class BatchRequestScheduler {
 
       // Distribute responses to callbacks
       for (const callback of batch.callbacks) {
-        const callbackResponses = callback.requestIndices.map(
-          (idx) => replies[idx] ?? {},
-        );
+        const callbackResponses = callback.requestIndices.map((idx) => replies[idx] ?? {});
         callback.resolve(callbackResponses);
       }
     } catch (error) {

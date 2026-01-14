@@ -6,62 +6,47 @@
  * @module mcp/registration/tool-handlers
  */
 
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
-import type {
-  CallToolResult,
-  ToolAnnotations,
-} from "@modelcontextprotocol/sdk/types.js";
-import type { ToolTaskHandler } from "@modelcontextprotocol/sdk/experimental/tasks/interfaces.js";
-import { randomUUID } from "crypto";
-import { recordToolCall } from "../../observability/metrics.js";
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
+import { randomUUID } from 'crypto';
+import { recordToolCall } from '../../observability/metrics.js';
 
-import type { Handlers } from "../../handlers/index.js";
-import { AuthHandler } from "../../handlers/auth.js";
-import type { GoogleApiClient } from "../../services/google-api.js";
+import type { Handlers } from '../../handlers/index.js';
+import { AuthHandler } from '../../handlers/auth.js';
+import type { GoogleApiClient } from '../../services/google-api.js';
 import {
   createRequestContext,
   runWithRequestContext,
   getRequestLogger,
-} from "../../utils/request-context.js";
-import { recordSpreadsheetId } from "../completions.js";
-import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from "../features-2025-11-25.js";
-import { getHistoryService } from "../../services/history-service.js";
-import type { OperationHistory } from "../../types/history.js";
-import {
-  prepareSchemaForRegistration,
-  wrapInputSchemaForLegacyRequest,
-} from "./schema-helpers.js";
-import type { ToolDefinition } from "./tool-definitions.js";
-import { TOOL_DEFINITIONS } from "./tool-definitions.js";
+} from '../../utils/request-context.js';
+import { recordSpreadsheetId } from '../completions.js';
+import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
+import { getHistoryService } from '../../services/history-service.js';
+import type { OperationHistory } from '../../types/history.js';
+import { prepareSchemaForRegistration, wrapInputSchemaForLegacyRequest } from './schema-helpers.js';
+import type { ToolDefinition } from './tool-definitions.js';
+import { TOOL_DEFINITIONS } from './tool-definitions.js';
 import {
   SheetsAuthInputSchema,
-  SheetSpreadsheetInputSchema,
-  SheetsSheetInputSchema,
-  SheetsValuesInputSchema,
-  SheetsCellsInputSchema,
+  SheetsCoreInputSchema,
+  SheetsDataInputSchema,
   SheetsFormatInputSchema,
   SheetsDimensionsInputSchema,
-  SheetsRulesInputSchema,
-  SheetsChartsInputSchema,
-  SheetsPivotInputSchema,
-  SheetsFilterSortInputSchema,
-  SheetsSharingInputSchema,
-  SheetsCommentsInputSchema,
-  SheetsVersionsInputSchema,
+  SheetsVisualizeInputSchema,
+  SheetsCollaborateInputSchema,
   SheetsAnalysisInputSchema,
   SheetsAdvancedInputSchema,
   SheetsTransactionInputSchema,
-  SheetsValidationInputSchema,
-  SheetsConflictInputSchema,
-  SheetsImpactInputSchema,
+  SheetsQualityInputSchema,
   SheetsHistoryInputSchema,
   SheetsConfirmInputSchema,
   SheetsAnalyzeInputSchema,
   SheetsFixInputSchema,
   CompositeInputSchema,
   SheetsSessionInputSchema,
-} from "../../schemas/index.js";
+} from '../../schemas/index.js';
 
 // ============================================================================
 // HANDLER MAPPING
@@ -75,69 +60,35 @@ import {
  */
 export function createToolHandlerMap(
   handlers: Handlers,
-  authHandler?: AuthHandler,
+  authHandler?: AuthHandler
 ): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
-  const map: Record<
-    string,
-    (args: unknown, extra?: unknown) => Promise<unknown>
-  > = {
-    sheets_spreadsheet: (args) =>
-      handlers.spreadsheet.handle(SheetSpreadsheetInputSchema.parse(args)),
-    sheets_sheet: (args) =>
-      handlers.sheet.handle(SheetsSheetInputSchema.parse(args)),
-    sheets_values: (args) =>
-      handlers.values.handle(SheetsValuesInputSchema.parse(args)),
-    sheets_cells: (args) =>
-      handlers.cells.handle(SheetsCellsInputSchema.parse(args)),
-    sheets_format: (args) =>
-      handlers.format.handle(SheetsFormatInputSchema.parse(args)),
+  const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
+    sheets_core: (args) => handlers.core.handle(SheetsCoreInputSchema.parse(args)),
+    sheets_data: (args) => handlers.data.handle(SheetsDataInputSchema.parse(args)),
+    sheets_format: (args) => handlers.format.handle(SheetsFormatInputSchema.parse(args)),
     sheets_dimensions: (args) =>
       handlers.dimensions.handle(SheetsDimensionsInputSchema.parse(args)),
-    sheets_rules: (args) =>
-      handlers.rules.handle(SheetsRulesInputSchema.parse(args)),
-    sheets_charts: (args) =>
-      handlers.charts.handle(SheetsChartsInputSchema.parse(args)),
-    sheets_pivot: (args) =>
-      handlers.pivot.handle(SheetsPivotInputSchema.parse(args)),
-    sheets_filter_sort: (args) =>
-      handlers.filterSort.handle(SheetsFilterSortInputSchema.parse(args)),
-    sheets_sharing: (args) =>
-      handlers.sharing.handle(SheetsSharingInputSchema.parse(args)),
-    sheets_comments: (args) =>
-      handlers.comments.handle(SheetsCommentsInputSchema.parse(args)),
-    sheets_versions: (args) =>
-      handlers.versions.handle(SheetsVersionsInputSchema.parse(args)),
-    sheets_analysis: (args) =>
-      handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
-    sheets_advanced: (args) =>
-      handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
+    sheets_visualize: (args) => handlers.visualize.handle(SheetsVisualizeInputSchema.parse(args)),
+    sheets_collaborate: (args) =>
+      handlers.collaborate.handle(SheetsCollaborateInputSchema.parse(args)),
+    sheets_analysis: (args) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
+    sheets_advanced: (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
     sheets_transaction: (args) =>
       handlers.transaction.handle(SheetsTransactionInputSchema.parse(args)),
-    sheets_validation: (args) =>
-      handlers.validation.handle(SheetsValidationInputSchema.parse(args)),
-    sheets_conflict: (args) =>
-      handlers.conflict.handle(SheetsConflictInputSchema.parse(args)),
-    sheets_impact: (args) =>
-      handlers.impact.handle(SheetsImpactInputSchema.parse(args)),
-    sheets_history: (args) =>
-      handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
+    sheets_quality: (args) => handlers.quality.handle(SheetsQualityInputSchema.parse(args)),
+    sheets_history: (args) => handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
     // MCP-native tools (use Server instance from context for Elicitation/Sampling)
-    sheets_confirm: (args) =>
-      handlers.confirm.handle(SheetsConfirmInputSchema.parse(args)),
-    sheets_analyze: (args) =>
-      handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args)),
+    sheets_confirm: (args) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args)),
+    sheets_analyze: (args) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args)),
     sheets_fix: (args) => handlers.fix.handle(SheetsFixInputSchema.parse(args)),
     // Composite operations
-    sheets_composite: (args) =>
-      handlers.composite.handle(CompositeInputSchema.parse(args)),
+    sheets_composite: (args) => handlers.composite.handle(CompositeInputSchema.parse(args)),
     // Session context for NL excellence
-    sheets_session: (args) =>
-      handlers.session.handle(SheetsSessionInputSchema.parse(args)),
+    sheets_session: (args) => handlers.session.handle(SheetsSessionInputSchema.parse(args)),
   };
 
   if (authHandler) {
-    map["sheets_auth"] = (args) =>
-      authHandler.handle(SheetsAuthInputSchema.parse(args));
+    map['sheets_auth'] = (args) => authHandler.handle(SheetsAuthInputSchema.parse(args));
   }
 
   return map;
@@ -161,61 +112,58 @@ export function createToolHandlerMap(
 export function buildToolResponse(result: unknown): CallToolResult {
   let structuredContent: Record<string, unknown>;
 
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     structuredContent = {
       response: {
         success: false,
         error: {
-          code: "INTERNAL_ERROR",
-          message: "Tool handler returned non-object result",
+          code: 'INTERNAL_ERROR',
+          message: 'Tool handler returned non-object result',
           retryable: false,
         },
       },
     };
-  } else if ("response" in result) {
+  } else if ('response' in result) {
     structuredContent = result as Record<string, unknown>;
-  } else if ("success" in result) {
+  } else if ('success' in result) {
     structuredContent = { response: result as Record<string, unknown> };
   } else {
     structuredContent = {
       response: {
         success: false,
         error: {
-          code: "INTERNAL_ERROR",
-          message: "Tool handler returned invalid response shape",
+          code: 'INTERNAL_ERROR',
+          message: 'Tool handler returned invalid response shape',
           retryable: false,
         },
       },
     };
   }
 
-  const response = structuredContent["response"];
+  const response = structuredContent['response'];
   const responseSuccess =
-    response && typeof response === "object"
+    response && typeof response === 'object'
       ? (response as { success?: boolean }).success
       : undefined;
 
   // Detect errors from success: false in response (or legacy top-level success)
-  const isError =
-    responseSuccess === false || structuredContent["success"] === false;
+  const isError = responseSuccess === false || structuredContent['success'] === false;
 
   // DEBUG: Log sheets_sharing responses to diagnose validation issue
-  if (typeof result === "object" && result !== null && "response" in result) {
-    const resp = (result as Record<string, unknown>)["response"];
-    if (resp && typeof resp === "object" && "action" in resp) {
-      const action = (resp as Record<string, unknown>)["action"];
-      if (typeof action === "string" && action.includes("permission")) {
+  if (typeof result === 'object' && result !== null && 'response' in result) {
+    const resp = (result as Record<string, unknown>)['response'];
+    if (resp && typeof resp === 'object' && 'action' in resp) {
+      const action = (resp as Record<string, unknown>)['action'];
+      if (typeof action === 'string' && action.includes('permission')) {
         const logger = getRequestLogger();
-        logger.info("[DEBUG] buildToolResponse for sharing", {
+        logger.info('[DEBUG] buildToolResponse for sharing', {
           action,
           responseSuccess,
           responseSuccessType: typeof responseSuccess,
           isError,
           structuredContentKeys: Object.keys(structuredContent),
           responseKeys:
-            response && typeof response === "object"
-              ? Object.keys(response)
-              : undefined,
+            response && typeof response === 'object' ? Object.keys(response) : undefined,
         });
       }
     }
@@ -223,9 +171,7 @@ export function buildToolResponse(result: unknown): CallToolResult {
 
   return {
     // Human-readable content for display
-    content: [
-      { type: "text", text: JSON.stringify(structuredContent, null, 2) },
-    ],
+    content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }],
     // Typed structured content for programmatic access
     structuredContent,
     // Error flag - only set when true, undefined otherwise (MCP convention)
@@ -242,30 +188,28 @@ export function buildToolResponse(result: unknown): CallToolResult {
  */
 function extractAction(args: Record<string, unknown>): string {
   // Extract action from request object (discriminated union pattern)
-  const request = args["request"] as Record<string, unknown> | undefined;
-  if (request && typeof request["action"] === "string") {
-    return request["action"];
+  const request = args['request'] as Record<string, unknown> | undefined;
+  if (request && typeof request['action'] === 'string') {
+    return request['action'];
   }
   // Fallback for non-discriminated schemas
-  if (typeof args["action"] === "string") {
-    return args["action"];
+  if (typeof args['action'] === 'string') {
+    return args['action'];
   }
-  return "unknown";
+  return 'unknown';
 }
 
 /**
  * Extract spreadsheetId from tool arguments
  */
-function extractSpreadsheetId(
-  args: Record<string, unknown>,
-): string | undefined {
-  const request = args["request"] as Record<string, unknown> | undefined;
-  const params = request?.["params"] as Record<string, unknown> | undefined;
-  if (params && typeof params["spreadsheetId"] === "string") {
-    return params["spreadsheetId"];
+function extractSpreadsheetId(args: Record<string, unknown>): string | undefined {
+  const request = args['request'] as Record<string, unknown> | undefined;
+  const params = request?.['params'] as Record<string, unknown> | undefined;
+  if (params && typeof params['spreadsheetId'] === 'string') {
+    return params['spreadsheetId'];
   }
-  if (typeof args["spreadsheetId"] === "string") {
-    return args["spreadsheetId"];
+  if (typeof args['spreadsheetId'] === 'string') {
+    return args['spreadsheetId'];
   }
   // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
   return undefined;
@@ -275,13 +219,13 @@ function extractSpreadsheetId(
  * Extract sheetId from tool arguments
  */
 function extractSheetId(args: Record<string, unknown>): number | undefined {
-  const request = args["request"] as Record<string, unknown> | undefined;
-  const params = request?.["params"] as Record<string, unknown> | undefined;
-  if (params && typeof params["sheetId"] === "number") {
-    return params["sheetId"];
+  const request = args['request'] as Record<string, unknown> | undefined;
+  const params = request?.['params'] as Record<string, unknown> | undefined;
+  if (params && typeof params['sheetId'] === 'number') {
+    return params['sheetId'];
   }
-  if (typeof args["sheetId"] === "number") {
-    return args["sheetId"];
+  if (typeof args['sheetId'] === 'number') {
+    return args['sheetId'];
   }
   // OK: Explicit empty - typed as optional, sheetId field not found in args
   return undefined;
@@ -291,40 +235,40 @@ function extractSheetId(args: Record<string, unknown>): number | undefined {
  * Check if result is successful
  */
 function isSuccessResult(result: unknown): boolean {
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     return false;
   }
-  const response = (result as Record<string, unknown>)["response"];
-  if (response && typeof response === "object") {
-    return (response as Record<string, unknown>)["success"] === true;
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    return (response as Record<string, unknown>)['success'] === true;
   }
-  return (result as Record<string, unknown>)["success"] === true;
+  return (result as Record<string, unknown>)['success'] === true;
 }
 
 /**
  * Extract cellsAffected from tool result
  */
 function extractCellsAffected(result: unknown): number | undefined {
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
-  const response = (result as Record<string, unknown>)["response"];
-  const data = response && typeof response === "object" ? response : result;
+  const response = (result as Record<string, unknown>)['response'];
+  const data = response && typeof response === 'object' ? response : result;
   const dataObj = data as Record<string, unknown>;
 
   // Try common field names
-  if (typeof dataObj["cellsAffected"] === "number") {
-    return dataObj["cellsAffected"];
+  if (typeof dataObj['cellsAffected'] === 'number') {
+    return dataObj['cellsAffected'];
   }
-  if (typeof dataObj["updatedCells"] === "number") {
-    return dataObj["updatedCells"];
+  if (typeof dataObj['updatedCells'] === 'number') {
+    return dataObj['updatedCells'];
   }
 
   // Try mutation summary
-  const mutation = dataObj["mutation"] as Record<string, unknown> | undefined;
-  if (mutation && typeof mutation["cellsAffected"] === "number") {
-    return mutation["cellsAffected"];
+  const mutation = dataObj['mutation'] as Record<string, unknown> | undefined;
+  if (mutation && typeof mutation['cellsAffected'] === 'number') {
+    return mutation['cellsAffected'];
   }
 
   // OK: Explicit empty - typed as optional, cellsAffected field not found in result
@@ -335,18 +279,18 @@ function extractCellsAffected(result: unknown): number | undefined {
  * Extract snapshotId from tool result
  */
 function extractSnapshotId(result: unknown): string | undefined {
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
-  const response = (result as Record<string, unknown>)["response"];
-  const data = response && typeof response === "object" ? response : result;
-  const mutation = (data as Record<string, unknown>)["mutation"] as
+  const response = (result as Record<string, unknown>)['response'];
+  const data = response && typeof response === 'object' ? response : result;
+  const mutation = (data as Record<string, unknown>)['mutation'] as
     | Record<string, unknown>
     | undefined;
 
-  if (mutation && typeof mutation["revertSnapshotId"] === "string") {
-    return mutation["revertSnapshotId"];
+  if (mutation && typeof mutation['revertSnapshotId'] === 'string') {
+    return mutation['revertSnapshotId'];
   }
 
   // OK: Explicit empty - typed as optional, revertSnapshotId field not found in result
@@ -357,17 +301,17 @@ function extractSnapshotId(result: unknown): string | undefined {
  * Extract error message from tool result
  */
 function extractErrorMessage(result: unknown): string | undefined {
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
-  const response = (result as Record<string, unknown>)["response"];
-  if (response && typeof response === "object") {
-    const error = (response as Record<string, unknown>)["error"] as
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    const error = (response as Record<string, unknown>)['error'] as
       | Record<string, unknown>
       | undefined;
-    if (error && typeof error["message"] === "string") {
-      return error["message"];
+    if (error && typeof error['message'] === 'string') {
+      return error['message'];
     }
   }
   // OK: Explicit empty - typed as optional, error message field not found in result
@@ -378,17 +322,17 @@ function extractErrorMessage(result: unknown): string | undefined {
  * Extract error code from tool result
  */
 function extractErrorCode(result: unknown): string | undefined {
-  if (typeof result !== "object" || result === null) {
+  if (typeof result !== 'object' || result === null) {
     // OK: Explicit empty - typed as optional, invalid result object
     return undefined;
   }
-  const response = (result as Record<string, unknown>)["response"];
-  if (response && typeof response === "object") {
-    const error = (response as Record<string, unknown>)["error"] as
+  const response = (result as Record<string, unknown>)['response'];
+  if (response && typeof response === 'object') {
+    const error = (response as Record<string, unknown>)['error'] as
       | Record<string, unknown>
       | undefined;
-    if (error && typeof error["code"] === "string") {
-      return error["code"];
+    if (error && typeof error['code'] === 'string') {
+      return error['code'];
     }
   }
   // OK: Explicit empty - typed as optional, error code field not found in result
@@ -400,23 +344,21 @@ function extractErrorCode(result: unknown): string | undefined {
 // ============================================================================
 
 function normalizeToolArgs(args: unknown): Record<string, unknown> {
-  if (!args || typeof args !== "object") {
+  if (!args || typeof args !== 'object') {
     // OK: Explicit empty - invalid args will be caught by Zod validation downstream
     return {};
   }
   const record = args as Record<string, unknown>;
-  const request = record["request"];
-  if (!request || typeof request !== "object") {
+  const request = record['request'];
+  if (!request || typeof request !== 'object') {
     return record;
   }
 
   const requestRecord = request as Record<string, unknown>;
-  const params = requestRecord["params"];
-  if (params && typeof params === "object") {
+  const params = requestRecord['params'];
+  if (params && typeof params === 'object') {
     const action =
-      typeof requestRecord["action"] === "string"
-        ? { action: requestRecord["action"] }
-        : {};
+      typeof requestRecord['action'] === 'string' ? { action: requestRecord['action'] } : {};
     return { ...(params as Record<string, unknown>), ...action };
   }
 
@@ -425,17 +367,14 @@ function normalizeToolArgs(args: unknown): Record<string, unknown> {
 
 function createToolCallHandler(
   tool: ToolDefinition,
-  handlerMap: Record<
-    string,
-    (args: unknown, extra?: unknown) => Promise<unknown>
-  > | null,
+  handlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null
 ): (
   args: Record<string, unknown>,
-  extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown },
+  extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }
 ) => Promise<CallToolResult> {
   return async (
     args: Record<string, unknown>,
-    extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown },
+    extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }
   ) => {
     const requestId = extra?.requestId ? String(extra.requestId) : undefined;
     const requestContext = createRequestContext({ requestId });
@@ -453,12 +392,10 @@ function createToolCallHandler(
           response: {
             success: false,
             error: {
-              code: "AUTHENTICATION_REQUIRED",
-              message:
-                "Google API client not initialized. Please provide credentials.",
+              code: 'AUTHENTICATION_REQUIRED',
+              message: 'Google API client not initialized. Please provide credentials.',
               retryable: false,
-              suggestedFix:
-                "Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth",
+              suggestedFix: 'Set GOOGLE_APPLICATION_CREDENTIALS or configure OAuth',
             },
           },
         };
@@ -471,11 +408,10 @@ function createToolCallHandler(
           tool: tool.name,
           action: extractAction(args),
           params: args,
-          result: "error",
+          result: 'error',
           duration: Date.now() - startTime,
-          errorMessage:
-            "Google API client not initialized. Please provide credentials.",
-          errorCode: "AUTHENTICATION_REQUIRED",
+          errorMessage: 'Google API client not initialized. Please provide credentials.',
+          errorCode: 'AUTHENTICATION_REQUIRED',
           requestId,
           spreadsheetId: extractSpreadsheetId(args),
         });
@@ -489,10 +425,10 @@ function createToolCallHandler(
           response: {
             success: false,
             error: {
-              code: "NOT_IMPLEMENTED",
+              code: 'NOT_IMPLEMENTED',
               message: `Handler for ${tool.name} not yet implemented`,
               retryable: false,
-              suggestedFix: "This tool is planned for a future release",
+              suggestedFix: 'This tool is planned for a future release',
             },
           },
         };
@@ -505,10 +441,10 @@ function createToolCallHandler(
           tool: tool.name,
           action: extractAction(args),
           params: args,
-          result: "error",
+          result: 'error',
           duration: Date.now() - startTime,
           errorMessage: `Handler for ${tool.name} not yet implemented`,
-          errorCode: "NOT_IMPLEMENTED",
+          errorCode: 'NOT_IMPLEMENTED',
           requestId,
           spreadsheetId: extractSpreadsheetId(args),
         });
@@ -529,7 +465,7 @@ function createToolCallHandler(
           tool: tool.name,
           action: extractAction(args),
           params: args,
-          result: isSuccessResult(result) ? "success" : "error",
+          result: isSuccessResult(result) ? 'success' : 'error',
           duration,
           cellsAffected: extractCellsAffected(result),
           snapshotId: extractSnapshotId(result),
@@ -544,14 +480,13 @@ function createToolCallHandler(
 
         // Record metrics for observability
         const action = extractAction(args);
-        const status = isSuccessResult(result) ? "success" : "error";
+        const status = isSuccessResult(result) ? 'success' : 'error';
         recordToolCall(tool.name, action, status, duration / 1000);
 
         return buildToolResponse(result);
       } catch (error) {
         const duration = Date.now() - startTime;
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
 
         // Record failed operation in history
         const historyService = getHistoryService();
@@ -561,21 +496,16 @@ function createToolCallHandler(
           tool: tool.name,
           action: extractAction(args),
           params: args,
-          result: "error",
+          result: 'error',
           duration,
           errorMessage,
-          errorCode: "INTERNAL_ERROR",
+          errorCode: 'INTERNAL_ERROR',
           requestId,
           spreadsheetId: extractSpreadsheetId(args),
         });
 
         // Record error metrics
-        recordToolCall(
-          tool.name,
-          extractAction(args),
-          "error",
-          duration / 1000,
-        );
+        recordToolCall(tool.name, extractAction(args), 'error', duration / 1000);
 
         // Return structured error instead of throwing (Task 1.2)
         // This ensures MCP clients receive tool errors (isError: true) not protocol errors
@@ -583,7 +513,7 @@ function createToolCallHandler(
           response: {
             success: false,
             error: {
-              code: "INTERNAL_ERROR",
+              code: 'INTERNAL_ERROR',
               message: errorMessage,
               retryable: false,
             },
@@ -600,8 +530,8 @@ function createToolTaskHandler(
   toolName: string,
   runTool: (
     args: Record<string, unknown>,
-    extra?: { requestId?: string | number },
-  ) => Promise<CallToolResult>,
+    extra?: { requestId?: string | number }
+  ) => Promise<CallToolResult>
 ): ToolTaskHandler<AnySchema> {
   return {
     createTask: async (args, extra) => {
@@ -617,25 +547,25 @@ function createToolTaskHandler(
       void (async () => {
         try {
           const result = await runTool(args as Record<string, unknown>, extra);
-          await taskStore.storeTaskResult(task.taskId, "completed", result);
+          await taskStore.storeTaskResult(task.taskId, 'completed', result);
         } catch (error) {
           const errorResult = buildToolResponse({
             response: {
               success: false,
               error: {
-                code: "INTERNAL_ERROR",
+                code: 'INTERNAL_ERROR',
                 message: error instanceof Error ? error.message : String(error),
                 retryable: false,
               },
             },
           });
           try {
-            await taskStore.storeTaskResult(task.taskId, "failed", errorResult);
+            await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
           } catch (storeError) {
             // Use logger instead of console.error to avoid corrupting stdio transport
-            import("../../utils/logger.js")
+            import('../../utils/logger.js')
               .then(({ logger }) => {
-                logger.error("Failed to store task result", {
+                logger.error('Failed to store task result', {
                   toolName,
                   error: storeError,
                 });
@@ -659,9 +589,7 @@ function createToolTaskHandler(
       if (!extra.taskStore) {
         throw new Error(`[${toolName}] Task store not configured`);
       }
-      return (await extra.taskStore.getTaskResult(
-        extra.taskId,
-      )) as CallToolResult;
+      return (await extra.taskStore.getTaskResult(extra.taskId)) as CallToolResult;
     },
   };
 }
@@ -681,7 +609,7 @@ function createToolTaskHandler(
 export async function registerServalSheetsTools(
   server: McpServer,
   handlers: Handlers | null,
-  options?: { googleClient?: GoogleApiClient | null },
+  options?: { googleClient?: GoogleApiClient | null }
 ): Promise<void> {
   const authHandler = new AuthHandler({
     googleClient: options?.googleClient ?? null,
@@ -691,30 +619,25 @@ export async function registerServalSheetsTools(
   const handlerMap = handlers
     ? createToolHandlerMap(handlers, authHandler)
     : {
-        sheets_auth: (args: unknown) =>
-          authHandler.handle(SheetsAuthInputSchema.parse(args)),
+        sheets_auth: (args: unknown) => authHandler.handle(SheetsAuthInputSchema.parse(args)),
       };
 
   for (const tool of TOOL_DEFINITIONS) {
     // Prepare schemas for SDK registration
     const inputSchemaForRegistration = prepareSchemaForRegistration(
-      wrapInputSchemaForLegacyRequest(tool.inputSchema),
+      wrapInputSchemaForLegacyRequest(tool.inputSchema)
     );
-    const outputSchemaForRegistration = prepareSchemaForRegistration(
-      tool.outputSchema,
-    );
+    const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema);
 
     // Register tool with prepared schemas
     // Type assertion needed due to TypeScript's deep type instantiation limits
     const execution = TOOL_EXECUTION_CONFIG[tool.name];
-    const supportsTasks =
-      execution?.taskSupport && execution.taskSupport !== "forbidden";
+    const supportsTasks = execution?.taskSupport && execution.taskSupport !== 'forbidden';
     const runTool = createToolCallHandler(tool, handlerMap);
 
     if (supportsTasks) {
       const taskHandler = createToolTaskHandler(tool.name, runTool);
-      const taskSupport =
-        execution?.taskSupport === "required" ? "required" : "optional";
+      const taskSupport = execution?.taskSupport === 'required' ? 'required' : 'optional';
       const taskExecution = {
         ...(execution ?? {}),
         taskSupport,
@@ -729,13 +652,8 @@ export async function registerServalSheetsTools(
           outputSchema: outputSchemaForRegistration as AnySchema,
           annotations: tool.annotations,
           execution: taskExecution,
-        } as Parameters<
-          typeof server.experimental.tasks.registerToolTask<
-            AnySchema,
-            AnySchema
-          >
-        >[1],
-        taskHandler,
+        } as Parameters<typeof server.experimental.tasks.registerToolTask<AnySchema, AnySchema>>[1],
+        taskHandler
       );
       continue;
     }
@@ -749,8 +667,8 @@ export async function registerServalSheetsTools(
           inputSchema?: unknown;
           outputSchema?: unknown;
           annotations?: ToolAnnotations;
-          icons?: import("@modelcontextprotocol/sdk/types.js").Icon[];
-          execution?: import("@modelcontextprotocol/sdk/types.js").ToolExecution;
+          icons?: import('@modelcontextprotocol/sdk/types.js').Icon[];
+          execution?: import('@modelcontextprotocol/sdk/types.js').ToolExecution;
         },
         cb: (
           args: Record<string, unknown>,
@@ -758,8 +676,8 @@ export async function registerServalSheetsTools(
             requestId?: string | number;
             elicit?: unknown;
             sample?: unknown;
-          },
-        ) => Promise<CallToolResult>,
+          }
+        ) => Promise<CallToolResult>
       ) => void
     )(
       tool.name,
@@ -772,7 +690,7 @@ export async function registerServalSheetsTools(
         icons: TOOL_ICONS[tool.name],
         execution,
       },
-      runTool,
+      runTool
     );
   }
 

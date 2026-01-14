@@ -5,8 +5,8 @@
  * Uses MCP Elicitation (SEP-1036) for user confirmation.
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getConfirmationService } from "../services/confirm-service.js";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getConfirmationService } from '../services/confirm-service.js';
 
 /**
  * Register confirmation resources with the MCP server
@@ -16,12 +16,11 @@ export function registerConfirmResources(server: McpServer): number {
 
   // Resource 1: confirm://stats - Confirmation service statistics
   server.registerResource(
-    "Plan Confirmation Statistics",
-    "confirm://stats",
+    'Plan Confirmation Statistics',
+    'confirm://stats',
     {
-      description:
-        "Plan confirmation statistics: approval rate, response times",
-      mimeType: "application/json",
+      description: 'Plan confirmation statistics: approval rate, response times',
+      mimeType: 'application/json',
     },
     async (uri) => {
       try {
@@ -30,8 +29,8 @@ export function registerConfirmResources(server: McpServer): number {
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
                   stats: {
@@ -45,41 +44,40 @@ export function registerConfirmResources(server: McpServer): number {
                   summary: `${stats.approved}/${stats.totalConfirmations} plans approved (${stats.approvalRate.toFixed(1)}% approval rate)`,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "application/json",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
               text: JSON.stringify(
                 {
-                  error: "Failed to fetch confirmation statistics",
+                  error: 'Failed to fetch confirmation statistics',
                   message: errorMessage,
                 },
                 null,
-                2,
+                2
               ),
             },
           ],
         };
       }
-    },
+    }
   );
 
   // Resource 2: confirm://help - Confirmation capabilities documentation
   server.registerResource(
-    "Plan Confirmation Help",
-    "confirm://help",
+    'Plan Confirmation Help',
+    'confirm://help',
     {
-      description: "Documentation for plan confirmation using MCP Elicitation",
-      mimeType: "text/markdown",
+      description: 'Documentation for plan confirmation using MCP Elicitation',
+      mimeType: 'text/markdown',
     },
     async (uri) => {
       try {
@@ -204,31 +202,30 @@ View confirmation statistics at: confirm://stats
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/markdown",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/markdown',
               text: helpText,
             },
           ],
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
-              uri: typeof uri === "string" ? uri : uri.toString(),
-              mimeType: "text/plain",
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'text/plain',
               text: `Error fetching confirmation help: ${errorMessage}`,
             },
           ],
         };
       }
-    },
+    }
   );
 
-  console.error("[ServalSheets] Registered 2 confirm resources:");
-  console.error("  - confirm://stats (confirmation statistics)");
-  console.error("  - confirm://help (confirmation documentation)");
+  console.error('[ServalSheets] Registered 2 confirm resources:');
+  console.error('  - confirm://stats (confirmation statistics)');
+  console.error('  - confirm://help (confirmation documentation)');
 
   return 2;
 }

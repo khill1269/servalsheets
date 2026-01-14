@@ -16,7 +16,7 @@
  * - Least recently used warm items evict
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 
 /**
  * Cache entry with metadata
@@ -283,12 +283,9 @@ export class HotCache<T = unknown> {
    * Get cache statistics
    */
   getStats(): HotCacheStats {
-    const totalRequests =
-      this.stats.hotHits + this.stats.warmHits + this.stats.misses;
+    const totalRequests = this.stats.hotHits + this.stats.warmHits + this.stats.misses;
     const hitRate =
-      totalRequests > 0
-        ? (this.stats.hotHits + this.stats.warmHits) / totalRequests
-        : 0;
+      totalRequests > 0 ? (this.stats.hotHits + this.stats.warmHits) / totalRequests : 0;
 
     let totalMemoryBytes = 0;
     for (const entry of this.hotTier.values()) {
@@ -417,13 +414,13 @@ export class HotCache<T = unknown> {
    */
   private estimateSize(value: unknown): number {
     if (value === null || value === undefined) return 8;
-    if (typeof value === "string") return value.length * 2;
-    if (typeof value === "number") return 8;
-    if (typeof value === "boolean") return 4;
+    if (typeof value === 'string') return value.length * 2;
+    if (typeof value === 'number') return 8;
+    if (typeof value === 'boolean') return 4;
     if (Array.isArray(value)) {
       return value.reduce((sum, item) => sum + this.estimateSize(item), 32);
     }
-    if (typeof value === "object") {
+    if (typeof value === 'object') {
       const obj = value as Record<string, unknown>;
       let size = 32; // Object overhead
       for (const [k, v] of Object.entries(obj)) {
@@ -472,7 +469,7 @@ export class HotCache<T = unknown> {
     }
 
     if (expiredCount > 0) {
-      logger.debug("HotCache cleanup completed", {
+      logger.debug('HotCache cleanup completed', {
         expiredCount,
         hotTierSize: this.hotTier.size,
         warmTierSize: this.warmTier.size,
@@ -525,7 +522,7 @@ export function createHotCacheKey(
   namespace: string,
   ...parts: (string | number | boolean)[]
 ): string {
-  return `${namespace}:${parts.join(":")}`;
+  return `${namespace}:${parts.join(':')}`;
 }
 
 /**
@@ -538,12 +535,7 @@ export function hotCacheGet<T>(namespace: string, key: string): T | undefined {
 /**
  * Set value in hot cache with namespace
  */
-export function hotCacheSet<T>(
-  namespace: string,
-  key: string,
-  value: T,
-  ttl?: number,
-): void {
+export function hotCacheSet<T>(namespace: string, key: string, value: T, ttl?: number): void {
   getHotCache().set(createHotCacheKey(namespace, key), value, ttl);
 }
 

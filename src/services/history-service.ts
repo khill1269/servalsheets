@@ -14,8 +14,8 @@ import type {
   OperationHistory,
   OperationHistoryStats,
   OperationHistoryFilter,
-} from "../types/history.js";
-import { logger } from "../utils/logger.js";
+} from '../types/history.js';
+import { logger } from '../utils/logger.js';
 
 export interface HistoryServiceOptions {
   /** Maximum number of operations to keep (default: 100) */
@@ -47,7 +47,7 @@ export class HistoryService {
     this.maxSize = options.maxSize ?? 100;
     this.verboseLogging = options.verboseLogging ?? false;
 
-    logger.info("History service initialized", {
+    logger.info('History service initialized', {
       maxSize: this.maxSize,
       verboseLogging: this.verboseLogging,
     });
@@ -64,11 +64,7 @@ export class HistoryService {
     this.operationsMap.set(operation.id, operation);
 
     // Add to undo stack if it has a snapshot (only successful write operations)
-    if (
-      operation.result === "success" &&
-      operation.snapshotId &&
-      operation.spreadsheetId
-    ) {
+    if (operation.result === 'success' && operation.snapshotId && operation.spreadsheetId) {
       const stack = this.undoStacks.get(operation.spreadsheetId) || [];
       stack.push(operation.id);
       this.undoStacks.set(operation.spreadsheetId, stack);
@@ -86,7 +82,7 @@ export class HistoryService {
     }
 
     if (this.verboseLogging) {
-      logger.debug("Operation recorded in history", {
+      logger.debug('Operation recorded in history', {
         id: operation.id,
         tool: operation.tool,
         action: operation.action,
@@ -124,23 +120,17 @@ export class HistoryService {
       }
 
       if (filter.spreadsheetId) {
-        filtered = filtered.filter(
-          (op) => op.spreadsheetId === filter.spreadsheetId,
-        );
+        filtered = filtered.filter((op) => op.spreadsheetId === filter.spreadsheetId);
       }
 
       if (filter.startTime) {
         const startTime = new Date(filter.startTime).getTime();
-        filtered = filtered.filter(
-          (op) => new Date(op.timestamp).getTime() >= startTime,
-        );
+        filtered = filtered.filter((op) => new Date(op.timestamp).getTime() >= startTime);
       }
 
       if (filter.endTime) {
         const endTime = new Date(filter.endTime).getTime();
-        filtered = filtered.filter(
-          (op) => new Date(op.timestamp).getTime() <= endTime,
-        );
+        filtered = filtered.filter((op) => new Date(op.timestamp).getTime() <= endTime);
       }
 
       if (filter.limit && filter.limit > 0) {
@@ -162,7 +152,7 @@ export class HistoryService {
    * Get failed operations
    */
   getFailures(count?: number): OperationHistory[] {
-    const failures = this.operations.filter((op) => op.result === "error");
+    const failures = this.operations.filter((op) => op.result === 'error');
     return count ? failures.slice(-count) : failures;
   }
 
@@ -170,9 +160,7 @@ export class HistoryService {
    * Get operations for a specific spreadsheet
    */
   getBySpreadsheet(spreadsheetId: string, count?: number): OperationHistory[] {
-    const ops = this.operations.filter(
-      (op) => op.spreadsheetId === spreadsheetId,
-    );
+    const ops = this.operations.filter((op) => op.spreadsheetId === spreadsheetId);
     return count ? ops.slice(-count) : ops;
   }
 
@@ -186,16 +174,13 @@ export class HistoryService {
       : this.operations;
 
     const total = ops.length;
-    const successful = ops.filter((op) => op.result === "success").length;
+    const successful = ops.filter((op) => op.result === 'success').length;
     const failed = total - successful;
 
     const totalDuration = ops.reduce((sum, op) => sum + op.duration, 0);
     const averageDuration = total > 0 ? totalDuration / total : 0;
 
-    const totalCells = ops.reduce(
-      (sum, op) => sum + (op.cellsAffected || 0),
-      0,
-    );
+    const totalCells = ops.reduce((sum, op) => sum + (op.cellsAffected || 0), 0);
 
     // Find most common tool
     const toolCounts = new Map<string, number>();
@@ -249,7 +234,7 @@ export class HistoryService {
     this.operations = [];
     this.operationsMap.clear();
 
-    logger.info("Operation history cleared");
+    logger.info('Operation history cleared');
   }
 
   /**
@@ -338,9 +323,7 @@ export class HistoryService {
   clearForSpreadsheet(spreadsheetId: string): number {
     // Remove operations
     const before = this.operations.length;
-    this.operations = this.operations.filter(
-      (op) => op.spreadsheetId !== spreadsheetId,
-    );
+    this.operations = this.operations.filter((op) => op.spreadsheetId !== spreadsheetId);
     const removed = before - this.operations.length;
 
     // Rebuild map
@@ -353,9 +336,7 @@ export class HistoryService {
     this.undoStacks.delete(spreadsheetId);
     this.redoStacks.delete(spreadsheetId);
 
-    logger.info(
-      `Cleared ${removed} operations for spreadsheet ${spreadsheetId}`,
-    );
+    logger.info(`Cleared ${removed} operations for spreadsheet ${spreadsheetId}`);
     return removed;
   }
 
@@ -415,7 +396,7 @@ export class HistoryService {
       tool: params.tool,
       action: params.action,
       params: params.params,
-      result: params.error ? "error" : "success",
+      result: params.error ? 'error' : 'success',
       duration: 0, // Will be updated if duration tracking is added
       spreadsheetId: params.spreadsheetId,
       cellsAffected: params.cellsAffected,
@@ -434,19 +415,11 @@ export class HistoryService {
    * @param options Optional parameters (limit, etc.)
    * @returns Array of operations in reverse chronological order
    */
-  getHistory(
-    spreadsheetId: string,
-    options?: { limit?: number },
-  ): OperationHistory[] {
-    let ops = this.operations.filter(
-      (op) => op.spreadsheetId === spreadsheetId,
-    );
+  getHistory(spreadsheetId: string, options?: { limit?: number }): OperationHistory[] {
+    let ops = this.operations.filter((op) => op.spreadsheetId === spreadsheetId);
 
     // Sort by timestamp (most recent first)
-    ops.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
+    ops.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     // Apply limit if specified
     if (options?.limit && options.limit > 0) {
@@ -462,10 +435,7 @@ export class HistoryService {
    * @param operationId The operation ID
    * @returns The operation or undefined if not found
    */
-  getOperation(
-    spreadsheetId: string,
-    operationId: string,
-  ): OperationHistory | undefined {
+  getOperation(spreadsheetId: string, operationId: string): OperationHistory | undefined {
     const operation = this.operationsMap.get(operationId);
     if (operation && operation.spreadsheetId === spreadsheetId) {
       return operation;
@@ -487,12 +457,10 @@ export class HistoryService {
       action?: string;
       startTime?: Date;
       endTime?: Date;
-      result?: "success" | "error";
-    },
+      result?: 'success' | 'error';
+    }
   ): OperationHistory[] {
-    let ops = this.operations.filter(
-      (op) => op.spreadsheetId === spreadsheetId,
-    );
+    let ops = this.operations.filter((op) => op.spreadsheetId === spreadsheetId);
 
     if (filters.tool) {
       ops = ops.filter((op) => op.tool === filters.tool);
@@ -525,9 +493,7 @@ export class HistoryService {
    */
   clearHistory(spreadsheetId: string): void {
     // Remove operations from array
-    this.operations = this.operations.filter(
-      (op) => op.spreadsheetId !== spreadsheetId,
-    );
+    this.operations = this.operations.filter((op) => op.spreadsheetId !== spreadsheetId);
 
     // Remove from map
     for (const [id, op] of this.operationsMap.entries()) {
@@ -540,7 +506,7 @@ export class HistoryService {
     this.undoStacks.delete(spreadsheetId);
     this.redoStacks.delete(spreadsheetId);
 
-    logger.info("Cleared history for spreadsheet", { spreadsheetId });
+    logger.info('Cleared history for spreadsheet', { spreadsheetId });
   }
 }
 
@@ -569,10 +535,8 @@ export function setHistoryService(service: HistoryService): void {
  * @internal
  */
 export function resetHistoryService(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetHistoryService() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetHistoryService() can only be called in test environment');
   }
   historyService = null;
 }

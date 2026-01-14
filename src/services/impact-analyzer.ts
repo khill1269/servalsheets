@@ -9,7 +9,8 @@
  * Phase 4, Task 4.3
  */
 
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from 'uuid';
+import { sheets_v4 } from 'googleapis';
 import {
   ImpactAnalysis,
   ImpactSeverity,
@@ -22,14 +23,14 @@ import {
   AffectedProtectedRange,
   ImpactAnalyzerConfig,
   ImpactAnalyzerStats,
-} from "../types/impact.js";
+} from '../types/impact.js';
 
 /**
  * Impact Analyzer - Analyzes operation impact before execution
  */
 export class ImpactAnalyzer {
-  private config: Required<Omit<ImpactAnalyzerConfig, "googleClient">>;
-  private googleClient?: ImpactAnalyzerConfig["googleClient"];
+  private config: Required<Omit<ImpactAnalyzerConfig, 'googleClient'>>;
+  private googleClient?: ImpactAnalyzerConfig['googleClient'];
   private stats: ImpactAnalyzerStats;
 
   constructor(config: ImpactAnalyzerConfig = {}) {
@@ -72,37 +73,38 @@ export class ImpactAnalyzer {
     const startTime = Date.now();
     this.stats.totalAnalyses++;
 
-    this.log(
-      `Analyzing impact for operation: ${operation.tool}.${operation.action}`,
-    );
+    this.log(`Analyzing impact for operation: ${operation.tool}.${operation.action}`);
 
     // Parse range from parameters
     const range = this.extractRange(operation.params);
     const { rows, columns, cells } = this.calculateRangeSize(range);
 
-    // Analyze affected resources
+    // OPTIMIZED: Single comprehensive API call to get all data
+    const comprehensiveData = await this.fetchComprehensiveData(range);
+
+    // Parse affected resources from comprehensive data
     const formulasAffected = this.config.analyzeFormulas
-      ? await this.findAffectedFormulas(range)
+      ? this.parseFormulasFromData(comprehensiveData, range)
       : [];
 
     const chartsAffected = this.config.analyzeCharts
-      ? await this.findAffectedCharts(range)
+      ? this.parseChartsFromData(comprehensiveData, range)
       : [];
 
     const pivotTablesAffected = this.config.analyzePivotTables
-      ? await this.findAffectedPivotTables(range)
+      ? this.parsePivotTablesFromData(comprehensiveData, range)
       : [];
 
     const validationRulesAffected = this.config.analyzeValidationRules
-      ? await this.findAffectedValidationRules(range)
+      ? this.parseValidationRulesFromData(comprehensiveData, range)
       : [];
 
     const namedRangesAffected = this.config.analyzeNamedRanges
-      ? await this.findAffectedNamedRanges(range)
+      ? this.parseNamedRangesFromData(comprehensiveData, range)
       : [];
 
     const protectedRangesAffected = this.config.analyzeProtectedRanges
-      ? await this.findAffectedProtectedRanges(range)
+      ? this.parseProtectedRangesFromData(comprehensiveData, range)
       : [];
 
     // Calculate execution time estimate
@@ -113,7 +115,7 @@ export class ImpactAnalyzer {
       cells,
       formulasAffected.length,
       chartsAffected.length,
-      protectedRangesAffected.length,
+      protectedRangesAffected.length
     );
 
     // Generate warnings
@@ -122,7 +124,7 @@ export class ImpactAnalyzer {
       formulasAffected,
       chartsAffected,
       pivotTablesAffected,
-      protectedRangesAffected,
+      protectedRangesAffected
     );
 
     // Update statistics
@@ -131,7 +133,7 @@ export class ImpactAnalyzer {
       this.stats.warningsBySeverity[w.severity]++;
     });
 
-    if (severity === "critical") {
+    if (severity === 'critical') {
       this.stats.operationsPrevented++;
     }
 
@@ -141,11 +143,7 @@ export class ImpactAnalyzer {
       this.stats.totalAnalyses;
 
     // Generate recommendations
-    const recommendations = this.generateRecommendations(
-      operation,
-      warnings,
-      severity,
-    );
+    const recommendations = this.generateRecommendations(operation, warnings, severity);
 
     const analysis: ImpactAnalysis = {
       id: uuidv4(),
@@ -168,7 +166,7 @@ export class ImpactAnalyzer {
     };
 
     this.log(
-      `Impact analysis complete: ${cells} cells, ${warnings.length} warnings, ${severity} severity`,
+      `Impact analysis complete: ${cells} cells, ${warnings.length} warnings, ${severity} severity`
     );
 
     return analysis;
@@ -178,9 +176,7 @@ export class ImpactAnalyzer {
    * Extract range from operation parameters
    */
   private extractRange(params: Record<string, unknown>): string {
-    return (
-      (params["range"] as string) || (params["targetRange"] as string) || "A1"
-    );
+    return (params['range'] as string) || (params['targetRange'] as string) || 'A1';
   }
 
   /**
@@ -225,7 +221,7 @@ export class ImpactAnalyzer {
    * Convert row/column index to A1 notation
    */
   private indexToA1(row: number, col: number): string {
-    let column = "";
+    let column = '';
     let colNum = col + 1; // Convert from 0-based to 1-based
 
     while (colNum > 0) {
@@ -242,11 +238,11 @@ export class ImpactAnalyzer {
    */
   private parseRange(range: string): { spreadsheetId?: string; range: string } {
     // Check if range includes spreadsheetId (format: "spreadsheetId!Sheet1!A1:B10")
-    const parts = range.split("!");
+    const parts = range.split('!');
     if (parts.length >= 3) {
       return {
         spreadsheetId: parts[0],
-        range: parts.slice(1).join("!"),
+        range: parts.slice(1).join('!'),
       };
     }
     return { range };
@@ -275,7 +271,7 @@ export class ImpactAnalyzer {
     const endRow = (gridRange.endRowIndex ?? startRow - 1) + 1;
     const startCol = this.numberToColumn((gridRange.startColumnIndex ?? 0) + 1);
     const endCol = this.numberToColumn(
-      (gridRange.endColumnIndex ?? startCol.charCodeAt(0) - 65) + 1,
+      (gridRange.endColumnIndex ?? startCol.charCodeAt(0) - 65) + 1
     );
 
     if (startRow === endRow && startCol === endCol) {
@@ -288,7 +284,7 @@ export class ImpactAnalyzer {
    * Convert column number to letter
    */
   private numberToColumn(num: number): string {
-    let column = "";
+    let column = '';
     while (num > 0) {
       const remainder = (num - 1) % 26;
       column = String.fromCharCode(65 + remainder) + column;
@@ -314,26 +310,338 @@ export class ImpactAnalyzer {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getChartType(spec: any): string {
-    if (spec.basicChart) return spec.basicChart.chartType || "BASIC";
-    if (spec.pieChart) return "PIE";
-    if (spec.bubbleChart) return "BUBBLE";
-    if (spec.candlestickChart) return "CANDLESTICK";
-    if (spec.orgChart) return "ORG";
-    if (spec.histogramChart) return "HISTOGRAM";
-    if (spec.waterfallChart) return "WATERFALL";
-    if (spec.treemapChart) return "TREEMAP";
-    if (spec.scorecardChart) return "SCORECARD";
-    return "UNKNOWN";
+    if (spec.basicChart) return spec.basicChart.chartType || 'BASIC';
+    if (spec.pieChart) return 'PIE';
+    if (spec.bubbleChart) return 'BUBBLE';
+    if (spec.candlestickChart) return 'CANDLESTICK';
+    if (spec.orgChart) return 'ORG';
+    if (spec.histogramChart) return 'HISTOGRAM';
+    if (spec.waterfallChart) return 'WATERFALL';
+    if (spec.treemapChart) return 'TREEMAP';
+    if (spec.scorecardChart) return 'SCORECARD';
+    return 'UNKNOWN';
   }
 
   /**
-   * Find formulas affected by range
+   * Fetch comprehensive spreadsheet data in a single API call
+   * OPTIMIZATION: Replaces 6 sequential calls with 1 comprehensive call
    */
-  private async findAffectedFormulas(
-    range: string,
-  ): Promise<AffectedFormula[]> {
+  private async fetchComprehensiveData(
+    range: string
+  ): Promise<sheets_v4.Schema$Spreadsheet | null> {
     if (!this.googleClient) {
-      this.log("No Google API client - skipping formula analysis");
+      return null;
+    }
+
+    const params = this.parseRange(range);
+    if (!params.spreadsheetId) {
+      return null;
+    }
+
+    try {
+      // Single comprehensive field mask combining all analysis needs
+      const comprehensiveFields = [
+        'spreadsheetId',
+        'properties.title',
+        'sheets(properties(sheetId,title),',
+        'data.rowData.values.userEnteredValue.formulaValue,', // Formulas
+        'charts(chartId,spec),', // Charts
+        'pivotTables,', // Pivot tables
+        'conditionalFormats,', // Conditional formatting
+        'dataValidation)', // Validation rules
+        'namedRanges,', // Named ranges
+        'protectedRanges', // Protected ranges
+      ].join('');
+
+      const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
+        spreadsheetId: params.spreadsheetId,
+        fields: comprehensiveFields,
+      });
+
+      return spreadsheet.data;
+    } catch (error) {
+      this.log(
+        `Error fetching comprehensive data: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Parse formulas from comprehensive data
+   */
+  private parseFormulasFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    range: string
+  ): AffectedFormula[] {
+    if (!data?.sheets) return [];
+
+    const affected: AffectedFormula[] = [];
+    for (const sheet of data.sheets) {
+      const sheetName = sheet.properties?.title || 'Unknown';
+      const gridData = sheet.data;
+
+      if (!gridData) continue;
+
+      for (const grid of gridData) {
+        const rowData = grid.rowData;
+        if (!rowData) continue;
+
+        for (let rowIndex = 0; rowIndex < rowData.length; rowIndex++) {
+          const row = rowData[rowIndex];
+          const values = row?.values;
+          if (!values) continue;
+
+          for (let colIndex = 0; colIndex < values.length; colIndex++) {
+            const cell = values[colIndex];
+            const formula = cell?.userEnteredValue?.formulaValue;
+
+            if (formula && this.formulaReferencesRange(formula, range)) {
+              const cellAddress = this.indexToA1(rowIndex, colIndex);
+              affected.push({
+                cell: cellAddress,
+                sheetName,
+                formula,
+                impactType: 'references_affected_range',
+                description: `Formula references cells in the affected range ${range}`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Parse charts from comprehensive data
+   */
+  private parseChartsFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    range: string
+  ): AffectedChart[] {
+    if (!data?.sheets) return [];
+
+    const affected: AffectedChart[] = [];
+    for (const sheet of data.sheets) {
+      const sheetName = sheet.properties?.title || 'Unknown';
+      const charts = sheet.charts || [];
+
+      for (const chart of charts) {
+        if (!chart.chartId || !chart.spec) continue;
+
+        // Check if chart uses the affected range
+        const spec = chart.spec;
+        const domains = spec.basicChart?.domains || [];
+        const series = spec.basicChart?.series || [];
+
+        let usesRange = false;
+        for (const domain of domains) {
+          if (domain.domain?.sourceRange?.sources) {
+            for (const source of domain.domain.sourceRange.sources) {
+              const chartRange = this.gridRangeToA1(source);
+              if (this.rangesOverlap(range, chartRange)) {
+                usesRange = true;
+                break;
+              }
+            }
+          }
+        }
+
+        for (const s of series) {
+          if (s.series?.sourceRange?.sources) {
+            for (const source of s.series.sourceRange.sources) {
+              const chartRange = this.gridRangeToA1(source);
+              if (this.rangesOverlap(range, chartRange)) {
+                usesRange = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (usesRange) {
+          affected.push({
+            chartId: chart.chartId,
+            title: chart.spec.title || 'Untitled Chart',
+            sheetName,
+            chartType: this.getChartType(spec),
+            dataRanges: [range],
+            impactType: 'data_source_affected',
+            description: `Chart uses data from the affected range ${range}`,
+          });
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Parse pivot tables from comprehensive data
+   */
+  private parsePivotTablesFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    _range: string
+  ): AffectedPivotTable[] {
+    if (!data?.sheets) return [];
+
+    // Type assertion: The API response includes pivotTables but TypeScript types don't expose it
+    const sheets = data.sheets as Array<{
+      properties?: { title?: string | null; sheetId?: number | null } | null;
+      pivotTables?: Array<{
+        pivotTableId?: number | null;
+        source?: {
+          sheetId?: number | null;
+          startRowIndex?: number | null;
+          endRowIndex?: number | null;
+          startColumnIndex?: number | null;
+          endColumnIndex?: number | null;
+        } | null;
+      }> | null;
+    }>;
+
+    const affected: AffectedPivotTable[] = [];
+    for (const sheet of sheets) {
+      const sheetName = sheet.properties?.title || 'Unknown';
+      const pivotTables = sheet.pivotTables || [];
+
+      for (const pivot of pivotTables) {
+        if (!pivot.source) continue;
+
+        const sourceRange = this.gridRangeToA1(pivot.source);
+        if (this.rangesOverlap(_range, sourceRange)) {
+          affected.push({
+            pivotTableId: pivot.pivotTableId || 0,
+            sheetName,
+            sourceRange,
+            impactType: 'source_data_affected',
+            description: `Pivot table source data overlaps with ${_range}`,
+          });
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Parse validation rules from comprehensive data
+   */
+  private parseValidationRulesFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    _range: string
+  ): AffectedValidationRule[] {
+    if (!data?.sheets) return [];
+
+    const affected: AffectedValidationRule[] = [];
+    for (const sheet of data.sheets) {
+      const _sheetName = sheet.properties?.title || 'Unknown';
+      const gridData = sheet.data;
+
+      if (!gridData) continue;
+
+      for (const grid of gridData) {
+        const rowData = grid.rowData;
+        if (!rowData) continue;
+
+        for (let rowIndex = 0; rowIndex < rowData.length; rowIndex++) {
+          const row = rowData[rowIndex];
+          const values = row?.values;
+          if (!values) continue;
+
+          for (let colIndex = 0; colIndex < values.length; colIndex++) {
+            const cell = values[colIndex];
+            const validation = cell?.dataValidation;
+
+            if (validation) {
+              const cellAddress = this.indexToA1(rowIndex, colIndex);
+              affected.push({
+                ruleId: `${_sheetName}:${cellAddress}`,
+                range: cellAddress,
+                ruleType: validation.condition?.type || 'UNKNOWN',
+                impactType: 'may_conflict',
+                description: `Validation rule at ${cellAddress} may be affected`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Parse named ranges from comprehensive data
+   */
+  private parseNamedRangesFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    range: string
+  ): AffectedNamedRange[] {
+    if (!data?.namedRanges) return [];
+
+    const affected: AffectedNamedRange[] = [];
+    for (const namedRange of data.namedRanges) {
+      const name = namedRange.name || 'Unnamed';
+      const nr = namedRange.range;
+
+      if (nr) {
+        const namedRangeStr = this.gridRangeToA1(nr);
+        if (this.rangesOverlap(range, namedRangeStr)) {
+          affected.push({
+            namedRangeId: namedRange.namedRangeId || 'unknown',
+            name,
+            range: namedRangeStr,
+            impactType: 'will_be_affected',
+            description: `Named range "${name}" overlaps with ${range}`,
+          });
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Parse protected ranges from comprehensive data
+   */
+  private parseProtectedRangesFromData(
+    data: sheets_v4.Schema$Spreadsheet | null,
+    _range: string
+  ): AffectedProtectedRange[] {
+    if (!data?.sheets) return [];
+
+    const affected: AffectedProtectedRange[] = [];
+    for (const sheet of data.sheets) {
+      const _sheetName = sheet.properties?.title || 'Unknown';
+      const protectedRanges = sheet.protectedRanges || [];
+
+      for (const pr of protectedRanges) {
+        const protectedRange = pr.range ? this.gridRangeToA1(pr.range) : 'Entire sheet';
+
+        if (pr.range && this.rangesOverlap(_range, protectedRange)) {
+          affected.push({
+            protectedRangeId: pr.protectedRangeId || 0,
+            range: protectedRange,
+            description: `Protected range at ${protectedRange} overlaps with ${_range}`,
+            impactType: 'will_be_affected',
+            editors: pr.editors?.users || [],
+          });
+        }
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Find formulas affected by range (DEPRECATED - kept for compatibility)
+   */
+  private async findAffectedFormulas(range: string): Promise<AffectedFormula[]> {
+    if (!this.googleClient) {
+      this.log('No Google API client - skipping formula analysis');
       return [];
     }
 
@@ -347,8 +655,7 @@ export class ImpactAnalyzer {
       // Get spreadsheet metadata to find all sheets
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields:
-          "sheets(properties,data.rowData.values.userEnteredValue.formulaValue)",
+        fields: 'sheets(properties,data.rowData.values.userEnteredValue.formulaValue)',
       });
 
       if (!spreadsheet.data.sheets) {
@@ -357,7 +664,7 @@ export class ImpactAnalyzer {
 
       // Scan each sheet for formulas
       for (const sheet of spreadsheet.data.sheets) {
-        const sheetName = sheet.properties?.title || "Unknown";
+        const sheetName = sheet.properties?.title || 'Unknown';
         const data = sheet.data;
 
         if (!data) continue;
@@ -381,7 +688,7 @@ export class ImpactAnalyzer {
                   cell: cellAddress,
                   sheetName,
                   formula,
-                  impactType: "references_affected_range",
+                  impactType: 'references_affected_range',
                   description: `Formula references cells in the affected range ${range}`,
                 });
               }
@@ -394,7 +701,7 @@ export class ImpactAnalyzer {
       return affected;
     } catch (error) {
       this.log(
-        `Error finding affected formulas: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding affected formulas: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -405,7 +712,7 @@ export class ImpactAnalyzer {
    */
   private async findAffectedCharts(range: string): Promise<AffectedChart[]> {
     if (!this.googleClient) {
-      this.log("No Google API client - skipping chart analysis");
+      this.log('No Google API client - skipping chart analysis');
       return [];
     }
 
@@ -419,7 +726,7 @@ export class ImpactAnalyzer {
       // Get spreadsheet with chart information
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields: "sheets(properties(title),charts(chartId,spec))",
+        fields: 'sheets(properties(title),charts(chartId,spec))',
       });
 
       if (!spreadsheet.data.sheets) {
@@ -428,7 +735,7 @@ export class ImpactAnalyzer {
 
       // Check each sheet for charts
       for (const sheet of spreadsheet.data.sheets) {
-        const sheetName = sheet.properties?.title || "Unknown";
+        const sheetName = sheet.properties?.title || 'Unknown';
         const charts = sheet.charts;
 
         if (!charts) continue;
@@ -470,18 +777,16 @@ export class ImpactAnalyzer {
           }
 
           // Check if any data range overlaps with the affected range
-          const isAffected = dataRanges.some((dataRange) =>
-            this.rangesOverlap(dataRange, range),
-          );
+          const isAffected = dataRanges.some((dataRange) => this.rangesOverlap(dataRange, range));
 
           if (isAffected) {
             affected.push({
               chartId: chart.chartId || 0,
-              title: spec.title || "Untitled Chart",
+              title: spec.title || 'Untitled Chart',
               sheetName,
               chartType: this.getChartType(spec),
               dataRanges,
-              impactType: "data_source_affected",
+              impactType: 'data_source_affected',
               description: `Chart uses data from the affected range ${range}`,
             });
           }
@@ -492,7 +797,7 @@ export class ImpactAnalyzer {
       return affected;
     } catch (error) {
       this.log(
-        `Error finding affected charts: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding affected charts: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -501,9 +806,7 @@ export class ImpactAnalyzer {
   /**
    * Find pivot tables affected by range
    */
-  private async findAffectedPivotTables(
-    range: string,
-  ): Promise<AffectedPivotTable[]> {
+  private async findAffectedPivotTables(range: string): Promise<AffectedPivotTable[]> {
     if (!this.googleClient) {
       return [];
     }
@@ -517,7 +820,7 @@ export class ImpactAnalyzer {
       // Note: TypeScript types don't fully expose pivotTables, but it exists in the API
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields: "sheets(properties(title,sheetId),pivotTables)",
+        fields: 'sheets(properties(title,sheetId),pivotTables)',
       });
 
       // Type assertion: The API response includes pivotTables but TypeScript types don't expose it
@@ -539,16 +842,14 @@ export class ImpactAnalyzer {
 
       if (sheets) {
         for (const sheet of sheets) {
-          const sheetName = sheet.properties?.title || "Unknown";
+          const sheetName = sheet.properties?.title || 'Unknown';
 
           // Check if sheet has pivot tables
           if (!sheet.pivotTables || sheet.pivotTables.length === 0) {
             continue;
           }
 
-          this.log(
-            `Found ${sheet.pivotTables.length} pivot table(s) in ${sheetName}`,
-          );
+          this.log(`Found ${sheet.pivotTables.length} pivot table(s) in ${sheetName}`);
 
           // Check each pivot table
           for (const pivot of sheet.pivotTables) {
@@ -563,12 +864,12 @@ export class ImpactAnalyzer {
                 pivotTableId: pivot.pivotTableId || 0,
                 sheetName,
                 sourceRange: pivotA1,
-                impactType: "source_data_affected",
+                impactType: 'source_data_affected',
                 description: `Pivot table source data will be modified. The pivot table may need to be refreshed.`,
               });
 
               this.log(
-                `Pivot table ${pivot.pivotTableId} in ${sheetName} affected by range ${range}`,
+                `Pivot table ${pivot.pivotTableId} in ${sheetName} affected by range ${range}`
               );
             }
           }
@@ -578,7 +879,7 @@ export class ImpactAnalyzer {
       return affected;
     } catch (error) {
       this.log(
-        `Error finding pivot tables: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding pivot tables: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -587,9 +888,7 @@ export class ImpactAnalyzer {
   /**
    * Find validation rules affected by range
    */
-  private async findAffectedValidationRules(
-    range: string,
-  ): Promise<AffectedValidationRule[]> {
+  private async findAffectedValidationRules(range: string): Promise<AffectedValidationRule[]> {
     if (!this.googleClient) {
       return [];
     }
@@ -601,7 +900,7 @@ export class ImpactAnalyzer {
 
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields: "sheets(data.rowData.values.dataValidation)",
+        fields: 'sheets(data.rowData.values.dataValidation)',
       });
 
       if (spreadsheet.data.sheets) {
@@ -623,9 +922,9 @@ export class ImpactAnalyzer {
                   affected.push({
                     ruleId: `${range}-validation`,
                     range: range, // Would need actual cell address here
-                    ruleType: cell.dataValidation.condition?.type || "UNKNOWN",
-                    impactType: "may_conflict",
-                    description: "Data validation rule may be affected",
+                    ruleType: cell.dataValidation.condition?.type || 'UNKNOWN',
+                    impactType: 'may_conflict',
+                    description: 'Data validation rule may be affected',
                   });
                 }
               }
@@ -637,7 +936,7 @@ export class ImpactAnalyzer {
       return affected;
     } catch (error) {
       this.log(
-        `Error finding validation rules: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding validation rules: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -646,9 +945,7 @@ export class ImpactAnalyzer {
   /**
    * Find named ranges affected by range
    */
-  private async findAffectedNamedRanges(
-    range: string,
-  ): Promise<AffectedNamedRange[]> {
+  private async findAffectedNamedRanges(range: string): Promise<AffectedNamedRange[]> {
     if (!this.googleClient) {
       return [];
     }
@@ -660,7 +957,7 @@ export class ImpactAnalyzer {
 
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields: "namedRanges(namedRangeId,name,range)",
+        fields: 'namedRanges(namedRangeId,name,range)',
       });
 
       if (spreadsheet.data.namedRanges) {
@@ -671,10 +968,10 @@ export class ImpactAnalyzer {
             const namedRangeA1 = this.gridRangeToA1(rangeData);
             if (this.rangesOverlap(namedRangeA1, range)) {
               affected.push({
-                namedRangeId: namedRange.namedRangeId || "unknown",
-                name: namedRange.name || "Unknown",
+                namedRangeId: namedRange.namedRangeId || 'unknown',
+                name: namedRange.name || 'Unknown',
                 range: namedRangeA1,
-                impactType: "will_be_affected",
+                impactType: 'will_be_affected',
                 description: `Named range "${namedRange.name}" overlaps with affected range`,
               });
             }
@@ -682,13 +979,11 @@ export class ImpactAnalyzer {
         }
       }
 
-      this.log(
-        `Found ${affected.length} named ranges affected by range ${range}`,
-      );
+      this.log(`Found ${affected.length} named ranges affected by range ${range}`);
       return affected;
     } catch (error) {
       this.log(
-        `Error finding named ranges: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding named ranges: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -697,9 +992,7 @@ export class ImpactAnalyzer {
   /**
    * Find protected ranges affected by range
    */
-  private async findAffectedProtectedRanges(
-    range: string,
-  ): Promise<AffectedProtectedRange[]> {
+  private async findAffectedProtectedRanges(range: string): Promise<AffectedProtectedRange[]> {
     if (!this.googleClient) {
       return [];
     }
@@ -711,8 +1004,7 @@ export class ImpactAnalyzer {
 
       const spreadsheet = await this.googleClient.sheets.spreadsheets.get({
         spreadsheetId: params.spreadsheetId,
-        fields:
-          "sheets(protectedRanges(protectedRangeId,range,description,editors))",
+        fields: 'sheets(protectedRanges(protectedRangeId,range,description,editors))',
       });
 
       if (spreadsheet.data.sheets) {
@@ -727,8 +1019,8 @@ export class ImpactAnalyzer {
                 affected.push({
                   protectedRangeId: protectedRange.protectedRangeId || 0,
                   range: protectedRangeA1,
-                  description: protectedRange.description || "Protected range",
-                  impactType: "permission_required",
+                  description: protectedRange.description || 'Protected range',
+                  impactType: 'permission_required',
                   editors: protectedRange.editors?.users || [],
                 });
               }
@@ -737,13 +1029,11 @@ export class ImpactAnalyzer {
         }
       }
 
-      this.log(
-        `Found ${affected.length} protected ranges affected by range ${range}`,
-      );
+      this.log(`Found ${affected.length} protected ranges affected by range ${range}`);
       return affected;
     } catch (error) {
       this.log(
-        `Error finding protected ranges: ${error instanceof Error ? error.message : String(error)}`,
+        `Error finding protected ranges: ${error instanceof Error ? error.message : String(error)}`
       );
       return [];
     }
@@ -754,7 +1044,7 @@ export class ImpactAnalyzer {
    */
   private estimateExecutionTime(
     operation: { type: string; tool: string; action: string },
-    cellCount: number,
+    cellCount: number
   ): number {
     // Base time: 100ms
     let time = 100;
@@ -763,11 +1053,11 @@ export class ImpactAnalyzer {
     time += cellCount * 0.5;
 
     // Add time based on operation type
-    if (operation.tool.includes("format")) {
+    if (operation.tool.includes('format')) {
       time += cellCount * 0.3;
     }
 
-    if (operation.tool.includes("formula")) {
+    if (operation.tool.includes('formula')) {
       time += cellCount * 1.0;
     }
 
@@ -781,25 +1071,25 @@ export class ImpactAnalyzer {
     cells: number,
     formulas: number,
     charts: number,
-    protectedRanges: number,
+    protectedRanges: number
   ): ImpactSeverity {
     // Critical: Protected ranges or large cell count
     if (protectedRanges > 0 || cells > 10000) {
-      return "critical";
+      return 'critical';
     }
 
     // High: Many formulas or charts affected
     if (formulas > 10 || charts > 3) {
-      return "high";
+      return 'high';
     }
 
     // Medium: Some formulas or charts
     if (formulas > 0 || charts > 0 || cells > 1000) {
-      return "medium";
+      return 'medium';
     }
 
     // Low: Minimal impact
-    return "low";
+    return 'low';
   }
 
   /**
@@ -810,24 +1100,24 @@ export class ImpactAnalyzer {
     formulas: AffectedFormula[],
     charts: AffectedChart[],
     pivotTables: AffectedPivotTable[],
-    protectedRanges: AffectedProtectedRange[],
+    protectedRanges: AffectedProtectedRange[]
   ): ImpactWarning[] {
     const warnings: ImpactWarning[] = [];
 
     // Large cell count warning
     if (cells > 10000) {
       warnings.push({
-        severity: "critical",
+        severity: 'critical',
         message: `This operation affects ${cells.toLocaleString()} cells, which may take significant time`,
-        resourceType: "cells",
+        resourceType: 'cells',
         affectedCount: cells,
-        suggestedAction: "Consider breaking into smaller operations",
+        suggestedAction: 'Consider breaking into smaller operations',
       });
     } else if (cells > 1000) {
       warnings.push({
-        severity: "medium",
+        severity: 'medium',
         message: `This operation affects ${cells.toLocaleString()} cells`,
-        resourceType: "cells",
+        resourceType: 'cells',
         affectedCount: cells,
       });
     }
@@ -835,33 +1125,33 @@ export class ImpactAnalyzer {
     // Formulas warning
     if (formulas.length > 0) {
       warnings.push({
-        severity: formulas.length > 10 ? "high" : "medium",
+        severity: formulas.length > 10 ? 'high' : 'medium',
         message: `${formulas.length} formula(s) reference this range and may be affected`,
-        resourceType: "formulas",
+        resourceType: 'formulas',
         affectedCount: formulas.length,
-        suggestedAction: "Review formulas before proceeding",
+        suggestedAction: 'Review formulas before proceeding',
       });
     }
 
     // Charts warning
     if (charts.length > 0) {
       warnings.push({
-        severity: charts.length > 3 ? "high" : "medium",
+        severity: charts.length > 3 ? 'high' : 'medium',
         message: `${charts.length} chart(s) use data from this range`,
-        resourceType: "charts",
+        resourceType: 'charts',
         affectedCount: charts.length,
-        suggestedAction: "Charts may need to be updated",
+        suggestedAction: 'Charts may need to be updated',
       });
     }
 
     // Protected ranges warning
     if (protectedRanges.length > 0) {
       warnings.push({
-        severity: "critical",
+        severity: 'critical',
         message: `This range is protected. Edit permissions required.`,
-        resourceType: "protected_ranges",
+        resourceType: 'protected_ranges',
         affectedCount: protectedRanges.length,
-        suggestedAction: "Request edit permissions from sheet owner",
+        suggestedAction: 'Request edit permissions from sheet owner',
       });
     }
 
@@ -874,32 +1164,30 @@ export class ImpactAnalyzer {
   private generateRecommendations(
     operation: { type: string; tool: string; action: string },
     warnings: ImpactWarning[],
-    severity: ImpactSeverity,
+    severity: ImpactSeverity
   ): string[] {
     const recommendations: string[] = [];
 
     // Critical severity recommendations
-    if (severity === "critical") {
-      recommendations.push("Review all warnings carefully before proceeding");
-      recommendations.push("Consider creating a backup snapshot");
+    if (severity === 'critical') {
+      recommendations.push('Review all warnings carefully before proceeding');
+      recommendations.push('Consider creating a backup snapshot');
     }
 
     // Large operation recommendations
-    if (
-      warnings.some((w) => w.resourceType === "cells" && w.affectedCount > 1000)
-    ) {
-      recommendations.push("Use a transaction to ensure atomicity");
-      recommendations.push("Consider breaking into smaller batches");
+    if (warnings.some((w) => w.resourceType === 'cells' && w.affectedCount > 1000)) {
+      recommendations.push('Use a transaction to ensure atomicity');
+      recommendations.push('Consider breaking into smaller batches');
     }
 
     // Formula recommendations
-    if (warnings.some((w) => w.resourceType === "formulas")) {
-      recommendations.push("Verify formula references after operation");
+    if (warnings.some((w) => w.resourceType === 'formulas')) {
+      recommendations.push('Verify formula references after operation');
     }
 
     // Chart recommendations
-    if (warnings.some((w) => w.resourceType === "charts")) {
-      recommendations.push("Refresh charts after operation");
+    if (warnings.some((w) => w.resourceType === 'charts')) {
+      recommendations.push('Refresh charts after operation');
     }
 
     return recommendations;
@@ -948,25 +1236,19 @@ let impactAnalyzerInstance: ImpactAnalyzer | null = null;
  * Initialize impact analyzer (call once during server startup)
  */
 export function initImpactAnalyzer(
-  googleClient?: ImpactAnalyzerConfig["googleClient"],
+  googleClient?: ImpactAnalyzerConfig['googleClient']
 ): ImpactAnalyzer {
   if (!impactAnalyzerInstance) {
     impactAnalyzerInstance = new ImpactAnalyzer({
-      enabled: process.env["IMPACT_ANALYSIS_ENABLED"] !== "false",
-      analyzeFormulas: process.env["IMPACT_ANALYZE_FORMULAS"] !== "false",
-      analyzeCharts: process.env["IMPACT_ANALYZE_CHARTS"] !== "false",
-      analyzePivotTables:
-        process.env["IMPACT_ANALYZE_PIVOT_TABLES"] !== "false",
-      analyzeValidationRules:
-        process.env["IMPACT_ANALYZE_VALIDATION"] !== "false",
-      analyzeNamedRanges:
-        process.env["IMPACT_ANALYZE_NAMED_RANGES"] !== "false",
-      analyzeProtectedRanges:
-        process.env["IMPACT_ANALYZE_PROTECTED"] !== "false",
-      analysisTimeoutMs: parseInt(
-        process.env["IMPACT_ANALYSIS_TIMEOUT_MS"] || "5000",
-      ),
-      verboseLogging: process.env["IMPACT_VERBOSE"] === "true",
+      enabled: process.env['IMPACT_ANALYSIS_ENABLED'] !== 'false',
+      analyzeFormulas: process.env['IMPACT_ANALYZE_FORMULAS'] !== 'false',
+      analyzeCharts: process.env['IMPACT_ANALYZE_CHARTS'] !== 'false',
+      analyzePivotTables: process.env['IMPACT_ANALYZE_PIVOT_TABLES'] !== 'false',
+      analyzeValidationRules: process.env['IMPACT_ANALYZE_VALIDATION'] !== 'false',
+      analyzeNamedRanges: process.env['IMPACT_ANALYZE_NAMED_RANGES'] !== 'false',
+      analyzeProtectedRanges: process.env['IMPACT_ANALYZE_PROTECTED'] !== 'false',
+      analysisTimeoutMs: parseInt(process.env['IMPACT_ANALYSIS_TIMEOUT_MS'] || '5000'),
+      verboseLogging: process.env['IMPACT_VERBOSE'] === 'true',
       googleClient,
     });
   }
@@ -978,9 +1260,7 @@ export function initImpactAnalyzer(
  */
 export function getImpactAnalyzer(): ImpactAnalyzer {
   if (!impactAnalyzerInstance) {
-    throw new Error(
-      "Impact analyzer not initialized. Call initImpactAnalyzer() first.",
-    );
+    throw new Error('Impact analyzer not initialized. Call initImpactAnalyzer() first.');
   }
   return impactAnalyzerInstance;
 }
@@ -990,10 +1270,8 @@ export function getImpactAnalyzer(): ImpactAnalyzer {
  * @internal
  */
 export function resetImpactAnalyzer(): void {
-  if (process.env["NODE_ENV"] !== "test" && process.env["VITEST"] !== "true") {
-    throw new Error(
-      "resetImpactAnalyzer() can only be called in test environment",
-    );
+  if (process.env['NODE_ENV'] !== 'test' && process.env['VITEST'] !== 'true') {
+    throw new Error('resetImpactAnalyzer() can only be called in test environment');
   }
   impactAnalyzerInstance = null;
 }
