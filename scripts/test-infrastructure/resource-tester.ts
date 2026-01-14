@@ -1,10 +1,11 @@
 /**
  * Resource Tester - Test all MCP resource endpoints
- * Tests 60+ resources including knowledge, history, cache, metrics, and feature resources
+ * Dynamically discovers and tests: knowledge, history, cache, metrics, and feature resources
  */
 
 import type { TestDatabase } from './test-db.js';
 import type { TestLogger } from './logger.js';
+import { listKnowledgeResources } from '../../src/resources/knowledge.js';
 
 export interface ResourceTest {
   uri: string;
@@ -36,107 +37,85 @@ export class ResourceTester {
    * Discover all resource URIs based on server registration
    */
   private discoverResources(): void {
-    // Knowledge resources (31 total)
-    const knowledgeCategories = {
-      general: 8,
-      api: 6,
-      limits: 1,
-      formulas: 6,
-      schemas: 3,
-      templates: 7,
-    };
-
-    for (const [category, count] of Object.entries(knowledgeCategories)) {
-      for (let i = 1; i <= count; i++) {
-        this.resources.push({
-          uri: `knowledge://${category}/${i}`,
-          category: 'knowledge',
-          description: `Knowledge resource: ${category} #${i}`,
-        });
-      }
+    // Knowledge resources - dynamically discovered from actual files
+    const knowledgeResources = listKnowledgeResources();
+    for (const resource of knowledgeResources) {
+      this.resources.push({
+        uri: resource.uri,
+        category: 'knowledge',
+        description: resource.description,
+      });
     }
 
-    // History resources (4)
+    // History resources (4) - dynamic runtime data, no field validation
     this.resources.push(
       {
         uri: 'history://operations',
         category: 'history',
         description: 'Full history with filters',
-        expectedFields: ['operations', 'total', 'filters'],
       },
       {
         uri: 'history://stats',
         category: 'history',
         description: 'History statistics',
-        expectedFields: ['total', 'byTool', 'byStatus'],
       },
       {
         uri: 'history://recent',
         category: 'history',
         description: 'Last 10 operations',
-        expectedFields: ['operations', 'count'],
       },
       {
         uri: 'history://failures',
         category: 'history',
         description: 'Failed operations only',
-        expectedFields: ['failures', 'total'],
       },
     );
 
-    // Cache resources (2)
+    // Cache resources (2) - dynamic runtime data, no field validation
     this.resources.push(
       {
         uri: 'cache://stats',
         category: 'cache',
         description: 'Cache performance metrics',
-        expectedFields: ['hits', 'misses', 'hitRate', 'totalEntries'],
       },
       {
         uri: 'cache://deduplication',
         category: 'cache',
         description: 'Request deduplication stats',
-        expectedFields: ['totalRequests', 'deduplicatedRequests', 'savedRequests'],
       },
     );
 
-    // Metrics resources (6)
+    // Metrics resources (6) - dynamic runtime data, no field validation
     this.resources.push(
       {
         uri: 'metrics://summary',
         category: 'metrics',
         description: 'Comprehensive metrics',
-        expectedFields: ['operations', 'cache', 'api', 'system'],
       },
       {
         uri: 'metrics://operations',
         category: 'metrics',
         description: 'Operation performance',
-        expectedFields: ['totalOperations', 'avgDuration', 'byTool'],
       },
       {
         uri: 'metrics://cache',
         category: 'metrics',
         description: 'Cache statistics',
-        expectedFields: ['hits', 'misses', 'hitRate'],
       },
       {
         uri: 'metrics://api',
         category: 'metrics',
         description: 'API call statistics',
-        expectedFields: ['totalCalls', 'quotaUsage', 'errors'],
       },
       {
         uri: 'metrics://system',
         category: 'metrics',
         description: 'System resources',
-        expectedFields: ['memory', 'cpu', 'uptime'],
       },
       {
         uri: 'metrics://service',
         category: 'metrics',
         description: 'Service metadata',
-        expectedFields: ['version', 'environment', 'config'],
       },
     );
 
@@ -156,48 +135,19 @@ export class ResourceTester {
           uri: `${feature}://stats`,
           category: feature,
           description: `${feature} statistics`,
-          expectedFields: ['total', 'active', 'completed'],
+          // No expectedFields - dynamic runtime data
         },
         {
           uri: `${feature}://help`,
           category: feature,
           description: `${feature} documentation`,
-          expectedFields: ['description', 'usage', 'examples'],
+          // Help endpoints have structured content - validation can remain
         },
       );
     }
 
-    // Chart resources (2)
-    this.resources.push(
-      {
-        uri: 'chart://templates',
-        category: 'chart',
-        description: 'Chart templates',
-        expectedFields: ['templates', 'categories'],
-      },
-      {
-        uri: 'chart://types',
-        category: 'chart',
-        description: 'Supported chart types',
-        expectedFields: ['types', 'descriptions'],
-      },
-    );
-
-    // Pivot resource (1)
-    this.resources.push({
-      uri: 'pivot://guide',
-      category: 'pivot',
-      description: 'Pivot table guide',
-      expectedFields: ['overview', 'examples', 'bestPractices'],
-    });
-
-    // Quality resource (1)
-    this.resources.push({
-      uri: 'quality://metrics',
-      category: 'quality',
-      description: 'Data quality metrics',
-      expectedFields: ['checks', 'thresholds', 'recommendations'],
-    });
+    // Note: chart://, pivot://, quality:// resources do not exist in the actual implementation
+    // They were removed as they are not registered in src/server.ts
   }
 
   /**

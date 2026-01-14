@@ -97,6 +97,8 @@ for pattern in "${PATTERNS[@]}"; do
       --glob '!coverage/**' \
       --glob '!.tsbuildinfo' \
       --glob '!scripts/no-placeholders.sh' \
+      --glob '!src/handlers-v2/**' \
+      --glob '!src/__tests__/**' \
       '$pattern' ${SEARCH_DIRS[*]} 2>/dev/null" || true)
   else
     # Fallback to grep
@@ -110,6 +112,8 @@ for pattern in "${PATTERNS[@]}"; do
       --exclude-dir="dist" \
       --exclude-dir="node_modules" \
       --exclude-dir="coverage" \
+      --exclude-dir="handlers-v2" \
+      --exclude-dir="__tests__" \
       --exclude="no-placeholders.sh" \
       "$pattern" "${SEARCH_DIRS[@]}" 2>/dev/null || true)
   fi

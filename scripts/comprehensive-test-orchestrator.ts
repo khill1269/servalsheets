@@ -3,8 +3,8 @@
  * Ultra-thorough testing with complete observability
  *
  * Tests:
- * - 195 tool actions (schema-compliant)
- * - 60+ resource endpoints
+ * - 214 tool actions across 26 tools (schema-compliant)
+ * - 59 resource endpoints (31 knowledge + 28 others)
  * - MCP completions
  * - MCP tasks
  * - Full protocol tracing

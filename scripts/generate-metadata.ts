@@ -244,7 +244,8 @@ const schemaFiles = readdirSync(join(ROOT, 'src/schemas')).filter(
     f !== 'descriptions.ts' &&
     f !== 'prompts.ts' &&
     f !== 'logging.ts' &&
-    f !== 'fast-validators.ts'
+    f !== 'fast-validators.ts' &&
+    f !== 'formulas.ts' // Merged into sheets_advanced (Wave 5)
 );
 
 console.log(`\n📊 Analyzing ${schemaFiles.length} schema files...\n`);

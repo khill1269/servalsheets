@@ -1,4 +1,32 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+#!/bin/bash
+set -e
 
+echo "🔍 Running pre-commit checks..."
+
+# Get staged TypeScript files
+STAGED_TS_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.ts$' || true)
+
+if [ -n "$STAGED_TS_FILES" ]; then
+  # Run checks in parallel for speed
+  echo "  → Checking metadata drift"
+  npm run check:drift &
+  PID_DRIFT=$!
+
+  echo "  → Checking for placeholders"
+  npm run check:placeholders &
+  PID_PLACEHOLDER=$!
+
+  echo "  → Checking for debug prints"
+  npm run check:debug-prints &
+  PID_DEBUG=$!
+
+  # Wait for all background jobs
+  wait $PID_DRIFT || { echo "❌ Metadata drift check failed"; exit 1; }
+  wait $PID_PLACEHOLDER || { echo "❌ Placeholder check failed"; exit 1; }
+  wait $PID_DEBUG || { echo "❌ Debug print check failed"; exit 1; }
+
+  echo "✅ Pre-commit checks passed"
+fi
+
+# Run lint-staged (formats and lints)
 npx lint-staged

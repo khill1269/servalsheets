@@ -61,6 +61,15 @@ temp/
 *.backup
 *.orig
 
+# Discovery API cache
+.discovery-cache/
+.test-discovery-cache/
+
+# Debug and tracing files
+traces.jsonl
+replay.jsonl
+test-replay.jsonl
+
 # Session/cleanup documents in root (temporary analysis)
 /*SESSION*.md
 /*CLEANUP*.md
@@ -85,3 +94,8 @@ RESOURCE_ARCHITECTURE_DIAGRAM.md
 docs/MASTER_ANALYSIS_PROMPT.md
 docs/NL_EXCELLENCE_PLAN.md
 examples/js-compiled/
+src/handlers-v2/
+src/__tests__/
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
