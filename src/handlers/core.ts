@@ -1134,6 +1134,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   private convertTabColor(
     tabColor: sheets_v4.Schema$Color | null | undefined
   ): SheetInfo['tabColor'] {
+    // OK: Explicit empty - tab color is optional, undefined means no color set
     if (!tabColor) return undefined;
     return {
       red: tabColor.red ?? 0,
