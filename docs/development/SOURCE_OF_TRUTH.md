@@ -184,10 +184,10 @@ Evidence: <file:line> OR <command → output>
 
 ✅ **Good:**
 ```
-Claim: ServalSheets has 208 actions
-Evidence: src/schemas/index.ts exports ACTION_COUNT = 208
+Claim: ServalSheets has 226 actions
+Evidence: src/schemas/index.ts exports ACTION_COUNT = 226
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
-Output: export const ACTION_COUNT = 208;
+Output: export const ACTION_COUNT = 226;
 ```
 
 ❌ **Bad:**
@@ -277,10 +277,10 @@ Q: How many actions does ServalSheets have?
 A: Let me verify...
 
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
-Output: export const ACTION_COUNT = 208;
+Output: export const ACTION_COUNT = 226;
 
-ServalSheets has 208 actions across 26 tools.
-Evidence: src/schemas/index.ts exports ACTION_COUNT = 208
+ServalSheets has 226 actions across 17 tools.
+Evidence: src/schemas/index.ts exports ACTION_COUNT = 226
 ```
 
 ---

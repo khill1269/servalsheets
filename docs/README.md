@@ -61,27 +61,21 @@ End-user and administrator documentation:
 | [SKILL.md](./guides/SKILL.md) | Claude skill integration |
 
 ### Examples (`examples/`)
-Complete request/response examples for all 26 tools:
+Request/response examples for production tools (17 tools, 226 actions):
 
 | File | Coverage |
 |------|----------|
-| [spreadsheet-examples.json](./examples/spreadsheet-examples.json) | Spreadsheet operations |
-| [sheet-examples.json](./examples/sheet-examples.json) | Sheet/tab operations |
-| [values-examples.json](./examples/values-examples.json) | Cell read/write/batch |
-| [format-examples.json](./examples/format-examples.json) | Formatting & styles |
-| [cells-examples.json](./examples/cells-examples.json) | Notes, validation, merge |
-| [dimensions-examples.json](./examples/dimensions-examples.json) | Rows/columns operations |
-| [rules-examples.json](./examples/rules-examples.json) | Conditional formatting |
-| [pivot-examples.json](./examples/pivot-examples.json) | Pivot tables |
-| [filter-sort-examples.json](./examples/filter-sort-examples.json) | Filtering & sorting |
-| [charts-examples.json](./examples/charts-examples.json) | Chart creation |
-| [sharing-examples.json](./examples/sharing-examples.json) | Permissions & sharing |
-| [comments-examples.json](./examples/comments-examples.json) | Comments & threads |
-| [versions-examples.json](./examples/versions-examples.json) | Version control |
-| [advanced-examples.json](./examples/advanced-examples.json) | Named ranges, protection |
-| [analysis-examples.json](./examples/analysis-examples.json) | Data analysis |
+| [advanced-examples.json](./examples/advanced-examples.json) | Named ranges, filters, protection |
+| [analysis-examples.json](./examples/analysis-examples.json) | Data quality analysis |
+| [dimensions-examples.json](./examples/dimensions-examples.json) | Row/column operations |
+| [format-examples.json](./examples/format-examples.json) | Cell formatting & styles |
 | [oauth-flow-examples.json](./examples/oauth-flow-examples.json) | OAuth 2.1 + PKCE flow |
-| [error-handling-examples.json](./examples/error-handling-examples.json) | Error patterns |
+| [error-handling-examples.json](./examples/error-handling-examples.json) | Error handling patterns |
+
+**Note:** For complete tool documentation, see:
+- `npm run show:tools` - List all 17 tools with action counts
+- `server.json` - Auto-generated MCP tool definitions
+- [ACTION_REFERENCE.md](./guides/ACTION_REFERENCE.md) - Tool reference guide
 
 ### Development (`development/`)
 Internal development documentation:

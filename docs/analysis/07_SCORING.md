@@ -235,7 +235,7 @@ Use this for rapid assessment:
 - [ ] Type check passes
 - [ ] All tests pass (1,500+)
 - [ ] 0 security high/critical
-- [ ] 27 tools registered
+- [ ] 17 tools registered
 - [ ] server.json valid
 
 ### Should Pass (P1)

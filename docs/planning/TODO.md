@@ -1,6 +1,8 @@
 # ServalSheets TODO List
 *Generated: 2026-01-07 (Updated with comprehensive audit findings)*
 
+**⚠️ NOTE:** This document contains historical planning information. Many tasks reference previous architectures with 24-26 tools. **Current production architecture: 17 tools, 226 actions** (as of v1.4.0).
+
 ## 🔥 IN PROGRESS
 
 **Phase 5: Release Cleanup** - Final validation and production readiness

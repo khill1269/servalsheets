@@ -41,7 +41,7 @@ npx @modelcontextprotocol/inspector --config mcp-inspector-config.json
 - [ ] Protocol version: 2025-11-25
 
 ### Phase 2: Tool Discovery ✅
-- [ ] List all tools (should show 24 tools)
+- [ ] List all tools (should show 17 tools)
 - [ ] Verify tool names match expected:
   - sheets_auth
   - sheets_spreadsheet
@@ -318,7 +318,7 @@ Tools will execute successfully and return structured data:
 
 ### ✅ Good Signs:
 - Server connects immediately
-- All 24 tools are listed
+- All 17 tools are listed
 - Schemas are well-formed
 - Error messages are helpful
 - Responses are fast
@@ -376,7 +376,7 @@ For full testing with Google Sheets access:
 
 ### Full Tests (15 minutes):
 1. [ ] Complete minimum tests
-2. [ ] Test all 24 tools (at least status/list actions)
+2. [ ] Test all 17 tools (at least status/list actions)
 3. [ ] Test with valid spreadsheet ID (requires auth)
 4. [ ] Test error scenarios
 5. [ ] Verify response structures
