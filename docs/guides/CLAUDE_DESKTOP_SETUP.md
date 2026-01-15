@@ -1,6 +1,6 @@
 # Claude Desktop Setup Guide
 
-This guide helps you configure ServalSheets v1.1.1 to work with Claude Desktop.
+This guide helps you configure ServalSheets v1.4.0 to work with Claude Desktop.
 
 ## 🆕 What's New in v1.1.1
 
@@ -170,7 +170,7 @@ In Claude Desktop, try:
 List all sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 ```
 
-Expected: Claude should use the `sheets_spreadsheet` tool and return sheet names.
+Expected: Claude should use the `sheets_core` tool and return sheet names.
 
 ## ⚙️ Environment Variables (v1.1.1)
 
@@ -359,25 +359,33 @@ The following features are **always active** in v1.1.1:
 
 ## 📊 Verify Tools Are Loaded
 
-You should see **15 tools** available:
+You should see **17 tools** available:
 
-1. `sheets_spreadsheet` (6 actions)
-2. `sheets_sheet` (7 actions)
-3. `sheets_values` (9 actions)
-4. `sheets_cells` (12 actions)
-5. `sheets_format` (9 actions)
-6. `sheets_dimensions` (21 actions)
-7. `sheets_rules` (8 actions)
-8. `sheets_charts` (9 actions)
-9. `sheets_pivot` (8 actions)
-10. `sheets_filter_sort` (14 actions)
-11. `sheets_sharing` (8 actions)
-12. `sheets_comments` (10 actions)
-13. `sheets_versions` (10 actions)
-14. `sheets_analysis` (8 actions)
-15. `sheets_advanced` (19 actions)
+1. `sheets_auth` - Authentication & OAuth
+2. `sheets_core` - Spreadsheet CRUD operations
+3. `sheets_data` - Read/write cell values
+4. `sheets_dimensions` - Row/column operations
+5. `sheets_format` - Cell formatting
+6. `sheets_advanced` - Named ranges, filters, protection
+7. `sheets_analysis` - Data quality analysis
+8. `sheets_analyze` - AI-powered analysis (with Sampling)
+9. `sheets_quality` - Validation and quality checks
+10. `sheets_collaborate` - Sharing and permissions
+11. `sheets_session` - Session context management
+12. `sheets_composite` - Multi-step operations
+13. `sheets_visualize` - Charts and visualization
+14. `sheets_transaction` - Transaction management
+15. `sheets_history` - Operation history
+16. `sheets_confirm` - User confirmation (with Elicitation)
+17. `sheets_fix` - Automated issue resolution
 
-**Total**: 156 actions
+**Total**: 17 tools, 226 actions
+
+To see the current action breakdown, run:
+```bash
+npm run check:drift | grep "Total:"
+# Output: ✅ Total: 17 tools, 226 actions
+```
 
 ## 🎯 Example Tasks
 
