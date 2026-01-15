@@ -732,8 +732,7 @@ export class TransactionManager {
    */
   private log(message: string): void {
     if (this.config.verboseLogging) {
-      // eslint-disable-next-line no-console
-      console.log(`[TransactionManager] ${message}`); // Debugging output when verboseLogging enabled
+      logger.debug('[TransactionManager] ' + message);
     }
   }
 

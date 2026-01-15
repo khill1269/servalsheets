@@ -7,6 +7,7 @@
 
 import http from 'http';
 import { URL } from 'url';
+import { logger } from './logger.js';
 
 export interface CallbackServerOptions {
   port?: number;
@@ -154,8 +155,7 @@ export async function startCallbackServer(
 
     // Start the server
     server.listen(port, host, () => {
-      // eslint-disable-next-line no-console
-      console.log(`OAuth callback server listening on http://${host}:${port}/callback`); // User-facing server status message
+      logger.info(`OAuth callback server listening on http://${host}:${port}/callback`);
     });
 
     // Timeout after specified duration

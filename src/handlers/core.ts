@@ -37,7 +37,8 @@ import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
 import { ScopeValidator } from '../security/incremental-scope.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
-import { getRequestLogger } from '../utils/request-context.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
+import { createNotFoundError } from '../utils/error-factory.js';
 
 export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -577,7 +578,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * Get spreadsheet URL
    */
   private async handleGetUrl(input: CoreGetUrlInput): Promise<CoreResponse> {
-    const url = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
+    let url = `https://docs.google.com/spreadsheets/d/${input.spreadsheetId}`;
+    if (input.sheetId !== undefined) {
+      url += `#gid=${input.sheetId}`;
+    }
     return this.success('get_url', { url });
   }
 
@@ -877,41 +881,38 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       }
     }
 
-    // Request confirmation for destructive operation if elicitation is supported
-    if (this.context.samplingServer && !input.safety?.dryRun) {
-      try {
-        const server = this.context
-          .samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer;
-        const caps = server.getClientCapabilities?.();
-
-        // Only request confirmation if client supports form-based elicitation
-        if (caps?.elicitation?.form) {
-          const confirmation = await confirmDestructiveAction(
-            server,
-            'Delete Sheet',
-            `This will permanently delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
-          );
-
-          if (!confirmation.confirmed) {
-            return this.error({
-              code: 'INVALID_REQUEST',
-              message: 'Operation cancelled by user',
-              retryable: false,
-            });
-          }
-        }
-      } catch (error) {
-        // If elicitation fails, proceed (backward compatibility)
-        getRequestLogger().warn('Elicitation failed for delete operation', {
-          error,
-        });
-      }
-    }
-
     // Dry run support
     if (input.safety?.dryRun) {
       return this.success('delete_sheet', {}, undefined, true);
     }
+
+    // Request confirmation for destructive operation if elicitation is supported
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_sheet',
+        `Delete sheet with ID ${input.sheetId} from spreadsheet ${input.spreadsheetId}. This will permanently remove the entire sheet and all its data. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_sheet',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -920,7 +921,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
-    return this.success('delete_sheet', {});
+    return this.success('delete_sheet', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   /**
@@ -1024,11 +1027,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     const sheetData = updated.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
     if (!sheetData?.properties) {
-      return this.error({
-        code: 'SHEET_NOT_FOUND',
-        message: `Sheet ${input.sheetId} not found after update`,
-        retryable: false,
-      });
+      return this.error(
+        createNotFoundError({
+          resourceType: 'sheet',
+          resourceId: String(input.sheetId),
+          searchSuggestion: 'Sheet not found after update. Verify the sheet ID is correct.',
+          parentResourceId: input.spreadsheetId,
+        })
+      );
     }
 
     const sheet: SheetInfo = {
@@ -1104,11 +1110,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     const sheetData = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
     if (!sheetData?.properties) {
-      return this.error({
-        code: 'SHEET_NOT_FOUND',
-        message: `Sheet ${input.sheetId} not found`,
-        retryable: false,
-      });
+      return this.error(
+        createNotFoundError({
+          resourceType: 'sheet',
+          resourceId: String(input.sheetId),
+          searchSuggestion: 'Use sheets_core action "list_sheets" to see available sheet IDs',
+          parentResourceId: input.spreadsheetId,
+        })
+      );
     }
 
     const sheet: SheetInfo = {

@@ -57,7 +57,9 @@ export const SheetsCoreInputSchema = z
       .boolean()
       .optional()
       .default(false)
-      .describe('Include cell data in response (get, get_comprehensive)'),
+      .describe(
+        'Include cell data in response (default: false | set true to fetch cell values) (get, get_comprehensive)'
+      ),
     ranges: z
       .array(z.string())
       .optional()
@@ -74,11 +76,18 @@ export const SheetsCoreInputSchema = z
       ),
     locale: z
       .string()
+      .regex(/^[a-z]{2}_[A-Z]{2}$/, 'Invalid locale format (expected: en_US, fr_FR, etc.)')
       .optional()
       .default('en_US')
-      .describe('Locale for formatting (create, update_properties)'),
+      .describe(
+        'Locale for formatting (default: en_US | alternatives: fr_FR, de_DE, etc.) (create, update_properties)'
+      ),
     timeZone: z
       .string()
+      .regex(
+        /^[A-Za-z_]+\/[A-Za-z_]+$/,
+        'Invalid timezone format (expected: America/New_York, Europe/London, etc.)'
+      )
       .optional()
       .describe('Time zone like America/New_York (create, update_properties)'),
     sheets: z
@@ -91,14 +100,14 @@ export const SheetsCoreInputSchema = z
             .positive()
             .optional()
             .default(1000)
-            .describe('Initial row count'),
+            .describe('Initial row count (default: 1000)'),
           columnCount: z
             .number()
             .int()
             .positive()
             .optional()
             .default(26)
-            .describe('Initial column count'),
+            .describe('Initial column count (default: 26)'),
           tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
         })
       )
@@ -136,7 +145,9 @@ export const SheetsCoreInputSchema = z
       .positive()
       .optional()
       .default(100)
-      .describe('Max rows per sheet if includeGridData=true (get_comprehensive only)'),
+      .describe(
+        'Max rows per sheet if includeGridData=true (default: 100) (get_comprehensive only)'
+      ),
 
     // Fields for LIST action
     maxResults: z
@@ -145,13 +156,19 @@ export const SheetsCoreInputSchema = z
       .positive()
       .optional()
       .default(100)
-      .describe('Maximum number of spreadsheets to return (list only)'),
-    query: z.string().optional().describe('Search query to filter spreadsheets (list only)'),
+      .describe('Maximum number of spreadsheets to return (default: 100) (list only)'),
+    query: z
+      .string()
+      .max(500, 'Search query exceeds 500 character limit')
+      .optional()
+      .describe('Search query to filter spreadsheets (list only)'),
     orderBy: z
       .enum(['createdTime', 'modifiedTime', 'name', 'viewedByMeTime'])
       .optional()
       .default('modifiedTime')
-      .describe('How to order results (list only)'),
+      .describe(
+        'How to order results (default: modifiedTime | alternatives: createdTime, name, viewedByMeTime) (list only)'
+      ),
 
     // ===== SHEET/TAB FIELDS =====
 
@@ -211,7 +228,11 @@ export const SheetsCoreInputSchema = z
       ),
 
     // Fields for UPDATE_SHEET action
-    rightToLeft: z.boolean().optional().describe('Right-to-left text direction (update_sheet)'),
+    rightToLeft: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Right-to-left text direction (default: false) (update_sheet)'),
 
     // Fields for COPY_SHEET_TO action
     destinationSpreadsheetId: SpreadsheetIdSchema.optional().describe(

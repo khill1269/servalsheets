@@ -44,6 +44,9 @@ export * from './session.js'; // Session context for NL excellence
 // Performance optimizations
 export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
 
+// Action-level metadata for AI cost-aware decision making
+export * from './action-metadata.js';
+
 // Tool metadata for registration
 export const TOOL_REGISTRY = {
   sheets_auth: {
@@ -60,7 +63,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_core',
     title: 'Core Operations',
     description:
-      'Core spreadsheet and sheet/tab operations: create, get, copy, update spreadsheets; add, delete, duplicate, update sheets/tabs',
+      'Managing spreadsheets and sheets: Get spreadsheet info and metadata | Create new spreadsheets | Copy/update spreadsheet properties (title, locale, timezone) | Add/delete/rename sheets | Duplicate sheets | List all sheets in a spreadsheet',
     schema: 'SheetsCoreInputSchema',
     output: 'SheetsCoreOutputSchema',
     annotations: 'SHEETS_CORE_ANNOTATIONS',
@@ -86,7 +89,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_data',
     title: 'Cell Data',
     description:
-      'Cell data operations: read, write, append, clear, batch operations, find/replace, notes, validation, hyperlinks, merge/unmerge, cut/copy',
+      'Working with cell data: Read/write cell values | Append new rows | Batch updates across multiple ranges | Find and replace text | Add/edit/remove cell notes | Set data validation rules | Add/remove hyperlinks | Merge/unmerge cells | Cut/copy cell content',
     schema: 'SheetsDataInputSchema',
     output: 'SheetsDataOutputSchema',
     annotations: 'SHEETS_DATA_ANNOTATIONS',
@@ -117,7 +120,8 @@ export const TOOL_REGISTRY = {
   sheets_format: {
     name: 'sheets_format',
     title: 'Formatting',
-    description: 'Formatting: colors, fonts, borders, alignment, presets',
+    description:
+      'Formatting cells: Apply background colors and text styles | Set number formats (currency, dates, percentages) | Add borders and alignment | Apply formatting presets | Auto-fit column widths | Clear formatting | Conditional formatting rules',
     schema: 'SheetsFormatInputSchema',
     output: 'SheetsFormatOutputSchema',
     annotations: 'SHEETS_FORMAT_ANNOTATIONS',
@@ -136,7 +140,8 @@ export const TOOL_REGISTRY = {
   sheets_dimensions: {
     name: 'sheets_dimensions',
     title: 'Rows & Columns',
-    description: 'Rows/columns: insert, delete, move, resize, freeze, group',
+    description:
+      'Managing rows and columns: Insert/delete rows or columns | Move and resize dimensions | Hide/show rows or columns | Freeze panes for scrolling | Group/ungroup for collapsing | Apply filters and sorting | Create filter views | Add slicers',
     schema: 'SheetsDimensionsInputSchema',
     output: 'SheetsDimensionsOutputSchema',
     annotations: 'SHEETS_DIMENSIONS_ANNOTATIONS',
@@ -167,7 +172,8 @@ export const TOOL_REGISTRY = {
   sheets_visualize: {
     name: 'sheets_visualize',
     title: 'Visualizations',
-    description: 'Chart and pivot table operations: create, update, delete, suggest visualizations',
+    description:
+      'Creating charts and pivot tables: Create charts (line, bar, pie, scatter) | Get chart suggestions from data | Update/move/resize charts | Create pivot tables for data summarization | Suggest pivot table structure | Export charts as images',
     schema: 'SheetsVisualizeInputSchema',
     output: 'SheetsVisualizeOutputSchema',
     annotations: 'SHEETS_VISUALIZE_ANNOTATIONS',
@@ -194,7 +200,8 @@ export const TOOL_REGISTRY = {
   sheets_collaborate: {
     name: 'sheets_collaborate',
     title: 'Collaboration',
-    description: 'Collaboration operations: sharing, permissions, comments, version control',
+    description:
+      '👥 Sharing and teamwork: Share spreadsheets with specific users or via link | Manage permissions (view/comment/edit) | Add/reply to comments | Track revisions and version history | Create/restore snapshots | Compare versions | Export historical versions',
     schema: 'SheetsCollaborateInputSchema',
     output: 'SheetsCollaborateOutputSchema',
     annotations: 'SHEETS_COLLABORATE_ANNOTATIONS',
@@ -232,7 +239,8 @@ export const TOOL_REGISTRY = {
   sheets_analysis: {
     name: 'sheets_analysis',
     title: 'Analysis',
-    description: 'Analysis: data quality, formula audit, statistics (read-only)',
+    description:
+      'Data analysis (read-only): Analyze data quality and patterns | Audit formulas for errors | Calculate statistics and correlations | Detect dependencies between cells | Compare data ranges | Generate suggested templates | Get AI-powered insights',
     schema: 'SheetsAnalysisInputSchema',
     output: 'SheetsAnalysisOutputSchema',
     annotations: 'SHEETS_ANALYSIS_ANNOTATIONS',
@@ -255,7 +263,8 @@ export const TOOL_REGISTRY = {
   sheets_advanced: {
     name: 'sheets_advanced',
     title: 'Advanced',
-    description: 'Advanced: named ranges, protected ranges, metadata, banding',
+    description:
+      'Power user features: Named ranges for easy cell referencing | Protected ranges to prevent edits | Custom metadata for tracking | Alternating row colors (banding) | Smart tables for structured data | Formula intelligence (generate, explain, optimize, trace dependencies)',
     schema: 'SheetsAdvancedInputSchema',
     output: 'SheetsAdvancedOutputSchema',
     annotations: 'SHEETS_ADVANCED_ANNOTATIONS',

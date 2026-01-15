@@ -44,6 +44,9 @@ import type {
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 import { ScopeValidator, ScopeCategory } from '../security/incremental-scope.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
+import { createNotFoundError } from '../utils/error-factory.js';
 
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
@@ -397,13 +400,43 @@ export class CollaborateHandler extends BaseHandler<
       return this.success('share_remove', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'share_remove',
+        `Remove permission (ID: ${input.permissionId}) from spreadsheet ${input.spreadsheetId}. This will revoke access for the user. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'share_remove',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.driveApi!.permissions.delete({
       fileId: input.spreadsheetId!,
       permissionId: input.permissionId!,
       supportsAllDrives: true,
     });
 
-    return this.success('share_remove', {});
+    return this.success('share_remove', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleShareList(input: CollaborateShareListInput): Promise<CollaborateResponse> {
@@ -540,12 +573,42 @@ export class CollaborateHandler extends BaseHandler<
       return this.success('comment_delete', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'comment_delete',
+        `Delete comment (ID: ${input.commentId}) from spreadsheet ${input.spreadsheetId}. This will permanently remove the comment and all its replies. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'comment_delete',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.driveApi!.comments.delete({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
     });
 
-    return this.success('comment_delete', {});
+    return this.success('comment_delete', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleCommentList(
@@ -638,13 +701,43 @@ export class CollaborateHandler extends BaseHandler<
       return this.success('comment_delete_reply', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'comment_delete_reply',
+        `Delete reply (ID: ${input.replyId}) from comment ${input.commentId} in spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'comment_delete_reply',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.driveApi!.replies.delete({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
       replyId: input.replyId!,
     });
 
-    return this.success('comment_delete_reply', {});
+    return this.success('comment_delete_reply', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   // ============================================================
@@ -807,12 +900,42 @@ export class CollaborateHandler extends BaseHandler<
       return this.success('version_delete_snapshot', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'version_delete_snapshot',
+        `Delete Drive snapshot (ID: ${input.snapshotId}). This will permanently remove the snapshot file from Drive. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested (snapshot of snapshots - meta!)
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'version_delete_snapshot',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.driveApi!.files.delete({
       fileId: input.snapshotId!,
       supportsAllDrives: true,
     });
 
-    return this.success('version_delete_snapshot', {});
+    return this.success('version_delete_snapshot', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleVersionCompare(
@@ -910,15 +1033,14 @@ export class CollaborateHandler extends BaseHandler<
       const error = err as { code?: number; message?: string; name?: string };
 
       if (error.code === 404) {
-        return this.error({
-          code: 'NOT_FOUND',
-          message: `Spreadsheet not found: ${input.spreadsheetId!}`,
-          details: {
-            spreadsheetId: input.spreadsheetId!,
-          },
-          retryable: false,
-          resolution: 'Verify the spreadsheetId is correct and you have permission to access it.',
-        });
+        return this.error(
+          createNotFoundError({
+            resourceType: 'spreadsheet',
+            resourceId: input.spreadsheetId!,
+            searchSuggestion:
+              'Verify the spreadsheet ID is correct and you have permission to access it',
+          })
+        );
       }
 
       return this.error({

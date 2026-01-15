@@ -122,7 +122,14 @@ export function createRateLimitError(params: {
  * Create a not found error with search suggestions
  */
 export function createNotFoundError(params: {
-  resourceType: 'spreadsheet' | 'sheet' | 'range' | 'file' | 'permission';
+  resourceType:
+    | 'spreadsheet'
+    | 'sheet'
+    | 'range'
+    | 'file'
+    | 'permission'
+    | 'operation'
+    | 'snapshot';
   resourceId: string;
   searchSuggestion?: string;
   parentResourceId?: string;
@@ -149,6 +156,18 @@ export function createNotFoundError(params: {
       `3. Check if the sheet name exists`,
       `4. Ensure the range coordinates are within sheet bounds`
     );
+  } else if (resourceType === 'operation') {
+    resolutionSteps.push(
+      `2. List available operations using sheets_history tool with action 'list'`,
+      `3. Check the operation ID is correct`,
+      `4. Operations may have been cleared or expired from history`
+    );
+  } else if (resourceType === 'snapshot') {
+    resolutionSteps.push(
+      `2. Verify the operation was created with snapshot enabled`,
+      `3. Check snapshot storage configuration`,
+      `4. Some operations may not support snapshots`
+    );
   }
 
   if (searchSuggestion) {
@@ -161,6 +180,8 @@ export function createNotFoundError(params: {
   } else if (resourceType === 'spreadsheet') {
     // Note: There is no file search tool - users need to know their spreadsheet IDs
     suggestedTools.push('sheets_spreadsheet');
+  } else if (resourceType === 'operation' || resourceType === 'snapshot') {
+    suggestedTools.push('sheets_history');
   }
 
   // Map resource type to appropriate error code
@@ -169,7 +190,9 @@ export function createNotFoundError(params: {
       ? 'SHEET_NOT_FOUND'
       : resourceType === 'range'
         ? 'RANGE_NOT_FOUND'
-        : 'SPREADSHEET_NOT_FOUND';
+        : resourceType === 'operation' || resourceType === 'snapshot'
+          ? 'NOT_FOUND'
+          : 'SPREADSHEET_NOT_FOUND';
 
   return {
     code: errorCode,

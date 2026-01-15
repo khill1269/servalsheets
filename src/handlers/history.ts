@@ -6,6 +6,7 @@
 
 import { getHistoryService } from '../services/history-service.js';
 import { SnapshotService } from '../services/snapshot.js';
+import { createNotFoundError } from '../utils/error-factory.js';
 import type {
   SheetsHistoryInput,
   SheetsHistoryOutput,
@@ -86,11 +87,11 @@ export class HistoryHandler {
           if (!operation) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${input.operationId} not found`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'operation',
+                resourceId: input.operationId!,
+                searchSuggestion: 'Use action "list" to see available operation IDs',
+              }),
             };
             break;
           }
@@ -142,11 +143,13 @@ export class HistoryHandler {
           if (!operation) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `No undoable operations for spreadsheet ${input.spreadsheetId}`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'operation',
+                resourceId: 'undoable operation',
+                searchSuggestion:
+                  'No undoable operations exist for this spreadsheet. Check operation history with action "list"',
+                parentResourceId: input.spreadsheetId,
+              }),
             };
             break;
           }
@@ -154,11 +157,12 @@ export class HistoryHandler {
           if (!operation.snapshotId) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${operation.id} has no snapshot for undo`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'snapshot',
+                resourceId: operation.id,
+                searchSuggestion:
+                  'This operation was not snapshotted and cannot be undone. Enable snapshot creation for future operations.',
+              }),
             };
             break;
           }
@@ -213,11 +217,13 @@ export class HistoryHandler {
           if (!operation) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `No redoable operations for spreadsheet ${input.spreadsheetId}`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'operation',
+                resourceId: 'redoable operation',
+                searchSuggestion:
+                  'No redoable operations exist. You can only redo operations that were previously undone.',
+                parentResourceId: input.spreadsheetId,
+              }),
             };
             break;
           }
@@ -253,11 +259,11 @@ export class HistoryHandler {
           if (!operation) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${input.operationId} not found`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'operation',
+                resourceId: input.operationId!,
+                searchSuggestion: 'Use action "list" to see available operation IDs',
+              }),
             };
             break;
           }
@@ -265,11 +271,12 @@ export class HistoryHandler {
           if (!operation.snapshotId) {
             response = {
               success: false,
-              error: {
-                code: 'NOT_FOUND',
-                message: `Operation ${operation.id} has no snapshot for revert`,
-                retryable: false,
-              },
+              error: createNotFoundError({
+                resourceType: 'snapshot',
+                resourceId: operation.id,
+                searchSuggestion:
+                  'This operation was not snapshotted and cannot be reverted. Enable snapshot creation for future operations.',
+              }),
             };
             break;
           }

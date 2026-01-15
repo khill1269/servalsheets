@@ -6,6 +6,7 @@
  */
 
 import { writeFileSync, readFileSync, existsSync, appendFileSync } from 'node:fs';
+import { logger } from './logger.js';
 import { type ErrorDetail } from '../schemas/shared.js';
 
 /**
@@ -428,8 +429,10 @@ export class RequestReplaySystem {
       const line = JSON.stringify(request) + '\n';
       appendFileSync(this.storageFile, line, 'utf-8');
     } catch (error: unknown) {
-      const err = error as { message?: string };
-      console.error(`Failed to persist request to storage: ${err?.message}`);
+      logger.error('Failed to persist request to storage', {
+        error: error instanceof Error ? error.message : String(error),
+        requestId: request.id,
+      });
     }
   }
 
@@ -458,8 +461,10 @@ export class RequestReplaySystem {
         this.requests = new Map(sorted.slice(0, this.maxStorageSize));
       }
     } catch (error: unknown) {
-      const err = error as { message?: string };
-      console.error(`Failed to load requests from storage: ${err?.message}`);
+      logger.error('Failed to load requests from storage', {
+        error: error instanceof Error ? error.message : String(error),
+        storageFile: this.storageFile,
+      });
     }
   }
 }

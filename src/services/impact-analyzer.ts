@@ -11,6 +11,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { sheets_v4 } from 'googleapis';
+import { logger } from '../utils/logger.js';
 import {
   ImpactAnalysis,
   ImpactSeverity,
@@ -1198,8 +1199,7 @@ export class ImpactAnalyzer {
    */
   private log(message: string): void {
     if (this.config.verboseLogging) {
-      // eslint-disable-next-line no-console
-      console.log(`[ImpactAnalyzer] ${message}`); // Debugging output when verboseLogging enabled
+      logger.debug('[ImpactAnalyzer] ' + message);
     }
   }
 

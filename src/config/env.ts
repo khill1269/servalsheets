@@ -12,6 +12,8 @@
  */
 
 import { z } from 'zod';
+import { logger } from '../utils/logger.js';
+import { URL_REGEX } from './google-limits.js';
 
 /**
  * Environment variable schema with validation rules and defaults
@@ -29,7 +31,7 @@ const EnvSchema = z.object({
   // Google API Configuration (optional - can run without for testing)
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_REDIRECT_URI: z.string().url().optional(),
+  GOOGLE_REDIRECT_URI: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
 
   // OAuth token storage paths (optional)
   // Note: Use GOOGLE_TOKEN_STORE_PATH in CLI (not TOKEN_PATH)
@@ -62,7 +64,7 @@ const EnvSchema = z.object({
 
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
 
   // OAuth Server Configuration (for remote server)
   JWT_SECRET: z.string().optional(),
@@ -111,18 +113,17 @@ export function validateEnv(): Env {
     return env;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ Environment validation failed:');
-      console.error('');
+      logger.error('Environment validation failed', { issues: error.issues });
 
+      // Log individual issues for clarity
       for (const issue of error.issues) {
         const path = issue.path.join('.');
-        const message = issue.message;
-        console.error(`  - ${path}: ${message}`);
+        logger.error(`Configuration error: ${path}`, { message: issue.message });
       }
 
-      console.error('');
-      console.error('Please check your environment variables or .env file.');
-      console.error('See .env.example for required configuration.');
+      logger.error(
+        'Please check your environment variables or .env file. See .env.example for required configuration.'
+      );
       process.exit(1);
     }
 

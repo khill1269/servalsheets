@@ -22,7 +22,7 @@ import type {
   RangeInput,
   ResponseMeta,
 } from '../schemas/shared.js';
-import { parseGoogleApiError } from '../utils/error-factory.js';
+import { parseGoogleApiError, createNotFoundError } from '../utils/error-factory.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import type { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getContextManager } from '../services/context-manager.js';
@@ -258,11 +258,11 @@ export abstract class OptimizedBaseHandler<TInput, TOutput> {
       };
     }
     if (message.includes('404') || message.includes('not found')) {
-      return {
-        code: 'NOT_FOUND',
-        message: `Resource not found: ${this.currentSpreadsheetId || 'unknown'}`,
-        retryable: false,
-      };
+      return createNotFoundError({
+        resourceType: 'spreadsheet',
+        resourceId: this.currentSpreadsheetId || 'unknown',
+        searchSuggestion: 'Verify the spreadsheet ID is correct and you have access to it',
+      });
     }
     if (message.includes('unable to parse range')) {
       return {

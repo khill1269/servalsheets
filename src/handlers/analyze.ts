@@ -34,6 +34,7 @@ import {
   type ComprehensiveResult as _ComprehensiveResult,
 } from '../analysis/comprehensive.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
+import { createNotFoundError } from '../utils/error-factory.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -1309,11 +1310,12 @@ export class AnalyzeHandler {
             if (!targetSheet) {
               response = {
                 success: false,
-                error: {
-                  code: 'SHEET_NOT_FOUND',
-                  message: 'Target sheet not found',
-                  retryable: false,
-                },
+                error: createNotFoundError({
+                  resourceType: 'sheet',
+                  resourceId: nlInput.sheetId ? String(nlInput.sheetId) : 'first sheet',
+                  searchSuggestion: 'Use sheets_core action "list_sheets" to see available sheets',
+                  parentResourceId: nlInput.spreadsheetId,
+                }),
               };
               break;
             }

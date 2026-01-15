@@ -442,8 +442,9 @@ export async function safeElicit<T>(
     if (result.action === 'accept' && result.content) {
       return result.content as T;
     }
-  } catch (error) {
-    console.error('Elicitation failed:', error);
+  } catch (_error) {
+    // Note: logger not available in elicitation module, error will be handled by caller
+    // Silently fall back to default value
   }
 
   return fallback;

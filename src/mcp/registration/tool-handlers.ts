@@ -562,7 +562,7 @@ function createToolTaskHandler(
           try {
             await taskStore.storeTaskResult(task.taskId, 'failed', errorResult);
           } catch (storeError) {
-            // Use logger instead of console.error to avoid corrupting stdio transport
+            // Use structured logging to avoid corrupting stdio transport
             import('../../utils/logger.js')
               .then(({ logger }) => {
                 logger.error('Failed to store task result', {

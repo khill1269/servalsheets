@@ -12,6 +12,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../utils/logger.js';
 import {
   ValidationRule,
   ValidationRuleType as _ValidationRuleType,
@@ -542,8 +543,7 @@ export class ValidationEngine {
    */
   private log(message: string): void {
     if (this.config.verboseLogging) {
-      // eslint-disable-next-line no-console
-      console.log(`[ValidationEngine] ${message}`); // Debugging output when verboseLogging enabled
+      logger.debug('[ValidationEngine] ' + message);
     }
   }
 

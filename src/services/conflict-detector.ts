@@ -12,6 +12,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { logger } from '../utils/logger.js';
 import {
   Conflict,
   ConflictType as _ConflictType,
@@ -692,8 +693,7 @@ export class ConflictDetector {
    */
   private log(message: string): void {
     if (this.config.verboseLogging) {
-      // eslint-disable-next-line no-console
-      console.log(`[ConflictDetector] ${message}`); // Debugging output when verboseLogging enabled
+      logger.debug('[ConflictDetector] ' + message);
     }
   }
 

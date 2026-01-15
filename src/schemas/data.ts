@@ -23,6 +23,12 @@ import {
   type ToolAnnotations,
   type RangeInput,
 } from './shared.js';
+import {
+  CELL_NOTE_MAX_LENGTH,
+  HYPERLINK_URL_MAX_LENGTH,
+  MAX_CHARACTERS_PER_CELL,
+  URL_REGEX,
+} from '../config/google-limits.js';
 
 // ============================================================================
 // CELL-SPECIFIC SCHEMAS (from cells.ts)
@@ -30,7 +36,10 @@ import {
 
 const DataValidationSchema = z.object({
   condition: ConditionSchema,
-  inputMessage: z.string().optional(),
+  inputMessage: z
+    .string()
+    .max(500, 'Input message exceeds Google Sheets limit of 500 characters')
+    .optional(),
   strict: z.boolean().optional().default(true),
   showDropdown: z.boolean().optional().default(true),
 });
@@ -90,12 +99,16 @@ export const SheetsDataInputSchema = z
     ),
 
     // Read-specific fields
-    valueRenderOption: ValueRenderOptionSchema.optional().describe(
-      'How values should be rendered (FORMATTED_VALUE, UNFORMATTED_VALUE, or FORMULA) (read, batch_read)'
-    ),
-    majorDimension: MajorDimensionSchema.optional().describe(
-      'Major dimension (ROWS or COLUMNS) (read, batch_read)'
-    ),
+    valueRenderOption: ValueRenderOptionSchema.optional()
+      .default('FORMATTED_VALUE')
+      .describe(
+        'How values should be rendered (default: FORMATTED_VALUE for display text | alternatives: UNFORMATTED_VALUE for raw values, FORMULA for formulas) (read, batch_read)'
+      ),
+    majorDimension: MajorDimensionSchema.optional()
+      .default('ROWS')
+      .describe(
+        'Major dimension for data layout (default: ROWS for row-major | alternative: COLUMNS for column-major) (read, batch_read)'
+      ),
     streaming: z
       .boolean()
       .optional()
@@ -127,9 +140,11 @@ export const SheetsDataInputSchema = z
     values: ValuesArraySchema.optional().describe(
       '2D array of cell values (rows × columns) (required for: write, append)'
     ),
-    valueInputOption: ValueInputOptionSchema.optional().describe(
-      'How input data should be interpreted (RAW or USER_ENTERED) (write, append, batch_write)'
-    ),
+    valueInputOption: ValueInputOptionSchema.optional()
+      .default('USER_ENTERED')
+      .describe(
+        'How input data should be interpreted (default: USER_ENTERED for smart parsing | alternative: RAW for literal values) (write, append, batch_write)'
+      ),
     includeValuesInResponse: z
       .boolean()
       .optional()
@@ -137,9 +152,11 @@ export const SheetsDataInputSchema = z
       .describe('Return the written values for verification (write, batch_write)'),
 
     // Append-specific fields
-    insertDataOption: InsertDataOptionSchema.optional().describe(
-      'Whether to overwrite or insert rows (OVERWRITE or INSERT_ROWS) (append only)'
-    ),
+    insertDataOption: InsertDataOptionSchema.optional()
+      .default('INSERT_ROWS')
+      .describe(
+        'Whether to overwrite or insert rows (default: INSERT_ROWS for adding new rows | alternative: OVERWRITE to replace existing) (append only)'
+      ),
 
     // Batch operations fields
     ranges: z
@@ -214,8 +231,13 @@ export const SheetsDataInputSchema = z
     // Note fields (add_note)
     note: z
       .string()
+      .min(1, 'Note cannot be empty')
+      .max(
+        CELL_NOTE_MAX_LENGTH,
+        `Note exceeds Google Sheets limit of ${CELL_NOTE_MAX_LENGTH} characters`
+      )
       .optional()
-      .describe('Note/comment text to add to the cell (required for: add_note)'),
+      .describe('Note/comment text to add to the cell (required for: add_note, max 50,000 chars)'),
 
     // Validation fields (set_validation)
     validation: DataValidationSchema.optional().describe(
@@ -225,13 +247,25 @@ export const SheetsDataInputSchema = z
     // Hyperlink fields (set_hyperlink)
     url: z
       .string()
-      .url()
+      .regex(URL_REGEX, 'Invalid URL format')
+      .max(
+        HYPERLINK_URL_MAX_LENGTH,
+        `URL exceeds Google Sheets limit of ${HYPERLINK_URL_MAX_LENGTH} characters`
+      )
       .optional()
-      .describe('URL to link to (must be valid HTTP/HTTPS URL) (required for: set_hyperlink)'),
+      .describe(
+        'URL to link to (must be valid HTTP/HTTPS URL, max 50,000 chars) (required for: set_hyperlink)'
+      ),
     label: z
       .string()
+      .max(
+        MAX_CHARACTERS_PER_CELL,
+        `Label exceeds Google Sheets limit of ${MAX_CHARACTERS_PER_CELL} characters`
+      )
       .optional()
-      .describe('Optional link text (defaults to URL if omitted) (set_hyperlink only)'),
+      .describe(
+        'Optional link text (defaults to URL if omitted, max 50,000 chars) (set_hyperlink only)'
+      ),
 
     // Merge fields (merge)
     mergeType: z

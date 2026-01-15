@@ -159,7 +159,7 @@ export class OAuthProvider {
         if (isProduction) {
           throw new Error(`Failed to initialize session store in production: ${error}`);
         }
-        console.warn('[OAuthProvider] Session store config error, using in-memory:', error);
+        logger.warn('[OAuthProvider] Session store config error, using in-memory', { error });
         this.sessionStore = createSessionStore();
       }
     }
@@ -726,12 +726,10 @@ export class OAuthProvider {
     const authCodeData = await this.sessionStore.get(`authcode:${code}`);
 
     if (!authCodeData) {
-      res
-        .status(400)
-        .json({
-          error: 'invalid_grant',
-          error_description: 'Invalid or expired authorization code',
-        });
+      res.status(400).json({
+        error: 'invalid_grant',
+        error_description: 'Invalid or expired authorization code',
+      });
       return;
     }
 
@@ -867,12 +865,10 @@ export class OAuthProvider {
       const authHeader = req.headers.authorization;
 
       if (!authHeader?.startsWith('Bearer ')) {
-        res
-          .status(401)
-          .json({
-            error: 'unauthorized',
-            error_description: 'Missing or invalid authorization header',
-          });
+        res.status(401).json({
+          error: 'unauthorized',
+          error_description: 'Missing or invalid authorization header',
+        });
         return;
       }
 

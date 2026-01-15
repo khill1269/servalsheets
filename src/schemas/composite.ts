@@ -18,6 +18,7 @@ import {
   ErrorDetailSchema,
   MutationSummarySchema,
   ResponseMetaSchema,
+  SafetyOptionsSchema,
 } from './shared.js';
 
 // ============================================================================
@@ -50,7 +51,11 @@ export const ImportCsvInputSchema = z.object({
   action: z.literal('import_csv'),
   spreadsheetId: SpreadsheetIdSchema,
   sheet: SheetReferenceSchema.optional().describe('Target sheet (creates new if not specified)'),
-  csvData: z.string().min(1).describe('CSV data as string'),
+  csvData: z
+    .string()
+    .min(1)
+    .max(10485760, 'CSV data exceeds 10MB limit')
+    .describe('CSV data as string (max 10MB)'),
   delimiter: z.string().max(5).default(',').describe('Field delimiter'),
   hasHeader: z.boolean().default(true).describe('First row is header'),
   mode: ImportCsvModeSchema.default('replace').describe('How to handle existing data'),
@@ -126,6 +131,7 @@ export const BulkUpdateOutputSchema = z.object({
   rowsCreated: z.number().int().min(0),
   keysNotFound: z.array(z.string()),
   cellsModified: z.number().int().min(0),
+  snapshotId: z.string().optional(),
   mutation: MutationSummarySchema.optional(),
   _meta: ResponseMetaSchema.optional(),
 });
@@ -159,6 +165,7 @@ export const DeduplicateOutputSchema = z.object({
   duplicatesFound: z.number().int().min(0),
   rowsDeleted: z.number().int().min(0),
   duplicatePreview: z.array(DuplicatePreviewItemSchema).optional(),
+  snapshotId: z.string().optional(),
   mutation: MutationSummarySchema.optional(),
   _meta: ResponseMetaSchema.optional(),
 });
@@ -190,21 +197,30 @@ export const CompositeInputSchema = z
     ),
 
     // Import CSV fields
-    csvData: z.string().min(1).optional().describe('CSV data as string (required for: import_csv)'),
+    csvData: z
+      .string()
+      .min(1)
+      .max(10485760, 'CSV data exceeds 10MB limit')
+      .optional()
+      .describe('CSV data as string (required for: import_csv, max 10MB)'),
     delimiter: z
       .string()
       .max(5)
       .optional()
       .default(',')
-      .describe('Field delimiter (import_csv only)'),
+      .describe('Field delimiter (default: , | alternatives: ;, |, tab) (import_csv only)'),
     hasHeader: z
       .boolean()
       .optional()
       .default(true)
-      .describe('First row is header (import_csv only)'),
+      .describe(
+        'First row is header (default: true | set false if no header row) (import_csv only)'
+      ),
     mode: ImportCsvModeSchema.optional()
       .default('replace')
-      .describe('How to handle existing data (import_csv only)'),
+      .describe(
+        'How to handle existing data (default: replace | alternatives: append, new_sheet) (import_csv only)'
+      ),
     newSheetName: z
       .string()
       .max(255)
@@ -214,12 +230,16 @@ export const CompositeInputSchema = z
       .boolean()
       .optional()
       .default(true)
-      .describe('Skip empty rows (import_csv, smart_append)'),
+      .describe(
+        'Skip empty rows (default: true | set false to include empty rows) (import_csv, smart_append)'
+      ),
     trimValues: z
       .boolean()
       .optional()
       .default(true)
-      .describe('Trim whitespace from values (import_csv only)'),
+      .describe(
+        'Trim whitespace from values (default: true | set false to preserve whitespace) (import_csv only)'
+      ),
 
     // Smart Append fields
     data: z
@@ -231,12 +251,16 @@ export const CompositeInputSchema = z
       .boolean()
       .optional()
       .default(true)
-      .describe('Match columns by header name (smart_append only)'),
+      .describe(
+        'Match columns by header name (default: true | set false for positional matching) (smart_append only)'
+      ),
     createMissingColumns: z
       .boolean()
       .optional()
       .default(false)
-      .describe('Create columns for unmatched headers (smart_append only)'),
+      .describe(
+        'Create columns for unmatched headers (default: false | set true to auto-create columns) (smart_append only)'
+      ),
 
     // Bulk Update fields
     keyColumn: z
@@ -253,7 +277,9 @@ export const CompositeInputSchema = z
       .boolean()
       .optional()
       .default(false)
-      .describe('Create new rows for unmatched keys (bulk_update only)'),
+      .describe(
+        'Create new rows for unmatched keys (default: false | set true to insert missing rows) (bulk_update only)'
+      ),
 
     // Deduplicate fields
     keyColumns: z
@@ -263,12 +289,14 @@ export const CompositeInputSchema = z
       .describe('Columns to check for duplicates (required for: deduplicate)'),
     keep: DeduplicateKeepSchema.optional()
       .default('first')
-      .describe('Which duplicate to keep (deduplicate only)'),
+      .describe('Which duplicate to keep (default: first | alternative: last) (deduplicate only)'),
     preview: z
       .boolean()
       .optional()
       .default(false)
-      .describe("Preview only, don't delete duplicates (deduplicate only)"),
+      .describe(
+        "Preview only, don't delete duplicates (default: false | set true for dry run) (deduplicate only)"
+      ),
 
     // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
     verbosity: z
@@ -278,6 +306,11 @@ export const CompositeInputSchema = z
       .describe(
         'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
       ),
+
+    // ===== SAFETY FEATURES =====
+    safety: SafetyOptionsSchema.optional().describe(
+      'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+    ),
   })
   .refine(
     (data) => {
