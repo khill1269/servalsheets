@@ -245,6 +245,7 @@ const schemaFiles = readdirSync(join(ROOT, 'src/schemas')).filter(
     f !== 'prompts.ts' &&
     f !== 'logging.ts' &&
     f !== 'fast-validators.ts' &&
+    f !== 'action-metadata.ts' && // Not a tool, just metadata definitions
     f !== 'formulas.ts' // Merged into sheets_advanced (Wave 5)
 );
 

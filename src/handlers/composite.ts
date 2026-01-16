@@ -30,6 +30,8 @@ import type {
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger } from '../utils/request-context.js';
 import type { VerbosityLevel } from '../utils/response-optimizer.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 
 // ============================================================================
 // Handler
@@ -204,6 +206,61 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleBulkUpdate(
     input: CompositeBulkUpdateInput
   ): Promise<CompositeOutput['response']> {
+    // Safety check: dry-run mode
+    if (input.safety?.dryRun) {
+      return {
+        success: true as const,
+        action: 'bulk_update' as const,
+        rowsUpdated: 0,
+        rowsCreated: 0,
+        keysNotFound: [],
+        cellsModified: 0,
+        mutation: {
+          cellsAffected: 0,
+          reversible: false,
+        },
+        _meta: this.generateMeta(
+          'bulk_update',
+          input as unknown as Record<string, unknown>,
+          {} as Record<string, unknown>,
+          { cellsAffected: 0 }
+        ),
+      };
+    }
+
+    // Request confirmation if elicitation available and large update
+    const estimatedUpdates = input.updates.length;
+    if (estimatedUpdates > 10 && this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'bulk_update',
+        `Perform bulk update of ${estimatedUpdates} records in spreadsheet ${input.spreadsheetId}. This will modify multiple cells based on key column matches. This action cannot be easily undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return {
+          success: false,
+          error: {
+            code: 'PRECONDITION_FAILED',
+            message: confirmation.reason || 'User cancelled the operation',
+            retryable: false,
+          },
+        } as CompositeOutput['response'];
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'bulk_update',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+        affectedCells: estimatedUpdates * Object.keys(input.updates[0] || {}).length,
+      },
+      input.safety
+    );
+
     const result: BulkUpdateResult = await this.compositeService.bulkUpdate({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
@@ -220,6 +277,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         cellsAffected: result.cellsModified,
         reversible: false,
       },
+      snapshotId: snapshot?.snapshotId,
       _meta: this.generateMeta(
         'bulk_update',
         input as unknown as Record<string, unknown>,
@@ -234,12 +292,102 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleDeduplicate(
     input: CompositeDeduplicateInput
   ): Promise<CompositeOutput['response']> {
+    // Safety check: preview mode (dry-run equivalent)
+    if (input.preview) {
+      const result: DeduplicateResult = await this.compositeService.deduplicate({
+        spreadsheetId: input.spreadsheetId,
+        sheet: input.sheet,
+        keyColumns: input.keyColumns,
+        keep: input.keep,
+        preview: true,
+      });
+
+      return {
+        success: true as const,
+        action: 'deduplicate' as const,
+        ...result,
+        mutation:
+          result.rowsDeleted > 0
+            ? {
+                cellsAffected: result.rowsDeleted,
+                reversible: false,
+              }
+            : undefined,
+        _meta: this.generateMeta(
+          'deduplicate',
+          input as unknown as Record<string, unknown>,
+          result as unknown as Record<string, unknown>,
+          { cellsAffected: result.rowsDeleted }
+        ),
+      };
+    }
+
+    // Safety check: dry-run mode
+    if (input.safety?.dryRun) {
+      return {
+        success: true as const,
+        action: 'deduplicate' as const,
+        totalRows: 0,
+        uniqueRows: 0,
+        duplicatesFound: 0,
+        rowsDeleted: 0,
+        _meta: this.generateMeta(
+          'deduplicate',
+          input as unknown as Record<string, unknown>,
+          {} as Record<string, unknown>,
+          { cellsAffected: 0 }
+        ),
+      };
+    }
+
+    // First run in preview mode to get count
+    const previewResult: DeduplicateResult = await this.compositeService.deduplicate({
+      spreadsheetId: input.spreadsheetId,
+      sheet: input.sheet,
+      keyColumns: input.keyColumns,
+      keep: input.keep,
+      preview: true,
+    });
+
+    // Request confirmation if elicitation available and many duplicates found
+    if (previewResult.duplicatesFound > 0 && this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'deduplicate',
+        `Remove ${previewResult.duplicatesFound} duplicate rows from spreadsheet ${input.spreadsheetId}. Keeping ${input.keep || 'first'} occurrence of each duplicate. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return {
+          success: false,
+          error: {
+            code: 'PRECONDITION_FAILED',
+            message: confirmation.reason || 'User cancelled the operation',
+            retryable: false,
+          },
+        } as CompositeOutput['response'];
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'deduplicate',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+        affectedRows: previewResult.duplicatesFound,
+      },
+      input.safety
+    );
+
+    // Execute the actual deduplication
     const result: DeduplicateResult = await this.compositeService.deduplicate({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
       keyColumns: input.keyColumns,
       keep: input.keep,
-      preview: input.preview,
+      preview: false,
     });
 
     return {
@@ -253,10 +401,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
               reversible: false,
             }
           : undefined,
+      snapshotId: snapshot?.snapshotId,
       _meta: this.generateMeta(
         'deduplicate',
         input as unknown as Record<string, unknown>,
-        result as unknown as Record<string, unknown>
+        result as unknown as Record<string, unknown>,
+        { cellsAffected: result.rowsDeleted }
       ),
     };
   }

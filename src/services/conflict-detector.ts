@@ -1,13 +1,18 @@
 /**
- * ServalSheets - Conflict Detector
+ * ConflictDetector
  *
- * Multi-user conflict detection and resolution:
- * - Version tracking for ranges
- * - Concurrent modification detection
- * - Resolution strategies (overwrite, merge, cancel)
- * - Optimistic locking
+ * @purpose Detects and resolves multi-user conflicts using version tracking, checksums, and 6 resolution strategies
+ * @category Quality
+ * @usage Use for collaborative editing to prevent data loss; tracks range versions, detects concurrent modifications, suggests resolutions
+ * @dependencies logger, crypto (for checksums), uuid
+ * @stateful Yes - maintains version cache (range → version/checksum), active edit sessions, optimistic locks (TTL 5min)
+ * @singleton Yes - one instance per process to coordinate conflict detection across all requests
  *
- * Phase 4, Task 4.2
+ * @example
+ * const detector = new ConflictDetector({ conflictTtl: 300000 });
+ * const lock = await detector.acquireLock(spreadsheetId, range, userId);
+ * const conflict = await detector.detectConflict(spreadsheetId, range, newValues, lock.version);
+ * if (conflict) await detector.resolveConflict(conflict, 'merge');
  */
 
 import { v4 as uuidv4 } from 'uuid';

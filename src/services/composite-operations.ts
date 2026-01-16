@@ -1,13 +1,17 @@
 /**
- * ServalSheets - Composite Operations Service
+ * CompositeOperationsService
  *
- * High-level operations that combine multiple API calls into
- * single, user-friendly actions.
+ * @purpose Provides high-level operations combining multiple API calls: import_csv, smart_append, bulk_update, deduplicate
+ * @category Core
+ * @usage Use for complex multi-step operations that need CSV parsing, intelligent column matching, or data deduplication
+ * @dependencies sheets_v4, SheetResolver, logger
+ * @stateful No - stateless service processing operations on-demand
+ * @singleton No - can be instantiated per request
  *
- * MCP Protocol: 2025-11-25
- * Google Sheets API: v4
- *
- * @module services/composite-operations
+ * @example
+ * const service = new CompositeOperationsService(sheetsClient, sheetResolver);
+ * await service.importCsv({ spreadsheetId, csvData, sheet: 'Data', skipHeader: true });
+ * await service.smartAppend({ spreadsheetId, range: 'A1:Z100', values: [[...]], matchHeaders: true });
  */
 
 import type { sheets_v4 } from 'googleapis';

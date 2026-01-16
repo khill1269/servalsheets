@@ -153,9 +153,10 @@ export const SheetsDimensionsInputSchema = z
     pixelSize: z
       .number()
       .positive()
+      .max(10000, 'Pixel size exceeds 10000 pixel limit')
       .optional()
       .describe(
-        'Height/width in pixels, must be positive (required for: resize_rows, resize_columns)'
+        'Height/width in pixels, must be positive (required for: resize_rows, resize_columns, max 10000)'
       ),
 
     // Dimension (for auto_resize)
@@ -252,10 +253,10 @@ export const SheetsDimensionsInputSchema = z
     position: z
       .object({
         anchorCell: z.string(),
-        offsetX: z.number().optional().default(0),
-        offsetY: z.number().optional().default(0),
-        width: z.number().optional().default(200),
-        height: z.number().optional().default(150),
+        offsetX: z.number().min(0, 'Offset X must be non-negative').optional().default(0),
+        offsetY: z.number().min(0, 'Offset Y must be non-negative').optional().default(0),
+        width: z.number().positive('Width must be positive').optional().default(200),
+        height: z.number().positive('Height must be positive').optional().default(150),
       })
       .optional()
       .describe('Slicer position (required for: filter_create_slicer)'),

@@ -38,6 +38,8 @@ import {
   toGridRange,
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 
 type VisualizeSuccess = Extract<VisualizeResponse, { success: true }>;
 
@@ -483,6 +485,34 @@ Always return valid JSON in the exact format requested.`,
       return this.success('chart_delete', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'chart_delete',
+        `Delete chart (ID: ${input.chartId}) from spreadsheet ${input.spreadsheetId}. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'chart_delete',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -496,7 +526,9 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('chart_delete', {});
+    return this.success('chart_delete', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleChartList(input: ChartListInput): Promise<VisualizeResponse> {
@@ -942,6 +974,34 @@ Always return valid JSON in the exact format requested.`,
       return this.success('pivot_delete', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available (CRITICAL: deletes entire sheet)
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'pivot_delete',
+        `Delete pivot table by removing entire sheet (ID: ${input.sheetId}) from spreadsheet ${input.spreadsheetId}. This will delete ALL data on the sheet. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested (CRITICAL operation)
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'pivot_delete',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -953,7 +1013,9 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('pivot_delete', {});
+    return this.success('pivot_delete', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handlePivotList(input: PivotListInput): Promise<VisualizeResponse> {

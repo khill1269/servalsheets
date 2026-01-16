@@ -19,6 +19,8 @@ import {
   toGridRange,
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
+import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 
 type AdvancedSuccess = Extract<AdvancedResponse, { success: true }>;
 
@@ -286,6 +288,34 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       return this.success('delete_named_range', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_named_range',
+        `Delete named range (ID: ${req.namedRangeId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_named_range',
+        isDestructive: true,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -297,7 +327,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    return this.success('delete_named_range', {});
+    return this.success('delete_named_range', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleListNamedRanges(req: SheetsAdvancedInput): Promise<AdvancedResponse> {
@@ -396,6 +428,34 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       return this.success('delete_protected_range', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_protected_range',
+        `Delete protected range (ID: ${req.protectedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove all protection settings. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_protected_range',
+        isDestructive: true,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -407,7 +467,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    return this.success('delete_protected_range', {});
+    return this.success('delete_protected_range', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleListProtectedRanges(req: SheetsAdvancedInput): Promise<AdvancedResponse> {
@@ -492,6 +554,34 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       return this.success('delete_metadata', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_metadata',
+        `Delete developer metadata (ID: ${req.metadataId}) from spreadsheet ${req.spreadsheetId}. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_metadata',
+        isDestructive: true,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -507,7 +597,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    return this.success('delete_metadata', {});
+    return this.success('delete_metadata', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   // ============================================================
@@ -575,6 +667,34 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       return this.success('delete_banding', {}, undefined, true);
     }
 
+    // Request confirmation if elicitation available
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_banding',
+        `Delete banding (ID: ${req.bandedRangeId}) from spreadsheet ${req.spreadsheetId}. This will remove alternating color formatting. This action cannot be undone.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+        });
+      }
+    }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'delete_banding',
+        isDestructive: true,
+        spreadsheetId: req.spreadsheetId,
+      },
+      req.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -586,7 +706,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    return this.success('delete_banding', {});
+    return this.success('delete_banding', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleListBanding(req: SheetsAdvancedInput): Promise<AdvancedResponse> {

@@ -1,13 +1,18 @@
 /**
- * ServalSheets - Sheet Resolver Service
+ * SheetResolver
  *
- * Resolves sheet references (name or ID) to sheet metadata.
- * Enables users to reference sheets by name instead of numeric ID.
+ * @purpose Resolves sheet references (name or numeric ID) to sheet metadata; enables natural sheet referencing ("Sheet1" vs sheetId: 0)
+ * @category Core
+ * @usage Use whenever accepting sheet name/ID input; resolves to { sheetId, title, index, gridProperties }, LRU cache (100 entries)
+ * @dependencies sheets_v4, LRUCache, logger
+ * @stateful Yes - maintains LRU cache of resolved sheets (max 100 per spreadsheet), cache TTL 5min
+ * @singleton No - instantiate per handler context to maintain isolated caches
  *
- * MCP Protocol: 2025-11-25
- * Google Sheets API: v4
- *
- * @module services/sheet-resolver
+ * @example
+ * const resolver = new SheetResolver(sheetsClient);
+ * const sheet = await resolver.resolve(spreadsheetId, 'Sheet1'); // Resolves by name
+ * const sheet2 = await resolver.resolve(spreadsheetId, 0); // Resolves by ID
+ * // { sheetId: 0, title: 'Sheet1', index: 0, gridProperties: {...} }
  */
 
 import type { sheets_v4 } from 'googleapis';

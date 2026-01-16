@@ -23,6 +23,7 @@ import {
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
 
 // Valid condition types from schema
@@ -699,6 +700,18 @@ Always return valid JSON in the exact format requested.`,
       return this.success('clear_format', { cellsFormatted: 0 }, undefined, true);
     }
 
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'clear_format',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+        affectedCells: estimatedCells,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -716,6 +729,7 @@ Always return valid JSON in the exact format requested.`,
 
     return this.success('clear_format', {
       cellsFormatted: estimateCellCount(googleRange),
+      snapshotId: snapshot?.snapshotId,
     });
   }
 
@@ -1123,6 +1137,17 @@ Always return valid JSON in the exact format requested.`,
       return this.success('rule_delete_conditional_format', {}, undefined, true);
     }
 
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'rule_delete_conditional_format',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -1137,7 +1162,9 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('rule_delete_conditional_format', {});
+    return this.success('rule_delete_conditional_format', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleRuleListConditionalFormats(
@@ -1227,6 +1254,17 @@ Always return valid JSON in the exact format requested.`,
 
     const gridRange = await this.resolveRangeInput(input.spreadsheetId, input.range!);
 
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'rule_clear_data_validation',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+      },
+      input.safety
+    );
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -1241,7 +1279,9 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('rule_clear_data_validation', {});
+    return this.success('rule_clear_data_validation', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleRuleListDataValidations(

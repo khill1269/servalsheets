@@ -19,6 +19,7 @@ export const SheetsHistoryInputSchema = z
     // Fields for LIST action
     spreadsheetId: z
       .string()
+      .min(1, 'Spreadsheet ID cannot be empty')
       .optional()
       .describe('Filter by spreadsheet ID (list, undo, redo, clear)'),
     count: z

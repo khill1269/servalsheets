@@ -1,12 +1,17 @@
 /**
- * ServalSheets - Sampling Analysis Service
+ * SamplingAnalysisService
  *
- * Uses MCP Sampling (SEP-1577) for AI-powered data analysis.
- * Instead of implementing our own ML/statistics, we leverage the LLM
- * via the Sampling capability for intelligent analysis.
+ * @purpose Leverages MCP Sampling (SEP-1577) for AI-powered data analysis instead of custom ML; LLM analyzes patterns, outliers, insights
+ * @category Core
+ * @usage Use for sheets_analyze tool; sends data samples to LLM via Sampling API, receives structured analysis (trends, recommendations)
+ * @dependencies MCP SDK (Sampling capability), logger
+ * @stateful No - stateless analysis service; each request is independent
+ * @singleton No - can be instantiated per analysis request
  *
- * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Sampling section
- * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1577
+ * @example
+ * const service = new SamplingAnalysisService(mcpClient);
+ * const analysis = await service.analyze({ type: 'pattern_detection', data: values, prompt: 'Find sales trends' });
+ * // { patterns: [...], insights: [...], recommendations: [...], confidence: 0.92 }
  */
 
 /**

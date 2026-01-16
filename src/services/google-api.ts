@@ -1,8 +1,18 @@
 /**
- * ServalSheets - Google API Client
+ * GoogleApiClient
  *
- * Initializes and provides Google Sheets and Drive API clients
- * MCP Protocol: 2025-11-25
+ * @purpose Primary interface to Google Sheets and Drive APIs with connection pooling and circuit breaker
+ * @category Core
+ * @usage Use this service for all Google API operations (sheets, drive); handles auth, retries, and rate limiting
+ * @dependencies OAuth2Client, googleapis, TokenStore, CircuitBreaker, TokenManager
+ * @stateful Yes - maintains OAuth client, circuit breaker state, token store, HTTP/2 connection pools
+ * @singleton Yes - one instance per process to share connection pools and circuit breaker state
+ *
+ * @example
+ * const client = new GoogleApiClient({ credentials, tokenStore });
+ * await client.initialize();
+ * const sheets = await client.getSheetsClient();
+ * const response = await sheets.spreadsheets.get({ spreadsheetId });
  */
 
 import { google, sheets_v4, drive_v3 } from 'googleapis';
@@ -12,6 +22,7 @@ import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
 import PQueue from 'p-queue';
 import { getRequestContext } from '../utils/request-context.js';
 import { Agent as HttpAgent } from 'http';
@@ -139,6 +150,13 @@ export class GoogleApiClient {
       ...circuitConfig,
       name: 'google-api',
     });
+
+    // Register circuit breaker for monitoring
+    circuitBreakerRegistry.register(
+      'google-api',
+      this.circuit,
+      'Main Google API client circuit breaker'
+    );
 
     // Initialize token refresh queue (prevents concurrent refreshes)
     this.tokenRefreshQueue = new PQueue({ concurrency: 1 });
@@ -942,10 +960,22 @@ function injectSignal(args: unknown[], signal: AbortSignal): unknown[] {
   const ctx = getRequestContext();
   const requestId = ctx?.requestId;
 
-  // Build base options with signal and optional request ID header
-  const baseOptions: Record<string, unknown> = { signal };
+  // Build base headers with request ID and W3C Trace Context
+  const headers: Record<string, string> = {};
   if (requestId) {
-    baseOptions['headers'] = { 'x-request-id': requestId };
+    headers['x-request-id'] = requestId;
+  }
+
+  // Add W3C Trace Context (traceparent header)
+  // Format: version-traceId-parentId-flags
+  if (ctx?.traceId && ctx?.spanId) {
+    headers['traceparent'] = `00-${ctx.traceId}-${ctx.spanId}-01`;
+  }
+
+  // Build base options with signal and headers
+  const baseOptions: Record<string, unknown> = { signal };
+  if (Object.keys(headers).length > 0) {
+    baseOptions['headers'] = headers;
   }
 
   if (args.length === 0) {
@@ -964,10 +994,10 @@ function injectSignal(args: unknown[], signal: AbortSignal): unknown[] {
     };
 
     // Merge headers if they exist
-    if (requestId) {
+    if (Object.keys(headers).length > 0) {
       updated['headers'] = {
         ...((updated['headers'] as Record<string, unknown>) ?? {}),
-        'x-request-id': requestId,
+        ...headers,
       };
     }
 

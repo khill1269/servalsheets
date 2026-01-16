@@ -136,7 +136,12 @@ export const SheetsAnalysisInputSchema = z
       )
       .optional(),
     outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
-    outlierThreshold: z.number().optional().default(1.5),
+    outlierThreshold: z
+      .number()
+      .min(0.5, 'Threshold must be >= 0.5 for statistical validity')
+      .max(5, 'Threshold must be <= 5')
+      .optional()
+      .default(1.5),
     useAI: z.boolean().optional().describe('Use AI-powered analysis via sampling (SEP-1577)'),
 
     // formula_audit specific

@@ -1,11 +1,12 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 26 tools, 208 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 17 tools, 226 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-1761%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/khill1269/servalsheets)
 
 ## What's New in v1.3.0 (2026-01-06)
 
@@ -45,7 +46,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 ## Features
 
 ### Core Capabilities
-- **26 Tools, 208 Actions**: Comprehensive Google Sheets API v4 coverage
+
+- **17 Tools, 226 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -56,7 +58,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
-- ✅ **Tools**: 26 tools with 208 actions using discriminated unions
+- ✅ **Tools**: 17 tools with 226 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -73,22 +75,26 @@ Full compliance with Model Context Protocol 2025-11-25:
 - ✅ **Logging**: Dynamic log level control via logging/setLevel handler
 
 #### Transport Support
+
 - ✅ **STDIO** - For Claude Desktop and local CLI usage
 - ✅ **HTTP/SSE** - For web clients and remote access
 - ✅ **OAuth 2.1** - Authentication for hosted deployments
 
 ### Advanced Analytics 🔬
+
 - **Pattern Detection**: Trend analysis, correlations, anomalies, seasonality
 - **Column Profiling**: Data type detection, distributions, quality metrics
 - **Statistical Analysis**: Comprehensive data quality and structure insights
 
 ### AI-Powered Features 🤖
+
 - **Template Suggestions**: AI generates contextual spreadsheet templates
 - **Formula Generation**: Natural language → Google Sheets formulas
 - **Chart Recommendations**: AI suggests optimal visualizations for your data
 - **Requires**: Client with MCP sampling capability (SEP-1577)
 
 ### Performance & Optimization ⚡
+
 - **Request Deduplication**: Prevents duplicate API calls, reduces quota usage
 - **Tiered Diff Engine**: Automatic tier selection (METADATA/SAMPLE/FULL)
 - **Rate Limiting**: Built-in token bucket with dynamic throttling on 429 errors
@@ -97,6 +103,7 @@ Full compliance with Model Context Protocol 2025-11-25:
 - **HTTP Compression**: gzip middleware for bandwidth reduction
 
 ### Developer Experience 🛠️
+
 - **Semantic Range Resolution**: Query by header name, named ranges, or A1 notation
 - **Intent-Based Architecture**: Single BatchCompiler for all mutations
 - **User Confirmations**: Elicitation dialogs for destructive operations (SEP-1036)
@@ -142,12 +149,14 @@ PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 ServalSheets has comprehensive documentation organized by use case:
 
 ### 🚀 Getting Started
+
 - **[QUICKSTART.md](./QUICKSTART.md)** - Quick start guide (start here!)
 - **[docs/guides/CLAUDE_DESKTOP_SETUP.md](./docs/guides/CLAUDE_DESKTOP_SETUP.md)** - Claude Desktop setup
 - **[docs/guides/INSTALLATION_GUIDE.md](./docs/guides/INSTALLATION_GUIDE.md)** - Installation instructions
 - **[docs/guides/FIRST_TIME_USER.md](./docs/guides/FIRST_TIME_USER.md)** - First-time user walkthrough
 
 ### 📖 User Guides
+
 - **[docs/guides/USAGE_GUIDE.md](./docs/guides/USAGE_GUIDE.md)** - Complete usage guide
 - **[docs/guides/PROMPTS_GUIDE.md](./docs/guides/PROMPTS_GUIDE.md)** - Effective AI prompts
 - **[docs/guides/OAUTH_USER_SETUP.md](./docs/guides/OAUTH_USER_SETUP.md)** - OAuth authentication
@@ -155,15 +164,18 @@ ServalSheets has comprehensive documentation organized by use case:
 - **[docs/guides/SKILL.md](./docs/guides/SKILL.md)** - Claude skill integration
 
 ### 🏭 Production & Operations
+
 - **[docs/guides/DEPLOYMENT.md](./docs/guides/DEPLOYMENT.md)** - Production deployment
 - **[docs/guides/MONITORING.md](./docs/guides/MONITORING.md)** - Monitoring & observability
 - **[docs/guides/PERFORMANCE.md](./docs/guides/PERFORMANCE.md)** - Performance optimization
 - **[SECURITY.md](./SECURITY.md)** - Security policy
 
 ### 📚 Complete Documentation Index
+
 - **[docs/README.md](./docs/README.md)** - Full documentation index with all guides, development docs, and release notes
 
 ### 🔐 Production
+
 - **[SECURITY.md](./SECURITY.md)** - Security best practices
 - **[PERFORMANCE.md](./PERFORMANCE.md)** - Performance tuning
 - **[MONITORING.md](./MONITORING.md)** - Observability setup
@@ -177,6 +189,7 @@ ServalSheets has comprehensive documentation organized by use case:
 We welcome contributions! ServalSheets follows strict quality standards to maintain production-grade reliability.
 
 ### Quick Links
+
 - **[Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md)** - Step-by-step guide for contributors
 - **[Claude Code Rules](./docs/development/CLAUDE_CODE_RULES.md)** - Required rules for all contributions
 - **[Codebase Audit Report](./docs/development/AUDIT_REPORT_2026-01-11.md)** - Current state and best practices
@@ -237,36 +250,38 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 ## Tools Reference
 
 ### Core Operations (16 tools, 165 actions)
-| Tool | Actions | Description | Read-Only | Destructive |
-|------|---------|-------------|-----------|-------------|
-| `sheets_auth` | 4 | Authentication & OAuth | **Yes** | No |
-| `sheets_spreadsheet` | 6 | Create, get, copy spreadsheets | No | No |
-| `sheets_sheet` | 7 | Manage sheets/tabs | No | Yes |
-| `sheets_values` | 9 | Read/write cell values | No | Yes |
-| `sheets_cells` | 12 | Notes, validation, merge | No | Yes |
-| `sheets_format` | 9 | Cell formatting | No | No |
-| `sheets_dimensions` | 21 | Row/column operations | No | Yes |
-| `sheets_rules` | 8 | Conditional formatting | No | Yes |
-| `sheets_charts` | 9 | Chart management | No | Yes |
-| `sheets_pivot` | 6 | Pivot tables | No | Yes |
-| `sheets_filter_sort` | 14 | Filtering and sorting | No | Yes |
-| `sheets_sharing` | 8 | Permissions | No | Yes |
-| `sheets_comments` | 10 | Comments | No | Yes |
-| `sheets_versions` | 10 | Version history | No | Yes |
-| `sheets_analysis` | 13 | Data analysis, AI insights | **Yes** | No |
-| `sheets_advanced` | 19 | Named ranges, protection | No | Yes |
+
+| Tool                 | Actions | Description                    | Read-Only | Destructive |
+| -------------------- | ------- | ------------------------------ | --------- | ----------- |
+| `sheets_auth`        | 4       | Authentication & OAuth         | **Yes**   | No          |
+| `sheets_spreadsheet` | 6       | Create, get, copy spreadsheets | No        | No          |
+| `sheets_sheet`       | 7       | Manage sheets/tabs             | No        | Yes         |
+| `sheets_values`      | 9       | Read/write cell values         | No        | Yes         |
+| `sheets_cells`       | 12      | Notes, validation, merge       | No        | Yes         |
+| `sheets_format`      | 9       | Cell formatting                | No        | No          |
+| `sheets_dimensions`  | 21      | Row/column operations          | No        | Yes         |
+| `sheets_rules`       | 8       | Conditional formatting         | No        | Yes         |
+| `sheets_charts`      | 9       | Chart management               | No        | Yes         |
+| `sheets_pivot`       | 6       | Pivot tables                   | No        | Yes         |
+| `sheets_filter_sort` | 14      | Filtering and sorting          | No        | Yes         |
+| `sheets_sharing`     | 8       | Permissions                    | No        | Yes         |
+| `sheets_comments`    | 10      | Comments                       | No        | Yes         |
+| `sheets_versions`    | 10      | Version history                | No        | Yes         |
+| `sheets_analysis`    | 13      | Data analysis, AI insights     | **Yes**   | No          |
+| `sheets_advanced`    | 19      | Named ranges, protection       | No        | Yes         |
 
 ### Enterprise & MCP-Native Tools (8 tools, 23 actions)
-| Tool | Actions | Description | Read-Only | Destructive |
-|------|---------|-------------|-----------|-------------|
-| `sheets_transaction` | 6 | Transaction management | No | Yes |
-| `sheets_validation` | 1 | Data validation checking | **Yes** | No |
-| `sheets_conflict` | 2 | Conflict detection | **Yes** | No |
-| `sheets_impact` | 1 | Pre-execution analysis | **Yes** | No |
-| `sheets_history` | 7 | Operation history & undo | **Yes** | No |
-| `sheets_confirm` | 2 | User confirmation (Elicitation) | **Yes** | No |
-| `sheets_analyze` | 4 | AI analysis (Sampling) | **Yes** | No |
-| `sheets_fix` | 0 | Automated issue fixing | No | Yes |
+
+| Tool                 | Actions | Description                     | Read-Only | Destructive |
+| -------------------- | ------- | ------------------------------- | --------- | ----------- |
+| `sheets_transaction` | 6       | Transaction management          | No        | Yes         |
+| `sheets_validation`  | 1       | Data validation checking        | **Yes**   | No          |
+| `sheets_conflict`    | 2       | Conflict detection              | **Yes**   | No          |
+| `sheets_impact`      | 1       | Pre-execution analysis          | **Yes**   | No          |
+| `sheets_history`     | 7       | Operation history & undo        | **Yes**   | No          |
+| `sheets_confirm`     | 2       | User confirmation (Elicitation) | **Yes**   | No          |
+| `sheets_analyze`     | 4       | AI analysis (Sampling)          | **Yes**   | No          |
+| `sheets_fix`         | 0       | Automated issue fixing          | No        | Yes         |
 
 ## Examples
 
@@ -278,14 +293,14 @@ const result = await sheets_values({
   action: 'read',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   range: { a1: 'Sales!A1:D100' },
-  valueRenderOption: 'FORMATTED_VALUE'
+  valueRenderOption: 'FORMATTED_VALUE',
 });
 
 // Analyze data quality
 const analysis = await sheets_analysis({
   action: 'data_quality',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-  range: { a1: 'Sales!A1:D100' }
+  range: { a1: 'Sales!A1:D100' },
 });
 // Returns: { completeness: 0.95, duplicates: 3, outliers: [...] }
 ```
@@ -301,8 +316,8 @@ const preview = await sheets_values({
   values: newData,
   safety: {
     dryRun: true,
-    effectScope: { maxCellsAffected: 500 }
-  }
+    effectScope: { maxCellsAffected: 500 },
+  },
 });
 // Returns: { dryRun: true, cellsAffected: 297 }
 
@@ -315,8 +330,8 @@ if (preview.data.cellsAffected < 500) {
     values: newData,
     safety: {
       expectedState: { rowCount: 100 },
-      autoSnapshot: true
-    }
+      autoSnapshot: true,
+    },
   });
 }
 ```
@@ -331,10 +346,10 @@ const revenue = await sheets_values({
   range: {
     semantic: {
       sheet: 'Q4 Sales',
-      column: 'Total Revenue',  // Matches header in row 1
-      includeHeader: false
-    }
-  }
+      column: 'Total Revenue', // Matches header in row 1
+      includeHeader: false,
+    },
+  },
 });
 
 // Returns cell values
@@ -359,8 +374,8 @@ const chart = await sheets_charts({
   position: {
     anchorCell: 'Sheet1!F1',
     width: 600,
-    height: 400
-  }
+    height: 400,
+  },
 });
 ```
 
@@ -375,28 +390,30 @@ const rule = await sheets_rules({
   range: { a1: 'Data!B2:B100' },
   rule: {
     type: 'NUMBER_GREATER',
-    values: [{ userEnteredValue: '1000' }]
+    values: [{ userEnteredValue: '1000' }],
   },
   format: {
-    backgroundColor: { red: 0.7, green: 1, blue: 0.7 }  // Light green
-  }
+    backgroundColor: { red: 0.7, green: 1, blue: 0.7 }, // Light green
+  },
 });
 ```
 
 ## Safety Rails
 
 ### Dry Run Mode
+
 Preview changes without executing:
 
 ```javascript
 {
   safety: {
-    dryRun: true
+    dryRun: true;
   }
 }
 ```
 
 ### Effect Scope Limits
+
 Prevent accidental large-scale changes:
 
 ```javascript
@@ -411,6 +428,7 @@ Prevent accidental large-scale changes:
 ```
 
 ### Expected State (Optimistic Locking)
+
 Ensure data hasn't changed since last read:
 
 ```javascript
@@ -426,12 +444,13 @@ Ensure data hasn't changed since last read:
 ```
 
 ### Auto-Snapshot
+
 Create backup before destructive operations:
 
 ```javascript
 {
   safety: {
-    autoSnapshot: true
+    autoSnapshot: true;
   }
 }
 ```
@@ -456,18 +475,18 @@ ServalSheets accepts multiple range formats:
 
 ## Error Codes
 
-| Code | Description | Retryable |
-|------|-------------|-----------|
-| `PARSE_ERROR` | Invalid JSON | No |
-| `INVALID_PARAMS` | Invalid parameters | No |
-| `SHEET_NOT_FOUND` | Sheet doesn't exist | No |
-| `RANGE_NOT_FOUND` | Range not found | No |
-| `PERMISSION_DENIED` | No access | No |
-| `QUOTA_EXCEEDED` | API quota exceeded | Yes |
-| `RATE_LIMITED` | Too many requests | Yes |
-| `PRECONDITION_FAILED` | Expected state mismatch | No |
-| `EFFECT_SCOPE_EXCEEDED` | Operation too large | No |
-| `AMBIGUOUS_RANGE` | Multiple header matches | No |
+| Code                    | Description             | Retryable |
+| ----------------------- | ----------------------- | --------- |
+| `PARSE_ERROR`           | Invalid JSON            | No        |
+| `INVALID_PARAMS`        | Invalid parameters      | No        |
+| `SHEET_NOT_FOUND`       | Sheet doesn't exist     | No        |
+| `RANGE_NOT_FOUND`       | Range not found         | No        |
+| `PERMISSION_DENIED`     | No access               | No        |
+| `QUOTA_EXCEEDED`        | API quota exceeded      | Yes       |
+| `RATE_LIMITED`          | Too many requests       | Yes       |
+| `PRECONDITION_FAILED`   | Expected state mismatch | No        |
+| `EFFECT_SCOPE_EXCEEDED` | Operation too large     | No        |
+| `AMBIGUOUS_RANGE`       | Multiple header matches | No        |
 
 ## Authentication
 
@@ -531,6 +550,7 @@ export NODE_ENV=production
 ```
 
 **Security Notes**:
+
 - Each secret should be a unique 64-character hex string
 - Never commit secrets to version control
 - Rotate secrets every 90 days
@@ -554,6 +574,7 @@ export MAX_SESSIONS_PER_USER=5
 ```
 
 Redis provides:
+
 - Shared session storage across multiple server instances
 - Persistent sessions across server restarts
 - Better performance at scale
@@ -570,12 +591,12 @@ export RATE_LIMIT_WRITES_PER_MINUTE=60
 
 **Google Sheets API Quotas by Workspace Edition**:
 
-| Workspace Edition | Read Quota | Write Quota | Configuration |
-|-------------------|------------|-------------|---------------|
-| **Free/Personal** | 300/min | 60/min | (default values) |
-| **Business Standard** | 600/min | 120/min | `RATE_LIMIT_READS_PER_MINUTE=600 RATE_LIMIT_WRITES_PER_MINUTE=120` |
-| **Business Plus** | 900/min | 180/min | `RATE_LIMIT_READS_PER_MINUTE=900 RATE_LIMIT_WRITES_PER_MINUTE=180` |
-| **Enterprise** | 1200/min | 240/min | `RATE_LIMIT_READS_PER_MINUTE=1200 RATE_LIMIT_WRITES_PER_MINUTE=240` |
+| Workspace Edition     | Read Quota | Write Quota | Configuration                                                       |
+| --------------------- | ---------- | ----------- | ------------------------------------------------------------------- |
+| **Free/Personal**     | 300/min    | 60/min      | (default values)                                                    |
+| **Business Standard** | 600/min    | 120/min     | `RATE_LIMIT_READS_PER_MINUTE=600 RATE_LIMIT_WRITES_PER_MINUTE=120`  |
+| **Business Plus**     | 900/min    | 180/min     | `RATE_LIMIT_READS_PER_MINUTE=900 RATE_LIMIT_WRITES_PER_MINUTE=180`  |
+| **Enterprise**        | 1200/min   | 240/min     | `RATE_LIMIT_READS_PER_MINUTE=1200 RATE_LIMIT_WRITES_PER_MINUTE=240` |
 
 **Note**: Actual quotas depend on your Google Cloud project configuration. Check your [Google Cloud Console](https://console.cloud.google.com/apis/api/sheets.googleapis.com/quotas) for exact limits.
 
@@ -613,12 +634,14 @@ export DEDUP_WINDOW_MS=5000  # 5 seconds
 ```
 
 **Automatic Monitoring**:
+
 - **Payload sizes**: All Google API requests/responses tracked
 - **Batch efficiency**: Intents per spreadsheet ratio analyzed
 - **Rate limiting**: Dynamic throttling on 429 errors
 - **HTTP compression**: Response sizes reduced by 60-80%
 
 Statistics available via lifecycle methods:
+
 - `getCacheStats()` - Cache hit rates, sizes
 - `getDeduplicationStats()` - Deduplication rates
 - `getBatchEfficiencyStats()` - Batch optimization metrics
@@ -629,6 +652,7 @@ Statistics available via lifecycle methods:
 Prevent accidental large-scale operations:
 
 Resource limits are currently configured with hard-coded defaults:
+
 - Maximum cells per operation: 10,000
 - Maximum sheets per operation: 10
 
@@ -687,12 +711,14 @@ export HTTP2_POOL_MONITOR_INTERVAL_MS=300000
 ```
 
 **Benefits of HTTP/2:**
+
 - 5-15% latency reduction for API calls
 - Connection multiplexing (multiple requests per connection)
 - Header compression reduces overhead
 
 **Connection Pool Monitoring:**
 When enabled, logs connection pool statistics at regular intervals:
+
 - Active sockets (in-use connections)
 - Free sockets (available in pool)
 - Pending requests (waiting for connection)
@@ -718,14 +744,15 @@ export METRICS_HOST=127.0.0.1
 
 **Available endpoints:**
 
-| Endpoint | Format | Description |
-|----------|--------|-------------|
-| `/metrics` | Prometheus text | Recommended for Prometheus/Grafana |
-| `/metrics.json` | JSON | Programmatic access |
-| `/metrics.txt` | Human-readable text | Quick inspection |
-| `/health` | JSON | Health check endpoint |
+| Endpoint        | Format              | Description                        |
+| --------------- | ------------------- | ---------------------------------- |
+| `/metrics`      | Prometheus text     | Recommended for Prometheus/Grafana |
+| `/metrics.json` | JSON                | Programmatic access                |
+| `/metrics.txt`  | Human-readable text | Quick inspection                   |
+| `/health`       | JSON                | Health check endpoint              |
 
 **Metrics exposed:**
+
 - **Cache metrics**: Hit rate, hits/misses, evictions, size by cache type
 - **Batching metrics**: Current window size, total batches, average batch size, deduplication count
 - **API metrics**: Total calls by method, errors by code, success/error rates
@@ -741,6 +768,7 @@ scrape_configs:
 ```
 
 **Access metrics:**
+
 ```bash
 # Prometheus format
 curl http://localhost:9090/metrics
@@ -777,16 +805,19 @@ export HEAP_SNAPSHOT_PATH=./heap-snapshots
 ```
 
 **Alerting thresholds:**
+
 - **Warning (70%):** Logs elevated heap usage, monitor for sustained growth
 - **Critical (85%):** Logs error with recommendation, optionally captures heap snapshot
 - **Automatic throttling:** Alerts limited to once every 5-15 minutes to prevent spam
 
 **Heap snapshots:**
 When enabled, heap snapshots are captured at critical threshold for post-mortem analysis:
+
 - **Chrome DevTools:** Open snapshot in Memory Profiler
 - **clinic.js:** `npm install -g clinic` then `clinic heapprofiler`
 
 **Recommendations by utilization:**
+
 - **95%+:** Immediate restart required to prevent OOM crash
 - **85-95%:** Schedule restart, investigate with heap snapshots
 - **70-85%:** Monitor trends, review cache policies and connection pools
@@ -817,6 +848,7 @@ Complete production setup for Claude Desktop:
 ```
 
 For detailed configuration guides, see:
+
 - **Security**: `SECURITY.md` - Authentication, encryption, secrets management
 - **Performance**: `PERFORMANCE.md` - Rate limiting strategies, diff tiers, batching
 - **Monitoring**: `MONITORING.md` - Logging, metrics, alerting, health checks

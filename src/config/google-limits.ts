@@ -1,0 +1,266 @@
+/**
+ * Google Sheets API v4 Limits and Constants
+ *
+ * Official limits from Google Sheets API documentation.
+ * These constants are used for input validation across all schemas.
+ *
+ * References:
+ * - https://developers.google.com/sheets/api/limits
+ * - https://support.google.com/drive/answer/37603
+ *
+ * @module config/google-limits
+ */
+
+// ============================================================================
+// SPREADSHEET & SHEET LIMITS
+// ============================================================================
+
+/**
+ * Maximum length for spreadsheet title
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const SPREADSHEET_TITLE_MAX_LENGTH = 255;
+
+/**
+ * Maximum length for sheet name
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const SHEET_NAME_MAX_LENGTH = 255;
+
+/**
+ * Maximum number of sheets per spreadsheet
+ * @see https://support.google.com/drive/answer/37603
+ */
+export const MAX_SHEETS_PER_SPREADSHEET = 200;
+
+/**
+ * Maximum cells per spreadsheet (10 million)
+ * @see https://support.google.com/drive/answer/37603
+ */
+export const MAX_CELLS_PER_SPREADSHEET = 10_000_000;
+
+// ============================================================================
+// CELL CONTENT LIMITS
+// ============================================================================
+
+/**
+ * Maximum length for cell note/comment
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const CELL_NOTE_MAX_LENGTH = 50_000;
+
+/**
+ * Maximum length for formula
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const FORMULA_MAX_LENGTH = 50_000;
+
+/**
+ * Maximum length for hyperlink URL
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const HYPERLINK_URL_MAX_LENGTH = 50_000;
+
+/**
+ * Maximum characters per cell
+ * @see https://support.google.com/drive/answer/37603
+ */
+export const MAX_CHARACTERS_PER_CELL = 50_000;
+
+// ============================================================================
+// RANGE & REFERENCE LIMITS
+// ============================================================================
+
+/**
+ * Maximum length for A1 notation string
+ * Conservative limit for A1 notation including sheet name and range
+ * Example: "Very Long Sheet Name!A1:ZZZ999999"
+ */
+export const A1_NOTATION_MAX_LENGTH = 500;
+
+/**
+ * Maximum length for named range name
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const NAMED_RANGE_NAME_MAX_LENGTH = 255;
+
+/**
+ * Maximum number of named ranges per spreadsheet
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const MAX_NAMED_RANGES = 500;
+
+// ============================================================================
+// BATCH OPERATION LIMITS
+// ============================================================================
+
+/**
+ * Maximum number of requests in a single batchUpdate call
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const BATCH_REQUEST_LIMIT = 100;
+
+/**
+ * Maximum number of rows to read/write in a single operation
+ * Not a hard API limit, but practical limit for performance
+ */
+export const BATCH_ROW_LIMIT = 10_000;
+
+// ============================================================================
+// CONDITIONAL FORMATTING LIMITS
+// ============================================================================
+
+/**
+ * Maximum number of conditional format rules per sheet
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const MAX_CONDITIONAL_FORMAT_RULES = 500;
+
+// ============================================================================
+// FILTER & SORT LIMITS
+// ============================================================================
+
+/**
+ * Maximum number of filter views per sheet
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const MAX_FILTER_VIEWS = 200;
+
+/**
+ * Maximum number of sort specs per request
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const MAX_SORT_SPECS = 255;
+
+// ============================================================================
+// API RATE LIMITS
+// ============================================================================
+
+/**
+ * Read requests per minute per user
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const READ_REQUESTS_PER_MINUTE = 300;
+
+/**
+ * Write requests per minute per user
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const WRITE_REQUESTS_PER_MINUTE = 300;
+
+/**
+ * Read requests per 100 seconds per user (alternate quota)
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const READ_REQUESTS_PER_100_SECONDS = 500;
+
+/**
+ * Write requests per 100 seconds per user (alternate quota)
+ * @see https://developers.google.com/sheets/api/limits
+ */
+export const WRITE_REQUESTS_PER_100_SECONDS = 500;
+
+// ============================================================================
+// GRID DIMENSION LIMITS
+// ============================================================================
+
+/**
+ * Maximum columns per sheet
+ * @see https://support.google.com/drive/answer/37603
+ */
+export const MAX_COLUMNS_PER_SHEET = 18_278;
+
+/**
+ * Maximum rows per sheet
+ * @see https://support.google.com/drive/answer/37603
+ */
+export const MAX_ROWS_PER_SHEET = 10_000_000;
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Regular expression for valid A1 notation
+ * Matches: A1, Sheet1!A1, Sheet1!A1:B10, A:A, 1:1, Sheet1!A:B, etc.
+ */
+export const A1_NOTATION_REGEX =
+  /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)$/;
+
+/**
+ * Regular expression for valid sheet name
+ * Sheet names cannot contain: \ / ? * [ ]
+ * Also cannot be empty or exceed 255 characters
+ */
+export const SHEET_NAME_REGEX = /^[^\\/?*[\]]+$/;
+
+/**
+ * Regular expression for valid spreadsheet ID
+ * Format: alphanumeric, hyphens, underscores (44 characters typical)
+ */
+export const SPREADSHEET_ID_REGEX = /^[a-zA-Z0-9-_]+$/;
+
+/**
+ * Regular expression for valid URL (HTTP/HTTPS)
+ * Supports standard URL format with protocol, domain, and optional path/query/fragment
+ */
+export const URL_REGEX =
+  /^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)$/;
+
+// ============================================================================
+// EXPORTED VALIDATION OBJECT
+// ============================================================================
+
+/**
+ * All Google Sheets API limits in a single object for easy reference
+ */
+export const GOOGLE_SHEETS_LIMITS = {
+  // Spreadsheet & Sheet
+  spreadsheetTitleMaxLength: SPREADSHEET_TITLE_MAX_LENGTH,
+  sheetNameMaxLength: SHEET_NAME_MAX_LENGTH,
+  maxSheetsPerSpreadsheet: MAX_SHEETS_PER_SPREADSHEET,
+  maxCellsPerSpreadsheet: MAX_CELLS_PER_SPREADSHEET,
+
+  // Cell Content
+  cellNoteMaxLength: CELL_NOTE_MAX_LENGTH,
+  formulaMaxLength: FORMULA_MAX_LENGTH,
+  hyperlinkUrlMaxLength: HYPERLINK_URL_MAX_LENGTH,
+  maxCharactersPerCell: MAX_CHARACTERS_PER_CELL,
+
+  // Ranges & References
+  a1NotationMaxLength: A1_NOTATION_MAX_LENGTH,
+  namedRangeNameMaxLength: NAMED_RANGE_NAME_MAX_LENGTH,
+  maxNamedRanges: MAX_NAMED_RANGES,
+
+  // Batch Operations
+  batchRequestLimit: BATCH_REQUEST_LIMIT,
+  batchRowLimit: BATCH_ROW_LIMIT,
+
+  // Conditional Formatting
+  maxConditionalFormatRules: MAX_CONDITIONAL_FORMAT_RULES,
+
+  // Filters & Sorting
+  maxFilterViews: MAX_FILTER_VIEWS,
+  maxSortSpecs: MAX_SORT_SPECS,
+
+  // API Rate Limits
+  readRequestsPerMinute: READ_REQUESTS_PER_MINUTE,
+  writeRequestsPerMinute: WRITE_REQUESTS_PER_MINUTE,
+  readRequestsPer100Seconds: READ_REQUESTS_PER_100_SECONDS,
+  writeRequestsPer100Seconds: WRITE_REQUESTS_PER_100_SECONDS,
+
+  // Grid Dimensions
+  maxColumnsPerSheet: MAX_COLUMNS_PER_SHEET,
+  maxRowsPerSheet: MAX_ROWS_PER_SHEET,
+
+  // Validation Patterns
+  a1NotationRegex: A1_NOTATION_REGEX,
+  sheetNameRegex: SHEET_NAME_REGEX,
+  spreadsheetIdRegex: SPREADSHEET_ID_REGEX,
+  urlRegex: URL_REGEX,
+} as const;
+
+/**
+ * Type for Google Sheets API limits
+ */
+export type GoogleSheetsLimits = typeof GOOGLE_SHEETS_LIMITS;

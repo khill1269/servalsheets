@@ -38,7 +38,11 @@ const PlanStepSchema = z.object({
 const OperationPlanSchema = z.object({
   title: z.string().min(1).describe('Plan title'),
   description: z.string().describe('Detailed description of what the plan does'),
-  steps: z.array(PlanStepSchema).min(1).describe('Steps in the plan'),
+  steps: z
+    .array(PlanStepSchema)
+    .min(1)
+    .max(50, 'Plan cannot have more than 50 steps')
+    .describe('Steps in the plan (max 50)'),
   willCreateSnapshot: z
     .boolean()
     .default(true)

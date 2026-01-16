@@ -148,6 +148,12 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 • For >10K cells enable majorDimension:"ROWS"
 • Merge cells in batches using sheets_transaction - single API call
 
+**📚 Resources:**
+• servalsheets://guides/quota-optimization → Save 80-99% API quota
+• servalsheets://guides/batching-strategies → When to batch vs single ops
+• servalsheets://examples/batch-operations → Copy-paste code examples
+• servalsheets://decisions/read-vs-batch-read → Decision tree
+
 **🔒 Safety & Undo (Critical for Writes):**
 • DRY-RUN FIRST: {"safety":{"dryRun":true}} → Preview changes before executing
 • USER CONFIRMATION: Use sheets_confirm for >100 cells or destructive ops
@@ -660,6 +666,11 @@ Result: 1 API call, 99% quota saved, atomic execution
 • INVALID_OPERATION → Validate each operation before queuing
 • AUTO_ROLLBACK → Transaction failed, spreadsheet unchanged (safe)
 
+**📚 Resources:**
+• servalsheets://decisions/when-to-use-transaction → Decision flowchart
+• servalsheets://examples/transactions → Complete workflow examples
+• servalsheets://guides/error-recovery → Rollback patterns
+
 **Commonly Used With:**
 → sheets_confirm (get user approval before committing)
 → sheets_quality (validate before transaction)
@@ -810,6 +821,10 @@ Result: 1 API call, 99% quota saved, atomic execution
 • USER_REJECTED → User declined, abort operation, explain what was avoided
 • USER_MODIFIED → User changed plan, parse modifications and adjust
 
+**📚 Resources:**
+• servalsheets://decisions/when-to-confirm → When to request confirmation
+• servalsheets://guides/error-recovery → Handling confirmation errors
+
 **Commonly Used With:**
 → sheets_quality (analyze impact before building plan)
 → sheets_transaction (execute approved plan atomically)
@@ -922,6 +937,11 @@ Result: 1 API call, 99% quota saved, atomic execution
 • SHEET_NOT_FOUND → Verify sheet name, use sheets_sheet to list
 • COLUMN_NOT_FOUND → Check column headers match data keys
 • KEY_COLUMN_NOT_FOUND → Verify keyColumn exists in sheet headers
+
+**📚 Resources:**
+• servalsheets://examples/composite-workflows → Complete import/append/update examples
+• servalsheets://guides/quota-optimization → CSV import saves 98% quota
+• servalsheets://guides/batching-strategies → When to use composite vs direct
 
 **Commonly Used With:**
 → sheets_values (read data before composite operations)

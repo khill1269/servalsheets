@@ -428,6 +428,7 @@ export class DiffEngine {
 
   /**
    * Sample diff (Tier 2) - Returns summary with sample statistics
+   * OPTIMIZED: Uses Map-based lookup for O(1) before sheet access instead of O(n) find()
    */
   private async sampleDiff(
     before: SpreadsheetState,
@@ -446,8 +447,11 @@ export class DiffEngine {
     let cellsSampled = 0;
     const changedRows = new Set<number>();
 
+    // OPTIMIZATION: Build O(1) lookup map for before sheets
+    const beforeSheetMap = new Map(before.sheets.map((sheet) => [sheet.sheetId, sheet]));
+
     for (const sheet of after.sheets) {
-      const beforeSheet = before.sheets.find((s) => s.sheetId === sheet.sheetId);
+      const beforeSheet = beforeSheetMap.get(sheet.sheetId);
       const escapedTitle = sheet.title.replace(/'/g, "''");
 
       const afterFirst =
@@ -498,7 +502,7 @@ export class DiffEngine {
 
   /**
    * Full cell-by-cell diff (Tier 3) - Compares cells up to limit
-   * OPTIMIZED: Uses block checksums for early termination and parallel processing
+   * OPTIMIZED: Uses block checksums for early termination, parallel processing, and Map-based lookups
    */
   private async fullDiff(before: SpreadsheetState, after: SpreadsheetState): Promise<DiffResult> {
     const changes: CellChangeRecord[] = [];
@@ -507,6 +511,9 @@ export class DiffEngine {
     let cellsAdded = 0;
     let cellsRemoved = 0;
     const maxCells = this.maxFullDiffCells;
+
+    // OPTIMIZATION: Build O(1) lookup map for before sheets
+    const beforeSheetMap = new Map(before.sheets.map((sheet) => [sheet.sheetId, sheet]));
 
     // Create queue for parallel block processing
     const concurrency = parseInt(process.env['DIFF_ENGINE_CONCURRENCY'] ?? '10');
@@ -525,7 +532,7 @@ export class DiffEngine {
             };
           }
 
-          const beforeSheet = before.sheets.find((s) => s.sheetId === afterSheet.sheetId);
+          const beforeSheet = beforeSheetMap.get(afterSheet.sheetId);
 
           // OPTIMIZATION: Early termination if sheet checksums match
           if (beforeSheet && afterSheet.checksum === beforeSheet.checksum) {
@@ -571,9 +578,10 @@ export class DiffEngine {
       cellsCompared += result.cellsCompared;
     }
 
-    // Check for removed sheets
+    // OPTIMIZATION: Check for removed sheets with O(1) lookup
+    const afterSheetMap = new Map(after.sheets.map((sheet) => [sheet.sheetId, sheet]));
     for (const beforeSheet of before.sheets) {
-      const stillExists = after.sheets.some((s) => s.sheetId === beforeSheet.sheetId);
+      const stillExists = afterSheetMap.has(beforeSheet.sheetId);
       if (!stillExists) {
         cellsRemoved += beforeSheet.rowCount * beforeSheet.columnCount;
       }

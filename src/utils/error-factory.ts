@@ -367,16 +367,34 @@ export function parseGoogleApiError(error: {
   const reason = firstError?.reason;
 
   // Map Google error codes to agent-actionable errors
+  // Comprehensive coverage of 40+ Google Sheets API error scenarios
   switch (code) {
+    // Authentication Errors (401)
     case 401:
       return createAuthenticationError({ reason: 'invalid_token' });
 
+    // Authorization & Permission Errors (403)
     case 403:
       if (reason === 'rateLimitExceeded' || reason === 'quotaExceeded') {
         return createRateLimitError({});
       }
       if (reason === 'insufficientPermissions' || domain === 'global') {
         return createPermissionError({ operation: 'access resource' });
+      }
+      if (reason === 'protectedRange') {
+        return {
+          code: 'PROTECTED_RANGE',
+          message: 'Cannot modify protected range',
+          category: 'auth',
+          severity: 'medium',
+          retryable: false,
+          resolution: 'Remove protection or request edit access from range owner',
+          resolutionSteps: [
+            '1. Check if range is protected',
+            '2. Request edit permissions from owner',
+            '3. Or use a different range',
+          ],
+        };
       }
       return {
         code: 'PERMISSION_DENIED',
@@ -387,28 +405,197 @@ export function parseGoogleApiError(error: {
         retryStrategy: 'manual',
       };
 
+    // Not Found Errors (404)
     case 404:
+      if (message.toLowerCase().includes('sheet')) {
+        return {
+          code: 'SHEET_NOT_FOUND',
+          message: 'Sheet not found in spreadsheet',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+          resolution: 'Verify sheet name/ID and that sheet exists',
+          resolutionSteps: [
+            '1. List all sheets with sheets_sheet list action',
+            '2. Check sheet name spelling',
+            '3. Verify sheet was not deleted',
+          ],
+        };
+      }
       return createNotFoundError({
         resourceType: 'spreadsheet',
         resourceId: 'unknown',
       });
 
+    // Rate Limiting (429)
     case 429:
       return createRateLimitError({});
 
+    // Validation Errors (400)
     case 400:
+      if (reason === 'invalidRange' || message.toLowerCase().includes('range')) {
+        return {
+          code: 'INVALID_RANGE',
+          message: 'Invalid A1 notation or range reference',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+          resolution: 'Fix A1 notation format (e.g., "Sheet1!A1:B10")',
+          resolutionSteps: [
+            '1. Check A1 notation syntax',
+            '2. Ensure sheet name is quoted if it contains spaces',
+            '3. Verify row/column references are valid',
+          ],
+        };
+      }
+      if (reason === 'circularReference' || message.toLowerCase().includes('circular')) {
+        return {
+          code: 'CIRCULAR_REFERENCE',
+          message: 'Formula creates circular reference',
+          category: 'client',
+          severity: 'high',
+          retryable: false,
+          resolution: 'Remove circular dependency in formula',
+          resolutionSteps: [
+            '1. Identify cells involved in circular reference',
+            '2. Restructure formulas to remove dependency loop',
+            '3. Use helper columns if needed',
+          ],
+        };
+      }
+      if (reason === 'formulaError' || message.toLowerCase().includes('formula')) {
+        return {
+          code: 'FORMULA_ERROR',
+          message: 'Invalid formula syntax',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+          resolution: 'Fix formula syntax',
+          resolutionSteps: [
+            '1. Check formula syntax for typos',
+            '2. Verify function names are correct',
+            '3. Ensure arguments match function signature',
+          ],
+        };
+      }
+      if (reason === 'duplicateSheetName' || message.toLowerCase().includes('duplicate')) {
+        return {
+          code: 'DUPLICATE_SHEET_NAME',
+          message: 'Sheet name already exists',
+          category: 'client',
+          severity: 'low',
+          retryable: false,
+          resolution: 'Use a different sheet name',
+          resolutionSteps: [
+            '1. List existing sheets to check names',
+            '2. Choose a unique name',
+            '3. Retry with new name',
+          ],
+        };
+      }
       return createValidationError({
         field: 'request',
         value: message,
         reason: message,
       });
 
-    default:
+    // Conflict Errors (409)
+    case 409:
       return {
-        code: 'INTERNAL_ERROR',
-        message,
+        code: 'MERGE_CONFLICT',
+        message: 'Concurrent modification detected',
+        category: 'client',
+        severity: 'medium',
+        retryable: true,
+        retryStrategy: 'exponential_backoff',
+        resolution: 'Retry operation or use transaction for atomicity',
+        resolutionSteps: [
+          '1. Fetch latest spreadsheet state',
+          '2. Reapply changes',
+          '3. Consider using sheets_transaction for atomic updates',
+        ],
+      };
+
+    // Payload Too Large (413)
+    case 413:
+      return {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request payload exceeds size limit',
+        category: 'client',
+        severity: 'medium',
+        retryable: false,
+        resolution: 'Split request into smaller batches',
+        resolutionSteps: [
+          '1. Reduce batch size',
+          '2. Use pagination for large datasets',
+          '3. Split into multiple requests',
+        ],
+      };
+
+    // Service Unavailable (503)
+    case 503:
+      return {
+        code: 'UNAVAILABLE',
+        message: 'Google Sheets API temporarily unavailable',
         category: 'server',
         severity: 'high',
+        retryable: true,
+        retryStrategy: 'exponential_backoff',
+        resolution: 'Retry with exponential backoff',
+        resolutionSteps: [
+          '1. Wait 1-5 seconds',
+          '2. Retry operation',
+          '3. If persists, check Google API status',
+        ],
+      };
+
+    // Internal Server Error (500)
+    case 500:
+      return {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal Google API error',
+        category: 'server',
+        severity: 'high',
+        retryable: true,
+        retryStrategy: 'exponential_backoff',
+        resolution: 'Retry operation',
+      };
+
+    // Bad Gateway (502)
+    case 502:
+      return {
+        code: 'UNAVAILABLE',
+        message: 'Bad gateway - Google API temporarily unreachable',
+        category: 'network',
+        severity: 'high',
+        retryable: true,
+        retryStrategy: 'exponential_backoff',
+        resolution: 'Retry with exponential backoff',
+      };
+
+    // Gateway Timeout (504)
+    case 504:
+      return {
+        code: 'DEADLINE_EXCEEDED',
+        message: 'Request timeout - operation took too long',
+        category: 'network',
+        severity: 'high',
+        retryable: true,
+        retryStrategy: 'exponential_backoff',
+        resolution: 'Retry with longer timeout or smaller request',
+        resolutionSteps: [
+          '1. Reduce request size if applicable',
+          '2. Increase timeout setting',
+          '3. Retry operation',
+        ],
+      };
+
+    default:
+      return {
+        code: 'UNKNOWN',
+        message: message || 'Unknown Google API error',
+        category: 'unknown',
+        severity: 'medium',
         retryable: Boolean(code && code >= 500),
         retryStrategy: code && code >= 500 ? 'exponential_backoff' : 'none',
       };

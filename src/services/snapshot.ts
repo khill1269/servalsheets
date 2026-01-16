@@ -1,8 +1,17 @@
 /**
- * ServalSheets - Snapshot Service
+ * SnapshotService
  *
- * Creates backup copies for rollback capability
- * MCP Protocol: 2025-11-25
+ * @purpose Creates backup copies of spreadsheets via Drive API for rollback capability in transactions
+ * @category Core
+ * @usage Use before destructive operations or transactions; creates Drive copy, tracks snapshot metadata, supports restore operations
+ * @dependencies drive_v3, CircuitBreaker, ServiceError
+ * @stateful No - stateless service; snapshot metadata stored in Drive file properties
+ * @singleton No - can be instantiated per request
+ *
+ * @example
+ * const service = new SnapshotService({ driveApi, defaultFolderId: 'folder123', maxSnapshots: 10 });
+ * const snapshot = await service.create(spreadsheetId, 'Pre-transaction backup');
+ * await service.restore(snapshot.copySpreadsheetId, spreadsheetId); // Rollback
  */
 
 import type { drive_v3 } from 'googleapis';

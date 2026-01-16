@@ -6,6 +6,14 @@
  */
 
 import { z } from 'zod';
+import {
+  SPREADSHEET_ID_REGEX,
+  A1_NOTATION_REGEX,
+  A1_NOTATION_MAX_LENGTH,
+  SHEET_NAME_REGEX,
+  SHEET_NAME_MAX_LENGTH,
+  URL_REGEX,
+} from '../config/google-limits.js';
 
 // ============================================================================
 // PROTOCOL CONSTANTS
@@ -44,7 +52,7 @@ export const SpreadsheetIdSchema = z
   .string()
   .min(1)
   .max(100)
-  .regex(/^[a-zA-Z0-9-_]+$/, 'Invalid spreadsheet ID')
+  .regex(SPREADSHEET_ID_REGEX, 'Invalid spreadsheet ID format')
   .describe('Spreadsheet ID from URL');
 
 /** Sheet ID (numeric) */
@@ -54,11 +62,17 @@ export const SheetIdSchema = z.number().int().min(0).describe('Numeric sheet ID'
 export const A1NotationSchema = z
   .string()
   .min(1)
-  .max(500)
-  .describe('A1 notation (e.g., "Sheet1!A1:C10")');
+  .max(A1_NOTATION_MAX_LENGTH)
+  .regex(A1_NOTATION_REGEX, 'Invalid A1 notation format')
+  .describe('A1 notation (e.g., "Sheet1!A1:C10", "A1", "A:B", "1:5")');
 
 /** Sheet name */
-export const SheetNameSchema = z.string().min(1).max(255).describe('Sheet/tab name');
+export const SheetNameSchema = z
+  .string()
+  .min(1)
+  .max(SHEET_NAME_MAX_LENGTH)
+  .regex(SHEET_NAME_REGEX, String.raw`Sheet name cannot contain: \ / ? * [ ]`)
+  .describe(String.raw`Sheet/tab name (no special chars: \ / ? * [ ])`);
 
 // ============================================================================
 // ENUMS (Google Sheets API)
@@ -202,23 +216,57 @@ export const ConditionTypeSchema = z.enum([
 // ============================================================================
 
 export const ErrorCodeSchema = z.enum([
-  // MCP Standard
+  // MCP Standard (5 codes)
   'PARSE_ERROR',
   'INVALID_REQUEST',
   'METHOD_NOT_FOUND',
   'INVALID_PARAMS',
   'INTERNAL_ERROR',
-  // Sheets API
-  'SHEET_NOT_FOUND',
-  'SPREADSHEET_NOT_FOUND',
-  'RANGE_NOT_FOUND',
+  // Authentication & Authorization (4 codes)
+  'UNAUTHENTICATED',
   'PERMISSION_DENIED',
+  'INVALID_CREDENTIALS',
+  'INSUFFICIENT_PERMISSIONS',
+  // Quota & Rate Limiting (3 codes)
   'QUOTA_EXCEEDED',
   'RATE_LIMITED',
+  'RESOURCE_EXHAUSTED',
+  // Spreadsheet Errors (8 codes)
+  'SPREADSHEET_NOT_FOUND',
+  'SPREADSHEET_TOO_LARGE',
+  'SHEET_NOT_FOUND',
+  'INVALID_SHEET_ID',
+  'DUPLICATE_SHEET_NAME',
   'INVALID_RANGE',
-  'CIRCULAR_REFERENCE',
+  'RANGE_NOT_FOUND',
+  'PROTECTED_RANGE',
+  // Data & Formula Errors (4 codes)
   'FORMULA_ERROR',
-  // Safety Rails
+  'CIRCULAR_REFERENCE',
+  'INVALID_DATA_VALIDATION',
+  'MERGE_CONFLICT',
+  // Feature-Specific Errors (7 codes)
+  'CONDITIONAL_FORMAT_ERROR',
+  'PIVOT_TABLE_ERROR',
+  'CHART_ERROR',
+  'FILTER_VIEW_ERROR',
+  'NAMED_RANGE_ERROR',
+  'DEVELOPER_METADATA_ERROR',
+  'DIMENSION_ERROR',
+  // Operation Errors (6 codes)
+  'BATCH_UPDATE_ERROR',
+  'TRANSACTION_ERROR',
+  'ABORTED',
+  'DEADLINE_EXCEEDED',
+  'CANCELLED',
+  'DATA_LOSS',
+  // Network & Service Errors (5 codes)
+  'UNAVAILABLE',
+  'UNIMPLEMENTED',
+  'UNKNOWN',
+  'OUT_OF_RANGE',
+  'FAILED_PRECONDITION',
+  // Safety Rails (3 codes)
   'PRECONDITION_FAILED',
   'EFFECT_SCOPE_EXCEEDED',
   'EXPLICIT_RANGE_REQUIRED',
@@ -594,7 +642,7 @@ export const ResponseMetaSchema = z.object({
   suggestions: z.array(ToolSuggestionSchema).optional(),
   costEstimate: CostEstimateSchema.optional(),
   relatedTools: z.array(z.string()).optional(),
-  documentation: z.string().url().optional(),
+  documentation: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
   nextSteps: z.array(z.string()).optional(),
   warnings: z.array(z.string()).optional(), // Safety warnings
   snapshot: z.record(z.string(), z.unknown()).optional(), // Snapshot info for undo

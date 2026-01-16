@@ -22,7 +22,7 @@ import { ProtocolTracer } from './test-infrastructure/protocol-tracer.js';
 import { ResourceTester } from './test-infrastructure/resource-tester.js';
 import { ResponseValidator } from './test-infrastructure/response-validator.js';
 import { generateAllTestData } from './test-infrastructure/test-data-generator.js';
-import { TOOL_REGISTRY } from '../src/schemas/index.js';
+import { TOOL_ACTIONS } from '../src/schemas/index.js';
 
 let requestIdCounter = 1;
 
@@ -225,8 +225,8 @@ async function runComprehensiveTests() {
   console.log('-'.repeat(80));
 
   const toolTests: Array<{ tool: string; action: string }> = [];
-  for (const [toolName, toolInfo] of Object.entries(TOOL_REGISTRY)) {
-    for (const action of toolInfo.actions) {
+  for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+    for (const action of actions) {
       toolTests.push({ tool: toolName, action });
       db.addTestCase({
         id: `${toolName}.${action}`,

@@ -13,12 +13,12 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type { SheetsDataInput, SheetsDataOutput } from '../schemas/data.js';
-import type { ValuesArray } from '../schemas/index.js';
-import { getRequestLogger } from '../utils/request-context.js';
+import type { ValuesArray, ErrorDetail, MutationSummary } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { createRequestKey } from '../utils/request-deduplication.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { CACHE_TTL_VALUES } from '../config/constants.js';
 import { FallbackStrategies } from '../utils/circuit-breaker.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
@@ -205,9 +205,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       const verbosity = req.verbosity ?? 'standard';
       const filteredResponse = this.applyVerbosityFilter(response, verbosity);
 
-      return filteredResponse as unknown as SheetsDataOutput;
+      return { response: filteredResponse } as unknown as SheetsDataOutput;
     } catch (err) {
-      return this.mapError(err) as unknown as SheetsDataOutput;
+      return { response: this.mapError(err) } as unknown as SheetsDataOutput;
     }
   }
 
@@ -324,16 +324,16 @@ class ValuesOperations {
   constructor(private parent: SheetsDataHandler) {}
 
   // Accessor methods for parent's dependencies
-  private get sheetsApi() {
+  private get sheetsApi(): sheets_v4.Sheets {
     return this.parent['sheetsApi'];
   }
-  private get context() {
+  private get context(): HandlerContext {
     return this.parent['context'];
   }
-  private get valueCacheMap() {
+  private get valueCacheMap(): Map<string, sheets_v4.Schema$ValueRange> {
     return this.parent['valueCacheMap'];
   }
-  private get toolName() {
+  private get toolName(): string {
     return this.parent['toolName'];
   }
 
@@ -341,36 +341,40 @@ class ValuesOperations {
   private success = <T extends Record<string, unknown>>(
     action: string,
     data: T,
-    mutation?: any,
+    mutation?: MutationSummary,
     dryRun?: boolean
-  ) => this.parent['success'](action, data, mutation, dryRun);
+  ): DataResponse => this.parent['success'](action, data, mutation, dryRun);
 
-  private error = (error: any) => this.parent['error'](error);
+  private error = (error: ErrorDetail): DataResponse => this.parent['error'](error);
+
   private async resolveRange(spreadsheetId: string, range: string): Promise<string> {
     const resolved = await this.context.rangeResolver.resolve(spreadsheetId, { a1: range });
     return resolved.a1Notation;
   }
-  private createMutationSummary = (results: any[]) => this.parent['createMutationSummary'](results);
-  private columnToLetter = (index: number) => this.parent['columnToLetter'](index);
+
+  private createMutationSummary = (results: any): MutationSummary | undefined =>
+    this.parent['createMutationSummary'](results);
+
+  private columnToLetter = (index: number): string => this.parent['columnToLetter'](index);
 
   async handle(input: SheetsDataInput): Promise<DataResponse> {
     switch (input.action) {
       case 'read':
-        return await this.handleRead(input as any);
+        return await this.handleRead(input);
       case 'write':
-        return await this.handleWrite(input as any);
+        return await this.handleWrite(input);
       case 'append':
-        return await this.handleAppend(input as any);
+        return await this.handleAppend(input);
       case 'clear':
-        return await this.handleClear(input as any);
+        return await this.handleClear(input);
       case 'batch_read':
-        return await this.handleBatchRead(input as any);
+        return await this.handleBatchRead(input);
       case 'batch_write':
-        return await this.handleBatchWrite(input as any);
+        return await this.handleBatchWrite(input);
       case 'find':
-        return await this.handleFind(input as any);
+        return await this.handleFind(input);
       case 'replace':
-        return await this.handleReplace(input as any);
+        return await this.handleReplace(input);
       default:
         return this.error({
           code: 'INVALID_PARAMS',
@@ -633,28 +637,33 @@ class ValuesOperations {
     const estimatedCells = this.estimateCellsFromGridRange(resolved.gridRange);
 
     // Request confirmation for destructive operation if elicitation is supported
-    if (this.context.samplingServer) {
-      try {
-        const confirmation = await confirmDestructiveAction(
-          this.context
-            .samplingServer as unknown as import('../mcp/elicitation.js').ElicitationServer,
-          'Clear Cell Values',
-          `This will permanently clear all values in range ${range} (approximately ${estimatedCells} cells) in spreadsheet ${input.spreadsheetId}.`
-        );
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'clear',
+        `Clear all values in range ${range} (approximately ${estimatedCells} cells) in spreadsheet ${input.spreadsheetId}. This action will permanently remove all cell values.`
+      );
 
-        if (!confirmation.confirmed) {
-          return this.error({
-            code: 'INVALID_REQUEST',
-            message: 'Operation cancelled by user',
-            retryable: false,
-          });
-        }
-      } catch (error) {
-        getRequestLogger().warn('Elicitation failed for clear operation', {
-          error,
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
         });
       }
     }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'clear',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+        affectedCells: estimatedCells,
+      },
+      input.safety
+    );
 
     let clearedRange: string | undefined;
 
@@ -707,6 +716,7 @@ class ValuesOperations {
       'clear',
       {
         updatedRange: clearedRange ?? range,
+        snapshotId: snapshot?.snapshotId,
       },
       mutation
     );
@@ -1025,13 +1035,13 @@ class CellsOperations {
   constructor(private parent: SheetsDataHandler) {}
 
   // Accessor methods for parent's dependencies
-  private get sheetsApi() {
+  private get sheetsApi(): sheets_v4.Sheets {
     return this.parent['sheetsApi'];
   }
-  private get context() {
+  private get context(): HandlerContext {
     return this.parent['context'];
   }
-  private get toolName() {
+  private get toolName(): string {
     return this.parent['toolName'];
   }
 
@@ -1039,40 +1049,45 @@ class CellsOperations {
   private success = <T extends Record<string, unknown>>(
     action: string,
     data: T,
-    mutation?: any,
+    mutation?: MutationSummary,
     dryRun?: boolean
-  ) => this.parent['success'](action, data, mutation, dryRun);
+  ): DataResponse => this.parent['success'](action, data, mutation, dryRun);
 
-  private error = (error: any) => this.parent['error'](error);
+  private error = (error: ErrorDetail): DataResponse => this.parent['error'](error);
+
   private async resolveRange(spreadsheetId: string, range: string): Promise<string> {
     const resolved = await this.context.rangeResolver.resolve(spreadsheetId, { a1: range });
     return resolved.a1Notation;
   }
-  private getSheetId = (spreadsheetId: string, sheetName?: string, sheetsApi?: any) =>
-    this.parent['getSheetId'](spreadsheetId, sheetName, sheetsApi);
+
+  private getSheetId = (
+    spreadsheetId: string,
+    sheetName?: string,
+    sheetsApi?: sheets_v4.Sheets
+  ): Promise<number> => this.parent['getSheetId'](spreadsheetId, sheetName, sheetsApi);
 
   async handle(input: SheetsDataInput): Promise<DataResponse> {
     switch (input.action) {
       case 'add_note':
-        return await this.handleAddNote(input as any);
+        return await this.handleAddNote(input);
       case 'get_note':
-        return await this.handleGetNote(input as any);
+        return await this.handleGetNote(input);
       case 'clear_note':
-        return await this.handleClearNote(input as any);
+        return await this.handleClearNote(input);
       case 'set_hyperlink':
-        return await this.handleSetHyperlink(input as any);
+        return await this.handleSetHyperlink(input);
       case 'clear_hyperlink':
-        return await this.handleClearHyperlink(input as any);
+        return await this.handleClearHyperlink(input);
       case 'merge':
-        return await this.handleMerge(input as any);
+        return await this.handleMerge(input);
       case 'unmerge':
-        return await this.handleUnmerge(input as any);
+        return await this.handleUnmerge(input);
       case 'get_merges':
-        return await this.handleGetMerges(input as any);
+        return await this.handleGetMerges(input);
       case 'cut':
-        return await this.handleCut(input as any);
+        return await this.handleCut(input);
       case 'copy':
-        return await this.handleCopyCells(input as any);
+        return await this.handleCopyCells(input);
       default:
         return this.error({
           code: 'INVALID_PARAMS',
@@ -1357,23 +1372,17 @@ class CellsOperations {
     const estimatedCells = sourceRows * sourceCols;
 
     if (this.context.elicitationServer && estimatedCells > 100) {
-      try {
-        const confirmation = await confirmDestructiveAction(
-          this.context.elicitationServer,
-          'Cut Cells',
-          `You are about to cut approximately ${estimatedCells.toLocaleString()} cells from ${rangeA1} to ${input.destination}.\n\nThe source range will be cleared and all content will be moved to the destination.`
-        );
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'cut',
+        `Cut approximately ${estimatedCells.toLocaleString()} cells from ${rangeA1} to ${input.destination}. The source range will be cleared and all content will be moved to the destination.`
+      );
 
-        if (!confirmation.confirmed) {
-          return this.error({
-            code: 'PRECONDITION_FAILED',
-            message: 'Cut operation cancelled by user',
-            retryable: false,
-          });
-        }
-      } catch (err) {
-        this.context.logger?.warn('Elicitation failed for cut, proceeding with operation', {
-          error: err,
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
         });
       }
     }
@@ -1381,6 +1390,18 @@ class CellsOperations {
     if (input.safety?.dryRun) {
       return this.success('cut', {}, undefined, true);
     }
+
+    // Create snapshot if requested
+    const snapshot = await createSnapshotIfNeeded(
+      this.context.snapshotService,
+      {
+        operationType: 'cut',
+        isDestructive: true,
+        spreadsheetId: input.spreadsheetId,
+        affectedCells: estimatedCells,
+      },
+      input.safety
+    );
 
     const destParsed = parseCellReference(input.destination);
 
@@ -1403,7 +1424,9 @@ class CellsOperations {
       },
     });
 
-    return this.success('cut', {});
+    return this.success('cut', {
+      snapshotId: snapshot?.snapshotId,
+    });
   }
 
   private async handleCopyCells(input: any): Promise<DataResponse> {

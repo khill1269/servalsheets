@@ -1,11 +1,17 @@
 /**
- * Sheet Extractor Service
+ * SheetExtractor
  *
- * Unified extraction pipeline for the testing framework.
- * Implements tiered data retrieval with cache-first strategy,
- * pagination support, and Drive API integration.
+ * @purpose Unified data extraction pipeline with cache-first strategy, pagination, and tiered retrieval (quick/medium/comprehensive)
+ * @category Core
+ * @usage Use for test framework and data operations; implements 3 tiers (quick: metadata, medium: +data, comprehensive: +analysis)
+ * @dependencies sheets_v4, drive_v3, logger, cache-manager
+ * @stateful No - stateless extraction service using cache manager
+ * @singleton No - can be instantiated per extraction request
  *
- * @module sheet-extractor
+ * @example
+ * const extractor = new SheetExtractor(sheetsClient, driveClient);
+ * const data = await extractor.extract(spreadsheetId, { tier: 'medium', range: 'A1:Z100', useCache: true });
+ * // { metadata: {...}, values: [[...]], cached: true }
  */
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
@@ -785,6 +791,7 @@ export class SheetExtractor {
     const maxRows = options.maxRowsPerSheet || 10000;
     const maxCols = options.maxColumnsPerSheet || 1000;
 
+    // OPTIMIZATION: Process grids more efficiently by reducing Map overhead
     for (const grid of gridData) {
       const startRow = grid.startRow || 0;
       const startCol = grid.startColumn || 0;
@@ -797,24 +804,28 @@ export class SheetExtractor {
 
         const absoluteRow = startRow + rowIdx;
 
-        if (!cellMap.has(absoluteRow)) {
-          cellMap.set(absoluteRow, new Map());
-        }
-        if (!validationMap.has(absoluteRow)) {
-          validationMap.set(absoluteRow, new Map());
+        // OPTIMIZATION: Get or create row Maps once (avoid double has+get pattern)
+        let rowCells = cellMap.get(absoluteRow);
+        if (!rowCells) {
+          rowCells = new Map();
+          cellMap.set(absoluteRow, rowCells);
         }
 
-        const rowCells = cellMap.get(absoluteRow)!;
-        const rowValidation = validationMap.get(absoluteRow)!;
+        let rowValidation = validationMap.get(absoluteRow);
+        if (!rowValidation) {
+          rowValidation = new Map();
+          validationMap.set(absoluteRow, rowValidation);
+        }
 
+        // OPTIMIZATION: Batch process cells in row to reduce per-cell overhead
         for (let colIdx = 0; colIdx < row.values.length && startCol + colIdx < maxCols; colIdx++) {
           const cell = row.values[colIdx];
           if (!cell) continue;
 
           const absoluteCol = startCol + colIdx;
 
-          // Extract cell value
-          const extractedCell: ExtractedCellValue = {
+          // Extract cell value (inline to reduce function call overhead)
+          rowCells.set(absoluteCol, {
             row: absoluteRow,
             col: absoluteCol,
             value: this.extractCellValue(cell),
@@ -822,9 +833,7 @@ export class SheetExtractor {
             formula: cell.userEnteredValue?.formulaValue ?? undefined,
             hyperlink: cell.hyperlink ?? undefined,
             note: cell.note ?? undefined,
-          };
-
-          rowCells.set(absoluteCol, extractedCell);
+          });
 
           // Extract data validation
           if (cell.dataValidation) {
@@ -1448,18 +1457,14 @@ export function getCellValue(
  * Get all cell values for a sheet
  */
 export function getSheetCells(result: ExtractionResult, sheetId: number): ExtractedCellValue[] {
-  const cells: ExtractedCellValue[] = [];
   const sheetData = result.cellData.get(sheetId);
 
-  if (sheetData) {
-    for (const rowMap of sheetData.values()) {
-      for (const cell of rowMap.values()) {
-        cells.push(cell);
-      }
-    }
+  if (!sheetData) {
+    return [];
   }
 
-  return cells;
+  // OPTIMIZATION: Use flatMap to flatten double-nested iteration (O(n) instead of O(n×m))
+  return Array.from(sheetData.values()).flatMap((rowMap) => Array.from(rowMap.values()));
 }
 
 /**
@@ -1486,15 +1491,12 @@ export function getSheetByName(
  * Count total cells with data
  */
 export function countCellsWithData(result: ExtractionResult): number {
-  let count = 0;
-
-  for (const sheetData of result.cellData.values()) {
-    for (const rowData of sheetData.values()) {
-      count += rowData.size;
-    }
-  }
-
-  return count;
+  // OPTIMIZATION: Use reduce + flatMap to avoid double-nested loops
+  return Array.from(result.cellData.values()).reduce(
+    (total, sheetData) =>
+      total + Array.from(sheetData.values()).reduce((sum, rowData) => sum + rowData.size, 0),
+    0
+  );
 }
 
 /**

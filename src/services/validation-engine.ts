@@ -1,14 +1,18 @@
 /**
- * ServalSheets - Validation Engine
+ * ValidationEngine
  *
- * Comprehensive validation system:
- * - Data type validation
- * - Range validation
- * - Format validation
- * - Business rules
- * - Custom validators
+ * @purpose Comprehensive data validation with 11 built-in validators: type, range, format, uniqueness, dependencies, business rules
+ * @category Quality
+ * @usage Use before write operations to validate data quality; supports custom validators and severity levels (error/warning/info)
+ * @dependencies logger, validation types
+ * @stateful Yes - maintains validation rule registry, custom validators, validation statistics (rules executed, errors found)
+ * @singleton No - instantiate per validation context with specific rule sets
  *
- * Phase 4, Task 4.4
+ * @example
+ * const engine = new ValidationEngine({ strictMode: true });
+ * engine.registerRule({ type: 'range', field: 'age', min: 0, max: 120 });
+ * const result = await engine.validate(data, { context: 'user_profile' });
+ * if (!result.valid) logger.info(result.errors);
  */
 
 import { v4 as uuidv4 } from 'uuid';

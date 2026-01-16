@@ -1,8 +1,17 @@
 /**
- * ServalSheets - Capability Cache Service
+ * CapabilityCache
  *
- * Caches MCP client capabilities to avoid repeated checks.
- * Uses Redis for distributed caching across server restarts.
+ * @purpose Caches MCP client capabilities (Sampling, Elicitation, Logging, Tasks) to avoid repeated checks; uses Redis for distributed cache
+ * @category Performance
+ * @usage Use before calling advanced MCP features; checks cache first, falls back to capability detection, 5min TTL
+ * @dependencies logger, Redis (optional)
+ * @stateful Yes - maintains in-memory cache + optional Redis cache, TTL per capability (default 300s)
+ * @singleton Yes - one instance per process to share capability cache
+ *
+ * @example
+ * const cache = new CapabilityCache({ redis, ttl: 300 });
+ * const hasSampling = await cache.has(clientId, 'sampling'); // Checks cache first
+ * cache.set(clientId, 'elicitation', true, 300); // Cache for 5 minutes
  */
 
 import { logger } from '../utils/logger.js';

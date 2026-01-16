@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
+
 ## [1.4.0] - 2026-01-10
 
 **Major Dependency Upgrades - Zod v4 & Open v11**
@@ -20,7 +21,7 @@ This release upgrades two critical dependencies to their latest major versions, 
   - Fixed `z.record()` API breaking change (now requires 2 arguments: key type + value type)
   - Updated 10+ schema files to use `z.record(z.string(), valueType)` instead of `z.record(valueType)`
   - Added `isZodUnion()` helper function for robust union schema detection
-  - All 26 tools (208 actions) fully compatible with Zod v4
+  - All 17 tools (226 actions) fully compatible with Zod v4
   - All 1,830+ passing tests remain passing
   - Performance improvements: 14x faster string parsing, 7x faster arrays, 6.5x faster objects
   - Bundle size reduction: ~57% smaller
@@ -33,6 +34,7 @@ This release upgrades two critical dependencies to their latest major versions, 
 ### Technical Details
 
 **Zod v4 Migration:**
+
 - Updated `src/utils/schema-compat.ts` to use native Zod v4 `.toJSONSchema()` method
 - Fixed TypeScript compilation errors (23 errors across 10+ files)
 - Files updated: `fix.ts`, `analyze.ts`, `history.ts`, `validation.ts`, `transaction.ts`, `spreadsheet.ts`, `impact.ts`, `composite.ts`, `shared.ts`, `intent.ts`, `schema-helpers.ts`
@@ -42,17 +44,21 @@ This release upgrades two critical dependencies to their latest major versions, 
 - TypeScript compilation passes with zero errors
 
 **Breaking Changes:**
+
 - `z.record(valueType)` → `z.record(z.string(), valueType)` (Zod v4 API requirement)
 
 **Commits:**
+
 - feat: Update open to v11 (#1)
 - feat: Migrate to Zod v4 native JSON schema (Phase 2.1)
 - fix: Add isZodUnion helper for Zod v4 compatibility
 
 ---
+
 ## [1.3.0-hotfix.1] - 2026-01-06
 
 ### Fixed
+
 - **CRITICAL**: Fixed runtime error "taskStore.isTaskCancelled is not a function" affecting all tool calls
   - Issue: Task cancellation code was calling methods on SDK's `extra.taskStore` which doesn't support cancellation
   - Fix: Use `this.taskStore` (TaskStoreAdapter) for cancellation checks and storing cancelled status
@@ -465,6 +471,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 **First Production Release**
 
 ### Added
+
 - **15 Unified Tools** (156 actions total) with comprehensive Google Sheets operations:
   - `sheets_spreadsheet`: Create, get, update, delete, list, copy spreadsheets
   - `sheets_sheet`: Create, get, update, delete, list, copy, move sheets
@@ -491,6 +498,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Progress Notifications**: Real-time operation progress via MCP notifications
 
 ### Changed
+
 - **MCP Protocol**: Updated to 2025-11-25 with discriminated unions
 - **Output Structures**: Flat, non-nested outputs for better LLM parsing
 - **SDK Version**: Updated to @modelcontextprotocol/sdk@1.25.1 (latest)
@@ -499,6 +507,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Error Handling**: Comprehensive error codes with retry hints and suggested fixes
 
 ### Fixed
+
 - 35 TypeScript strict mode errors across 6 handler files
 - GridRange nullable field handling in advanced operations
 - Type inference issues in analysis and filter-sort handlers
@@ -506,6 +515,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - Resource template variable type safety
 
 ### Security
+
 - **Effect Scope Limits**: Bounded destructive operations per request
 - **Expected State Preconditions**: Row count, sheet title, checksum validation
 - **Reduced Drive Permissions**: Minimum required scopes by default
@@ -513,6 +523,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Input Validation**: Zod schemas for all 156 actions
 
 ### Infrastructure
+
 - **Test Coverage**: 144 tests passing across 19 test suites
 - **Remote Server**: OAuth 2.1 support for Claude Connectors Directory
 - **HTTP Transport**: SSE and StreamableHTTP support

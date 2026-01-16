@@ -203,8 +203,11 @@ export const SheetsFormatInputSchema = z
     ),
     inputMessage: z
       .string()
+      .max(500, 'Input message exceeds Google Sheets limit of 500 characters')
       .optional()
-      .describe('Help text shown when cell is selected (rule_add_data_validation only)'),
+      .describe(
+        'Help text shown when cell is selected (rule_add_data_validation only, max 500 chars)'
+      ),
     strict: z
       .boolean()
       .optional()

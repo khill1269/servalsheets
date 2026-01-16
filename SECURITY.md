@@ -668,6 +668,68 @@ export AUDIT_LOG_PATH=/var/log/servalsheets/audit.log
 
 ---
 
+## Known Security Advisories
+
+### CVE-2025-XXXX: Hono JWT Middleware Vulnerability (Non-Impact)
+
+**Status:** Does not affect ServalSheets
+**Severity:** High (in affected systems) / None (in ServalSheets)
+**Advisory IDs:** GHSA-3vhc-576x-3qv4, GHSA-f67f-6cw9-8mq4
+**Affected Package:** `hono@<=4.11.3`
+**Fix Version:** `hono@>=4.11.4` (not yet released as of 2026-01-16)
+
+#### Description
+
+The hono package (used by @modelcontextprotocol/sdk) has a JWT middleware vulnerability that could allow algorithm confusion attacks when JWK keys lack an "alg" parameter.
+
+#### Why ServalSheets Is Not Affected
+
+1. **ServalSheets does not use hono directly**
+   - No imports or usage of hono in ServalSheets code
+   - Zero references to hono in `src/` directory
+
+2. **ServalSheets does not use hono's JWT middleware**
+   - JWT authentication uses `jsonwebtoken` package directly
+   - OAuth implementation in [src/oauth-provider.ts](src/oauth-provider.ts) is independent
+   - No code path reaches hono's vulnerable JWT middleware
+
+3. **Hono is only a transitive dependency**
+   - Dependency chain: @modelcontextprotocol/sdk → @hono/node-server → hono
+   - MCP SDK may use hono for its internal transport layer
+   - This usage doesn't expose JWT middleware to ServalSheets operations
+
+4. **ServalSheets uses Express for HTTP/SSE transport**
+   - HTTP server: [src/http-server.ts](src/http-server.ts) uses Express
+   - OAuth endpoints: Express middleware with custom JWT validation
+   - No hono server instances in ServalSheets code
+
+#### Verification
+
+```bash
+# Verify ServalSheets doesn't use hono directly
+grep -r "hono" src/ --include="*.ts"  # Returns: no matches
+grep -r "@hono" src/ --include="*.ts"  # Returns: no matches
+
+# Check dependency tree
+npm ls hono
+# Shows: @modelcontextprotocol/sdk → @hono/node-server → hono
+```
+
+#### Status & Resolution
+
+- **Current Risk:** **None** - ServalSheets is not vulnerable
+- **Action Required:** None for ServalSheets users
+- **Monitoring:** Will update @modelcontextprotocol/sdk when hono@4.11.4+ is released
+- **Timeline:** No urgency; purely transitive dependency cleanup
+
+#### When to Revisit
+
+- Monitor for hono@4.11.4 release (expected Q1 2026)
+- Update @modelcontextprotocol/sdk when new version available
+- No security patches needed for ServalSheets itself
+
+---
+
 ## Questions?
 
 For security questions or to report vulnerabilities:

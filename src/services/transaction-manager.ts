@@ -1,13 +1,19 @@
 /**
- * ServalSheets - Transaction Manager
+ * TransactionManager
  *
- * Multi-operation transaction support with:
- * - Atomicity (all or nothing)
- * - Automatic snapshots
- * - Auto-rollback on error
- * - Batch operation merging (N API calls → 1)
+ * @purpose Atomic multi-operation transactions with automatic snapshots, rollback, and 80% API savings (N ops → 1 batchUpdate)
+ * @category Core
+ * @usage Use for multi-step operations requiring atomicity; queues operations, creates snapshot, executes as single batch, rolls back on error
+ * @dependencies sheets_v4, logger, uuid
+ * @stateful Yes - maintains active transactions map (txId → state), queued operations, snapshots, metrics (commits, rollbacks, API savings)
+ * @singleton Yes - one instance per process to coordinate transactions and prevent conflicts
  *
- * Phase 4, Task 4.1
+ * @example
+ * const txManager = new TransactionManager(sheetsClient, { autoSnapshot: true, timeout: 30000 });
+ * const tx = await txManager.begin(spreadsheetId);
+ * await txManager.queue(tx.id, { type: 'write', range: 'A1', values: [[1]] });
+ * await txManager.queue(tx.id, { type: 'format', range: 'A1', format: { bold: true } });
+ * await txManager.commit(tx.id); // Both ops in single API call
  */
 
 import { v4 as uuidv4 } from 'uuid';

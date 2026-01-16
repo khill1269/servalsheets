@@ -1,12 +1,17 @@
 /**
- * ServalSheets - Impact Analyzer
+ * ImpactAnalyzer
  *
- * Analyzes operation impact before execution:
- * - Cells, rows, columns affected
- * - Formulas, charts, pivot tables affected
- * - Warnings and recommendations
+ * @purpose Analyzes operation impact before execution: cells/rows/columns affected, formulas broken, charts/pivots impacted
+ * @category Quality
+ * @usage Use before destructive operations (delete rows, clear range); provides warnings, recommendations, risk assessment
+ * @dependencies sheets_v4, logger
+ * @stateful No - stateless analysis service processing operations on-demand
+ * @singleton No - can be instantiated per analysis request
  *
- * Phase 4, Task 4.3
+ * @example
+ * const analyzer = new ImpactAnalyzer(sheetsClient);
+ * const impact = await analyzer.analyze(spreadsheetId, { type: 'delete_rows', startRow: 5, endRow: 10 });
+ * if (impact.severity === 'high') logger.warn('Will break', impact.formulasAffected, 'formulas!');
  */
 
 import { v4 as uuidv4 } from 'uuid';

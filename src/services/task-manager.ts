@@ -1,11 +1,19 @@
 /**
- * ServalSheets - Task Manager
+ * TaskManager
  *
- * Manages async task lifecycle for MCP operations.
- * Provides progress tracking, cancellation, and cleanup for long-running operations.
+ * @purpose Manages async task lifecycle with progress tracking, cancellation, cleanup; higher-level abstraction over MCP task store (SEP-1686)
+ * @category Infrastructure
+ * @usage Use for long-running operations (bulk updates, analysis); tracks progress, allows cancellation, automatic cleanup after completion
+ * @dependencies logger
+ * @stateful Yes - maintains active tasks map (taskId → state), progress updates, completion timestamps
+ * @singleton Yes - one instance per process to coordinate task lifecycle globally
  *
- * This is a higher-level abstraction over the MCP task store (SEP-1686),
- * providing application-level task tracking with progress updates and lifecycle management.
+ * @example
+ * const taskMgr = new TaskManager();
+ * const taskId = await taskMgr.create({ name: 'Bulk Update', totalSteps: 100 });
+ * await taskMgr.updateProgress(taskId, 50, 'Processed 50 rows');
+ * await taskMgr.complete(taskId, { updated: 100 });
+ * // Auto-cleanup after 1 hour
  */
 
 import { logger as baseLogger } from '../utils/logger.js';

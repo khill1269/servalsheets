@@ -250,7 +250,9 @@ export const SheetsVisualizeInputSchema = z
     ),
     destinationCell: z
       .string()
+      .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference format (expected: A1, AA1, AAA1)')
       .optional()
+      .default('A1')
       .describe("Top-left cell for pivot table (e.g., 'A1', default: A1) (pivot_create only)"),
 
     // Pivot configuration

@@ -1,13 +1,18 @@
 /**
- * ServalSheets - Operation History Service
+ * HistoryService
  *
- * Tracks operation history for debugging, undo, and audit purposes.
+ * @purpose Tracks last 100 operations in circular buffer for debugging, undo support, and audit trail
+ * @category Infrastructure
+ * @usage Use to record all operations with timestamps; supports filtering by tool/action/spreadsheet, fast O(1) lookups by ID
+ * @dependencies logger, history types
+ * @stateful Yes - maintains circular buffer (max 100), operation ID index, statistics (total count, tool breakdown)
+ * @singleton Yes - one instance per process to maintain global operation history
  *
- * Features:
- * - Circular buffer (last N operations)
- * - Fast lookups by ID
- * - Filtering and statistics
- * - Exposed via MCP resource
+ * @example
+ * const history = new HistoryService({ maxSize: 100 });
+ * history.record({ id: 'op123', tool: 'sheets_data', action: 'write', spreadsheetId: '1ABC', status: 'success' });
+ * const ops = history.list({ tool: 'sheets_data', limit: 10 }); // Last 10 data operations
+ * const stats = history.getStats(); // { totalOperations: 500, byTool: {...} }
  */
 
 import type {

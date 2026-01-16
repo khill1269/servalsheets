@@ -1,8 +1,18 @@
 /**
- * Schema Cache Layer
+ * SchemaCache
  *
- * Persistent file-based cache for discovered Google API schemas.
- * Reduces Discovery API calls and improves startup performance.
+ * @purpose Persistent file-based cache for Google API Discovery schemas to reduce Discovery API calls and improve startup (30-day TTL)
+ * @category Performance
+ * @usage Use for schema validation and API discovery; caches sheets/drive schemas locally, automatic invalidation after 30 days
+ * @dependencies fs (node:fs), path, logger, DiscoverySchema
+ * @stateful Yes - maintains file-based cache in ~/.servalsheets/cache/, tracks schema age and hit/miss stats
+ * @singleton Yes - one instance per process to coordinate cache access
+ *
+ * @example
+ * const cache = new SchemaCache({ cacheDir: '~/.servalsheets/cache', ttlDays: 30 });
+ * const schema = cache.get('sheets', 'v4'); // Returns cached or null
+ * cache.set('sheets', 'v4', discoveredSchema);
+ * cache.cleanup(); // Remove expired schemas
  */
 
 import {

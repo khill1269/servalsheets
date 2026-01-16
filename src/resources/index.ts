@@ -30,5 +30,14 @@ export { registerQualityResources } from './quality.js';
 // Static reference resources
 export { registerReferenceResources, readReferenceResource } from './reference.js';
 
+// Performance guide resources
+export { registerGuideResources, readGuideResource } from './guides.js';
+
+// Decision tree resources
+export { registerDecisionResources, readDecisionResource } from './decisions.js';
+
+// Examples library resources
+export { registerExamplesResources, readExamplesResource } from './examples.js';
+
 // Dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
 export { registerSheetResources, readSheetResource } from './sheets.js';

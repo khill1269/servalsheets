@@ -51,8 +51,16 @@ export const SheetsTransactionInputSchema = z
     // Fields for QUEUE action
     operation: z
       .object({
-        tool: z.string().min(1).describe('Tool name (e.g., sheets_values, sheets_format)'),
-        action: z.string().min(1).describe('Action name (e.g., write, update, format)'),
+        tool: z
+          .string()
+          .min(1)
+          .max(100, 'Tool name exceeds 100 character limit')
+          .describe('Tool name (e.g., sheets_values, sheets_format)'),
+        action: z
+          .string()
+          .min(1)
+          .max(100, 'Action name exceeds 100 character limit')
+          .describe('Action name (e.g., write, update, format)'),
         params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
       })
       .optional()
@@ -98,9 +106,14 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
     status: z
       .enum(['pending', 'queued', 'executing', 'committed', 'rolled_back', 'failed'])
       .optional(),
-    operationsQueued: z.number().optional().describe('Number of operations queued'),
-    operationsExecuted: z.number().optional().describe('Number of operations executed'),
-    apiCallsSaved: z.number().optional().describe('API calls saved by batching'),
+    operationsQueued: z.number().int().min(0).optional().describe('Number of operations queued'),
+    operationsExecuted: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Number of operations executed'),
+    apiCallsSaved: z.number().int().min(0).optional().describe('API calls saved by batching'),
     duration: z.number().optional().describe('Execution duration in ms'),
     snapshotId: z.string().optional().describe('Snapshot ID for rollback'),
     message: z.string().optional(),

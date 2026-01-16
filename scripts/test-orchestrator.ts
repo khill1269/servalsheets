@@ -15,7 +15,7 @@ import type { ChildProcess } from 'child_process';
 import { TestLogger } from './test-infrastructure/logger.js';
 import { TestDatabase } from './test-infrastructure/test-db.js';
 import { ProgressTracker } from './test-infrastructure/progress.js';
-import { TOOL_REGISTRY } from '../src/schemas/index.js';
+import { TOOL_ACTIONS } from '../src/schemas/index.js';
 import { writeFileSync } from 'fs';
 
 // Test spreadsheet ID (public Google Sheets example)
@@ -370,8 +370,8 @@ async function runAllTests() {
 
   // Calculate total tests
   const allTests: Array<{ tool: string; action: string }> = [];
-  for (const [toolName, toolInfo] of Object.entries(TOOL_REGISTRY)) {
-    for (const action of toolInfo.actions) {
+  for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+    for (const action of actions) {
       allTests.push({ tool: toolName, action });
       db.addTestCase({
         id: `${toolName}.${action}`,

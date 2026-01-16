@@ -18,6 +18,7 @@ import { SessionStore, createSessionStore } from './storage/session-store.js';
 import { getSessionStoreConfig } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { CircuitBreaker } from './utils/circuit-breaker.js';
+import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from './version.js';
 
 export interface OAuthConfig {
@@ -134,6 +135,13 @@ export class OAuthProvider {
       timeout: 30000, // 30 seconds for OAuth calls
       name: 'google-oauth',
     });
+
+    // Register circuit breaker for monitoring
+    circuitBreakerRegistry.register(
+      'google-oauth',
+      this.oauthCircuit,
+      'OAuth token exchange circuit breaker'
+    );
 
     // ✅ SECURITY: Validate production requirements
     const isProduction = process.env['NODE_ENV'] === 'production';

@@ -11,7 +11,7 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 24 tools with 188 actions (discriminated unions)
+ * - tools: 17 tools with 226 actions (after Wave 5 consolidation)
  * - resources: 2 URI templates + 7 knowledge resources
  * - prompts: 6 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
@@ -202,20 +202,22 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
  * clients to request task-based execution for progress tracking.
  */
 export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
-  // Task support remains disabled for tools until long-running workflows are validated end-to-end.
-  // Protocol-level task endpoints are available, but tool task execution is conservative for now.
+  // Task support enabled for long-running operations to allow progress tracking and cancellation
 
-  // Analysis tools - potentially long-running, task support disabled
+  // Analysis tools - potentially long-running, task support disabled (use sheets_analyze instead)
   sheets_analysis: { taskSupport: 'forbidden' },
 
   // Ultimate Analysis Tool - intelligent routing with streaming support for large datasets
-  sheets_analyze: { taskSupport: 'optional' }, // P1: Enable task support for streaming path
+  sheets_analyze: { taskSupport: 'optional' }, // Enables progress tracking for AI analysis
 
-  // Value operations - can be slow with large ranges, task support disabled
-  sheets_values: { taskSupport: 'forbidden' },
+  // Data operations - can be slow with large ranges (>1000 rows)
+  sheets_data: { taskSupport: 'optional' }, // Enables progress tracking for bulk reads
 
-  // Formatting - can be slow with large ranges, task support disabled
-  sheets_format: { taskSupport: 'forbidden' },
+  // Formatting - can be slow with large ranges (>10K cells)
+  sheets_format: { taskSupport: 'optional' }, // Enables cancellation for large formatting ops
+
+  // Dimension operations - can be slow with bulk row/column operations (>100 rows)
+  sheets_dimensions: { taskSupport: 'optional' }, // Enables progress tracking for bulk inserts/deletes
 
   // Version operations - snapshot creation can be slow, task support disabled
   sheets_versions: { taskSupport: 'forbidden' },
@@ -224,7 +226,6 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_spreadsheet: { taskSupport: 'forbidden' },
   sheets_sheet: { taskSupport: 'forbidden' },
   sheets_cells: { taskSupport: 'forbidden' },
-  sheets_dimensions: { taskSupport: 'forbidden' },
   sheets_rules: { taskSupport: 'forbidden' },
   sheets_charts: { taskSupport: 'forbidden' },
   sheets_pivot: { taskSupport: 'forbidden' },
@@ -298,7 +299,7 @@ export function createServerCapabilities(): ServerCapabilities {
  * They are sent during initialization and can be added to system prompts.
  */
 export const SERVER_INSTRUCTIONS = `
-ServalSheets is a comprehensive Google Sheets MCP server with 24 tools and 188 actions.
+ServalSheets is a comprehensive Google Sheets MCP server with 17 tools and 226 actions.
 
 ## 🔐 MANDATORY FIRST STEP: Authentication
 

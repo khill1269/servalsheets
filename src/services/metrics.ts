@@ -1,16 +1,18 @@
 /**
- * ServalSheets - Metrics Service
+ * MetricsService
  *
- * Performance metrics aggregation for monitoring and observability.
+ * @purpose Aggregates performance metrics with percentiles (p50, p95, p99), error rates, cache hit rates, and active request tracking
+ * @category Infrastructure
+ * @usage Use for observability and monitoring; tracks operation counters, durations, API calls, memory-efficient sliding window
+ * @dependencies logger
+ * @stateful Yes - maintains operation metrics map, histogram buckets, active request counter, cache hit/miss stats
+ * @singleton Yes - one instance per process to aggregate metrics across all requests
  *
- * Features:
- * - Operation counters (success, failure, total)
- * - Duration metrics (min, max, avg, p50, p95, p99)
- * - Error rate tracking
- * - Cache hit rate tracking
- * - API call counters
- * - Active request tracking
- * - Memory-efficient (sliding window)
+ * @example
+ * const metrics = new MetricsService({ windowSize: 1000 });
+ * metrics.recordOperation('sheets_data.write', 150, true);
+ * metrics.recordCacheHit('spreadsheet', true);
+ * const summary = metrics.getSummary(); // { operations: {...}, cache: {...}, active: 5 }
  */
 
 import { logger } from '../utils/logger.js';
@@ -226,6 +228,12 @@ const MAX_DURATION_SAMPLES = 1000;
  * Maximum number of operations to track
  */
 const MAX_OPERATIONS = 500;
+
+/**
+ * Maximum cardinality for metric labels (tools, actions, error types)
+ * Prevents unbounded memory growth from high-cardinality labels
+ */
+const MAX_LABEL_CARDINALITY = 10000;
 
 export class MetricsService {
   private startTime: Date = new Date();
@@ -457,13 +465,33 @@ export class MetricsService {
 
         // Track error types
         if (errorType) {
-          this.errorMetrics.set(errorType, (this.errorMetrics.get(errorType) || 0) + 1);
+          // CARDINALITY LIMIT: Prevent unbounded growth from many error types
+          if (
+            !this.errorMetrics.has(errorType) &&
+            this.errorMetrics.size >= MAX_LABEL_CARDINALITY
+          ) {
+            logger.warn('Error metrics cardinality limit reached', {
+              limit: MAX_LABEL_CARDINALITY,
+              droppedErrorType: errorType,
+            });
+          } else {
+            this.errorMetrics.set(errorType, (this.errorMetrics.get(errorType) || 0) + 1);
+          }
         }
       }
 
       // Track tool-level metrics
       let toolStats = this.toolMetrics.get(tool);
       if (!toolStats) {
+        // CARDINALITY LIMIT: Prevent unbounded growth
+        if (this.toolMetrics.size >= MAX_LABEL_CARDINALITY) {
+          logger.warn('Tool metrics cardinality limit reached', {
+            limit: MAX_LABEL_CARDINALITY,
+            droppedTool: tool,
+            message: 'Metric will not be tracked to prevent memory issues',
+          });
+          return; // Drop metric to prevent unbounded growth
+        }
         toolStats = {
           totalCalls: 0,
           successCalls: 0,
@@ -490,6 +518,15 @@ export class MetricsService {
       const actionKey = `${tool}:${action}`;
       let actionStats = this.actionMetrics.get(actionKey);
       if (!actionStats) {
+        // CARDINALITY LIMIT: Prevent unbounded growth
+        if (this.actionMetrics.size >= MAX_LABEL_CARDINALITY) {
+          logger.warn('Action metrics cardinality limit reached', {
+            limit: MAX_LABEL_CARDINALITY,
+            droppedAction: actionKey,
+            message: 'Metric will not be tracked to prevent memory issues',
+          });
+          return; // Drop metric to prevent unbounded growth
+        }
         actionStats = {
           totalCalls: 0,
           durations: [],
@@ -740,6 +777,14 @@ export class MetricsService {
     // Update category-specific metrics
     let stats = this.categoryCacheMetrics.get(category);
     if (!stats) {
+      // CARDINALITY LIMIT: Prevent unbounded growth from many cache categories
+      if (this.categoryCacheMetrics.size >= MAX_LABEL_CARDINALITY) {
+        logger.warn('Cache category metrics cardinality limit reached', {
+          limit: MAX_LABEL_CARDINALITY,
+          droppedCategory: category,
+        });
+        return; // Drop metric to prevent unbounded growth
+      }
       stats = { hits: 0, misses: 0 };
       this.categoryCacheMetrics.set(category, stats);
     }

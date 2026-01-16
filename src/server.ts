@@ -86,6 +86,9 @@ import {
   registerConfirmResources,
   registerAnalyzeResources,
   registerReferenceResources,
+  registerGuideResources,
+  registerDecisionResources,
+  registerExamplesResources,
   registerSheetResources,
 } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
@@ -246,7 +249,7 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 23 tools with proper annotations
+   * Register all 17 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
@@ -758,6 +761,15 @@ export class ServalSheetsServer {
 
     // Register static reference resources (LLM reference documentation)
     registerReferenceResources(this._server); // Colors, formulas, formats, API limits
+
+    // Register performance guide resources (Phase 6)
+    registerGuideResources(this._server); // Quota optimization, batching, caching, error recovery
+
+    // Register decision tree resources (Phase 6)
+    registerDecisionResources(this._server); // Transaction, confirmation, tool selection, read vs batch_read
+
+    // Register examples library resources (Phase 6)
+    registerExamplesResources(this._server); // Basic operations, batch, transactions, composite workflows, analysis
   }
 
   /**
@@ -951,6 +963,17 @@ export async function createServalSheetsServer(
 
   // Initialize capability cache service with Redis if available
   const redisUrl = process.env['REDIS_URL'];
+  const isProduction = process.env['NODE_ENV'] === 'production';
+
+  // Enforce Redis in production for distributed cache and session persistence
+  if (isProduction && !redisUrl) {
+    throw new Error(
+      'Redis is required in production mode. Set REDIS_URL environment variable.\n' +
+        'Example: REDIS_URL=redis://localhost:6379\n' +
+        'For development/testing, set NODE_ENV=development'
+    );
+  }
+
   if (redisUrl) {
     const { createClient } = await import('redis');
     const { initCapabilityCacheService } = await import('./services/capability-cache.js');

@@ -11,6 +11,8 @@
 
 import { z } from 'zod';
 import {
+  A1NotationSchema,
+  CellValueSchema,
   ErrorDetailSchema,
   ResponseMetaSchema,
   SafetyOptionsSchema,
@@ -50,7 +52,9 @@ export const SheetsQualityInputSchema = z
       .describe('Spreadsheet ID (required for: detect_conflicts, analyze_impact)'),
 
     // Fields for DETECT_CONFLICTS action
-    range: z.string().optional().describe('Range to check (A1 notation) (detect_conflicts only)'),
+    range: A1NotationSchema.optional().describe(
+      'Range to check (A1 notation) (detect_conflicts only)'
+    ),
     since: z
       .number()
       .optional()
@@ -66,7 +70,7 @@ export const SheetsQualityInputSchema = z
       .enum(['keep_local', 'keep_remote', 'merge', 'manual'])
       .optional()
       .describe('Resolution strategy (required for: resolve_conflict)'),
-    mergedValue: z.unknown().optional().describe('Merged value for manual strategy'),
+    mergedValue: CellValueSchema.optional().describe('Merged value for manual resolution strategy'),
 
     // Fields for ANALYZE_IMPACT action
     operation: z

@@ -64,7 +64,7 @@ npm run verify:build        # Build + validate + smoke
 
 - `src/server.ts` - MCP server entrypoint
 - `src/mcp/registration/*` - Tool + schema registration
-- `src/handlers/*` - Tool handlers (26 tools)
+- `src/handlers/*` - Tool handlers (17 tools)
 - `src/schemas/*` - Zod schemas (validation source of truth)
 - `src/utils/schema-compat.ts` - Schema transformation layer
 - `tests/contracts/*` - Contract tests (schema guarantees)
@@ -114,8 +114,8 @@ When starting work, operate as an auditor:
 
 | Metric | Source File | Current Value |
 |--------|-------------|---------------|
-| **ACTION_COUNT** | `src/schemas/index.ts` | 208 actions |
-| **TOOL_COUNT** | `src/schemas/index.ts` | 26 tools |
+| **ACTION_COUNT** | `src/schemas/index.ts` | 226 actions |
+| **TOOL_COUNT** | `src/schemas/index.ts` | 17 tools |
 | **Protocol Version** | `src/version.ts:14` | MCP 2025-11-25 |
 | **Zod Version** | `package.json` | 4.3.5 |
 | **SDK Version** | `package.json` | ^1.25.2 |
@@ -183,7 +183,7 @@ All verification checks passing:
 **Recent Improvements:**
 1. Fixed all silent fallback warnings (6 instances across multiple files)
 2. Added sheets_session tool to all registry locations
-3. Updated tool count comments (25 → 26 tools)
+3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced, resulting in 17 tools with 226 actions)
 4. Synchronized metadata across all files
 5. Fixed TypeScript strict mode issues in handlers
 
@@ -216,23 +216,23 @@ npm run verify 2>&1 | tee verify-output.txt
 
 ---
 
-## sheets_session Tool (26th Tool)
+## sheets_session Tool
 
 **Status:** ✅ Fully Implemented and Integrated
 
-The `sheets_session` tool was added as the 26th tool for conversational context management.
+The `sheets_session` tool provides conversational context management.
 
 **All locations now synchronized:**
 - ✅ `src/schemas/session.ts` - Schema definition
 - ✅ `src/handlers/session.ts` - Handler implementation
 - ✅ `src/mcp/registration/tool-definitions.ts` - Registered
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
-- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 26 tools"
-- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 26 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "215 actions across 26 tools"
+- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 17 tools"
+- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 17 entries
+- ✅ `src/mcp/completions.ts` - Comment updated to "226 actions across 17 tools"
 - ✅ Tool is functional and working
 
-**Fixed:** All registry locations now include sheets_session (as of 2026-01-13)
+**Note:** After Wave 5 consolidation, sheets_formulas was merged into sheets_advanced with formula_ prefixes, resulting in 17 total tools with 226 actions (as of 2026-01-13)
 
 ---
 

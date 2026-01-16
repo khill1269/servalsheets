@@ -1,15 +1,19 @@
 /**
- * ServalSheets - Context Manager
+ * ContextManager
  *
- * Tracks recently used parameters (spreadsheetId, sheetId, range) and
- * automatically infers them when missing from tool calls.
+ * @purpose Tracks recently used parameters (spreadsheetId, sheetId, range) and auto-infers when missing, reducing required params by ~30%
+ * @category Core
+ * @usage Use to enable conversational interactions like "read the next sheet" without repeating spreadsheetId; tracks last 10 values per param
+ * @dependencies logger
+ * @stateful Yes - maintains LRU cache of recent parameters (spreadsheetId, sheetId, range, last N values)
+ * @singleton No - one instance per session to maintain conversation-specific context
  *
- * Benefits:
- * - Reduces required parameters by ~30%
- * - Better conversational UX ("read the next sheet")
- * - Context-aware operations
- *
- * Phase 1, Task 1.4
+ * @example
+ * const ctx = new ContextManager({ maxHistorySize: 10 });
+ * ctx.recordSpreadsheet('1ABC'); // Track usage
+ * const inferred = ctx.inferSpreadsheet(); // Returns '1ABC' for next call
+ * ctx.recordRange('Sheet1!A1:Z10');
+ * const nextRange = ctx.suggestNextRange(); // Suggests 'Sheet1!A11:Z20' (adjacent)
  */
 
 import { logger } from '../utils/logger.js';

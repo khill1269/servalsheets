@@ -1,12 +1,18 @@
 /**
- * ServalSheets - Confirmation Service
+ * ConfirmService
  *
- * Uses MCP Elicitation (SEP-1036) for user confirmation before executing
- * multi-step operations. This is the correct pattern - Claude plans,
- * we confirm with the user via Elicitation.
+ * @purpose Implements MCP Elicitation (SEP-1036) for user confirmation before destructive/bulk operations
+ * @category Quality
+ * @usage Use via sheets_confirm tool; AI plans operation, service sends confirmation request, waits for user approval/rejection
+ * @dependencies MCP SDK (Elicitation capability)
+ * @stateful Yes - maintains pending confirmation requests, approval/rejection stats, timeout timers
+ * @singleton Yes - one instance per process to track confirmation state
  *
- * @see MCP_PROTOCOL_COMPLETE_REFERENCE.md - Elicitation section
- * @see MCP_SEP_SPECIFICATIONS_COMPLETE.md - SEP-1036
+ * @example
+ * const service = new ConfirmService();
+ * const plan = { operation: 'delete_rows', rows: 100, impact: 'Will delete 100 rows with 50 formulas' };
+ * const approved = await service.request(plan, { riskLevel: 'high', timeout: 30000 });
+ * if (approved) executeOperation();
  */
 
 /**

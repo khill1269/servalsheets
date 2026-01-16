@@ -23,7 +23,7 @@ const PermissionSchema = z.object({
   id: z.string(),
   type: PermissionTypeSchema,
   role: PermissionRoleSchema,
-  emailAddress: z.string().optional(),
+  emailAddress: z.string().email('Invalid email address format').optional(),
   domain: z.string().optional(),
   displayName: z.string().optional(),
   expirationTime: z.string().optional(),

@@ -1,20 +1,19 @@
 /**
- * ServalSheets - Batch Request Time Windows System
+ * BatchingSystem
  *
- * Collects operations within a time window and batches them into single API calls.
- * Phase 2, Task 2.3
+ * @purpose Collects operations within 50-100ms time windows and merges them into single API calls for 20-40% API reduction
+ * @category Performance
+ * @usage Use for high-volume operations where multiple writes/updates occur rapidly; automatically batches batchUpdate requests
+ * @dependencies logger, googleapis (sheets_v4)
+ * @stateful Yes - maintains pending operation queues, active timers, metrics (batches processed, operations merged, API calls saved)
+ * @singleton Yes - one instance per process to coordinate batching across all requests
  *
- * Features:
- * - 50-100ms collection windows
- * - Automatic operation merging
- * - Promise resolution for individual operations
- * - Cross-tool batching support
- * - Comprehensive metrics
- *
- * Expected Impact:
- * - 20-40% reduction in API calls
- * - 30% reduction in quota usage
- * - Same or better latency
+ * @example
+ * const batching = new BatchingSystem({ windowMs: 75, maxBatchSize: 100 });
+ * // Multiple operations submitted within window are automatically batched
+ * await batching.queue({ type: 'values:update', spreadsheetId, range, values });
+ * await batching.queue({ type: 'format:update', spreadsheetId, range, format });
+ * // Both operations sent in single batchUpdate call
  */
 
 import type { sheets_v4 } from 'googleapis';

@@ -1,8 +1,19 @@
 /**
- * ServalSheets - Metrics Exporter
+ * MetricsExporter
  *
- * Exports performance metrics in Prometheus text format
- * Provides visibility into caching, batching, and API performance
+ * @purpose Exports performance metrics in Prometheus text format for external monitoring (Grafana, Datadog, etc.)
+ * @category Infrastructure
+ * @usage Use for continuous monitoring; exposes /metrics endpoint, includes cache hits, batching efficiency, API latency
+ * @dependencies MetricsService, CacheManager
+ * @stateful No - reads current state from MetricsService on-demand
+ * @singleton No - can be instantiated per export request
+ *
+ * @example
+ * const exporter = new MetricsExporter(metricsService, cacheManager);
+ * const prometheusText = exporter.export();
+ * // # HELP servalsheets_api_calls_total Total API calls
+ * // # TYPE servalsheets_api_calls_total counter
+ * // servalsheets_api_calls_total{operation="read"} 1250
  */
 
 import { MetricsService } from './metrics.js';

@@ -1,7 +1,18 @@
 /**
- * ServalSheets - Token Store
+ * EncryptedFileTokenStore
  *
- * Encrypted persistence for OAuth tokens.
+ * @purpose Encrypted file-based persistence for OAuth tokens using AES-256-GCM; prevents token theft with key-based encryption
+ * @category Infrastructure
+ * @usage Use with GoogleApiClient for secure token storage; encrypts access/refresh tokens, stores in ~/.servalsheets/tokens/
+ * @dependencies crypto (node), fs (node:fs), path
+ * @stateful Yes - maintains file-based token storage with encryption keys (hex format, 64 chars)
+ * @singleton Yes - one instance per token store path to prevent concurrent access issues
+ *
+ * @example
+ * const store = new EncryptedFileTokenStore({ path: '~/.servalsheets/tokens/', encryptionKey: 'hex...' });
+ * await store.save({ access_token: '...', refresh_token: '...', expiry_date: Date.now() + 3600000 });
+ * const tokens = await store.load(); // Decrypts and returns tokens
+ * await store.delete(); // Securely removes token file
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';

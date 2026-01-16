@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { URL_REGEX } from '../config/google-limits.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 // INPUT SCHEMA: Flattened union for MCP SDK compatibility
@@ -15,9 +16,13 @@ export const SheetsAuthInputSchema = z
       .enum(['status', 'login', 'callback', 'logout'])
       .describe('The authentication operation to perform'),
     scopes: z
-      .array(z.string())
+      .array(
+        z.string().min(1, 'Scope cannot be empty').max(256, 'Scope URL exceeds 256 characters')
+      )
+      .min(1, 'At least one scope required if scopes provided')
+      .max(50, 'Cannot request more than 50 scopes')
       .optional()
-      .describe('Additional OAuth scopes to request (login only)'),
+      .describe('Additional OAuth scopes to request (login only, max 50)'),
     code: z
       .string()
       .min(1)
@@ -42,7 +47,7 @@ const AuthResponseSchema = z.discriminatedUnion('success', [
     action: z.string(),
     authenticated: z.boolean().optional(),
     authType: z.string().optional(),
-    authUrl: z.string().url().optional(),
+    authUrl: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
     message: z.string().optional(),
     instructions: z.array(z.string()).optional(),
     email: z.string().optional(),

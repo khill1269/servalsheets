@@ -480,6 +480,15 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   ): Promise<DimensionsResponse> {
     const columnCount = input.endIndex - input.startIndex;
 
+    // Generate safety warnings
+    const safetyContext = {
+      affectedColumns: columnCount,
+      isDestructive: true,
+      operationType: 'delete_columns',
+      spreadsheetId: input.spreadsheetId,
+    };
+    const warnings = this.getSafetyWarnings(safetyContext, input.safety);
+
     // Request confirmation for destructive operation if elicitation is supported
     if (this.context.elicitationServer && columnCount > 3) {
       try {
@@ -506,8 +515,23 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     }
 
     if (input.safety?.dryRun) {
-      return this.success('delete_columns', { columnsAffected: columnCount }, undefined, true);
+      const meta = this.generateMeta('delete_columns', input, undefined, {
+        cellsAffected: columnCount,
+      });
+      if (warnings.length > 0) {
+        meta.warnings = this.formatWarnings(warnings);
+      }
+      return this.success(
+        'delete_columns',
+        { columnsAffected: columnCount },
+        undefined,
+        true,
+        meta
+      );
     }
+
+    // Create snapshot if requested
+    const snapshot = await this.createSafetySnapshot(safetyContext, input.safety);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -527,9 +551,32 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    return this.success('delete_columns', {
-      columnsAffected: input.endIndex - input.startIndex,
-    });
+    // Build response with snapshot info if created
+    const meta = this.generateMeta(
+      'delete_columns',
+      input,
+      { columnsAffected: columnCount },
+      { cellsAffected: columnCount }
+    );
+    if (snapshot) {
+      const snapshotInfo = this.snapshotInfo(snapshot);
+      if (snapshotInfo) {
+        meta.snapshot = snapshotInfo;
+      }
+    }
+    if (warnings.length > 0) {
+      meta.warnings = this.formatWarnings(warnings);
+    }
+
+    return this.success(
+      'delete_columns',
+      {
+        columnsAffected: input.endIndex - input.startIndex,
+      },
+      undefined,
+      false,
+      meta
+    );
   }
 
   // ============================================================

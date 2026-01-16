@@ -1,14 +1,18 @@
 /**
- * ServalSheets - Session Context Manager
+ * SessionContextManager
  *
- * Provides conversation-level state management for natural language interactions.
+ * @purpose Enables natural language interactions by resolving references like "the spreadsheet", "undo that", "my CRM"
+ * @category Core
+ * @usage Essential for conversational AI - tracks active spreadsheet, operation history, user preferences, pending operations
+ * @dependencies logger
+ * @stateful Yes - maintains active spreadsheet context, recent spreadsheets (max 10), operation history (max 100), user preferences
+ * @singleton No - one instance per conversation/session to maintain isolated context
  *
- * This is CRITICAL for natural language because:
- * 1. Users say "the spreadsheet" not "spreadsheet ID 1ABC..."
- * 2. Users say "undo that" not "rollback operation xyz"
- * 3. Users expect Claude to remember what we were working on
- *
- * @module services/session-context
+ * @example
+ * const manager = new SessionContextManager();
+ * manager.setActiveSpreadsheet({ spreadsheetId: '1ABC', title: 'Budget' });
+ * const found = manager.findSpreadsheetByReference('the budget'); // resolves to '1ABC'
+ * manager.recordOperation({ tool: 'sheets_data', action: 'write', description: 'Updated Q1 data' });
  */
 
 import { logger } from '../utils/logger.js';
@@ -129,8 +133,11 @@ function createDefaultState(): SessionState {
  */
 export class SessionContextManager {
   private state: SessionState;
-  private maxRecentSpreadsheets = 5;
-  private maxOperationHistory = 20;
+  private readonly maxRecentSpreadsheets = 5;
+  private readonly maxOperationHistory = 20;
+  private readonly maxSheetNames = 100; // Limit sheet names to prevent memory issues
+  private readonly maxDescriptionLength = 500; // Limit operation descriptions
+  private readonly maxStateStringLength = 10_000_000; // 10MB limit for JSON state
 
   constructor(initialState?: Partial<SessionState>) {
     this.state = {
@@ -155,8 +162,12 @@ export class SessionContextManager {
       this.addToRecent(this.state.activeSpreadsheet);
     }
 
+    // Limit sheet names to prevent memory issues with large spreadsheets
+    const limitedSheetNames = context.sheetNames.slice(0, this.maxSheetNames);
+
     this.state.activeSpreadsheet = {
       ...context,
+      sheetNames: limitedSheetNames,
       activatedAt: Date.now(),
     };
     this.state.lastActivityAt = Date.now();
@@ -272,8 +283,15 @@ export class SessionContextManager {
   recordOperation(record: Omit<OperationRecord, 'id' | 'timestamp'>): string {
     const id = `op_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+    // Truncate description if too long to prevent memory issues
+    const truncatedDescription =
+      record.description.length > this.maxDescriptionLength
+        ? record.description.slice(0, this.maxDescriptionLength - 3) + '...'
+        : record.description;
+
     const fullRecord: OperationRecord = {
       ...record,
+      description: truncatedDescription,
       id,
       timestamp: Date.now(),
     };
@@ -435,9 +453,57 @@ export class SessionContextManager {
 
   /**
    * Export state for persistence
+   *
+   * Safely serializes state with length checks to prevent exceeding JavaScript string limits.
+   * Returns truncated state summary if full serialization would exceed limits.
    */
   exportState(): string {
-    return JSON.stringify(this.state);
+    try {
+      // Create a safe copy of state with trimmed arrays
+      const safeState: SessionState = {
+        ...this.state,
+        recentSpreadsheets: this.state.recentSpreadsheets.map((ss) => ({
+          ...ss,
+          sheetNames: ss.sheetNames.slice(0, 10), // Only first 10 sheet names per spreadsheet
+        })),
+        operationHistory: this.state.operationHistory.slice(0, this.maxOperationHistory),
+      };
+
+      const serialized = JSON.stringify(safeState);
+
+      // Check if serialization exceeds safe limits
+      if (serialized.length > this.maxStateStringLength) {
+        logger.warn('Session state too large, returning minimal state', {
+          component: 'session-context',
+          actualSize: serialized.length,
+          maxSize: this.maxStateStringLength,
+        });
+
+        // Return minimal state with only essential info
+        const minimalState: Partial<SessionState> = {
+          activeSpreadsheet: this.state.activeSpreadsheet
+            ? {
+                ...this.state.activeSpreadsheet,
+                sheetNames: this.state.activeSpreadsheet.sheetNames.slice(0, 5),
+              }
+            : null,
+          preferences: this.state.preferences,
+          startedAt: this.state.startedAt,
+          lastActivityAt: this.state.lastActivityAt,
+        };
+
+        return JSON.stringify(minimalState);
+      }
+
+      return serialized;
+    } catch (error) {
+      logger.error('Failed to export session state', {
+        component: 'session-context',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Return minimal fallback state
+      return JSON.stringify({ startedAt: this.state.startedAt, lastActivityAt: Date.now() });
+    }
   }
 
   /**
@@ -468,21 +534,34 @@ export class SessionContextManager {
    *
    * Returns a natural language summary of current context
    * that Claude can use to understand the conversation state.
+   * Truncates long strings to prevent memory issues.
    */
   getContextSummary(): string {
     const parts: string[] = [];
+    const maxSummaryLength = 2000; // Limit total summary length
 
     // Active spreadsheet
     if (this.state.activeSpreadsheet) {
+      const sheetNamesToShow = this.state.activeSpreadsheet.sheetNames.slice(0, 3);
+      const sheetNamesStr = sheetNamesToShow.join(', ');
+      const truncatedTitle =
+        this.state.activeSpreadsheet.title.length > 100
+          ? this.state.activeSpreadsheet.title.slice(0, 97) + '...'
+          : this.state.activeSpreadsheet.title;
+
       parts.push(
-        `Currently working with: "${this.state.activeSpreadsheet.title}" ` +
+        `Currently working with: "${truncatedTitle}" ` +
           `(${this.state.activeSpreadsheet.sheetNames.length} sheets: ` +
-          `${this.state.activeSpreadsheet.sheetNames.slice(0, 3).join(', ')}` +
+          `${sheetNamesStr}` +
           `${this.state.activeSpreadsheet.sheetNames.length > 3 ? '...' : ''})`
       );
 
       if (this.state.activeSpreadsheet.lastRange) {
-        parts.push(`Last accessed: ${this.state.activeSpreadsheet.lastRange}`);
+        const truncatedRange =
+          this.state.activeSpreadsheet.lastRange.length > 100
+            ? this.state.activeSpreadsheet.lastRange.slice(0, 97) + '...'
+            : this.state.activeSpreadsheet.lastRange;
+        parts.push(`Last accessed: ${truncatedRange}`);
       }
     } else {
       parts.push('No spreadsheet currently active.');
@@ -491,18 +570,33 @@ export class SessionContextManager {
     // Last operation
     const lastOp = this.getLastOperation();
     if (lastOp) {
-      parts.push(`Last operation: ${lastOp.description}`);
+      const truncatedDesc =
+        lastOp.description.length > 200
+          ? lastOp.description.slice(0, 197) + '...'
+          : lastOp.description;
+      parts.push(`Last operation: ${truncatedDesc}`);
     }
 
     // Pending operation
     if (this.state.pendingOperation) {
+      const truncatedType =
+        this.state.pendingOperation.type.length > 100
+          ? this.state.pendingOperation.type.slice(0, 97) + '...'
+          : this.state.pendingOperation.type;
       parts.push(
-        `Pending: ${this.state.pendingOperation.type} ` +
+        `Pending: ${truncatedType} ` +
           `(step ${this.state.pendingOperation.step}/${this.state.pendingOperation.totalSteps})`
       );
     }
 
-    return parts.join('\n');
+    const summary = parts.join('\n');
+
+    // Final safety check
+    if (summary.length > maxSummaryLength) {
+      return summary.slice(0, maxSummaryLength - 3) + '...';
+    }
+
+    return summary;
   }
 
   /**

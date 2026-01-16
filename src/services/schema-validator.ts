@@ -1,8 +1,18 @@
 /**
- * Schema Validator
+ * SchemaValidator
  *
- * Validates discovered schemas against current implementation.
- * Detects breaking changes, deprecations, and generates migration plans.
+ * @purpose Validates discovered Google API schemas against current implementation; detects breaking changes, deprecations, migration needs
+ * @category Quality
+ * @usage Use with DiscoveryClient to validate API compatibility; compares field changes, required parameters, deprecated endpoints
+ * @dependencies logger, DiscoveryClient, SchemaCache
+ * @stateful No - stateless validation comparing two schemas
+ * @singleton No - can be instantiated per validation request
+ *
+ * @example
+ * const validator = new SchemaValidator();
+ * const comparison = await validator.validate(currentSchema, discoveredSchema);
+ * if (comparison.breaking Changes.length > 0) logger.error('Breaking changes detected:', comparison.breakingChanges);
+ * if (comparison.deprecations.length > 0) logger.warn('Deprecations found:', comparison.deprecations);
  */
 
 import { logger } from '../utils/logger.js';

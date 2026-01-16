@@ -1,14 +1,18 @@
 /**
- * ServalSheets - Request Merger Service
+ * RequestMerger
  *
- * Merges overlapping read requests to reduce API calls by 20-40%
+ * @purpose Merges overlapping read requests within 50ms window to reduce API calls by 20-40% (e.g., A1:B10 + A1:C5 → A1:C10)
+ * @category Performance
+ * @usage Use for read-heavy workloads with overlapping ranges; detects overlaps via A1 notation parsing, merges ranges, splits responses
+ * @dependencies logger, A1 notation parser
+ * @stateful Yes - maintains pending request queues per spreadsheet, merge timers, metrics (merges performed, API calls saved)
+ * @singleton Yes - one instance per process to coordinate request merging across all clients
  *
- * Features:
- * - Time-window based request collection
- * - A1 notation parsing and overlap detection
- * - Range merging and response splitting
- * - Promise-based request queuing
- * - Metrics tracking
+ * @example
+ * const merger = new RequestMerger({ windowMs: 50, maxMergeSize: 10 });
+ * // Multiple overlapping reads submitted within 50ms are automatically merged
+ * const data1 = await merger.queueRead(spreadsheetId, 'Sheet1!A1:B10');
+ * const data2 = await merger.queueRead(spreadsheetId, 'Sheet1!A1:C5'); // Merged into single A1:C10 read
  *
  * Architecture:
  * 1. Collect incoming requests in a time window (default 50ms)

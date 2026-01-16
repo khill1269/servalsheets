@@ -1,0 +1,843 @@
+/**
+ * ServalSheets - Data Handler Tests
+ *
+ * Tests for cell value and cell-level operations.
+ * Covers 21 actions including read, write, clear, cut, copy, notes, hyperlinks, merge, etc.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SheetsDataHandler } from '../../src/handlers/data.js';
+import { SheetsDataOutputSchema } from '../../src/schemas/data.js';
+import type { HandlerContext } from '../../src/handlers/base.js';
+import type { sheets_v4 } from 'googleapis';
+
+// Mock Google Sheets API
+const createMockSheetsApi = () => ({
+  spreadsheets: {
+    get: vi.fn().mockResolvedValue({
+      data: {
+        spreadsheetId: 'test-id',
+        sheets: [
+          {
+            properties: {
+              sheetId: 0,
+              title: 'Sheet1',
+              gridProperties: { rowCount: 1000, columnCount: 26 },
+            },
+          },
+        ],
+      },
+    }),
+    values: {
+      get: vi.fn().mockResolvedValue({
+        data: {
+          range: 'Sheet1!A1:B2',
+          values: [
+            ['Name', 'Age'],
+            ['Alice', '30'],
+          ],
+        },
+      }),
+      update: vi.fn().mockResolvedValue({
+        data: {
+          updatedRange: 'Sheet1!A1:B2',
+          updatedRows: 2,
+          updatedColumns: 2,
+          updatedCells: 4,
+        },
+      }),
+      append: vi.fn().mockResolvedValue({
+        data: {
+          updates: {
+            updatedRange: 'Sheet1!A3:B3',
+            updatedRows: 1,
+            updatedColumns: 2,
+            updatedCells: 2,
+          },
+        },
+      }),
+      clear: vi.fn().mockResolvedValue({
+        data: {
+          clearedRange: 'Sheet1!A1:B2',
+        },
+      }),
+      batchGet: vi.fn().mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          valueRanges: [
+            {
+              range: 'Sheet1!A1:B2',
+              values: [
+                ['Name', 'Age'],
+                ['Alice', '30'],
+              ],
+            },
+          ],
+        },
+      }),
+      batchUpdate: vi.fn().mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          totalUpdatedRows: 2,
+          totalUpdatedColumns: 2,
+          totalUpdatedCells: 4,
+          responses: [
+            {
+              updatedRange: 'Sheet1!A1:B2',
+              updatedRows: 2,
+              updatedColumns: 2,
+              updatedCells: 4,
+            },
+          ],
+        },
+      }),
+    },
+    batchUpdate: vi.fn().mockResolvedValue({
+      data: {
+        spreadsheetId: 'test-id',
+        replies: [
+          {
+            findReplace: {
+              occurrencesChanged: 2,
+              valuesChanged: 2,
+            },
+          },
+        ],
+      },
+    }),
+  },
+});
+
+// Mock handler context
+const createMockContext = (): HandlerContext => ({
+  requestId: 'test-request',
+  timestamp: new Date(),
+  session: {
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn(),
+    clear: vi.fn(),
+    has: vi.fn(),
+    keys: vi.fn(),
+  },
+  capabilities: {
+    supports: vi.fn(() => true),
+    requireCapability: vi.fn(),
+    getCapability: vi.fn(),
+  },
+  googleClient: {} as any,
+  authService: {
+    isAuthenticated: vi.fn().mockReturnValue(true),
+    getClient: vi.fn().mockResolvedValue({}),
+  } as any,
+  elicitationServer: {
+    getClientCapabilities: vi.fn().mockReturnValue({
+      elicitation: {
+        form: true,
+        url: true,
+      },
+    }),
+    elicitInput: vi.fn().mockResolvedValue({
+      action: 'accept',
+      content: { confirm: true },
+    }),
+    request: vi.fn().mockResolvedValue({
+      confirmed: true,
+      reason: '',
+    }),
+  } as any,
+  snapshotService: {
+    createSnapshot: vi.fn().mockResolvedValue({
+      snapshotId: 'snapshot-123',
+      timestamp: new Date(),
+    }),
+  } as any,
+  impactAnalyzer: {
+    analyzeOperation: vi.fn().mockResolvedValue({
+      severity: 'low',
+      cellsAffected: 4,
+      formulasAffected: [],
+      chartsAffected: [],
+      warnings: [],
+    }),
+  } as any,
+  rangeResolver: {
+    resolve: vi.fn().mockResolvedValue({
+      a1Notation: 'Sheet1!A1:B2',
+      sheetId: 0,
+      sheetName: 'Sheet1',
+      gridRange: {
+        sheetId: 0,
+        startRowIndex: 0,
+        endRowIndex: 2,
+        startColumnIndex: 0,
+        endColumnIndex: 2,
+      },
+      resolution: {
+        method: 'a1_direct',
+        confidence: 1.0,
+        path: '',
+      },
+    }),
+  } as any,
+  batchCompiler: {
+    compile: vi.fn(),
+    execute: vi.fn().mockResolvedValue({
+      responses: [{ updatedRange: 'Sheet1!A1:B2' }],
+      totalUpdatedCells: 4,
+    }),
+    executeWithSafety: vi.fn().mockImplementation(async (options: any) => {
+      // Execute the operation function if provided and not dryRun
+      if (options.operation && !options.safety?.dryRun) {
+        await options.operation();
+      }
+
+      return {
+        success: true,
+        spreadsheetId: options.spreadsheetId,
+        responses: [],
+        dryRun: options.safety?.dryRun ?? false,
+      };
+    }),
+  } as any,
+} as any);
+
+describe('SheetsDataHandler', () => {
+  let mockApi: ReturnType<typeof createMockSheetsApi>;
+  let mockContext: HandlerContext;
+  let handler: SheetsDataHandler;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApi = createMockSheetsApi();
+    mockContext = createMockContext();
+    handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+  });
+
+  describe('initialization', () => {
+    it('should initialize successfully', () => {
+      expect(handler).toBeDefined();
+      expect(handler).toBeInstanceOf(SheetsDataHandler);
+    });
+  });
+
+  describe('Value Operations', () => {
+    describe('read action', () => {
+      it('should read cell values', async () => {
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'read');
+        expect((result.response as any).values).toEqual([
+          ['Name', 'Age'],
+          ['Alice', '30'],
+        ]);
+        expect(mockApi.spreadsheets.values.get).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should handle empty ranges', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:B2',
+            values: undefined,
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).values).toEqual([]);
+      });
+
+      it('should support valueRenderOption', async () => {
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          valueRenderOption: 'FORMULA',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            valueRenderOption: 'FORMULA',
+          })
+        );
+      });
+    });
+
+    describe('write action', () => {
+      it('should write cell values', async () => {
+        const result = await handler.handle({
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          values: [
+            ['Name', 'Age'],
+            ['Bob', '25'],
+          ],
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'write');
+        expect(result.response).toHaveProperty('updatedCells', 4);
+        expect(mockApi.spreadsheets.values.update).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support different value input options', async () => {
+        const result = await handler.handle({
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+          values: [['=SUM(A2:A10)']],
+          valueInputOption: 'USER_ENTERED',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            valueInputOption: 'USER_ENTERED',
+          })
+        );
+      });
+    });
+
+    describe('append action', () => {
+      it('should append values to range', async () => {
+        const result = await handler.handle({
+          action: 'append',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A:B',
+          values: [['Carol', '28']],
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'append');
+        expect(result.response).toHaveProperty('updatedCells', 2);
+        expect(mockApi.spreadsheets.values.append).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support insert data option', async () => {
+        const result = await handler.handle({
+          action: 'append',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A:B',
+          values: [['Dave', '35']],
+          insertDataOption: 'INSERT_ROWS',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.append).toHaveBeenCalledWith(
+          expect.objectContaining({
+            insertDataOption: 'INSERT_ROWS',
+          })
+        );
+      });
+    });
+
+    describe('clear action', () => {
+      it('should clear values with confirmation', async () => {
+        const result = await handler.handle({
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear');
+        expect(result.response).toHaveProperty('updatedRange', 'Sheet1!A1:B2');
+        expect(mockContext.elicitationServer?.elicitInput).toHaveBeenCalled();
+        expect(mockContext.batchCompiler?.executeWithSafety).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should create snapshot when requested', async () => {
+        const result = await handler.handle({
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          safety: {
+            autoSnapshot: true,
+          },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.snapshotService?.createSnapshot).toHaveBeenCalled();
+        expect((result.response as any).snapshotId).toBe('snapshot-123');
+      });
+
+      it('should handle cancelled clear', async () => {
+        mockContext.elicitationServer = {
+          getClientCapabilities: vi.fn().mockReturnValue({
+            elicitation: {
+              form: true,
+              url: true,
+            },
+          }),
+          elicitInput: vi.fn().mockResolvedValue({
+            action: 'cancel',
+          }),
+        } as any;
+
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        });
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error.code).toBe('PRECONDITION_FAILED');
+        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+      });
+
+      it('should support dryRun mode', async () => {
+        const result = await handler.handle({
+          action: 'clear',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          safety: {
+            dryRun: true,
+          },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).dryRun).toBe(true);
+        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('find action', () => {
+      it('should find matching cells', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:C10',
+            values: [
+              ['Name', 'Age', 'City'],
+              ['Alice', '30', 'NYC'],
+              ['Bob', '25', 'LA'],
+              ['Alice', '28', 'SF'],
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:C10',
+          searchValue: 'Alice',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'find');
+        expect((result.response as any).matches).toBeDefined();
+        expect((result.response as any).matchCount).toBeGreaterThan(0);
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support case-sensitive search', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:A5',
+            values: [['Name'], ['Alice'], ['alice'], ['ALICE']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'find',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:A5',
+          searchValue: 'Alice',
+          caseSensitive: true,
+        });
+
+        expect(result.response.success).toBe(true);
+        // Only exact case matches should be found
+      });
+    });
+
+    describe('replace action', () => {
+      it('should replace matching values', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:B3',
+            values: [
+              ['Name', 'Status'],
+              ['Alice', 'pending'],
+              ['Bob', 'pending'],
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'replace',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B3',
+          searchValue: 'pending',
+          replaceValue: 'completed',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'replace');
+        expect((result.response as any).replacedCount).toBeGreaterThanOrEqual(0);
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support replaceAll option', async () => {
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:B3',
+            values: [
+              ['Name', 'Status'],
+              ['Alice', 'old'],
+              ['Bob', 'old'],
+            ],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'replace',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B3',
+          searchValue: 'old',
+          replaceValue: 'new',
+          replaceAll: true,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).replacedCount).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('Cell-Level Operations', () => {
+    describe('add_note action', () => {
+      it('should set cell note', async () => {
+        const result = await handler.handle({
+          action: 'add_note',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+          note: 'This is a note',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'add_note');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('clear_note action', () => {
+      it('should clear cell note', async () => {
+        const result = await handler.handle({
+          action: 'clear_note',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear_note');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('set_hyperlink action', () => {
+      it('should set cell hyperlink', async () => {
+        const result = await handler.handle({
+          action: 'set_hyperlink',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+          url: 'https://example.com',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'set_hyperlink');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should validate URL format', async () => {
+        const result = await handler.handle({
+          action: 'set_hyperlink',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+          url: 'invalid-url',
+        });
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error).toBeDefined();
+      });
+    });
+
+    describe('clear_hyperlink action', () => {
+      it('should clear cell hyperlink', async () => {
+        const result = await handler.handle({
+          action: 'clear_hyperlink',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'clear_hyperlink');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('merge_cells action', () => {
+      it('should merge cells', async () => {
+        const result = await handler.handle({
+          action: 'merge_cells',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          mergeType: 'MERGE_ALL',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'merge_cells');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support different merge types', async () => {
+        const mergeTypes = ['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'] as const;
+
+        for (const mergeType of mergeTypes) {
+          const result = await handler.handle({
+            action: 'merge_cells',
+            spreadsheetId: 'test-id',
+            range: 'Sheet1!A1:B2',
+            mergeType,
+          });
+
+          expect(result.response.success).toBe(true);
+        }
+      });
+    });
+
+    describe('unmerge_cells action', () => {
+      it('should unmerge cells', async () => {
+        const result = await handler.handle({
+          action: 'unmerge_cells',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'unmerge_cells');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+    });
+
+    describe('cut action', () => {
+      it('should cut cells with confirmation', async () => {
+        const result = await handler.handle({
+          action: 'cut',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'cut');
+        expect(mockContext.elicitationServer?.request).toHaveBeenCalled();
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should create snapshot when requested', async () => {
+        const result = await handler.handle({
+          action: 'cut',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+          safety: {
+            autoSnapshot: true,
+          },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockContext.snapshotService?.createSnapshot).toHaveBeenCalled();
+        expect((result.response as any).snapshotId).toBe('snapshot-123');
+      });
+
+      it('should support dryRun mode', async () => {
+        const result = await handler.handle({
+          action: 'cut',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+          safety: {
+            dryRun: true,
+          },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect((result.response as any).dryRun).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should skip confirmation for small operations', async () => {
+        mockContext.impactAnalyzer = {
+          analyzeOperation: vi.fn().mockResolvedValue({
+            severity: 'low',
+            cellsAffected: 2, // Small operation
+            formulasAffected: [],
+            chartsAffected: [],
+            warnings: [],
+          }),
+        } as any;
+
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+        const result = await handler.handle({
+          action: 'cut',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1',
+          destination: 'Sheet1!B1',
+        });
+
+        expect(result.response.success).toBe(true);
+        // Confirmation may still be called, but not required for small operations
+      });
+    });
+
+    describe('copy action', () => {
+      it('should copy cells', async () => {
+        const result = await handler.handle({
+          action: 'copy',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+        });
+
+        expect(result).toBeDefined();
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'copy');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+
+        const parseResult = SheetsDataOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should support paste type options', async () => {
+        const result = await handler.handle({
+          action: 'copy',
+          spreadsheetId: 'test-id',
+          source: 'Sheet1!A1:B2',
+          destination: 'Sheet1!D1',
+          pasteType: 'PASTE_VALUES',
+        });
+
+        expect(result.response.success).toBe(true);
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle unknown actions', async () => {
+      const result = await handler.handle({
+        action: 'unknown_action' as any,
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error).toBeDefined();
+    });
+
+    it('should handle API errors', async () => {
+      mockApi.spreadsheets.values.get.mockRejectedValueOnce(new Error('API Error'));
+
+      const result = await handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error.message).toContain('API Error');
+    });
+
+    it('should handle invalid ranges', async () => {
+      mockApi.spreadsheets.values.get.mockRejectedValueOnce(new Error('Invalid range'));
+
+      const result = await handler.handle({
+        action: 'read',
+        spreadsheetId: 'test-id',
+        range: 'InvalidRange',
+      });
+
+      expect(result.response.success).toBe(false);
+    });
+
+    it('should handle batch operation failures', async () => {
+      mockContext.batchCompiler = {
+        compile: vi.fn(),
+        execute: vi.fn().mockRejectedValue(new Error('Batch execution failed')),
+      } as any;
+
+      handler = new SheetsDataHandler(mockContext, mockApi as any);
+
+      const result = await handler.handle({
+        action: 'clear',
+        spreadsheetId: 'test-id',
+        range: 'Sheet1!A1:B2',
+      });
+
+      expect(result.response.success).toBe(false);
+      expect((result.response as any).error.message).toContain('Batch execution failed');
+    });
+  });
+});

@@ -26,7 +26,6 @@ export * from './prefetch-predictor.js';
 export * from './prefetching-system.js';
 export * from './batching-system.js';
 export * from './access-pattern-tracker.js';
-export * from './batch-aggregator.js';
 export * from './request-merger.js';
 
 // Phase 3: MCP-Native Intelligence

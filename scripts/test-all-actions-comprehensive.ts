@@ -14,7 +14,7 @@
 import { spawn } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { writeFileSync } from 'fs';
-import { TOOL_REGISTRY } from '../src/schemas/index.js';
+import { TOOL_ACTIONS } from '../src/schemas/index.js';
 
 interface TestResult {
   tool: string;
@@ -1118,10 +1118,10 @@ async function runComprehensiveTests() {
     console.log('✅ Server initialized\n');
 
     // Test all actions for each tool
-    for (const [toolName, toolInfo] of Object.entries(TOOL_REGISTRY)) {
-      console.log(`\n📦 Testing ${toolName} (${toolInfo.actions.length} actions)...`);
+    for (const [toolName, actions] of Object.entries(TOOL_ACTIONS)) {
+      console.log(`\n📦 Testing ${toolName} (${actions.length} actions)...`);
 
-      for (const action of toolInfo.actions) {
+      for (const action of actions) {
         const args = getTestArgs(toolName, action);
 
         if (!args) {

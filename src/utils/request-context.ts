@@ -25,6 +25,13 @@ export interface RequestContext {
    * Used to associate progress notifications with the original request
    */
   progressToken?: string | number;
+  /**
+   * W3C Trace Context fields for distributed tracing
+   * @see https://www.w3.org/TR/trace-context/
+   */
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -39,10 +46,26 @@ export function createRequestContext(options?: {
   timeoutMs?: number;
   sendNotification?: (notification: ServerNotification) => Promise<void>;
   progressToken?: string | number;
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const logger = (options?.logger ?? baseLogger).child({ requestId });
+
+  // Include trace context in logger metadata
+  const loggerMeta: Record<string, string> = { requestId };
+  if (options?.traceId) {
+    loggerMeta['traceId'] = options.traceId;
+  }
+  if (options?.spanId) {
+    loggerMeta['spanId'] = options.spanId;
+  }
+  if (options?.parentSpanId) {
+    loggerMeta['parentSpanId'] = options.parentSpanId;
+  }
+
+  const logger = (options?.logger ?? baseLogger).child(loggerMeta);
 
   return {
     requestId,
@@ -51,6 +74,9 @@ export function createRequestContext(options?: {
     deadline: Date.now() + timeoutMs,
     sendNotification: options?.sendNotification,
     progressToken: options?.progressToken,
+    traceId: options?.traceId,
+    spanId: options?.spanId,
+    parentSpanId: options?.parentSpanId,
   };
 }
 

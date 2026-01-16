@@ -1,10 +1,17 @@
 /**
- * ServalSheets - Metrics Dashboard Service
+ * MetricsDashboard
  *
- * Aggregates and formats operational metrics for human consumption.
- * Provides insights into API efficiency, performance, and cost savings.
+ * @purpose Aggregates and formats operational metrics into human-readable dashboard; shows API efficiency, caching gains, cost savings
+ * @category Infrastructure
+ * @usage Use for monitoring and observability; queries Prometheus registry, formats as tables/charts, calculates savings percentages
+ * @dependencies prom-client (Prometheus registry)
+ * @stateful No - queries metrics from Prometheus registry on-demand
+ * @singleton No - can be instantiated per dashboard request
  *
- * @module services/metrics-dashboard
+ * @example
+ * const dashboard = new MetricsDashboard();
+ * const report = dashboard.generate();
+ * logger.info(report); // Formatted dashboard with API calls, cache hits, batching efficiency, cost savings
  */
 
 import { register } from 'prom-client';

@@ -1,12 +1,17 @@
 /**
- * ServalSheets - Confirmation Policy
+ * ConfirmationPolicy
  *
- * Defines WHEN Claude should request user confirmation.
- * This is critical for safety and user trust.
+ * @purpose Defines rules for when Claude must request user confirmation via sheets_confirm (destructive ops, bulk ops, permission changes)
+ * @category Quality
+ * @usage Read by AI to determine confirmation requirements; provides policy rules, risk assessment, confirmation message templates
+ * @dependencies None - pure policy definition
+ * @stateful No - stateless policy rules
+ * @singleton No - exported as const configuration
  *
- * Claude reads this to know when to use sheets_confirm.
- *
- * @module services/confirmation-policy
+ * @example
+ * import { CONFIRMATION_POLICY } from './confirmation-policy.js';
+ * const requiresConfirmation = CONFIRMATION_POLICY.shouldConfirm(operation);
+ * if (requiresConfirmation) await confirmService.request(operation, CONFIRMATION_POLICY.getMessage(operation));
  */
 
 // ============================================================================

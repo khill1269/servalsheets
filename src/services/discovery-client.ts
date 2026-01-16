@@ -1,8 +1,17 @@
 /**
- * Google Discovery API Client
+ * DiscoveryClient
  *
- * Fetches API schemas dynamically from Google Discovery API v1.
- * Used to detect new fields, deprecations, and API changes.
+ * @purpose Fetches Google API schemas dynamically from Discovery API v1 to detect new fields, deprecations, API version changes
+ * @category Infrastructure
+ * @usage Use with SchemaCache for schema validation; fetches sheets/drive API schemas, caches locally for 30 days
+ * @dependencies logger
+ * @stateful No - stateless HTTP client for Discovery API
+ * @singleton No - can be instantiated per discovery request
+ *
+ * @example
+ * const client = new DiscoveryClient();
+ * const schema = await client.discover('sheets', 'v4'); // Fetch latest schema
+ * if (schema.deprecations.length > 0) logger.warn('API has deprecations:', schema.deprecations);
  */
 
 import { logger } from '../utils/logger.js';

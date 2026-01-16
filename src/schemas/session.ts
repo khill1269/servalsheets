@@ -60,8 +60,10 @@ export const SheetsSessionInputSchema = z
     range: z.string().optional().describe('Range affected (record_operation)'),
     description: z
       .string()
+      .min(1, 'Description cannot be empty')
+      .max(1000, 'Description exceeds 1000 character limit')
       .optional()
-      .describe('Human-readable description (required for: record_operation)'),
+      .describe('Human-readable description (required for: record_operation, max 1000 chars)'),
     undoable: z
       .boolean()
       .optional()
@@ -80,9 +82,11 @@ export const SheetsSessionInputSchema = z
     // Fields for FIND_BY_REFERENCE action
     reference: z
       .string()
+      .min(1, 'Reference cannot be empty')
+      .max(500, 'Reference exceeds 500 character limit')
       .optional()
       .describe(
-        "Natural language reference like 'that', 'the budget', 'the last write' (required for: find_by_reference)"
+        "Natural language reference like 'that', 'the budget', 'the last write' (required for: find_by_reference, max 500 chars)"
       ),
     referenceType: z
       .enum(['spreadsheet', 'operation'])

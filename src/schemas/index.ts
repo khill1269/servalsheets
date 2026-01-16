@@ -47,7 +47,13 @@ export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';
 
+// Tool actions for completions and test orchestration
+// This is the single source of truth for action lists
+export { TOOL_ACTIONS } from '../mcp/completions.js';
+
 // Tool metadata for registration
+// DEPRECATED: Use TOOL_ACTIONS for action lists instead
+// This registry will be removed in Phase 4 (Action Naming Standardization)
 export const TOOL_REGISTRY = {
   sheets_auth: {
     name: 'sheets_auth',

@@ -11,7 +11,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -250,7 +250,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   const app = express();
 
   // Health service for liveness/readiness probes
-  const healthService = new HealthService(null); // Will be updated with googleClient per session
+  // Note: GoogleClient is session-specific, so health checks will report on active sessions
+  const healthService = new HealthService(null);
 
   // Security middleware
   app.use(
@@ -364,15 +365,46 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     next();
   });
 
-  // Rate limiting with explicit values
+  // Rate limiting with explicit values - exempt health check endpoints
   const limiter = rateLimit({
     windowMs: rateLimitWindowMs,
     limit: rateLimitMax,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later' },
+    // Add custom rate limit info handler
+    handler: (req: Request, res: Response) => {
+      res.status(429).json({
+        error: 'Too many requests',
+        message: 'Rate limit exceeded. Please try again later.',
+        retryAfter: res.getHeader('RateLimit-Reset'),
+      });
+    },
   });
-  app.use(limiter);
+
+  // Apply rate limiting to all routes EXCEPT health checks
+  // Health checks must not be rate-limited to ensure reliable monitoring
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/health')) {
+      return next(); // Skip rate limiter for health endpoints
+    }
+    limiter(req, res, next);
+  });
+
+  // Add explicit X-RateLimit-* headers for better client compatibility
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // express-rate-limit@8 sets RateLimit-* headers (RFC 6585)
+    // Also expose as X-RateLimit-* for legacy compatibility
+    const limit = res.getHeader('RateLimit-Limit');
+    const remaining = res.getHeader('RateLimit-Remaining');
+    const reset = res.getHeader('RateLimit-Reset');
+
+    if (limit) res.setHeader('X-RateLimit-Limit', limit);
+    if (remaining) res.setHeader('X-RateLimit-Remaining', remaining);
+    if (reset) res.setHeader('X-RateLimit-Reset', reset);
+
+    next();
+  });
 
   // Parse JSON
   app.use(express.json({ limit: '10mb' }));
@@ -393,6 +425,51 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     const requestId = (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
     req.headers['x-request-id'] = requestId;
     res.setHeader('X-Request-ID', requestId);
+    next();
+  });
+
+  // W3C Trace Context middleware (distributed tracing)
+  // Spec: https://www.w3.org/TR/trace-context/
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const incomingTraceparent = req.header('traceparent');
+
+    let traceId: string;
+    let parentId: string;
+
+    if (incomingTraceparent) {
+      // Parse: version-traceId-parentId-flags (e.g., "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+      const parts = incomingTraceparent.split('-');
+      if (parts.length === 4 && parts[0] === '00' && parts[1] && parts[2]) {
+        traceId = parts[1]; // 32 hex chars
+        parentId = parts[2]; // 16 hex chars
+      } else {
+        // Invalid format, generate new trace
+        traceId = randomBytes(16).toString('hex');
+        parentId = randomBytes(8).toString('hex');
+        logger.warn('Invalid traceparent header, generating new trace', {
+          traceparent: incomingTraceparent,
+        });
+      }
+    } else {
+      // No incoming trace, generate new one
+      traceId = randomBytes(16).toString('hex');
+      parentId = randomBytes(8).toString('hex');
+    }
+
+    // Generate span ID for this service
+    const spanId = randomBytes(8).toString('hex');
+
+    // Set traceparent for downstream services
+    // Format: version-traceId-spanId-flags
+    // flags: 01 = sampled (always trace for now)
+    const traceparent = `00-${traceId}-${spanId}-01`;
+    res.setHeader('traceparent', traceparent);
+
+    // Store in request for logging (store on headers for easy access)
+    req.headers['x-trace-id'] = traceId;
+    req.headers['x-span-id'] = spanId;
+    req.headers['x-parent-span-id'] = parentId;
+
     next();
   });
 
@@ -421,6 +498,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       };
     }
 
+    // Add active session info
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (health as any).sessions = {
+      active: sessions.size,
+      hasAuthentication: sessions.size > 0, // Sessions are created with auth tokens
+    };
+
     // Return 200 for healthy/degraded, 503 for unhealthy
     const statusCode = health.status === 'unhealthy' ? 503 : 200;
     res.status(statusCode).json(health);
@@ -431,6 +515,27 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     const health = await healthService.checkReadiness();
     const statusCode = health.status === 'unhealthy' ? 503 : 200;
     res.status(statusCode).json(health);
+  });
+
+  // Trace context endpoint - View current request's trace information
+  app.get('/trace', (req: Request, res: Response) => {
+    const traceId = req.headers['x-trace-id'] as string | undefined;
+    const spanId = req.headers['x-span-id'] as string | undefined;
+    const parentSpanId = req.headers['x-parent-span-id'] as string | undefined;
+    const requestId = req.headers['x-request-id'] as string | undefined;
+
+    res.json({
+      traceContext: {
+        traceId,
+        spanId,
+        parentSpanId,
+        requestId,
+      },
+      message: 'W3C Trace Context information for this request',
+      spec: 'https://www.w3.org/TR/trace-context/',
+      usage:
+        'Include traceparent header in requests: traceparent: 00-<traceId>-<parentId>-01',
+    });
   });
 
   // MCP server info
@@ -457,6 +562,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         mcp: `${baseUrl}/mcp`,
         health: `${baseUrl}/health`,
         metrics: `${baseUrl}/metrics`,
+        circuitBreakers: `${baseUrl}/metrics/circuit-breakers`,
         stats: `${baseUrl}/stats`,
       },
     });
@@ -464,6 +570,47 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Prometheus metrics endpoint
   app.get('/metrics', metricsHandler);
+
+  // Circuit breaker metrics endpoint
+  app.get('/metrics/circuit-breakers', async (_req: Request, res: Response) => {
+    try {
+      const { circuitBreakerRegistry } = await import('./services/circuit-breaker-registry.js');
+      const breakers = circuitBreakerRegistry.getAll();
+
+      const metrics = breakers.map((entry) => {
+        const stats = entry.breaker.getStats();
+        return {
+          name: entry.name,
+          description: entry.description,
+          state: stats.state,
+          isOpen: stats.state === 'open',
+          isHalfOpen: stats.state === 'half_open',
+          isClosed: stats.state === 'closed',
+          failureCount: stats.failureCount,
+          successCount: stats.successCount,
+          totalRequests: stats.totalRequests,
+          lastFailure: stats.lastFailure,
+          nextAttempt: stats.nextAttempt,
+          fallbackUsageCount: stats.fallbackUsageCount,
+          registeredFallbacks: stats.registeredFallbacks,
+        };
+      });
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        circuitBreakers: metrics,
+        summary: {
+          total: metrics.length,
+          open: metrics.filter((m) => m.isOpen).length,
+          halfOpen: metrics.filter((m) => m.isHalfOpen).length,
+          closed: metrics.filter((m) => m.isClosed).length,
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to fetch circuit breaker metrics', { error });
+      res.status(500).json({ error: 'Failed to fetch circuit breaker metrics' });
+    }
+  });
 
   // Statistics dashboard endpoint
   app.get('/stats', (_req: Request, res: Response) => {

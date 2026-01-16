@@ -24,6 +24,7 @@ import {
   ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
+import { FORMULA_MAX_LENGTH, NAMED_RANGE_NAME_MAX_LENGTH } from '../config/google-limits.js';
 
 const _BaseSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema,
@@ -31,7 +32,12 @@ const _BaseSchema = z.object({
 
 const NamedRangeSchema = z.object({
   namedRangeId: z.string(),
-  name: z.string(),
+  name: z
+    .string()
+    .max(
+      NAMED_RANGE_NAME_MAX_LENGTH,
+      `Named range name exceeds Google Sheets limit of ${NAMED_RANGE_NAME_MAX_LENGTH} characters`
+    ),
   range: GridRangeSchema,
 });
 
@@ -124,7 +130,18 @@ export const SheetsAdvancedInputSchema = z
     safety: SafetyOptionsSchema.optional(),
 
     // Named range fields
-    name: z.string().optional(),
+    name: z
+      .string()
+      .min(1, 'Named range name cannot be empty')
+      .max(
+        NAMED_RANGE_NAME_MAX_LENGTH,
+        `Named range name exceeds Google Sheets limit of ${NAMED_RANGE_NAME_MAX_LENGTH} characters`
+      )
+      .regex(
+        /^[A-Za-z_]\w*$/,
+        'Must start with letter/underscore, contain only alphanumeric and underscores'
+      )
+      .optional(),
     namedRangeId: z.string().optional(),
 
     // Protected range fields
@@ -168,7 +185,14 @@ export const SheetsAdvancedInputSchema = z
     maxSuggestions: z.number().int().min(1).max(10).optional(),
 
     // formula_explain fields
-    formula: z.string().optional(),
+    formula: z
+      .string()
+      .min(1, 'Formula cannot be empty')
+      .max(
+        FORMULA_MAX_LENGTH,
+        `Formula exceeds Google Sheets limit of ${FORMULA_MAX_LENGTH} characters`
+      )
+      .optional(),
     detail: z.enum(['brief', 'detailed', 'step_by_step']).optional(),
     cell: z.string().optional(),
 
@@ -204,10 +228,7 @@ export const SheetsAdvancedInputSchema = z
         // === NAMED RANGES ===
         case 'add_named_range':
           return (
-            !!data.spreadsheetId &&
-            !!data.name &&
-            /^[A-Za-z_][A-Za-z0-9_]*$/.test(data.name) &&
-            !!data.range
+            !!data.spreadsheetId && !!data.name && /^[A-Za-z_]\w*$/.test(data.name) && !!data.range
           );
 
         case 'update_named_range':

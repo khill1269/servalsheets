@@ -1,14 +1,17 @@
 /**
- * ServalSheets - Parallel Request Executor
+ * ParallelExecutor
  *
- * Manages concurrent API requests with rate limiting, error handling, and progress tracking.
- * Phase 2, Task 2.1
+ * @purpose Manages concurrent API requests with configurable concurrency (default: 5), automatic retry, and progress tracking
+ * @category Performance
+ * @usage Use for bulk operations requiring multiple API calls; executes in parallel up to limit, retries failures with backoff, aggregates errors
+ * @dependencies logger, retry utility
+ * @stateful Yes - maintains active request queue, concurrency counter, progress state, error aggregation
+ * @singleton No - instantiate per bulk operation with specific concurrency needs
  *
- * Features:
- * - Configurable concurrency limit
- * - Automatic retry with exponential backoff
- * - Progress callbacks
- * - Error aggregation
+ * @example
+ * const executor = new ParallelExecutor({ concurrency: 5, retryAttempts: 3 });
+ * const results = await executor.executeAll(operations, { onProgress: (done, total) => logger.info(`${done}/${total}`) });
+ * if (results.errors.length > 0) logger.error('Some operations failed:', results.errors);
  * - Request deduplication integration
  */
 

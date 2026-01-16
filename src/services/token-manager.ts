@@ -1,8 +1,17 @@
 /**
- * ServalSheets - Token Manager
+ * TokenManager
  *
- * Proactive token refresh to prevent expiry interruptions.
- * Automatically refreshes OAuth tokens before they expire.
+ * @purpose Proactively refreshes OAuth tokens before expiry to prevent interruptions (default: refresh at 80% of token lifetime)
+ * @category Infrastructure
+ * @usage Use for long-running sessions with OAuth; checks token status every 5min, automatically refreshes when threshold reached
+ * @dependencies OAuth2Client, logger
+ * @stateful Yes - maintains check interval timer, last refresh timestamp, token status
+ * @singleton Yes - one instance per OAuth client to coordinate refresh timing
+ *
+ * @example
+ * const manager = new TokenManager({ oauthClient, refreshThreshold: 0.8, checkIntervalMs: 300000 });
+ * manager.start(); // Begins automatic refresh checks
+ * const status = manager.getTokenStatus(); // { hasAccessToken: true, needsRefresh: false, timeUntilExpiry: 3540000 }
  */
 
 import type { OAuth2Client } from 'google-auth-library';
