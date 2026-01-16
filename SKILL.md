@@ -1,12 +1,17 @@
-# ServalSheets Advanced Orchestration Skill
+# ServalSheets Advanced Orchestration Skill (v1.4.0)
 
 ## Overview
 
 This skill enables Claude to create sophisticated Google Sheets applications (CRMs, dashboards, trackers, etc.) using natural language commands via the ServalSheets MCP server.
 
+**Version:** 1.4.0 (17 tools, 226 actions)
+**Updated:** 2026-01-16
+**Features:** Transactions, AI analysis, auto-repair, conversational context, composite operations
+
 ## When to Use This Skill
 
 Use this skill when the user asks to:
+
 - Create a CRM, tracker, dashboard, or database in Google Sheets
 - Build a spreadsheet with multiple connected sheets
 - Add advanced formulas, validation, or formatting
@@ -33,29 +38,90 @@ Always follow this order:
 
 ```
 1. AUTH      → sheets_auth { action: "status" }
-2. CREATE    → sheets_spreadsheet { action: "create", title, sheets: [...] }
-3. STRUCTURE → Transaction: headers, column widths, freeze rows
-4. REFERENCE → Transaction: settings/reference data (dropdown sources)
-5. FORMULAS  → Transaction: all calculated columns
-6. VALIDATION→ Transaction: dropdowns, data validation rules
-7. FORMATTING→ Transaction: colors, conditional formatting, borders
-8. CHARTS    → sheets_charts { action: "create", ... } (separate calls OK)
-9. PROTECT   → Transaction: protect formula cells, hide reference sheets
+2. VALIDATE  → sheets_quality { action: "validate", dryRun: true } (optional)
+3. CREATE    → sheets_core { action: "create", title, sheets: [...] }
+4. IMPORT    → sheets_composite { action: "import_csv" } (if importing data)
+5. STRUCTURE → Transaction: headers, column widths, freeze rows
+6. REFERENCE → Transaction: settings/reference data (dropdown sources)
+7. FORMULAS  → Transaction: all calculated columns
+8. VALIDATION→ Transaction: dropdowns, data validation rules
+9. FORMATTING→ Transaction: colors, conditional formatting, borders
+10. CHARTS   → sheets_visualize { action: "chart_create", ... }
+11. QUALITY  → sheets_quality { action: "validate" } (verify)
+12. PROTECT  → Transaction: protect formula cells, hide reference sheets
 ```
+
+**Performance Tip:** For complex spreadsheets, check [servalsheets://guides/quota-optimization](servalsheets://guides/quota-optimization) first.
 
 ### 3. Sheet Naming Convention
 
 Use emoji + name for visual organization:
+
 - 📊 Dashboard
 - 👥 Contacts
-- 🏢 Companies  
+- 🏢 Companies
 - 💰 Deals
 - 📝 Tasks
 - ⚙️ Settings (hidden)
 
+## Modern ServalSheets Features (v1.4.0)
+
+### Conversational Context (sheets_session)
+
+Reference spreadsheets naturally without repeating IDs:
+
+- "the spreadsheet" instead of full spreadsheetId
+- "undo that" to revert the last operation
+- "show me the active context"
+
+### Composite Operations (sheets_composite)
+
+High-level operations that handle complexity automatically:
+
+- **import_csv**: Import CSV with auto-type detection
+- **smart_append**: Intelligent row appending with duplicate detection
+- **bulk_update**: Batch update multiple ranges efficiently
+- **deduplicate**: Remove duplicate rows by key columns
+
+### Quality Assurance (sheets_quality)
+
+Validate and fix data integrity:
+
+- **validate**: Check data quality and consistency
+- **detect_conflicts**: Find conflicting data
+- **resolve_conflict**: Auto-resolve conflicts
+- **analyze_impact**: Preview change impact before committing
+
+### Auto-Repair (sheets_fix)
+
+Automatically fix broken spreadsheets:
+
+- **fix**: Repair broken formulas, references, and structure
+
+### AI Analysis (sheets_analyze)
+
+Intelligent insights and suggestions:
+
+- **analyze_data**: Get AI-powered data analysis
+- **suggest_visualization**: Recommend best chart types
+- **comprehensive**: Full spreadsheet analysis
+
+### History & Undo (sheets_history)
+
+Time-travel for spreadsheet changes:
+
+- **undo**: Revert last operation
+- **redo**: Re-apply undone operation
+- **revert_to**: Jump to specific snapshot
+- **list**: View operation history
+
+---
+
 ## Tool Call Patterns
 
 ### Pattern A: Create Multi-Sheet Spreadsheet
+
+**Tool:** `sheets_core` (formerly sheets_spreadsheet)
 
 ```json
 {
@@ -75,6 +141,8 @@ Use emoji + name for visual organization:
 
 ### Pattern B: Batch Write Headers + Data
 
+**Tool:** `sheets_data` (formerly sheets_values)
+
 Queue multiple writes in one transaction:
 
 ```json
@@ -82,17 +150,40 @@ Queue multiple writes in one transaction:
   "action": "queue",
   "transactionId": "tx_...",
   "operation": {
-    "tool": "sheets_values",
+    "tool": "sheets_data",
     "action": "write",
     "params": {
       "range": "'👥 Contacts'!A1:R1",
-      "values": [["ID", "First Name", "Last Name", "Full Name", "Email", "Phone", "Company", "Company ID", "Title", "Status", "Lead Source", "Owner", "Created", "Last Contact", "Days Since", "Total Deals", "Deal Value", "Notes"]]
+      "values": [
+        [
+          "ID",
+          "First Name",
+          "Last Name",
+          "Full Name",
+          "Email",
+          "Phone",
+          "Company",
+          "Company ID",
+          "Title",
+          "Status",
+          "Lead Source",
+          "Owner",
+          "Created",
+          "Last Contact",
+          "Days Since",
+          "Total Deals",
+          "Deal Value",
+          "Notes"
+        ]
+      ]
     }
   }
 }
 ```
 
 ### Pattern C: Add Formulas (Write as Text)
+
+**Tool:** `sheets_data`
 
 Formulas are written as text values starting with `=`:
 
@@ -101,7 +192,7 @@ Formulas are written as text values starting with `=`:
   "action": "queue",
   "transactionId": "tx_...",
   "operation": {
-    "tool": "sheets_values",
+    "tool": "sheets_data",
     "action": "write",
     "params": {
       "range": "'👥 Contacts'!A2:A1000",
@@ -115,13 +206,15 @@ For formulas that should copy down, write to first data row and let user drag OR
 
 ### Pattern D: Add Data Validation (Dropdown)
 
+**Tool:** `sheets_dimensions` (for validation rules)
+
 ```json
 {
   "action": "queue",
   "transactionId": "tx_...",
   "operation": {
-    "tool": "sheets_rules",
-    "action": "add_validation",
+    "tool": "sheets_dimensions",
+    "action": "set_data_validation",
     "params": {
       "range": "'👥 Contacts'!J2:J1000",
       "type": "LIST",
@@ -136,8 +229,8 @@ For dropdowns from another sheet:
 ```json
 {
   "operation": {
-    "tool": "sheets_rules",
-    "action": "add_validation",
+    "tool": "sheets_dimensions",
+    "action": "set_data_validation",
     "params": {
       "range": "'👥 Contacts'!G2:G1000",
       "type": "LIST",
@@ -149,12 +242,14 @@ For dropdowns from another sheet:
 
 ### Pattern E: Conditional Formatting
 
+**Tool:** `sheets_format`
+
 ```json
 {
   "action": "queue",
   "transactionId": "tx_...",
   "operation": {
-    "tool": "sheets_rules",
+    "tool": "sheets_format",
     "action": "add_conditional_format",
     "params": {
       "range": "'💰 Deals'!I2:I1000",
@@ -214,11 +309,13 @@ For dropdowns from another sheet:
 
 ### Pattern H: Create Chart
 
+**Tool:** `sheets_visualize` (formerly sheets_charts)
+
 ```json
 {
-  "action": "create",
+  "action": "chart_create",
   "spreadsheetId": "...",
-  "type": "PIE",
+  "chartType": "PIE",
   "range": "'📊 Dashboard'!A10:B15",
   "title": "Deals by Stage",
   "position": {
@@ -232,10 +329,11 @@ For dropdowns from another sheet:
 ## CRM Blueprint Quick Reference
 
 ### Contacts Sheet Columns
+
 ```
 A: ID (formula: ="C-"&TEXT(ROW()-1,"0000"))
 B: First Name
-C: Last Name  
+C: Last Name
 D: Full Name (formula: =B2&" "&C2)
 E: Email
 F: Phone
@@ -254,6 +352,7 @@ R: Notes
 ```
 
 ### Deals Sheet Columns
+
 ```
 A: Deal ID (formula: ="D-"&TEXT(ROW()-1,"0000"))
 B: Deal Name
@@ -276,6 +375,7 @@ R: Notes
 ```
 
 ### Pipeline Stages + Probabilities
+
 ```
 Lead = 10%
 Qualified = 25%
@@ -286,6 +386,7 @@ Closed Lost = 0%
 ```
 
 ### Dashboard Formulas
+
 ```
 Total Pipeline: =SUMIF(DEALS!I:I,"Open",DEALS!G:G)
 Win Rate: =COUNTIF(DEALS!I:I,"Won")/COUNTIFS(DEALS!I:I,"<>Open")
@@ -299,7 +400,7 @@ Overdue Tasks: =COUNTIFS(TASKS!H:H,"<>Done",TASKS!G:G,"<"&TODAY())
 Header Background: #1a73e8 (Blue)
 Header Text: #ffffff (White)
 Success/Won: #34a853 / #e6f4ea
-Warning/Pending: #fbbc04 / #fef7e0  
+Warning/Pending: #fbbc04 / #fef7e0
 Danger/Lost: #ea4335 / #fce8e6
 Neutral: #5f6368
 Alt Row: #f8f9fa
@@ -315,7 +416,7 @@ After creating a CRM, respond with:
 📊 **Dashboard** - KPIs, pipeline chart, activity summary
 👥 **Contacts** - 18 columns with auto-lookup to companies
 🏢 **Companies** - Revenue tracking, contact counts
-💰 **Deals** - Full pipeline with stage probabilities  
+💰 **Deals** - Full pipeline with stage probabilities
 📝 **Activities** - Task management with due dates
 📧 **Interactions** - Communication log
 ⚙️ **Settings** - Reference data (hidden)
@@ -336,13 +437,106 @@ Would you like me to:
 3. Customize any columns?
 ```
 
-## Error Handling
+### Pattern I: Import CSV Data
 
-If a transaction fails:
-1. Auto-rollback is enabled, so no partial state
-2. Report which operation failed
-3. Suggest fix (usually validation issue or formula syntax)
-4. Offer to retry with correction
+**Tool:** `sheets_composite`
+
+```json
+{
+  "action": "import_csv",
+  "spreadsheetId": "...",
+  "sheetName": "Contacts",
+  "csvData": "Name,Email,Phone\nJohn,john@example.com,555-0100",
+  "hasHeaders": true,
+  "autoDetectTypes": true
+}
+```
+
+### Pattern J: Deduplicate Data
+
+**Tool:** `sheets_composite`
+
+```json
+{
+  "action": "deduplicate",
+  "spreadsheetId": "...",
+  "range": "Contacts!A2:C1000",
+  "keyColumns": ["B"],
+  "keepFirst": true
+}
+```
+
+### Pattern K: Fix Broken Spreadsheet
+
+**Tool:** `sheets_fix`
+
+```json
+{
+  "action": "fix",
+  "spreadsheetId": "...",
+  "autoRepair": true
+}
+```
+
+---
+
+## Error Handling (Enhanced)
+
+### Before Operations
+
+1. **Check auth**: `sheets_auth { action: "status" }`
+2. **Validate first** (optional): `sheets_quality { action: "validate", dryRun: true }`
+3. **Use transactions**: Auto-rollback prevents partial state
+
+### When Errors Occur
+
+1. **Check error code**: See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for 46+ error codes
+2. **Read guides**: [servalsheets://guides/error-recovery](servalsheets://guides/error-recovery)
+3. **Try auto-repair**: `sheets_fix { action: "fix" }`
+4. **Use history**: `sheets_history { action: "undo" }`
+
+### Common Errors & Solutions
+
+| Error Code           | Solution                                                                   |
+| -------------------- | -------------------------------------------------------------------------- |
+| `QUOTA_EXCEEDED`     | Check [quota-optimization guide](servalsheets://guides/quota-optimization) |
+| `FORMULA_ERROR`      | Run `sheets_fix { action: "fix" }`                                         |
+| `CIRCULAR_REFERENCE` | Analyze with `sheets_analyze { action: "comprehensive" }`                  |
+| `INVALID_RANGE`      | Verify A1 notation syntax                                                  |
+| `PERMISSION_DENIED`  | Check spreadsheet sharing settings                                         |
+
+### Performance Guides
+
+Before creating complex spreadsheets, consult:
+
+- **Batching:** [servalsheets://guides/batching-strategies](servalsheets://guides/batching-strategies)
+- **Caching:** [servalsheets://guides/caching-patterns](servalsheets://guides/caching-patterns)
+- **Quota:** [servalsheets://guides/quota-optimization](servalsheets://guides/quota-optimization)
+- **Errors:** [servalsheets://guides/error-recovery](servalsheets://guides/error-recovery)
+
+### Decision Trees
+
+Use for guidance on complex decisions:
+
+- [When to use transactions](servalsheets://decisions/when-to-use-transaction)
+- [Tool selection guide](servalsheets://decisions/tool-selection)
+
+---
+
+## Quick Troubleshooting
+
+| Issue            | Quick Fix                                       |
+| ---------------- | ----------------------------------------------- |
+| Quota exceeded   | See quota optimization guide                    |
+| Formula broken   | `sheets_fix { action: "fix" }`                  |
+| Data conflicts   | `sheets_quality { action: "detect_conflicts" }` |
+| Need to undo     | `sheets_history { action: "undo" }`             |
+| Import CSV fails | `sheets_composite { action: "import_csv" }`     |
+| Slow performance | Check batching strategies guide                 |
+
+**Full troubleshooting:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
+---
 
 ## Limitations
 
@@ -350,3 +544,4 @@ If a transaction fails:
 - Max 10MB per batchUpdate payload
 - Some complex QUERY formulas may need adjustment
 - Cross-sheet INDIRECT references require specific syntax
+- API rate limits: 60 requests/minute/user (use batching!)
