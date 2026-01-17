@@ -6,84 +6,115 @@
 import { z } from 'zod';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsHistoryInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum(['list', 'get', 'stats', 'undo', 'redo', 'revert_to', 'clear'])
-      .describe('The operation to perform on history'),
+// ============================================================================
+// Common Schemas
+// ============================================================================
 
-    // Fields for LIST action
-    spreadsheetId: z
-      .string()
-      .min(1, 'Spreadsheet ID cannot be empty')
-      .optional()
-      .describe('Filter by spreadsheet ID (list, undo, redo, clear)'),
-    count: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe('Number of operations to return (default: 10) (list only)'),
-    failuresOnly: z
-      .boolean()
-      .optional()
-      .describe('Show only failed operations (default: false) (list only)'),
+const CommonFieldsSchema = z.object({
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+});
 
-    // Pagination fields (MCP 2025-11-25 compliance)
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor from previous response (list only)'),
-    pageSize: z
-      .number()
-      .int()
-      .positive()
-      .max(1000)
-      .optional()
-      .describe('Maximum number of items per page (default: 100, max: 1000) (list only)'),
+// ============================================================================
+// Individual Action Schemas
+// ============================================================================
 
-    // Fields for GET and REVERT_TO actions
-    operationId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Operation ID to retrieve or revert to (required for: get, revert_to)'),
+const ListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list').describe('List operation history'),
+  spreadsheetId: z
+    .string()
+    .min(1, 'Spreadsheet ID cannot be empty')
+    .optional()
+    .describe('Filter by spreadsheet ID (omit to show all)'),
+  count: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(10)
+    .describe('Number of operations to return (default: 10)'),
+  failuresOnly: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Show only failed operations (default: false)'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(1000)
+    .optional()
+    .default(100)
+    .describe('Maximum number of items per page (default: 100, max: 1000)'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'get':
-        case 'revert_to':
-          return !!data.operationId;
-        case 'undo':
-        case 'redo':
-          return !!data.spreadsheetId;
-        case 'list':
-        case 'stats':
-        case 'clear':
-          return true; // No required fields beyond action
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const GetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get').describe('Get details of a specific operation'),
+  operationId: z.string().min(1).describe('Operation ID to retrieve'),
+});
+
+const StatsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('stats').describe('Get operation history statistics'),
+});
+
+const UndoActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('undo').describe('Undo the last operation on a spreadsheet'),
+  spreadsheetId: z
+    .string()
+    .min(1, 'Spreadsheet ID cannot be empty')
+    .describe('Spreadsheet ID from URL'),
+});
+
+const RedoActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('redo').describe('Redo the last undone operation on a spreadsheet'),
+  spreadsheetId: z
+    .string()
+    .min(1, 'Spreadsheet ID cannot be empty')
+    .describe('Spreadsheet ID from URL'),
+});
+
+const RevertToActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('revert_to').describe('Revert to a specific operation in history'),
+  operationId: z.string().min(1).describe('Operation ID to revert to'),
+});
+
+const ClearActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear').describe('Clear operation history'),
+  spreadsheetId: z
+    .string()
+    .min(1, 'Spreadsheet ID cannot be empty')
+    .optional()
+    .describe('Filter by spreadsheet ID (omit to clear all history)'),
+});
+
+// ============================================================================
+// Combined Input Schema
+// ============================================================================
+
+/**
+ * All history operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsHistoryInputSchema = z.discriminatedUnion('action', [
+  ListActionSchema,
+  GetActionSchema,
+  StatsActionSchema,
+  UndoActionSchema,
+  RedoActionSchema,
+  RevertToActionSchema,
+  ClearActionSchema,
+]);
 
 const HistoryResponseSchema = z.discriminatedUnion('success', [
   z.object({

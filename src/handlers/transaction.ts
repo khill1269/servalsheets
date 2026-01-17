@@ -210,11 +210,13 @@ export class TransactionHandler {
         }
 
         default: {
+          // Exhaustive check - TypeScript ensures this is unreachable
+          const _exhaustiveCheck: never = input;
           response = {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unsupported action: ${input.action}`,
+              message: `Unsupported action: ${(_exhaustiveCheck as SheetsTransactionInput).action}`,
               retryable: false,
             },
           };

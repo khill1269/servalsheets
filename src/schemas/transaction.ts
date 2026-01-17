@@ -6,97 +6,113 @@
 import { z } from 'zod';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsTransactionInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum(['begin', 'queue', 'commit', 'rollback', 'status', 'list'])
-      .describe('The transaction operation to perform'),
+// ============================================================================
+// Common Schemas
+// ============================================================================
 
-    // Fields for BEGIN action
-    spreadsheetId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe(
-        'Spreadsheet ID to start transaction for (required for: begin; optional for: list)'
-      ),
-    autoSnapshot: z
-      .boolean()
-      .optional()
-      .describe(
-        'NOTE: Currently ignored - snapshots controlled by server config. Metadata-only snapshots may fail for spreadsheets with >50MB metadata (many sheets). For large spreadsheets, use sheets_history for undo instead. (begin only)'
-      ),
-    autoRollback: z
-      .boolean()
-      .optional()
-      .describe(
-        'Auto-rollback on error (default: true). Note: Rollback implementation has limitations - see documentation. (begin only)'
-      ),
-    isolationLevel: z
-      .enum(['read_uncommitted', 'read_committed', 'serializable'])
-      .optional()
-      .describe('Transaction isolation level (default: read_committed) (begin only)'),
+const CommonFieldsSchema = z.object({
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+});
 
-    // Fields for QUEUE, COMMIT, ROLLBACK, STATUS actions
-    transactionId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Transaction ID (required for: queue, commit, rollback, status)'),
+// ============================================================================
+// Individual Action Schemas
+// ============================================================================
 
-    // Fields for QUEUE action
-    operation: z
-      .object({
-        tool: z
-          .string()
-          .min(1)
-          .max(100, 'Tool name exceeds 100 character limit')
-          .describe('Tool name (e.g., sheets_data, sheets_format)'),
-        action: z
-          .string()
-          .min(1)
-          .max(100, 'Action name exceeds 100 character limit')
-          .describe('Action name (e.g., write, update, format)'),
-        params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
-      })
-      .optional()
-      .describe('Operation to queue for batch execution (required for: queue)'),
+const BeginActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('begin').describe('Begin a new transaction'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
+  autoSnapshot: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'NOTE: Currently ignored - snapshots controlled by server config. Metadata-only snapshots may fail for spreadsheets with >50MB metadata (many sheets). For large spreadsheets, use sheets_history for undo instead.'
+    ),
+  autoRollback: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      'Auto-rollback on error (default: true). Note: Rollback implementation has limitations - see documentation.'
+    ),
+  isolationLevel: z
+    .enum(['read_uncommitted', 'read_committed', 'serializable'])
+    .optional()
+    .default('read_committed')
+    .describe('Transaction isolation level (default: read_committed)'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'begin':
-          return !!data.spreadsheetId;
-        case 'queue':
-          return !!data.transactionId && !!data.operation;
-        case 'commit':
-        case 'rollback':
-        case 'status':
-          return !!data.transactionId;
-        case 'list':
-          return true; // No required fields beyond action
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const QueueActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('queue').describe('Queue an operation in the transaction'),
+  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+  operation: z
+    .object({
+      tool: z
+        .string()
+        .min(1)
+        .max(100, 'Tool name exceeds 100 character limit')
+        .describe('Tool name (e.g., sheets_data, sheets_format)'),
+      action: z
+        .string()
+        .min(1)
+        .max(100, 'Action name exceeds 100 character limit')
+        .describe('Action name (e.g., write, update, format)'),
+      params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
+    })
+    .describe('Operation to queue for batch execution'),
+});
+
+const CommitActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('commit').describe('Commit a transaction (execute all queued operations)'),
+  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+});
+
+const RollbackActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('rollback').describe('Rollback a transaction (discard all queued operations)'),
+  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+});
+
+const StatusActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('status').describe('Get status of a transaction'),
+  transactionId: z.string().min(1).describe('Transaction ID from begin response'),
+});
+
+const ListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list').describe('List all active transactions'),
+  spreadsheetId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Filter by spreadsheet ID (omit to show all)'),
+});
+
+// ============================================================================
+// Combined Input Schema
+// ============================================================================
+
+/**
+ * All transaction operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsTransactionInputSchema = z.discriminatedUnion('action', [
+  BeginActionSchema,
+  QueueActionSchema,
+  CommitActionSchema,
+  RollbackActionSchema,
+  StatusActionSchema,
+  ListActionSchema,
+]);
 
 const TransactionResponseSchema = z.discriminatedUnion('success', [
   z.object({

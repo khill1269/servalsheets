@@ -19,104 +19,102 @@ import {
   type ToolAnnotations,
 } from './shared.js';
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsQualityInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum(['validate', 'detect_conflicts', 'resolve_conflict', 'analyze_impact'])
-      .describe('The quality operation to perform'),
+// ============================================================================
+// Common Schemas
+// ============================================================================
 
-    // Fields for VALIDATE action
-    value: z.unknown().optional().describe('Value to validate (required for: validate)'),
-    rules: z
-      .array(z.string())
-      .optional()
-      .describe('Validation rule IDs to apply - all rules if omitted (validate only)'),
-    context: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .describe('Validation context: spreadsheetId, sheetName, range, etc. (validate only)'),
-    stopOnFirstError: z
-      .boolean()
-      .optional()
-      .describe('Stop validation on first error, default: false (validate only)'),
-
-    // Fields for DETECT_CONFLICTS and ANALYZE_IMPACT actions
-    spreadsheetId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Spreadsheet ID (required for: detect_conflicts, analyze_impact)'),
-
-    // Fields for DETECT_CONFLICTS action
-    range: A1NotationSchema.optional().describe(
-      'Range to check (A1 notation) (detect_conflicts only)'
+const CommonFieldsSchema = z.object({
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options (dryRun to test validation rules without applying, etc.)'
+  ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
     ),
-    since: z
-      .number()
-      .optional()
-      .describe('Timestamp to check conflicts since (ms) (detect_conflicts only)'),
+});
 
-    // Fields for RESOLVE_CONFLICT action
-    conflictId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Conflict ID to resolve (required for: resolve_conflict)'),
-    strategy: z
-      .enum(['keep_local', 'keep_remote', 'merge', 'manual'])
-      .optional()
-      .describe('Resolution strategy (required for: resolve_conflict)'),
-    mergedValue: CellValueSchema.optional().describe('Merged value for manual resolution strategy'),
+// ============================================================================
+// Individual Action Schemas
+// ============================================================================
 
-    // Fields for ANALYZE_IMPACT action
-    operation: z
-      .object({
-        type: z.string().describe('Operation type (e.g., "values_write", "sheet_delete")'),
-        tool: z.string().describe('Tool name (e.g., "sheets_data")'),
-        action: z.string().describe('Action name (e.g., "write", "clear")'),
-        params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
-      })
-      .optional()
-      .describe('Operation to analyze (required for: analyze_impact)'),
+const ValidateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('validate').describe('Validate data using built-in validators'),
+  value: z.unknown().describe('Value to validate'),
+  rules: z
+    .array(z.string())
+    .optional()
+    .describe('Validation rule IDs to apply - all rules if omitted'),
+  context: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('Validation context: spreadsheetId, sheetName, range, etc.'),
+  stopOnFirstError: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Stop validation on first error (default: false)'),
+});
 
-    // Safety options (common to all actions)
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options (dryRun to test validation rules without applying, etc.)'
-    ),
+const DetectConflictsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('detect_conflicts').describe('Detect concurrent modification conflicts'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
+  range: A1NotationSchema.optional().describe(
+    'Range to check (A1 notation) - entire sheet if omitted'
+  ),
+  since: z
+    .number()
+    .optional()
+    .describe('Timestamp to check conflicts since (ms) - checks all history if omitted'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'validate':
-          return data.value !== undefined;
-        case 'detect_conflicts':
-          return !!data.spreadsheetId;
-        case 'resolve_conflict':
-          return !!data.conflictId && !!data.strategy;
-        case 'analyze_impact':
-          return !!data.spreadsheetId && !!data.operation;
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const ResolveConflictActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('resolve_conflict').describe('Resolve a detected conflict with a strategy'),
+  conflictId: z.string().min(1).describe('Conflict ID from detect_conflicts response'),
+  strategy: z
+    .enum(['keep_local', 'keep_remote', 'merge', 'manual'])
+    .describe('Resolution strategy: keep_local, keep_remote, merge, or manual'),
+  mergedValue: CellValueSchema.optional().describe(
+    'Merged value for manual resolution strategy (required if strategy=manual)'
+  ),
+});
+
+const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('analyze_impact')
+    .describe('Pre-execution impact analysis with dependency tracking'),
+  spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
+  operation: z
+    .object({
+      type: z.string().describe('Operation type (e.g., "values_write", "sheet_delete")'),
+      tool: z.string().describe('Tool name (e.g., "sheets_data")'),
+      action: z.string().describe('Action name (e.g., "write", "clear")'),
+      params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
+    })
+    .describe('Operation to analyze for impact'),
+});
+
+// ============================================================================
+// Combined Input Schema
+// ============================================================================
+
+/**
+ * All quality assurance operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsQualityInputSchema = z.discriminatedUnion('action', [
+  ValidateActionSchema,
+  DetectConflictsActionSchema,
+  ResolveConflictActionSchema,
+  AnalyzeImpactActionSchema,
+]);
 
 const QualityResponseSchema = z.discriminatedUnion('success', [
   z.object({

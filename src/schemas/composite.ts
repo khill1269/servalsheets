@@ -48,20 +48,45 @@ export const VerbositySchema = z
 export const ImportCsvModeSchema = z.enum(['replace', 'append', 'new_sheet']);
 
 export const ImportCsvInputSchema = z.object({
-  action: z.literal('import_csv'),
-  spreadsheetId: SpreadsheetIdSchema,
+  action: z.literal('import_csv').describe('Import CSV data into a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheet: SheetReferenceSchema.optional().describe('Target sheet (creates new if not specified)'),
   csvData: z
     .string()
     .min(1)
     .max(10485760, 'CSV data exceeds 10MB limit')
     .describe('CSV data as string (max 10MB)'),
-  delimiter: z.string().max(5).default(',').describe('Field delimiter'),
-  hasHeader: z.boolean().default(true).describe('First row is header'),
-  mode: ImportCsvModeSchema.default('replace').describe('How to handle existing data'),
+  delimiter: z
+    .string()
+    .max(5)
+    .default(',')
+    .describe('Field delimiter (default: , | alternatives: ;, |, tab)'),
+  hasHeader: z
+    .boolean()
+    .default(true)
+    .describe('First row is header (default: true | set false if no header row)'),
+  mode: ImportCsvModeSchema.default('replace').describe(
+    'How to handle existing data (default: replace | alternatives: append, new_sheet)'
+  ),
   newSheetName: z.string().max(255).optional().describe('Name for new sheet if mode is new_sheet'),
-  skipEmptyRows: z.boolean().default(true).describe('Skip empty rows'),
-  trimValues: z.boolean().default(true).describe('Trim whitespace from values'),
+  skipEmptyRows: z
+    .boolean()
+    .default(true)
+    .describe('Skip empty rows (default: true | set false to include empty rows)'),
+  trimValues: z
+    .boolean()
+    .default(true)
+    .describe('Trim whitespace from values (default: true | set false to preserve whitespace)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+  ),
 });
 
 export const ImportCsvOutputSchema = z.object({
@@ -83,16 +108,37 @@ export const ImportCsvOutputSchema = z.object({
 // ============================================================================
 
 export const SmartAppendInputSchema = z.object({
-  action: z.literal('smart_append'),
-  spreadsheetId: SpreadsheetIdSchema,
-  sheet: SheetReferenceSchema.describe('Target sheet'),
+  action: z.literal('smart_append').describe('Append data matching column headers'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheet: SheetReferenceSchema.describe('Target sheet - name or ID'),
   data: z
     .array(z.record(z.string(), z.unknown()))
     .min(1)
     .describe('Array of objects with column headers as keys'),
-  matchHeaders: z.boolean().default(true).describe('Match columns by header name'),
-  createMissingColumns: z.boolean().default(false).describe('Create columns for unmatched headers'),
-  skipEmptyRows: z.boolean().default(true).describe('Skip rows with all empty values'),
+  matchHeaders: z
+    .boolean()
+    .default(true)
+    .describe('Match columns by header name (default: true | set false for positional matching)'),
+  createMissingColumns: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Create columns for unmatched headers (default: false | set true to auto-create columns)'
+    ),
+  skipEmptyRows: z
+    .boolean()
+    .default(true)
+    .describe('Skip rows with all empty values (default: true | set false to include empty rows)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+  ),
 });
 
 export const SmartAppendOutputSchema = z.object({
@@ -113,15 +159,30 @@ export const SmartAppendOutputSchema = z.object({
 // ============================================================================
 
 export const BulkUpdateInputSchema = z.object({
-  action: z.literal('bulk_update'),
-  spreadsheetId: SpreadsheetIdSchema,
-  sheet: SheetReferenceSchema.describe('Target sheet'),
+  action: z.literal('bulk_update').describe('Update rows by matching a key column'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheet: SheetReferenceSchema.describe('Target sheet - name or ID'),
   keyColumn: z.string().min(1).describe('Column header to match rows by'),
   updates: z
     .array(z.record(z.string(), z.unknown()))
     .min(1)
     .describe('Array of objects with key column and update values'),
-  createUnmatched: z.boolean().default(false).describe('Create new rows for unmatched keys'),
+  createUnmatched: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Create new rows for unmatched keys (default: false | set true to insert missing rows)'
+    ),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+  ),
 });
 
 export const BulkUpdateOutputSchema = z.object({
@@ -143,12 +204,27 @@ export const BulkUpdateOutputSchema = z.object({
 export const DeduplicateKeepSchema = z.enum(['first', 'last']);
 
 export const DeduplicateInputSchema = z.object({
-  action: z.literal('deduplicate'),
-  spreadsheetId: SpreadsheetIdSchema,
-  sheet: SheetReferenceSchema.describe('Target sheet'),
+  action: z.literal('deduplicate').describe('Remove duplicate rows based on key columns'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheet: SheetReferenceSchema.describe('Target sheet - name or ID'),
   keyColumns: z.array(z.string().min(1)).min(1).describe('Columns to check for duplicates'),
-  keep: DeduplicateKeepSchema.default('first').describe('Which duplicate to keep'),
-  preview: z.boolean().default(false).describe("Preview only, don't delete duplicates"),
+  keep: DeduplicateKeepSchema.default('first').describe(
+    'Which duplicate to keep (default: first | alternative: last)'
+  ),
+  preview: z
+    .boolean()
+    .default(false)
+    .describe("Preview only, don't delete duplicates (default: false | set true for dry run)"),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+  safety: SafetyOptionsSchema.optional().describe(
+    'Safety options: dryRun for preview, autoSnapshot for automatic backups'
+  ),
 });
 
 export const DuplicatePreviewItemSchema = z.object({
@@ -177,176 +253,25 @@ export const DeduplicateOutputSchema = z.object({
 /**
  * All composite operation inputs
  *
- * Flattened union pattern for MCP SDK compatibility.
- * The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas.
- * Workaround: Use a single object with all fields optional, validate with refine().
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const CompositeInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum(['import_csv', 'smart_append', 'bulk_update', 'deduplicate'])
-      .describe('The composite operation to perform'),
-
-    // Common fields
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for all actions)'
-    ),
-    sheet: SheetReferenceSchema.optional().describe(
-      'Target sheet - name or ID (required for: smart_append, bulk_update, deduplicate; optional for: import_csv)'
-    ),
-
-    // Import CSV fields
-    csvData: z
-      .string()
-      .min(1)
-      .max(10485760, 'CSV data exceeds 10MB limit')
-      .optional()
-      .describe('CSV data as string (required for: import_csv, max 10MB)'),
-    delimiter: z
-      .string()
-      .max(5)
-      .optional()
-      .default(',')
-      .describe('Field delimiter (default: , | alternatives: ;, |, tab) (import_csv only)'),
-    hasHeader: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        'First row is header (default: true | set false if no header row) (import_csv only)'
-      ),
-    mode: ImportCsvModeSchema.optional()
-      .default('replace')
-      .describe(
-        'How to handle existing data (default: replace | alternatives: append, new_sheet) (import_csv only)'
-      ),
-    newSheetName: z
-      .string()
-      .max(255)
-      .optional()
-      .describe('Name for new sheet if mode is new_sheet (import_csv only)'),
-    skipEmptyRows: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        'Skip empty rows (default: true | set false to include empty rows) (import_csv, smart_append)'
-      ),
-    trimValues: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        'Trim whitespace from values (default: true | set false to preserve whitespace) (import_csv only)'
-      ),
-
-    // Smart Append fields
-    data: z
-      .array(z.record(z.string(), z.unknown()))
-      .min(1)
-      .optional()
-      .describe('Array of objects with column headers as keys (required for: smart_append)'),
-    matchHeaders: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe(
-        'Match columns by header name (default: true | set false for positional matching) (smart_append only)'
-      ),
-    createMissingColumns: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        'Create columns for unmatched headers (default: false | set true to auto-create columns) (smart_append only)'
-      ),
-
-    // Bulk Update fields
-    keyColumn: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Column header to match rows by (required for: bulk_update)'),
-    updates: z
-      .array(z.record(z.string(), z.unknown()))
-      .min(1)
-      .optional()
-      .describe('Array of objects with key column and update values (required for: bulk_update)'),
-    createUnmatched: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        'Create new rows for unmatched keys (default: false | set true to insert missing rows) (bulk_update only)'
-      ),
-
-    // Deduplicate fields
-    keyColumns: z
-      .array(z.string().min(1))
-      .min(1)
-      .optional()
-      .describe('Columns to check for duplicates (required for: deduplicate)'),
-    keep: DeduplicateKeepSchema.optional()
-      .default('first')
-      .describe('Which duplicate to keep (default: first | alternative: last) (deduplicate only)'),
-    preview: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Preview only, don't delete duplicates (default: false | set true for dry run) (deduplicate only)"
-      ),
-
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-
-    // ===== SAFETY FEATURES =====
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options: dryRun for preview, autoSnapshot for automatic backups'
-    ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'import_csv':
-          return !!data.spreadsheetId && !!data.csvData;
-        case 'smart_append':
-          return !!data.spreadsheetId && !!data.sheet && !!data.data && data.data.length > 0;
-        case 'bulk_update':
-          return (
-            !!data.spreadsheetId &&
-            !!data.sheet &&
-            !!data.keyColumn &&
-            !!data.updates &&
-            data.updates.length > 0
-          );
-        case 'deduplicate':
-          return (
-            !!data.spreadsheetId && !!data.sheet && !!data.keyColumns && data.keyColumns.length > 0
-          );
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+export const CompositeInputSchema = z.discriminatedUnion('action', [
+  ImportCsvInputSchema,
+  SmartAppendInputSchema,
+  BulkUpdateInputSchema,
+  DeduplicateInputSchema,
+]);
 
 /**
  * Success outputs
  *
- * IMPORTANT: Using z.union() instead of z.discriminatedUnion() because the MCP SDK
- * has a bug with discriminated unions that causes "_zod is undefined" errors.
- * This is the same workaround used for CompositeInputSchema.
+ * Using z.union() (not discriminated union) because output schemas
+ * are only used for runtime validation, not for LLM guidance.
+ * The discriminator field 'action' is already present in each schema.
  */
 export const CompositeSuccessOutputSchema = z.union([
   ImportCsvOutputSchema,

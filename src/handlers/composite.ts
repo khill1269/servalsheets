@@ -66,31 +66,31 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
       switch (input.action) {
         case 'import_csv':
-          response = await this.handleImportCsv(input as CompositeImportCsvInput);
+          response = await this.handleImportCsv(input);
           break;
         case 'smart_append':
-          response = await this.handleSmartAppend(input as CompositeSmartAppendInput);
+          response = await this.handleSmartAppend(input);
           break;
         case 'bulk_update':
-          response = await this.handleBulkUpdate(input as CompositeBulkUpdateInput);
+          response = await this.handleBulkUpdate(input);
           break;
         case 'deduplicate':
-          response = await this.handleDeduplicate(input as CompositeDeduplicateInput);
+          response = await this.handleDeduplicate(input);
           break;
-        default:
-          throw new Error(`Unknown action: ${input.action}`);
+        default: {
+          // Exhaustive check - TypeScript ensures this is unreachable
+          const _exhaustiveCheck: never = input;
+          throw new Error(`Unknown action: ${(_exhaustiveCheck as CompositeInput).action}`);
+        }
       }
 
-      // Track context
+      // Track context - all actions have spreadsheetId
       this.trackContextFromRequest({
         spreadsheetId: input.spreadsheetId,
       });
 
-      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
-      const verbosity: 'minimal' | 'standard' | 'detailed' =
-        'verbosity' in input
-          ? ((input as { verbosity?: 'minimal' | 'standard' | 'detailed' }).verbosity ?? 'standard')
-          : 'standard';
+      // Apply verbosity filtering - all actions now have verbosity field
+      const verbosity = input.verbosity ?? 'standard';
       const filteredResponse = super.applyVerbosityFilter(
         response,
         verbosity
