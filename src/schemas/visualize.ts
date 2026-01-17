@@ -150,226 +150,204 @@ const PivotFilterSchema = z.object({
 // CONSOLIDATED INPUT SCHEMA (17 actions)
 // ============================================================================
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsVisualizeInputSchema = z
-  .object({
-    // Required action discriminator (17 actions total)
-    action: z
-      .enum([
-        // Chart actions (10, with prefixes for conflicts)
-        'chart_create',
-        'suggest_chart',
-        'chart_update',
-        'chart_delete',
-        'chart_list',
-        'chart_get',
-        'chart_move',
-        'chart_resize',
-        'chart_update_data_range',
-        'chart_export',
-        // Pivot actions (7, with prefixes for conflicts)
-        'pivot_create',
-        'suggest_pivot',
-        'pivot_update',
-        'pivot_delete',
-        'pivot_list',
-        'pivot_get',
-        'pivot_refresh',
-      ])
-      .describe('The visualization operation to perform (chart or pivot table)'),
-
-    // Common fields
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for all actions)'
+const CommonFieldsSchema = z.object({
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~50% less tokens), standard (balanced), detailed (full metadata)'
     ),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
+});
 
-    // ========================================================================
-    // CHART FIELDS
-    // ========================================================================
+// ===== CHART ACTION SCHEMAS (10 actions) =====
 
-    // Chart-specific ID field
-    chartId: z
-      .number()
-      .int()
-      .optional()
-      .describe(
-        'Numeric chart ID (required for: chart_update, chart_delete, chart_get, chart_move, chart_resize, chart_update_data_range, chart_export)'
-      ),
+const ChartCreateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_create').describe('Create a new chart'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
+  chartType: ChartTypeSchema.describe('Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.)'),
+  data: ChartDataSchema.describe('Chart data source (range, series, categories)'),
+  position: ChartPositionSchema.describe('Chart position and size on the sheet'),
+  options: ChartOptionsSchema.optional().describe(
+    'Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)'
+  ),
+});
 
-    // Chart position and data
-    position: ChartPositionSchema.optional().describe(
-      'Chart position and size on the sheet (required for: chart_create, chart_move; optional for: chart_update)'
-    ),
-    data: ChartDataSchema.optional().describe(
-      'Chart data source (range, series, categories) (required for: chart_create, chart_update_data_range; optional for: chart_update)'
-    ),
-    options: ChartOptionsSchema.optional().describe(
-      'Chart options (title, subtitle, legend, colors, 3D, stacking, etc.) (optional for: chart_create, chart_update)'
-    ),
+const SuggestChartActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('suggest_chart').describe('Get AI-powered chart suggestions for data range'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  range: RangeInputSchema.describe('Data range to analyze for suggestions'),
+  maxSuggestions: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .default(3)
+    .describe('Number of suggestions to return (default: 3)'),
+});
 
-    // Chart type
-    chartType: ChartTypeSchema.optional().describe(
-      'Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.) (required for: chart_create; optional for: chart_update)'
-    ),
+const ChartUpdateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_update').describe('Update an existing chart'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to update'),
+  chartType: ChartTypeSchema.optional().describe('New chart type'),
+  data: ChartDataSchema.optional().describe('New chart data source'),
+  position: ChartPositionSchema.optional().describe('New chart position'),
+  options: ChartOptionsSchema.optional().describe('New chart options'),
+});
 
-    // Chart resize fields
-    width: z
-      .number()
-      .positive()
-      .optional()
-      .describe(
-        'Width in pixels (must be positive) (required for: chart_resize; optional for: chart_export)'
-      ),
-    height: z
-      .number()
-      .positive()
-      .optional()
-      .describe(
-        'Height in pixels (must be positive) (required for: chart_resize; optional for: chart_export)'
-      ),
+const ChartDeleteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_delete').describe('Delete a chart'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to delete'),
+});
 
-    // Chart export field
-    format: z
-      .enum(['PNG', 'PDF'])
-      .optional()
-      .default('PNG')
-      .describe('Export format (PNG or PDF, default: PNG) (optional for: chart_export)'),
+const ChartListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_list').describe('List all charts in a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID to filter charts'),
+});
 
-    // ========================================================================
-    // PIVOT FIELDS
-    // ========================================================================
+const ChartGetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_get').describe('Get details of a specific chart'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to retrieve'),
+});
 
-    // Pivot-specific range field (different from chart range)
-    sourceRange: RangeInputSchema.optional().describe(
-      'Source data range for the pivot table (A1 notation or semantic) (required for: pivot_create)'
-    ),
-    destinationSheetId: SheetIdSchema.optional().describe(
-      'Sheet ID for pivot table destination (omit = new sheet) (pivot_create only)'
-    ),
-    destinationCell: z
-      .string()
-      .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference format (expected: A1, AA1, AAA1)')
-      .optional()
-      .default('A1')
-      .describe("Top-left cell for pivot table (e.g., 'A1', default: A1) (pivot_create only)"),
+const ChartMoveActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_move').describe('Move a chart to a new position'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to move'),
+  position: ChartPositionSchema.describe('New chart position'),
+});
 
-    // Pivot configuration
-    rows: z
-      .array(PivotGroupSchema)
-      .optional()
-      .describe('Row groupings for the pivot table (pivot_create, pivot_update)'),
-    columns: z
-      .array(PivotGroupSchema)
-      .optional()
-      .describe('Column groupings for the pivot table (pivot_create, pivot_update)'),
-    values: z
-      .array(PivotValueSchema)
-      .optional()
-      .describe('Value aggregations (required for pivot_create; optional for pivot_update)'),
-    filters: z
-      .array(PivotFilterSchema)
-      .optional()
-      .describe('Filter criteria for the pivot table (pivot_create, pivot_update)'),
+const ChartResizeActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_resize').describe('Resize a chart'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to resize'),
+  width: z.number().positive().describe('Width in pixels (must be positive)'),
+  height: z.number().positive().describe('Height in pixels (must be positive)'),
+});
 
-    // ========================================================================
-    // SHARED FIELDS (used by both charts and pivots)
-    // ========================================================================
+const ChartUpdateDataRangeActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_update_data_range').describe("Update a chart's data range"),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to update'),
+  data: ChartDataSchema.describe('New chart data source'),
+});
 
-    // Sheet ID (used by chart_create, chart_list, and pivot operations)
-    sheetId: SheetIdSchema.optional().describe(
-      'Numeric sheet ID (required for: chart_create, pivot_update, pivot_delete, pivot_get, pivot_refresh; optional for: chart_list)'
-    ),
+const ChartExportActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_export').describe('Export a chart as image'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.number().int().describe('Numeric chart ID to export'),
+  format: z.enum(['PNG', 'PDF']).optional().default('PNG').describe('Export format (default: PNG)'),
+  width: z.number().positive().optional().describe('Export width in pixels'),
+  height: z.number().positive().optional().describe('Export height in pixels'),
+});
 
-    // Range field for suggestions (used by both suggest_chart and suggest_pivot)
-    range: RangeInputSchema.optional().describe(
-      'Data range to analyze for suggestions (required for: suggest_chart, suggest_pivot)'
-    ),
-    maxSuggestions: z
-      .number()
-      .int()
-      .min(1)
-      .max(5)
-      .optional()
-      .describe(
-        'Number of suggestions to return (optional for: suggest_chart, suggest_pivot, default: 3)'
-      ),
+// ===== PIVOT ACTION SCHEMAS (7 actions) =====
 
-    // Safety options (used by multiple actions)
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options (dryRun, createSnapshot, etc.) (optional for: chart_update, chart_delete, chart_update_data_range, pivot_update, pivot_delete)'
-    ),
+const PivotCreateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_create').describe('Create a new pivot table'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sourceRange: RangeInputSchema.describe(
+    'Source data range for the pivot table (A1 notation or semantic)'
+  ),
+  values: z.array(PivotValueSchema).min(1).describe('Value aggregations (at least one required)'),
+  rows: z.array(PivotGroupSchema).optional().describe('Row groupings for the pivot table'),
+  columns: z.array(PivotGroupSchema).optional().describe('Column groupings for the pivot table'),
+  filters: z.array(PivotFilterSchema).optional().describe('Filter criteria for the pivot table'),
+  destinationSheetId: SheetIdSchema.optional().describe(
+    'Sheet ID for pivot table destination (omit = new sheet)'
+  ),
+  destinationCell: z
+    .string()
+    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference format (expected: A1, AA1, AAA1)')
+    .optional()
+    .default('A1')
+    .describe('Top-left cell for pivot table (default: A1)'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~50% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        // Chart actions
-        case 'chart_create':
-          return (
-            !!data.spreadsheetId &&
-            data.sheetId !== undefined &&
-            !!data.chartType &&
-            !!data.data &&
-            !!data.position
-          );
-        case 'suggest_chart':
-          return !!data.spreadsheetId && !!data.range;
-        case 'chart_update':
-          return !!data.spreadsheetId && data.chartId !== undefined;
-        case 'chart_delete':
-          return !!data.spreadsheetId && data.chartId !== undefined;
-        case 'chart_list':
-          return !!data.spreadsheetId;
-        case 'chart_get':
-          return !!data.spreadsheetId && data.chartId !== undefined;
-        case 'chart_move':
-          return !!data.spreadsheetId && data.chartId !== undefined && !!data.position;
-        case 'chart_resize':
-          return (
-            !!data.spreadsheetId &&
-            data.chartId !== undefined &&
-            data.width !== undefined &&
-            data.height !== undefined
-          );
-        case 'chart_update_data_range':
-          return !!data.spreadsheetId && data.chartId !== undefined && !!data.data;
-        case 'chart_export':
-          return !!data.spreadsheetId && data.chartId !== undefined;
+const SuggestPivotActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('suggest_pivot').describe('Get AI-powered pivot table suggestions'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  range: RangeInputSchema.describe('Data range to analyze for suggestions'),
+  maxSuggestions: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .default(3)
+    .describe('Number of suggestions to return (default: 3)'),
+});
 
-        // Pivot actions
-        case 'pivot_create':
-          return (
-            !!data.spreadsheetId && !!data.sourceRange && !!data.values && data.values.length > 0
-          );
-        case 'suggest_pivot':
-          return !!data.spreadsheetId && !!data.range;
-        case 'pivot_update':
-        case 'pivot_delete':
-        case 'pivot_get':
-        case 'pivot_refresh':
-          return !!data.spreadsheetId && data.sheetId !== undefined;
-        case 'pivot_list':
-          return !!data.spreadsheetId;
+const PivotUpdateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_update').describe('Update an existing pivot table'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID containing the pivot table'),
+  rows: z.array(PivotGroupSchema).optional().describe('New row groupings'),
+  columns: z.array(PivotGroupSchema).optional().describe('New column groupings'),
+  values: z.array(PivotValueSchema).optional().describe('New value aggregations'),
+  filters: z.array(PivotFilterSchema).optional().describe('New filter criteria'),
+});
 
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const PivotDeleteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_delete').describe('Delete a pivot table'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID containing the pivot table'),
+});
+
+const PivotListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_list').describe('List all pivot tables in a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+});
+
+const PivotGetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_get').describe('Get details of a specific pivot table'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID containing the pivot table'),
+});
+
+const PivotRefreshActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('pivot_refresh').describe('Refresh a pivot table with latest data'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID containing the pivot table'),
+});
+
+/**
+ * All visualization operation inputs (charts and pivot tables)
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsVisualizeInputSchema = z.discriminatedUnion('action', [
+  // Chart actions (10)
+  ChartCreateActionSchema,
+  SuggestChartActionSchema,
+  ChartUpdateActionSchema,
+  ChartDeleteActionSchema,
+  ChartListActionSchema,
+  ChartGetActionSchema,
+  ChartMoveActionSchema,
+  ChartResizeActionSchema,
+  ChartUpdateDataRangeActionSchema,
+  ChartExportActionSchema,
+  // Pivot actions (7)
+  PivotCreateActionSchema,
+  SuggestPivotActionSchema,
+  PivotUpdateActionSchema,
+  PivotDeleteActionSchema,
+  PivotListActionSchema,
+  PivotGetActionSchema,
+  PivotRefreshActionSchema,
+]);
 
 // ============================================================================
 // CONSOLIDATED OUTPUT SCHEMA
@@ -577,7 +555,7 @@ export type PivotCreateInput = SheetsVisualizeInput & {
   action: 'pivot_create';
   spreadsheetId: string;
   sourceRange: RangeInput;
-  values: NonNullable<SheetsVisualizeInput['values']>;
+  values: z.infer<typeof PivotValueSchema>[];
 };
 
 export type SuggestPivotInput = SheetsVisualizeInput & {
