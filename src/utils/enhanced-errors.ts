@@ -45,7 +45,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         title: 'Range not found - Check sheet name and cell references',
         steps: [
           '1. Verify sheet name spelling (case-sensitive)',
-          `2. List all sheets: sheets_spreadsheet action="get" spreadsheetId="${spreadsheetId || '<ID>'}"`,
+          `2. List all sheets: sheets_core action="spreadsheet_get" spreadsheetId="${spreadsheetId || '<ID>'}"`,
           '3. Check range format: "SheetName!A1:D10" (include sheet name and !)',
           '4. Try semantic range: {"semantic":{"sheet":"Sales","column":"Revenue"}}',
           range ? `5. Current range: "${range}" - is this correct?` : '',
@@ -69,7 +69,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         title: 'API quota exceeded - Reduce request rate',
         steps: [
           '1. Wait 60 seconds before retrying',
-          '2. Use batch operations: sheets_values action="batch_read" (saves 80% quota)',
+          '2. Use batch operations: sheets_data action="batch_read" (saves 80% quota)',
           '3. Use transactions: sheets_transaction (batches multiple ops into 1 API call)',
           '4. Check quota: sheets_auth action="status"',
           '5. Avoid polling - use event-driven updates instead',
@@ -94,8 +94,8 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         steps: [
           '1. Check spreadsheet ID format (44 chars, alphanumeric)',
           `2. Get ID from URL: docs.google.com/spreadsheets/d/{ID}/...`,
-          '3. Verify access: sheets_spreadsheet action="get" (will fail if no access)',
-          '4. List accessible spreadsheets: sheets_spreadsheet action="list"',
+          '3. Verify access: sheets_core action="spreadsheet_get" (will fail if no access)',
+          '4. List accessible spreadsheets: sheets_core action="spreadsheet_list"',
           '5. If deleted: Check trash or restore from version history',
         ],
       };
@@ -126,11 +126,11 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
       return {
         title: 'No data found in range',
         steps: [
-          '1. Verify range has data: sheets_values action="read"',
+          '1. Verify range has data: sheets_data action="read"',
           '2. Check sheet name is correct',
           '3. Expand range if needed',
           range ? `4. Current range: "${range}"` : '',
-          '5. Use sheets_spreadsheet action="get" to see all sheet dimensions',
+          '5. Use sheets_core action="spreadsheet_get" to see all sheet dimensions',
         ].filter(Boolean),
       };
 

@@ -4,8 +4,8 @@
  * ONE TOOL TO RULE THEM ALL
  *
  * This replaces the need to call:
- * - sheets_spreadsheet (metadata)
- * - sheets_values (data reading)
+ * - sheets_core (metadata)
+ * - sheets_data (data reading)
  * - sheets_analysis (all 13 actions)
  *
  * Single call provides:
@@ -159,7 +159,7 @@ export interface VisualizationRecommendation {
     series?: string[];
   };
   executionParams: {
-    tool: 'sheets_charts';
+    tool: 'sheets_visualize';
     action: 'create';
     params: Record<string, unknown>;
   };
@@ -217,7 +217,7 @@ export interface ComprehensiveResult {
   success: true;
   action: 'comprehensive';
 
-  // Metadata (replaces sheets_spreadsheet)
+  // Metadata (from sheets_core)
   spreadsheet: {
     id: string;
     title: string;
@@ -324,7 +324,7 @@ export class ComprehensiveAnalyzer {
       config: this.config,
     });
 
-    // Step 1: Get metadata (Tier 1) - replaces sheets_spreadsheet
+    // Step 1: Get metadata (Tier 1) - from sheets_core
     const metadata = await this.tieredRetrieval.getMetadata(spreadsheetId);
     this.apiCallCount++;
 
@@ -515,6 +515,60 @@ export class ComprehensiveAnalyzer {
     };
 
     // Check response size and use resource URI if too large (MCP 2025-11-25)
+    // IMPORTANT: Estimate size BEFORE stringifying to avoid V8 string length limit (536MB)
+
+    // Estimate response size based on data structure
+    const totalDataRows = result.sheets.reduce((sum, sheet) => sum + sheet.dataRowCount, 0);
+    const totalColumns = result.sheets.reduce((sum, sheet) => sum + sheet.columns.length, 0);
+    const totalIssues = result.sheets.reduce((sum, sheet) => sum + sheet.issues.length, 0);
+    const totalTrends = result.sheets.reduce((sum, sheet) => sum + sheet.trends.length, 0);
+    const totalAnomalies = result.sheets.reduce((sum, sheet) => sum + sheet.anomalies.length, 0);
+
+    // Conservative estimate: each analysis object ~500 bytes, plus overhead
+    const estimatedSizeBytes =
+      totalDataRows * 50 + // Row count metadata
+      totalColumns * 300 + // Column stats
+      totalIssues * 200 + // Issues
+      totalTrends * 150 + // Trends
+      totalAnomalies * 150 + // Anomalies
+      result.sheets.length * 2000 + // Per-sheet overhead
+      100000; // Base overhead for spreadsheet metadata
+
+    // If estimate exceeds 100MB (way below 536MB limit), store as resource immediately
+    const SIZE_LIMIT_FOR_ESTIMATE = 100 * 1024 * 1024; // 100MB
+
+    if (estimatedSizeBytes > SIZE_LIMIT_FOR_ESTIMATE) {
+      logger.info('Response estimated too large, storing as resource without stringify check', {
+        estimatedSizeBytes,
+        estimatedSizeMB: (estimatedSizeBytes / 1024 / 1024).toFixed(2),
+        totalDataRows,
+        sheetsCount: result.sheets.length,
+      });
+
+      // Store full result as resource
+      const analysisId = storeAnalysisResult(spreadsheetId, result);
+      const resourceUri = `analyze://results/${analysisId}`;
+
+      // Return minimal response with resource URI
+      return {
+        success: true,
+        action: 'comprehensive',
+        spreadsheet: result.spreadsheet,
+        sheets: [], // Empty - available via resource
+        aggregate: result.aggregate,
+        summary: `${result.summary} - Full results (estimated ${(estimatedSizeBytes / 1024 / 1024).toFixed(1)}MB) stored at ${resourceUri}`,
+        topInsights: result.topInsights,
+        executionPath: result.executionPath,
+        duration: result.duration,
+        apiCalls: result.apiCalls,
+        dataRetrieved: result.dataRetrieved,
+        nextCursor,
+        hasMore,
+        resourceUri,
+      };
+    }
+
+    // For smaller responses, measure actual size
     try {
       const responseJson = JSON.stringify(result);
       const responseSizeBytes = responseJson.length;
@@ -549,8 +603,41 @@ export class ComprehensiveAnalyzer {
         };
       }
     } catch (error) {
+      // Catch V8 string length limit errors (Cannot create a string longer than 0x1fffffe8 characters)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes('string longer than') || errorMessage.includes('0x1fffffe8')) {
+        logger.error('Response exceeded V8 string length limit, storing as resource', {
+          error: errorMessage,
+          totalDataRows,
+          sheetsCount: result.sheets.length,
+        });
+
+        // Store full result as resource
+        const analysisId = storeAnalysisResult(spreadsheetId, result);
+        const resourceUri = `analyze://results/${analysisId}`;
+
+        // Return minimal response with resource URI
+        return {
+          success: true,
+          action: 'comprehensive',
+          spreadsheet: result.spreadsheet,
+          sheets: [], // Empty - available via resource
+          aggregate: result.aggregate,
+          summary: `${result.summary} - Full results (very large) stored at ${resourceUri}`,
+          topInsights: result.topInsights,
+          executionPath: result.executionPath,
+          duration: result.duration,
+          apiCalls: result.apiCalls,
+          dataRetrieved: result.dataRetrieved,
+          nextCursor,
+          hasMore,
+          resourceUri,
+        };
+      }
+
       logger.warn('Failed to check response size', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
     }
 
@@ -1207,7 +1294,7 @@ export class ComprehensiveAnalyzer {
           yAxis: trendCol.name,
         },
         executionParams: {
-          tool: 'sheets_charts',
+          tool: 'sheets_visualize',
           action: 'create',
           params: {
             spreadsheetId,
@@ -1234,7 +1321,7 @@ export class ComprehensiveAnalyzer {
           yAxis: valCol.name,
         },
         executionParams: {
-          tool: 'sheets_charts',
+          tool: 'sheets_visualize',
           action: 'create',
           params: {
             spreadsheetId,
@@ -1260,7 +1347,7 @@ export class ComprehensiveAnalyzer {
           yAxis: topCorr.columns[1],
         },
         executionParams: {
-          tool: 'sheets_charts',
+          tool: 'sheets_visualize',
           action: 'create',
           params: {
             spreadsheetId,
@@ -1284,7 +1371,7 @@ export class ComprehensiveAnalyzer {
           title: `${pieCol.name} Distribution`,
         },
         executionParams: {
-          tool: 'sheets_charts',
+          tool: 'sheets_visualize',
           action: 'create',
           params: {
             spreadsheetId,

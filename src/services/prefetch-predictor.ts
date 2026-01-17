@@ -281,13 +281,9 @@ export class PrefetchPredictor {
     const predictions: PrefetchPrediction[] = [];
 
     // If last op was reading a sheet, predict reading next sheet
-    if (
-      lastOp.tool === 'sheets_values' &&
-      lastOp.action === 'read' &&
-      lastOp.sheetId !== undefined
-    ) {
+    if (lastOp.tool === 'sheets_data' && lastOp.action === 'read' && lastOp.sheetId !== undefined) {
       predictions.push({
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'read',
         params: {
           spreadsheetId: lastOp.spreadsheetId,
@@ -300,9 +296,9 @@ export class PrefetchPredictor {
     }
 
     // If last op was on a spreadsheet, predict getting spreadsheet metadata
-    if (lastOp.spreadsheetId && lastOp.tool !== 'sheets_spreadsheet') {
+    if (lastOp.spreadsheetId && lastOp.tool !== 'sheets_core') {
       predictions.push({
-        tool: 'sheets_spreadsheet',
+        tool: 'sheets_core',
         action: 'get',
         params: {
           spreadsheetId: lastOp.spreadsheetId,
@@ -324,7 +320,7 @@ export class PrefetchPredictor {
 
     // If last op was reading a range, predict reading adjacent ranges
     if (
-      lastOp.tool === 'sheets_values' &&
+      lastOp.tool === 'sheets_data' &&
       lastOp.action === 'read' &&
       typeof lastOp.params['range'] === 'string'
     ) {
@@ -341,7 +337,7 @@ export class PrefetchPredictor {
         const nextRange = `${sheet}!${startCol}${nextStartRow}:${endCol}${nextEndRow}`;
 
         predictions.push({
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'read',
           params: {
             spreadsheetId: lastOp.spreadsheetId,

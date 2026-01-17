@@ -18,8 +18,8 @@ exports[`AnalysisHandler Snapshots > matches snapshot for statistics response 1`
       "Use insights to clean or transform the data",
     ],
     "relatedTools": [
-      "sheets_charts:create",
-      "sheets_values:read",
+      "sheets_visualize:create",
+      "sheets_data:read",
     ],
     "suggestions": undefined,
   },

@@ -76,7 +76,7 @@ export const SheetsQualityInputSchema = z
     operation: z
       .object({
         type: z.string().describe('Operation type (e.g., "values_write", "sheet_delete")'),
-        tool: z.string().describe('Tool name (e.g., "sheets_values")'),
+        tool: z.string().describe('Tool name (e.g., "sheets_data")'),
         action: z.string().describe('Action name (e.g., "write", "clear")'),
         params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
       })

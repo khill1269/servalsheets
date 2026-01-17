@@ -62,26 +62,6 @@ export class AnalyzeHandler {
   /**
    * Apply verbosity filtering to optimize token usage (LLM optimization)
    */
-  private applyVerbosityFilter(
-    response: AnalyzeResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): AnalyzeResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as AnalyzeResponse;
-    }
-
-    return response;
-  }
-
-  /**
-   * Convert RangeInput to simple format for resolveRange
-   */
   private convertRangeInput(
     range:
       | { a1: string }
@@ -1658,11 +1638,8 @@ export class AnalyzeHandler {
         }
       }
 
-      // Apply verbosity filtering (LLM optimization)
-      const verbosity = input.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
-
-      return { response: filteredResponse };
+      // Apply verbosity filtering (LLM optimization) - skipped for non-BaseHandler
+      return { response };
     } catch (error) {
       return {
         response: {

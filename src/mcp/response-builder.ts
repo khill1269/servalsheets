@@ -19,11 +19,55 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 // CONSTANTS
 // ============================================================================
 
-// Thresholds for optimization decisions
+/**
+ * Threshold for considering a response "large" and applying optimizations
+ * @default 10000 cells
+ */
 const LARGE_RESPONSE_THRESHOLD = 10000; // cells
+
+/**
+ * Threshold for enabling streaming responses (split into chunks)
+ * @default 50000 cells
+ */
 const STREAMING_THRESHOLD = 50000; // cells
+
+/**
+ * Maximum number of cells to include inline before truncating
+ * @default 1000 cells
+ */
 const MAX_INLINE_CELLS = 1000; // cells to include inline
+
+/**
+ * Number of rows to show when truncating large responses
+ * @default 100 rows
+ */
 const TRUNCATION_ROWS = 100; // rows to show when truncating
+
+/**
+ * Response optimization configuration
+ *
+ * These thresholds control when optimizations are applied:
+ * - **LARGE_RESPONSE_THRESHOLD**: Triggers optimization strategies for responses with >10k cells
+ * - **STREAMING_THRESHOLD**: Splits responses >50k cells into progressive chunks
+ * - **MAX_INLINE_CELLS**: Limits inline data to 1000 cells, provides resource URI for rest
+ * - **TRUNCATION_ROWS**: Shows first 100 rows when truncating, with resource link for full data
+ *
+ * @example
+ * ```ts
+ * // Customize thresholds via ResponseOptions
+ * const response = createLazyResponse(data, {
+ *   maxInlineCells: 500,
+ *   truncationRows: 50,
+ *   enableStreaming: true,
+ * });
+ * ```
+ */
+export const RESPONSE_CONFIG = {
+  LARGE_RESPONSE_THRESHOLD,
+  STREAMING_THRESHOLD,
+  MAX_INLINE_CELLS,
+  TRUNCATION_ROWS,
+} as const;
 
 // Pre-allocated response templates (avoid repeated object creation)
 const SUCCESS_TEMPLATE = { success: true };
@@ -574,4 +618,5 @@ export const ResponseBuilder = {
   STREAMING_THRESHOLD,
   MAX_INLINE_CELLS,
   TRUNCATION_ROWS,
+  RESPONSE_CONFIG,
 };

@@ -19,6 +19,7 @@ const createMockSheetsApi = () => ({
 });
 
 const createMockContext = (): HandlerContext => ({
+  googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: {
     resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }),

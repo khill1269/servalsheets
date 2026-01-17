@@ -594,9 +594,9 @@ export class ServalSheetsServer {
                   suggestedFix: 'This tool is planned for a future release',
                   alternatives: [
                     {
-                      tool: 'sheets_values',
+                      tool: 'sheets_data',
                       action: 'read',
-                      description: 'Use sheets_values for basic read/write operations',
+                      description: 'Use sheets_data for basic read/write operations',
                     },
                   ],
                 },

@@ -23,6 +23,7 @@ const createMockSheetsApi = () => ({
 
 // Mock handler context
 const createMockContext = (): HandlerContext => ({
+  googleClient: {} as any,
   batchCompiler: {
     compile: vi.fn(),
     execute: vi.fn(),
@@ -336,7 +337,9 @@ describe('FixHandler', () => {
       expect(result.response.success).toBe(true);
       const ops = result.response.operations.filter(op => op.issueType === 'MULTIPLE_TODAY');
       expect(ops.length).toBeGreaterThan(0);
-      expect(ops.some(op => op.tool === 'sheets_values')).toBe(true);
+
+      // MULTIPLE_TODAY operations use sheets_data and sheets_advanced
+      expect(ops.some(op => op.tool === 'sheets_data' || op.tool === 'sheets_advanced')).toBe(true);
     });
 
     it('should generate NO_FROZEN_HEADERS fix operations', async () => {

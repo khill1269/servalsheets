@@ -19,6 +19,7 @@ const createMockServer = () => ({
 
 // Mock handler context
 const createMockContext = (overrides?: Partial<HandlerContext>): HandlerContext => ({
+  googleClient: {} as any,
   batchCompiler: {} as any,
   rangeResolver: {} as any,
   server: createMockServer() as any,

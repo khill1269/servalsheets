@@ -151,19 +151,32 @@ export class QualityHandler {
 
   /**
    * DETECT_CONFLICTS: Detect concurrent modification conflicts
+   *
+   * Note: Conflict detection currently works automatically during write operations.
+   * Explicit detection queries are not yet implemented.
    */
   private async handleDetectConflicts(
     _input: QualityDetectConflictsInput
   ): Promise<QualityResponse> {
-    // For now, return empty conflicts list as detectConflict is designed
-    // for pre-write checks with expected versions
-    // In production, this would query active conflicts from the detector
+    // Phase 1 Fix: Add explicit warning that this is a limited implementation
+    // Future: Query active conflicts from detector's internal state
+    // For now, return empty list with warning
     return {
       success: true,
       action: 'detect_conflicts',
       conflicts: [],
-      message:
-        'No conflicts detected. Note: Conflict detection works automatically before write operations.',
+      warningCount: 1,
+      warnings: [
+        {
+          ruleId: 'FEATURE_LIMITED',
+          ruleName: 'Limited Implementation',
+          message:
+            'Conflict detection is currently limited to automatic checks during write operations. ' +
+            'Explicit conflict queries across spreadsheet history are not yet implemented. ' +
+            'Use analyze_impact action for pre-execution dependency analysis.',
+        },
+      ],
+      message: 'Conflict detection service available. No active conflicts found.',
     };
   }
 

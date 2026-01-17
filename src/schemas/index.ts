@@ -39,7 +39,6 @@ export * from './analyze.js'; // Uses Sampling (SEP-1577)
 export * from './fix.js'; // Automated issue resolution
 export * from './composite.js'; // High-level composite operations
 export * from './session.js'; // Session context for NL excellence
-// export * from './formulas.js'; // MERGED into sheets_advanced (2026-01-14) with formula_ prefix
 
 // Performance optimizations
 export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
@@ -340,7 +339,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_analyze',
     title: 'Ultimate Data Analysis',
     description:
-      "🤖 ONE TOOL TO RULE THEM ALL - Use 'comprehensive' action to get EVERYTHING in a single call: metadata, data, quality analysis, patterns, formulas, performance, visualizations. Replaces sheets_spreadsheet + sheets_values + sheets_analysis. Other actions: analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis.",
+      "🤖 ONE TOOL TO RULE THEM ALL - Use 'comprehensive' action to get EVERYTHING in a single call: metadata, data, quality analysis, patterns, formulas, performance, visualizations. Replaces sheets_core + sheets_data + sheets_analysis. Other actions: analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis.",
     schema: 'SheetsAnalyzeInputSchema',
     output: 'SheetsAnalyzeOutputSchema',
     annotations: 'SHEETS_ANALYZE_ANNOTATIONS',
@@ -402,9 +401,6 @@ export const TOOL_REGISTRY = {
       'reset',
     ],
   },
-  // sheets_formulas: MERGED into sheets_advanced (2026-01-14) with formula_ prefix
-  // Formula intelligence actions now available as: formula_generate, formula_suggest, formula_explain,
-  // formula_optimize, formula_fix, formula_trace_precedents, formula_trace_dependents, formula_manage_named_ranges
 } as const;
 
 // Tool count (after Wave 5: merged sheets_formulas into sheets_advanced)

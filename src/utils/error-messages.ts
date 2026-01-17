@@ -41,7 +41,7 @@ export const ERROR_MESSAGES = {
     message: `Sheet "${sheetName}" not found`,
     resolution: 'Verify the sheet name and try again',
     resolutionSteps: [
-      `1. List available sheets using sheets_spreadsheet action "get"`,
+      `1. List available sheets using sheets_core action "spreadsheet_get"`,
       `2. Check for typos in sheet name (sheet names are case-sensitive)`,
       `3. Verify the spreadsheet ID is correct: ${spreadsheetId}`,
       `4. Ensure you have permission to access this spreadsheet`,

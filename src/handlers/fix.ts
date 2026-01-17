@@ -231,7 +231,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       {
         id: `fix_today_${Date.now()}`,
         issueType: 'MULTIPLE_TODAY',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         parameters: {
           spreadsheetId,
@@ -368,7 +368,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       {
         id: `fix_full_column_${Date.now()}`,
         issueType: 'FULL_COLUMN_REFS',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'find_replace',
         parameters: {
           // This would need actual formula locations
@@ -461,7 +461,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
     const { tool, action, parameters } = op;
 
     switch (tool) {
-      case 'sheets_values':
+      case 'sheets_data':
         if (action === 'write') {
           await this.sheetsApi.spreadsheets.values.update({
             spreadsheetId: parameters['spreadsheetId'] as string,

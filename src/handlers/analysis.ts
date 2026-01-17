@@ -22,31 +22,11 @@ import { createRequestKey } from '../utils/request-deduplication.js';
 import { CACHE_TTL_ANALYSIS } from '../config/constants.js';
 
 export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnalysisOutput> {
-  private sheetsApi: sheets_v4.Sheets;
+  private readonly sheetsApi: sheets_v4.Sheets;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_analysis', context);
     this.sheetsApi = sheetsApi;
-  }
-
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: AnalysisResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): AnalysisResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as AnalysisResponse;
-    }
-
-    return response;
   }
 
   async handle(input: SheetsAnalysisInput): Promise<SheetsAnalysisOutput> {
@@ -77,9 +57,9 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
         });
       }
 
-      // Apply verbosity filtering (LLM optimization)
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity) as AnalysisResponse;
 
       return { response: filteredResponse };
     } catch (err) {
@@ -804,7 +784,7 @@ export class AnalysisHandler extends BaseHandler<SheetsAnalysisInput, SheetsAnal
     const ranges = sheets
       .filter((sheet) => sheet.properties?.title)
       .map((sheet) => {
-        const title = sheet.properties!.title!;
+        const title = sheet.properties?.title ?? '';
         return `'${title.replace(/'/g, "''")}'!A1:Z200`;
       });
 
@@ -1251,15 +1231,18 @@ Keep response concise and actionable.`,
       for (let col = 0; col < columnCount; col++) {
         const value = row[col];
         if (typeof value === 'number') {
-          numericColumns[col]!.push(value);
+          const colData = numericColumns[col];
+          if (colData) {
+            colData.push(value);
+          }
         }
       }
     }
 
     // Analyze trends for each column with sufficient data
     for (let col = 0; col < columnCount; col++) {
-      const columnData = numericColumns[col]!;
-      if (columnData.length < 3) continue;
+      const columnData = numericColumns[col];
+      if (!columnData || columnData.length < 3) continue;
 
       // Simple linear trend calculation
       const n = columnData.length;
@@ -1307,7 +1290,10 @@ Keep response concise and actionable.`,
       for (let col = 0; col < columnCount; col++) {
         const value = row[col];
         if (typeof value === 'number') {
-          numericColumns[col]!.push(value);
+          const colData = numericColumns[col];
+          if (colData) {
+            colData.push(value);
+          }
         }
       }
     }

@@ -69,42 +69,6 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   /**
    * Apply verbosity filtering to optimize token usage (LLM optimization)
    */
-  private applyVerbosityFilter(
-    response: FormatResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): FormatResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (~50% token reduction)
-      const filtered = { ...response };
-
-      // Keep only: success, action, and primary result field
-      const minimalResponse: FormatResponse = {
-        success: true,
-        action: filtered.action,
-      };
-
-      // Copy primary result fields based on action type
-      const primaryFields = ['applied', 'cleared', 'ruleId', 'rules', 'validation', 'suggestion'];
-      for (const field of primaryFields) {
-        if (field in filtered) {
-          (minimalResponse as Record<string, unknown>)[field] = (
-            filtered as Record<string, unknown>
-          )[field];
-        }
-      }
-
-      // Omit: _meta, detailed formatting info, etc.
-      return minimalResponse;
-    }
-
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
-  }
-
   async handle(input: SheetsFormatInput): Promise<SheetsFormatOutput> {
     // Input is now the action directly (no request wrapper)
 
@@ -138,7 +102,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (err) {

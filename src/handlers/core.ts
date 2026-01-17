@@ -137,7 +137,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = this.applyCoreVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (err) {
@@ -146,26 +146,26 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   }
 
   /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   * Apply verbosity filtering with core-specific customization
+   * Uses base handler's applyVerbosityFilter and adds spreadsheet-specific logic
    */
-  private applyVerbosityFilter(
+  private applyCoreVerbosityFilter(
     response: CoreResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
+    verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'
   ): CoreResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
+    // Use base handler's filtering first
+    const baseFiltered = super.applyVerbosityFilter(response, verbosity) as CoreResponse;
 
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (80% token reduction)
-      const filtered = { ...response };
+    // Add core-specific filtering for minimal verbosity
+    if (verbosity === 'minimal' && baseFiltered.success) {
+      const filtered = { ...baseFiltered };
 
-      // If response has spreadsheet data, minimize it
-      if (filtered.spreadsheet?.sheets) {
+      // If response has spreadsheet data, minimize it further
+      if ('spreadsheet' in filtered && filtered.spreadsheet?.sheets) {
         filtered.spreadsheet = {
           spreadsheetId: filtered.spreadsheet.spreadsheetId,
           title: filtered.spreadsheet.title,
-          sheets: filtered.spreadsheet.sheets.map((s) => ({
+          sheets: filtered.spreadsheet.sheets.map((s: SheetInfo) => ({
             sheetId: s.sheetId,
             title: s.title,
             rowCount: s.rowCount,
@@ -176,21 +176,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         };
       }
 
-      // If response has multiple sheets, show first 5 only
-      if (filtered.sheets && filtered.sheets.length > 5) {
-        filtered.sheets = filtered.sheets.slice(0, 5);
-      }
-
-      // Omit technical metadata (using _meta as per schema)
-      if ('_meta' in filtered) {
-        delete (filtered as { _meta?: unknown })._meta;
-      }
-
       return filtered;
     }
 
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
+    return baseFiltered;
   }
 
   protected createIntents(input: SheetsCoreInput): Intent[] {

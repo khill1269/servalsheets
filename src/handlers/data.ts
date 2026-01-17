@@ -115,62 +115,6 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     });
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: DataResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): DataResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (~60% token reduction)
-      const filtered = { ...response };
-
-      // For read operations: keep only values, omit metadata
-      if ('values' in filtered && Array.isArray(filtered['values'])) {
-        // Keep values but omit row counts, column counts, etc
-        return {
-          success: true,
-          action: filtered.action,
-          values: filtered['values'],
-        } as DataResponse;
-      }
-
-      // For write operations: keep only summary
-      if ('updated' in filtered) {
-        return {
-          success: true,
-          action: filtered.action,
-          updated: filtered['updated'],
-        } as DataResponse;
-      }
-
-      // For other operations: keep action + success + primary data field
-      // Omit: _meta, rowMetadata, columnMetadata, etc.
-      const primaryDataFields = ['note', 'hyperlink', 'merged', 'cutSuccess', 'copiedRange'];
-      const minimalResponse: DataResponse = {
-        success: true,
-        action: filtered.action,
-      };
-
-      // Copy only primary data fields
-      for (const field of primaryDataFields) {
-        if (field in filtered) {
-          (minimalResponse as any)[field] = (filtered as any)[field];
-        }
-      }
-
-      return minimalResponse;
-    }
-
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
-  }
-
   async handle(input: SheetsDataInput): Promise<SheetsDataOutput> {
     // Require authentication before proceeding
     this.requireAuth();
@@ -201,9 +145,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         });
       }
 
-      // Apply verbosity filtering (LLM optimization)
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
       const verbosity = req.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity) as DataResponse;
 
       return { response: filteredResponse } as unknown as SheetsDataOutput;
     } catch (err) {

@@ -612,14 +612,25 @@ export function fastValidateConfirm(input: Record<string, unknown>): void {
   }
 }
 
-// 15. sheets_analyze
-const ANALYZE_ACTIONS = new Set(['analyze', 'generate_formula', 'suggest_chart', 'get_stats']);
+// 15. sheets_analyze (11 actions)
+const ANALYZE_ACTIONS = new Set([
+  'comprehensive',
+  'analyze_data',
+  'suggest_visualization',
+  'generate_formula',
+  'detect_patterns',
+  'analyze_structure',
+  'analyze_quality',
+  'analyze_performance',
+  'analyze_formulas',
+  'query_natural_language',
+  'explain_analysis',
+]);
 
 export function fastValidateAnalyze(input: Record<string, unknown>): void {
   assertAction(input['action'], ANALYZE_ACTIONS);
-  if (input['action'] !== 'get_stats') {
-    assertSpreadsheetId(input['spreadsheetId']);
-  }
+  // All actions require spreadsheetId
+  assertSpreadsheetId(input['spreadsheetId']);
 }
 
 // 16. sheets_fix

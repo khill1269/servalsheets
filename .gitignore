@@ -35,9 +35,12 @@ Thumbs.db
 !server.json
 !vitest.config.ts
 !tests/config/test-credentials.example.json
+!claude_desktop_config.example.json
+!claude-desktop-config.json
 service-account*.json
 credentials*.json
 tests/config/test-credentials.json
+claude_desktop_config.json
 .secrets/
 *.tokens.enc
 *.enc
@@ -80,6 +83,11 @@ test-replay.jsonl
 
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/
+
+# Build artifacts and packages
+*.tgz
+*.mcpb
+package/
 
 # Temporary/experimental files
 scripts/agent-prompts/

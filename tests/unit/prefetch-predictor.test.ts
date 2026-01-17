@@ -35,10 +35,10 @@ describe('PrefetchPredictor', () => {
     it('should learn sequential patterns from history', () => {
       // Add operations in sequence
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -58,9 +58,9 @@ describe('PrefetchPredictor', () => {
 
     it('should only learn from successful operations', () => {
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc' }),
-        { ...createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc' }), result: 'error' as const },
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc' }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc' }),
+        { ...createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc' }), result: 'error' as const },
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc' }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -77,11 +77,11 @@ describe('PrefetchPredictor', () => {
     beforeEach(() => {
       // Set up a known pattern
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -107,8 +107,8 @@ describe('PrefetchPredictor', () => {
 
       // Set up same history
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -128,8 +128,8 @@ describe('PrefetchPredictor', () => {
       });
 
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0, range: 'A1:B10' }),
-        createOp('sheets_values', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0, range: 'A1:B10' }),
+        createOp('sheets_data', 'write', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -152,8 +152,8 @@ describe('PrefetchPredictor', () => {
     it('should predict next sheet read', () => {
       // Need at least 2 operations for learnFromHistory to work
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -163,7 +163,7 @@ describe('PrefetchPredictor', () => {
 
       // Should predict reading next sheet (sheetId: 1)
       const nextSheetPrediction = predictions.find(
-        p => p.tool === 'sheets_values' && p.action === 'read' && p.params['sheetId'] === 1
+        p => p.tool === 'sheets_data' && p.action === 'read' && p.params['sheetId'] === 1
       );
 
       expect(nextSheetPrediction).toBeDefined();
@@ -173,8 +173,8 @@ describe('PrefetchPredictor', () => {
     it('should predict spreadsheet metadata access', () => {
       // Need at least 2 operations for learnFromHistory to work
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -184,7 +184,7 @@ describe('PrefetchPredictor', () => {
 
       // Should predict getting spreadsheet metadata
       const metadataPrediction = predictions.find(
-        p => p.tool === 'sheets_spreadsheet' && p.action === 'get'
+        p => p.tool === 'sheets_core' && p.action === 'get'
       );
 
       expect(metadataPrediction).toBeDefined();
@@ -196,11 +196,11 @@ describe('PrefetchPredictor', () => {
     it('should predict next range when scrolling', () => {
       // Need at least 2 operations for learnFromHistory to work
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet0', {
+        createOp('sheets_data', 'read', 'sheet0', {
           spreadsheetId: 'abc',
           range: 'Sheet1!A1:B10',
         }),
-        createOp('sheets_values', 'read', 'sheet1', {
+        createOp('sheets_data', 'read', 'sheet1', {
           spreadsheetId: 'abc',
           range: 'Sheet1!A1:B10',
         }),
@@ -213,7 +213,7 @@ describe('PrefetchPredictor', () => {
 
       // Should predict next range (A11:B20)
       const nextRangePrediction = predictions.find(
-        p => p.tool === 'sheets_values' &&
+        p => p.tool === 'sheets_data' &&
              p.action === 'read' &&
              p.params['range'] === 'Sheet1!A11:B20'
       );
@@ -230,7 +230,7 @@ describe('PrefetchPredictor', () => {
 
       const predictions = [
         {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'read',
           params: { spreadsheetId: 'abc' },
           confidence: 0.8,
@@ -238,7 +238,7 @@ describe('PrefetchPredictor', () => {
           priority: 1,
         },
         {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'read',
           params: { spreadsheetId: 'def' },
           confidence: 0.7,
@@ -262,7 +262,7 @@ describe('PrefetchPredictor', () => {
     it('should handle prefetch failures gracefully', async () => {
       const predictions = [
         {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'read',
           params: { spreadsheetId: 'abc' },
           confidence: 0.8,
@@ -287,7 +287,7 @@ describe('PrefetchPredictor', () => {
 
       const predictions = [
         {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'read',
           params: { spreadsheetId: 'abc' },
           confidence: 0.8,
@@ -309,8 +309,8 @@ describe('PrefetchPredictor', () => {
     it('should track prediction statistics', () => {
       // Need at least 2 operations for learnFromHistory to work
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));
@@ -325,8 +325,8 @@ describe('PrefetchPredictor', () => {
     it('should track prediction accuracy', () => {
       // Need to generate predictions first
       const ops: OperationHistory[] = [
-        createOp('sheets_values', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
-        createOp('sheets_values', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet0', { spreadsheetId: 'abc', sheetId: 0 }),
+        createOp('sheets_data', 'read', 'sheet1', { spreadsheetId: 'abc', sheetId: 0 }),
       ];
 
       ops.forEach(op => mockHistoryService.record(op));

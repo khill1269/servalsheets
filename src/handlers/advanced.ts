@@ -32,26 +32,6 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     this.sheetsApi = sheetsApi;
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: AdvancedResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): AdvancedResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as AdvancedResponse;
-    }
-
-    return response;
-  }
-
   async handle(input: SheetsAdvancedInput): Promise<SheetsAdvancedOutput> {
     // Phase 1, Task 1.4: Infer missing parameters from context
     const inferredRequest = this.inferRequestParameters(input) as SheetsAdvancedInput;
@@ -150,9 +130,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         });
       }
 
-      // Apply verbosity filtering (LLM optimization)
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity) as AdvancedResponse;
 
       return { response: filteredResponse };
     } catch (err) {

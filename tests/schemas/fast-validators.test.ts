@@ -345,10 +345,18 @@ describe("fastValidateQuality", () => {
 });
 
 describe("fastValidateAnalyze", () => {
-  it("should accept analyze action", () => {
+  it("should accept comprehensive action", () => {
     expect(() => fastValidateAnalyze({
-      action: "analyze",
+      action: "comprehensive",
       spreadsheetId: VALID_SPREADSHEET_ID,
+    })).not.toThrow();
+  });
+
+  it("should accept analyze_data action", () => {
+    expect(() => fastValidateAnalyze({
+      action: "analyze_data",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: "Sheet1!A1:D10",
     })).not.toThrow();
   });
 
@@ -360,9 +368,11 @@ describe("fastValidateAnalyze", () => {
     })).not.toThrow();
   });
 
-  it("should accept get_stats without spreadsheetId", () => {
+  it("should accept detect_patterns action", () => {
     expect(() => fastValidateAnalyze({
-      action: "get_stats",
+      action: "detect_patterns",
+      spreadsheetId: VALID_SPREADSHEET_ID,
+      range: "Sheet1!A1:D10",
     })).not.toThrow();
   });
 });

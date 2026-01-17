@@ -441,7 +441,7 @@ This tool tracks what we're working with so Claude can understand natural refere
 • Set active: {"action":"set_active","spreadsheetId":"1ABC...","title":"Q4 Budget","sheetNames":["Data","Summary"]}
 • Get context: {"action":"get_context"} → Returns summary + suggestions
 • Find reference: {"action":"find_by_reference","reference":"that","type":"operation"} → Finds last operation
-• Record op: {"action":"record_operation","tool":"sheets_values","toolAction":"write",...}
+• Record op: {"action":"record_operation","tool":"sheets_data","toolAction":"write",...}
 
 **Natural Language Support:**
 • "the spreadsheet" → get_active returns current spreadsheet

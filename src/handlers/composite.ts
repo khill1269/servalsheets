@@ -29,7 +29,6 @@ import type {
 } from '../schemas/composite.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger } from '../utils/request-context.js';
-import type { VerbosityLevel } from '../utils/response-optimizer.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 
@@ -56,26 +55,6 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // Initialize composite operations service
     this.compositeService = new CompositeOperationsService(sheetsApi, this.sheetResolver);
-  }
-
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: CompositeOutput['response'],
-    verbosity: VerbosityLevel
-  ): CompositeOutput['response'] {
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // For minimal verbosity, strip _meta field
-      const { _meta, ...rest } = response as Record<string, unknown>;
-      return rest as CompositeOutput['response'];
-    }
-
-    return response;
   }
 
   async handle(input: CompositeInput): Promise<CompositeOutput> {
@@ -107,12 +86,15 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         spreadsheetId: input.spreadsheetId,
       });
 
-      // Apply verbosity filtering (LLM optimization)
-      const verbosity: VerbosityLevel =
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
+      const verbosity: 'minimal' | 'standard' | 'detailed' =
         'verbosity' in input
-          ? ((input as { verbosity?: VerbosityLevel }).verbosity ?? 'standard')
+          ? ((input as { verbosity?: 'minimal' | 'standard' | 'detailed' }).verbosity ?? 'standard')
           : 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(
+        response,
+        verbosity
+      ) as CompositeOutput['response'];
 
       return { response: filteredResponse };
     } catch (error) {
@@ -153,23 +135,17 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       trimValues: input.trimValues,
     });
 
-    return {
-      success: true as const,
-      action: 'import_csv' as const,
-      ...result,
-      mutation: {
-        cellsAffected: result.rowsImported * result.columnsImported,
-        reversible: false,
-      },
-      _meta: this.generateMeta(
-        'import_csv',
-        input as unknown as Record<string, unknown>,
-        result as unknown as Record<string, unknown>,
-        {
-          cellsAffected: result.rowsImported * result.columnsImported,
-        }
-      ),
-    };
+    const cellsAffected = result.rowsImported * result.columnsImported;
+    return this.success(
+      'import_csv',
+      {
+        ...result,
+        mutation: {
+          cellsAffected,
+          reversible: false,
+        },
+      }
+    );
   }
 
   private async handleSmartAppend(
@@ -186,21 +162,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     const cellsAffected = result.rowsAppended * result.columnsMatched.length;
 
-    return {
-      success: true as const,
-      action: 'smart_append' as const,
-      ...result,
-      mutation: {
-        cellsAffected,
-        reversible: false,
-      },
-      _meta: this.generateMeta(
-        'smart_append',
-        input as unknown as Record<string, unknown>,
-        result as unknown as Record<string, unknown>,
-        { cellsAffected }
-      ),
-    };
+    return this.success(
+      'smart_append',
+      {
+        ...result,
+        mutation: {
+          cellsAffected,
+          reversible: false,
+        },
+      }
+    );
   }
 
   private async handleBulkUpdate(

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "servalsheets": {
+      "command": "node",
+      "args": [
+        "/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"
+      ],
+      "env": {
+        "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/your/service-account.json",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}

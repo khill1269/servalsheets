@@ -75,7 +75,7 @@ const DataQualityIssueSchema = z.object({
   // NEW: Ready-to-execute fix parameters
   executableFix: z
     .object({
-      tool: z.string().describe('Tool to use for fix (e.g., sheets_fix, sheets_values)'),
+      tool: z.string().describe('Tool to use for fix (e.g., sheets_fix, sheets_data)'),
       action: z.string().describe('Action to perform'),
       params: z.record(z.string(), z.unknown()).describe('Complete parameters ready to execute'),
       description: z.string().describe('Human-readable fix description'),
@@ -159,7 +159,7 @@ export const SheetsAnalyzeInputSchema = z
     // Required action discriminator
     action: z
       .enum([
-        'comprehensive', // ONE TOOL: Complete analysis replacing sheets_spreadsheet + sheets_values + sheets_analysis
+        'comprehensive', // ONE TOOL: Complete analysis replacing sheets_core + sheets_data + sheets_analysis
         'analyze_data', // Core: Smart routing (stats OR AI)
         'suggest_visualization', // Core: Unified chart/pivot recommendations with executable params
         'generate_formula', // Core: Formula generation with context
@@ -282,7 +282,7 @@ export const SheetsAnalyzeInputSchema = z
     question: z.string().optional().describe('Specific question about the analysis'),
 
     // comprehensive action specific fields (ONE TOOL TO RULE THEM ALL)
-    // This action replaces: sheets_spreadsheet + sheets_values + sheets_analysis
+    // This action replaces: sheets_core + sheets_data + sheets_analysis
     includeFormulas: z
       .boolean()
       .optional()

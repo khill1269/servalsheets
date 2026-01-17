@@ -9,7 +9,7 @@ export interface OperationHistory {
   id: string;
   /** Timestamp when operation started */
   timestamp: string;
-  /** Tool name (e.g., 'sheets_values') */
+  /** Tool name (e.g., 'sheets_data') */
   tool: string;
   /** Action name (e.g., 'write', 'read') */
   action: string;

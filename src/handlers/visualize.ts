@@ -54,51 +54,6 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
   /**
    * Apply verbosity filtering to optimize token usage (LLM optimization)
    */
-  private applyVerbosityFilter(
-    response: VisualizeResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): VisualizeResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (~50% token reduction)
-      const filtered = { ...response };
-
-      // Keep only: success, action, and primary result field
-      const minimalResponse: VisualizeResponse = {
-        success: true,
-        action: filtered.action,
-      };
-
-      // Copy primary result fields
-      const primaryFields = [
-        'chartId',
-        'chart',
-        'charts',
-        'pivotTableId',
-        'pivotTable',
-        'pivotTables',
-        'exportedData',
-        'suggestions',
-      ];
-      for (const field of primaryFields) {
-        if (field in filtered) {
-          (minimalResponse as Record<string, unknown>)[field] = (
-            filtered as Record<string, unknown>
-          )[field];
-        }
-      }
-
-      // Omit: _meta, detailed chart/pivot specs, etc.
-      return minimalResponse;
-    }
-
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
-  }
-
   async handle(input: SheetsVisualizeInput): Promise<SheetsVisualizeOutput> {
     // Phase 1, Task 1.4: Infer missing parameters from context
     const inferredRequest = this.inferRequestParameters(input) as SheetsVisualizeInput;
@@ -191,7 +146,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
 
       // Apply verbosity filtering (LLM optimization)
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
     } catch (err) {

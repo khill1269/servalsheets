@@ -407,8 +407,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('No undoable operations');
-        expect(result.response.error.message).toContain('sheet-456');
+        expect(result.response.error.message).toContain('Operation not found');
       }
       expect(mockSnapshotService.restore).not.toHaveBeenCalled();
     });
@@ -430,7 +429,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('has no snapshot for undo');
+        expect(result.response.error.message).toContain('Snapshot not found');
       }
       expect(mockSnapshotService.restore).not.toHaveBeenCalled();
     });
@@ -520,7 +519,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('No redoable operations');
+        expect(result.response.error.message).toContain('Operation not found');
       }
     });
   });
@@ -570,7 +569,8 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('Operation nonexistent not found');
+        expect(result.response.error.message).toContain('Operation not found');
+        expect(result.response.error.message).toContain('nonexistent');
       }
     });
 
@@ -590,7 +590,7 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('NOT_FOUND');
-        expect(result.response.error.message).toContain('has no snapshot for revert');
+        expect(result.response.error.message).toContain('Snapshot not found');
       }
     });
 

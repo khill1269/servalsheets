@@ -30,6 +30,7 @@ import {
   fastValidateAnalyze,
   fastValidateFix,
   fastValidateComposite,
+  fastValidateSession,
   FastValidationError,
 } from '../../schemas/fast-validators.js';
 
@@ -158,8 +159,8 @@ export function createFastToolHandlerMap(
     },
 
     sheets_session: async (args) => {
-      // Session handler - uses standard Zod validation (no fast validator needed - low frequency tool)
       const input = args as Record<string, unknown>;
+      fastValidateSession(input);
       return handlers.session.handle(input as Parameters<typeof handlers.session.handle>[0]);
     },
   };

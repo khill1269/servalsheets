@@ -154,7 +154,7 @@ export function registerConfirmationResources(server: McpServer): void {
     async () => {
       const destructive = [
         {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'clear',
           description: 'Clear cell contents',
         },
@@ -179,7 +179,7 @@ export function registerConfirmationResources(server: McpServer): void {
           description: 'Remove validation/formatting rules',
         },
         {
-          tool: 'sheets_charts',
+          tool: 'sheets_visualize',
           action: 'delete',
           description: 'Delete chart',
         },

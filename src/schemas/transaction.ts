@@ -55,7 +55,7 @@ export const SheetsTransactionInputSchema = z
           .string()
           .min(1)
           .max(100, 'Tool name exceeds 100 character limit')
-          .describe('Tool name (e.g., sheets_values, sheets_format)'),
+          .describe('Tool name (e.g., sheets_data, sheets_format)'),
         action: z
           .string()
           .min(1)

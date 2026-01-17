@@ -487,16 +487,15 @@ describe('TransactionHandler', () => {
 
   describe('list action', () => {
     it('should return list of active transactions', async () => {
-      // Note: Current implementation returns empty list with message
+      // Note: Current implementation returns UNIMPLEMENTED error
       const result = await handler.handle({
         action: 'list',
       });
 
-      expect(result.response.success).toBe(true);
-      if (result.response.success) {
-        expect(result.response.action).toBe('list');
-        expect(result.response.transactions).toEqual([]);
-        expect(result.response.message).toContain('not yet implemented');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('UNIMPLEMENTED');
+        expect(result.response.error.message).toContain('not yet implemented');
       }
 
       // Validate schema compliance
@@ -510,10 +509,9 @@ describe('TransactionHandler', () => {
         spreadsheetId: 'filter-sheet-123',
       });
 
-      expect(result.response.success).toBe(true);
-      if (result.response.success) {
-        expect(result.response.action).toBe('list');
-        expect(result.response.transactions).toEqual([]);
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.code).toBe('UNIMPLEMENTED');
       }
     });
   });

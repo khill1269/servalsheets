@@ -61,56 +61,6 @@ export class CollaborateHandler extends BaseHandler<
     this.driveApi = driveApi;
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: CollaborateResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): CollaborateResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (~40% token reduction)
-      const filtered = { ...response };
-
-      // Keep only: success, action, and primary result field
-      const minimalResponse: CollaborateResponse = {
-        success: true,
-        action: filtered.action,
-      };
-
-      // Copy primary result fields
-      const primaryFields = [
-        'permission',
-        'permissions',
-        'comment',
-        'comments',
-        'reply',
-        'version',
-        'versions',
-        'snapshot',
-        'snapshots',
-        'exported',
-      ];
-      for (const field of primaryFields) {
-        if (field in filtered) {
-          (minimalResponse as Record<string, unknown>)[field] = (
-            filtered as Record<string, unknown>
-          )[field];
-        }
-      }
-
-      // Omit: _meta, detailed permission/comment metadata, etc.
-      return minimalResponse;
-    }
-
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
-  }
-
   async handle(input: SheetsCollaborateInput): Promise<SheetsCollaborateOutput> {
     // Track spreadsheet ID for better error messages
     this.trackSpreadsheetId(input.spreadsheetId);
@@ -330,9 +280,12 @@ export class CollaborateHandler extends BaseHandler<
           });
       }
 
-      // Apply verbosity filtering (LLM optimization)
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(
+        response,
+        verbosity
+      ) as CollaborateResponse;
 
       return { response: filteredResponse };
     } catch (err) {

@@ -29,6 +29,16 @@ import { prepareSchemaForRegistration, wrapInputSchemaForLegacyRequest } from '.
 import type { ToolDefinition } from './tool-definitions.js';
 import { TOOL_DEFINITIONS } from './tool-definitions.js';
 import {
+  extractAction,
+  extractSpreadsheetId,
+  extractSheetId,
+  extractCellsAffected,
+  extractSnapshotId,
+  extractErrorMessage,
+  extractErrorCode,
+  isSuccessResult,
+} from './extraction-helpers.js';
+import {
   SheetsAuthInputSchema,
   SheetsCoreInputSchema,
   SheetsDataInputSchema,
@@ -182,162 +192,7 @@ export function buildToolResponse(result: unknown): CallToolResult {
 // ============================================================================
 // HISTORY RECORDING HELPERS
 // ============================================================================
-
-/**
- * Extract action from tool arguments
- */
-function extractAction(args: Record<string, unknown>): string {
-  // Extract action from request object (discriminated union pattern)
-  const request = args['request'] as Record<string, unknown> | undefined;
-  if (request && typeof request['action'] === 'string') {
-    return request['action'];
-  }
-  // Fallback for non-discriminated schemas
-  if (typeof args['action'] === 'string') {
-    return args['action'];
-  }
-  return 'unknown';
-}
-
-/**
- * Extract spreadsheetId from tool arguments
- */
-function extractSpreadsheetId(args: Record<string, unknown>): string | undefined {
-  const request = args['request'] as Record<string, unknown> | undefined;
-  const params = request?.['params'] as Record<string, unknown> | undefined;
-  if (params && typeof params['spreadsheetId'] === 'string') {
-    return params['spreadsheetId'];
-  }
-  if (typeof args['spreadsheetId'] === 'string') {
-    return args['spreadsheetId'];
-  }
-  // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
-  return undefined;
-}
-
-/**
- * Extract sheetId from tool arguments
- */
-function extractSheetId(args: Record<string, unknown>): number | undefined {
-  const request = args['request'] as Record<string, unknown> | undefined;
-  const params = request?.['params'] as Record<string, unknown> | undefined;
-  if (params && typeof params['sheetId'] === 'number') {
-    return params['sheetId'];
-  }
-  if (typeof args['sheetId'] === 'number') {
-    return args['sheetId'];
-  }
-  // OK: Explicit empty - typed as optional, sheetId field not found in args
-  return undefined;
-}
-
-/**
- * Check if result is successful
- */
-function isSuccessResult(result: unknown): boolean {
-  if (typeof result !== 'object' || result === null) {
-    return false;
-  }
-  const response = (result as Record<string, unknown>)['response'];
-  if (response && typeof response === 'object') {
-    return (response as Record<string, unknown>)['success'] === true;
-  }
-  return (result as Record<string, unknown>)['success'] === true;
-}
-
-/**
- * Extract cellsAffected from tool result
- */
-function extractCellsAffected(result: unknown): number | undefined {
-  if (typeof result !== 'object' || result === null) {
-    // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
-  }
-  const response = (result as Record<string, unknown>)['response'];
-  const data = response && typeof response === 'object' ? response : result;
-  const dataObj = data as Record<string, unknown>;
-
-  // Try common field names
-  if (typeof dataObj['cellsAffected'] === 'number') {
-    return dataObj['cellsAffected'];
-  }
-  if (typeof dataObj['updatedCells'] === 'number') {
-    return dataObj['updatedCells'];
-  }
-
-  // Try mutation summary
-  const mutation = dataObj['mutation'] as Record<string, unknown> | undefined;
-  if (mutation && typeof mutation['cellsAffected'] === 'number') {
-    return mutation['cellsAffected'];
-  }
-
-  // OK: Explicit empty - typed as optional, cellsAffected field not found in result
-  return undefined;
-}
-
-/**
- * Extract snapshotId from tool result
- */
-function extractSnapshotId(result: unknown): string | undefined {
-  if (typeof result !== 'object' || result === null) {
-    // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
-  }
-  const response = (result as Record<string, unknown>)['response'];
-  const data = response && typeof response === 'object' ? response : result;
-  const mutation = (data as Record<string, unknown>)['mutation'] as
-    | Record<string, unknown>
-    | undefined;
-
-  if (mutation && typeof mutation['revertSnapshotId'] === 'string') {
-    return mutation['revertSnapshotId'];
-  }
-
-  // OK: Explicit empty - typed as optional, revertSnapshotId field not found in result
-  return undefined;
-}
-
-/**
- * Extract error message from tool result
- */
-function extractErrorMessage(result: unknown): string | undefined {
-  if (typeof result !== 'object' || result === null) {
-    // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
-  }
-  const response = (result as Record<string, unknown>)['response'];
-  if (response && typeof response === 'object') {
-    const error = (response as Record<string, unknown>)['error'] as
-      | Record<string, unknown>
-      | undefined;
-    if (error && typeof error['message'] === 'string') {
-      return error['message'];
-    }
-  }
-  // OK: Explicit empty - typed as optional, error message field not found in result
-  return undefined;
-}
-
-/**
- * Extract error code from tool result
- */
-function extractErrorCode(result: unknown): string | undefined {
-  if (typeof result !== 'object' || result === null) {
-    // OK: Explicit empty - typed as optional, invalid result object
-    return undefined;
-  }
-  const response = (result as Record<string, unknown>)['response'];
-  if (response && typeof response === 'object') {
-    const error = (response as Record<string, unknown>)['error'] as
-      | Record<string, unknown>
-      | undefined;
-    if (error && typeof error['code'] === 'string') {
-      return error['code'];
-    }
-  }
-  // OK: Explicit empty - typed as optional, error code field not found in result
-  return undefined;
-}
+// Note: Extraction helpers moved to extraction-helpers.ts for reusability
 
 // ============================================================================
 // TOOL CALL HANDLER

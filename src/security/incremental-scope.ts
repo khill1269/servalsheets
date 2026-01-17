@@ -46,12 +46,12 @@ export const OPERATION_SCOPES: Record<
   }
 > = {
   // Basic operations - default scopes
-  'sheets_values.read': {
+  'sheets_data.read': {
     required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
     description: 'Read spreadsheet values',
   },
-  'sheets_values.write': {
+  'sheets_data.write': {
     required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
     description: 'Write spreadsheet values',
@@ -61,7 +61,7 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.SPREADSHEET,
     description: 'Format cells',
   },
-  'sheets_spreadsheet.create': {
+  'sheets_core.spreadsheet_create': {
     required: [
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/drive.file',
@@ -69,7 +69,7 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.DRIVE_FILE,
     description: 'Create new spreadsheet',
   },
-  'sheets_spreadsheet.get': {
+  'sheets_core.spreadsheet_get': {
     required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
     description: 'Get spreadsheet metadata',

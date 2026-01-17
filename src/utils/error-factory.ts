@@ -54,7 +54,7 @@ export function createPermissionError(params: {
   const resolutionSteps = [
     `1. Check current permission level: Use 'sheets_sharing' tool with action 'list_permissions' to verify access`,
     `2. Request ${requiredPermission} access from the ${resourceType} owner`,
-    `3. Alternative: Use read-only operations (sheets_values with action 'read')`,
+    `3. Alternative: Use read-only operations (sheets_data with action 'read')`,
     `4. If you're the owner: Use 'sheets_sharing' tool with action 'share' to give yourself ${requiredPermission} access`,
   ];
 
@@ -67,7 +67,7 @@ export function createPermissionError(params: {
     retryStrategy: 'manual',
     resolution: `Request ${requiredPermission} access from the ${resourceType} owner or use read-only operations`,
     resolutionSteps,
-    suggestedTools: ['sheets_sharing', 'sheets_values', 'sheets_spreadsheet'],
+    suggestedTools: ['sheets_collaborate', 'sheets_data', 'sheets_core'],
     details: {
       operation,
       resourceType,
@@ -92,7 +92,7 @@ export function createRateLimitError(params: {
 
   const resolutionSteps = [
     `1. Wait ${retryAfterSeconds} seconds before retrying`,
-    `2. Use batch operations to reduce API call count (sheets_values with action 'batch_read' or 'batch_write')`,
+    `2. Use batch operations to reduce API call count (sheets_data with action 'batch_read' or 'batch_write')`,
     `3. Enable caching to avoid redundant requests`,
     `4. Consider using exponential backoff for retries`,
     `5. Check quota usage in Google Cloud Console`,
@@ -108,7 +108,7 @@ export function createRateLimitError(params: {
     retryStrategy: 'wait_for_reset',
     resolution: `Wait ${retryAfterSeconds} seconds, then retry. Use batch operations to reduce API calls.`,
     resolutionSteps,
-    suggestedTools: ['sheets_values'],
+    suggestedTools: ['sheets_data'],
     details: {
       quotaType,
       retryAfterMs,

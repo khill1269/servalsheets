@@ -167,25 +167,25 @@ export function estimateCost(context: EnhancementContext): CostEstimate {
  */
 export function getRelatedTools(tool: string, action: string): string[] {
   const relatedMap: Record<string, string[]> = {
-    'sheets_values:read': [
-      'sheets_values:batch_read',
+    'sheets_data:read': [
+      'sheets_data:batch_read',
       'sheets_analysis:data_quality',
       'sheets_analysis:statistics',
     ],
-    'sheets_values:write': [
+    'sheets_data:write': [
       'sheets_format:apply_preset',
-      'sheets_values:batch_write',
+      'sheets_data:batch_write',
       'sheets_versions:create_snapshot',
     ],
-    'sheets_values:append': ['sheets_format:apply_preset', 'sheets_values:batch_write'],
-    'sheets_values:clear': ['sheets_versions:create_snapshot', 'sheets_versions:restore_revision'],
-    'sheets_values:batch_read': ['sheets_analysis:statistics', 'sheets_values:read'],
-    'sheets_values:batch_write': ['sheets_format:set_format', 'sheets_versions:create_snapshot'],
-    'sheets_analysis:data_quality': ['sheets_analysis:statistics', 'sheets_values:read'],
-    'sheets_analysis:statistics': ['sheets_charts:create', 'sheets_values:read'],
-    'sheets_format:apply_preset': ['sheets_format:set_format', 'sheets_values:write'],
-    'sheets_sheet:add': ['sheets_sheet:list', 'sheets_values:write'],
-    'sheets_spreadsheet:create': ['sheets_sharing:share', 'sheets_sheet:add'],
+    'sheets_data:append': ['sheets_format:apply_preset', 'sheets_data:batch_write'],
+    'sheets_data:clear': ['sheets_versions:create_snapshot', 'sheets_versions:restore_revision'],
+    'sheets_data:batch_read': ['sheets_analysis:statistics', 'sheets_data:read'],
+    'sheets_data:batch_write': ['sheets_format:set_format', 'sheets_versions:create_snapshot'],
+    'sheets_analysis:data_quality': ['sheets_analysis:statistics', 'sheets_data:read'],
+    'sheets_analysis:statistics': ['sheets_visualize:create', 'sheets_data:read'],
+    'sheets_format:apply_preset': ['sheets_format:set_format', 'sheets_data:write'],
+    'sheets_core:add': ['sheets_core:list', 'sheets_data:write'],
+    'sheets_core:create': ['sheets_sharing:share', 'sheets_core:add'],
   };
 
   const key = `${tool}:${action}`;
@@ -222,7 +222,7 @@ function generateNextSteps(context: EnhancementContext): string[] {
   const { tool, action, result } = context;
   const steps: string[] = [];
 
-  if (tool === 'sheets_values' && action === 'read') {
+  if (tool === 'sheets_data' && action === 'read') {
     const values = result?.['values'];
     if (values) {
       steps.push('Analyze data with sheets_analysis:statistics for statistical insights');
@@ -230,16 +230,16 @@ function generateNextSteps(context: EnhancementContext): string[] {
     }
   }
 
-  if (tool === 'sheets_values' && (action === 'write' || action === 'append')) {
+  if (tool === 'sheets_data' && (action === 'write' || action === 'append')) {
     steps.push('Verify the data was written correctly by reading the range back');
     steps.push('Apply formatting to improve visual presentation');
     steps.push('Create a snapshot to enable easy rollback if needed');
   }
 
-  if (tool === 'sheets_spreadsheet' && action === 'create') {
+  if (tool === 'sheets_core' && action === 'create') {
     steps.push('Add sheets with sheets_sheet:add');
     steps.push('Share the spreadsheet with sheets_sharing:share');
-    steps.push('Start adding data with sheets_values:write');
+    steps.push('Start adding data with sheets_data:write');
   }
 
   if (tool === 'sheets_analysis' && action === 'statistics') {

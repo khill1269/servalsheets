@@ -434,7 +434,7 @@ Note: Use patterns with sheets_format action: set_number_format
                   },
                 },
                 tool: {
-                  create: 'Use sheets_charts action: create',
+                  create: 'Use sheets_visualize action: chart_create',
                   ai: 'Use sheets_analyze action: suggest_chart for recommendations',
                 },
               },

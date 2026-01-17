@@ -78,6 +78,10 @@ const createMockGoogleClient = (
     hasAccessToken: hasTokens,
     hasRefreshToken: hasTokens,
   }),
+  validateToken: vi.fn().mockResolvedValue({
+    valid: hasTokens, // Token is valid if it exists
+    error: hasTokens ? undefined : 'No token present',
+  }),
   setCredentials: vi.fn(),
   clearStoredTokens: vi.fn(),
   revokeAccess: vi.fn(),

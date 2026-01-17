@@ -677,6 +677,52 @@ export abstract class BaseHandler<TInput, TOutput> {
   }
 
   /**
+   * Apply verbosity filtering to optimize token usage (Phase 1 LLM optimization)
+   *
+   * Generic implementation that can be overridden by handlers for custom filtering.
+   * Handles the most common verbosity filtering patterns:
+   * - minimal: Remove _meta, limit arrays to first 5 items, strip technical details
+   * - standard: No filtering (return as-is)
+   * - detailed: Future enhancement for additional metadata
+   *
+   * @param response - Response object to filter
+   * @param verbosity - Verbosity level
+   * @returns Filtered response
+   */
+  protected applyVerbosityFilter<T extends { success: boolean; _meta?: unknown }>(
+    response: T,
+    verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'
+  ): T {
+    // No filtering for errors or standard verbosity
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // Minimal: Return only essential fields (60-80% token reduction)
+      const filtered = { ...response };
+
+      // Remove technical metadata
+      if ('_meta' in filtered) {
+        delete filtered._meta;
+      }
+
+      // Limit large arrays to first 5 items (can be overridden in specific handlers)
+      for (const [key, value] of Object.entries(filtered)) {
+        if (Array.isArray(value) && value.length > 5 && key !== 'values') {
+          // Preserve 'values' arrays as they're essential data
+          (filtered as Record<string, unknown>)[key] = value.slice(0, 5);
+        }
+      }
+
+      return filtered;
+    }
+
+    // Detailed: Future enhancement for additional metadata
+    return response;
+  }
+
+  /**
    * Get sheet ID by name with caching
    *
    * Reduces redundant API calls by caching spreadsheet metadata.

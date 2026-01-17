@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "servalsheets": {
+      "command": "node",
+      "args": [
+        "/Users/thomascahill/Downloads/servalsheets/dist/cli.js"
+      ]
+    }
+  }
+}

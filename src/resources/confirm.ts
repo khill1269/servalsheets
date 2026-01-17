@@ -127,8 +127,8 @@ sheets_confirm({
     title: 'Create Sales Dashboard',
     description: 'Create a dashboard with...',
     steps: [
-      { stepNumber: 1, description: 'Read data', tool: 'sheets_values', action: 'read', risk: 'low' },
-      { stepNumber: 2, description: 'Create sheet', tool: 'sheets_sheet', action: 'add', risk: 'low' },
+      { stepNumber: 1, description: 'Read data', tool: 'sheets_data', action: 'read', risk: 'low' },
+      { stepNumber: 2, description: 'Create sheet', tool: 'sheets_core', action: 'sheet_add', risk: 'low' },
       // ...
     ],
     willCreateSnapshot: true

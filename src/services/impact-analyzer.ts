@@ -200,10 +200,14 @@ export class ImpactAnalyzer {
       return { rows: 1, columns: 1, cells: 1 };
     }
 
-    const startCol = this.columnToNumber(match[1]!);
-    const startRow = parseInt(match[2]!, 10);
-    const endCol = this.columnToNumber(match[3]!);
-    const endRow = parseInt(match[4]!, 10);
+    if (!match[1] || !match[2] || !match[3] || !match[4]) {
+      return { rows: 1, columns: 1, cells: 1 };
+    }
+
+    const startCol = this.columnToNumber(match[1]);
+    const startRow = parseInt(match[2], 10);
+    const endCol = this.columnToNumber(match[3]);
+    const endRow = parseInt(match[4], 10);
 
     const rows = endRow - startRow + 1;
     const columns = endCol - startCol + 1;

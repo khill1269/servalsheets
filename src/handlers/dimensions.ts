@@ -81,61 +81,6 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     this.sheetsApi = sheetsApi;
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
-   */
-  private applyVerbosityFilter(
-    response: DimensionsResponse,
-    verbosity: 'minimal' | 'standard' | 'detailed'
-  ): DimensionsResponse {
-    if (!response.success || verbosity === 'standard') {
-      return response; // No filtering for errors or standard verbosity
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (~40% token reduction)
-      const filtered = { ...response };
-
-      // Keep only: success, action, and primary result field
-      const minimalResponse: DimensionsResponse = {
-        success: true,
-        action: filtered.action,
-      };
-
-      // Copy primary result fields
-      const primaryFields = [
-        'inserted',
-        'deleted',
-        'moved',
-        'resized',
-        'hidden',
-        'shown',
-        'frozen',
-        'grouped',
-        'ungrouped',
-        'appended',
-        'filter',
-        'filterView',
-        'slicer',
-        'filterViews',
-        'slicers',
-      ];
-      for (const field of primaryFields) {
-        if (field in filtered) {
-          (minimalResponse as Record<string, unknown>)[field] = (
-            filtered as Record<string, unknown>
-          )[field];
-        }
-      }
-
-      // Omit: _meta, detailed dimension info, etc.
-      return minimalResponse;
-    }
-
-    // Detailed: Add extra metadata (future enhancement)
-    return response;
-  }
-
   async handle(input: SheetsDimensionsInput): Promise<SheetsDimensionsOutput> {
     // Input is now the action directly (no request wrapper)
     // Phase 1, Task 1.4: Infer missing parameters from context
@@ -289,9 +234,12 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         });
       }
 
-      // Apply verbosity filtering (LLM optimization)
+      // Apply verbosity filtering (LLM optimization) - uses base handler implementation
       const verbosity = inferredRequest.verbosity ?? 'standard';
-      const filteredResponse = this.applyVerbosityFilter(response, verbosity);
+      const filteredResponse = super.applyVerbosityFilter(
+        response,
+        verbosity
+      ) as DimensionsResponse;
 
       return { response: filteredResponse };
     } catch (err) {

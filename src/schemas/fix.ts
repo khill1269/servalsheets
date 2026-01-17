@@ -56,7 +56,7 @@ const FixSafetySchema = z.object({
 export const FixOperationSchema = z.object({
   id: z.string().describe('Unique operation ID'),
   issueType: FixableIssueTypeSchema,
-  tool: z.string().describe('Tool to call (e.g., sheets_values, sheets_dimensions)'),
+  tool: z.string().describe('Tool to call (e.g., sheets_data, sheets_dimensions)'),
   action: z.string().describe('Action to perform'),
   parameters: z.record(z.string(), z.unknown()).describe('Parameters for the tool'),
   estimatedImpact: z.string().describe('What this operation will change'),

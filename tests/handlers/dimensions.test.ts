@@ -20,6 +20,7 @@ const createMockSheetsApi = () => ({
 
 // Mock handler context
 const createMockContext = (): HandlerContext => ({
+  googleClient: {} as any,
   batchCompiler: {
     compile: vi.fn(),
     execute: vi.fn(),

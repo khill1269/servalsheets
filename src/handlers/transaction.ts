@@ -190,13 +190,21 @@ export class TransactionHandler {
         }
 
         case 'list': {
-          // Note: TransactionManager doesn't expose a listTransactions method
-          // For now, return empty list - will need to add this method to TransactionManager
+          // Phase 1 Fix: Return explicit feature unavailable error instead of silent empty list
           response = {
-            success: true,
-            action: 'list',
-            transactions: [],
-            message: 'Transaction listing not yet implemented',
+            success: false,
+            error: {
+              code: 'UNIMPLEMENTED',
+              message:
+                'Transaction listing is not yet implemented. TransactionManager does not expose listTransactions() method.',
+              retryable: false,
+              suggestedFix:
+                'Use status action with a specific transactionId to check individual transaction status.',
+              details: {
+                reason: 'TransactionManager API limitation',
+                workaround: 'Track transaction IDs from begin/queue/commit operations',
+              },
+            },
           };
           break;
         }

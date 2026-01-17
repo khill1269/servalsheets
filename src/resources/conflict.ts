@@ -127,7 +127,7 @@ Returns: \`transactionId\` for subsequent operations
   action: 'queue',
   transactionId: 'transaction-id-from-begin',
   operation: {
-    tool: 'sheets_values',
+    tool: 'sheets_data',
     action: 'write',
     params: {
       spreadsheetId: 'your-spreadsheet-id',
@@ -215,7 +215,7 @@ await sheets_transaction.queue({
   action: 'queue',
   transactionId: txId,
   operation: {
-    tool: 'sheets_values',
+    tool: 'sheets_data',
     action: 'write',
     params: { range: 'A1:A10', values: [[1], [2], [3]] }
   }
@@ -235,7 +235,7 @@ await sheets_transaction.queue({
   action: 'queue',
   transactionId: txId,
   operation: {
-    tool: 'sheets_values',
+    tool: 'sheets_data',
     action: 'write',
     params: { range: 'B1', values: [['Summary']] }
   }
