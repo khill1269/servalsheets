@@ -98,7 +98,7 @@ Please run these tests in order:
 1. sheets_auth action: "status" → Verify authentication
 2. sheets_spreadsheet action: "get", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Get metadata
 3. sheets_values action: "read", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", range: "Sheet1!A1:D10" → Read sample data
-4. sheets_analysis action: "structure_analysis", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Analyze structure
+4. sheets_analyze action: "analyze_structure", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Analyze structure
 
 If all tests pass, you're ready to use ServalSheets!
 If auth fails, follow the authentication flow first.`,
@@ -129,8 +129,8 @@ Spreadsheet: ${spreadsheetId}
 
 Steps:
 1. Read data: sheets_spreadsheet action "get"
-2. Analyze quality: sheets_analysis action "data_quality"
-3. Get statistics: sheets_analysis action "statistics"
+2. Analyze quality: sheets_analyze action "analyze_quality"
+3. Get statistics: sheets_analyze action "analyze_data"
 4. Format headers: sheets_format (use dryRun first!)
 
 Safety tips: Always read before modify, use dryRun for destructive ops.`,
@@ -160,9 +160,9 @@ Safety tips: Always read before modify, use dryRun for destructive ops.`,
 
 Run comprehensive analysis:
 1. Metadata: sheets_spreadsheet action "get"
-2. Data Quality: sheets_analysis action "data_quality"
-3. Structure: sheets_analysis action "structure_analysis"
-4. Formula Audit: sheets_analysis action "formula_audit"
+2. Data Quality: sheets_analyze action "analyze_quality"
+3. Structure: sheets_analyze action "structure_analysis"
+4. Formula Audit: sheets_analyze action "analyze_formulas"
 5. AI Insights: sheets_analyze action "analyze" (uses MCP Sampling)
 
 Provide: quality score, issues found, recommended fixes.`,
@@ -393,7 +393,7 @@ Import Steps:
    - Add data validation
 
 5. Quality check:
-   - Run sheets_analysis "data_quality"
+   - Run sheets_analyze "analyze_quality"
    - Verify row counts
    - Check for import errors
 
@@ -483,8 +483,8 @@ Diagnostic Workflow:
    - Check sheet count, total cells
 
 2. Data quality:
-   - sheets_analysis "data_quality": Find data issues
-   - sheets_analysis "formula_audit": Check formula errors
+   - sheets_analyze "analyze_quality": Find data issues
+   - sheets_analyze "analyze_formulas": Check formula errors
 
 3. AI analysis:
    - sheets_analyze "analyze": Deep pattern analysis
@@ -496,7 +496,7 @@ Diagnostic Workflow:
    - Recommend ARRAYFORMULA or INDEX/MATCH
 
 5. Structure analysis:
-   - sheets_analysis "structure_analysis"
+   - sheets_analyze "analyze_structure"
    - Check for duplicate headers
    - Verify data types per column
 
@@ -752,7 +752,7 @@ Common Performance Issues:
 3. **Formula Recalculation**
    • Problem: Complex formulas with circular references
    • Fix: Use optimize_formulas prompt
-   • Check: sheets_analysis action="formula_audit"
+   • Check: sheets_analyze action="analyze_formulas"
    • Improvement: 50-70% faster calculations
 
 4. **Network Latency**
@@ -781,14 +781,14 @@ Diagnostic Steps:
    • Look for repeated calls
 
 4. Analyze data structure:
-   • sheets_analysis action="performance"
+   • sheets_analyze action="analyze_performance"
    • Get optimization suggestions
 
 Quick Fixes by Operation Type:
 
 • sheets_values read → Use batch_read, exact ranges
 • sheets_format → Batch in sheets_transaction
-• sheets_analysis → Limit to <10K cells
+• sheets_analyze → Limit to <10K cells
 • sheets_pivot → Reduce source range size
 • sheets_charts → Limit data points to <1000
 
@@ -827,7 +827,7 @@ Range: ${range}
 ${issues !== 'auto-detect' ? `Known Issues: ${issues}` : ''}
 
 Step 1: Detect Issues
-Run: sheets_analysis action="analyze" spreadsheetId="${spreadsheetId}" range="${range}"
+Run: sheets_analyze action="analyze_data" spreadsheetId="${spreadsheetId}" range="${range}"
 
 Common Data Quality Problems:
 
@@ -859,7 +859,7 @@ Common Data Quality Problems:
 Cleanup Workflow:
 
 1. Analyze:
-   sheets_analysis action="analyze" range="${range}"
+   sheets_analyze action="analyze_data" range="${range}"
 
 2. Fix empty cells:
    • Delete: sheets_dimensions action="delete_rows"
@@ -879,7 +879,7 @@ Cleanup Workflow:
    • Prevent future bad data
 
 6. Verify:
-   • Re-run sheets_analysis
+   • Re-run sheets_analyze
    • Check quality score improved
 
 After cleanup, consider:
@@ -916,7 +916,7 @@ After cleanup, consider:
 ${range !== 'entire sheet' ? `Range: ${range}` : ''}
 
 Step 1: Audit Formulas
-Run: sheets_analysis action="formula_audit" spreadsheetId="${spreadsheetId}"
+Run: sheets_analyze action="analyze_formulas" spreadsheetId="${spreadsheetId}"
 
 Common Formula Performance Issues:
 
@@ -942,7 +942,7 @@ Common Formula Performance Issues:
 
 4. **Circular References**
    • Problem: Formulas referencing themselves
-   • Detection: sheets_analysis shows circular_refs
+   • Detection: sheets_analyze shows circular_refs
    • Fix: Break cycle by moving calculation to different cell
    • Improvement: Prevents infinite loops
 
@@ -955,7 +955,7 @@ Common Formula Performance Issues:
 Optimization Workflow:
 
 1. Find slow formulas:
-   • sheets_analysis action="formula_audit"
+   • sheets_analyze action="analyze_formulas"
    • Look for: VLOOKUP, array formulas, volatile functions
 
 2. Test performance:
@@ -1086,7 +1086,7 @@ Step 4: Post-Import Processing
 Step 5: Verification
 
 1. Data quality check:
-   sheets_analysis action="analyze" range="A1:Z${dataSize || 10000}"
+   sheets_analyze action="analyze_data" range="A1:Z${dataSize || 10000}"
 
 2. Spot check:
    • First 10 rows: sheets_values range="A2:Z11"
@@ -1209,7 +1209,7 @@ Phase 5: EXECUTE SAFELY
 
 Phase 6: VERIFY
 ┌────────────────────────────────────┐
-│ 1. Run sheets_analysis to verify  │
+│ 1. Run sheets_analyze to verify  │
 │ 2. Spot-check affected ranges     │
 │ 3. Test dependent formulas        │
 │ 4. Confirm no broken references   │
@@ -1322,7 +1322,7 @@ After Import:
 1. sheets_dimensions action="auto_resize" (columns)
 2. sheets_format (apply formatting)
 3. sheets_versions action="create_snapshot" (checkpoint)
-4. sheets_analysis action="data_quality" (verify)
+4. sheets_analyze action="analyze_quality" (verify)
 
 Transaction = Speed + Safety + Atomicity`,
             },
@@ -1430,10 +1430,10 @@ Q: Want to undo specific cells only?
    sheets_values action="read" range="affected_range"
 
 2. Verify no broken references:
-   sheets_analysis action="formula_audit"
+   sheets_analyze action="analyze_formulas"
 
 3. Check data quality:
-   sheets_analysis action="data_quality"
+   sheets_analyze action="analyze_quality"
 
 ⚠️ Important Notes:
 
@@ -1781,8 +1781,8 @@ ${hasTransformations ? `Transformations: ${args['transformations']}` : ''}
    sheets_spreadsheet action="get" → Get all sheets
    For each sheet:
      sheets_values action="read" range="{sheet}!A1:Z1" → Get headers
-     sheets_analysis action="structure_analysis" → Understand data types
-     sheets_analysis action="data_quality" → Check quality issues
+     sheets_analyze action="analyze_structure" → Understand data types
+     sheets_analyze action="analyze_quality" → Check quality issues
 
 2. Analyze Target Structure:
    sheets_spreadsheet action="get" spreadsheetId=target
@@ -1919,12 +1919,12 @@ Step 2: Extract and Transform
    ✓ Formatting preserved (if needed)
 
 2. Quality Analysis:
-   sheets_analysis action="data_quality" spreadsheetId=target
+   sheets_analyze action="analyze_quality" spreadsheetId=target
    • Check for: empty cells, duplicates, outliers
    • Compare quality scores: source vs target
 
 3. Formula Verification:
-   sheets_analysis action="formula_audit"
+   sheets_analyze action="analyze_formulas"
    • Verify no broken references
    • Check formula complexity unchanged
    • Test key calculations
@@ -2040,7 +2040,7 @@ Focus: ${focusAreas.join(', ')}
    • Sheets with >26 columns (Z+) (complexity indicator)
 
 2. Formula Complexity Analysis:
-   sheets_analysis action="formula_audit"
+   sheets_analyze action="analyze_formulas"
 
    Identify:
    • Total formulas: N
@@ -2052,7 +2052,7 @@ Focus: ${focusAreas.join(', ')}
    • External references: OtherSheet!A1 (cross-sheet dependencies)
 
 3. Data Quality Check:
-   sheets_analysis action="data_quality"
+   sheets_analyze action="analyze_quality"
 
    Find:
    • Empty rows/columns: (wasted space)
@@ -2171,7 +2171,7 @@ Optimization Recommendations:
 📈 PHASE 4: STRUCTURE OPTIMIZATION
 
 Run Full Analysis:
-sheets_analysis action="structure_analysis"
+sheets_analyze action="analyze_structure"
 
 Common Issues & Fixes:
 
@@ -2181,7 +2181,7 @@ Common Issues & Fixes:
 
 2. Mixed Data Types in Columns:
    Problem: "Age" column has numbers and text
-   Fix: sheets_analysis → Find inconsistencies → Clean data
+   Fix: sheets_analyze → Find inconsistencies → Clean data
 
 3. Unnecessary Sheets:
    Problem: 20 sheets, only 5 used

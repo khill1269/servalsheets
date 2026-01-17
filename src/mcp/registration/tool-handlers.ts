@@ -46,7 +46,6 @@ import {
   SheetsDimensionsInputSchema,
   SheetsVisualizeInputSchema,
   SheetsCollaborateInputSchema,
-  SheetsAnalysisInputSchema,
   SheetsAdvancedInputSchema,
   SheetsTransactionInputSchema,
   SheetsQualityInputSchema,
@@ -81,7 +80,6 @@ export function createToolHandlerMap(
     sheets_visualize: (args) => handlers.visualize.handle(SheetsVisualizeInputSchema.parse(args)),
     sheets_collaborate: (args) =>
       handlers.collaborate.handle(SheetsCollaborateInputSchema.parse(args)),
-    sheets_analysis: (args) => handlers.analysis.handle(SheetsAnalysisInputSchema.parse(args)),
     sheets_advanced: (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
     sheets_transaction: (args) =>
       handlers.transaction.handle(SheetsTransactionInputSchema.parse(args)),

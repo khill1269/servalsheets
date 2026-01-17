@@ -31,9 +31,6 @@ import {
   SheetsCollaborateInputSchema,
   SheetsCollaborateOutputSchema,
   SHEETS_COLLABORATE_ANNOTATIONS,
-  SheetsAnalysisInputSchema,
-  SheetsAnalysisOutputSchema,
-  SHEETS_ANALYSIS_ANNOTATIONS,
   SheetsAdvancedInputSchema,
   SheetsAdvancedOutputSchema,
   SHEETS_ADVANCED_ANNOTATIONS,
@@ -161,13 +158,6 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsCollaborateInputSchema,
     outputSchema: SheetsCollaborateOutputSchema,
     annotations: SHEETS_COLLABORATE_ANNOTATIONS,
-  },
-  {
-    name: 'sheets_analysis',
-    description: TOOL_DESCRIPTIONS['sheets_analysis']!,
-    inputSchema: SheetsAnalysisInputSchema,
-    outputSchema: SheetsAnalysisOutputSchema,
-    annotations: SHEETS_ANALYSIS_ANNOTATIONS,
   },
   {
     name: 'sheets_advanced',

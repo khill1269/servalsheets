@@ -21,7 +21,6 @@ import {
   fastValidateDimensions,
   fastValidateVisualize,
   fastValidateCollaborate,
-  fastValidateAnalysis,
   fastValidateAdvanced,
   fastValidateTransaction,
   fastValidateQuality,
@@ -98,12 +97,6 @@ export function createFastToolHandlerMap(
       const input = args as Record<string, unknown>;
       fastValidateDimensions(input);
       return handlers.dimensions.handle(input as Parameters<typeof handlers.dimensions.handle>[0]);
-    },
-
-    sheets_analysis: async (args) => {
-      const input = args as Record<string, unknown>;
-      fastValidateAnalysis(input);
-      return handlers.analysis.handle(input as Parameters<typeof handlers.analysis.handle>[0]);
     },
 
     sheets_advanced: async (args) => {

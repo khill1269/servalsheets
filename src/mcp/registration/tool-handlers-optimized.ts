@@ -20,7 +20,6 @@ import {
   fastValidateDimensions,
   fastValidateVisualize,
   fastValidateCollaborate,
-  fastValidateAnalysis,
   fastValidateAdvanced,
   fastValidateTransaction,
   fastValidateQuality,
@@ -41,7 +40,6 @@ import {
   SheetsDimensionsInputSchema,
   SheetsVisualizeInputSchema,
   SheetsCollaborateInputSchema,
-  SheetsAnalysisInputSchema,
   SheetsAdvancedInputSchema,
   SheetsTransactionInputSchema,
   SheetsQualityInputSchema,
@@ -125,12 +123,6 @@ export function createOptimizedHandlerMap(
     zodParser: (input) => SheetsDimensionsInputSchema.parse(input),
     handler: (v) =>
       handlers.dimensions.handle(v as Parameters<typeof handlers.dimensions.handle>[0]),
-  });
-
-  map.set('sheets_analysis', {
-    fastValidator: fastValidateAnalysis,
-    zodParser: (input) => SheetsAnalysisInputSchema.parse(input),
-    handler: (v) => handlers.analysis.handle(v as Parameters<typeof handlers.analysis.handle>[0]),
   });
 
   map.set('sheets_advanced', {
