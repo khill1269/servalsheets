@@ -20,277 +20,272 @@ import {
   type ToolAnnotations,
 } from './shared.js';
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// Combines all fields from sheets_spreadsheet (8 actions) + sheets_sheet (7 actions)
-export const SheetsCoreInputSchema = z
-  .object({
-    // Required action discriminator (15 total actions)
-    action: z
-      .enum([
-        // Spreadsheet actions (8)
-        'get',
-        'create',
-        'copy',
-        'update_properties',
-        'get_url',
-        'batch_get',
-        'get_comprehensive',
-        'list',
-        // Sheet/tab actions (7)
-        'add_sheet',
-        'delete_sheet',
-        'duplicate_sheet',
-        'update_sheet',
-        'copy_sheet_to',
-        'list_sheets',
-        'get_sheet',
-      ])
-      .describe('The operation to perform on the spreadsheet or sheet/tab'),
+// ============================================================================
+// Common Schemas
+// ============================================================================
 
-    // ===== SPREADSHEET FIELDS =====
-
-    // Fields for GET, COPY, UPDATE_PROPERTIES, GET_URL, GET_COMPREHENSIVE actions
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for most actions except create, batch_get)'
+const CommonFieldsSchema = z.object({
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (summary only, 80% less tokens), standard (balanced), detailed (full metadata)'
     ),
-    includeGridData: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        'Include cell data in response (default: false | set true to fetch cell values) (get, get_comprehensive)'
-      ),
-    ranges: z
-      .array(z.string())
-      .optional()
-      .describe('Specific ranges to fetch if includeGridData=true (get only)'),
+});
 
-    // Fields for CREATE action
-    title: z
-      .string()
-      .min(1)
-      .max(255)
-      .optional()
-      .describe(
-        'Spreadsheet/sheet title (required for: create, add_sheet; optional for: update_properties, update_sheet)'
-      ),
-    locale: z
-      .string()
-      .regex(/^[a-z]{2}_[A-Z]{2}$/, 'Invalid locale format (expected: en_US, fr_FR, etc.)')
-      .optional()
-      .default('en_US')
-      .describe(
-        'Locale for formatting (default: en_US | alternatives: fr_FR, de_DE, etc.) (create, update_properties)'
-      ),
-    timeZone: z
-      .string()
-      .regex(
-        /^[A-Za-z_]+\/[A-Za-z_]+$/,
-        'Invalid timezone format (expected: America/New_York, Europe/London, etc.)'
-      )
-      .optional()
-      .describe('Time zone like America/New_York (create, update_properties)'),
-    sheets: z
-      .array(
-        z.object({
-          title: z.string().describe('Sheet/tab title'),
-          rowCount: z
-            .number()
-            .int()
-            .positive()
-            .optional()
-            .default(1000)
-            .describe('Initial row count (default: 1000)'),
-          columnCount: z
-            .number()
-            .int()
-            .positive()
-            .optional()
-            .default(26)
-            .describe('Initial column count (default: 26)'),
-          tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
-        })
-      )
-      .optional()
-      .describe('Initial sheets/tabs to create (create only)'),
+const SheetSpecSchema = z.object({
+  title: z.string().describe('Sheet/tab title'),
+  rowCount: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(1000)
+    .describe('Initial row count (default: 1000)'),
+  columnCount: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(26)
+    .describe('Initial column count (default: 26)'),
+  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+});
 
-    // Fields for COPY action
-    destinationFolderId: z
-      .string()
-      .optional()
-      .describe('Google Drive folder ID to copy into (copy only)'),
-    newTitle: z
-      .string()
-      .optional()
-      .describe('Title for the copied spreadsheet/duplicated sheet (copy, duplicate_sheet)'),
+// ============================================================================
+// Spreadsheet Action Schemas (8 actions)
+// ============================================================================
 
-    // Fields for UPDATE_PROPERTIES action
-    autoRecalc: z
-      .enum(['ON_CHANGE', 'MINUTE', 'HOUR'])
-      .optional()
-      .describe('Automatic recalculation frequency (update_properties only)'),
+const GetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get').describe('Get spreadsheet metadata'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  includeGridData: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include cell data in response (default: false)'),
+  ranges: z
+    .array(z.string())
+    .optional()
+    .describe('Specific ranges to fetch if includeGridData=true'),
+});
 
-    // Fields for BATCH_GET action
-    spreadsheetIds: z
-      .array(SpreadsheetIdSchema)
-      .min(1)
-      .max(100)
-      .optional()
-      .describe('Array of spreadsheet IDs 1-100 (required for: batch_get)'),
+const CreateActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('create').describe('Create a new spreadsheet'),
+  title: z.string().min(1).max(255).describe('Spreadsheet title'),
+  locale: z
+    .string()
+    .regex(/^[a-z]{2}_[A-Z]{2}$/, 'Invalid locale format (expected: en_US, fr_FR, etc.)')
+    .optional()
+    .default('en_US')
+    .describe('Locale for formatting (default: en_US)'),
+  timeZone: z
+    .string()
+    .regex(
+      /^[A-Za-z_]+\/[A-Za-z_]+$/,
+      'Invalid timezone format (expected: America/New_York, Europe/London, etc.)'
+    )
+    .optional()
+    .describe('Time zone like America/New_York'),
+  sheets: z.array(SheetSpecSchema).optional().describe('Initial sheets/tabs to create'),
+});
 
-    // Fields for GET_COMPREHENSIVE action
-    maxRowsPerSheet: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(100)
-      .describe(
-        'Max rows per sheet if includeGridData=true (default: 100) (get_comprehensive only)'
-      ),
+const CopyActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('copy').describe('Copy an entire spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
+  newTitle: z.string().optional().describe('Title for the copied spreadsheet'),
+  destinationFolderId: z.string().optional().describe('Google Drive folder ID to copy into'),
+});
 
-    // Fields for LIST action
-    maxResults: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(100)
-      .describe('Maximum number of spreadsheets to return (default: 100) (list only)'),
-    query: z
-      .string()
-      .max(500, 'Search query exceeds 500 character limit')
-      .optional()
-      .describe('Search query to filter spreadsheets (list only)'),
-    orderBy: z
-      .enum(['createdTime', 'modifiedTime', 'name', 'viewedByMeTime'])
-      .optional()
-      .default('modifiedTime')
-      .describe(
-        'How to order results (default: modifiedTime | alternatives: createdTime, name, viewedByMeTime) (list only)'
-      ),
+const UpdatePropertiesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_properties').describe('Update spreadsheet properties'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  title: z.string().min(1).max(255).optional().describe('New spreadsheet title'),
+  locale: z
+    .string()
+    .regex(/^[a-z]{2}_[A-Z]{2}$/, 'Invalid locale format')
+    .optional()
+    .describe('Locale for formatting'),
+  timeZone: z
+    .string()
+    .regex(/^[A-Za-z_]+\/[A-Za-z_]+$/, 'Invalid timezone format')
+    .optional()
+    .describe('Time zone'),
+  autoRecalc: z
+    .enum(['ON_CHANGE', 'MINUTE', 'HOUR'])
+    .optional()
+    .describe('Automatic recalculation frequency'),
+});
 
-    // ===== SHEET/TAB FIELDS =====
+const GetUrlActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_url').describe('Get the URL of a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe(
+    'Optional numeric sheet ID to link to a specific tab (e.g., #gid=0)'
+  ),
+});
 
-    // Fields for sheet/tab operations
-    sheetId: SheetIdSchema.optional().describe(
-      'Numeric sheet ID (required for: delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, get_sheet)'
-    ),
+const BatchGetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('batch_get').describe('Get metadata for multiple spreadsheets'),
+  spreadsheetIds: z
+    .array(SpreadsheetIdSchema)
+    .min(1)
+    .max(100)
+    .describe('Array of spreadsheet IDs (1-100)'),
+});
 
-    // Fields for ADD_SHEET action
-    index: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe('Position to insert (0 = first, omit = last) (add_sheet, update_sheet)'),
-    rowCount: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(1000)
-      .describe('Initial row count (default: 1000) (add_sheet)'),
-    columnCount: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(26)
-      .describe('Initial column count (default: 26) (add_sheet)'),
-    tabColor: ColorSchema.optional().describe('Tab color (RGB) (add_sheet, update_sheet)'),
-    hidden: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Hide the sheet (default: false) (add_sheet, update_sheet)'),
+const GetComprehensiveActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_comprehensive').describe('Get comprehensive spreadsheet metadata'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  includeGridData: z.boolean().optional().default(false).describe('Include cell data in response'),
+  maxRowsPerSheet: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(100)
+    .describe('Max rows per sheet if includeGridData=true (default: 100)'),
+});
 
-    // Fields for DELETE_SHEET action
-    allowMissing: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "If true, don't error when sheet doesn't exist - makes delete idempotent (delete_sheet)"
-      ),
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options (dryRun, createSnapshot, etc.) (delete_sheet)'
-    ),
+const ListActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list').describe('List user spreadsheets from Google Drive'),
+  maxResults: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(100)
+    .describe('Maximum number of spreadsheets to return (default: 100)'),
+  query: z
+    .string()
+    .max(500, 'Search query exceeds 500 character limit')
+    .optional()
+    .describe('Search query to filter spreadsheets'),
+  orderBy: z
+    .enum(['createdTime', 'modifiedTime', 'name', 'viewedByMeTime'])
+    .optional()
+    .default('modifiedTime')
+    .describe('How to order results (default: modifiedTime)'),
+});
 
-    // Fields for DUPLICATE_SHEET action
-    insertIndex: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe(
-        'Position to insert duplicate (0 = first, omit = after original) (duplicate_sheet)'
-      ),
+// ============================================================================
+// Sheet/Tab Action Schemas (7 actions)
+// ============================================================================
 
-    // Fields for UPDATE_SHEET action
-    rightToLeft: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Right-to-left text direction (default: false) (update_sheet)'),
+const AddSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('add_sheet').describe('Add a new sheet/tab to a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  title: z.string().min(1).max(255).describe('Sheet/tab title'),
+  index: z.number().int().min(0).optional().describe('Position to insert (0 = first, omit = last)'),
+  rowCount: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(1000)
+    .describe('Initial row count (default: 1000)'),
+  columnCount: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(26)
+    .describe('Initial column count (default: 26)'),
+  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  hidden: z.boolean().optional().default(false).describe('Hide the sheet (default: false)'),
+});
 
-    // Fields for COPY_SHEET_TO action
-    destinationSpreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Target spreadsheet ID (required for: copy_sheet_to)'
-    ),
+const DeleteSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('delete_sheet').describe('Delete a sheet/tab from a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to delete'),
+  allowMissing: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("If true, don't error when sheet doesn't exist - makes delete idempotent"),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (summary only, 80% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        // Spreadsheet actions
-        case 'get':
-        case 'copy':
-        case 'get_url':
-        case 'get_comprehensive':
-        case 'update_properties':
-          return !!data.spreadsheetId;
-        case 'create':
-          return !!data.title;
-        case 'batch_get':
-          return !!data.spreadsheetIds && data.spreadsheetIds.length > 0;
-        case 'list':
-          return true; // No required fields beyond action
+const DuplicateSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('duplicate_sheet').describe('Duplicate a sheet/tab within a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to duplicate'),
+  newTitle: z.string().optional().describe('Title for the duplicated sheet'),
+  insertIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Position to insert duplicate (0 = first, omit = after original)'),
+});
 
-        // Sheet/tab actions
-        case 'add_sheet':
-          return !!data.spreadsheetId && !!data.title;
-        case 'delete_sheet':
-        case 'duplicate_sheet':
-        case 'update_sheet':
-        case 'get_sheet':
-          return !!data.spreadsheetId && typeof data.sheetId === 'number';
-        case 'copy_sheet_to':
-          return (
-            !!data.spreadsheetId &&
-            typeof data.sheetId === 'number' &&
-            !!data.destinationSpreadsheetId
-          );
-        case 'list_sheets':
-          return !!data.spreadsheetId;
+const UpdateSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_sheet').describe('Update sheet/tab properties'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
+  title: z.string().min(1).max(255).optional().describe('New sheet title'),
+  index: z.number().int().min(0).optional().describe('New position (0 = first)'),
+  tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+  hidden: z.boolean().optional().describe('Hide/show the sheet'),
+  rightToLeft: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Right-to-left text direction (default: false)'),
+});
 
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const CopySheetToActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('copy_sheet_to').describe('Copy a sheet/tab to another spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Source spreadsheet ID'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to copy'),
+  destinationSpreadsheetId: SpreadsheetIdSchema.describe('Target spreadsheet ID'),
+});
+
+const ListSheetsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list_sheets').describe('List all sheets/tabs in a spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+});
+
+const GetSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_sheet').describe('Get metadata for a specific sheet/tab'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to retrieve'),
+});
+
+// ============================================================================
+// Combined Input Schema
+// ============================================================================
+
+/**
+ * All core spreadsheet and sheet/tab operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsCoreInputSchema = z.discriminatedUnion('action', [
+  // Spreadsheet actions (8)
+  GetActionSchema,
+  CreateActionSchema,
+  CopyActionSchema,
+  UpdatePropertiesActionSchema,
+  GetUrlActionSchema,
+  BatchGetActionSchema,
+  GetComprehensiveActionSchema,
+  ListActionSchema,
+  // Sheet/tab actions (7)
+  AddSheetActionSchema,
+  DeleteSheetActionSchema,
+  DuplicateSheetActionSchema,
+  UpdateSheetActionSchema,
+  CopySheetToActionSchema,
+  ListSheetsActionSchema,
+  GetSheetActionSchema,
+]);
 
 const CoreResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -397,6 +392,7 @@ export type CoreUpdatePropertiesInput = SheetsCoreInput & {
 export type CoreGetUrlInput = SheetsCoreInput & {
   action: 'get_url';
   spreadsheetId: string;
+  sheetId?: number;
 };
 export type CoreBatchGetInput = SheetsCoreInput & {
   action: 'batch_get';
