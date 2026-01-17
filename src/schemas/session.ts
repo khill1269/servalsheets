@@ -11,265 +11,149 @@ import { z } from 'zod';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 // ============================================================================
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
+// Common Schemas
 // ============================================================================
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
 
-export const SheetsSessionInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum([
-        'set_active',
-        'get_active',
-        'get_context',
-        'record_operation',
-        'get_last_operation',
-        'get_history',
-        'find_by_reference',
-        'update_preferences',
-        'get_preferences',
-        'set_pending',
-        'get_pending',
-        'clear_pending',
-        'reset',
-      ])
-      .describe('The operation to perform on the session'),
+const CommonFieldsSchema = z.object({
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+    ),
+});
 
-    // Fields for SET_ACTIVE action
-    spreadsheetId: z
-      .string()
-      .optional()
-      .describe('Spreadsheet ID to set as active (required for: set_active, record_operation)'),
-    title: z
-      .string()
-      .optional()
-      .describe('Spreadsheet title for natural reference (required for: set_active)'),
-    sheetNames: z
-      .array(z.string())
-      .optional()
-      .describe('List of sheet names (required for: set_active)'),
+// ============================================================================
+// Individual Action Schemas
+// ============================================================================
 
-    // Fields for RECORD_OPERATION action
-    tool: z.string().optional().describe('Tool that was called (required for: record_operation)'),
-    toolAction: z
-      .string()
-      .optional()
-      .describe('Action within the tool (required for: record_operation)'),
-    range: z.string().optional().describe('Range affected (record_operation)'),
-    description: z
-      .string()
-      .min(1, 'Description cannot be empty')
-      .max(1000, 'Description exceeds 1000 character limit')
-      .optional()
-      .describe('Human-readable description (required for: record_operation, max 1000 chars)'),
-    undoable: z
-      .boolean()
-      .optional()
-      .describe('Can this be undone? (required for: record_operation)'),
-    snapshotId: z.string().optional().describe('Snapshot ID if created (record_operation)'),
-    cellsAffected: z.number().optional().describe('Number of cells affected (record_operation)'),
+const SetActiveActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_active').describe('Set the active spreadsheet for natural references'),
+  spreadsheetId: z.string().describe('Spreadsheet ID from URL'),
+  title: z.string().describe('Spreadsheet title for natural reference'),
+  sheetNames: z.array(z.string()).describe('List of sheet names in the spreadsheet'),
+});
 
-    // Fields for GET_HISTORY action
-    limit: z
-      .number()
-      .min(1)
-      .max(20)
-      .optional()
-      .describe('Max operations to return (get_history, default: 10)'),
+const GetActiveActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_active').describe('Get the currently active spreadsheet'),
+});
 
-    // Fields for FIND_BY_REFERENCE action
-    reference: z
-      .string()
-      .min(1, 'Reference cannot be empty')
-      .max(500, 'Reference exceeds 500 character limit')
-      .optional()
-      .describe(
-        "Natural language reference like 'that', 'the budget', 'the last write' (required for: find_by_reference, max 500 chars)"
-      ),
-    referenceType: z
-      .enum(['spreadsheet', 'operation'])
-      .optional()
-      .describe('What to find (required for: find_by_reference)'),
+const GetContextActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_context').describe('Get full conversation context with suggestions'),
+});
 
-    // Fields for UPDATE_PREFERENCES action
-    confirmationLevel: z
-      .enum(['always', 'destructive', 'never'])
-      .optional()
-      .describe('Confirmation level (update_preferences)'),
-    dryRunDefault: z.boolean().optional().describe('Default dry run setting (update_preferences)'),
-    snapshotDefault: z
-      .boolean()
-      .optional()
-      .describe('Default snapshot setting (update_preferences)'),
+const RecordOperationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('record_operation').describe('Record a completed operation for undo support'),
+  tool: z.string().describe('Tool that was called'),
+  toolAction: z.string().describe('Action within the tool'),
+  spreadsheetId: z.string().describe('Spreadsheet ID affected'),
+  description: z
+    .string()
+    .min(1, 'Description cannot be empty')
+    .max(1000, 'Description exceeds 1000 character limit')
+    .describe('Human-readable description (max 1000 chars)'),
+  undoable: z.boolean().describe('Whether this operation can be undone'),
+  range: z.string().optional().describe('Range affected (A1 notation)'),
+  snapshotId: z.string().optional().describe('Snapshot ID if created for rollback'),
+  cellsAffected: z.number().optional().describe('Number of cells affected'),
+});
 
-    // Fields for SET_PENDING action
-    type: z.string().optional().describe('Type of pending operation (required for: set_pending)'),
-    step: z.number().optional().describe('Current step number (required for: set_pending)'),
-    totalSteps: z.number().optional().describe('Total steps (required for: set_pending)'),
-    context: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .describe('Operation context data (required for: set_pending)'),
+const GetLastOperationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_last_operation').describe('Get the most recent operation'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'set_active':
-          return !!data.spreadsheetId && !!data.title && !!data.sheetNames;
-        case 'record_operation':
-          return (
-            !!data.tool &&
-            !!data.toolAction &&
-            !!data.spreadsheetId &&
-            !!data.description &&
-            data.undoable !== undefined
-          );
-        case 'find_by_reference':
-          return !!data.reference && !!data.referenceType;
-        case 'set_pending':
-          return (
-            !!data.type &&
-            data.step !== undefined &&
-            data.totalSteps !== undefined &&
-            !!data.context
-          );
-        case 'get_active':
-        case 'get_context':
-        case 'get_last_operation':
-        case 'get_history':
-        case 'update_preferences':
-        case 'get_preferences':
-        case 'get_pending':
-        case 'clear_pending':
-        case 'reset':
-          return true; // No required fields beyond action
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const GetHistoryActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_history').describe('Get operation history'),
+  limit: z
+    .number()
+    .min(1)
+    .max(20)
+    .optional()
+    .default(10)
+    .describe('Max operations to return (default: 10, max: 20)'),
+});
+
+const FindByReferenceActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('find_by_reference')
+    .describe('Find spreadsheet or operation by natural language reference'),
+  reference: z
+    .string()
+    .min(1, 'Reference cannot be empty')
+    .max(500, 'Reference exceeds 500 character limit')
+    .describe(
+      'Natural language reference like "that", "the budget", "the last write" (max 500 chars)'
+    ),
+  referenceType: z
+    .enum(['spreadsheet', 'operation'])
+    .describe('What to find: spreadsheet or operation'),
+});
+
+const UpdatePreferencesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_preferences').describe('Update user preferences'),
+  confirmationLevel: z
+    .enum(['always', 'destructive', 'never'])
+    .optional()
+    .describe('When to ask for confirmation (always, destructive, or never)'),
+  dryRunDefault: z.boolean().optional().describe('Default dry run setting'),
+  snapshotDefault: z.boolean().optional().describe('Default snapshot setting'),
+});
+
+const GetPreferencesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_preferences').describe('Get current user preferences'),
+});
+
+const SetPendingActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_pending').describe('Set pending multi-step operation state'),
+  type: z.string().describe('Type of pending operation'),
+  step: z.number().describe('Current step number'),
+  totalSteps: z.number().describe('Total number of steps'),
+  context: z.record(z.string(), z.unknown()).describe('Operation context data'),
+});
+
+const GetPendingActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_pending').describe('Get pending multi-step operation state'),
+});
+
+const ClearPendingActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_pending').describe('Clear pending multi-step operation state'),
+});
+
+const ResetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('reset').describe('Reset session context to initial state'),
+});
+
+// ============================================================================
+// Combined Input Schema
+// ============================================================================
+
+/**
+ * All session context operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsSessionInputSchema = z.discriminatedUnion('action', [
+  SetActiveActionSchema,
+  GetActiveActionSchema,
+  GetContextActionSchema,
+  RecordOperationActionSchema,
+  GetLastOperationActionSchema,
+  GetHistoryActionSchema,
+  FindByReferenceActionSchema,
+  UpdatePreferencesActionSchema,
+  GetPreferencesActionSchema,
+  SetPendingActionSchema,
+  GetPendingActionSchema,
+  ClearPendingActionSchema,
+  ResetActionSchema,
+]);
 
 export type SheetsSessionInput = z.infer<typeof SheetsSessionInputSchema>;
-
-// ============================================================================
-// TYPE NARROWING HELPERS
-// ============================================================================
-
-export function isSetActiveAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'set_active';
-  spreadsheetId: string;
-  title: string;
-  sheetNames: string[];
-} {
-  return input.action === 'set_active';
-}
-
-export function isGetActiveAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_active';
-} {
-  return input.action === 'get_active';
-}
-
-export function isGetContextAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_context';
-} {
-  return input.action === 'get_context';
-}
-
-export function isRecordOperationAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'record_operation';
-  tool: string;
-  toolAction: string;
-  spreadsheetId: string;
-  description: string;
-  undoable: boolean;
-  range?: string;
-  snapshotId?: string;
-  cellsAffected?: number;
-} {
-  return input.action === 'record_operation';
-}
-
-export function isGetLastOperationAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_last_operation';
-} {
-  return input.action === 'get_last_operation';
-}
-
-export function isGetHistoryAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_history';
-  limit?: number;
-} {
-  return input.action === 'get_history';
-}
-
-export function isFindByReferenceAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'find_by_reference';
-  reference: string;
-  referenceType: 'spreadsheet' | 'operation';
-} {
-  return input.action === 'find_by_reference';
-}
-
-export function isUpdatePreferencesAction(
-  input: SheetsSessionInput
-): input is SheetsSessionInput & {
-  action: 'update_preferences';
-  confirmationLevel?: 'always' | 'destructive' | 'never';
-  dryRunDefault?: boolean;
-  snapshotDefault?: boolean;
-} {
-  return input.action === 'update_preferences';
-}
-
-export function isGetPreferencesAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_preferences';
-} {
-  return input.action === 'get_preferences';
-}
-
-export function isSetPendingAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'set_pending';
-  type: string;
-  step: number;
-  totalSteps: number;
-  context: Record<string, unknown>;
-} {
-  return input.action === 'set_pending';
-}
-
-export function isGetPendingAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'get_pending';
-} {
-  return input.action === 'get_pending';
-}
-
-export function isClearPendingAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'clear_pending';
-} {
-  return input.action === 'clear_pending';
-}
-
-export function isResetAction(input: SheetsSessionInput): input is SheetsSessionInput & {
-  action: 'reset';
-} {
-  return input.action === 'reset';
-}
 
 // ============================================================================
 // OUTPUT SCHEMAS
