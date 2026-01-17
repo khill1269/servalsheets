@@ -15,8 +15,22 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 
+// JSON-RPC response types
+interface JsonRpcResponse {
+  id: number;
+  result?: Record<string, unknown>;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
 describe('MCP Protocol tools/list', () => {
-  const collectResponse = (child: ReturnType<typeof spawn>, id: number): Promise<any> => {
+  const collectResponse = (
+    child: ReturnType<typeof spawn>,
+    id: number
+  ): Promise<JsonRpcResponse> => {
     return new Promise((resolve, reject) => {
       let buffer = '';
 
@@ -66,7 +80,10 @@ describe('MCP Protocol tools/list', () => {
 
   const createJsonRpcHarness = (child: ReturnType<typeof spawn>) => {
     let buffer = '';
-    const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
+    const pending = new Map<
+      number,
+      { resolve: (value: JsonRpcResponse) => void; reject: (error: Error) => void }
+    >();
 
     const onData = (chunk: Buffer) => {
       buffer += chunk.toString();
@@ -102,7 +119,10 @@ describe('MCP Protocol tools/list', () => {
     child.stdout.on('data', onData);
     child.on('error', onError);
 
-    const request = (payload: Record<string, unknown>, timeoutMs = 10000): Promise<any> => {
+    const request = (
+      payload: Record<string, unknown>,
+      timeoutMs = 10000
+    ): Promise<JsonRpcResponse> => {
       const id = payload['id'];
       if (typeof id !== 'number') {
         return Promise.reject(new Error('Request payload must include numeric id'));
@@ -146,23 +166,27 @@ describe('MCP Protocol tools/list', () => {
     const child = spawn('node', ['dist/cli.js']);
 
     // Send initialize + tools/list requests
-    const request = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-11-25',
-        capabilities: {},
-        clientInfo: {
-          name: 'test-client',
-          version: '1.0.0',
+    const request =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: {
+            name: 'test-client',
+            version: '1.0.0',
+          },
         },
-      },
-    }) + '\n' + JSON.stringify({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/list'
-    }) + '\n';
+      }) +
+      '\n' +
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+      }) +
+      '\n';
 
     child.stdin.write(request);
     child.stdin.end();
@@ -184,6 +208,9 @@ describe('MCP Protocol tools/list', () => {
       expect(tool.name).toMatch(/^sheets_/);
 
       // Tool must have a description
+      if (!tool.description) {
+        console.error(`Tool "${tool.name}" is missing description`);
+      }
       expect(tool.description).toBeDefined();
       expect(typeof tool.description).toBe('string');
 
@@ -195,15 +222,14 @@ describe('MCP Protocol tools/list', () => {
       expect(tool.inputSchema.type).toBe('object');
 
       // Schema must not be empty. Require object properties or a union at the root.
-      const hasProperties = tool.inputSchema.properties &&
-                           typeof tool.inputSchema.properties === 'object' &&
-                           Object.keys(tool.inputSchema.properties).length > 0;
+      const hasProperties =
+        tool.inputSchema.properties &&
+        typeof tool.inputSchema.properties === 'object' &&
+        Object.keys(tool.inputSchema.properties).length > 0;
 
-      const hasOneOf = Array.isArray(tool.inputSchema.oneOf) &&
-                      tool.inputSchema.oneOf.length > 0;
+      const hasOneOf = Array.isArray(tool.inputSchema.oneOf) && tool.inputSchema.oneOf.length > 0;
 
-      const hasAnyOf = Array.isArray(tool.inputSchema.anyOf) &&
-                      tool.inputSchema.anyOf.length > 0;
+      const hasAnyOf = Array.isArray(tool.inputSchema.anyOf) && tool.inputSchema.anyOf.length > 0;
 
       if (!(hasProperties || hasOneOf || hasAnyOf)) {
         throw new Error(`tools/list returned empty input schema for ${tool.name}`);
@@ -219,7 +245,6 @@ describe('MCP Protocol tools/list', () => {
       expect(tool.inputSchema._def).toBeUndefined();
       expect(tool.inputSchema._type).toBeUndefined();
     }
-
   }, 15000); // 15 second timeout for this test
 
   it('should handle tool invocation without safeParseAsync errors', async () => {
@@ -237,37 +262,41 @@ describe('MCP Protocol tools/list', () => {
     });
 
     // Initialize then invoke a tool (will fail due to no credentials, but shouldn't crash)
-    const request = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2025-11-25',
-        capabilities: {},
-        clientInfo: {
-          name: 'test-client',
-          version: '1.0.0',
+    const request =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: {
+            name: 'test-client',
+            version: '1.0.0',
+          },
         },
-      },
-    }) + '\n' + JSON.stringify({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/call',
-      params: {
-        name: 'sheets_spreadsheet',
-        arguments: {
-          request: {
-            action: 'get',
-            spreadsheetId: 'test-id'
-          }
-        }
-      }
-    }) + '\n';
+      }) +
+      '\n' +
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'sheets_spreadsheet',
+          arguments: {
+            request: {
+              action: 'get',
+              spreadsheetId: 'test-id',
+            },
+          },
+        },
+      }) +
+      '\n';
 
     child.stdin.write(request);
     child.stdin.end();
 
-    let parsed: any;
+    let parsed: JsonRpcResponse;
     try {
       parsed = await Promise.race([collectResponse(child, 2), stderrPromise]);
     } finally {
@@ -285,7 +314,6 @@ describe('MCP Protocol tools/list', () => {
       expect(parsed.error.message).not.toContain('safeParseAsync');
       expect(parsed.error.message).not.toContain('is not a function');
     }
-
   }, 15000);
 
   it('should support task-augmented tools/call', async () => {
@@ -366,7 +394,7 @@ describe('MCP Protocol tools/list', () => {
       expect(call.result?.task?.status).toBe('working');
 
       const deadline = Date.now() + 10000;
-      let taskResult: any;
+      let taskResult: JsonRpcResponse;
       let requestId = 3;
 
       while (Date.now() < deadline) {
@@ -387,8 +415,9 @@ describe('MCP Protocol tools/list', () => {
       expect(taskResult?.result).toBeDefined();
       expect(taskResult.result?.isError).toBe(true);
       expect(taskResult.result?.structuredContent?.response?.success).toBe(false);
-      expect(taskResult.result?.structuredContent?.response?.error?.message)
-        .toContain('Google API client not initialized');
+      expect(taskResult.result?.structuredContent?.response?.error?.message).toContain(
+        'Google API client not initialized'
+      );
     } finally {
       rpc.cleanup();
       child.kill();

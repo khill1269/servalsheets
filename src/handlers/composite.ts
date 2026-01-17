@@ -136,16 +136,13 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     });
 
     const cellsAffected = result.rowsImported * result.columnsImported;
-    return this.success(
-      'import_csv',
-      {
-        ...result,
-        mutation: {
-          cellsAffected,
-          reversible: false,
-        },
-      }
-    );
+    return this.success('import_csv', {
+      ...result,
+      mutation: {
+        cellsAffected,
+        reversible: false,
+      },
+    });
   }
 
   private async handleSmartAppend(
@@ -162,16 +159,13 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     const cellsAffected = result.rowsAppended * result.columnsMatched.length;
 
-    return this.success(
-      'smart_append',
-      {
-        ...result,
-        mutation: {
-          cellsAffected,
-          reversible: false,
-        },
-      }
-    );
+    return this.success('smart_append', {
+      ...result,
+      mutation: {
+        cellsAffected,
+        reversible: false,
+      },
+    });
   }
 
   private async handleBulkUpdate(

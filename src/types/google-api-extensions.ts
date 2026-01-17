@@ -199,7 +199,15 @@ export interface CellData extends sheets_v4.Schema$CellData {
  */
 export interface CellFormat extends sheets_v4.Schema$CellFormat {
   numberFormat?: {
-    type?: 'TEXT' | 'NUMBER' | 'PERCENT' | 'CURRENCY' | 'DATE' | 'TIME' | 'DATE_TIME' | 'SCIENTIFIC';
+    type?:
+      | 'TEXT'
+      | 'NUMBER'
+      | 'PERCENT'
+      | 'CURRENCY'
+      | 'DATE'
+      | 'TIME'
+      | 'DATE_TIME'
+      | 'SCIENTIFIC';
     pattern?: string;
   };
   backgroundColor?: {
@@ -282,20 +290,14 @@ export interface BatchUpdateResponse extends sheets_v4.Schema$BatchUpdateSpreads
  * Type guard to check if a value is a valid cell value
  */
 export function isCellValue(value: unknown): value is string | number | boolean {
-  return (
-    typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-  );
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
 /**
  * Type guard for SheetData
  */
 export function isSheetData(value: unknown): value is SheetData {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    ('values' in value || 'range' in value)
-  );
+  return typeof value === 'object' && value !== null && ('values' in value || 'range' in value);
 }
 
 /**

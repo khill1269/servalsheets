@@ -7,15 +7,9 @@
 
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
-import { z } from 'zod';
 
 // Import schemas - adjust paths as needed
-import { 
-  SheetsValuesInputSchema,
-  SheetsFormatInputSchema,
-  ColorSchema,
-  RangeInputSchema,
-} from '../../src/schemas/index.js';
+import { SheetsDataInputSchema, ColorSchema, RangeInputSchema } from '../../src/schemas/index.js';
 
 describe('Schema Validation Property Tests', () => {
   describe('ColorSchema', () => {
@@ -71,7 +65,7 @@ describe('Schema Validation Property Tests', () => {
           (colIndex, rowNum) => {
             const colLetter = String.fromCharCode(65 + colIndex);
             const a1 = `${colLetter}${rowNum}`;
-            
+
             const result = RangeInputSchema.safeParse({ a1 });
             return result.success === true;
           }
@@ -84,7 +78,7 @@ describe('Schema Validation Property Tests', () => {
       fc.assert(
         fc.property(
           fc.integer({ min: 0, max: 1000 }), // sheetId
-          fc.integer({ min: 0, max: 100 }),  // startCol
+          fc.integer({ min: 0, max: 100 }), // startCol
           fc.integer({ min: 0, max: 10000 }), // startRow
           fc.integer({ min: 1, max: 101 }), // Ensure at least 1 column width
           fc.integer({ min: 1, max: 10001 }), // Ensure at least 1 row height
@@ -99,7 +93,7 @@ describe('Schema Validation Property Tests', () => {
                 startColumnIndex: startCol,
                 endRowIndex: endRow,
                 endColumnIndex: endCol,
-              }
+              },
             });
             return result.success === true;
           }
@@ -109,11 +103,17 @@ describe('Schema Validation Property Tests', () => {
     });
   });
 
-  describe('SheetsValuesInputSchema - Read Action', () => {
+  describe('SheetsDataInputSchema - Read Action', () => {
     it('should accept valid read action inputs', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 10, maxLength: 50, unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')) }),
+          fc.string({
+            minLength: 10,
+            maxLength: 50,
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')
+            ),
+          }),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 1000 }),
           (spreadsheetId, colIndex, rowNum) => {
@@ -124,7 +124,7 @@ describe('Schema Validation Property Tests', () => {
               range: { a1: `${colLetter}${rowNum}` },
             };
 
-            const result = SheetsValuesInputSchema.safeParse(input);
+            const result = SheetsDataInputSchema.safeParse(input);
             return result.success === true;
           }
         ),
@@ -138,20 +138,37 @@ describe('Schema Validation Property Tests', () => {
         range: { a1: 'A1:B10' },
       };
 
-      const result = SheetsValuesInputSchema.safeParse(input);
+      const result = SheetsDataInputSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
   });
 
-  describe('SheetsValuesInputSchema - Write Action', () => {
+  describe('SheetsDataInputSchema - Write Action', () => {
     it('should accept valid write action inputs', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 10, maxLength: 50, unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')) }),
+          fc.string({
+            minLength: 10,
+            maxLength: 50,
+            unit: fc.constantFrom(
+              ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')
+            ),
+          }),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 100 }),
           // Use noNaN and noDefaultInfinity because Zod's z.number() rejects NaN and Infinity
-          fc.array(fc.array(fc.oneof(fc.string({ minLength: 1 }), fc.integer(), fc.double({ noNaN: true, noDefaultInfinity: true }), fc.boolean()), { minLength: 1, maxLength: 10 }), { minLength: 1, maxLength: 10 }),
+          fc.array(
+            fc.array(
+              fc.oneof(
+                fc.string({ minLength: 1 }),
+                fc.integer(),
+                fc.double({ noNaN: true, noDefaultInfinity: true }),
+                fc.boolean()
+              ),
+              { minLength: 1, maxLength: 10 }
+            ),
+            { minLength: 1, maxLength: 10 }
+          ),
           (spreadsheetId, colIndex, rowNum, values) => {
             const colLetter = String.fromCharCode(65 + colIndex);
             const input = {
@@ -161,7 +178,7 @@ describe('Schema Validation Property Tests', () => {
               values,
             };
 
-            const result = SheetsValuesInputSchema.safeParse(input);
+            const result = SheetsDataInputSchema.safeParse(input);
             return result.success === true;
           }
         ),
@@ -176,7 +193,7 @@ describe('Schema Validation Property Tests', () => {
         range: { a1: 'A1:B10' },
       };
 
-      const result = SheetsValuesInputSchema.safeParse(input);
+      const result = SheetsDataInputSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
   });
@@ -184,25 +201,22 @@ describe('Schema Validation Property Tests', () => {
   describe('Safety Options', () => {
     it('should accept valid effect scope limits', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 1, max: 1000000 }),
-          (maxCells) => {
-            const input = {
-              action: 'write' as const,
-              spreadsheetId: 'test-id',
-              range: { a1: 'A1:B10' },
-              values: [['test']],
-              safety: {
-                effectScope: {
-                  maxCellsAffected: maxCells,
-                },
+        fc.property(fc.integer({ min: 1, max: 1000000 }), (maxCells) => {
+          const input = {
+            action: 'write' as const,
+            spreadsheetId: 'test-id',
+            range: { a1: 'A1:B10' },
+            values: [['test']],
+            safety: {
+              effectScope: {
+                maxCellsAffected: maxCells,
               },
-            };
+            },
+          };
 
-            const result = SheetsValuesInputSchema.safeParse(input);
-            return result.success === true;
-          }
-        ),
+          const result = SheetsDataInputSchema.safeParse(input);
+          return result.success === true;
+        }),
         { numRuns: 50 }
       );
     });
@@ -218,7 +232,7 @@ describe('Schema Validation Property Tests', () => {
         },
       };
 
-      const result = SheetsValuesInputSchema.safeParse(input);
+      const result = SheetsDataInputSchema.safeParse(input);
       expect(result.success).toBe(true);
     });
   });
@@ -226,7 +240,7 @@ describe('Schema Validation Property Tests', () => {
   describe('Discriminated Union Consistency', () => {
     it('action field should determine required fields', () => {
       const actions = ['read', 'write', 'append', 'clear'] as const;
-      
+
       for (const action of actions) {
         const baseInput = {
           action,
@@ -236,17 +250,17 @@ describe('Schema Validation Property Tests', () => {
 
         // Write and append require values
         if (action === 'write' || action === 'append') {
-          const withoutValues = SheetsValuesInputSchema.safeParse(baseInput);
+          const withoutValues = SheetsDataInputSchema.safeParse(baseInput);
           expect(withoutValues.success).toBe(false);
 
-          const withValues = SheetsValuesInputSchema.safeParse({
+          const withValues = SheetsDataInputSchema.safeParse({
             ...baseInput,
             values: [['test']],
           });
           expect(withValues.success).toBe(true);
         } else {
           // Read and clear don't require values
-          const result = SheetsValuesInputSchema.safeParse(baseInput);
+          const result = SheetsDataInputSchema.safeParse(baseInput);
           expect(result.success).toBe(true);
         }
       }

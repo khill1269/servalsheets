@@ -40,6 +40,7 @@ import {
   type SnapshotResult,
 } from '../utils/safety-helpers.js';
 import { createEnhancedError } from '../utils/enhanced-errors.js';
+import { memoize } from '../utils/memoization.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -90,6 +91,35 @@ export interface HandlerError {
  * Combined output type
  */
 export type HandlerOutput<T extends Record<string, unknown>> = HandlerResult<T> | HandlerError;
+
+/**
+ * Memoized column conversion functions for performance
+ * Shared across all handler instances
+ */
+const memoizedColumnToLetter = memoize(
+  (index: number): string => {
+    let letter = '';
+    let temp = index + 1;
+    while (temp > 0) {
+      const mod = (temp - 1) % 26;
+      letter = String.fromCharCode(65 + mod) + letter;
+      temp = Math.floor((temp - 1) / 26);
+    }
+    return letter;
+  },
+  { maxSize: 500, ttl: 300000 }
+); // Cache 500 entries for 5 minutes
+
+const memoizedLetterToColumn = memoize(
+  (letter: string): number => {
+    let index = 0;
+    for (let i = 0; i < letter.length; i++) {
+      index = index * 26 + (letter.charCodeAt(i) - 64);
+    }
+    return index - 1;
+  },
+  { maxSize: 500, ttl: 300000 }
+);
 
 /**
  * Base handler with common utilities
@@ -163,22 +193,22 @@ export abstract class BaseHandler<TInput, TOutput> {
    * Data fields are spread directly into the result (not nested under 'data')
    * Automatically generates response metadata if not provided
    */
-  protected success<T extends Record<string, unknown>>(
-    action: string,
+  protected success<A extends string, T extends Record<string, unknown>>(
+    action: A,
     data: T,
     mutation?: MutationSummary,
     dryRun?: boolean,
     meta?: ResponseMeta
   ): T & {
     success: true;
-    action: string;
+    action: A;
     mutation?: MutationSummary;
     dryRun?: boolean;
     _meta?: ResponseMeta;
   } {
     const result: T & {
       success: true;
-      action: string;
+      action: A;
       mutation?: MutationSummary;
       dryRun?: boolean;
       _meta?: ResponseMeta;
@@ -498,27 +528,18 @@ export abstract class BaseHandler<TInput, TOutput> {
 
   /**
    * Convert column index (0-based) to letter (A, B, ..., Z, AA, AB, ...)
+   * Uses memoization for performance on frequently-accessed columns
    */
   protected columnToLetter(index: number): string {
-    let letter = '';
-    let temp = index + 1;
-    while (temp > 0) {
-      const mod = (temp - 1) % 26;
-      letter = String.fromCharCode(65 + mod) + letter;
-      temp = Math.floor((temp - 1) / 26);
-    }
-    return letter;
+    return memoizedColumnToLetter(index);
   }
 
   /**
    * Convert column letter to 0-based index
+   * Uses memoization for performance on frequently-accessed columns
    */
   protected letterToColumn(letter: string): number {
-    let index = 0;
-    for (let i = 0; i < letter.length; i++) {
-      index = index * 26 + (letter.charCodeAt(i) - 64);
-    }
-    return index - 1;
+    return memoizedLetterToColumn(letter);
   }
 
   /**

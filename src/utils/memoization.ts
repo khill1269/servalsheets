@@ -104,7 +104,9 @@ class LRUCache<K, V> {
 export function memoize<T, R>(
   fn: (arg: T) => R,
   options: { maxSize?: number; ttl?: number; keyFn?: (arg: T) => string } = {}
-): ((arg: T) => R) & { cache: { clear: () => void; stats: () => { size: number; totalHits: number } } } {
+): ((arg: T) => R) & {
+  cache: { clear: () => void; stats: () => { size: number; totalHits: number } };
+} {
   const { maxSize = 100, ttl = 60000, keyFn = (arg: T) => JSON.stringify(arg) } = options;
 
   const cache = new LRUCache<string, R>(maxSize, ttl);
@@ -148,7 +150,9 @@ export function memoize<T, R>(
 export function memoizeMulti<Args extends unknown[], R>(
   fn: (...args: Args) => R,
   options: { maxSize?: number; ttl?: number; keyFn?: (...args: Args) => string } = {}
-): ((...args: Args) => R) & { cache: { clear: () => void; stats: () => { size: number; totalHits: number } } } {
+): ((...args: Args) => R) & {
+  cache: { clear: () => void; stats: () => { size: number; totalHits: number } };
+} {
   const { maxSize = 100, ttl = 60000, keyFn = (...args: Args) => JSON.stringify(args) } = options;
 
   const cache = new LRUCache<string, R>(maxSize, ttl);
@@ -183,9 +187,7 @@ export function memoizeMulti<Args extends unknown[], R>(
  * @param fn - Function to memoize
  * @returns Memoized function
  */
-export function memoizeWeak<K extends object, R>(
-  fn: (key: K) => R
-): (key: K) => R {
+export function memoizeWeak<K extends object, R>(fn: (key: K) => R): (key: K) => R {
   const cache = new WeakMap<K, R>();
 
   return (key: K): R => {
@@ -287,7 +289,6 @@ export function memoizeWithStats<T, R>(
   let misses = 0;
 
   const wrapper = (arg: T): R => {
-    const key = JSON.stringify(arg);
     const stats = memoized.cache.stats();
     const prevHits = stats.totalHits;
 

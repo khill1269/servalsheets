@@ -54,10 +54,7 @@ export function assertRegexGroups(
  * @param name - Name of the value for error message
  * @throws {ValidationError} if value is null or undefined
  */
-export function assertDefined<T>(
-  value: T | null | undefined,
-  name: string
-): asserts value is T {
+export function assertDefined<T>(value: T | null | undefined, name: string): asserts value is T {
   if (value === null || value === undefined) {
     throw new ValidationError(`${name} is required but was ${value}`, name);
   }
@@ -86,17 +83,9 @@ export function assertNonEmpty(value: string, name: string): asserts value is st
  * @param name - Name of the value for error message
  * @throws {ValidationError} if value is out of range
  */
-export function assertInRange(
-  value: number,
-  min: number,
-  max: number,
-  name: string
-): void {
+export function assertInRange(value: number, min: number, max: number, name: string): void {
   if (value < min || value > max) {
-    throw new ValidationError(
-      `${name} must be between ${min} and ${max}, got ${value}`,
-      name
-    );
+    throw new ValidationError(`${name} must be between ${min} and ${max}, got ${value}`, name);
   }
 }
 
@@ -199,11 +188,7 @@ export function isNonEmptyArray<T>(value: unknown): value is T[] {
  * @returns true if value looks like a valid spreadsheet ID
  */
 export function isValidSpreadsheetId(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    /^[a-zA-Z0-9_-]+$/.test(value)
-  );
+  return typeof value === 'string' && value.length > 0 && /^[a-zA-Z0-9_-]+$/.test(value);
 }
 
 /**

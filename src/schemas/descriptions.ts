@@ -340,6 +340,40 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_data (export pivot data)
 → sheets_format (style pivot tables)`,
 
+  sheets_visualize: `Create and manage visualizations including charts and pivot tables (15 actions). Combines charts (9 actions) + pivot tables (6 actions).
+
+**Chart Actions:** create, update, delete, move, resize, list, get, update_data_range, set_position
+**Pivot Actions:** create_pivot, update_pivot, refresh_pivot, delete_pivot, list_pivots, get_pivot
+
+**Quick Examples:**
+• Line chart: {"action":"create","spreadsheetId":"1ABC...","type":"LINE","range":"A1:B10","title":"Sales Trend"}
+• Pie chart: {"action":"create","spreadsheetId":"1ABC...","type":"PIE","range":"A1:B5","title":"Market Share"}
+• Pivot table: {"action":"create_pivot","spreadsheetId":"1ABC...","sourceRange":"A1:D100","rows":["Category"],"columns":["Month"],"values":[{"field":"Revenue","function":"SUM"}]}
+• Update chart: {"action":"update","spreadsheetId":"1ABC...","chartId":123,"title":"Updated Title","range":"A1:B20"}
+
+**Performance Tips:**
+• Create charts after formatting data for best visual results
+• Use sheets_analyze to suggest optimal chart types
+• Limit data range to <1000 points for smooth rendering
+• Use pivot tables for large datasets instead of complex formulas
+
+**Common Workflows:**
+1. After analysis → Create visualizations
+2. For dashboards → Create multiple charts + pivots in transaction
+3. For reports → Export charts as images
+4. After data import → Create pivot for analysis
+
+**Error Recovery:**
+• INVALID_RANGE → Verify data range exists
+• TOO_MANY_SERIES → Reduce columns in range
+• SOURCE_RANGE_INVALID → Verify pivot source data exists
+
+**Commonly Used With:**
+→ sheets_analyze (suggest optimal chart types and visualizations)
+→ sheets_data (prepare and export visualization data)
+→ sheets_format (format data for better charts)
+→ sheets_transaction (batch create multiple visualizations)`,
+
   sheets_filter_sort: `Apply filters and sort data (14 actions). Actions: set_filter, create_filter_view, update_filter_view, delete_filter_view, list_filter_views, sort_range, sort_sheet, clear_filter, apply_basic_filter, remove_basic_filter, set_filter_criteria, add_sort_spec, remove_sort_spec, get_filter_views.
 
 **Quick Examples:**
@@ -410,6 +444,48 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 → sheets_collaborate (collaborate with team)
 → sheets_data (comment on data issues)
 → sheets_analysis (comment on findings)`,
+
+  sheets_collaborate: `Manage collaboration including sharing, permissions, comments, and version history (28 actions). Combines sheets_sharing (8 actions) + sheets_comments (10 actions) + sheets_versions (10 actions).
+
+**Sharing Actions:** share, revoke, transfer_ownership, get_permissions, list_permissions, update_permission, get_link, set_link_sharing
+**Comments Actions:** add_comment, reply_to_comment, resolve_comment, unresolve_comment, delete_comment, delete_reply, list_comments, list_replies, get_comment, update_comment
+**Version Actions:** list_revisions, get_revision, create_snapshot, restore_revision, delete_snapshot, list_snapshots, get_snapshot, restore_from_snapshot, export_revision, compare_revisions
+
+**Quick Examples:**
+• Share with user: {"action":"share","spreadsheetId":"1ABC...","email":"user@example.com","role":"reader"}
+• Add comment: {"action":"add_comment","spreadsheetId":"1ABC...","range":"A1","text":"Please verify"}
+• Create snapshot: {"action":"create_snapshot","spreadsheetId":"1ABC...","description":"Before cleanup"}
+• Get sharing link: {"action":"get_link","spreadsheetId":"1ABC...","access":"anyone"}
+• Reply to comment: {"action":"reply_to_comment","spreadsheetId":"1ABC...","commentId":"comment_123","text":"Verified"}
+• List revisions: {"action":"list_revisions","spreadsheetId":"1ABC...","limit":10}
+
+**Performance Tips:**
+• Share with groups instead of individual users
+• Create snapshots before major changes
+• Resolve comments after addressing them
+• Use "commenter" role for review stakeholders
+• Versions stored for 30 days
+
+**Common Workflows:**
+1. After creation → Share with team
+2. For review → Add comments on data issues
+3. Before big changes → Create snapshot
+4. After mistakes → Restore previous version
+5. For collaboration → Reply to comments with updates
+6. For stakeholders → Generate time-limited link
+
+**Error Recovery:**
+• USER_NOT_FOUND → Verify email address
+• COMMENT_NOT_FOUND → May have been deleted
+• REVISION_NOT_FOUND → May have expired (30 day limit)
+
+**Commonly Used With:**
+→ sheets_advanced (protect ranges after sharing)
+→ sheets_data (comment on data issues)
+→ sheets_analysis (comment on analysis findings)
+→ sheets_transaction (snapshot before batch changes)
+→ sheets_history (track collaboration over time)
+→ sheets_quality (resolve conflicts with previous versions)`,
 
   //=============================================================================
   // VERSION CONTROL
