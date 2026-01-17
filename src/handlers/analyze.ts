@@ -24,6 +24,7 @@ import type {
   SheetsAnalyzeInput,
   SheetsAnalyzeOutput,
   AnalyzeResponse,
+  ComprehensiveInput,
 } from '../schemas/analyze.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
 import { getHotCache } from '../utils/hot-cache.js';
@@ -1598,12 +1599,13 @@ export class AnalyzeHandler {
         }
 
         default: {
-          // Should never reach here due to Zod validation
+          // Exhaustive check - should never reach here with discriminated union
+          const _exhaustiveCheck: never = input;
           response = {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unknown action: ${input.action}`,
+              message: `Unknown action: ${(_exhaustiveCheck as SheetsAnalyzeInput).action}`,
               retryable: false,
             },
           };
@@ -1720,7 +1722,7 @@ export class AnalyzeHandler {
    */
   private async runComprehensiveAnalysisTask(
     taskId: string,
-    input: SheetsAnalyzeInput & { spreadsheetId: string }
+    input: ComprehensiveInput
   ): Promise<void> {
     const taskStore = this.context.taskStore;
     if (!taskStore) {

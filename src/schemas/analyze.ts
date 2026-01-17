@@ -149,230 +149,246 @@ export const PerformanceRecommendationSchema = z.object({
     .describe('Ready-to-execute optimization'),
 });
 
-/**
- * Input schema - flattened union for MCP SDK compatibility
- * The MCP SDK has issues with z.discriminatedUnion() that can cause validation problems
- * Workaround: Use a single object with all fields optional, validate with refine()
- */
-export const SheetsAnalyzeInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z
-      .enum([
-        'comprehensive', // ONE TOOL: Complete analysis replacing sheets_core + sheets_data + sheets_analysis
-        'analyze_data', // Core: Smart routing (stats OR AI)
-        'suggest_visualization', // Core: Unified chart/pivot recommendations with executable params
-        'generate_formula', // Core: Formula generation with context
-        'detect_patterns', // Core: Anomalies, trends, correlations
-        'analyze_structure', // Specialized: Schema, types, relationships
-        'analyze_quality', // Specialized: Nulls, duplicates, outliers
-        'analyze_performance', // Specialized: Optimization suggestions
-        'analyze_formulas', // Intelligence: Formula analysis and optimization
-        'query_natural_language', // Intelligence: Conversational data queries
-        'explain_analysis', // Utility: Conversational explanations
-      ])
-      .describe('The analysis operation to perform'),
+// ============================================================================
+// INPUT SCHEMA (11 actions)
+// ============================================================================
 
-    // Common fields
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for most actions)'
+const CommonFieldsSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
     ),
-    sheetId: SheetIdSchema.optional().describe('Sheet ID for analysis'),
-    range: RangeInputSchema.optional().describe('Range to analyze or use for context'),
+  sheetId: SheetIdSchema.optional().describe('Sheet ID for analysis'),
+});
 
-    // analyze_data specific fields
-    analysisTypes: z
-      .array(AnalysisTypeSchema)
-      .min(1)
-      .optional()
-      .default(['summary', 'quality'])
-      .describe('Types of analysis to perform (analyze_data)'),
-    useAI: z.boolean().optional().describe('Force AI-powered analysis via MCP Sampling'),
-    context: z.string().optional().describe('Additional context for the analysis'),
-    maxTokens: z
-      .number()
-      .int()
-      .positive()
-      .max(8192)
-      .optional()
-      .describe('Maximum tokens for AI response, default: 4096'),
+// ===== CORE ACTIONS (5 actions) =====
 
-    // suggest_visualization specific fields
-    goal: z
-      .string()
-      .optional()
-      .describe('Visualization goal, e.g., "show trends", "compare categories"'),
-    preferredTypes: z.array(z.string()).optional().describe('Preferred chart/pivot types'),
-    includeCharts: z.boolean().optional().default(true).describe('Include chart recommendations'),
-    includePivots: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include pivot table recommendations'),
+const ComprehensiveActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('comprehensive')
+    .describe('Complete analysis replacing sheets_core + sheets_data + sheets_analysis'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+  includeFormulas: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include formula analysis and optimization suggestions'),
+  includeVisualizations: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include visualization recommendations with executable params'),
+  includePerformance: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include performance analysis and optimization recommendations'),
+  forceFullData: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Force full data retrieval instead of sampling'),
+  samplingThreshold: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(10000)
+    .describe('Row count threshold before sampling kicks in'),
+  sampleSize: z
+    .number()
+    .int()
+    .positive()
+    .max(5000)
+    .optional()
+    .default(500)
+    .describe('Sample size when sampling is used'),
+  cursor: z
+    .string()
+    .optional()
+    .describe(
+      'Pagination cursor for comprehensive analysis (format: "sheet:N" where N is sheet index)'
+    ),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .min(1)
+    .max(50)
+    .optional()
+    .default(5)
+    .describe('Number of sheets to return per page'),
+  context: z.string().optional().describe('Additional context for analysis'),
+});
 
-    // generate_formula specific fields
-    description: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Natural language description of the formula (required for: generate_formula)'),
-    targetCell: z.string().optional().describe('Target cell for formula context'),
-    includeExplanation: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include formula explanation'),
+const AnalyzeDataActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('analyze_data').describe('Smart routing (stats OR AI)'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+  analysisTypes: z
+    .array(AnalysisTypeSchema)
+    .min(1)
+    .optional()
+    .default(['summary', 'quality'])
+    .describe('Types of analysis to perform'),
+  useAI: z.boolean().optional().describe('Force AI-powered analysis via MCP Sampling'),
+  context: z.string().optional().describe('Additional context for the analysis'),
+  maxTokens: z
+    .number()
+    .int()
+    .positive()
+    .max(8192)
+    .optional()
+    .describe('Maximum tokens for AI response (default: 4096)'),
+});
 
-    // detect_patterns specific fields
-    includeCorrelations: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include correlation analysis'),
-    includeTrends: z.boolean().optional().default(true).describe('Include trend detection'),
-    includeSeasonality: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Include seasonality patterns'),
-    includeAnomalies: z.boolean().optional().default(true).describe('Include anomaly detection'),
+const SuggestVisualizationActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('suggest_visualization')
+    .describe('Unified chart/pivot recommendations with executable params'),
+  range: RangeInputSchema.describe('Range to analyze for visualization suggestions'),
+  goal: z
+    .string()
+    .optional()
+    .describe('Visualization goal, e.g., "show trends", "compare categories"'),
+  preferredTypes: z.array(z.string()).optional().describe('Preferred chart/pivot types'),
+  includeCharts: z.boolean().optional().default(true).describe('Include chart recommendations'),
+  includePivots: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include pivot table recommendations'),
+});
 
-    // analyze_structure specific fields
-    detectTables: z.boolean().optional().default(true).describe('Detect table structures'),
-    detectHeaders: z.boolean().optional().default(true).describe('Detect header rows'),
+const GenerateFormulaActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('generate_formula').describe('Formula generation with context'),
+  description: z.string().min(1).describe('Natural language description of the formula'),
+  range: RangeInputSchema.optional().describe('Range for formula context'),
+  targetCell: z.string().optional().describe('Target cell for formula context'),
+  includeExplanation: z.boolean().optional().default(true).describe('Include formula explanation'),
+});
 
-    // analyze_quality specific fields
-    checks: z
-      .array(
-        z.enum([
-          'headers',
-          'data_types',
-          'empty_cells',
-          'duplicates',
-          'outliers',
-          'formatting',
-          'validation',
-        ])
-      )
-      .optional()
-      .describe('Quality checks to perform'),
-    outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
-    outlierThreshold: z.number().optional().default(1.5),
+const DetectPatternsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('detect_patterns').describe('Anomalies, trends, correlations'),
+  range: RangeInputSchema.describe('Range to analyze for patterns'),
+  includeCorrelations: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include correlation analysis'),
+  includeTrends: z.boolean().optional().default(true).describe('Include trend detection'),
+  includeSeasonality: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include seasonality patterns'),
+  includeAnomalies: z.boolean().optional().default(true).describe('Include anomaly detection'),
+});
 
-    // analyze_formulas specific fields
-    includeOptimizations: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include optimization suggestions'),
-    includeComplexity: z.boolean().optional().default(true).describe('Include complexity scoring'),
+// ===== SPECIALIZED ACTIONS (4 actions) =====
 
-    // query_natural_language specific fields
-    query: z
-      .string()
-      .optional()
-      .describe('Natural language query (required for: query_natural_language)'),
-    conversationId: z.string().optional().describe('Conversation ID for multi-turn queries'),
+const AnalyzeStructureActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('analyze_structure').describe('Schema, types, relationships'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+  detectTables: z.boolean().optional().default(true).describe('Detect table structures'),
+  detectHeaders: z.boolean().optional().default(true).describe('Detect header rows'),
+});
 
-    // explain_analysis specific fields
+const AnalyzeQualityActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('analyze_quality').describe('Nulls, duplicates, outliers'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+  checks: z
+    .array(
+      z.enum([
+        'headers',
+        'data_types',
+        'empty_cells',
+        'duplicates',
+        'outliers',
+        'formatting',
+        'validation',
+      ])
+    )
+    .optional()
+    .describe('Quality checks to perform'),
+  outlierMethod: z.enum(['iqr', 'zscore', 'modified_zscore']).optional().default('iqr'),
+  outlierThreshold: z.number().optional().default(1.5),
+});
+
+const AnalyzePerformanceActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('analyze_performance').describe('Optimization suggestions'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+});
+
+const AnalyzeFormulasActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('analyze_formulas').describe('Formula analysis and optimization'),
+  range: RangeInputSchema.optional().describe('Range to analyze'),
+  includeOptimizations: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Include optimization suggestions'),
+  includeComplexity: z.boolean().optional().default(true).describe('Include complexity scoring'),
+});
+
+// ===== INTELLIGENCE ACTIONS (2 actions) =====
+
+const QueryNaturalLanguageActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('query_natural_language').describe('Conversational data queries'),
+  query: z.string().describe('Natural language query'),
+  range: RangeInputSchema.optional().describe('Range for query context'),
+  conversationId: z.string().optional().describe('Conversation ID for multi-turn queries'),
+});
+
+const ExplainAnalysisActionSchema = z
+  .object({
+    action: z.literal('explain_analysis').describe('Conversational explanations'),
     analysisResult: z
       .record(z.string(), z.unknown())
       .optional()
       .describe('Previous analysis result to explain'),
     question: z.string().optional().describe('Specific question about the analysis'),
-
-    // comprehensive action specific fields (ONE TOOL TO RULE THEM ALL)
-    // This action replaces: sheets_core + sheets_data + sheets_analysis
-    includeFormulas: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include formula analysis and optimization suggestions (comprehensive)'),
-    includeVisualizations: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include visualization recommendations with executable params (comprehensive)'),
-    includePerformance: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Include performance analysis and optimization recommendations (comprehensive)'),
-    forceFullData: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Force full data retrieval instead of sampling (comprehensive)'),
-    samplingThreshold: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(10000)
-      .describe('Row count threshold before sampling kicks in (comprehensive)'),
-    sampleSize: z
-      .number()
-      .int()
-      .positive()
-      .max(5000)
-      .optional()
-      .default(500)
-      .describe('Sample size when sampling is used (comprehensive)'),
-
-    // Pagination support (MCP 2025-11-25)
-    cursor: z
-      .string()
-      .optional()
-      .describe(
-        'Pagination cursor for comprehensive analysis (format: "sheet:N" where N is sheet index)'
-      ),
-    pageSize: z
-      .number()
-      .int()
-      .positive()
-      .min(1)
-      .max(50)
-      .optional()
-      .default(5)
-      .describe('Number of sheets to return per page (comprehensive pagination)'),
-
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
+    spreadsheetId: SpreadsheetIdSchema.optional().describe('Spreadsheet ID (optional for context)'),
+    sheetId: SheetIdSchema.optional().describe('Sheet ID (optional for context)'),
+    context: z.string().optional().describe('Additional context'),
     verbosity: z
       .enum(['minimal', 'standard', 'detailed'])
       .optional()
       .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
+      .describe('Response detail level'),
   })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        case 'comprehensive': // ONE TOOL: Only needs spreadsheetId
-        case 'analyze_data':
-        case 'analyze_structure':
-        case 'analyze_quality':
-        case 'analyze_performance':
-        case 'analyze_formulas':
-          return !!data.spreadsheetId;
-        case 'suggest_visualization':
-        case 'detect_patterns':
-          return !!data.spreadsheetId && !!data.range;
-        case 'generate_formula':
-          return !!data.spreadsheetId && !!data.description;
-        case 'query_natural_language':
-          return !!data.spreadsheetId && !!data.query;
-        case 'explain_analysis':
-          return !!data.analysisResult || !!data.question;
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+  .refine((data) => !!data.analysisResult || !!data.question, {
+    message: 'Either analysisResult or question must be provided',
+  });
+
+/**
+ * All analysis operation inputs
+ *
+ * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
+ * - Better type safety at compile-time
+ * - Clearer error messages for LLMs
+ * - Each action has only its required fields (no optional field pollution)
+ * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ */
+export const SheetsAnalyzeInputSchema = z.discriminatedUnion('action', [
+  // Core actions (5)
+  ComprehensiveActionSchema,
+  AnalyzeDataActionSchema,
+  SuggestVisualizationActionSchema,
+  GenerateFormulaActionSchema,
+  DetectPatternsActionSchema,
+  // Specialized actions (4)
+  AnalyzeStructureActionSchema,
+  AnalyzeQualityActionSchema,
+  AnalyzePerformanceActionSchema,
+  AnalyzeFormulasActionSchema,
+  // Intelligence actions (2)
+  QueryNaturalLanguageActionSchema,
+  ExplainAnalysisActionSchema,
+]);
 
 /**
  * Analysis finding schema
