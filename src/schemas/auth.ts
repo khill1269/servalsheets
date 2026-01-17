@@ -7,39 +7,36 @@ import { z } from 'zod';
 import { URL_REGEX } from '../config/google-limits.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsAuthInputSchema = z
-  .object({
-    action: z
-      .enum(['status', 'login', 'callback', 'logout'])
-      .describe('The authentication operation to perform'),
-    scopes: z
-      .array(
-        z.string().min(1, 'Scope cannot be empty').max(256, 'Scope URL exceeds 256 characters')
-      )
-      .min(1, 'At least one scope required if scopes provided')
-      .max(50, 'Cannot request more than 50 scopes')
-      .optional()
-      .describe('Additional OAuth scopes to request (login only, max 50)'),
-    code: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Authorization code from Google (required for: callback)'),
-  })
-  .refine(
-    (data) => {
-      if (data.action === 'callback') {
-        return !!data.code;
-      }
-      return true;
-    },
-    {
-      message: 'Authorization code is required for callback action',
-    }
-  );
+// INPUT SCHEMA: Discriminated union (4 actions)
+const StatusActionSchema = z.object({
+  action: z.literal('status').describe('Check current authentication status'),
+});
+
+const LoginActionSchema = z.object({
+  action: z.literal('login').describe('Initiate OAuth login flow'),
+  scopes: z
+    .array(z.string().min(1, 'Scope cannot be empty').max(256, 'Scope URL exceeds 256 characters'))
+    .min(1, 'At least one scope required if scopes provided')
+    .max(50, 'Cannot request more than 50 scopes')
+    .optional()
+    .describe('Additional OAuth scopes to request (max 50)'),
+});
+
+const CallbackActionSchema = z.object({
+  action: z.literal('callback').describe('Handle OAuth callback with authorization code'),
+  code: z.string().min(1).describe('Authorization code from Google'),
+});
+
+const LogoutActionSchema = z.object({
+  action: z.literal('logout').describe('Revoke authentication and clear tokens'),
+});
+
+export const SheetsAuthInputSchema = z.discriminatedUnion('action', [
+  StatusActionSchema,
+  LoginActionSchema,
+  CallbackActionSchema,
+  LogoutActionSchema,
+]);
 
 const AuthResponseSchema = z.discriminatedUnion('success', [
   z.object({

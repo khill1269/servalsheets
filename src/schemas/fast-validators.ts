@@ -279,8 +279,9 @@ export function fastValidateData(input: Record<string, unknown>): void {
   }
 }
 
-// 5. sheets_format
+// 5. sheets_format (18 actions: 10 format + 8 rules)
 const FORMAT_ACTIONS = new Set([
+  // Format actions (10)
   'set_format',
   'suggest_format',
   'set_background',
@@ -291,16 +292,30 @@ const FORMAT_ACTIONS = new Set([
   'clear_format',
   'apply_preset',
   'auto_fit',
+  // Rules actions (8)
+  'rule_add_conditional_format',
+  'rule_update_conditional_format',
+  'rule_delete_conditional_format',
+  'rule_list_conditional_formats',
+  'rule_add_data_validation',
+  'rule_clear_data_validation',
+  'rule_list_data_validations',
+  'rule_add_preset_rule',
 ]);
 
 export function fastValidateFormat(input: Record<string, unknown>): void {
   assertAction(input['action'], FORMAT_ACTIONS);
   assertSpreadsheetId(input['spreadsheetId']);
-  assertRange(input['range'], 'range');
+  // Only require range for non-list actions
+  const action = input['action'] as string;
+  if (!action.startsWith('rule_list')) {
+    assertRange(input['range'], 'range');
+  }
 }
 
-// 6. sheets_dimensions
+// 6. sheets_dimensions (35 actions: 21 dimension + 14 filter/sort)
 const DIMENSIONS_ACTIONS = new Set([
+  // Dimension actions (21)
   'insert_rows',
   'insert_columns',
   'delete_rows',
@@ -322,13 +337,32 @@ const DIMENSIONS_ACTIONS = new Set([
   'ungroup_columns',
   'append_rows',
   'append_columns',
+  // Filter and sort actions (14)
+  'filter_set_basic_filter',
+  'filter_clear_basic_filter',
+  'filter_get_basic_filter',
+  'filter_update_filter_criteria',
+  'filter_sort_range',
+  'filter_create_filter_view',
+  'filter_update_filter_view',
+  'filter_delete_filter_view',
+  'filter_list_filter_views',
+  'filter_get_filter_view',
+  'filter_create_slicer',
+  'filter_update_slicer',
+  'filter_delete_slicer',
+  'filter_list_slicers',
 ]);
 
 export function fastValidateDimensions(input: Record<string, unknown>): void {
   assertAction(input['action'], DIMENSIONS_ACTIONS);
   assertSpreadsheetId(input['spreadsheetId']);
-  if (typeof input['sheetId'] !== 'number') {
-    throw new FastValidationError('MISSING_FIELD', 'sheetId is required');
+  // Only require sheetId for non-list filter actions
+  const action = input['action'] as string;
+  if (!action.startsWith('filter_list')) {
+    if (typeof input['sheetId'] !== 'number') {
+      throw new FastValidationError('MISSING_FIELD', 'sheetId is required');
+    }
   }
 }
 

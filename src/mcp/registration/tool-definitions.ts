@@ -90,7 +90,7 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  *
- * 17 tools after Wave 4 consolidation:
+ * 16 tools after Phase 1 optimization (removed deprecated sheets_analysis):
  * - Wave 1: sheets_core (replaces sheets_spreadsheet + sheets_sheet)
  * - Wave 1: sheets_visualize (replaces sheets_charts + sheets_pivot)
  * - Wave 1: sheets_collaborate (replaces sheets_sharing + sheets_comments + sheets_versions)

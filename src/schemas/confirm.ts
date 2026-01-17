@@ -51,31 +51,23 @@ const OperationPlanSchema = z.object({
 });
 
 /**
- * Input schema - flattened union for MCP SDK compatibility
- * The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
- * Workaround: Use a single object with all fields optional, validate with refine()
+ * Input schema - discriminated union (2 actions)
  */
-export const SheetsConfirmInputSchema = z
-  .object({
-    action: z.enum(['request', 'get_stats']).describe('The confirmation operation to perform'),
-    plan: OperationPlanSchema.optional().describe(
-      'The plan to confirm with the user (required for: request)'
-    ),
-  })
-  .refine(
-    (data) => {
-      switch (data.action) {
-        case 'request':
-          return !!data.plan;
-        case 'get_stats':
-          return true;
-      }
-      return true;
-    },
-    {
-      message: 'Plan is required for request action',
-    }
-  );
+const RequestActionSchema = z.object({
+  action: z
+    .literal('request')
+    .describe('Request user confirmation for a multi-step operation plan'),
+  plan: OperationPlanSchema.describe('The plan to confirm with the user'),
+});
+
+const GetStatsActionSchema = z.object({
+  action: z.literal('get_stats').describe('Get statistics about confirmation requests'),
+});
+
+export const SheetsConfirmInputSchema = z.discriminatedUnion('action', [
+  RequestActionSchema,
+  GetStatsActionSchema,
+]);
 
 /**
  * Confirmation result schema

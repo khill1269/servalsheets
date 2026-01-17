@@ -48,330 +48,306 @@ const DataValidationSchema = z.object({
 // CONSOLIDATED INPUT SCHEMA (21 actions)
 // ============================================================================
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsDataInputSchema = z
-  .object({
-    // Required action discriminator (21 actions total)
-    action: z
-      .enum([
-        // Value actions (9 actions)
-        'read',
-        'write',
-        'append',
-        'clear',
-        'batch_read',
-        'batch_write',
-        'batch_clear',
-        'find',
-        'replace',
-        // Cell actions (12 actions)
-        'add_note',
-        'get_note',
-        'clear_note',
-        'set_validation',
-        'clear_validation',
-        'set_hyperlink',
-        'clear_hyperlink',
-        'merge',
-        'unmerge',
-        'get_merges',
-        'cut',
-        'copy',
-      ])
-      .describe(
-        'The data operation to perform (values, notes, validation, hyperlinks, or clipboard)'
-      ),
-
-    // Common fields
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for all actions)'
+// Common fields used across multiple actions
+const CommonFieldsSchema = z.object({
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe(
+      'Response detail level: minimal (essential data only, ~60% less tokens), standard (balanced), detailed (full metadata)'
     ),
+});
 
-    // ========================================================================
-    // VALUE OPERATION FIELDS (from values.ts)
-    // ========================================================================
+// ============================================================================
+// VALUE ACTION SCHEMAS (9 actions)
+// ============================================================================
 
-    // Range field for value operations (read, write, append, clear)
-    range: RangeInputSchema.optional().describe(
-      'Range to operate on (A1 notation or semantic) (required for: read, write, append, clear, set_validation, clear_validation, merge, unmerge; optional for: find, replace)'
-    ),
+const ReadActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('read'),
+  range: RangeInputSchema.describe('Range to read in A1 notation or semantic'),
+  valueRenderOption: ValueRenderOptionSchema.optional()
+    .default('FORMATTED_VALUE')
+    .describe('How values should be rendered (FORMATTED_VALUE, UNFORMATTED_VALUE, FORMULA)'),
+  majorDimension: MajorDimensionSchema.optional()
+    .default('ROWS')
+    .describe('Major dimension for data layout (ROWS or COLUMNS)'),
+  streaming: z.boolean().optional().describe('Enable streaming mode for large reads'),
+  chunkSize: z
+    .number()
+    .int()
+    .positive()
+    .default(1000)
+    .optional()
+    .describe('Rows per chunk in streaming mode'),
+  cursor: z.string().optional().describe('Opaque pagination cursor from previous response'),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(10000)
+    .optional()
+    .describe('Maximum number of rows per page (default: 1000, max: 10000)'),
+});
 
-    // Read-specific fields
-    valueRenderOption: ValueRenderOptionSchema.optional()
-      .default('FORMATTED_VALUE')
-      .describe(
-        'How values should be rendered (default: FORMATTED_VALUE for display text | alternatives: UNFORMATTED_VALUE for raw values, FORMULA for formulas) (read, batch_read)'
-      ),
-    majorDimension: MajorDimensionSchema.optional()
-      .default('ROWS')
-      .describe(
-        'Major dimension for data layout (default: ROWS for row-major | alternative: COLUMNS for column-major) (read, batch_read)'
-      ),
-    streaming: z
-      .boolean()
-      .optional()
-      .describe(
-        'Enable streaming mode for large reads (chunks data to respect deadlines) (read only)'
-      ),
-    chunkSize: z
-      .number()
-      .int()
-      .positive()
-      .default(1000)
-      .optional()
-      .describe('Rows per chunk in streaming mode (default: 1000) (read only)'),
+const WriteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('write'),
+  range: RangeInputSchema.describe('Range to write to in A1 notation or semantic'),
+  values: ValuesArraySchema.describe('2D array of cell values (rows × columns)'),
+  valueInputOption: ValueInputOptionSchema.optional()
+    .default('USER_ENTERED')
+    .describe('How input data should be interpreted (USER_ENTERED or RAW)'),
+  includeValuesInResponse: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Return the written values for verification'),
+  diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+});
 
-    // Pagination fields (MCP 2025-11-25 compliance)
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor from previous response (read, batch_read)'),
-    pageSize: z
-      .number()
-      .int()
-      .positive()
-      .max(10000)
-      .optional()
-      .describe('Maximum number of rows per page (default: 1000, max: 10000) (read, batch_read)'),
+const AppendActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('append'),
+  range: RangeInputSchema.describe('Range to append to (table or sheet range)'),
+  values: ValuesArraySchema.describe('2D array of cell values to append'),
+  valueInputOption: ValueInputOptionSchema.optional()
+    .default('USER_ENTERED')
+    .describe('How input data should be interpreted'),
+  insertDataOption: InsertDataOptionSchema.optional()
+    .default('INSERT_ROWS')
+    .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
+});
 
-    // Write/Append-specific fields
-    values: ValuesArraySchema.optional().describe(
-      '2D array of cell values (rows × columns) (required for: write, append)'
-    ),
-    valueInputOption: ValueInputOptionSchema.optional()
-      .default('USER_ENTERED')
-      .describe(
-        'How input data should be interpreted (default: USER_ENTERED for smart parsing | alternative: RAW for literal values) (write, append, batch_write)'
-      ),
-    includeValuesInResponse: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Return the written values for verification (write, batch_write)'),
+const ClearActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear'),
+  range: RangeInputSchema.describe('Range to clear'),
+  previewMode: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Show what would change without applying'),
+});
 
-    // Append-specific fields
-    insertDataOption: InsertDataOptionSchema.optional()
-      .default('INSERT_ROWS')
-      .describe(
-        'Whether to overwrite or insert rows (default: INSERT_ROWS for adding new rows | alternative: OVERWRITE to replace existing) (append only)'
-      ),
+const BatchReadActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('batch_read'),
+  ranges: z
+    .array(RangeInputSchema)
+    .min(1)
+    .max(100)
+    .describe('Array of ranges to read (1-100 ranges)'),
+  valueRenderOption: ValueRenderOptionSchema.optional()
+    .default('FORMATTED_VALUE')
+    .describe('How values should be rendered'),
+  majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
+  cursor: z.string().optional().describe('Pagination cursor'),
+  pageSize: z.number().int().positive().max(10000).optional().describe('Rows per page'),
+});
 
-    // Batch operations fields
-    ranges: z
-      .array(RangeInputSchema)
-      .min(1)
-      .max(100)
-      .optional()
-      .describe(
-        'Array of ranges to read/clear (1-100 ranges) (required for: batch_read, batch_clear)'
-      ),
-    data: z
-      .array(
-        z.object({
-          range: RangeInputSchema.describe('Target range'),
-          values: ValuesArraySchema.describe('2D array of cell values'),
-        })
-      )
-      .min(1)
-      .max(100)
-      .optional()
-      .describe('Array of range-value pairs to write (1-100 ranges) (required for: batch_write)'),
+const BatchWriteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('batch_write'),
+  data: z
+    .array(
+      z.object({
+        range: RangeInputSchema.describe('Target range'),
+        values: ValuesArraySchema.describe('2D array of cell values'),
+      })
+    )
+    .min(1)
+    .max(100)
+    .describe('Array of range-value pairs to write (1-100 ranges)'),
+  valueInputOption: ValueInputOptionSchema.optional()
+    .default('USER_ENTERED')
+    .describe('How input data should be interpreted'),
+  includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
+  diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+});
 
-    // Find/Replace-specific fields
-    query: z
-      .string()
-      .optional()
-      .describe('Search query (text or pattern to find) (required for: find)'),
-    find: z.string().optional().describe('Text to find (required for: replace)'),
-    replacement: z.string().optional().describe('Text to replace with (required for: replace)'),
-    matchCase: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Case-sensitive search (default: false) (find, replace)'),
-    matchEntireCell: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        'Match entire cell content (default: false, allows partial matches) (find, replace)'
-      ),
-    includeFormulas: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Search formula text in addition to values (default: false) (find only)'),
-    previewMode: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Show what would change without applying (replace, clear, batch_clear)'),
-    limit: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(100)
-      .describe('Maximum number of matches to return (default: 100) (find only)'),
+const BatchClearActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('batch_clear'),
+  ranges: z
+    .array(RangeInputSchema)
+    .min(1)
+    .max(100)
+    .describe('Array of ranges to clear (1-100 ranges)'),
+  previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
+});
 
-    // ========================================================================
-    // CELL OPERATION FIELDS (from cells.ts)
-    // ========================================================================
+const FindActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('find'),
+  query: z.string().describe('Search query (text or pattern to find)'),
+  range: RangeInputSchema.optional().describe('Optional range to limit search'),
+  matchCase: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Case-sensitive search (default: false)'),
+  matchEntireCell: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Match entire cell content (default: false)'),
+  includeFormulas: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Search formula text in addition to values'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(100)
+    .describe('Maximum number of matches to return'),
+});
 
-    // Cell reference fields (add_note, get_note, clear_note, set_hyperlink, clear_hyperlink)
-    cell: z
-      .string()
-      .optional()
-      .describe(
-        "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2') (required for: add_note, get_note, clear_note, set_hyperlink, clear_hyperlink)"
-      ),
+const ReplaceActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('replace'),
+  find: z.string().describe('Text to find'),
+  replacement: z.string().describe('Text to replace with'),
+  range: RangeInputSchema.optional().describe('Optional range to limit replacement'),
+  matchCase: z.boolean().optional().default(false).describe('Case-sensitive search'),
+  matchEntireCell: z.boolean().optional().default(false).describe('Match entire cell content'),
+  previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
+});
 
-    // Note fields (add_note)
-    note: z
-      .string()
-      .min(1, 'Note cannot be empty')
-      .max(
-        CELL_NOTE_MAX_LENGTH,
-        `Note exceeds Google Sheets limit of ${CELL_NOTE_MAX_LENGTH} characters`
-      )
-      .optional()
-      .describe('Note/comment text to add to the cell (required for: add_note, max 50,000 chars)'),
+// ============================================================================
+// CELL ACTION SCHEMAS (12 actions)
+// ============================================================================
 
-    // Validation fields (set_validation)
-    validation: DataValidationSchema.optional().describe(
-      'Data validation rules (condition, input message, strict mode, dropdown) (required for: set_validation)'
-    ),
+const AddNoteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('add_note'),
+  cell: z.string().describe("Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2')"),
+  note: z
+    .string()
+    .min(1, 'Note cannot be empty')
+    .max(
+      CELL_NOTE_MAX_LENGTH,
+      `Note exceeds Google Sheets limit of ${CELL_NOTE_MAX_LENGTH} characters`
+    )
+    .describe('Note/comment text to add to the cell (max 50,000 chars)'),
+});
 
-    // Hyperlink fields (set_hyperlink)
-    url: z
-      .string()
-      .regex(URL_REGEX, 'Invalid URL format')
-      .max(
-        HYPERLINK_URL_MAX_LENGTH,
-        `URL exceeds Google Sheets limit of ${HYPERLINK_URL_MAX_LENGTH} characters`
-      )
-      .optional()
-      .describe(
-        'URL to link to (must be valid HTTP/HTTPS URL, max 50,000 chars) (required for: set_hyperlink)'
-      ),
-    label: z
-      .string()
-      .max(
-        MAX_CHARACTERS_PER_CELL,
-        `Label exceeds Google Sheets limit of ${MAX_CHARACTERS_PER_CELL} characters`
-      )
-      .optional()
-      .describe(
-        'Optional link text (defaults to URL if omitted, max 50,000 chars) (set_hyperlink only)'
-      ),
+const GetNoteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_note'),
+  cell: z.string().describe('Cell reference in A1 notation'),
+});
 
-    // Merge fields (merge)
-    mergeType: z
-      .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
-      .optional()
-      .default('MERGE_ALL')
-      .describe(
-        'Type of merge: MERGE_ALL (single cell), MERGE_COLUMNS (merge columns), MERGE_ROWS (merge rows) (merge only)'
-      ),
+const ClearNoteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_note'),
+  cell: z.string().describe('Cell reference in A1 notation'),
+});
 
-    // Sheet ID fields (get_merges)
-    sheetId: SheetIdSchema.optional().describe(
-      'Numeric sheet ID to query for merged cells (required for: get_merges)'
-    ),
+const SetValidationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_validation'),
+  range: RangeInputSchema.describe('Range to apply data validation'),
+  validation: DataValidationSchema.describe(
+    'Data validation rules (condition, input message, strict mode, dropdown)'
+  ),
+});
 
-    // Cut/Copy fields (cut, copy)
-    source: RangeInputSchema.optional().describe(
-      'Source range to cut/copy from (required for: cut, copy)'
-    ),
-    destination: z
-      .string()
-      .optional()
-      .describe(
-        'Destination cell in A1 notation (top-left of paste area) (required for: cut, copy)'
-      ),
-    pasteType: z
-      .enum(['PASTE_NORMAL', 'PASTE_VALUES', 'PASTE_FORMAT', 'PASTE_NO_BORDERS', 'PASTE_FORMULA'])
-      .optional()
-      .default('PASTE_NORMAL')
-      .describe(
-        'What to paste: NORMAL (all), VALUES (only values), FORMAT (only formatting), NO_BORDERS (exclude borders), FORMULA (formulas) (cut, copy only)'
-      ),
+const ClearValidationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_validation'),
+  range: RangeInputSchema.describe('Range to clear data validation from'),
+});
 
-    // ========================================================================
-    // SHARED FIELDS (used by multiple operations)
-    // ========================================================================
+const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_hyperlink'),
+  cell: z.string().describe('Cell reference in A1 notation'),
+  url: z
+    .string()
+    .regex(URL_REGEX, 'Invalid URL format')
+    .max(
+      HYPERLINK_URL_MAX_LENGTH,
+      `URL exceeds Google Sheets limit of ${HYPERLINK_URL_MAX_LENGTH} characters`
+    )
+    .describe('URL to link to (must be valid HTTP/HTTPS URL, max 50,000 chars)'),
+  label: z
+    .string()
+    .max(
+      MAX_CHARACTERS_PER_CELL,
+      `Label exceeds Google Sheets limit of ${MAX_CHARACTERS_PER_CELL} characters`
+    )
+    .optional()
+    .describe('Optional link text (defaults to URL if omitted, max 50,000 chars)'),
+});
 
-    // Safety and diff options (common to write operations)
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options (dryRun, createSnapshot, etc.) (write, append, clear, batch_write, batch_clear, replace, clear_note, set_validation, clear_validation, clear_hyperlink, cut)'
-    ),
-    diffOptions: DiffOptionsSchema.optional().describe(
-      'Diff generation options (tier, sampleSize, maxFullDiffCells) (write, batch_write)'
-    ),
+const ClearHyperlinkActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_hyperlink'),
+  cell: z.string().describe('Cell reference in A1 notation'),
+});
 
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential data only, ~60% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        // Value actions
-        case 'read':
-          return !!data.spreadsheetId && !!data.range;
-        case 'write':
-          return !!data.spreadsheetId && !!data.range && !!data.values;
-        case 'append':
-          return !!data.spreadsheetId && !!data.range && !!data.values;
-        case 'clear':
-          return !!data.spreadsheetId && !!data.range;
-        case 'batch_read':
-          return !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0;
-        case 'batch_write':
-          return !!data.spreadsheetId && !!data.data && data.data.length > 0;
-        case 'batch_clear':
-          return !!data.spreadsheetId && !!data.ranges && data.ranges.length > 0;
-        case 'find':
-          return !!data.spreadsheetId && !!data.query;
-        case 'replace':
-          return !!data.spreadsheetId && !!data.find && data.replacement !== undefined;
+const MergeActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('merge'),
+  range: RangeInputSchema.describe('Range to merge'),
+  mergeType: z
+    .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
+    .optional()
+    .default('MERGE_ALL')
+    .describe('Type of merge: MERGE_ALL (single cell), MERGE_COLUMNS, MERGE_ROWS'),
+});
 
-        // Cell actions
-        case 'add_note':
-          return !!data.spreadsheetId && !!data.cell && !!data.note;
-        case 'get_note':
-        case 'clear_note':
-        case 'set_hyperlink':
-        case 'clear_hyperlink':
-          return !!data.spreadsheetId && !!data.cell;
-        case 'set_validation':
-          return !!data.spreadsheetId && !!data.range && !!data.validation;
-        case 'clear_validation':
-        case 'merge':
-        case 'unmerge':
-          return !!data.spreadsheetId && !!data.range;
-        case 'get_merges':
-          return !!data.spreadsheetId && data.sheetId !== undefined;
-        case 'cut':
-        case 'copy':
-          return !!data.spreadsheetId && !!data.source && !!data.destination;
+const UnmergeActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('unmerge'),
+  range: RangeInputSchema.describe('Range to unmerge'),
+});
 
-        default:
-          return false;
-      }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+const GetMergesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_merges'),
+  sheetId: SheetIdSchema.describe('Numeric sheet ID to query for merged cells'),
+});
+
+const CutActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('cut'),
+  source: RangeInputSchema.describe('Source range to cut from'),
+  destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
+  pasteType: z
+    .enum(['PASTE_NORMAL', 'PASTE_VALUES', 'PASTE_FORMAT', 'PASTE_NO_BORDERS', 'PASTE_FORMULA'])
+    .optional()
+    .default('PASTE_NORMAL')
+    .describe('What to paste: NORMAL (all), VALUES, FORMAT, NO_BORDERS, FORMULA'),
+});
+
+const CopyActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('copy'),
+  source: RangeInputSchema.describe('Source range to copy from'),
+  destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
+  pasteType: z
+    .enum(['PASTE_NORMAL', 'PASTE_VALUES', 'PASTE_FORMAT', 'PASTE_NO_BORDERS', 'PASTE_FORMULA'])
+    .optional()
+    .default('PASTE_NORMAL')
+    .describe('What to paste: NORMAL (all), VALUES, FORMAT, NO_BORDERS, FORMULA'),
+});
+
+// ============================================================================
+// DISCRIMINATED UNION (21 actions)
+// ============================================================================
+
+export const SheetsDataInputSchema = z.discriminatedUnion('action', [
+  // Value actions (9)
+  ReadActionSchema,
+  WriteActionSchema,
+  AppendActionSchema,
+  ClearActionSchema,
+  BatchReadActionSchema,
+  BatchWriteActionSchema,
+  BatchClearActionSchema,
+  FindActionSchema,
+  ReplaceActionSchema,
+  // Cell actions (12)
+  AddNoteActionSchema,
+  GetNoteActionSchema,
+  ClearNoteActionSchema,
+  SetValidationActionSchema,
+  ClearValidationActionSchema,
+  SetHyperlinkActionSchema,
+  ClearHyperlinkActionSchema,
+  MergeActionSchema,
+  UnmergeActionSchema,
+  GetMergesActionSchema,
+  CutActionSchema,
+  CopyActionSchema,
+]);
 
 // ============================================================================
 // CONSOLIDATED OUTPUT SCHEMA

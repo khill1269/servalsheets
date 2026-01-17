@@ -106,38 +106,19 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
 
 export type SheetsFixResponse = z.infer<typeof SheetsFixResponseSchema>;
 
-// INPUT SCHEMA: Flattened union for MCP SDK compatibility
-// The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
-// Workaround: Use a single object with all fields optional, validate with refine()
-export const SheetsFixInputSchema = z
-  .object({
-    // Required action discriminator
-    action: z.enum(['fix']).describe('Apply automated fixes to identified issues'),
+// INPUT SCHEMA: Discriminated union (1 action)
+const FixActionSchema = z.object({
+  action: z.literal('fix').describe('Apply automated fixes to identified issues'),
+  spreadsheetId: z.string().describe('Spreadsheet ID to fix'),
+  issues: z.array(IssueToFixSchema).describe('Issues to fix (from sheets_analysis)'),
+  mode: FixModeSchema.optional().describe(
+    'preview = show what would be fixed, apply = actually fix'
+  ),
+  filters: FixFiltersSchema.optional().describe('Filter issues to fix'),
+  safety: FixSafetySchema.optional().describe('Safety options'),
+});
 
-    // Fields for FIX action
-    spreadsheetId: z.string().optional().describe('Spreadsheet ID to fix (required for: fix)'),
-    issues: z
-      .array(IssueToFixSchema)
-      .optional()
-      .describe('Issues to fix (from sheets_analysis) (required for: fix)'),
-    mode: FixModeSchema.optional().describe(
-      'preview = show what would be fixed, apply = actually fix (fix only)'
-    ),
-    filters: FixFiltersSchema.optional().describe('Filter issues to fix (fix only)'),
-    safety: FixSafetySchema.optional().describe('Safety options (fix only)'),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      if (data.action === 'fix') {
-        return !!data.spreadsheetId && !!data.issues;
-      }
-      return true;
-    },
-    {
-      message: 'Missing required fields: spreadsheetId and issues are required for fix action',
-    }
-  );
+export const SheetsFixInputSchema = z.discriminatedUnion('action', [FixActionSchema]);
 
 export const SheetsFixOutputSchema = z.object({
   response: SheetsFixResponseSchema,

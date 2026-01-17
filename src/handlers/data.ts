@@ -14,6 +14,7 @@ import { BaseHandler, type HandlerContext } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type { SheetsDataInput, SheetsDataOutput } from '../schemas/data.js';
 import type { ValuesArray, ErrorDetail, MutationSummary } from '../schemas/index.js';
+import type { RangeInput } from '../schemas/shared.js';
 import { logger } from '../utils/logger.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { createRequestKey } from '../utils/request-deduplication.js';
@@ -291,8 +292,9 @@ class ValuesOperations {
 
   private error = (error: ErrorDetail): DataResponse => this.parent['error'](error);
 
-  private async resolveRange(spreadsheetId: string, range: string): Promise<string> {
-    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, { a1: range });
+  private async resolveRange(spreadsheetId: string, range: RangeInput | string): Promise<string> {
+    const rangeInput = typeof range === 'string' ? { a1: range } : range;
+    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, rangeInput);
     return resolved.a1Notation;
   }
 
@@ -843,7 +845,7 @@ class ValuesOperations {
       row: number;
       column: number;
     }> = [];
-    const query = input.matchCase ? input.searchValue : input.searchValue.toLowerCase();
+    const query = input.matchCase ? input.query : input.query.toLowerCase();
     const limit = 100;
 
     for (let row = 0; row < values.length && matches.length < limit; row++) {
@@ -999,8 +1001,9 @@ class CellsOperations {
 
   private error = (error: ErrorDetail): DataResponse => this.parent['error'](error);
 
-  private async resolveRange(spreadsheetId: string, range: string): Promise<string> {
-    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, { a1: range });
+  private async resolveRange(spreadsheetId: string, range: RangeInput | string): Promise<string> {
+    const rangeInput = typeof range === 'string' ? { a1: range } : range;
+    const resolved = await this.context.rangeResolver.resolve(spreadsheetId, rangeInput);
     return resolved.a1Notation;
   }
 

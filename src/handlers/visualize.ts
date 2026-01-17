@@ -40,6 +40,7 @@ import {
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
+import { checkSamplingSupport } from '../mcp/sampling.js';
 
 type VisualizeSuccess = Extract<VisualizeResponse, { success: true }>;
 
@@ -233,10 +234,16 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
   }
 
   private async handleSuggestChart(input: SuggestChartInput): Promise<VisualizeResponse> {
-    if (!this.context.server) {
+    // Check if server exists and client supports sampling
+    const samplingSupport = this.context.server
+      ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
+      : { supported: false };
+
+    if (!this.context.server || !samplingSupport.supported) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
-        message: 'Chart suggestions require MCP Sampling capability (SEP-1577)',
+        message:
+          'Chart suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
         retryable: false,
       });
     }
@@ -342,7 +349,6 @@ Always return valid JSON in the exact format requested.`,
           intelligencePriority: 0.8,
         },
         maxTokens: 2048,
-        includeContext: 'thisServer' as const,
       };
 
       const samplingResult = await server.createMessage(samplingRequest);
@@ -716,10 +722,16 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSuggestPivot(input: SuggestPivotInput): Promise<VisualizeResponse> {
-    if (!this.context.server) {
+    // Check if server exists and client supports sampling
+    const samplingSupport = this.context.server
+      ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
+      : { supported: false };
+
+    if (!this.context.server || !samplingSupport.supported) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
-        message: 'Pivot table suggestions require MCP Sampling capability (SEP-1577)',
+        message:
+          'Pivot table suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
         retryable: false,
       });
     }
@@ -828,7 +840,6 @@ Always return valid JSON in the exact format requested.`,
           intelligencePriority: 0.8,
         },
         maxTokens: 2048,
-        includeContext: 'thisServer' as const,
       };
 
       const samplingResult = await server.createMessage(samplingRequest);

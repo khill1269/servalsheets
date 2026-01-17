@@ -61,13 +61,6 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false,
     openWorldHint: true,
   },
-  sheets_analysis: {
-    title: 'Data Analysis (DEPRECATED)',
-    readOnlyHint: true, // READ-ONLY tool
-    destructiveHint: false,
-    idempotentHint: true, // Same input = same output
-    openWorldHint: true,
-  },
   sheets_advanced: {
     title: 'Advanced Features & Formula Intelligence',
     readOnlyHint: false,
@@ -150,7 +143,6 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_dimensions: 35, // Wave 2: Added 14 filter/sort actions
   sheets_visualize: 17, // Consolidated: charts (10) + pivot (7)
   sheets_collaborate: 28, // Consolidated: sharing (8) + comments (10) + versions (10)
-  sheets_analysis: 13, // DEPRECATED (remove after 2026-04-12) - data_quality, formula_audit, structure_analysis, statistics, correlations, summary, dependencies, compare_ranges, detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart
   sheets_advanced: 27, // Wave 5: Merged formula intelligence (8) with advanced features (19)
   // Enterprise Tools
   sheets_transaction: 6, // begin, queue, commit, rollback, status, list

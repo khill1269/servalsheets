@@ -25,6 +25,7 @@ import {
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
+import { checkSamplingSupport } from '../mcp/sampling.js';
 
 // Valid condition types from schema
 type ConditionType =
@@ -292,10 +293,16 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   private async handleSuggestFormat(
     input: SheetsFormatInput & { action: 'suggest_format' }
   ): Promise<FormatResponse> {
-    if (!this.context.server) {
+    // Check if server exists and client supports sampling
+    const samplingSupport = this.context.server
+      ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
+      : { supported: false };
+
+    if (!this.context.server || !samplingSupport.supported) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
-        message: 'Format suggestions require MCP Sampling capability (SEP-1577)',
+        message:
+          'Format suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
         retryable: false,
       });
     }
@@ -408,7 +415,6 @@ Always return valid JSON in the exact format requested.`,
           intelligencePriority: 0.8,
         },
         maxTokens: 2048,
-        includeContext: 'thisServer' as const,
       };
 
       const samplingResult = await server.createMessage(samplingRequest);

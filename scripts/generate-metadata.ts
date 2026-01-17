@@ -246,7 +246,8 @@ const schemaFiles = readdirSync(join(ROOT, 'src/schemas')).filter(
     f !== 'logging.ts' &&
     f !== 'fast-validators.ts' &&
     f !== 'action-metadata.ts' && // Not a tool, just metadata definitions
-    f !== 'formulas.ts' // Merged into sheets_advanced (Wave 5)
+    f !== 'formulas.ts' && // Merged into sheets_advanced (Wave 5)
+    f !== 'analysis.ts' // DEPRECATED: sheets_analysis replaced by sheets_analyze (Phase 1)
 );
 
 console.log(`\n📊 Analyzing ${schemaFiles.length} schema files...\n`);

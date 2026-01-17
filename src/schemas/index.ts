@@ -26,7 +26,7 @@ export * from './format.js';
 export * from './dimensions.js';
 export * from './visualize.js'; // Consolidated charts + pivot
 export * from './collaborate.js'; // Consolidated sharing + comments + versions
-export * from './analysis.js';
+export * from './analysis.js'; // DEPRECATED: Keep exports for backward compatibility with existing handler
 export * from './advanced.js';
 export * from './transaction.js';
 export * from './quality.js';
@@ -241,30 +241,6 @@ export const TOOL_REGISTRY = {
       'version_export',
     ],
   },
-  sheets_analysis: {
-    name: 'sheets_analysis',
-    title: 'Analysis',
-    description:
-      'Data analysis (read-only): Analyze data quality and patterns | Audit formulas for errors | Calculate statistics and correlations | Detect dependencies between cells | Compare data ranges | Generate suggested templates | Get AI-powered insights',
-    schema: 'SheetsAnalysisInputSchema',
-    output: 'SheetsAnalysisOutputSchema',
-    annotations: 'SHEETS_ANALYSIS_ANNOTATIONS',
-    actions: [
-      'data_quality',
-      'formula_audit',
-      'structure_analysis',
-      'statistics',
-      'correlations',
-      'summary',
-      'dependencies',
-      'compare_ranges',
-      'detect_patterns',
-      'column_analysis',
-      'suggest_templates',
-      'generate_formula',
-      'suggest_chart',
-    ],
-  },
   sheets_advanced: {
     name: 'sheets_advanced',
     title: 'Advanced',
@@ -403,9 +379,9 @@ export const TOOL_REGISTRY = {
   },
 } as const;
 
-// Tool count (after Wave 5: merged sheets_formulas into sheets_advanced)
-export const TOOL_COUNT = 17;
+// Tool count (16 tools after Phase 1: removed deprecated sheets_analysis)
+export const TOOL_COUNT = 16;
 
-// Action count (17 tools after Wave 5: sheets_formulas merged into sheets_advanced)
+// Action count (213 actions after removing sheets_analysis: 226 - 13 = 213)
 // Computed in annotations.ts from ACTION_COUNTS map
-export const ACTION_COUNT = 226;
+export const ACTION_COUNT = 213;
