@@ -26,7 +26,6 @@ export * from './format.js';
 export * from './dimensions.js';
 export * from './visualize.js'; // Consolidated charts + pivot
 export * from './collaborate.js'; // Consolidated sharing + comments + versions
-export * from './analysis.js'; // DEPRECATED: Keep exports for backward compatibility with existing handler
 export * from './advanced.js';
 export * from './transaction.js';
 export * from './quality.js';
@@ -39,6 +38,9 @@ export * from './analyze.js'; // Uses Sampling (SEP-1577)
 export * from './fix.js'; // Automated issue resolution
 export * from './composite.js'; // High-level composite operations
 export * from './session.js'; // Session context for NL excellence
+export * from './templates.js'; // Enterprise templates (Tier 7)
+export * from './bigquery.js'; // BigQuery Connected Sheets (Tier 7)
+export * from './appsscript.js'; // Apps Script automation (Tier 7)
 
 // Performance optimizations
 export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
@@ -106,8 +108,7 @@ export const TOOL_REGISTRY = {
       'batch_read',
       'batch_write',
       'batch_clear',
-      'find',
-      'replace',
+      'find_replace',
       'add_note',
       'get_note',
       'clear_note',
@@ -115,11 +116,11 @@ export const TOOL_REGISTRY = {
       'clear_validation',
       'set_hyperlink',
       'clear_hyperlink',
-      'merge',
-      'unmerge',
+      'merge_cells',
+      'unmerge_cells',
       'get_merges',
-      'cut',
-      'copy',
+      'cut_paste',
+      'copy_paste',
     ],
   },
   sheets_format: {
@@ -132,6 +133,7 @@ export const TOOL_REGISTRY = {
     annotations: 'SHEETS_FORMAT_ANNOTATIONS',
     actions: [
       'set_format',
+      'suggest_format',
       'set_background',
       'set_text_format',
       'set_number_format',
@@ -140,6 +142,14 @@ export const TOOL_REGISTRY = {
       'clear_format',
       'apply_preset',
       'auto_fit',
+      'rule_add_conditional_format',
+      'rule_update_conditional_format',
+      'rule_delete_conditional_format',
+      'rule_list_conditional_formats',
+      'set_data_validation',
+      'clear_data_validation',
+      'list_data_validations',
+      'add_conditional_format_rule',
     ],
   },
   sheets_dimensions: {
@@ -172,13 +182,31 @@ export const TOOL_REGISTRY = {
       'ungroup_columns',
       'append_rows',
       'append_columns',
+      'set_basic_filter',
+      'clear_basic_filter',
+      'get_basic_filter',
+      'filter_update_filter_criteria',
+      'sort_range',
+      'trim_whitespace',
+      'randomize_range',
+      'text_to_columns',
+      'auto_fill',
+      'create_filter_view',
+      'update_filter_view',
+      'delete_filter_view',
+      'list_filter_views',
+      'get_filter_view',
+      'create_slicer',
+      'update_slicer',
+      'delete_slicer',
+      'list_slicers',
     ],
   },
   sheets_visualize: {
     name: 'sheets_visualize',
     title: 'Visualizations',
     description:
-      'Creating charts and pivot tables: Create charts (line, bar, pie, scatter) | Get chart suggestions from data | Update/move/resize charts | Create pivot tables for data summarization | Suggest pivot table structure | Export charts as images',
+      'Creating charts and pivot tables: Create charts (line, bar, pie, scatter) | Get chart suggestions from data | Update/move/resize charts | Create pivot tables for data summarization | Suggest pivot table structure',
     schema: 'SheetsVisualizeInputSchema',
     output: 'SheetsVisualizeOutputSchema',
     annotations: 'SHEETS_VISUALIZE_ANNOTATIONS',
@@ -192,7 +220,6 @@ export const TOOL_REGISTRY = {
       'chart_move',
       'chart_resize',
       'chart_update_data_range',
-      'chart_export',
       'pivot_create',
       'suggest_pivot',
       'pivot_update',
@@ -245,7 +272,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_advanced',
     title: 'Advanced',
     description:
-      'Power user features: Named ranges for easy cell referencing | Protected ranges to prevent edits | Custom metadata for tracking | Alternating row colors (banding) | Smart tables for structured data | Formula intelligence (generate, explain, optimize, trace dependencies)',
+      'Power user features: Named ranges for easy cell referencing | Protected ranges to prevent edits | Custom metadata for tracking | Alternating row colors (banding) | Smart tables for structured data',
     schema: 'SheetsAdvancedInputSchema',
     output: 'SheetsAdvancedOutputSchema',
     annotations: 'SHEETS_ADVANCED_ANNOTATIONS',
@@ -315,7 +342,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_analyze',
     title: 'Ultimate Data Analysis',
     description:
-      "🤖 ONE TOOL TO RULE THEM ALL - Use 'comprehensive' action to get EVERYTHING in a single call: metadata, data, quality analysis, patterns, formulas, performance, visualizations. Replaces sheets_core + sheets_data + sheets_analysis. Other actions: analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis.",
+      "🤖 ONE TOOL TO RULE THEM ALL - Use 'comprehensive' action to get EVERYTHING in a single call: metadata, data, quality analysis, patterns, formulas, performance, visualizations. Complements sheets_core + sheets_data for analysis workflows. Other actions: analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis.",
     schema: 'SheetsAnalyzeInputSchema',
     output: 'SheetsAnalyzeOutputSchema',
     annotations: 'SHEETS_ANALYZE_ANNOTATIONS',
@@ -337,7 +364,7 @@ export const TOOL_REGISTRY = {
     name: 'sheets_fix',
     title: 'Automated Issue Fixing',
     description:
-      'Automatically fix common spreadsheet issues detected by sheets_analysis. Supports preview mode (see what would be fixed) and apply mode (actually fix).',
+      'Automatically fix common spreadsheet issues detected by sheets_analyze. Supports preview mode (see what would be fixed) and apply mode (actually fix).',
     schema: 'SheetsFixInputSchema',
     output: 'SheetsFixOutputSchema',
     annotations: 'SHEETS_FIX_ANNOTATIONS',
@@ -377,11 +404,69 @@ export const TOOL_REGISTRY = {
       'reset',
     ],
   },
+  sheets_templates: {
+    name: 'sheets_templates',
+    title: 'Templates',
+    description:
+      'Manage reusable spreadsheet templates stored in Google Drive: list (view saved templates), get (template details), create (save spreadsheet as template), apply (create from template), update, delete, preview, import_builtin (from knowledge base).',
+    schema: 'SheetsTemplatesInputSchema',
+    output: 'SheetsTemplatesOutputSchema',
+    annotations: 'SHEETS_TEMPLATES_ANNOTATIONS',
+    actions: ['list', 'get', 'create', 'apply', 'update', 'delete', 'preview', 'import_builtin'],
+  },
+  sheets_bigquery: {
+    name: 'sheets_bigquery',
+    title: 'BigQuery Integration',
+    description:
+      'BigQuery Connected Sheets integration: connect/disconnect data sources | query BigQuery with SQL | preview results | refresh data | list datasets/tables | get table schemas | export sheet data to BigQuery | import BigQuery results to sheets.',
+    schema: 'SheetsBigQueryInputSchema',
+    output: 'SheetsBigQueryOutputSchema',
+    annotations: 'SHEETS_BIGQUERY_ANNOTATIONS',
+    actions: [
+      'connect',
+      'disconnect',
+      'list_connections',
+      'get_connection',
+      'query',
+      'preview',
+      'refresh',
+      'list_datasets',
+      'list_tables',
+      'get_table_schema',
+      'export_to_bigquery',
+      'import_from_bigquery',
+    ],
+  },
+  sheets_appsscript: {
+    name: 'sheets_appsscript',
+    title: 'Apps Script Automation',
+    description:
+      'Apps Script automation: create/get/update script projects | manage versions | deploy as web app or API executable | run functions remotely | monitor execution processes | get usage metrics.',
+    schema: 'SheetsAppsScriptInputSchema',
+    output: 'SheetsAppsScriptOutputSchema',
+    annotations: 'SHEETS_APPSSCRIPT_ANNOTATIONS',
+    actions: [
+      'create',
+      'get',
+      'get_content',
+      'update_content',
+      'create_version',
+      'list_versions',
+      'get_version',
+      'deploy',
+      'list_deployments',
+      'get_deployment',
+      'undeploy',
+      'run',
+      'list_processes',
+      'get_metrics',
+    ],
+  },
 } as const;
 
-// Tool count (16 tools after Phase 1: removed deprecated sheets_analysis)
-export const TOOL_COUNT = 16;
+// Tool count (19 tools: 16 core + 3 Tier 7 enterprise)
+export const TOOL_COUNT = 19;
 
-// Action count (213 actions after removing sheets_analysis: 226 - 13 = 213)
+// Action count (241 actions: 207 core + 8 templates + 12 bigquery + 14 appsscript)
 // Computed in annotations.ts from ACTION_COUNTS map
-export const ACTION_COUNT = 213;
+export const ACTION_COUNT = 241;

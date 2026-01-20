@@ -304,7 +304,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'write',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
           values: [['=SUM(A2:A10)']],
           valueInputOption: 'USER_ENTERED',
         });
@@ -459,15 +459,15 @@ describe('SheetsDataHandler', () => {
         });
 
         const result = await handler.handle({
-          action: 'find',
+          action: 'find_replace',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:C10',
-          searchValue: 'Alice',
+          find: 'Alice',
         } as any);
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'find');
+        expect(result.response).toHaveProperty('action', 'find_replace');
         expect((result.response as any).matches).toBeDefined();
         expect((result.response as any).matches.length).toBeGreaterThan(0);
 
@@ -484,10 +484,10 @@ describe('SheetsDataHandler', () => {
         });
 
         const result = await handler.handle({
-          action: 'find',
+          action: 'find_replace',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:A5',
-          searchValue: 'Alice',
+          find: 'Alice',
           matchCase: true,
         } as any);
 
@@ -499,7 +499,7 @@ describe('SheetsDataHandler', () => {
     describe('replace action', () => {
       it('should replace matching values', async () => {
         const result = await handler.handle({
-          action: 'replace',
+          action: 'find_replace',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B3',
           find: 'pending',
@@ -508,7 +508,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'replace');
+        expect(result.response).toHaveProperty('action', 'find_replace');
         expect((result.response as any).replacementsCount).toBeGreaterThanOrEqual(0);
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -517,7 +517,7 @@ describe('SheetsDataHandler', () => {
 
       it('should support replaceAll option', async () => {
         const result = await handler.handle({
-          action: 'replace',
+          action: 'find_replace',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B3',
           find: 'old',
@@ -537,7 +537,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'add_note',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
           note: 'This is a note',
         });
 
@@ -556,7 +556,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'clear_note',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
         });
 
         expect(result).toBeDefined();
@@ -574,7 +574,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'set_hyperlink',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
           url: 'https://example.com',
         });
 
@@ -591,7 +591,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'set_hyperlink',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
           url: 'invalid-url',
         });
 
@@ -605,7 +605,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'clear_hyperlink',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1',
+          cell: 'Sheet1!A1',
         });
 
         expect(result).toBeDefined();
@@ -621,7 +621,7 @@ describe('SheetsDataHandler', () => {
     describe('merge action', () => {
       it('should merge cells', async () => {
         const result = await handler.handle({
-          action: 'merge',
+          action: 'merge_cells',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
           mergeType: 'MERGE_ALL',
@@ -629,7 +629,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'merge');
+        expect(result.response).toHaveProperty('action', 'merge_cells');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -641,7 +641,7 @@ describe('SheetsDataHandler', () => {
 
         for (const mergeType of mergeTypes) {
           const result = await handler.handle({
-            action: 'merge',
+            action: 'merge_cells',
             spreadsheetId: 'test-id',
             range: 'Sheet1!A1:B2',
             mergeType,
@@ -655,14 +655,14 @@ describe('SheetsDataHandler', () => {
     describe('unmerge action', () => {
       it('should unmerge cells', async () => {
         const result = await handler.handle({
-          action: 'unmerge',
+          action: 'unmerge_cells',
           spreadsheetId: 'test-id',
           range: 'Sheet1!A1:B2',
         });
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'unmerge');
+        expect(result.response).toHaveProperty('action', 'unmerge_cells');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -674,7 +674,7 @@ describe('SheetsDataHandler', () => {
       it('should cut cells with confirmation', async () => {
         // Cut operates on small ranges and skips confirmation for < 100 cells
         const result = await handler.handle({
-          action: 'cut',
+          action: 'cut_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
@@ -682,7 +682,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'cut');
+        expect(result.response).toHaveProperty('action', 'cut_paste');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -704,7 +704,7 @@ describe('SheetsDataHandler', () => {
         const handlerWithSnapshot = new SheetsDataHandler(contextWithSnapshot, mockApi as any);
 
         const result = await handlerWithSnapshot.handle({
-          action: 'cut',
+          action: 'cut_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
@@ -720,7 +720,7 @@ describe('SheetsDataHandler', () => {
 
       it('should support dryRun mode', async () => {
         const result = await handler.handle({
-          action: 'cut',
+          action: 'cut_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
@@ -748,7 +748,7 @@ describe('SheetsDataHandler', () => {
         handler = new SheetsDataHandler(mockContext, mockApi as any);
 
         const result = await handler.handle({
-          action: 'cut',
+          action: 'cut_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1',
           destination: 'Sheet1!B1',
@@ -761,10 +761,9 @@ describe('SheetsDataHandler', () => {
 
     describe('copy action', () => {
       it.skip('should copy cells - SKIPPED: handler bug with action routing', async () => {
-        // Note: The handler has a bug where 'copy' action is not properly routed
-        // The cellsActions array has 'copy_cells' but the schema and switch case expect 'copy'
+        // Note: The handler previously had a bug where copy actions were misrouted.
         const result = await handler.handle({
-          action: 'copy',
+          action: 'copy_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
@@ -772,7 +771,7 @@ describe('SheetsDataHandler', () => {
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'copy_cells');
+        expect(result.response).toHaveProperty('action', 'copy_paste');
         expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
@@ -781,7 +780,7 @@ describe('SheetsDataHandler', () => {
 
       it.skip('should support paste type options - SKIPPED: handler bug with action routing', async () => {
         const result = await handler.handle({
-          action: 'copy',
+          action: 'copy_paste',
           spreadsheetId: 'test-id',
           source: 'Sheet1!A1:B2',
           destination: 'Sheet1!D1',
@@ -789,7 +788,7 @@ describe('SheetsDataHandler', () => {
         } as any);
 
         expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'copy_cells');
+        expect(result.response).toHaveProperty('action', 'copy_paste');
       });
     });
   });

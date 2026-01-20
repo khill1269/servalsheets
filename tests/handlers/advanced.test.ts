@@ -12,6 +12,9 @@ const createMockSheetsApi = () => ({
   spreadsheets: {
     get: vi.fn(),
     batchUpdate: vi.fn(),
+    values: {
+      get: vi.fn(),
+    },
     developerMetadata: {
       search: vi.fn(),
     },
@@ -65,16 +68,39 @@ describe('AdvancedHandler', () => {
     }
   });
 
-  it('returns feature unavailable for create_table', async () => {
+  it('creates a table', async () => {
+    // Mock header row for table creation
+    mockSheetsApi.spreadsheets.values.get.mockResolvedValue({
+      data: {
+        values: [['Header1', 'Header2']],
+      },
+    });
+
+    mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
+      data: {
+        replies: [{
+          addTable: {
+            table: {
+              tableId: 'table-1',
+              range: { sheetId: 0, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 2 },
+            },
+          },
+        }],
+      },
+    });
+
     const result = await handler.handle({
-      action: 'create_table' as const,
+      action: 'create_table',
       spreadsheetId: 'sheet-id',
       range: { a1: 'Sheet1!A1:B2' },
-    } as any);
+    });
 
-    expect(result.response.success).toBe(false);
-    if (!result.response.success) {
-      expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
+    const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+    expect(parsed.success).toBe(true);
+    expect(result.response.success).toBe(true);
+    if (result.response.success) {
+      expect(result.response.table).toBeDefined();
+      expect(result.response.table?.tableId).toBe('table-1');
     }
   });
 });

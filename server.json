@@ -1,12 +1,14 @@
 {
   "name": "khill1269/servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server with 16 tools and 213 actions",
+  "description": "Production-grade Google Sheets MCP server with 19 tools and 241 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
       "mimeType": "image/png",
-      "sizes": ["1536x1024"]
+      "sizes": [
+        "1536x1024"
+      ]
     }
   ],
   "mcpProtocol": "2025-11-25",
@@ -23,14 +25,16 @@
     "sampling"
   ],
   "metadata": {
-    "toolCount": 16,
-    "actionCount": 213,
+    "toolCount": 19,
+    "actionCount": 241,
     "categories": [
-      "Core Operations (8 tools): spreadsheet, sheet, values, cells, format, dimensions, rules, charts",
-      "Advanced Features (5 tools): pivot, filter_sort, sharing, comments, versions",
-      "Analytics (2 tools): analysis, advanced",
-      "Enterprise (5 tools): transaction, validation, conflict, impact, history",
-      "MCP-Native (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)"
+      "Core Operations (5 tools): auth, core, data, format, dimensions",
+      "Visualizations (1 tool): visualize",
+      "Collaboration (1 tool): collaborate",
+      "Advanced Features (1 tool): advanced",
+      "Workflow & Safety (3 tools): transaction, quality, history",
+      "MCP-Native Intelligence (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)",
+      "Productivity (2 tools): composite, session"
     ]
   },
   "author": {

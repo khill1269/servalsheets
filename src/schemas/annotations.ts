@@ -62,7 +62,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     openWorldHint: true,
   },
   sheets_advanced: {
-    title: 'Advanced Features & Formula Intelligence',
+    title: 'Advanced Features',
     readOnlyHint: false,
     destructiveHint: true, // Can delete named/protected ranges
     idempotentHint: false,
@@ -100,9 +100,9 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
   },
   sheets_analyze: {
     title: 'Ultimate Data Analysis',
-    readOnlyHint: false, // Can create charts/pivots
-    destructiveHint: false, // Creating charts/pivots is not destructive
-    idempotentHint: false, // AI output varies
+    readOnlyHint: true, // Reads data + sampling only
+    destructiveHint: false, // Analysis only; no destructive actions
+    idempotentHint: true, // No side effects (results may vary)
     openWorldHint: true, // MCP Sampling + Google API
   },
   sheets_fix: {
@@ -126,7 +126,28 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: true, // Most operations are idempotent
     openWorldHint: false, // Session-only, no external effects
   },
-  // sheets_formulas: MERGED into sheets_advanced (2026-01-14) with formula_ prefix
+  // Tier 7 Enterprise Tools
+  sheets_templates: {
+    title: 'Templates',
+    readOnlyHint: false, // Can create/update/delete templates
+    destructiveHint: true, // Can delete templates
+    idempotentHint: false, // Create generates new resources
+    openWorldHint: true, // Google Drive API
+  },
+  sheets_bigquery: {
+    title: 'BigQuery Integration',
+    readOnlyHint: false, // Can modify connections, run queries
+    destructiveHint: true, // Can delete connections, overwrite data
+    idempotentHint: false, // Queries consume quota
+    openWorldHint: true, // BigQuery and Sheets APIs
+  },
+  sheets_appsscript: {
+    title: 'Apps Script Automation',
+    readOnlyHint: false, // run, update_content, deploy modify state
+    destructiveHint: true, // undeploy, run can have side effects
+    idempotentHint: false, // run is not idempotent
+    openWorldHint: true, // Apps Script API
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -138,12 +159,12 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
 export const ACTION_COUNTS: Record<string, number> = {
   sheets_auth: 4,
   sheets_core: 15, // Consolidated: spreadsheet (8) + sheet (7)
-  sheets_data: 21, // Wave 4: Consolidated values (9) + cells (12)
+  sheets_data: 20, // Wave 4: Consolidated values (9) + cells (11)
   sheets_format: 18, // Wave 2: Added 8 rule actions (conditional format + data validation) + 1 suggest_format
-  sheets_dimensions: 35, // Wave 2: Added 14 filter/sort actions
-  sheets_visualize: 17, // Consolidated: charts (10) + pivot (7)
+  sheets_dimensions: 39, // Wave 2: Added filter/sort + range utilities + views + slicers
+  sheets_visualize: 16, // Consolidated: charts (9) + pivot (7)
   sheets_collaborate: 28, // Consolidated: sharing (8) + comments (10) + versions (10)
-  sheets_advanced: 27, // Wave 5: Merged formula intelligence (8) with advanced features (19)
+  sheets_advanced: 19, // Named ranges, protected ranges, metadata, banding, tables
   // Enterprise Tools
   sheets_transaction: 6, // begin, queue, commit, rollback, status, list
   sheets_quality: 4, // validate, detect_conflicts, resolve_conflict, analyze_impact
@@ -155,7 +176,10 @@ export const ACTION_COUNTS: Record<string, number> = {
   // Composite Operations
   sheets_composite: 4, // import_csv, smart_append, bulk_update, deduplicate
   sheets_session: 13, // set_active, get_active, get_context, record_operation, get_last_operation, get_history, find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending, reset
-  // sheets_formulas: MERGED into sheets_advanced with formula_ prefix (2026-01-14)
+  // Tier 7 Enterprise Tools
+  sheets_templates: 8, // list, get, create, apply, update, delete, preview, import_builtin
+  sheets_bigquery: 12, // connect, disconnect, list_connections, get_connection, query, preview, refresh, list_datasets, list_tables, get_table_schema, export_to_bigquery, import_from_bigquery
+  sheets_appsscript: 14, // create, get, get_content, update_content, create_version, list_versions, get_version, deploy, list_deployments, get_deployment, undeploy, run, list_processes, get_metrics
 };
 
 /**

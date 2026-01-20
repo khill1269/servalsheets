@@ -112,6 +112,13 @@ const createMockDriveApi = () => ({
 const createMockContext = (): HandlerContext => ({
   requestId: 'test-request',
   timestamp: new Date(),
+  auth: {
+    scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive',
+    ],
+  },
   session: {
     get: vi.fn(),
     set: vi.fn(),
@@ -258,6 +265,9 @@ describe('SheetsCoreHandler', () => {
         });
 
         expect(result).toBeDefined();
+        if (!result.response.success) {
+          console.log('create error:', JSON.stringify(result.response, null, 2));
+        }
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'create');
         expect((result.response as any).spreadsheet).toBeDefined();
