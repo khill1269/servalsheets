@@ -42,6 +42,7 @@ export * from './templates.js'; // Enterprise templates (Tier 7)
 export * from './bigquery.js'; // BigQuery Connected Sheets (Tier 7)
 export * from './appsscript.js'; // Apps Script automation (Tier 7)
 export * from './webhooks.js'; // Webhook notifications
+export * from './dependencies.js'; // Formula dependency analysis
 
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';

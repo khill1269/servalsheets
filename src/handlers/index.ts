@@ -40,6 +40,8 @@ export type { SheetsBigQueryHandler } from './bigquery.js';
 export type { SheetsAppsScriptHandler } from './appsscript.js';
 // Webhook handler
 export type { WebhookHandler } from './webhooks.js';
+// Dependencies handler
+export type { DependenciesHandler } from './dependencies.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
@@ -80,6 +82,8 @@ export interface Handlers {
   appsscript: import('./appsscript.js').SheetsAppsScriptHandler;
   // Webhook handler
   webhooks: import('./webhooks.js').WebhookHandler;
+  // Dependencies handler
+  dependencies: import('./dependencies.js').DependenciesHandler;
 }
 
 /**
@@ -172,6 +176,11 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async webhooks() {
       const { createWebhookHandler } = await import('./webhooks.js');
       return createWebhookHandler();
+    },
+    // Dependencies handler
+    async dependencies() {
+      const { createDependenciesHandler } = await import('./dependencies.js');
+      return createDependenciesHandler(options.sheetsApi);
     },
   };
 

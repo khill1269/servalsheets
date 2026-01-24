@@ -171,6 +171,15 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'cut_paste',
     'copy_paste',
   ],
+  sheets_dependencies: [
+    'build',
+    'analyze_impact',
+    'detect_cycles',
+    'get_dependencies',
+    'get_dependents',
+    'get_stats',
+    'export_dot',
+  ],
   sheets_dimensions: [
     'insert',
     'delete',

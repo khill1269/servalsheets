@@ -1,7 +1,7 @@
 {
   "name": "khill1269/servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server with 20 tools and 256 actions",
+  "description": "Production-grade Google Sheets MCP server with 21 tools and 263 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -23,8 +23,8 @@
     "sampling"
   ],
   "metadata": {
-    "toolCount": 20,
-    "actionCount": 256,
+    "toolCount": 21,
+    "actionCount": 263,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visualizations (1 tool): visualize",

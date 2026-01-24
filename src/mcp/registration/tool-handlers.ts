@@ -27,7 +27,7 @@ import { getHistoryService } from '../../services/history-service.js';
 import type { OperationHistory } from '../../types/history.js';
 import { prepareSchemaForRegistration, wrapInputSchemaForLegacyRequest } from './schema-helpers.js';
 import type { ToolDefinition } from './tool-definitions.js';
-import { TOOL_DEFINITIONS } from './tool-definitions.js';
+import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 import {
   extractAction,
   extractSpreadsheetId,
@@ -55,7 +55,14 @@ import {
   SheetsFixInputSchema,
   CompositeInputSchema,
   SheetsSessionInputSchema,
+  // Tier 7 Enterprise tools
+  SheetsTemplatesInputSchema,
+  SheetsBigQueryInputSchema,
+  SheetsAppsScriptInputSchema,
+  SheetsWebhookInputSchema,
+  SheetsDependenciesInputSchema,
 } from '../../schemas/index.js';
+import { parseWithCache } from '../../utils/schema-cache.js';
 
 // ============================================================================
 // HANDLER MAPPING
@@ -72,31 +79,75 @@ export function createToolHandlerMap(
   authHandler?: AuthHandler
 ): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
   const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
-    sheets_core: (args) => handlers.core.handle(SheetsCoreInputSchema.parse(args)),
-    sheets_data: (args) => handlers.data.handle(SheetsDataInputSchema.parse(args)),
-    sheets_format: (args) => handlers.format.handle(SheetsFormatInputSchema.parse(args)),
+    sheets_core: (args) =>
+      handlers.core.handle(parseWithCache(SheetsCoreInputSchema, args, 'SheetsCoreInput')),
+    sheets_data: (args) =>
+      handlers.data.handle(parseWithCache(SheetsDataInputSchema, args, 'SheetsDataInput')),
+    sheets_format: (args) =>
+      handlers.format.handle(parseWithCache(SheetsFormatInputSchema, args, 'SheetsFormatInput')),
     sheets_dimensions: (args) =>
-      handlers.dimensions.handle(SheetsDimensionsInputSchema.parse(args)),
-    sheets_visualize: (args) => handlers.visualize.handle(SheetsVisualizeInputSchema.parse(args)),
+      handlers.dimensions.handle(
+        parseWithCache(SheetsDimensionsInputSchema, args, 'SheetsDimensionsInput')
+      ),
+    sheets_visualize: (args) =>
+      handlers.visualize.handle(
+        parseWithCache(SheetsVisualizeInputSchema, args, 'SheetsVisualizeInput')
+      ),
     sheets_collaborate: (args) =>
-      handlers.collaborate.handle(SheetsCollaborateInputSchema.parse(args)),
-    sheets_advanced: (args) => handlers.advanced.handle(SheetsAdvancedInputSchema.parse(args)),
+      handlers.collaborate.handle(
+        parseWithCache(SheetsCollaborateInputSchema, args, 'SheetsCollaborateInput')
+      ),
+    sheets_advanced: (args) =>
+      handlers.advanced.handle(
+        parseWithCache(SheetsAdvancedInputSchema, args, 'SheetsAdvancedInput')
+      ),
     sheets_transaction: (args) =>
-      handlers.transaction.handle(SheetsTransactionInputSchema.parse(args)),
-    sheets_quality: (args) => handlers.quality.handle(SheetsQualityInputSchema.parse(args)),
-    sheets_history: (args) => handlers.history.handle(SheetsHistoryInputSchema.parse(args)),
+      handlers.transaction.handle(
+        parseWithCache(SheetsTransactionInputSchema, args, 'SheetsTransactionInput')
+      ),
+    sheets_quality: (args) =>
+      handlers.quality.handle(parseWithCache(SheetsQualityInputSchema, args, 'SheetsQualityInput')),
+    sheets_history: (args) =>
+      handlers.history.handle(parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput')),
     // MCP-native tools (use Server instance from context for Elicitation/Sampling)
-    sheets_confirm: (args) => handlers.confirm.handle(SheetsConfirmInputSchema.parse(args)),
-    sheets_analyze: (args) => handlers.analyze.handle(SheetsAnalyzeInputSchema.parse(args)),
-    sheets_fix: (args) => handlers.fix.handle(SheetsFixInputSchema.parse(args)),
+    sheets_confirm: (args) =>
+      handlers.confirm.handle(parseWithCache(SheetsConfirmInputSchema, args, 'SheetsConfirmInput')),
+    sheets_analyze: (args) =>
+      handlers.analyze.handle(parseWithCache(SheetsAnalyzeInputSchema, args, 'SheetsAnalyzeInput')),
+    sheets_fix: (args) =>
+      handlers.fix.handle(parseWithCache(SheetsFixInputSchema, args, 'SheetsFixInput')),
     // Composite operations
-    sheets_composite: (args) => handlers.composite.handle(CompositeInputSchema.parse(args)),
+    sheets_composite: (args) =>
+      handlers.composite.handle(parseWithCache(CompositeInputSchema, args, 'CompositeInput')),
     // Session context for NL excellence
-    sheets_session: (args) => handlers.session.handle(SheetsSessionInputSchema.parse(args)),
+    sheets_session: (args) =>
+      handlers.session.handle(parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput')),
+    // Tier 7 Enterprise tools
+    sheets_templates: (args) =>
+      handlers.templates.handle(
+        parseWithCache(SheetsTemplatesInputSchema, args, 'SheetsTemplatesInput')
+      ),
+    sheets_bigquery: (args) =>
+      handlers.bigquery.handle(
+        parseWithCache(SheetsBigQueryInputSchema, args, 'SheetsBigQueryInput')
+      ),
+    sheets_appsscript: (args) =>
+      handlers.appsscript.handle(
+        parseWithCache(SheetsAppsScriptInputSchema, args, 'SheetsAppsScriptInput')
+      ),
+    sheets_webhooks: (args) =>
+      handlers.webhooks.handle(
+        parseWithCache(SheetsWebhookInputSchema, args, 'SheetsWebhookInput')
+      ),
+    sheets_dependencies: (args) =>
+      handlers.dependencies.handle(
+        parseWithCache(SheetsDependenciesInputSchema, args, 'SheetsDependenciesInput')
+      ),
   };
 
   if (authHandler) {
-    map['sheets_auth'] = (args) => authHandler.handle(SheetsAuthInputSchema.parse(args));
+    map['sheets_auth'] = (args) =>
+      authHandler.handle(parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput'));
   }
 
   return map;
@@ -157,7 +208,7 @@ export function buildToolResponse(result: unknown): CallToolResult {
   // Detect errors from success: false in response (or legacy top-level success)
   const isError = responseSuccess === false || structuredContent['success'] === false;
 
-  // DEBUG: Log sheets_sharing responses to diagnose validation issue
+  // DEBUG: Log sheets_collaborate responses to diagnose validation issue
   if (typeof result === 'object' && result !== null && 'response' in result) {
     const resp = (result as Record<string, unknown>)['response'];
     if (resp && typeof resp === 'object' && 'action' in resp) {
@@ -204,7 +255,7 @@ function normalizeToolArgs(args: unknown): Record<string, unknown> {
   const record = args as Record<string, unknown>;
   const request = record['request'];
   if (!request || typeof request !== 'object') {
-    return record;
+    return { request: record };
   }
 
   const requestRecord = request as Record<string, unknown>;
@@ -212,10 +263,10 @@ function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (params && typeof params === 'object') {
     const action =
       typeof requestRecord['action'] === 'string' ? { action: requestRecord['action'] } : {};
-    return { ...(params as Record<string, unknown>), ...action };
+    return { request: { ...(params as Record<string, unknown>), ...action } };
   }
 
-  return requestRecord;
+  return { request: requestRecord };
 }
 
 function createToolCallHandler(
@@ -472,15 +523,17 @@ export async function registerServalSheetsTools(
   const handlerMap = handlers
     ? createToolHandlerMap(handlers, authHandler)
     : {
-        sheets_auth: (args: unknown) => authHandler.handle(SheetsAuthInputSchema.parse(args)),
+        sheets_auth: (args: unknown) =>
+          authHandler.handle(parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput')),
       };
 
-  for (const tool of TOOL_DEFINITIONS) {
+  for (const tool of ACTIVE_TOOL_DEFINITIONS) {
     // Prepare schemas for SDK registration
     const inputSchemaForRegistration = prepareSchemaForRegistration(
-      wrapInputSchemaForLegacyRequest(tool.inputSchema)
+      wrapInputSchemaForLegacyRequest(tool.inputSchema),
+      'input'
     );
-    const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema);
+    const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema, 'output');
 
     // Register tool with prepared schemas
     // Type assertion needed due to TypeScript's deep type instantiation limits
@@ -569,7 +622,7 @@ export async function registerServalSheetsTools(
   // C) Fork/patch the SDK
   // D) Wait for SDK v1.26 fix
   //
-  // IMPACT: All 25 tools show empty schemas in tools/list, breaking LLM tool discovery.
+  // IMPACT: All 16 tools show empty schemas in tools/list, breaking LLM tool discovery.
   // WORKAROUND: LLMs can still call tools (validation works), but can't discover parameters.
   //
   // For now, tools are registered as-is. This preserves validation but breaks discovery.
