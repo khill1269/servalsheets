@@ -162,41 +162,35 @@ export const TOOL_REGISTRY = {
     output: 'SheetsDimensionsOutputSchema',
     annotations: 'SHEETS_DIMENSIONS_ANNOTATIONS',
     actions: [
-      'insert_rows',
-      'insert_columns',
-      'delete_rows',
-      'delete_columns',
-      'move_rows',
-      'move_columns',
-      'resize_rows',
-      'resize_columns',
-      'auto_resize',
-      'hide_rows',
-      'hide_columns',
-      'show_rows',
-      'show_columns',
-      'freeze_rows',
-      'freeze_columns',
-      'group_rows',
-      'group_columns',
-      'ungroup_rows',
-      'ungroup_columns',
-      'append_rows',
-      'append_columns',
-      'set_basic_filter',
-      'clear_basic_filter',
-      'get_basic_filter',
-      'filter_update_filter_criteria',
-      'sort_range',
-      'trim_whitespace',
-      'randomize_range',
-      'text_to_columns',
-      'auto_fill',
+      // Consolidated dimension actions (use dimension: 'ROWS' | 'COLUMNS')
+      'insert', // insert rows/columns at index
+      'delete', // delete rows/columns
+      'move', // move rows/columns to new position
+      'resize', // resize rows/columns to specific size
+      'auto_resize', // auto-fit rows/columns to content
+      'hide', // hide rows/columns
+      'show', // show hidden rows/columns
+      'freeze', // freeze rows/columns for scrolling
+      'group', // group rows/columns for collapsing
+      'ungroup', // ungroup rows/columns
+      'append', // append rows/columns at end
+      // Filter and sort actions
+      'set_basic_filter', // set/update basic filter (also handles incremental updates)
+      'clear_basic_filter', // clear basic filter
+      'get_basic_filter', // get basic filter settings
+      'sort_range', // sort a range by columns
+      // Range utility actions
+      'trim_whitespace', // trim whitespace from cells
+      'randomize_range', // randomize row order
+      'text_to_columns', // split text into columns
+      'auto_fill', // auto-fill based on patterns
+      // Filter view actions
       'create_filter_view',
       'update_filter_view',
       'delete_filter_view',
       'list_filter_views',
       'get_filter_view',
+      // Slicer actions
       'create_slicer',
       'update_slicer',
       'delete_slicer',

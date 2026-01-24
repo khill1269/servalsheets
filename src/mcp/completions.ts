@@ -439,14 +439,160 @@ const DEFAULT_RANGES = ['Sheet1!A1:Z100', 'Sheet1!A1:Z1000', 'A1:Z100'];
 /**
  * Complete action names for a tool
  */
+/**
+ * Action Equivalence Map (Quick Win #4)
+ * Maps natural language phrases to actual action names
+ * Helps Claude discover the right actions based on intent
+ */
+const ACTION_ALIASES: Record<string, string> = {
+  // Data operations
+  'get data': 'read',
+  fetch: 'read',
+  retrieve: 'read',
+  pull: 'read',
+  'set data': 'write',
+  put: 'write',
+  update: 'write',
+  'insert row': 'append',
+  'add data': 'append',
+  erase: 'clear',
+  'remove data': 'clear',
+  wipe: 'clear',
+  find: 'find_replace',
+  search: 'find_replace',
+  replace: 'find_replace',
+
+  // Spreadsheet operations
+  'new spreadsheet': 'create',
+  'make spreadsheet': 'create',
+  'duplicate spreadsheet': 'copy',
+  'clone spreadsheet': 'copy',
+  'new sheet': 'add_sheet',
+  'add tab': 'add_sheet',
+  'create tab': 'add_sheet',
+  'remove sheet': 'delete_sheet',
+  'delete tab': 'delete_sheet',
+  'copy tab': 'duplicate_sheet',
+
+  // Formatting operations
+  style: 'set_format',
+  'apply style': 'set_format',
+  color: 'set_background',
+  background: 'set_background',
+  font: 'set_text_format',
+  bold: 'set_text_format',
+  currency: 'set_number_format',
+  percent: 'set_number_format',
+  percentage: 'set_number_format',
+  'date format': 'set_number_format',
+
+  // Dimension operations (sheets_dimensions tool)
+  'add row': 'insert',
+  'add column': 'insert',
+  'new row': 'insert',
+  'new column': 'insert',
+  'delete row': 'delete',
+  'delete column': 'delete',
+  'remove row': 'delete',
+  'remove column': 'delete',
+  'hide row': 'hide',
+  'hide column': 'hide',
+  'show row': 'show',
+  'show column': 'show',
+
+  // Chart operations
+  'create chart': 'chart_create',
+  'make chart': 'chart_create',
+  'new chart': 'chart_create',
+  'create graph': 'chart_create',
+  'make graph': 'chart_create',
+  visualize: 'chart_create',
+  plot: 'chart_create',
+  graph: 'chart_create',
+  'modify chart': 'chart_update',
+  'edit chart': 'chart_update',
+  'change chart': 'chart_update',
+  'remove chart': 'chart_delete',
+  'delete chart': 'chart_delete',
+
+  // Cell operations
+  merge: 'merge_cells',
+  'combine cells': 'merge_cells',
+  'join cells': 'merge_cells',
+  unmerge: 'unmerge_cells',
+  'split cells': 'unmerge_cells',
+  'separate cells': 'unmerge_cells',
+
+  // Analysis operations
+  understand: 'comprehensive',
+  analyze: 'analyze_data',
+  examine: 'analyze_data',
+  inspect: 'analyze_data',
+  study: 'analyze_data',
+  'check quality': 'analyze_quality',
+  validate: 'analyze_quality',
+  stats: 'analyze_data',
+  statistics: 'analyze_data',
+  patterns: 'detect_patterns',
+
+  // Collaboration operations
+  share: 'share_add',
+  'give access': 'share_add',
+  'grant access': 'share_add',
+  invite: 'share_add',
+  revoke: 'share_remove',
+  unshare: 'share_remove',
+  'remove access': 'share_remove',
+  'change permission': 'share_update',
+  'modify access': 'share_update',
+
+  // Version operations
+  snapshot: 'version_create_snapshot',
+  'save version': 'version_create_snapshot',
+  checkpoint: 'version_create_snapshot',
+  undo: 'version_restore_revision',
+  revert: 'version_restore_revision',
+  rollback: 'version_restore_revision',
+  restore: 'version_restore_revision',
+
+  // Transaction operations
+  batch: 'begin',
+  bulk: 'begin',
+  multiple: 'begin',
+  atomic: 'begin',
+};
+
 export function completeAction(toolName: string, partial: string): string[] {
   // Defensive: handle undefined/null partial
   if (!partial || typeof partial !== 'string') {
     return [];
   }
+
   const actions = TOOL_ACTIONS[toolName] ?? [];
   const lower = partial.toLowerCase();
-  return actions.filter((a) => a.toLowerCase().startsWith(lower)).slice(0, 20);
+
+  // First, try direct action name matching
+  let matches = actions.filter((a) => a.toLowerCase().startsWith(lower));
+
+  // If no matches, try alias matching
+  if (matches.length === 0 && lower.length >= 3) {
+    const aliasMatch = ACTION_ALIASES[lower];
+    if (aliasMatch && actions.includes(aliasMatch)) {
+      matches = [aliasMatch];
+    }
+
+    // Also try partial alias matching
+    if (matches.length === 0) {
+      for (const [alias, action] of Object.entries(ACTION_ALIASES)) {
+        if (alias.includes(lower) && actions.includes(action)) {
+          matches.push(action);
+        }
+      }
+    }
+  }
+
+  // Deduplicate and return
+  return [...new Set(matches)].slice(0, 20);
 }
 
 /**

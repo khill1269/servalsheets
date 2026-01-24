@@ -24,17 +24,83 @@ export const SHEETS_API_VERSION = 'v4';
 export const DRIVE_API_VERSION = 'v3';
 
 // ============================================================================
+// COLOR UTILITIES
+// ============================================================================
+
+/** Convert hex color to RGB (0-1 scale) */
+function hexToRgb(hex: string): { red: number; green: number; blue: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result || !result[1] || !result[2] || !result[3]) return null;
+  return {
+    red: parseInt(result[1], 16) / 255,
+    green: parseInt(result[2], 16) / 255,
+    blue: parseInt(result[3], 16) / 255,
+  };
+}
+
+/** Named colors map (0-1 scale) */
+const NAMED_COLORS: Record<string, { red: number; green: number; blue: number }> = {
+  red: { red: 1, green: 0, blue: 0 },
+  green: { red: 0, green: 0.5, blue: 0 },
+  blue: { red: 0, green: 0, blue: 1 },
+  white: { red: 1, green: 1, blue: 1 },
+  black: { red: 0, green: 0, blue: 0 },
+  yellow: { red: 1, green: 1, blue: 0 },
+  orange: { red: 1, green: 0.65, blue: 0 },
+  purple: { red: 0.5, green: 0, blue: 0.5 },
+  pink: { red: 1, green: 0.75, blue: 0.8 },
+  gray: { red: 0.5, green: 0.5, blue: 0.5 },
+  grey: { red: 0.5, green: 0.5, blue: 0.5 },
+  // Google's brand colors
+  'google-blue': { red: 0.26, green: 0.52, blue: 0.96 },
+  'google-red': { red: 0.92, green: 0.26, blue: 0.21 },
+  'google-green': { red: 0.13, green: 0.55, blue: 0.13 },
+  'google-yellow': { red: 0.98, green: 0.74, blue: 0.02 },
+};
+
+// ============================================================================
 // PRIMITIVE SCHEMAS
 // ============================================================================
 
-/** Google Sheets API color format (0-1 scale) */
+/**
+ * Google Sheets API color format (0-1 scale)
+ * Accepts:
+ * - RGB object: {red: 1, green: 0, blue: 0}
+ * - Hex string: "#FF0000" or "FF0000"
+ * - Named color: "red", "blue", "google-blue"
+ */
 export const ColorSchema = z
-  .object({
-    red: z.number().min(0).max(1).optional().default(0),
-    green: z.number().min(0).max(1).optional().default(0),
-    blue: z.number().min(0).max(1).optional().default(0),
-    alpha: z.number().min(0).max(1).optional().default(1),
-  })
+  .preprocess(
+    (val) => {
+      // Already an object with color values - pass through
+      if (
+        typeof val === 'object' &&
+        val !== null &&
+        ('red' in val || 'green' in val || 'blue' in val)
+      ) {
+        return val;
+      }
+      if (typeof val === 'string') {
+        // Hex string (with or without #)
+        if (/^#?[a-f\d]{6}$/i.test(val)) {
+          const rgb = hexToRgb(val);
+          if (rgb) return rgb;
+        }
+        // Named color
+        const lower = val.toLowerCase();
+        if (NAMED_COLORS[lower]) {
+          return NAMED_COLORS[lower];
+        }
+      }
+      return val;
+    },
+    z.object({
+      red: z.number().min(0).max(1).optional().default(0),
+      green: z.number().min(0).max(1).optional().default(0),
+      blue: z.number().min(0).max(1).optional().default(0),
+      alpha: z.number().min(0).max(1).optional().default(1),
+    })
+  )
   .transform((color) => ({
     red: Math.round(color.red * 10000) / 10000,
     green: Math.round(color.green * 10000) / 10000,
@@ -42,7 +108,7 @@ export const ColorSchema = z
     alpha: Math.round(color.alpha * 10000) / 10000,
   }))
   .describe(
-    'RGB color in 0-1 scale (e.g., {red:1,green:0,blue:0} for red, {red:0.26,green:0.52,blue:0.96} for Google blue #4285F4). Values rounded to 4 decimal places.'
+    'Color in RGB 0-1 scale, hex (#4285F4), or named (red, blue, google-blue). Examples: {red:1,green:0,blue:0}, "#FF0000", "red"'
   );
 
 /** Cell value types */
@@ -441,10 +507,21 @@ export const GridRangeSchema = z.object({
   endColumnIndex: z.number().int().min(0).optional(),
 });
 
-/** Condition for rules */
+/** Condition for rules - accepts flexible value formats */
 export const ConditionSchema = z.object({
   type: ConditionTypeSchema,
-  values: z.array(z.string()).optional(),
+  values: z
+    .preprocess((val) => {
+      // Undefined/null - return undefined
+      if (val === undefined || val === null) return undefined;
+      // Already an array - convert elements to strings
+      if (Array.isArray(val)) {
+        return val.map((v) => (v === null || v === undefined ? '' : String(v)));
+      }
+      // Single value - wrap in array
+      return [String(val)];
+    }, z.array(z.string()).optional())
+    .describe('Condition values (single value or array, automatically converted to strings)'),
 });
 
 /** Chart position */
@@ -664,6 +741,18 @@ export const ErrorDetailSchema = z.object({
       params: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
+  // Quick Win #2: Resource links for error guidance
+  resources: z
+    .array(
+      z.object({
+        uri: z.string(),
+        description: z.string(),
+      })
+    )
+    .optional()
+    .describe(
+      'Resource URIs for error guidance (e.g., servalsheets://decisions/find-sheet, servalsheets://reference/authentication)'
+    ),
 });
 
 /** Mutation summary */

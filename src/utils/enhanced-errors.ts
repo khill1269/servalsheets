@@ -13,7 +13,7 @@ export interface ErrorSuggestion {
 }
 
 /**
- * Enhanced error with suggested fixes
+ * Enhanced error with suggested fixes and resource links (Quick Win #2)
  */
 export function enhanceError(
   code: string,
@@ -31,6 +31,7 @@ export function enhanceError(
     resolutionSteps: suggestions.steps,
     suggestedTools: suggestions.suggestedTools,
     fixableVia: getFixableVia(code, context),
+    resources: getErrorResources(code),
   };
 }
 
@@ -413,6 +414,102 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
       // No automated fix available
       return undefined;
   }
+}
+
+/**
+ * Get resource links for error code (Quick Win #2)
+ */
+function getErrorResources(code: string): Array<{ uri: string; description: string }> | undefined {
+  const resourceMap: Record<string, Array<{ uri: string; description: string }>> = {
+    SHEET_NOT_FOUND: [
+      {
+        uri: 'servalsheets://decisions/find-sheet',
+        description: 'Decision tree for finding sheets',
+      },
+      {
+        uri: 'servalsheets://reference/sheet-naming',
+        description: 'Sheet naming conventions',
+      },
+    ],
+    RANGE_NOT_FOUND: [
+      {
+        uri: 'servalsheets://reference/a1-notation',
+        description: 'A1 notation syntax guide',
+      },
+      {
+        uri: 'servalsheets://decisions/find-range',
+        description: 'How to locate ranges in sheets',
+      },
+    ],
+    SPREADSHEET_NOT_FOUND: [
+      {
+        uri: 'servalsheets://decisions/find-spreadsheet',
+        description: 'How to verify spreadsheet access',
+      },
+    ],
+    AUTH_REQUIRED: [
+      {
+        uri: 'servalsheets://reference/authentication',
+        description: 'OAuth authentication guide',
+      },
+      {
+        uri: 'servalsheets://decisions/auth-flow',
+        description: 'Authentication troubleshooting',
+      },
+    ],
+    PERMISSION_DENIED: [
+      {
+        uri: 'servalsheets://decisions/request-access',
+        description: 'How to request spreadsheet access',
+      },
+      {
+        uri: 'servalsheets://reference/permissions',
+        description: 'Google Sheets permission levels',
+      },
+    ],
+    QUOTA_EXCEEDED: [
+      {
+        uri: 'servalsheets://reference/api-limits',
+        description: 'Google Sheets API quota limits',
+      },
+      {
+        uri: 'servalsheets://decisions/optimize-requests',
+        description: 'How to reduce API calls',
+      },
+    ],
+    RATE_LIMIT: [
+      {
+        uri: 'servalsheets://reference/rate-limiting',
+        description: 'Rate limit policies',
+      },
+    ],
+    INVALID_PARAMS: [
+      {
+        uri: 'servalsheets://decisions/parameter-validation',
+        description: 'Parameter validation guide',
+      },
+    ],
+    VALIDATION_ERROR: [
+      {
+        uri: 'servalsheets://reference/validation-rules',
+        description: 'Data validation rules',
+      },
+    ],
+    DATA_VALIDATION_ERROR: [
+      {
+        uri: 'servalsheets://reference/data-types',
+        description: 'Cell data type requirements',
+      },
+    ],
+    OUT_OF_BOUNDS: [
+      {
+        uri: 'servalsheets://reference/sheet-dimensions',
+        description: 'Sheet size limits',
+      },
+    ],
+  };
+
+  return resourceMap[code];
 }
 
 /**

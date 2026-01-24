@@ -1,8 +1,14 @@
 /**
- * Response Enhancer - Quick Win #1
+ * Response Enhancer - Quick Win #1: Semantic Priority Suggestions
  *
  * Generates intelligent suggestions, cost estimates, and metadata
  * for tool responses to improve LLM decision-making.
+ *
+ * Quick Win #1 Improvements:
+ * - Explicit priority ranking (HIGH, MEDIUM, LOW)
+ * - Estimated impact for each suggestion
+ * - Smart context-based suggestion generation
+ * - Priority-based sorting
  */
 
 import type { ToolSuggestion, CostEstimate, ResponseMeta } from '../schemas/shared.js';
@@ -21,103 +27,183 @@ export interface EnhancementContext {
 }
 
 /**
+ * Priority order for sorting suggestions
+ * Lower number = higher priority
+ */
+const PRIORITY_ORDER = {
+  high: 0,
+  medium: 1,
+  low: 2,
+} as const;
+
+/**
  * Generate suggestions based on the tool and action
+ * Quick Win #1: Enhanced with explicit priorities, impact estimates, and smart ranking
  */
 export function generateSuggestions(context: EnhancementContext): ToolSuggestion[] {
   const suggestions: ToolSuggestion[] = [];
   const { tool, action, input, result, cellsAffected } = context;
 
-  // Suggest batch operations for repeated single operations
-  if (action === 'read' && !action.includes('batch')) {
+  // HIGH PRIORITY: Quality issues detected
+  if (result && hasQualityIssues(result)) {
+    const issueCount = getQualityIssueCount(result);
     suggestions.push({
-      type: 'optimization',
-      message: 'For multiple reads, use batch_read to reduce API calls',
-      tool: tool,
-      action: 'batch_read',
-      reason: 'Batch operations are ~80% faster and use fewer API calls',
-      priority: 'medium',
-    });
-  }
-
-  if (action === 'write' && cellsAffected && cellsAffected > 1000) {
-    suggestions.push({
-      type: 'optimization',
-      message: 'Large write detected. Consider using batch_write for better performance',
-      tool: tool,
-      action: 'batch_write',
-      reason: `Writing ${cellsAffected} cells can be optimized with batch operations`,
+      type: 'warning',
+      message: `${issueCount} quality issues detected - immediate fix recommended`,
+      tool: 'sheets_quality',
+      action: 'fix',
+      reason: `Found ${issueCount} fixable issues (empty cells, inconsistent formats, validation errors)`,
       priority: 'high',
     });
   }
 
-  // Suggest analysis before modification
-  if (['write', 'batch_write', 'clear', 'delete'].some((a) => action.includes(a))) {
-    const mutation = result?.['mutation'] as { diff?: unknown } | undefined;
-    if (!mutation?.diff) {
-      suggestions.push({
-        type: 'warning',
-        message: 'Consider using analysis tools before modifying data',
-        tool: 'sheets_analysis',
-        action: 'data_quality',
-        reason: 'Prevents accidental data corruption by understanding structure first',
-        priority: 'medium',
-      });
-    }
-  }
-
-  // Suggest related formatting after writing data
-  if (action === 'write' || action === 'append' || action === 'batch_write') {
-    suggestions.push({
-      type: 'follow_up',
-      message: 'Data written successfully. Consider formatting the range',
-      tool: 'sheets_format',
-      action: 'apply_preset',
-      reason: 'Formatting improves readability and data consistency',
-      priority: 'low',
-    });
-  }
-
-  // Suggest using dryRun for destructive operations
-  if (['clear', 'delete', 'batch_clear'].some((a) => action.includes(a))) {
+  // HIGH PRIORITY: Destructive operation without safety check
+  if (['clear', 'delete', 'batch_clear', 'delete_dimension'].some((a) => action.includes(a))) {
     const safety = input['safety'] as { dryRun?: boolean } | undefined;
     if (!safety?.dryRun) {
       suggestions.push({
         type: 'warning',
-        message: 'Destructive operation executed. Consider using dryRun first',
-        reason: 'Preview changes before applying them to avoid accidental data loss',
+        message: 'Destructive operation executed without preview - consider using dryRun next time',
+        reason:
+          'dryRun shows exactly what will be changed before applying, preventing accidental data loss',
         priority: 'high',
       });
     }
   }
 
-  // Suggest snapshot for large changes
+  // HIGH PRIORITY: Large write without batching
+  if (action === 'write' && cellsAffected && cellsAffected > 1000) {
+    const estimatedSavings = Math.round((cellsAffected / 100) * 50); // ~50ms per 100 cells saved
+    suggestions.push({
+      type: 'optimization',
+      message: `Large write operation (${cellsAffected} cells) - batch_write would be faster`,
+      tool: tool,
+      action: 'batch_write',
+      reason: `Batch operations reduce API calls from ${Math.ceil(cellsAffected / 100)} to 1, saving ~${estimatedSavings}ms`,
+      priority: 'high',
+    });
+  }
+
+  // HIGH PRIORITY: Large change without snapshot
   if (cellsAffected && cellsAffected > 5000) {
     suggestions.push({
-      type: 'follow_up',
-      message: 'Large change detected. Create a snapshot for easy rollback',
-      tool: 'sheets_versions',
-      action: 'create_snapshot',
-      reason: 'Snapshots allow reverting large changes if needed',
+      type: 'warning',
+      message: `Large change (${cellsAffected} cells) detected - create snapshot for easy rollback`,
+      tool: 'sheets_collaborate',
+      action: 'version_create_snapshot',
+      reason: `Changes affecting ${cellsAffected} cells are difficult to undo manually. Snapshots enable one-click restoration.`,
+      priority: 'high',
+    });
+  }
+
+  // MEDIUM PRIORITY: Visualization opportunities
+  if (action === 'read' && result) {
+    const values = result['values'] as unknown[][] | undefined;
+    if (values && values.length > 20 && hasVisualizableData(values)) {
+      suggestions.push({
+        type: 'follow_up',
+        message: 'Data has clear patterns - visualization recommended',
+        tool: 'sheets_visualize',
+        action: 'suggest_chart',
+        reason: `Dataset with ${values.length} rows shows numeric patterns suitable for charts`,
+        priority: 'medium',
+      });
+    }
+  }
+
+  // MEDIUM PRIORITY: Analysis before modification
+  if (['write', 'batch_write', 'clear', 'delete'].some((a) => action.includes(a))) {
+    const hasAnalysis = result?.['analysis'] !== undefined;
+    if (!hasAnalysis) {
+      suggestions.push({
+        type: 'follow_up',
+        message: 'Consider analyzing data quality to understand impact',
+        tool: 'sheets_analyze',
+        action: 'analyze_quality',
+        reason:
+          'Quality analysis reveals data structure, patterns, and potential issues before modifications',
+        priority: 'medium',
+      });
+    }
+  }
+
+  // MEDIUM PRIORITY: Batch optimization hint
+  if (action === 'read' && !action.includes('batch')) {
+    suggestions.push({
+      type: 'optimization',
+      message: 'For reading multiple ranges, use batch_read',
+      tool: tool,
+      action: 'batch_read',
+      reason:
+        'Batch operations reduce API calls by ~80% and latency by ~70% when reading multiple ranges',
       priority: 'medium',
     });
   }
 
-  // Suggest analysis after reading large datasets
+  // LOW PRIORITY: Formatting after data write
+  if ((action === 'write' || action === 'append' || action === 'batch_write') && cellsAffected) {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Data written successfully - consider applying formatting',
+      tool: 'sheets_format',
+      action: 'apply_preset',
+      reason:
+        'Formatting presets (header, currency, percentage) improve readability and consistency',
+      priority: 'low',
+    });
+  }
+
+  // LOW PRIORITY: Analysis insights for large datasets
   if (action === 'read' && result) {
     const values = result['values'] as unknown[][] | undefined;
     if (values && values.length > 100) {
       suggestions.push({
         type: 'follow_up',
-        message: 'Large dataset read. Consider using analysis tools for insights',
-        tool: 'sheets_analysis',
-        action: 'statistics',
-        reason: 'Get statistical insights, detect patterns, and validate data quality',
+        message: `Large dataset (${values.length} rows) read - statistical analysis available`,
+        tool: 'sheets_analyze',
+        action: 'analyze_data',
+        reason: 'Get descriptive statistics, detect outliers, and identify data quality issues',
         priority: 'low',
       });
     }
   }
 
-  return suggestions;
+  // Sort by priority (HIGH first, then MEDIUM, then LOW)
+  return suggestions.sort(
+    (a, b) => PRIORITY_ORDER[a.priority || 'medium'] - PRIORITY_ORDER[b.priority || 'medium']
+  );
+}
+
+/**
+ * Check if result contains quality issues
+ */
+function hasQualityIssues(result: Record<string, unknown>): boolean {
+  const quality = result['quality'] as { issues?: unknown[] } | undefined;
+  const issues = quality?.issues as unknown[] | undefined;
+  return Array.isArray(issues) && issues.length > 0;
+}
+
+/**
+ * Get count of quality issues
+ */
+function getQualityIssueCount(result: Record<string, unknown>): number {
+  const quality = result['quality'] as { issues?: unknown[] } | undefined;
+  const issues = quality?.issues as unknown[] | undefined;
+  return Array.isArray(issues) ? issues.length : 0;
+}
+
+/**
+ * Check if data is suitable for visualization
+ */
+function hasVisualizableData(values: unknown[][]): boolean {
+  if (values.length < 2) return false;
+
+  // Check if there are numeric columns
+  const firstDataRow = values[1];
+  if (!Array.isArray(firstDataRow)) return false;
+
+  const hasNumbers = firstDataRow.some((cell) => typeof cell === 'number');
+  return hasNumbers;
 }
 
 /**
@@ -169,23 +255,29 @@ export function getRelatedTools(tool: string, action: string): string[] {
   const relatedMap: Record<string, string[]> = {
     'sheets_data:read': [
       'sheets_data:batch_read',
-      'sheets_analysis:data_quality',
-      'sheets_analysis:statistics',
+      'sheets_analyze:analyze_quality',
+      'sheets_analyze:analyze_data',
     ],
     'sheets_data:write': [
       'sheets_format:apply_preset',
       'sheets_data:batch_write',
-      'sheets_versions:create_snapshot',
+      'sheets_collaborate:version_create_snapshot',
     ],
     'sheets_data:append': ['sheets_format:apply_preset', 'sheets_data:batch_write'],
-    'sheets_data:clear': ['sheets_versions:create_snapshot', 'sheets_versions:restore_revision'],
-    'sheets_data:batch_read': ['sheets_analysis:statistics', 'sheets_data:read'],
-    'sheets_data:batch_write': ['sheets_format:set_format', 'sheets_versions:create_snapshot'],
-    'sheets_analysis:data_quality': ['sheets_analysis:statistics', 'sheets_data:read'],
-    'sheets_analysis:statistics': ['sheets_visualize:create', 'sheets_data:read'],
+    'sheets_data:clear': [
+      'sheets_collaborate:version_create_snapshot',
+      'sheets_collaborate:version_restore_revision',
+    ],
+    'sheets_data:batch_read': ['sheets_analyze:analyze_data', 'sheets_data:read'],
+    'sheets_data:batch_write': [
+      'sheets_format:set_format',
+      'sheets_collaborate:version_create_snapshot',
+    ],
+    'sheets_analyze:analyze_quality': ['sheets_analyze:analyze_data', 'sheets_data:read'],
+    'sheets_analyze:analyze_data': ['sheets_visualize:chart_create', 'sheets_data:read'],
     'sheets_format:apply_preset': ['sheets_format:set_format', 'sheets_data:write'],
-    'sheets_core:add': ['sheets_core:list', 'sheets_data:write'],
-    'sheets_core:create': ['sheets_sharing:share', 'sheets_core:add'],
+    'sheets_core:add_sheet': ['sheets_core:list_sheets', 'sheets_data:write'],
+    'sheets_core:create': ['sheets_collaborate:share_add', 'sheets_core:add_sheet'],
   };
 
   const key = `${tool}:${action}`;
@@ -225,7 +317,7 @@ function generateNextSteps(context: EnhancementContext): string[] {
   if (tool === 'sheets_data' && action === 'read') {
     const values = result?.['values'];
     if (values) {
-      steps.push('Analyze data with sheets_analysis:statistics for statistical insights');
+      steps.push('Analyze data with sheets_analyze:analyze_data for statistical insights');
       steps.push('Format the range with sheets_format:apply_preset for better readability');
     }
   }
@@ -237,12 +329,12 @@ function generateNextSteps(context: EnhancementContext): string[] {
   }
 
   if (tool === 'sheets_core' && action === 'create') {
-    steps.push('Add sheets with sheets_sheet:add');
-    steps.push('Share the spreadsheet with sheets_sharing:share');
+    steps.push('Add sheets with sheets_core:add_sheet');
+    steps.push('Share the spreadsheet with sheets_collaborate:share_add');
     steps.push('Start adding data with sheets_data:write');
   }
 
-  if (tool === 'sheets_analysis' && action === 'statistics') {
+  if (tool === 'sheets_analyze' && action === 'analyze_data') {
     steps.push('Create charts to visualize the data patterns');
     steps.push('Use insights to clean or transform the data');
   }
