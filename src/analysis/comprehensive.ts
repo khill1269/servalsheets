@@ -290,9 +290,11 @@ export class ComprehensiveAnalyzer {
   private tieredRetrieval: TieredRetrieval;
   private config: Required<ComprehensiveConfig>;
   private apiCallCount: number = 0;
+  private readonly metadataCache: ReturnType<typeof getCacheAdapter>;
 
   constructor(sheetsApi: sheets_v4.Sheets, config: ComprehensiveConfig = {}) {
     this.sheetsApi = sheetsApi;
+    this.metadataCache = getCacheAdapter('analysis-metadata');
     this.tieredRetrieval = new TieredRetrieval({
       cache: getCacheAdapter('analysis'),
       sheetsApi,
@@ -648,7 +650,9 @@ export class ComprehensiveAnalyzer {
   }
 
   /**
-   * Get spreadsheet info
+   * Get spreadsheet info with caching
+   *
+   * Cache TTL: 5 minutes (metadata rarely changes)
    */
   private async getSpreadsheetInfo(spreadsheetId: string): Promise<{
     locale?: string;
@@ -657,6 +661,23 @@ export class ComprehensiveAnalyzer {
     owner?: string;
     namedRanges: Array<{ name: string; range: string }>;
   }> {
+    const cacheKey = `spreadsheet-info:${spreadsheetId}`;
+
+    // Check cache first
+    const cached = this.metadataCache.get(cacheKey);
+    if (cached) {
+      logger.debug('Spreadsheet info cache hit', { spreadsheetId });
+      return cached as {
+        locale?: string;
+        timeZone?: string;
+        lastModified?: string;
+        owner?: string;
+        namedRanges: Array<{ name: string; range: string }>;
+      };
+    }
+
+    logger.debug('Spreadsheet info cache miss - fetching', { spreadsheetId });
+
     try {
       const response = await this.sheetsApi.spreadsheets.get({
         spreadsheetId,
@@ -668,11 +689,17 @@ export class ComprehensiveAnalyzer {
         range: this.formatRange(nr.range),
       }));
 
-      return {
+      const result = {
         locale: response.data.properties?.locale ?? undefined,
         timeZone: response.data.properties?.timeZone ?? undefined,
         namedRanges,
       };
+
+      // Cache for 5 minutes
+      this.metadataCache.set(cacheKey, result, 5 * 60 * 1000);
+      logger.debug('Cached spreadsheet info', { spreadsheetId });
+
+      return result;
     } catch {
       return { namedRanges: [] };
     }
@@ -1137,23 +1164,47 @@ export class ComprehensiveAnalyzer {
 
   /**
    * Enrich analysis with formula information
+   *
+   * Uses optimized field mask to fetch only formulas (not effectiveValue)
+   * Caches formula data for 2 minutes
    */
   private async enrichWithFormulas(
     spreadsheetId: string,
     sheetAnalyses: SheetAnalysis[]
   ): Promise<void> {
-    try {
-      const response = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        includeGridData: true,
-        fields: 'sheets(properties,data(rowData(values(userEnteredValue,effectiveValue))))',
-      });
-      this.apiCallCount++;
+    const cacheKey = `formulas:${spreadsheetId}`;
 
+    // Check cache first
+    let response = this.metadataCache.get(cacheKey) as sheets_v4.Schema$Spreadsheet | undefined;
+
+    if (!response) {
+      logger.debug('Formula data cache miss - fetching', { spreadsheetId });
+
+      try {
+        const apiResponse = await this.sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          includeGridData: true,
+          // Optimized field mask: fetch only formulas, not effectiveValue
+          fields: 'sheets(properties.sheetId,data.rowData.values.userEnteredValue.formulaValue)',
+        });
+        this.apiCallCount++;
+
+        response = apiResponse.data;
+
+        // Cache formula data for 2 minutes
+        this.metadataCache.set(cacheKey, response, 2 * 60 * 1000);
+        logger.debug('Cached formula data', { spreadsheetId });
+      } catch (error) {
+        logger.warn('Failed to fetch formulas', { spreadsheetId, error });
+        return;
+      }
+    } else {
+      logger.debug('Formula data cache hit', { spreadsheetId });
+    }
+
+    try {
       for (const analysis of sheetAnalyses) {
-        const sheetData = response.data.sheets?.find(
-          (s) => s.properties?.sheetId === analysis.sheetId
-        );
+        const sheetData = response.sheets?.find((s) => s.properties?.sheetId === analysis.sheetId);
 
         if (!sheetData?.data?.[0]?.rowData) continue;
 
