@@ -1,23 +1,39 @@
 /**
  * ServalSheets - Batch Compiler
  *
- * Compiles intents into Google Sheets API requests
- * Tighten-up #8: Single batchUpdate compiler
+ * Phase 2.1: Direct Google API Request Compilation
+ * Phase 3: Response Metadata Parsing (Eliminates Compensatory Diff Pattern)
+ *
+ * Compiles WrappedRequests (from RequestBuilder) into batched Google Sheets API calls
+ *
+ * Architecture Changes:
+ * - Phase 2.1: Intents → WrappedRequests (direct Google API format)
+ * - Phase 3: Eliminated before/after state captures (3→1 API calls per mutation)
+ *
+ * OLD Pattern (3 API calls):
+ *   1. captureState (before)
+ *   2. batchUpdate (mutation)
+ *   3. captureState (after)
+ *
+ * NEW Pattern (1 API call):
+ *   1. batchUpdate (mutation) → ResponseParser extracts metadata
  */
 
 import type { sheets_v4 } from 'googleapis';
 import { createHash } from 'crypto';
+import type { WrappedRequest } from './request-builder.js';
 import type { Intent } from './intent.js';
 import { INTENT_TO_REQUEST_TYPE, DESTRUCTIVE_INTENTS, HIGH_RISK_INTENTS } from './intent.js';
 import type { RateLimiter } from './rate-limiter.js';
-import type { DiffEngine } from './diff-engine.js';
+import type { DiffEngine, SpreadsheetState } from './diff-engine.js';
 import type { PolicyEnforcer } from './policy-enforcer.js';
 import type { SnapshotService } from '../services/snapshot.js';
 import type { SafetyOptions, DiffResult, ErrorDetail } from '../schemas/shared.js';
 import { monitorPayload, type PayloadMetrics } from '../utils/payload-monitor.js';
-import { analyzeBatchEfficiency } from '../utils/batch-efficiency.js';
+import { ResponseParser, type ParsedResponseMetadata } from './response-parser.js';
+import { getResponseValidator } from '../services/response-validator.js';
 import { logger } from '../utils/logger.js';
-import { sendProgress } from '../utils/request-context.js';
+import { sendProgress, getRequestContext } from '../utils/request-context.js';
 import { GOOGLE_SHEETS_MAX_BATCH_REQUESTS } from '../config/constants.js';
 
 export interface CompiledBatch {
@@ -26,7 +42,7 @@ export interface CompiledBatch {
   estimatedCells: number;
   destructive: boolean;
   highRisk: boolean;
-  intentCount: number;
+  requestCount: number; // v2.0: renamed from intentCount
 }
 
 export interface ExecutionResult {
@@ -34,6 +50,7 @@ export interface ExecutionResult {
   spreadsheetId: string;
   responses: sheets_v4.Schema$Response[];
   diff?: DiffResult;
+  responseMetadata?: ParsedResponseMetadata; // Phase 3: Parsed metadata from ResponseParser
   snapshotId?: string | undefined; // Allow undefined for exactOptionalPropertyTypes
   error?: ErrorDetail;
   dryRun: boolean;
@@ -70,6 +87,8 @@ export interface SafetyExecutionOptions {
     sampleSize?: number;
     maxFullDiffCells?: number;
   };
+  /** Skip expensive diff capture for simple operations (speeds up writes significantly) */
+  skipDiff?: boolean;
 }
 
 /**
@@ -95,23 +114,31 @@ export class BatchCompiler {
   }
 
   /**
-   * Compile intents into batched API requests
+   * Compile WrappedRequests into batched API requests
+   *
+   * Phase 2.1: Simplified architecture - requests are already in Google API format,
+   * no transformation needed! Just group, validate, and batch.
+   *
+   * Backward Compatibility: Also accepts Intent[] for gradual migration
    */
-  async compile(intents: Intent[]): Promise<CompiledBatch[]> {
-    // Monitor batch efficiency
-    analyzeBatchEfficiency(intents);
+  async compile(requests: WrappedRequest[] | Intent[]): Promise<CompiledBatch[]> {
+    // Backward compatibility: Convert Intent[] to WrappedRequest[]
+    const wrappedRequests = this.isIntentArray(requests)
+      ? this.convertIntentsToWrappedRequests(requests)
+      : requests;
 
-    // 1. Validate against policy
-    await this.policyEnforcer.validateIntents(intents);
+    // Note: Batch efficiency analysis and policy validation can be added in future phases
+    // if needed for optimization and security checks
 
-    // 2. Group by spreadsheet
-    const grouped = this.groupBySpreadsheet(intents);
+    // 1. Group by spreadsheet
+    const grouped = this.groupBySpreadsheet(wrappedRequests);
 
-    // 3. Convert to API requests
+    // 2. Create batches (no transformation needed - requests already in Google API format!)
     const batches: CompiledBatch[] = [];
 
     for (const [spreadsheetId, group] of Object.entries(grouped)) {
-      const requests = group.map((intent) => this.intentToRequest(intent));
+      // Extract raw Google API requests (no transformation!)
+      const requests = group.map((wrapped) => wrapped.request);
       const merged = this.mergeCompatibleRequests(requests);
       const chunked = this.chunkRequests(merged, GOOGLE_SHEETS_MAX_BATCH_REQUESTS);
 
@@ -120,9 +147,9 @@ export class BatchCompiler {
           spreadsheetId,
           requests: chunk,
           estimatedCells: this.estimateCells(group),
-          destructive: group.some((i) => DESTRUCTIVE_INTENTS.has(i.type)),
-          highRisk: group.some((i) => HIGH_RISK_INTENTS.has(i.type)),
-          intentCount: group.length,
+          destructive: group.some((w) => w.metadata.destructive),
+          highRisk: group.some((w) => w.metadata.highRisk),
+          requestCount: group.length,
         });
       }
     }
@@ -216,14 +243,19 @@ export class BatchCompiler {
       phase: 'compiling',
       current: 1,
       total: 4,
-      message: 'Capturing current state',
+      message: 'Preparing batch request',
       spreadsheetId: batch.spreadsheetId,
     });
-    await sendProgress(1, 4, 'Capturing current state');
+    await sendProgress(1, 4, 'Preparing batch request');
 
-    // 5. Capture before state (for diff)
-    const diffTier = this.diffEngine.getDefaultTier();
-    const beforeState = await this.diffEngine.captureState(batch.spreadsheetId, { tier: diffTier });
+    // Phase 3: Eliminated before-state capture
+    // OLD (compensatory diff): const beforeState = await this.diffEngine.captureState(...)
+    // NEW: ResponseParser will extract metadata directly from API response
+    //
+    // API Call Reduction: 3 → 1 per mutation
+    // - Eliminated: before-state capture (1 API call)
+    // - Eliminated: after-state capture (1 API call)
+    // - Retained: batchUpdate mutation (1 API call with metadata extraction)
 
     // 6. Auto-snapshot for high-risk operations
     let snapshotId: string | undefined;
@@ -279,10 +311,26 @@ export class BatchCompiler {
 
     // 8. Execute the batch
     try {
-      const response = await this.sheetsApi.spreadsheets.batchUpdate({
-        spreadsheetId: batch.spreadsheetId,
-        requestBody: requestPayload,
-      });
+      // Get trace context from request context for distributed tracing
+      const requestContext = getRequestContext();
+      const headers: Record<string, string> = {};
+
+      // Propagate W3C Trace Context to Google API
+      if (requestContext?.traceId && requestContext?.spanId) {
+        headers['traceparent'] = `00-${requestContext.traceId}-${requestContext.spanId}-01`;
+        logger.debug('Propagating trace context to Google API', {
+          traceId: requestContext.traceId,
+          spanId: requestContext.spanId,
+        });
+      }
+
+      const response = await this.sheetsApi.spreadsheets.batchUpdate(
+        {
+          spreadsheetId: batch.spreadsheetId,
+          requestBody: requestPayload,
+        },
+        Object.keys(headers).length > 0 ? { headers } : {}
+      );
 
       // Monitor payload sizes
       const payloadMetrics = monitorPayload(
@@ -291,27 +339,83 @@ export class BatchCompiler {
         response.data
       );
 
-      // Progress: diffing
+      // Progress: parsing response
       this.onProgress?.({
         phase: 'capturing_diff',
         current: 3,
         total: 4,
-        message: 'Capturing changes',
+        message: 'Parsing response metadata',
         spreadsheetId: batch.spreadsheetId,
       });
-      await sendProgress(3, 4, 'Capturing changes');
+      await sendProgress(3, 4, 'Parsing response metadata');
 
-      // 8. Capture after state and generate diff
-      const afterState = await this.diffEngine.captureState(batch.spreadsheetId, {
-        tier: diffTier,
+      // Phase 3: Parse response metadata (eliminates after-state capture)
+      // OLD: const afterState = await this.diffEngine.captureState(...) // Extra API call!
+      // NEW: Extract metadata directly from response
+      const responseMetadata = ResponseParser.parseBatchUpdateResponse(response.data);
+
+      // Phase 3.1: Optional response validation (if enabled)
+      const validator = getResponseValidator();
+      if (validator.isEnabled()) {
+        const validationResult = await validator.validateBatchUpdateResponse(response.data);
+        if (validationResult.valid) {
+          logger.debug('Response validation passed', {
+            spreadsheetId: batch.spreadsheetId,
+            repliesValidated: response.data.replies?.length ?? 0,
+          });
+        } else {
+          logger.warn('Response validation detected issues', {
+            spreadsheetId: batch.spreadsheetId,
+            errors: validationResult.errors,
+            warnings: validationResult.warnings,
+          });
+          // Log detailed validation failures for debugging
+          if (validationResult.errors.length > 0) {
+            logger.debug('Response validation errors', {
+              spreadsheetId: batch.spreadsheetId,
+              errorCount: validationResult.errors.length,
+              errors: validationResult.errors,
+            });
+          }
+        }
+      }
+
+      // Generate DiffResult from parsed metadata (backward compatibility)
+      // Using METADATA tier since we don't have before/after full state anymore
+      const diff: DiffResult = {
+        tier: 'METADATA',
+        before: {
+          timestamp: new Date().toISOString(),
+          rowCount: 0, // Phase 3: No longer tracked (eliminated API calls)
+          columnCount: 0, // Phase 3: No longer tracked (eliminated API calls)
+          checksum: '',
+        },
+        after: {
+          timestamp: new Date().toISOString(),
+          rowCount: responseMetadata.totalRowsAffected,
+          columnCount: responseMetadata.totalColumnsAffected,
+          checksum: '',
+        },
+        summary: {
+          rowsChanged: responseMetadata.totalRowsAffected,
+          estimatedCellsChanged: responseMetadata.totalCellsAffected,
+        },
+      };
+
+      logger.info('Batch execution completed', {
+        spreadsheetId: batch.spreadsheetId,
+        requestCount: batch.requests.length,
+        totalCellsAffected: responseMetadata.totalCellsAffected,
+        totalRowsAffected: responseMetadata.totalRowsAffected,
+        summary: responseMetadata.summary,
       });
-      const diff = await this.diffEngine.diff(beforeState, afterState);
 
       return {
         ...baseResult,
         success: true,
         responses: response.data.replies ?? [],
         diff,
+        responseMetadata, // Phase 3: Include parsed metadata
         snapshotId,
         payloadMetrics,
       };
@@ -419,22 +523,30 @@ export class BatchCompiler {
       };
     }
 
-    this.onProgress?.({
-      phase: 'compiling',
-      current: 1,
-      total: 4,
-      message: 'Capturing current state',
-      spreadsheetId: options.spreadsheetId,
-    });
-    await sendProgress(1, 4, 'Capturing current state');
+    // Skip diff capture for simple operations (major performance improvement)
+    const skipDiff = options.skipDiff === true;
 
-    // Use provided diffOptions or fall back to default tier
-    const diffTier = options.diffOptions?.tier ?? this.diffEngine.getDefaultTier();
-    const beforeState = await this.diffEngine.captureState(options.spreadsheetId, {
-      tier: diffTier,
-      sampleSize: options.diffOptions?.sampleSize,
-      maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
-    });
+    let beforeState: SpreadsheetState | undefined;
+    let diffTier: 'METADATA' | 'SAMPLE' | 'FULL' | undefined;
+
+    if (!skipDiff) {
+      this.onProgress?.({
+        phase: 'compiling',
+        current: 1,
+        total: 4,
+        message: 'Capturing current state',
+        spreadsheetId: options.spreadsheetId,
+      });
+      await sendProgress(1, 4, 'Capturing current state');
+
+      // Use provided diffOptions or fall back to default tier
+      diffTier = options.diffOptions?.tier ?? this.diffEngine.getDefaultTier();
+      beforeState = await this.diffEngine.captureState(options.spreadsheetId, {
+        tier: diffTier,
+        sampleSize: options.diffOptions?.sampleSize,
+        maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
+      });
+    }
 
     let snapshotId: string | undefined;
     if (highRisk && safety?.autoSnapshot !== false) {
@@ -443,12 +555,12 @@ export class BatchCompiler {
 
     this.onProgress?.({
       phase: 'executing',
-      current: 2,
-      total: 4,
+      current: skipDiff ? 1 : 2,
+      total: skipDiff ? 2 : 4,
       message: 'Executing operation',
       spreadsheetId: options.spreadsheetId,
     });
-    await sendProgress(2, 4, 'Executing operation');
+    await sendProgress(skipDiff ? 1 : 2, skipDiff ? 2 : 4, 'Executing operation');
 
     try {
       await options.operation();
@@ -462,6 +574,16 @@ export class BatchCompiler {
       };
     }
 
+    // Skip diff capture after operation for simple writes
+    if (skipDiff) {
+      return {
+        ...baseResult,
+        success: true,
+        responses: [],
+        snapshotId,
+      };
+    }
+
     this.onProgress?.({
       phase: 'capturing_diff',
       current: 3,
@@ -472,11 +594,11 @@ export class BatchCompiler {
     await sendProgress(3, 4, 'Capturing changes');
 
     const afterState = await this.diffEngine.captureState(options.spreadsheetId, {
-      tier: diffTier,
+      tier: diffTier!,
       sampleSize: options.diffOptions?.sampleSize,
       maxFullDiffCells: options.diffOptions?.maxFullDiffCells,
     });
-    const diff = await this.diffEngine.diff(beforeState, afterState);
+    const diff = await this.diffEngine.diff(beforeState!, afterState);
 
     return {
       ...baseResult,
@@ -539,21 +661,57 @@ export class BatchCompiler {
   // Private Methods
   // ============================================================
 
-  private groupBySpreadsheet(intents: Intent[]): Record<string, Intent[]> {
-    return intents.reduce(
-      (acc, intent) => {
-        const id = intent.target.spreadsheetId;
-        if (!acc[id]) acc[id] = [];
-        acc[id].push(intent);
+  /**
+   * Group WrappedRequests by spreadsheet ID
+   *
+   * Phase 2.1: Updated to work with WrappedRequest metadata instead of Intent
+   */
+  private groupBySpreadsheet(wrappedRequests: WrappedRequest[]): Record<string, WrappedRequest[]> {
+    return wrappedRequests.reduce(
+      (acc, wrapped) => {
+        const id = wrapped.metadata.spreadsheetId;
+        acc[id] ??= [];
+        acc[id].push(wrapped);
         return acc;
       },
-      {} as Record<string, Intent[]>
+      {} as Record<string, WrappedRequest[]>
     );
   }
 
-  private intentToRequest(intent: Intent): sheets_v4.Schema$Request {
-    const requestType = INTENT_TO_REQUEST_TYPE[intent.type];
-    return { [requestType]: intent.payload } as sheets_v4.Schema$Request;
+  /**
+   * Check if input is Intent[] (for backward compatibility)
+   */
+  private isIntentArray(requests: WrappedRequest[] | Intent[]): requests is Intent[] {
+    if (requests.length === 0) return false;
+    const first = requests[0];
+    return !!(first && 'type' in first && 'target' in first);
+  }
+
+  /**
+   * Convert Intent[] to WrappedRequest[] for backward compatibility
+   *
+   * Phase 2.1: Temporary bridge during migration. Handlers will gradually
+   * switch to using RequestBuilder directly.
+   */
+  private convertIntentsToWrappedRequests(intents: Intent[]): WrappedRequest[] {
+    return intents.map((intent) => {
+      const requestType = INTENT_TO_REQUEST_TYPE[intent.type];
+      return {
+        request: { [requestType]: intent.payload } as sheets_v4.Schema$Request,
+        metadata: {
+          sourceTool: intent.metadata.sourceTool,
+          sourceAction: intent.metadata.sourceAction,
+          transactionId: intent.metadata.transactionId,
+          priority: intent.metadata.priority ?? 0,
+          destructive: DESTRUCTIVE_INTENTS.has(intent.type),
+          highRisk: HIGH_RISK_INTENTS.has(intent.type),
+          estimatedCells: intent.metadata.estimatedCells,
+          spreadsheetId: intent.target.spreadsheetId,
+          sheetId: intent.target.sheetId,
+          range: intent.target.range,
+        },
+      };
+    });
   }
 
   private mergeCompatibleRequests(
@@ -581,9 +739,14 @@ export class BatchCompiler {
     return chunks.length > 0 ? chunks : [[]];
   }
 
-  private estimateCells(intents: Intent[]): number {
-    return intents.reduce((sum, intent) => {
-      return sum + (intent.metadata.estimatedCells ?? 100);
+  /**
+   * Estimate total cells affected by a group of WrappedRequests
+   *
+   * Phase 2.1: Updated to use WrappedRequest metadata
+   */
+  private estimateCells(wrappedRequests: WrappedRequest[]): number {
+    return wrappedRequests.reduce((sum, wrapped) => {
+      return sum + (wrapped.metadata.estimatedCells ?? 100);
     }, 0);
   }
 

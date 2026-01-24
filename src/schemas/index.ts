@@ -41,6 +41,7 @@ export * from './session.js'; // Session context for NL excellence
 export * from './templates.js'; // Enterprise templates (Tier 7)
 export * from './bigquery.js'; // BigQuery Connected Sheets (Tier 7)
 export * from './appsscript.js'; // Apps Script automation (Tier 7)
+export * from './webhooks.js'; // Webhook notifications
 
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';

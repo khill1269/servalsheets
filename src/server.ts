@@ -67,7 +67,7 @@ import { createRequestContext, runWithRequestContext } from './utils/request-con
 import { verifyJsonSchema } from './utils/schema-compat.js';
 import {
   TOOL_DEFINITIONS,
-  createFastToolHandlerMap,
+  createToolHandlerMap,
   buildToolResponse,
   registerServalSheetsResources,
   registerServalSheetsPrompts,
@@ -90,9 +90,17 @@ import {
   registerDecisionResources,
   registerExamplesResources,
   registerSheetResources,
+  registerSchemaResources,
 } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
+import {
+  createHealthMonitor,
+  createHeapHealthCheck,
+  createConnectionHealthCheck,
+  type HealthMonitor,
+} from './server/index.js';
+import { parseWithCache } from './utils/schema-cache.js';
 
 export interface ServalSheetsServerOptions {
   name?: string;
@@ -115,6 +123,8 @@ export class ServalSheetsServer {
   private requestQueue: PQueue;
   private taskStore: TaskStoreAdapter;
   private taskAbortControllers = new Map<string, AbortController>();
+  private healthMonitor: HealthMonitor;
+  private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
 
   constructor(options: ServalSheetsServerOptions = {}) {
     this.options = options;
@@ -147,6 +157,28 @@ export class ServalSheetsServer {
     });
 
     baseLogger.info('Request queue initialized', { maxConcurrent });
+
+    // Initialize health monitoring with heap and connection checks
+    this.connectionHealthCheck = createConnectionHealthCheck({
+      disconnectThresholdMs: Number.parseInt(
+        process.env['MCP_DISCONNECT_THRESHOLD_MS'] || '120000',
+        10
+      ),
+      warnThresholdMs: Number.parseInt(process.env['MCP_WARN_THRESHOLD_MS'] || '60000', 10),
+    });
+
+    this.healthMonitor = createHealthMonitor({
+      checks: [
+        createHeapHealthCheck({
+          warningThreshold: 0.7,
+          criticalThreshold: 0.85,
+          enableSnapshots: process.env['ENABLE_HEAP_SNAPSHOTS'] === 'true',
+          snapshotPath: process.env['HEAP_SNAPSHOT_PATH'] || './heap-snapshots',
+        }),
+        this.connectionHealthCheck,
+      ],
+      autoStart: false, // Manual start in initialize()
+    });
   }
 
   /**
@@ -211,6 +243,7 @@ export class ServalSheetsServer {
         context: this.context,
         sheetsApi: this.googleClient.sheets,
         driveApi: this.googleClient.drive,
+        bigqueryApi: this.googleClient.bigquery ?? undefined,
       });
       this.handlers = handlers;
 
@@ -246,19 +279,25 @@ export class ServalSheetsServer {
 
     // Start cache cleanup task
     cacheManager.startCleanupTask();
+
+    // Start health monitoring (heap usage, connection tracking)
+    await this.healthMonitor.start();
+    baseLogger.info('Health monitoring started');
   }
 
   /**
-   * Register all 17 tools with proper annotations
+   * Register all 16 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
       // Prepare schemas for SDK registration (shared with HTTP/remote servers)
       const inputSchemaForRegistration = prepareSchemaForRegistration(
-        tool.inputSchema
+        tool.inputSchema,
+        'input'
       ) as unknown as AnySchema;
       const outputSchemaForRegistration = prepareSchemaForRegistration(
-        tool.outputSchema
+        tool.outputSchema,
+        'output'
       ) as unknown as AnySchema;
 
       // SAFETY CHECK: Verify schemas are properly transformed JSON Schema objects (not Zod objects)
@@ -297,8 +336,9 @@ export class ServalSheetsServer {
           {
             title: tool.annotations.title,
             description: tool.description,
-            inputSchema: tool.inputSchema as AnySchema,
-            outputSchema: tool.outputSchema as AnySchema,
+            // FIX: Use prepared schemas (deferred/optimized) instead of full Zod schemas
+            inputSchema: inputSchemaForRegistration,
+            outputSchema: outputSchemaForRegistration,
             annotations: tool.annotations,
             execution: taskExecution,
           },
@@ -518,16 +558,25 @@ export class ServalSheetsServer {
       const requestContext = createRequestContext({
         sendNotification: extra?.sendNotification,
         progressToken: extra?.progressToken,
+        // W3C Trace Context support - extract from extra if provided by HTTP transport
+        traceId: (extra as { traceId?: string })?.traceId,
+        spanId: (extra as { spanId?: string })?.spanId,
+        parentSpanId: (extra as { parentSpanId?: string })?.parentSpanId,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;
         recordSpreadsheetId(args);
 
-        // Log queue state
+        // Record heartbeat for connection health monitoring
+        this.connectionHealthCheck.recordHeartbeat(toolName);
+
+        // Log queue state with trace context
         logger.debug('Tool call queued', {
           toolName,
           queueSize: this.requestQueue.size,
           pendingCount: this.requestQueue.pending,
+          traceId: requestContext.traceId,
+          spanId: requestContext.spanId,
         });
 
         // Check if shutting down
@@ -552,7 +601,9 @@ export class ServalSheetsServer {
               this.authHandler = new AuthHandler({});
             }
             const { SheetsAuthInputSchema } = await import('./schemas/auth.js');
-            const result = await this.authHandler.handle(SheetsAuthInputSchema.parse(args));
+            const result = await this.authHandler.handle(
+              parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput')
+            );
             const duration = (Date.now() - startTime) / 1000;
             recordToolCall(toolName, 'auth', 'success', duration);
             return buildToolResponse(result);
@@ -579,8 +630,8 @@ export class ServalSheetsServer {
             });
           }
 
-          // Route to appropriate handler (uses fast validators for 5.8x speedup)
-          const handlerMap = createFastToolHandlerMap(this.handlers, this.authHandler ?? undefined);
+          // Route to appropriate handler
+          const handlerMap = createToolHandlerMap(this.handlers, this.authHandler ?? undefined);
 
           const handler = handlerMap[toolName];
           if (!handler) {
@@ -770,6 +821,10 @@ export class ServalSheetsServer {
 
     // Register examples library resources (Phase 6)
     registerExamplesResources(this._server); // Basic operations, batch, transactions, composite workflows, analysis
+
+    // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
+    // These resources expose full tool schemas on-demand when using minimal registration
+    registerSchemaResources(this._server);
   }
 
   /**
@@ -867,6 +922,10 @@ export class ServalSheetsServer {
 
     // Stop cache cleanup task
     cacheManager.stopCleanupTask();
+
+    // Stop health monitoring
+    await this.healthMonitor.stop();
+    baseLogger.info('Health monitoring stopped');
 
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();

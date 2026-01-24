@@ -9,6 +9,7 @@ import type { ErrorDetail } from '../schemas/shared.js';
 export interface ErrorSuggestion {
   title: string;
   steps: string[];
+  suggestedTools?: string[];
 }
 
 /**
@@ -28,6 +29,8 @@ export function enhanceError(
     details: context,
     resolution: suggestions.title,
     resolutionSteps: suggestions.steps,
+    suggestedTools: suggestions.suggestedTools,
+    fixableVia: getFixableVia(code, context),
   };
 }
 
@@ -37,7 +40,11 @@ export function enhanceError(
 function getErrorSuggestions(code: string, context?: Record<string, unknown>): ErrorSuggestion {
   const range = context?.['range'] as string | undefined;
   const spreadsheetId = context?.['spreadsheetId'] as string | undefined;
+  const sheetName = context?.['sheetName'] as string | undefined;
+  const sheetId = context?.['sheetId'] as number | string | undefined;
   const operation = context?.['operation'] as string | undefined;
+  const matches = context?.['matches'] as string[] | undefined;
+  const suggestedFix = context?.['suggestedFix'] as string | undefined;
 
   switch (code) {
     case 'RANGE_NOT_FOUND':
@@ -45,11 +52,52 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         title: 'Range not found - Check sheet name and cell references',
         steps: [
           '1. Verify sheet name spelling (case-sensitive)',
-          `2. List all sheets: sheets_core action="spreadsheet_get" spreadsheetId="${spreadsheetId || '<ID>'}"`,
+          `2. List all sheets: sheets_core action="get" spreadsheetId="${spreadsheetId || '<ID>'}"`,
           '3. Check range format: "SheetName!A1:D10" (include sheet name and !)',
           '4. Try semantic range: {"semantic":{"sheet":"Sales","column":"Revenue"}}',
           range ? `5. Current range: "${range}" - is this correct?` : '',
         ].filter(Boolean),
+        suggestedTools: ['sheets_core', 'sheets_data'],
+      };
+
+    case 'SHEET_NOT_FOUND':
+      return {
+        title: 'Sheet not found - Verify sheet name or ID',
+        steps: [
+          `1. List sheets: sheets_core action="list_sheets" spreadsheetId="${spreadsheetId || '<ID>'}"`,
+          sheetName
+            ? `2. Sheet name requested: "${sheetName}" (case-sensitive)`
+            : '2. Verify sheet name is exact (case-sensitive)',
+          sheetId !== undefined
+            ? `3. Sheet ID requested: ${sheetId}`
+            : '3. Verify sheetId is correct (numeric gid)',
+          '4. Confirm the sheet was not deleted or renamed',
+        ].filter(Boolean),
+        suggestedTools: ['sheets_core'],
+      };
+
+    case 'SPREADSHEET_NOT_FOUND':
+      return {
+        title: 'Spreadsheet not found - Verify ID and access',
+        steps: [
+          `1. Check spreadsheet ID format (alphanumeric, 44 chars typical)`,
+          `2. Open URL: https://docs.google.com/spreadsheets/d/${spreadsheetId || '<ID>'}`,
+          '3. Confirm you have access or request sharing from the owner',
+          '4. Check if the spreadsheet was deleted or moved to trash',
+        ],
+        suggestedTools: ['sheets_core', 'sheets_collaborate'],
+      };
+
+    case 'AUTH_REQUIRED':
+      return {
+        title: 'Authentication required - Complete OAuth first',
+        steps: [
+          '1. Check auth status: sheets_auth action="status"',
+          '2. Start login flow: sheets_auth action="login"',
+          '3. Complete OAuth consent in the browser',
+          '4. Retry the original operation',
+        ],
+        suggestedTools: ['sheets_auth'],
       };
 
     case 'PERMISSION_DENIED':
@@ -59,9 +107,10 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '1. Check current auth: sheets_auth action="status"',
           '2. Re-authenticate: sheets_auth action="login"',
           '3. Grant required permissions in browser',
-          '4. If sharing: Check spreadsheet permissions (sheets_sharing action="list_permissions")',
+          '4. If sharing: Check spreadsheet permissions (sheets_collaborate action="share_list")',
           '5. If still failing: Request owner to share with your account',
         ],
+        suggestedTools: ['sheets_auth', 'sheets_collaborate'],
       };
 
     case 'QUOTA_EXCEEDED':
@@ -74,6 +123,18 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '4. Check quota: sheets_auth action="status"',
           '5. Avoid polling - use event-driven updates instead',
         ],
+        suggestedTools: ['sheets_data', 'sheets_transaction', 'sheets_auth'],
+      };
+
+    case 'AMBIGUOUS_RANGE':
+      return {
+        title: 'Ambiguous range - Choose a single match',
+        steps: [
+          '1. Specify a single column or exact A1 range',
+          matches ? `2. Matching columns: ${matches.join(', ')}` : '',
+          suggestedFix ? `3. ${suggestedFix}` : '',
+        ].filter(Boolean),
+        suggestedTools: ['sheets_analyze', 'sheets_data'],
       };
 
     case 'INVALID_RANGE':
@@ -86,6 +147,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '4. Alternative: Use semantic ranges: {"semantic":{"column":"Revenue"}}',
           range ? `5. Your range: "${range}" - check for typos` : '',
         ].filter(Boolean),
+        suggestedTools: ['sheets_data', 'sheets_core'],
       };
 
     case 'NOT_FOUND':
@@ -94,10 +156,11 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         steps: [
           '1. Check spreadsheet ID format (44 chars, alphanumeric)',
           `2. Get ID from URL: docs.google.com/spreadsheets/d/{ID}/...`,
-          '3. Verify access: sheets_core action="spreadsheet_get" (will fail if no access)',
-          '4. List accessible spreadsheets: sheets_core action="spreadsheet_list"',
+          '3. Verify access: sheets_core action="get" (will fail if no access)',
+          '4. List accessible spreadsheets: sheets_core action="list"',
           '5. If deleted: Check trash or restore from version history',
         ],
+        suggestedTools: ['sheets_core', 'sheets_collaborate'],
       };
 
     case 'ELICITATION_UNAVAILABLE':
@@ -109,6 +172,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '3. Manual confirmation: Ask user to review plan in chat before executing',
           '4. Check capabilities: sheets_auth action="status"',
         ],
+        suggestedTools: ['sheets_auth', 'sheets_quality'],
       };
 
     case 'SAMPLING_UNAVAILABLE':
@@ -116,10 +180,11 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         title: 'Client does not support MCP Sampling',
         steps: [
           '1. Update Claude Desktop to latest version (sampling requires v0.7.0+)',
-          '2. Alternative: Use sheets_analysis (traditional analysis, no AI)',
-          '3. For formula generation: Use sheets_analysis to understand data, write formula manually',
+          '2. Alternative: Use sheets_quality for deterministic checks',
+          '3. For formula work: Use sheets_analyze with useAI=false or write formulas manually',
           '4. Check capabilities: sheets_auth action="status"',
         ],
+        suggestedTools: ['sheets_auth', 'sheets_quality', 'sheets_analyze'],
       };
 
     case 'NO_DATA':
@@ -130,8 +195,9 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '2. Check sheet name is correct',
           '3. Expand range if needed',
           range ? `4. Current range: "${range}"` : '',
-          '5. Use sheets_core action="spreadsheet_get" to see all sheet dimensions',
+          '5. Use sheets_core action="get" to see all sheet dimensions',
         ].filter(Boolean),
+        suggestedTools: ['sheets_data', 'sheets_core', 'sheets_analyze'],
       };
 
     case 'TRANSACTION_TIMEOUT':
@@ -143,6 +209,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '3. Check if operations are complex (avoid heavy formulas)',
           '4. Transaction best practices: sheets_transaction description',
         ],
+        suggestedTools: ['sheets_transaction'],
       };
 
     case 'PARSE_ERROR':
@@ -154,6 +221,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '3. Check MCP version compatibility',
           operation ? `4. Operation: ${operation}` : '',
         ].filter(Boolean),
+        suggestedTools: ['sheets_auth'],
       };
 
     case 'INTERNAL_ERROR':
@@ -166,6 +234,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '4. Check recent changes to codebase',
           '5. Report to developers if persistent',
         ],
+        suggestedTools: ['sheets_auth'],
       };
 
     case 'RATE_LIMIT_EXCEEDED':
@@ -177,6 +246,47 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '3. Use batch operations to reduce request count',
           '4. Circuit breaker auto-retries with exponential backoff',
         ],
+        suggestedTools: ['sheets_data', 'sheets_transaction'],
+      };
+
+    case 'INVALID_ARGUMENT':
+      return {
+        title: 'Invalid argument to Google API',
+        steps: [
+          '1. Check error message for specific field that failed',
+          '2. Common issues:',
+          '   - BAR charts: series must target BOTTOM_AXIS (use COLUMN for vertical bars)',
+          '   - Range without sheet name: Use "Sheet1!A1:D10" not "A1:D10"',
+          '   - Invalid sheetId: Get from sheets_core action="list_sheets"',
+          '3. Verify IDs match existing objects (sheets, charts, named ranges)',
+          '4. Check schema description for field constraints',
+        ],
+        suggestedTools: ['sheets_core', 'sheets_visualize'],
+      };
+
+    case 'VALIDATION_FAILED':
+      return {
+        title: 'Input validation failed',
+        steps: [
+          '1. Check the "action" parameter is valid for this tool',
+          '2. Ensure all required parameters are provided',
+          '3. Verify "spreadsheetId" is a valid 44-character string',
+          '4. Range format: "SheetName!A1:D10" (include sheet name with !)',
+          '5. Use sheets_auth action="status" to verify connection',
+        ],
+        suggestedTools: ['sheets_auth'],
+      };
+
+    case 'ACTION_REQUIRED':
+      return {
+        title: 'Missing required "action" parameter',
+        steps: [
+          '1. Every tool call MUST include an "action" parameter',
+          '2. Example: {"action":"read", "spreadsheetId":"...", "range":"..."}',
+          '3. Check tool description for valid action names',
+          '4. Common actions: read, write, get, create, list_sheets',
+        ],
+        suggestedTools: ['sheets_auth'],
       };
 
     default:
@@ -189,6 +299,7 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
           '4. Check tool description for correct usage',
           `5. Error code: ${code}`,
         ],
+        suggestedTools: ['sheets_auth', 'sheets_analyze'],
       };
   }
 }
@@ -205,6 +316,103 @@ function isRetryable(code: string): boolean {
     'TRANSACTION_TIMEOUT',
   ];
   return retryableCodes.includes(code);
+}
+
+/**
+ * Get automated recovery tool/action for error
+ */
+function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDetail['fixableVia'] {
+  const spreadsheetId = context?.['spreadsheetId'] as string | undefined;
+  const range = context?.['range'] as string | undefined;
+
+  switch (code) {
+    case 'AUTH_REQUIRED':
+      // Auth required → login
+      return {
+        tool: 'sheets_auth',
+        action: 'login',
+      };
+
+    case 'PERMISSION_DENIED':
+      // Permission denied → re-authenticate to grant additional permissions
+      return {
+        tool: 'sheets_auth',
+        action: 'login',
+      };
+
+    case 'SHEET_NOT_FOUND':
+      // Sheet not found → list sheets to see available sheets
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'list_sheets',
+          params: { spreadsheetId },
+        };
+      }
+      return {
+        tool: 'sheets_core',
+        action: 'list_sheets',
+      };
+
+    case 'SPREADSHEET_NOT_FOUND':
+      // Spreadsheet not found → list accessible spreadsheets
+      return {
+        tool: 'sheets_core',
+        action: 'list',
+      };
+
+    case 'RANGE_NOT_FOUND':
+      // Range not found → get spreadsheet to see sheet names
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_core',
+          action: 'get',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined;
+
+    case 'NO_DATA':
+      // No data → read range to verify it exists
+      if (spreadsheetId && range) {
+        return {
+          tool: 'sheets_data',
+          action: 'read',
+          params: { spreadsheetId, range },
+        };
+      }
+      return undefined;
+
+    case 'NOT_FOUND':
+      // Generic not found → list accessible spreadsheets
+      return {
+        tool: 'sheets_core',
+        action: 'list',
+      };
+
+    case 'VALIDATION_FAILED':
+    case 'ACTION_REQUIRED':
+      // Validation errors → check auth status to verify connection
+      return {
+        tool: 'sheets_auth',
+        action: 'status',
+      };
+
+    case 'AMBIGUOUS_RANGE':
+      // Ambiguous range → analyze sheet to see column structure
+      if (spreadsheetId) {
+        return {
+          tool: 'sheets_analyze',
+          action: 'analyze_sheet',
+          params: { spreadsheetId },
+        };
+      }
+      return undefined;
+
+    default:
+      // No automated fix available
+      return undefined;
+  }
 }
 
 /**

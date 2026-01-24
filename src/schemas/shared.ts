@@ -35,7 +35,9 @@ export const ColorSchema = z
     blue: z.number().min(0).max(1).optional().default(0),
     alpha: z.number().min(0).max(1).optional().default(1),
   })
-  .describe('RGB color in 0-1 scale');
+  .describe(
+    'RGB color in 0-1 scale (e.g., {red:1,green:0,blue:0} for red, {red:0.26,green:0.52,blue:0.96} for Google blue #4285F4)'
+  );
 
 /** Cell value types */
 export const CellValueSchema = z
@@ -45,7 +47,9 @@ export const CellValueSchema = z
 /** 2D array of values */
 export const ValuesArraySchema = z
   .array(z.array(CellValueSchema))
-  .describe('2D array - each inner array is a row');
+  .describe(
+    '2D array of values (rows × columns): [["Name","Age"],["Alice",30],["Bob",25]] writes 3 rows × 2 columns'
+  );
 
 /** Spreadsheet ID */
 export const SpreadsheetIdSchema = z
@@ -53,10 +57,18 @@ export const SpreadsheetIdSchema = z
   .min(1)
   .max(100)
   .regex(SPREADSHEET_ID_REGEX, 'Invalid spreadsheet ID format')
-  .describe('Spreadsheet ID from URL');
+  .describe(
+    'Spreadsheet ID from URL (e.g., "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" from https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit)'
+  );
 
-/** Sheet ID (numeric) */
-export const SheetIdSchema = z.number().int().min(0).describe('Numeric sheet ID');
+/** Sheet ID (numeric) - coerces strings from MCP clients */
+export const SheetIdSchema = z.coerce
+  .number()
+  .int()
+  .min(0)
+  .describe(
+    'Numeric sheet/tab ID (e.g., 0 for first sheet, found in URL #gid=123456789). Use sheets_core get to retrieve sheet IDs.'
+  );
 
 /** A1 Notation */
 export const A1NotationSchema = z
@@ -64,7 +76,9 @@ export const A1NotationSchema = z
   .min(1)
   .max(A1_NOTATION_MAX_LENGTH)
   .regex(A1_NOTATION_REGEX, 'Invalid A1 notation format')
-  .describe('A1 notation (e.g., "Sheet1!A1:C10", "A1", "A:B", "1:5")');
+  .describe(
+    'A1 notation range: "A1" (single cell), "A1:C10" (range), "A:B" (full columns), "1:5" (full rows), "Sheet1!A1:C10" (with sheet name), "\'Sheet Name\'!A1" (quoted sheet name with spaces)'
+  );
 
 /** Sheet name */
 export const SheetNameSchema = z
@@ -80,20 +94,48 @@ export const SheetNameSchema = z
 
 export const ValueRenderOptionSchema = z
   .enum(['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'])
-  .default('FORMATTED_VALUE');
+  .default('FORMATTED_VALUE')
+  .describe(
+    'How to render cell values: FORMATTED_VALUE (default, displays "$1,234.56"), UNFORMATTED_VALUE (raw number 1234.56), FORMULA (shows "=SUM(A1:A10)")'
+  );
 
-export const ValueInputOptionSchema = z.enum(['RAW', 'USER_ENTERED']).default('USER_ENTERED');
+export const ValueInputOptionSchema = z
+  .enum(['RAW', 'USER_ENTERED'])
+  .default('USER_ENTERED')
+  .describe(
+    'How to interpret input: USER_ENTERED (default, parses formulas/dates like typing in UI), RAW (stores exactly as provided, "=SUM" becomes literal text)'
+  );
 
-export const InsertDataOptionSchema = z.enum(['OVERWRITE', 'INSERT_ROWS']).default('INSERT_ROWS');
+export const InsertDataOptionSchema = z
+  .enum(['OVERWRITE', 'INSERT_ROWS'])
+  .default('INSERT_ROWS')
+  .describe(
+    'How to handle existing data when appending: INSERT_ROWS (default, adds new rows after last row with data), OVERWRITE (replaces existing data in the range)'
+  );
 
-export const MajorDimensionSchema = z.enum(['ROWS', 'COLUMNS']).default('ROWS');
+export const MajorDimensionSchema = z
+  .enum(['ROWS', 'COLUMNS'])
+  .default('ROWS')
+  .describe(
+    'Data organization: ROWS (default, data[0]=first row), COLUMNS (data[0]=first column, useful for column-oriented data)'
+  );
 
-export const DimensionSchema = z.enum(['ROWS', 'COLUMNS']);
+export const DimensionSchema = z
+  .enum(['ROWS', 'COLUMNS'])
+  .describe('Dimension type: ROWS (horizontal bands) or COLUMNS (vertical bands)');
 
-export const HorizontalAlignSchema = z.enum(['LEFT', 'CENTER', 'RIGHT']);
-export const VerticalAlignSchema = z.enum(['TOP', 'MIDDLE', 'BOTTOM']);
+export const HorizontalAlignSchema = z
+  .enum(['LEFT', 'CENTER', 'RIGHT'])
+  .describe('Horizontal text alignment within cell');
+export const VerticalAlignSchema = z
+  .enum(['TOP', 'MIDDLE', 'BOTTOM'])
+  .describe('Vertical text alignment within cell');
 
-export const WrapStrategySchema = z.enum(['OVERFLOW_CELL', 'LEGACY_WRAP', 'CLIP', 'WRAP']);
+export const WrapStrategySchema = z
+  .enum(['OVERFLOW_CELL', 'LEGACY_WRAP', 'CLIP', 'WRAP'])
+  .describe(
+    'Text wrapping: WRAP (wraps to fit column width), CLIP (truncates at cell edge), OVERFLOW_CELL (extends into adjacent empty cells)'
+  );
 
 export const BorderStyleSchema = z.enum([
   'NONE',
@@ -529,12 +571,29 @@ export const SemanticRangeQuerySchema = z.object({
   rowEnd: z.number().int().min(1).optional(),
 });
 
-export const RangeInputSchema = z.union([
-  z.object({ a1: A1NotationSchema }),
-  z.object({ namedRange: z.string() }),
-  z.object({ semantic: SemanticRangeQuerySchema }),
-  z.object({ grid: GridRangeSchema }),
-]);
+/**
+ * Range input schema that accepts:
+ * - Plain string (A1 notation) - transformed to { a1: string }
+ * - Object with a1 key: { a1: "Sheet1!A1:B10" }
+ * - Object with namedRange key: { namedRange: "MyRange" }
+ * - Object with semantic key: { semantic: { sheet: "Sheet1", column: "Name" } }
+ * - Object with grid key: { grid: { sheetId, startRowIndex, ... } }
+ */
+export const RangeInputSchema = z.preprocess(
+  (val) => {
+    // Transform plain strings to { a1: string } format
+    if (typeof val === 'string') {
+      return { a1: val };
+    }
+    return val;
+  },
+  z.union([
+    z.object({ a1: A1NotationSchema }),
+    z.object({ namedRange: z.string() }),
+    z.object({ semantic: SemanticRangeQuerySchema }),
+    z.object({ grid: GridRangeSchema }),
+  ])
+);
 
 // ============================================================================
 // RESPONSE SCHEMAS
@@ -564,6 +623,14 @@ export const ErrorDetailSchema = z.object({
   severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   retryStrategy: z.enum(['exponential_backoff', 'wait_for_reset', 'manual', 'none']).optional(),
   suggestedTools: z.array(z.string()).optional(),
+  // Automated error recovery
+  fixableVia: z
+    .object({
+      tool: z.string(),
+      action: z.string(),
+      params: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
 });
 
 /** Mutation summary */
@@ -688,3 +755,207 @@ export type Condition = z.infer<typeof ConditionSchema>;
 export type ToolSuggestion = z.infer<typeof ToolSuggestionSchema>;
 export type CostEstimate = z.infer<typeof CostEstimateSchema>;
 export type ResponseMeta = z.infer<typeof ResponseMetaSchema>;
+
+// ============================================================================
+// ANALYSIS OPTIMIZATION: NEXT ACTIONS (LLM Guidance)
+// MCP Protocol: 2025-11-25
+// Google Sheets API Best Practice: Executable params ready for immediate use
+// ============================================================================
+
+/**
+ * Risk level for executable actions
+ * Aligns with Google Sheets API write operation classifications
+ */
+export const ActionRiskLevelSchema = z
+  .enum(['none', 'low', 'medium', 'high'])
+  .describe(
+    'Risk level: none (read-only), low (easily reversible), medium (requires confirmation), high (destructive/irreversible)'
+  );
+
+/**
+ * Action category for grouping related actions
+ */
+export const ActionCategorySchema = z
+  .enum(['fix', 'optimize', 'visualize', 'format', 'structure', 'analyze', 'other'])
+  .describe('Category for grouping related actions');
+
+/**
+ * Executable Action - Ready to call another tool
+ *
+ * DESIGN PRINCIPLE: Every action must have complete params ready to execute.
+ * LLMs should be able to call the tool directly without modification.
+ *
+ * @example
+ * ```typescript
+ * // LLM receives this in response.next.recommended:
+ * {
+ *   tool: "sheets_fix",
+ *   action: "fix",
+ *   params: { spreadsheetId: "abc123", issues: [...] }
+ * }
+ * // LLM can immediately call: sheets_fix with these params
+ * ```
+ */
+export const ExecutableActionSchema = z.object({
+  id: z
+    .string()
+    .min(1)
+    .max(64)
+    .describe('Unique action ID for reference (e.g., "fix-empty-headers-1")'),
+  priority: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .describe('Priority: 1=highest (critical), 10=lowest (nice-to-have)'),
+
+  // Execution details - REQUIRED for LLM to execute
+  tool: z
+    .string()
+    .min(1)
+    .describe('Tool name (e.g., "sheets_fix", "sheets_data", "sheets_format")'),
+  action: z.string().min(1).describe('Action name within the tool'),
+  params: z
+    .record(z.string(), z.unknown())
+    .describe('Complete parameters ready to execute - all values must be concrete'),
+
+  // Human-readable context
+  title: z.string().max(80).describe('Short action title for display'),
+  description: z.string().max(300).describe('What this action does'),
+
+  // Impact assessment (helps LLM decide priority)
+  impact: z
+    .object({
+      metric: z
+        .string()
+        .describe('What metric improves (e.g., "qualityScore", "performanceScore")'),
+      before: z.union([z.number(), z.string()]).optional().describe('Current value'),
+      after: z.union([z.number(), z.string()]).optional().describe('Expected value after action'),
+      change: z.string().describe('Human-readable change (e.g., "+15%", "fixes 23 issues")'),
+    })
+    .optional()
+    .describe('Estimated impact of this action'),
+
+  // Risk assessment (helps LLM decide if confirmation needed)
+  risk: ActionRiskLevelSchema,
+  reversible: z.boolean().describe('Can this action be undone?'),
+  requiresConfirmation: z
+    .boolean()
+    .describe('Should LLM ask user before executing? (true for medium/high risk)'),
+
+  // Grouping
+  category: ActionCategorySchema,
+  relatedFindings: z
+    .array(z.string())
+    .max(10)
+    .optional()
+    .describe('IDs of related findings/issues this action addresses'),
+});
+
+/**
+ * Drill Down Option - Area that warrants deeper analysis
+ *
+ * Returned when analysis finds something interesting that could be explored further.
+ * LLM can use these params to call sheets_analyze:drill_down.
+ */
+export const DrillDownOptionSchema = z.object({
+  target: z.string().describe('What to drill into (e.g., "Sheet1", "Column B", "issue-123")'),
+  type: z
+    .enum(['issue', 'sheet', 'column', 'formula', 'anomaly', 'pattern', 'correlation'])
+    .describe('Type of target'),
+  reason: z.string().max(200).describe('Why this is interesting/worth exploring'),
+  severity: z
+    .enum(['info', 'warning', 'critical'])
+    .optional()
+    .describe('Severity if this is a potential problem'),
+  params: z
+    .record(z.string(), z.unknown())
+    .describe('Ready-to-use params for sheets_analyze:drill_down action'),
+});
+
+/**
+ * Clarification Request - Question for user when analysis is ambiguous
+ */
+export const ClarificationRequestSchema = z.object({
+  question: z.string().describe('Question to ask the user'),
+  context: z.string().optional().describe('Why we need this clarification'),
+  options: z.array(z.string()).max(5).optional().describe('Suggested options if applicable'),
+  default: z.string().optional().describe('Default value if user skips'),
+});
+
+/**
+ * Next Actions - What should happen next
+ *
+ * CRITICAL: Every analysis response MUST include this.
+ * This is the primary guidance mechanism for LLMs.
+ *
+ * @example
+ * ```typescript
+ * // In response:
+ * next: {
+ *   recommended: { tool: "sheets_fix", action: "fix", params: {...} },
+ *   alternatives: [...],
+ *   drillDown: [{ target: "Sheet2", type: "sheet", reason: "Low quality score" }]
+ * }
+ * ```
+ */
+export const NextActionsSchema = z.object({
+  recommended: ExecutableActionSchema.nullable().describe(
+    'Single best next action. null if nothing to do (all good!)'
+  ),
+  alternatives: z
+    .array(ExecutableActionSchema)
+    .max(5)
+    .describe('Other good options, prioritized by impact'),
+  drillDown: z
+    .array(DrillDownOptionSchema)
+    .max(5)
+    .optional()
+    .describe('Areas to explore deeper with sheets_analyze:drill_down'),
+  clarifications: z
+    .array(ClarificationRequestSchema)
+    .max(3)
+    .optional()
+    .describe('Questions for user if analysis needs more context'),
+});
+
+/**
+ * Analysis Summary - Quick overview for LLM context efficiency
+ *
+ * Kept under 100 tokens to minimize context usage in multi-turn conversations.
+ */
+export const AnalysisSummarySchema = z.object({
+  headline: z
+    .string()
+    .max(100)
+    .describe('One-line summary (e.g., "12 quality issues found, 3 critical")'),
+  status: z
+    .enum(['healthy', 'warning', 'critical'])
+    .describe(
+      'Overall status: healthy (no action needed), warning (issues found), critical (urgent)'
+    ),
+  keyMetrics: z
+    .record(z.string(), z.union([z.number(), z.string()]))
+    .describe('Key metrics map (e.g., { issues: 12, qualityScore: 67, sheets: 3 })'),
+});
+
+/**
+ * Analysis Session - For multi-step workflows
+ */
+export const AnalysisSessionSchema = z.object({
+  analysisId: z.string().describe('Unique ID to reference this analysis result'),
+  canResume: z.boolean().describe('Can this analysis be continued with more detail?'),
+  expiresAt: z.number().optional().describe('Unix timestamp when cached results expire'),
+  step: z.number().int().min(1).optional().describe('Current step in multi-step workflow'),
+  totalSteps: z.number().int().min(1).optional().describe('Total steps in workflow'),
+});
+
+// Type exports for analysis optimization
+export type ExecutableAction = z.infer<typeof ExecutableActionSchema>;
+export type DrillDownOption = z.infer<typeof DrillDownOptionSchema>;
+export type ClarificationRequest = z.infer<typeof ClarificationRequestSchema>;
+export type NextActions = z.infer<typeof NextActionsSchema>;
+export type AnalysisSummary = z.infer<typeof AnalysisSummarySchema>;
+export type AnalysisSession = z.infer<typeof AnalysisSessionSchema>;
+export type ActionRiskLevel = z.infer<typeof ActionRiskLevelSchema>;
+export type ActionCategory = z.infer<typeof ActionCategorySchema>;

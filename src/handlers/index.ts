@@ -15,14 +15,11 @@ export * from './base.js';
 
 // Re-export optimization utilities (Phase 2)
 export * from './optimization.js';
-export * from './values-optimized.js';
-export { OptimizedBaseHandler } from './base-optimized.js';
 
 // Re-export handler types for backwards compatibility
 export type { SheetsDataHandler } from './data.js';
 export type { FormatHandler } from './format.js';
 export type { DimensionsHandler } from './dimensions.js';
-export type { AnalysisHandler } from './analysis.js';
 export type { AdvancedHandler } from './advanced.js';
 export type { TransactionHandler } from './transaction.js';
 export type { QualityHandler } from './quality.js';
@@ -37,8 +34,15 @@ export type { SessionHandler } from './session.js';
 export type { SheetsCoreHandler } from './core.js';
 export type { VisualizeHandler } from './visualize.js';
 export type { CollaborateHandler } from './collaborate.js';
+// Tier 7 Enterprise handlers
+export type { SheetsTemplatesHandler } from './templates.js';
+export type { SheetsBigQueryHandler } from './bigquery.js';
+export type { SheetsAppsScriptHandler } from './appsscript.js';
+// Webhook handler
+export type { WebhookHandler } from './webhooks.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
+import type { bigquery_v2 } from 'googleapis';
 import type { HandlerContext } from './base.js';
 import { HandlerLoadError } from '../core/errors.js';
 
@@ -46,6 +50,7 @@ export interface HandlerFactoryOptions {
   context: HandlerContext;
   sheetsApi: sheets_v4.Sheets;
   driveApi: drive_v3.Drive;
+  bigqueryApi?: bigquery_v2.Bigquery;
 }
 
 // Define handler types for TypeScript
@@ -53,7 +58,6 @@ export interface Handlers {
   data: import('./data.js').SheetsDataHandler;
   format: import('./format.js').FormatHandler;
   dimensions: import('./dimensions.js').DimensionsHandler;
-  analysis: import('./analysis.js').AnalysisHandler;
   advanced: import('./advanced.js').AdvancedHandler;
   transaction: import('./transaction.js').TransactionHandler;
   quality: import('./quality.js').QualityHandler;
@@ -70,6 +74,12 @@ export interface Handlers {
   core: import('./core.js').SheetsCoreHandler;
   visualize: import('./visualize.js').VisualizeHandler;
   collaborate: import('./collaborate.js').CollaborateHandler;
+  // Tier 7 Enterprise handlers
+  templates: import('./templates.js').SheetsTemplatesHandler;
+  bigquery: import('./bigquery.js').SheetsBigQueryHandler;
+  appsscript: import('./appsscript.js').SheetsAppsScriptHandler;
+  // Webhook handler
+  webhooks: import('./webhooks.js').WebhookHandler;
 }
 
 /**
@@ -92,10 +102,6 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async dimensions() {
       const { DimensionsHandler } = await import('./dimensions.js');
       return new DimensionsHandler(options.context, options.sheetsApi);
-    },
-    async analysis() {
-      const { AnalysisHandler } = await import('./analysis.js');
-      return new AnalysisHandler(options.context, options.sheetsApi);
     },
     async advanced() {
       const { AdvancedHandler } = await import('./advanced.js');
@@ -130,7 +136,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async composite() {
       const { CompositeHandler } = await import('./composite.js');
-      return new CompositeHandler(options.context, options.sheetsApi);
+      return new CompositeHandler(options.context, options.sheetsApi, options.driveApi);
     },
     async session() {
       const { SessionHandler } = await import('./session.js');
@@ -148,6 +154,24 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async collaborate() {
       const { CollaborateHandler } = await import('./collaborate.js');
       return new CollaborateHandler(options.context, options.driveApi);
+    },
+    // Tier 7 Enterprise handlers
+    async templates() {
+      const { SheetsTemplatesHandler } = await import('./templates.js');
+      return new SheetsTemplatesHandler(options.context, options.sheetsApi, options.driveApi);
+    },
+    async bigquery() {
+      const { SheetsBigQueryHandler } = await import('./bigquery.js');
+      return new SheetsBigQueryHandler(options.context, options.sheetsApi, options.bigqueryApi);
+    },
+    async appsscript() {
+      const { SheetsAppsScriptHandler } = await import('./appsscript.js');
+      return new SheetsAppsScriptHandler(options.context);
+    },
+    // Webhook handler
+    async webhooks() {
+      const { createWebhookHandler } = await import('./webhooks.js');
+      return createWebhookHandler();
     },
   };
 

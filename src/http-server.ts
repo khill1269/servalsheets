@@ -29,6 +29,7 @@ import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
 import { metricsHandler } from './observability/metrics.js';
+import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
 import {
   BatchCompiler,
   RateLimiter,
@@ -52,6 +53,7 @@ import {
   registerConfirmResources,
   registerAnalyzeResources,
   registerReferenceResources,
+  registerSchemaResources,
 } from './resources/index.js';
 import {
   registerServalSheetsPrompts,
@@ -212,6 +214,9 @@ async function createMcpServerInstance(
 
   // Register static reference resources
   registerReferenceResources(mcpServer);
+
+  // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
+  registerSchemaResources(mcpServer);
 
   // Register logging handler
   // Note: Using 'as any' to bypass TypeScript's deep type inference issues
@@ -420,6 +425,81 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     });
   }
 
+  // Per-user rate limiting with Redis (optional)
+  let userRateLimiter: UserRateLimiter | null = null;
+  const redisUrl = process.env['REDIS_URL'];
+
+  if (redisUrl) {
+    (async () => {
+      try {
+        const { createClient } = await import('redis');
+        const redis = createClient({ url: redisUrl });
+
+        redis.on('error', (err) => {
+          logger.error('Redis connection error', { error: err });
+        });
+
+        await redis.connect();
+
+        userRateLimiter = createUserRateLimiterFromEnv(redis);
+        logger.info('Per-user rate limiter initialized with Redis', {
+          redisUrl: redisUrl.replace(/:[^:]*@/, ':***@'), // Mask credentials
+        });
+      } catch (error) {
+        logger.error('Failed to initialize Redis for rate limiting', { error });
+        logger.warn('Continuing without per-user rate limiting');
+      }
+    })();
+  } else {
+    logger.debug('REDIS_URL not set, per-user rate limiting disabled');
+  }
+
+  // Per-user rate limiting middleware (if Redis available)
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    // Skip rate limiting for health checks
+    if (req.path.startsWith('/health')) {
+      return next();
+    }
+
+    if (!userRateLimiter) {
+      return next(); // No Redis, skip per-user limiting
+    }
+
+    try {
+      // Extract user ID from Authorization header
+      const authHeader = req.headers.authorization;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+      // Use token hash as user ID (or 'anonymous' if no token)
+      const userId = token
+        ? `user:${Buffer.from(token.substring(0, 16)).toString('base64')}`
+        : 'anonymous';
+
+      const limitCheck = await userRateLimiter.checkLimit(userId);
+
+      if (!limitCheck.allowed) {
+        res.status(429).json({
+          error: 'RATE_LIMIT_EXCEEDED',
+          message: 'Per-user rate limit exceeded',
+          retryAfter: limitCheck.resetAt.toISOString(),
+          remaining: 0,
+          minuteUsage: limitCheck.minuteUsage,
+          hourUsage: limitCheck.hourUsage,
+        });
+        return;
+      }
+
+      // Add rate limit headers
+      res.setHeader('X-RateLimit-User-Remaining', limitCheck.remaining.toString());
+      res.setHeader('X-RateLimit-User-Reset', limitCheck.resetAt.toISOString());
+
+      next();
+    } catch (error) {
+      logger.error('Per-user rate limit check failed', { error });
+      next(); // Fail open - allow request on error
+    }
+  });
+
   // Request ID middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestId = (req.headers['x-request-id'] as string | undefined) ?? randomUUID();
@@ -492,7 +572,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (health as any).oauth = {
         enabled: true,
-        configured: Boolean(options.oauthConfig.googleClientId && options.oauthConfig.googleClientSecret),
+        configured: Boolean(
+          options.oauthConfig.googleClientId && options.oauthConfig.googleClientSecret
+        ),
         issuer: options.oauthConfig.issuer,
         clientId: options.oauthConfig.clientId,
       };
@@ -533,8 +615,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       },
       message: 'W3C Trace Context information for this request',
       spec: 'https://www.w3.org/TR/trace-context/',
-      usage:
-        'Include traceparent header in requests: traceparent: 00-<traceId>-<parentId>-01',
+      usage: 'Include traceparent header in requests: traceparent: 00-<traceId>-<parentId>-01',
     });
   });
 
@@ -613,12 +694,39 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Statistics dashboard endpoint
-  app.get('/stats', (_req: Request, res: Response) => {
+  app.get('/stats', async (req: Request, res: Response) => {
     const cacheStats = getCacheStats() as Record<string, unknown> | null;
     const dedupStats = getDeduplicationStats() as Record<string, unknown> | null;
     const connStats = getConnectionStats() as Record<string, unknown> | null;
     const tracingStats = getTracingStats() as Record<string, unknown> | null;
     const memUsage = process.memoryUsage();
+
+    // Get per-user quota stats if rate limiter available
+    let userQuota = null;
+    if (userRateLimiter) {
+      try {
+        // Extract user ID from Authorization header
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        const userId = token
+          ? `user:${Buffer.from(token.substring(0, 16)).toString('base64')}`
+          : 'anonymous';
+
+        const quotaStats = await userRateLimiter.getUsage(userId);
+        userQuota = {
+          enabled: true,
+          minuteUsage: quotaStats.minuteUsage,
+          minuteLimit: quotaStats.minuteLimit,
+          minuteRemaining: quotaStats.minuteRemaining,
+          hourUsage: quotaStats.hourUsage,
+          hourLimit: quotaStats.hourLimit,
+          hourRemaining: quotaStats.hourRemaining,
+        };
+      } catch (error) {
+        logger.error('Failed to get per-user quota stats', { error });
+        userQuota = { enabled: false, error: 'Failed to fetch quota' };
+      }
+    }
 
     res.json({
       uptime: {
@@ -691,6 +799,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       sessions: {
         active: sessions.size,
       },
+      userQuota: userQuota || { enabled: false },
     });
   });
 
@@ -740,85 +849,113 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // SSE endpoint for Server-Sent Events transport
   // Add OAuth validation middleware if OAuth is enabled
-  const sseMiddleware = options.enableOAuth && oauth
-    ? [validateResourceIndicator as express.RequestHandler, oauth.validateToken()]
-    : [validateResourceIndicator as express.RequestHandler];
+  const sseMiddleware =
+    options.enableOAuth && oauth
+      ? [validateResourceIndicator as express.RequestHandler, oauth.validateToken()]
+      : [validateResourceIndicator as express.RequestHandler];
 
-  app.get(
-    '/sse',
-    ...sseMiddleware,
-    async (req: Request, res: Response) => {
-      // Extract Google token - from OAuth or Authorization header
-      const googleToken = options.enableOAuth && oauth
-        ? oauth.getGoogleToken(req) ?? undefined
+  app.get('/sse', ...sseMiddleware, async (req: Request, res: Response) => {
+    // Extract Google token - from OAuth or Authorization header
+    const googleToken =
+      options.enableOAuth && oauth
+        ? (oauth.getGoogleToken(req) ?? undefined)
         : req.headers.authorization?.startsWith('Bearer ')
           ? req.headers.authorization.slice(7)
           : undefined;
 
-      // Extract user ID (use token hash as user ID)
-      const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
+    // Extract user ID (use token hash as user ID)
+    const userId = googleToken ? `google:${googleToken.substring(0, 16)}` : 'anonymous';
 
-      // Check session limits before creating new session
-      const limitCheck = sessionLimiter.canCreateSession(userId);
-      if (!limitCheck.allowed) {
-        res.status(429).json({
-          error: {
-            code: 'TOO_MANY_SESSIONS',
-            message: limitCheck.reason,
-            retryable: true,
-          },
-        });
-        return;
-      }
+    // Check for SSE reconnection via Last-Event-ID header (RFC 8895)
+    const lastEventId = req.headers['last-event-id'] as string | undefined;
+    const requestedSessionId = (req.query['session'] as string | undefined) || lastEventId;
 
-      const sessionId = randomUUID();
+    // Try to reconnect to existing session if requested
+    if (requestedSessionId && sessions.has(requestedSessionId)) {
+      const _existingSession = sessions.get(requestedSessionId)!;
+      logger.info('SSE session reconnection', {
+        sessionId: requestedSessionId,
+        userId,
+        lastEventId,
+      });
 
-      // Set SSE headers
+      // Set SSE headers for reconnection
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Session-ID', sessionId);
+      res.setHeader('X-Session-ID', requestedSessionId);
+      res.setHeader('X-Reconnected', 'true');
 
-      try {
-        // Create SSE transport
-        const transport = new SSEServerTransport('/sse/message', res);
+      // Send reconnection acknowledgment
+      res.write(
+        `event: reconnect\ndata: {"sessionId":"${requestedSessionId}","status":"reconnected"}\n\n`
+      );
 
-        // Register session in limiter
-        sessionLimiter.registerSession(sessionId, userId);
-
-        // Create and connect MCP server with task store
-        const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
-        await mcpServer.connect(transport);
-        sessions.set(sessionId, { transport, mcpServer, taskStore });
-
-        // Cleanup on disconnect
-        req.on('close', () => {
-          const session = sessions.get(sessionId);
-          if (session) {
-            // Session cleanup logic can be added here if needed
-          }
-          sessions.delete(sessionId);
-          sessionLimiter.unregisterSession(sessionId);
-          if (typeof transport.close === 'function') {
-            transport.close();
-          }
-        });
-      } catch (error) {
-        res.status(500).json({
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Failed to establish SSE connection',
-            details:
-              process.env['NODE_ENV'] === 'production'
-                ? undefined
-                : error instanceof Error
-                  ? error.message
-                  : String(error),
-          },
-        });
-      }
+      // Note: Full event replay would require event buffering in the session
+      // This implementation acknowledges reconnection but doesn't replay events
+      return;
     }
-  );
+
+    // Check session limits before creating new session
+    const limitCheck = sessionLimiter.canCreateSession(userId);
+    if (!limitCheck.allowed) {
+      res.status(429).json({
+        error: {
+          code: 'TOO_MANY_SESSIONS',
+          message: limitCheck.reason,
+          retryable: true,
+        },
+      });
+      return;
+    }
+
+    const sessionId = randomUUID();
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Session-ID', sessionId);
+
+    try {
+      // Create SSE transport
+      const transport = new SSEServerTransport('/sse/message', res);
+
+      // Register session in limiter
+      sessionLimiter.registerSession(sessionId, userId);
+
+      // Create and connect MCP server with task store
+      const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
+      await mcpServer.connect(transport);
+      sessions.set(sessionId, { transport, mcpServer, taskStore });
+
+      // Cleanup on disconnect
+      req.on('close', () => {
+        const session = sessions.get(sessionId);
+        if (session) {
+          // Session cleanup logic can be added here if needed
+        }
+        sessions.delete(sessionId);
+        sessionLimiter.unregisterSession(sessionId);
+        if (typeof transport.close === 'function') {
+          transport.close();
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to establish SSE connection',
+          details:
+            process.env['NODE_ENV'] === 'production'
+              ? undefined
+              : error instanceof Error
+                ? error.message
+                : String(error),
+        },
+      });
+    }
+  });
 
   // SSE message endpoint
   app.post(

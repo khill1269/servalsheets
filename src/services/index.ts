@@ -14,6 +14,7 @@
 export * from './snapshot.js';
 export * from './google-api.js';
 export * from './token-store.js';
+export * from './keychain-store.js';
 
 // Phase 1: Quick Wins
 export * from './token-manager.js';
@@ -41,6 +42,19 @@ export {
   resetSamplingAnalysisService,
 } from './sampling-analysis.js';
 
+// LLM Fallback (for when MCP sampling is not supported)
+export {
+  createLLMMessage,
+  createMessageWithFallback,
+  isLLMFallbackAvailable,
+  getLLMFallbackConfig,
+  type LLMProvider,
+  type LLMMessage,
+  type LLMRequestOptions,
+  type LLMResponse,
+  type LLMFallbackConfig,
+} from './llm-fallback.js';
+
 // Removed: workflow-engine.js (Claude orchestrates natively via MCP)
 
 // Phase 4: Safety & Reliability
@@ -48,6 +62,26 @@ export * from './transaction-manager.js';
 export * from './conflict-detector.js';
 export * from './impact-analyzer.js';
 export * from './validation-engine.js';
+export * from './user-rate-limiter.js';
+
+// Webhook Services
+export * from './webhook-manager.js';
+export * from './webhook-queue.js';
+export * from './webhook-worker.js';
 
 // Task Management
 export * from './task-manager.js';
+
+// Phase 2.2: Google API Schema Discovery & Response Validation
+export * from './discovery-client.js';
+export {
+  ResponseValidator,
+  getResponseValidator,
+  type ValidationError as ResponseValidationError,
+  type ValidationResult as ResponseValidationResult,
+} from './response-validator.js';
+export {
+  SchemaValidator,
+  getSchemaValidator,
+  type ValidationResult as SchemaValidationResult,
+} from './schema-validator.js';
