@@ -155,7 +155,13 @@ function extractValues(query: string): string[] {
   const quotedPattern = /"([^"]+)"|'([^']+)'/g;
   const quotedMatches = Array.from(query.matchAll(quotedPattern));
   values.push(
-    ...quotedMatches.map((m) => m[1] ?? m[2]).filter((v): v is string => v !== undefined)
+    ...quotedMatches.reduce<string[]>((acc, m) => {
+      const val = m[1] ?? m[2];
+      if (val !== undefined) {
+        acc.push(val);
+      }
+      return acc;
+    }, [])
   );
 
   // Extract numbers

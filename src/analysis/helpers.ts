@@ -197,7 +197,13 @@ export function analyzeSeasonality(values: unknown[][]): {
   }
 
   // Look for repeating patterns in first numeric column
-  const firstColumn = values.map((row) => row[0]).filter((v) => typeof v === 'number') as number[];
+  const firstColumn = values.reduce<number[]>((acc, row) => {
+    const val = row[0];
+    if (typeof val === 'number') {
+      acc.push(val);
+    }
+    return acc;
+  }, []);
   if (firstColumn.length < 12) {
     return { detected: false, message: 'Insufficient numeric data' };
   }

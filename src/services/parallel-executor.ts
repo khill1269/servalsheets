@@ -269,7 +269,12 @@ export class ParallelExecutor {
     onProgress?: (progress: ParallelProgress) => void
   ): Promise<T[]> {
     const results = await this.executeAll(tasks, onProgress);
-    return results.filter((r) => r.success && r.result !== undefined).map((r) => r.result!);
+    return results.reduce<T[]>((acc, r) => {
+      if (r.success && r.result !== undefined) {
+        acc.push(r.result);
+      }
+      return acc;
+    }, []);
   }
 
   /**

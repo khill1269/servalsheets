@@ -25,7 +25,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { TieredRetrieval, type SheetMetadata } from './tiered-retrieval.js';
-import { getHotCache } from '../utils/hot-cache.js';
+import { getCacheAdapter } from '../utils/cache-adapter.js';
 import { logger } from '../utils/logger.js';
 import {
   MAX_RESPONSE_SIZE_BYTES,
@@ -294,7 +294,7 @@ export class ComprehensiveAnalyzer {
   constructor(sheetsApi: sheets_v4.Sheets, config: ComprehensiveConfig = {}) {
     this.sheetsApi = sheetsApi;
     this.tieredRetrieval = new TieredRetrieval({
-      cache: getHotCache(),
+      cache: getCacheAdapter('analysis'),
       sheetsApi,
       defaultSampleSize: config.sampleSize ?? 500,
       maxSampleSize: 1000,
@@ -799,7 +799,13 @@ export class ComprehensiveAnalyzer {
 
       // Add numeric stats if applicable
       if (dataType === 'number') {
-        const numericValues = nonNullValues.map(Number).filter((n) => !isNaN(n));
+        const numericValues = nonNullValues.reduce<number[]>((acc, val) => {
+          const n = Number(val);
+          if (!Number.isNaN(n)) {
+            acc.push(n);
+          }
+          return acc;
+        }, []);
         if (numericValues.length > 0) {
           const sorted = [...numericValues].sort((a, b) => a - b);
           stats.sum = numericValues.reduce((a, b) => a + b, 0);
@@ -972,7 +978,13 @@ export class ComprehensiveAnalyzer {
     columns.forEach((col, index) => {
       if (col.dataType !== 'number' || col.count < 5) return;
 
-      const values = dataRows.map((row) => Number(row[index])).filter((n) => !isNaN(n));
+      const values = dataRows.reduce<number[]>((acc, row) => {
+        const n = Number(row[index]);
+        if (!Number.isNaN(n)) {
+          acc.push(n);
+        }
+        return acc;
+      }, []);
 
       if (values.length < 5) return;
 
@@ -1065,8 +1077,20 @@ export class ComprehensiveAnalyzer {
         const col1 = numericColumns[i]!;
         const col2 = numericColumns[j]!;
 
-        const values1 = dataRows.map((row) => Number(row[col1.index])).filter((n) => !isNaN(n));
-        const values2 = dataRows.map((row) => Number(row[col2.index])).filter((n) => !isNaN(n));
+        const values1 = dataRows.reduce<number[]>((acc, row) => {
+          const n = Number(row[col1.index]);
+          if (!Number.isNaN(n)) {
+            acc.push(n);
+          }
+          return acc;
+        }, []);
+        const values2 = dataRows.reduce<number[]>((acc, row) => {
+          const n = Number(row[col2.index]);
+          if (!Number.isNaN(n)) {
+            acc.push(n);
+          }
+          return acc;
+        }, []);
 
         if (values1.length < 5 || values2.length < 5) continue;
 
