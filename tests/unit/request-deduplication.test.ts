@@ -4,7 +4,7 @@
  * Tests both in-flight deduplication and result caching
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { RequestDeduplicator, createRequestKey } from '../../src/utils/request-deduplication.js';
 
 describe('RequestDeduplicator', () => {
@@ -29,7 +29,7 @@ describe('RequestDeduplicator', () => {
     it('should deduplicate concurrent requests with same key', async () => {
       let callCount = 0;
       const fn = async () => {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         callCount++;
         return { data: 'test' };
       };
@@ -108,7 +108,7 @@ describe('RequestDeduplicator', () => {
       expect(callCount).toBe(1);
 
       // Wait for TTL to expire
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
 
       // Second call - cache expired
       await deduplicator.deduplicate('key1', fn);

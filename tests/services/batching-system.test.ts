@@ -5,15 +5,15 @@
  * Tests batching logic, operation aggregation, efficiency metrics, and error handling.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   BatchingSystem,
   AdaptiveBatchWindow,
   type BatchableOperationType,
-} from "../../src/services/batching-system.js";
-import type { sheets_v4 } from "googleapis";
+} from '../../src/services/batching-system.js';
+import type { sheets_v4 } from 'googleapis';
 
-describe("BatchingSystem", () => {
+describe('BatchingSystem', () => {
   let batchingSystem: BatchingSystem;
   let mockSheetsApi: sheets_v4.Sheets;
 
@@ -51,41 +51,35 @@ describe("BatchingSystem", () => {
     batchingSystem.destroy();
   });
 
-  describe("Batch Aggregation and Time Windows", () => {
-    it("should collect operations within time window and execute as single batch", async () => {
+  describe('Batch Aggregation and Time Windows', () => {
+    it('should collect operations within time window and execute as single batch', async () => {
       // Arrange
-      const spreadsheetId = "test-sheet-1";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: {
-            responses: [
-              { updatedCells: 1 },
-              { updatedCells: 1 },
-              { updatedCells: 1 },
-            ],
-          },
-        });
+      const spreadsheetId = 'test-sheet-1';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: {
+          responses: [{ updatedCells: 1 }, { updatedCells: 1 }, { updatedCells: 1 }],
+        },
+      });
 
       // Act - queue 3 update operations within time window
       const promises = [
         batchingSystem.execute({
-          id: "op1",
-          type: "values:update",
+          id: 'op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A1", values: [[1]] },
+          params: { range: 'Sheet1!A1', values: [[1]] },
         }),
         batchingSystem.execute({
-          id: "op2",
-          type: "values:update",
+          id: 'op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A2", values: [[2]] },
+          params: { range: 'Sheet1!A2', values: [[2]] },
         }),
         batchingSystem.execute({
-          id: "op3",
-          type: "values:update",
+          id: 'op3',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A3", values: [[3]] },
+          params: { range: 'Sheet1!A3', values: [[3]] },
         }),
       ];
 
@@ -99,18 +93,18 @@ describe("BatchingSystem", () => {
         spreadsheetId,
         requestBody: {
           data: [
-            { range: "Sheet1!A1", values: [[1]] },
-            { range: "Sheet1!A2", values: [[2]] },
-            { range: "Sheet1!A3", values: [[3]] },
+            { range: 'Sheet1!A1', values: [[1]] },
+            { range: 'Sheet1!A2', values: [[2]] },
+            { range: 'Sheet1!A3', values: [[3]] },
           ],
-          valueInputOption: "USER_ENTERED",
+          valueInputOption: 'USER_ENTERED',
         },
       });
     });
 
-    it("should execute batch immediately when maxBatchSize is reached", async () => {
+    it('should execute batch immediately when maxBatchSize is reached', async () => {
       // Arrange
-      const spreadsheetId = "test-sheet-2";
+      const spreadsheetId = 'test-sheet-2';
       const smallBatchSystem = new BatchingSystem(mockSheetsApi, {
         enabled: true,
         windowMs: 1000,
@@ -118,37 +112,31 @@ describe("BatchingSystem", () => {
         adaptiveWindow: false,
       });
 
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: {
-            responses: [
-              { updatedCells: 1 },
-              { updatedCells: 1 },
-              { updatedCells: 1 },
-            ],
-          },
-        });
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: {
+          responses: [{ updatedCells: 1 }, { updatedCells: 1 }, { updatedCells: 1 }],
+        },
+      });
 
       // Act - queue exactly 3 operations (maxBatchSize)
       const promises = [
         smallBatchSystem.execute({
-          id: "op1",
-          type: "values:update",
+          id: 'op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A1", values: [[1]] },
+          params: { range: 'Sheet1!A1', values: [[1]] },
         }),
         smallBatchSystem.execute({
-          id: "op2",
-          type: "values:update",
+          id: 'op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A2", values: [[2]] },
+          params: { range: 'Sheet1!A2', values: [[2]] },
         }),
         smallBatchSystem.execute({
-          id: "op3",
-          type: "values:update",
+          id: 'op3',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "Sheet1!A3", values: [[3]] },
+          params: { range: 'Sheet1!A3', values: [[3]] },
         }),
       ];
 
@@ -161,79 +149,71 @@ describe("BatchingSystem", () => {
       smallBatchSystem.destroy();
     });
 
-    it("should batch operations by spreadsheet and operation type", async () => {
+    it('should batch operations by spreadsheet and operation type', async () => {
       // Arrange
-      const spreadsheet1 = "sheet-1";
-      const spreadsheet2 = "sheet-2";
+      const spreadsheet1 = 'sheet-1';
+      const spreadsheet2 = 'sheet-2';
 
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{ updatedCells: 1 }, { updatedCells: 1 }] },
-        });
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{ updatedCells: 1 }, { updatedCells: 1 }] },
+      });
 
-      mockSheetsApi.spreadsheets.values.batchClear = vi
-        .fn()
-        .mockResolvedValue({
-          data: { clearedRanges: ["A1", "A2"] },
-        });
+      mockSheetsApi.spreadsheets.values.batchClear = vi.fn().mockResolvedValue({
+        data: { clearedRanges: ['A1', 'A2'] },
+      });
 
       // Act - queue operations for different spreadsheets and types
       const updatePromises = [
         batchingSystem.execute({
-          id: "update1",
-          type: "values:update",
+          id: 'update1',
+          type: 'values:update',
           spreadsheetId: spreadsheet1,
-          params: { range: "Sheet1!A1", values: [[1]] },
+          params: { range: 'Sheet1!A1', values: [[1]] },
         }),
         batchingSystem.execute({
-          id: "update2",
-          type: "values:update",
+          id: 'update2',
+          type: 'values:update',
           spreadsheetId: spreadsheet1,
-          params: { range: "Sheet1!A2", values: [[2]] },
+          params: { range: 'Sheet1!A2', values: [[2]] },
         }),
       ];
 
       const clearPromises = [
         batchingSystem.execute({
-          id: "clear1",
-          type: "values:clear",
+          id: 'clear1',
+          type: 'values:clear',
           spreadsheetId: spreadsheet1,
-          params: { range: "Sheet2!A1" },
+          params: { range: 'Sheet2!A1' },
         }),
         batchingSystem.execute({
-          id: "clear2",
-          type: "values:clear",
+          id: 'clear2',
+          type: 'values:clear',
           spreadsheetId: spreadsheet1,
-          params: { range: "Sheet2!A2" },
+          params: { range: 'Sheet2!A2' },
         }),
       ];
 
       const spreadsheet2Promises = [
         batchingSystem.execute({
-          id: "update3",
-          type: "values:update",
+          id: 'update3',
+          type: 'values:update',
           spreadsheetId: spreadsheet2,
-          params: { range: "Sheet1!A1", values: [[3]] },
+          params: { range: 'Sheet1!A1', values: [[3]] },
         }),
       ];
 
       // Advance timer to trigger all batches
       await vi.advanceTimersByTimeAsync(50);
-      await Promise.all([
-        ...updatePromises,
-        ...clearPromises,
-        ...spreadsheet2Promises,
-      ]);
+      await Promise.all([...updatePromises, ...clearPromises, ...spreadsheet2Promises]);
 
       // Assert - should create separate batches for different spreadsheet+type combinations
       expect(mockSheetsApi.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(2); // sheet-1 and sheet-2
       expect(mockSheetsApi.spreadsheets.values.batchClear).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle empty batches gracefully", async () => {
+    it('should handle empty batches gracefully', async () => {
       // Arrange - create batch but don't add any operations
-      const batchKey = "test-sheet-1:values:update";
+      const batchKey = 'test-sheet-1:values:update';
 
       // Act - try to execute empty batch
       await (batchingSystem as any).executeBatch(batchKey);
@@ -242,21 +222,19 @@ describe("BatchingSystem", () => {
       expect(mockSheetsApi.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
     });
 
-    it("should cancel timer and clear batch after execution", async () => {
+    it('should cancel timer and clear batch after execution', async () => {
       // Arrange
-      const spreadsheetId = "test-sheet-3";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{ updatedCells: 1 }] },
-        });
+      const spreadsheetId = 'test-sheet-3';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{ updatedCells: 1 }] },
+      });
 
       // Act
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "Sheet1!A1", values: [[1]] },
+        params: { range: 'Sheet1!A1', values: [[1]] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -270,48 +248,44 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Values Append Batching", () => {
-    it("should batch multiple appends into single batchUpdate with appendCells", async () => {
+  describe('Values Append Batching', () => {
+    it('should batch multiple appends into single batchUpdate with appendCells', async () => {
       // Arrange
-      const spreadsheetId = "append-test";
+      const spreadsheetId = 'append-test';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
         data: {
           sheets: [
-            { properties: { sheetId: 0, title: "Sheet1" } },
-            { properties: { sheetId: 1, title: "Sheet2" } },
+            { properties: { sheetId: 0, title: 'Sheet1' } },
+            { properties: { sheetId: 1, title: 'Sheet2' } },
           ],
         },
       });
 
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
         data: {
-          replies: [
-            { appendCells: {} },
-            { appendCells: {} },
-            { appendCells: {} },
-          ],
+          replies: [{ appendCells: {} }, { appendCells: {} }, { appendCells: {} }],
         },
       });
 
       // Act - queue 3 append operations
       const promises = [
         batchingSystem.execute({
-          id: "append1",
-          type: "values:append",
+          id: 'append1',
+          type: 'values:append',
           spreadsheetId,
-          params: { range: "Sheet1!A1", values: [[1, 2]] },
+          params: { range: 'Sheet1!A1', values: [[1, 2]] },
         }),
         batchingSystem.execute({
-          id: "append2",
-          type: "values:append",
+          id: 'append2',
+          type: 'values:append',
           spreadsheetId,
-          params: { range: "Sheet1!A2", values: [[3, 4]] },
+          params: { range: 'Sheet1!A2', values: [[3, 4]] },
         }),
         batchingSystem.execute({
-          id: "append3",
-          type: "values:append",
+          id: 'append3',
+          type: 'values:append',
           spreadsheetId,
-          params: { range: "Sheet2!A1", values: [[5, 6]] },
+          params: { range: 'Sheet2!A1', values: [[5, 6]] },
         }),
       ];
 
@@ -321,28 +295,28 @@ describe("BatchingSystem", () => {
       // Assert - should fetch metadata and use batchUpdate with appendCells
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalledWith({
         spreadsheetId,
-        fields: "sheets(properties(sheetId,title))",
+        fields: 'sheets(properties(sheetId,title))',
       });
 
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
       const batchCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls[0][0];
       expect(batchCall.requestBody.requests).toHaveLength(3);
-      expect(batchCall.requestBody.requests[0]).toHaveProperty("appendCells");
+      expect(batchCall.requestBody.requests[0]).toHaveProperty('appendCells');
       expect(batchCall.requestBody.requests[0].appendCells.sheetId).toBe(0);
       expect(batchCall.requestBody.requests[2].appendCells.sheetId).toBe(1);
 
       // Assert - results should be in UpdateValuesResponse format
-      expect(results[0]).toHaveProperty("updates");
+      expect(results[0]).toHaveProperty('updates');
       expect(results[0].updates.updatedRows).toBe(1);
       expect(results[0].updates.updatedColumns).toBe(2);
     });
 
-    it("should distribute append responses correctly to callers", async () => {
+    it('should distribute append responses correctly to callers', async () => {
       // Arrange
-      const spreadsheetId = "append-test-2";
+      const spreadsheetId = 'append-test-2';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
         data: {
-          sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
@@ -354,17 +328,17 @@ describe("BatchingSystem", () => {
 
       // Act
       const promise1 = batchingSystem.execute({
-        id: "append1",
-        type: "values:append",
+        id: 'append1',
+        type: 'values:append',
         spreadsheetId,
-        params: { range: "Sheet1!A1", values: [[1, 2, 3]] },
+        params: { range: 'Sheet1!A1', values: [[1, 2, 3]] },
       });
 
       const promise2 = batchingSystem.execute({
-        id: "append2",
-        type: "values:append",
+        id: 'append2',
+        type: 'values:append',
         spreadsheetId,
-        params: { range: "Sheet1!B1", values: [[4], [5]] },
+        params: { range: 'Sheet1!B1', values: [[4], [5]] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -380,12 +354,12 @@ describe("BatchingSystem", () => {
       expect(result2.updates.updatedCells).toBe(2);
     });
 
-    it("should handle formulas and different value types in appends", async () => {
+    it('should handle formulas and different value types in appends', async () => {
       // Arrange
-      const spreadsheetId = "append-formulas";
+      const spreadsheetId = 'append-formulas';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
         data: {
-          sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
@@ -395,13 +369,13 @@ describe("BatchingSystem", () => {
 
       // Act - append with mixed types including formula
       const promise = batchingSystem.execute({
-        id: "append-mixed",
-        type: "values:append",
+        id: 'append-mixed',
+        type: 'values:append',
         spreadsheetId,
         params: {
-          range: "Sheet1!A1",
-          values: [[123, "text", true, "=SUM(A1:A2)"]],
-          valueInputOption: "USER_ENTERED",
+          range: 'Sheet1!A1',
+          values: [[123, 'text', true, '=SUM(A1:A2)']],
+          valueInputOption: 'USER_ENTERED',
         },
       });
 
@@ -412,26 +386,26 @@ describe("BatchingSystem", () => {
       const batchCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls[0][0];
       const rows = batchCall.requestBody.requests[0].appendCells.rows;
       expect(rows[0].values[0].userEnteredValue.numberValue).toBe(123);
-      expect(rows[0].values[1].userEnteredValue.stringValue).toBe("text");
+      expect(rows[0].values[1].userEnteredValue.stringValue).toBe('text');
       expect(rows[0].values[2].userEnteredValue.boolValue).toBe(true);
-      expect(rows[0].values[3].userEnteredValue.formulaValue).toBe("=SUM(A1:A2)");
+      expect(rows[0].values[3].userEnteredValue.formulaValue).toBe('=SUM(A1:A2)');
     });
 
-    it("should handle append with unresolvable sheet ID", async () => {
+    it('should handle append with unresolvable sheet ID', async () => {
       // Arrange
-      const spreadsheetId = "append-bad-sheet";
+      const spreadsheetId = 'append-bad-sheet';
       mockSheetsApi.spreadsheets.get = vi.fn().mockResolvedValue({
         data: {
-          sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
       // Act - try to append to non-existent sheet
       const promise = batchingSystem.execute({
-        id: "append-bad",
-        type: "values:append",
+        id: 'append-bad',
+        type: 'values:append',
         spreadsheetId,
-        params: { range: "NonExistentSheet!A1", values: [[1]] },
+        params: { range: 'NonExistentSheet!A1', values: [[1]] },
       });
 
       // Catch to avoid unhandled rejection warnings
@@ -444,53 +418,47 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("BatchUpdate Operations", () => {
-    it("should merge multiple batchUpdate requests", async () => {
+  describe('BatchUpdate Operations', () => {
+    it('should merge multiple batchUpdate requests', async () => {
       // Arrange
-      const spreadsheetId = "batch-update-test";
+      const spreadsheetId = 'batch-update-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
         data: {
-          replies: [
-            { updateCells: {} },
-            { repeatCell: {} },
-            { mergeCells: {} },
-          ],
+          replies: [{ updateCells: {} }, { repeatCell: {} }, { mergeCells: {} }],
         },
       });
 
       // Act - queue same type operations (they batch together)
       const promises = [
         batchingSystem.execute({
-          id: "format1",
-          type: "format:update",
+          id: 'format1',
+          type: 'format:update',
           spreadsheetId,
           params: {
             requests: [
               {
                 updateCells: {
                   range: { sheetId: 0 },
-                  fields: "userEnteredFormat.backgroundColor",
+                  fields: 'userEnteredFormat.backgroundColor',
                 },
               },
             ],
           },
         }),
         batchingSystem.execute({
-          id: "format2",
-          type: "format:update",
+          id: 'format2',
+          type: 'format:update',
           spreadsheetId,
           params: {
-            requests: [
-              { repeatCell: { range: { sheetId: 0 }, fields: "userEnteredFormat" } },
-            ],
+            requests: [{ repeatCell: { range: { sheetId: 0 }, fields: 'userEnteredFormat' } }],
           },
         }),
         batchingSystem.execute({
-          id: "format3",
-          type: "format:update",
+          id: 'format3',
+          type: 'format:update',
           spreadsheetId,
           params: {
-            request: { mergeCells: { range: { sheetId: 0 }, mergeType: "MERGE_ALL" } },
+            request: { mergeCells: { range: { sheetId: 0 }, mergeType: 'MERGE_ALL' } },
           },
         }),
       ];
@@ -502,14 +470,14 @@ describe("BatchingSystem", () => {
       expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
       const batchCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls[0][0];
       expect(batchCall.requestBody.requests).toHaveLength(3);
-      expect(batchCall.requestBody.requests[0]).toHaveProperty("updateCells");
-      expect(batchCall.requestBody.requests[1]).toHaveProperty("repeatCell");
-      expect(batchCall.requestBody.requests[2]).toHaveProperty("mergeCells");
+      expect(batchCall.requestBody.requests[0]).toHaveProperty('updateCells');
+      expect(batchCall.requestBody.requests[1]).toHaveProperty('repeatCell');
+      expect(batchCall.requestBody.requests[2]).toHaveProperty('mergeCells');
     });
 
-    it("should preserve request order in batch", async () => {
+    it('should preserve request order in batch', async () => {
       // Arrange
-      const spreadsheetId = "order-test";
+      const spreadsheetId = 'order-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
         data: { replies: [{}, {}, {}] },
       });
@@ -517,22 +485,22 @@ describe("BatchingSystem", () => {
       // Act - queue operations in specific order
       const promises = [
         batchingSystem.execute({
-          id: "op1",
-          type: "sheet:update",
+          id: 'op1',
+          type: 'sheet:update',
           spreadsheetId,
-          params: { requests: [{ addSheet: { properties: { title: "First" } } }] },
+          params: { requests: [{ addSheet: { properties: { title: 'First' } } }] },
         }),
         batchingSystem.execute({
-          id: "op2",
-          type: "sheet:update",
+          id: 'op2',
+          type: 'sheet:update',
           spreadsheetId,
-          params: { requests: [{ addSheet: { properties: { title: "Second" } } }] },
+          params: { requests: [{ addSheet: { properties: { title: 'Second' } } }] },
         }),
         batchingSystem.execute({
-          id: "op3",
-          type: "sheet:update",
+          id: 'op3',
+          type: 'sheet:update',
           spreadsheetId,
-          params: { requests: [{ addSheet: { properties: { title: "Third" } } }] },
+          params: { requests: [{ addSheet: { properties: { title: 'Third' } } }] },
         }),
       ];
 
@@ -541,14 +509,14 @@ describe("BatchingSystem", () => {
 
       // Assert - requests should be in same order as queued
       const batchCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls[0][0];
-      expect(batchCall.requestBody.requests[0].addSheet.properties.title).toBe("First");
-      expect(batchCall.requestBody.requests[1].addSheet.properties.title).toBe("Second");
-      expect(batchCall.requestBody.requests[2].addSheet.properties.title).toBe("Third");
+      expect(batchCall.requestBody.requests[0].addSheet.properties.title).toBe('First');
+      expect(batchCall.requestBody.requests[1].addSheet.properties.title).toBe('Second');
+      expect(batchCall.requestBody.requests[2].addSheet.properties.title).toBe('Third');
     });
 
-    it("should distribute batchUpdate responses to correct operations", async () => {
+    it('should distribute batchUpdate responses to correct operations', async () => {
       // Arrange
-      const spreadsheetId = "response-test";
+      const spreadsheetId = 'response-test';
       mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
         data: {
           replies: [
@@ -560,17 +528,17 @@ describe("BatchingSystem", () => {
 
       // Act
       const promise1 = batchingSystem.execute({
-        id: "sheet1",
-        type: "sheet:update",
+        id: 'sheet1',
+        type: 'sheet:update',
         spreadsheetId,
-        params: { requests: [{ addSheet: { properties: { title: "S1" } } }] },
+        params: { requests: [{ addSheet: { properties: { title: 'S1' } } }] },
       });
 
       const promise2 = batchingSystem.execute({
-        id: "sheet2",
-        type: "sheet:update",
+        id: 'sheet2',
+        type: 'sheet:update',
         spreadsheetId,
-        params: { requests: [{ addSheet: { properties: { title: "S2" } } }] },
+        params: { requests: [{ addSheet: { properties: { title: 'S2' } } }] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -582,35 +550,33 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Values Clear Batching", () => {
-    it("should batch multiple clear operations using batchClear", async () => {
+  describe('Values Clear Batching', () => {
+    it('should batch multiple clear operations using batchClear', async () => {
       // Arrange
-      const spreadsheetId = "clear-test";
-      mockSheetsApi.spreadsheets.values.batchClear = vi
-        .fn()
-        .mockResolvedValue({
-          data: { clearedRanges: ["Sheet1!A1", "Sheet1!B1", "Sheet2!A1"] },
-        });
+      const spreadsheetId = 'clear-test';
+      mockSheetsApi.spreadsheets.values.batchClear = vi.fn().mockResolvedValue({
+        data: { clearedRanges: ['Sheet1!A1', 'Sheet1!B1', 'Sheet2!A1'] },
+      });
 
       // Act - queue multiple clear operations
       const promises = [
         batchingSystem.execute({
-          id: "clear1",
-          type: "values:clear",
+          id: 'clear1',
+          type: 'values:clear',
           spreadsheetId,
-          params: { range: "Sheet1!A1" },
+          params: { range: 'Sheet1!A1' },
         }),
         batchingSystem.execute({
-          id: "clear2",
-          type: "values:clear",
+          id: 'clear2',
+          type: 'values:clear',
           spreadsheetId,
-          params: { range: "Sheet1!B1" },
+          params: { range: 'Sheet1!B1' },
         }),
         batchingSystem.execute({
-          id: "clear3",
-          type: "values:clear",
+          id: 'clear3',
+          type: 'values:clear',
           spreadsheetId,
-          params: { range: "Sheet2!A1" },
+          params: { range: 'Sheet2!A1' },
         }),
       ];
 
@@ -622,15 +588,15 @@ describe("BatchingSystem", () => {
       expect(mockSheetsApi.spreadsheets.values.batchClear).toHaveBeenCalledWith({
         spreadsheetId,
         requestBody: {
-          ranges: ["Sheet1!A1", "Sheet1!B1", "Sheet2!A1"],
+          ranges: ['Sheet1!A1', 'Sheet1!B1', 'Sheet2!A1'],
         },
       });
     });
 
-    it("should resolve all clear operations with same response", async () => {
+    it('should resolve all clear operations with same response', async () => {
       // Arrange
-      const spreadsheetId = "clear-test-2";
-      const mockResponse = { clearedRanges: ["A1", "B1"] };
+      const spreadsheetId = 'clear-test-2';
+      const mockResponse = { clearedRanges: ['A1', 'B1'] };
       mockSheetsApi.spreadsheets.values.batchClear = vi
         .fn()
         .mockResolvedValue({ data: mockResponse });
@@ -638,16 +604,16 @@ describe("BatchingSystem", () => {
       // Act
       const promises = [
         batchingSystem.execute({
-          id: "clear1",
-          type: "values:clear",
+          id: 'clear1',
+          type: 'values:clear',
           spreadsheetId,
-          params: { range: "A1" },
+          params: { range: 'A1' },
         }),
         batchingSystem.execute({
-          id: "clear2",
-          type: "values:clear",
+          id: 'clear2',
+          type: 'values:clear',
           spreadsheetId,
-          params: { range: "B1" },
+          params: { range: 'B1' },
         }),
       ];
 
@@ -660,47 +626,45 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Efficiency Metrics", () => {
-    it("should calculate batch efficiency ratio correctly", async () => {
+  describe('Efficiency Metrics', () => {
+    it('should calculate batch efficiency ratio correctly', async () => {
       // Arrange
-      const spreadsheetId = "metrics-test";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}, {}, {}, {}, {}] },
-        });
+      const spreadsheetId = 'metrics-test';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}, {}, {}, {}, {}] },
+      });
 
       // Act - execute 5 operations in one batch
       const promises = [
         batchingSystem.execute({
-          id: "op1",
-          type: "values:update",
+          id: 'op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A1", values: [[1]] },
+          params: { range: 'A1', values: [[1]] },
         }),
         batchingSystem.execute({
-          id: "op2",
-          type: "values:update",
+          id: 'op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A2", values: [[2]] },
+          params: { range: 'A2', values: [[2]] },
         }),
         batchingSystem.execute({
-          id: "op3",
-          type: "values:update",
+          id: 'op3',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A3", values: [[3]] },
+          params: { range: 'A3', values: [[3]] },
         }),
         batchingSystem.execute({
-          id: "op4",
-          type: "values:update",
+          id: 'op4',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A4", values: [[4]] },
+          params: { range: 'A4', values: [[4]] },
         }),
         batchingSystem.execute({
-          id: "op5",
-          type: "values:update",
+          id: 'op5',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A5", values: [[5]] },
+          params: { range: 'A5', values: [[5]] },
         }),
       ];
 
@@ -719,35 +683,33 @@ describe("BatchingSystem", () => {
       expect(stats.minBatchSize).toBe(5);
     });
 
-    it("should track operations saved across multiple batches", async () => {
+    it('should track operations saved across multiple batches', async () => {
       // Arrange
-      const spreadsheetId = "metrics-test-2";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}, {}, {}] },
-        });
+      const spreadsheetId = 'metrics-test-2';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}, {}, {}] },
+      });
 
       // Act - execute two separate batches
       // Batch 1: 3 operations
       const batch1 = [
         batchingSystem.execute({
-          id: "b1-op1",
-          type: "values:update",
+          id: 'b1-op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A1", values: [[1]] },
+          params: { range: 'A1', values: [[1]] },
         }),
         batchingSystem.execute({
-          id: "b1-op2",
-          type: "values:update",
+          id: 'b1-op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A2", values: [[2]] },
+          params: { range: 'A2', values: [[2]] },
         }),
         batchingSystem.execute({
-          id: "b1-op3",
-          type: "values:update",
+          id: 'b1-op3',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A3", values: [[3]] },
+          params: { range: 'A3', values: [[3]] },
         }),
       ];
 
@@ -755,30 +717,28 @@ describe("BatchingSystem", () => {
       await Promise.all(batch1);
 
       // Batch 2: 3 more operations
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}, {}, {}] },
-        });
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}, {}, {}] },
+      });
 
       const batch2 = [
         batchingSystem.execute({
-          id: "b2-op1",
-          type: "values:update",
+          id: 'b2-op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "B1", values: [[4]] },
+          params: { range: 'B1', values: [[4]] },
         }),
         batchingSystem.execute({
-          id: "b2-op2",
-          type: "values:update",
+          id: 'b2-op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "B2", values: [[5]] },
+          params: { range: 'B2', values: [[5]] },
         }),
         batchingSystem.execute({
-          id: "b2-op3",
-          type: "values:update",
+          id: 'b2-op3',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "B3", values: [[6]] },
+          params: { range: 'B3', values: [[6]] },
         }),
       ];
 
@@ -795,22 +755,20 @@ describe("BatchingSystem", () => {
       expect(stats.avgBatchSize).toBe(3);
     });
 
-    it("should track batch duration metrics", async () => {
+    it('should track batch duration metrics', async () => {
       // Arrange
-      const spreadsheetId = "duration-test";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockImplementation(async () => {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          return { data: { responses: [{}] } };
-        });
+      const spreadsheetId = 'duration-test';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { data: { responses: [{}] } };
+      });
 
       // Act
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       await vi.advanceTimersByTimeAsync(50); // Trigger batch
@@ -822,21 +780,19 @@ describe("BatchingSystem", () => {
       expect(stats.avgBatchDuration).toBeGreaterThan(0);
     });
 
-    it("should reset statistics correctly", async () => {
+    it('should reset statistics correctly', async () => {
       // Arrange
-      const spreadsheetId = "reset-test";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}] },
-        });
+      const spreadsheetId = 'reset-test';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}] },
+      });
 
       // Execute some operations
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -857,28 +813,26 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Error Handling", () => {
-    it("should reject all operations in batch when API call fails", async () => {
+  describe('Error Handling', () => {
+    it('should reject all operations in batch when API call fails', async () => {
       // Arrange
-      const spreadsheetId = "error-test";
-      const apiError = new Error("API request failed");
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockRejectedValue(apiError);
+      const spreadsheetId = 'error-test';
+      const apiError = new Error('API request failed');
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockRejectedValue(apiError);
 
       // Act - queue multiple operations
       const promises = [
         batchingSystem.execute({
-          id: "op1",
-          type: "values:update",
+          id: 'op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A1", values: [[1]] },
+          params: { range: 'A1', values: [[1]] },
         }),
         batchingSystem.execute({
-          id: "op2",
-          type: "values:update",
+          id: 'op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A2", values: [[2]] },
+          params: { range: 'A2', values: [[2]] },
         }),
       ];
 
@@ -889,23 +843,23 @@ describe("BatchingSystem", () => {
       await vi.advanceTimersByTimeAsync(50);
 
       // Assert - all operations should be rejected with same error
-      await expect(promises[0]).rejects.toThrow("API request failed");
-      await expect(promises[1]).rejects.toThrow("API request failed");
+      await expect(promises[0]).rejects.toThrow('API request failed');
+      await expect(promises[1]).rejects.toThrow('API request failed');
     });
 
-    it("should handle non-Error exceptions gracefully", async () => {
+    it('should handle non-Error exceptions gracefully', async () => {
       // Arrange
-      const spreadsheetId = "error-test-2";
+      const spreadsheetId = 'error-test-2';
       mockSheetsApi.spreadsheets.values.batchUpdate = vi
         .fn()
-        .mockRejectedValue("String error message");
+        .mockRejectedValue('String error message');
 
       // Act
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       // Catch to avoid unhandled rejection warnings
@@ -914,27 +868,25 @@ describe("BatchingSystem", () => {
       await vi.advanceTimersByTimeAsync(50);
 
       // Assert - should convert to Error
-      await expect(promise).rejects.toThrow("String error message");
+      await expect(promise).rejects.toThrow('String error message');
     });
 
-    it("should handle timeout in batch execution", async () => {
+    it('should handle timeout in batch execution', async () => {
       // Arrange
-      const spreadsheetId = "timeout-test";
+      const spreadsheetId = 'timeout-test';
       let resolveFn: () => void;
       const hangingPromise = new Promise<any>((resolve) => {
         resolveFn = () => resolve({ data: { responses: [{}] } });
       });
 
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockReturnValue(hangingPromise);
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockReturnValue(hangingPromise);
 
       // Act
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -955,14 +907,14 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Disabled Batching Mode", () => {
-    it("should execute operations immediately when batching is disabled", async () => {
+  describe('Disabled Batching Mode', () => {
+    it('should execute operations immediately when batching is disabled', async () => {
       // Arrange
       const noBatchSystem = new BatchingSystem(mockSheetsApi, {
         enabled: false,
       });
 
-      const spreadsheetId = "no-batch-test";
+      const spreadsheetId = 'no-batch-test';
       mockSheetsApi.spreadsheets.values.update = vi.fn().mockResolvedValue({
         data: { updatedCells: 1 },
       });
@@ -970,16 +922,16 @@ describe("BatchingSystem", () => {
       // Act - execute multiple operations
       await Promise.all([
         noBatchSystem.execute({
-          id: "op1",
-          type: "values:update",
+          id: 'op1',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A1", values: [[1]] },
+          params: { range: 'A1', values: [[1]] },
         }),
         noBatchSystem.execute({
-          id: "op2",
-          type: "values:update",
+          id: 'op2',
+          type: 'values:update',
           spreadsheetId,
-          params: { range: "A2", values: [[2]] },
+          params: { range: 'A2', values: [[2]] },
         }),
       ]);
 
@@ -992,23 +944,23 @@ describe("BatchingSystem", () => {
       noBatchSystem.destroy();
     });
 
-    it("should execute append immediately when batching is disabled", async () => {
+    it('should execute append immediately when batching is disabled', async () => {
       // Arrange
       const noBatchSystem = new BatchingSystem(mockSheetsApi, {
         enabled: false,
       });
 
-      const spreadsheetId = "no-batch-append";
+      const spreadsheetId = 'no-batch-append';
       mockSheetsApi.spreadsheets.values.append = vi.fn().mockResolvedValue({
         data: { updates: { updatedCells: 1 } },
       });
 
       // Act
       await noBatchSystem.execute({
-        id: "append1",
-        type: "values:append",
+        id: 'append1',
+        type: 'values:append',
         spreadsheetId,
-        params: { range: "Sheet1!A1", values: [[1]] },
+        params: { range: 'Sheet1!A1', values: [[1]] },
       });
 
       // Assert
@@ -1019,8 +971,8 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Adaptive Window", () => {
-    it("should adjust window size based on queue depth", async () => {
+  describe('Adaptive Window', () => {
+    it('should adjust window size based on queue depth', async () => {
       // Arrange
       const adaptiveSystem = new BatchingSystem(mockSheetsApi, {
         enabled: true,
@@ -1034,18 +986,16 @@ describe("BatchingSystem", () => {
         },
       });
 
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}] },
-        });
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}] },
+      });
 
       // Act - execute single operation (below lowThreshold)
       const promise = adaptiveSystem.execute({
-        id: "op1",
-        type: "values:update",
-        spreadsheetId: "test",
-        params: { range: "A1", values: [[1]] },
+        id: 'op1',
+        type: 'values:update',
+        spreadsheetId: 'test',
+        params: { range: 'A1', values: [[1]] },
       });
 
       await vi.advanceTimersByTimeAsync(50);
@@ -1060,7 +1010,7 @@ describe("BatchingSystem", () => {
       adaptiveSystem.destroy();
     });
 
-    it("should increase window when operations are below threshold", () => {
+    it('should increase window when operations are below threshold', () => {
       // Arrange
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
@@ -1077,7 +1027,7 @@ describe("BatchingSystem", () => {
       expect(window.getCurrentWindow()).toBe(75); // 50 * 1.5
     });
 
-    it("should decrease window when operations are above threshold", () => {
+    it('should decrease window when operations are above threshold', () => {
       // Arrange
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
@@ -1094,7 +1044,7 @@ describe("BatchingSystem", () => {
       expect(window.getCurrentWindow()).toBe(50); // 100 * 0.5
     });
 
-    it("should respect min and max window bounds", () => {
+    it('should respect min and max window bounds', () => {
       // Arrange
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
@@ -1121,7 +1071,7 @@ describe("BatchingSystem", () => {
       expect(afterDecrease).toBeGreaterThanOrEqual(20);
     });
 
-    it("should maintain window in optimal range", () => {
+    it('should maintain window in optimal range', () => {
       // Arrange
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
@@ -1141,22 +1091,20 @@ describe("BatchingSystem", () => {
     });
   });
 
-  describe("Flush and Destroy", () => {
-    it("should flush all pending batches immediately", async () => {
+  describe('Flush and Destroy', () => {
+    it('should flush all pending batches immediately', async () => {
       // Arrange
-      const spreadsheetId = "flush-test";
-      mockSheetsApi.spreadsheets.values.batchUpdate = vi
-        .fn()
-        .mockResolvedValue({
-          data: { responses: [{}] },
-        });
+      const spreadsheetId = 'flush-test';
+      mockSheetsApi.spreadsheets.values.batchUpdate = vi.fn().mockResolvedValue({
+        data: { responses: [{}] },
+      });
 
       // Queue operations but don't wait for timer
       const promise = batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       // Act - flush immediately
@@ -1167,14 +1115,14 @@ describe("BatchingSystem", () => {
       expect(mockSheetsApi.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(1);
     });
 
-    it("should clear all timers and batches on destroy", () => {
+    it('should clear all timers and batches on destroy', () => {
       // Arrange
-      const spreadsheetId = "destroy-test";
+      const spreadsheetId = 'destroy-test';
       batchingSystem.execute({
-        id: "op1",
-        type: "values:update",
+        id: 'op1',
+        type: 'values:update',
         spreadsheetId,
-        params: { range: "A1", values: [[1]] },
+        params: { range: 'A1', values: [[1]] },
       });
 
       // Act

@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 17 tools, 226 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 19 tools, 252 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -47,7 +47,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ### Core Capabilities
 
-- **17 Tools, 226 Actions**: Comprehensive Google Sheets API v4 coverage
+- **19 Tools, 241 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -58,7 +58,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
-- ✅ **Tools**: 17 tools with 226 actions using discriminated unions
+- ✅ **Tools**: 19 tools with 252 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -150,10 +150,10 @@ ServalSheets has comprehensive documentation organized by use case:
 
 ### 🚀 Getting Started
 
-- **[QUICKSTART.md](./QUICKSTART.md)** - Quick start guide (start here!)
+- **[docs/guides/FIRST_TIME_USER.md](./docs/guides/FIRST_TIME_USER.md)** - First-time user walkthrough (start here!)
 - **[docs/guides/CLAUDE_DESKTOP_SETUP.md](./docs/guides/CLAUDE_DESKTOP_SETUP.md)** - Claude Desktop setup
 - **[docs/guides/INSTALLATION_GUIDE.md](./docs/guides/INSTALLATION_GUIDE.md)** - Installation instructions
-- **[docs/guides/FIRST_TIME_USER.md](./docs/guides/FIRST_TIME_USER.md)** - First-time user walkthrough
+- **[docs/guides/QUICKSTART_CREDENTIALS.md](./docs/guides/QUICKSTART_CREDENTIALS.md)** - Quick credentials setup
 
 ### 📖 User Guides
 
@@ -177,12 +177,12 @@ ServalSheets has comprehensive documentation organized by use case:
 ### 🔐 Production
 
 - **[SECURITY.md](./SECURITY.md)** - Security best practices
-- **[PERFORMANCE.md](./PERFORMANCE.md)** - Performance tuning
-- **[MONITORING.md](./MONITORING.md)** - Observability setup
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment examples
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues
+- **[docs/guides/PERFORMANCE.md](./docs/guides/PERFORMANCE.md)** - Performance tuning
+- **[docs/guides/MONITORING.md](./docs/guides/MONITORING.md)** - Observability setup
+- **[docs/guides/DEPLOYMENT.md](./docs/guides/DEPLOYMENT.md)** - Deployment examples
+- **[docs/guides/TROUBLESHOOTING.md](./docs/guides/TROUBLESHOOTING.md)** - Common issues
 
-**Need help?** Start with [USAGE_GUIDE.md](./USAGE_GUIDE.md) for a complete walkthrough.
+**Need help?** Start with [docs/guides/USAGE_GUIDE.md](./docs/guides/USAGE_GUIDE.md) for a complete walkthrough.
 
 ## Contributing
 
@@ -192,7 +192,6 @@ We welcome contributions! ServalSheets follows strict quality standards to maint
 
 - **[Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md)** - Step-by-step guide for contributors
 - **[Claude Code Rules](./docs/development/CLAUDE_CODE_RULES.md)** - Required rules for all contributions
-- **[Codebase Audit Report](./docs/development/AUDIT_REPORT_2026-01-11.md)** - Current state and best practices
 
 ### Quick Start for Contributors
 
@@ -249,39 +248,29 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Core Operations (16 tools, 165 actions)
+### Tool Summary (19 tools, 252 actions)
 
-| Tool                 | Actions | Description                    | Read-Only | Destructive |
-| -------------------- | ------- | ------------------------------ | --------- | ----------- |
-| `sheets_auth`        | 4       | Authentication & OAuth         | **Yes**   | No          |
-| `sheets_spreadsheet` | 6       | Create, get, copy spreadsheets | No        | No          |
-| `sheets_sheet`       | 7       | Manage sheets/tabs             | No        | Yes         |
-| `sheets_values`      | 9       | Read/write cell values         | No        | Yes         |
-| `sheets_cells`       | 12      | Notes, validation, merge       | No        | Yes         |
-| `sheets_format`      | 9       | Cell formatting                | No        | No          |
-| `sheets_dimensions`  | 21      | Row/column operations          | No        | Yes         |
-| `sheets_rules`       | 8       | Conditional formatting         | No        | Yes         |
-| `sheets_charts`      | 9       | Chart management               | No        | Yes         |
-| `sheets_pivot`       | 6       | Pivot tables                   | No        | Yes         |
-| `sheets_filter_sort` | 14      | Filtering and sorting          | No        | Yes         |
-| `sheets_sharing`     | 8       | Permissions                    | No        | Yes         |
-| `sheets_comments`    | 10      | Comments                       | No        | Yes         |
-| `sheets_versions`    | 10      | Version history                | No        | Yes         |
-| `sheets_analysis`    | 13      | Data analysis, AI insights     | **Yes**   | No          |
-| `sheets_advanced`    | 19      | Named ranges, protection       | No        | Yes         |
-
-### Enterprise & MCP-Native Tools (8 tools, 23 actions)
-
-| Tool                 | Actions | Description                     | Read-Only | Destructive |
-| -------------------- | ------- | ------------------------------- | --------- | ----------- |
-| `sheets_transaction` | 6       | Transaction management          | No        | Yes         |
-| `sheets_validation`  | 1       | Data validation checking        | **Yes**   | No          |
-| `sheets_conflict`    | 2       | Conflict detection              | **Yes**   | No          |
-| `sheets_impact`      | 1       | Pre-execution analysis          | **Yes**   | No          |
-| `sheets_history`     | 7       | Operation history & undo        | **Yes**   | No          |
-| `sheets_confirm`     | 2       | User confirmation (Elicitation) | **Yes**   | No          |
-| `sheets_analyze`     | 4       | AI analysis (Sampling)          | **Yes**   | No          |
-| `sheets_fix`         | 0       | Automated issue fixing          | No        | Yes         |
+| Tool | Actions | Description |
+| --- | --- | --- |
+| `sheets_auth` | 4 | Authentication & OAuth |
+| `sheets_core` | 15 | Spreadsheet and sheet metadata/management |
+| `sheets_data` | 20 | Read/write values, notes, hyperlinks, validation, clipboard |
+| `sheets_format` | 18 | Cell formatting, conditional formats, data validation |
+| `sheets_dimensions` | 39 | Rows/columns, filters, sorts, groups, freezes |
+| `sheets_visualize` | 16 | Charts and pivot tables |
+| `sheets_collaborate` | 28 | Sharing, comments, versions/snapshots |
+| `sheets_advanced` | 19 | Named ranges, protected ranges, metadata, banding, tables |
+| `sheets_transaction` | 6 | Transaction management |
+| `sheets_quality` | 4 | Validation, conflicts, impact analysis |
+| `sheets_history` | 7 | Undo/redo, history, revert |
+| `sheets_confirm` | 2 | Elicitation confirmations |
+| `sheets_analyze` | 11 | AI-assisted analysis & recommendations |
+| `sheets_fix` | 1 | Automated fixes from analysis |
+| `sheets_composite` | 4 | High-level bulk operations |
+| `sheets_session` | 13 | Session context and references |
+| `sheets_appsscript` | 14 | Apps Script automation |
+| `sheets_bigquery` | 12 | BigQuery Connected Sheets |
+| `sheets_templates` | 8 | Enterprise templates |
 
 ## Examples
 
@@ -289,7 +278,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ```javascript
 // Read sales data
-const result = await sheets_values({
+const result = await sheets_data({
   action: 'read',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   range: { a1: 'Sales!A1:D100' },
@@ -297,8 +286,8 @@ const result = await sheets_values({
 });
 
 // Analyze data quality
-const analysis = await sheets_analysis({
-  action: 'data_quality',
+const analysis = await sheets_analyze({
+  action: 'analyze_quality',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   range: { a1: 'Sales!A1:D100' },
 });
@@ -309,7 +298,7 @@ const analysis = await sheets_analysis({
 
 ```javascript
 // Preview changes first (dry run)
-const preview = await sheets_values({
+const preview = await sheets_data({
   action: 'write',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   range: { a1: 'Data!A2:C100' },
@@ -323,7 +312,7 @@ const preview = await sheets_values({
 
 // Execute if safe
 if (preview.data.cellsAffected < 500) {
-  const result = await sheets_values({
+  const result = await sheets_data({
     action: 'write',
     spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
     range: { a1: 'Data!A2:C100' },
@@ -340,7 +329,7 @@ if (preview.data.cellsAffected < 500) {
 
 ```javascript
 // Query by column header instead of A1 notation
-const revenue = await sheets_values({
+const revenue = await sheets_data({
   action: 'read',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   range: {
@@ -364,7 +353,7 @@ const revenue = await sheets_values({
 
 ```javascript
 // Create a bar chart from data
-const chart = await sheets_charts({
+const chart = await sheets_visualize({
   action: 'create',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   sheetId: 0,
@@ -383,7 +372,7 @@ const chart = await sheets_charts({
 
 ```javascript
 // Add conditional formatting rule
-const rule = await sheets_rules({
+const rule = await sheets_format({
   action: 'add_conditional_format',
   spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
   sheetId: 0,
@@ -888,7 +877,7 @@ npm run start:remote
 
 ```
 src/
-├── schemas/           # Zod schemas for all 15 tools
+├── schemas/           # Zod schemas for all 19 tools
 ├── core/              # Core infrastructure
 │   ├── intent.ts          # Intent types and mappings
 │   ├── batch-compiler.ts  # Compiles intents to API requests
@@ -933,8 +922,8 @@ graph TB
         MCP[MCP Server]
 
         subgraph "Handlers (15 Tools)"
-            H1[sheets_spreadsheet]
-            H2[sheets_values]
+            H1[sheets_core]
+            H2[sheets_data]
             H3[sheets_format]
             H4[... 12 more]
         end
@@ -980,7 +969,7 @@ graph TB
 - **OAuth**: 2.1 with PKCE support
 - **Transports**: STDIO, SSE, Streamable HTTP
 - **TypeScript**: Strict mode enabled, 0 errors
-- **SDK Version**: @modelcontextprotocol/sdk@1.0.4 (pinned)
+- **SDK Version**: @modelcontextprotocol/sdk@^1.25.2
 - **Test Coverage**: 1761 tests passing across 78 suites
 
 ## Quality Metrics

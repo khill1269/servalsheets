@@ -45,13 +45,27 @@ const FilterCriteriaSchema = z.object({
   visibleForegroundColor: ColorSchema.optional(),
 });
 
+// Helper: Convert column letter(s) to zero-based index (A=0, B=1, ..., AA=26, etc.)
+const columnLetterToIndex = (letter: string): number => {
+  return (
+    letter
+      .toUpperCase()
+      .split('')
+      .reduce((acc, char) => acc * 26 + char.charCodeAt(0) - 64, 0) - 1
+  );
+};
+
 const SortSpecSchema = z.object({
-  columnIndex: z.coerce
-    .number()
-    .int()
-    .min(0)
+  columnIndex: z
+    .preprocess((val) => {
+      // Auto-convert column letters to indices (A=0, B=1, C=2, AA=26, etc.)
+      if (typeof val === 'string' && /^[A-Z]+$/i.test(val)) {
+        return columnLetterToIndex(val);
+      }
+      return val;
+    }, z.coerce.number().int().min(0))
     .describe(
-      'Zero-based column index to sort by (0=A, 1=B, 2=C, etc.). NOT a letter - use numeric index. For column "C", use 2.'
+      'Column to sort by: zero-based index (0, 1, 2) or column letter (A, B, C). Examples: 0 or "A" for first column, 2 or "C" for third column.'
     ),
   sortOrder: SortOrderSchema.optional()
     .default('ASCENDING')
@@ -195,11 +209,20 @@ const GetBasicFilterActionSchema = CommonFieldsSchema.extend({
 // Merged into SetBasicFilterActionSchema with optional columnIndex parameter
 
 const SortRangeActionSchema = z.object({
-  action: z.literal('sort_range').describe('Sort a range'),
+  action: z
+    .literal('sort_range')
+    .describe(
+      'Sort a range by one or more columns. Example: { range: "A1:D100", sortSpecs: [{ columnIndex: 0 }] } sorts by first column ascending.'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  range: RangeInputSchema.describe('Range to sort'),
-  sortSpecs: z.array(SortSpecSchema).min(1).describe('Sort specifications (at least one required)'),
+  range: RangeInputSchema.describe('Range to sort (e.g., "Sheet1!A1:D100" or "A1:D100")'),
+  sortSpecs: z
+    .array(SortSpecSchema)
+    .min(1)
+    .describe(
+      'Sort specifications array. REQUIRED: Each spec MUST have columnIndex. Example: [{ columnIndex: 0 }] or [{ columnIndex: "A", sortOrder: "DESCENDING" }]'
+    ),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -263,7 +286,15 @@ const TextToColumnsActionSchema = z.object({
 });
 
 const AutoFillActionSchema = z.object({
-  action: z.literal('auto_fill').describe('Auto-fill data based on detected patterns'),
+  action: z
+    .literal('auto_fill')
+    .describe(
+      'Auto-fill data based on detected patterns. TWO MODES: ' +
+        '(1) Fill within range: provide only "range" - detects source data within range and fills the rest. ' +
+        '(2) Extend from source: provide "sourceRange" + "fillLength" to extend a pattern beyond the source. ' +
+        'Example Mode 1: { range: "A1:A10" } fills A2:A10 based on A1 pattern. ' +
+        'Example Mode 2: { sourceRange: "A1:A3", fillLength: 7 } extends pattern in A1:A3 to fill 7 more rows (A4:A10).'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
   range: RangeInputSchema.optional().describe(

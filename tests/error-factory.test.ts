@@ -27,7 +27,7 @@ describe('Error Factory', () => {
       expect(error.severity).toBe('high');
       expect(error.retryable).toBe(false);
       expect(error.resolutionSteps).toHaveLength(4);
-      expect(error.suggestedTools).toContain('sheets_sharing');
+      expect(error.suggestedTools).toContain('sheets_collaborate');
     });
   });
 
@@ -70,7 +70,7 @@ describe('Error Factory', () => {
       });
 
       expect(error.code).toBe('SHEET_NOT_FOUND');
-      expect(error.suggestedTools).toContain('sheets_sheet');
+      expect(error.suggestedTools).toContain('sheets_core');
     });
 
     it('should create a not found error for range', () => {
@@ -368,7 +368,7 @@ describe('Error Factory', () => {
 
       expect(pattern).toBeDefined();
       expect(pattern?.pattern).toBe('permission');
-      expect(pattern?.suggestedAction).toContain('sheets_sharing');
+      expect(pattern?.suggestedAction).toContain('sheets_collaborate');
     });
 
     it('should track affected operations', () => {

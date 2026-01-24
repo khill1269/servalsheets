@@ -327,7 +327,7 @@ Note: Use patterns with sheets_format action: set_number_format
                 email: {
                   pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
                   example: 'user@example.com',
-                  tool: 'sheets_cells',
+                  tool: 'sheets_data',
                   action: 'set_validation',
                 },
                 url: {
@@ -362,7 +362,7 @@ Note: Use patterns with sheets_format action: set_number_format
                   },
                 },
                 builtIn: {
-                  note: 'Google Sheets provides built-in validations via sheets_cells set_validation',
+                  note: 'Google Sheets provides built-in validations via sheets_data set_validation',
                   types: [
                     'NUMBER (with min/max)',
                     'TEXT (length constraints)',

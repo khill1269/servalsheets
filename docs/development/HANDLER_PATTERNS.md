@@ -1,8 +1,8 @@
 # ServalSheets Handler Implementation Guide
 
-> **Version:** 1.0.0  
-> **Architecture:** Action-based discriminated unions  
-> **Tools:** 15 tools with 158 actions
+> **Version:** 1.0.0
+> **Architecture:** Action-based discriminated unions
+> **Tools:** 19 tools with 244 actions
 
 ---
 
@@ -53,7 +53,7 @@
 
 ```typescript
 // 1. Tool Registration (index.ts)
-mcp.registerTool('sheets_values', {
+mcp.registerTool('sheets_data', {
   description: 'Read, write, append, clear cell values',
   inputSchema: zodToJsonSchema(SheetsValuesInputSchema),
   outputSchema: zodToJsonSchema(SheetsValuesOutputSchema),
@@ -549,7 +549,7 @@ export class SheetsAnalysisHandler extends BaseHandler<SheetsAnalysisInput, any>
     });
   }
 
-  private async handleStatistics(input: StatisticsInput): Promise<CallToolResult> {
+  private async handleAnalyzeData(input: StatisticsInput): Promise<CallToolResult> {
     const data = await this.sheetsService.readValues(
       input.spreadsheetId,
       this.resolveRange(input.range),
@@ -561,7 +561,7 @@ export class SheetsAnalysisHandler extends BaseHandler<SheetsAnalysisInput, any>
     const sum = numbers.reduce((a, b) => a + b, 0);
     const mean = sum / numbers.length;
 
-    return this.success('statistics', {
+    return this.success('analyze_data', {
       count: numbers.length,
       sum,
       mean,
@@ -581,14 +581,14 @@ export class SheetsAnalysisHandler extends BaseHandler<SheetsAnalysisInput, any>
 ```typescript
 async function importAndVisualize(client: McpClient, csvData: string[][]): Promise<void> {
   // 1. Create spreadsheet
-  const create = await client.callTool('sheets_spreadsheet', {
+  const create = await client.callTool('sheets_core', {
     action: 'create',
     title: `Import-${Date.now()}`,
   });
   const spreadsheetId = create.structuredContent.data.spreadsheetId;
 
   // 2. Write data
-  await client.callTool('sheets_values', {
+  await client.callTool('sheets_data', {
     action: 'write',
     spreadsheetId,
     range: { a1: 'Sheet1!A1' },
@@ -604,7 +604,7 @@ async function importAndVisualize(client: McpClient, csvData: string[][]): Promi
   });
 
   // 4. Create chart
-  await client.callTool('sheets_charts', {
+  await client.callTool('sheets_visualize', {
     action: 'create',
     spreadsheetId,
     chartType: 'COLUMN',

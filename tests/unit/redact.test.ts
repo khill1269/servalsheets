@@ -31,7 +31,8 @@ describe('Redaction Utility', () => {
     });
 
     it('should redact JWT tokens', () => {
-      const input = 'Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+      const input =
+        'Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
       const result = redactString(input);
       expect(result).toBe('Token: eyJ[REDACTED]');
       expect(result).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
@@ -252,7 +253,12 @@ describe('Redaction Utility', () => {
       const result = redactObject(input);
 
       expect(
-        ((((result.level1 as Record<string, unknown>).level2 as Record<string, unknown>).level3 as Record<string, unknown>).level4 as Record<string, unknown>).level5
+        (
+          (
+            ((result.level1 as Record<string, unknown>).level2 as Record<string, unknown>)
+              .level3 as Record<string, unknown>
+          ).level4 as Record<string, unknown>
+        ).level5
       ).toEqual({
         password: '[REDACTED]',
         public: 'visible',
@@ -403,8 +409,22 @@ describe('Redaction Utility', () => {
 
       expect((result.content as Array<{ text: string }>)[0].text).not.toContain('ya29.abc123');
       expect((result.content as Array<{ text: string }>)[0].text).toContain('[REDACTED]');
-      expect(((result._meta as Record<string, unknown>).request as Record<string, Record<string, string>>).auth.access_token).toBe('[REDACTED]');
-      expect(((result._meta as Record<string, unknown>).request as Record<string, Record<string, string>>).auth.refresh_token).toBe('[REDACTED]');
+      expect(
+        (
+          (result._meta as Record<string, unknown>).request as Record<
+            string,
+            Record<string, string>
+          >
+        ).auth.access_token
+      ).toBe('[REDACTED]');
+      expect(
+        (
+          (result._meta as Record<string, unknown>).request as Record<
+            string,
+            Record<string, string>
+          >
+        ).auth.refresh_token
+      ).toBe('[REDACTED]');
     });
   });
 
@@ -457,7 +477,7 @@ describe('Redaction Utility', () => {
       expect(Array.isArray(SENSITIVE_STRING_PATTERNS)).toBe(true);
       expect(SENSITIVE_STRING_PATTERNS.length).toBeGreaterThan(0);
 
-      SENSITIVE_STRING_PATTERNS.forEach(pattern => {
+      SENSITIVE_STRING_PATTERNS.forEach((pattern) => {
         expect(pattern).toHaveProperty('pattern');
         expect(pattern).toHaveProperty('replacement');
         expect(pattern).toHaveProperty('description');

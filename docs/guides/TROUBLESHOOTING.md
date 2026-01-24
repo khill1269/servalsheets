@@ -692,10 +692,10 @@ export SERVALSHEETS_CACHE_DATA_TTL=0
 
 ```bash
 # Check spreadsheet ID in logs
-cat logs.json | jq 'select(.operation == "sheets_spreadsheet:write") | .spreadsheetId'
+cat logs.json | jq 'select(.operation == "sheets_core:write") | .spreadsheetId'
 
 # Verify range
-cat logs.json | jq 'select(.operation == "sheets_spreadsheet:write") | .range'
+cat logs.json | jq 'select(.operation == "sheets_core:write") | .range'
 ```
 
 #### Check for Protected Ranges

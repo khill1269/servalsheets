@@ -4,50 +4,31 @@ Complete installation guide for all deployment scenarios.
 
 ## 📋 Quick Start (Choose Your Path)
 
-### Path 1: Interactive Setup (Recommended)
-**Best for:** First-time users, local development
+### Path 1: OAuth Setup Script (Optional)
+**Best for:** Quick OAuth setup, local development
 
 ```bash
 cd /path/to/servalsheets
 npm install
 npm run build
-./install-claude-desktop.sh
+./setup-oauth.sh
 ```
 
-**Features:**
-- ✅ Auto-detects Google credentials
-- ✅ Interactive configuration wizard
-- ✅ Automatic Claude Desktop config generation
-- ✅ Shows service account email for sharing
+**What it does:**
+- ✅ Runs OAuth authentication in your browser
+- ✅ Writes Claude Desktop config for `dist/cli.js`
+- ✅ Verifies tokens/config files
 
 [Full Guide →](./CLAUDE_DESKTOP_SETUP.md)
 
 ---
 
-### Path 2: Non-Interactive Setup
+### Path 2: Service Account Setup (Manual)
 **Best for:** CI/CD, automation, scripted deployments
 
-```bash
-cd /path/to/servalsheets
-npm install
-npm run build
-
-# With environment variables
-CRED_PATH=~/.config/google/sa.json \
-LOG_LEVEL=info \
-ENABLE_TRACING=false \
-./install-claude-desktop-noninteractive.sh
-```
-
-**Options:**
-- `CRED_PATH=/path/to/creds.json` - Service account path
-- `LOG_LEVEL=debug|info|warn|error` - Logging level
-- `ENABLE_TRACING=true|false` - OpenTelemetry tracing
-- `LOG_SPANS=true|false` - Span logging
-- `READS_PER_MIN=300` - Read rate limit
-- `WRITES_PER_MIN=60` - Write rate limit
-
-[Script →](./install-claude-desktop-noninteractive.sh)
+Follow the credentials quickstart and configure Claude Desktop manually:
+- [QUICKSTART_CREDENTIALS.md](./QUICKSTART_CREDENTIALS.md)
+- [CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md)
 
 ---
 
@@ -198,14 +179,14 @@ Enable these features via environment variables:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| [README.md](./README.md) | Project overview | Everyone |
+| [README.md](../../README.md) | Project overview | Everyone |
 | [CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md) | Claude Desktop setup | Desktop users |
 | [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md) | This document | Everyone |
-| [RELEASE_NOTES_v1.1.1.md](./RELEASE_NOTES_v1.1.1.md) | v1.1.1 details | Upgrading users |
-| [CHANGELOG.md](./CHANGELOG.md) | All versions | Everyone |
-| [.env.example](./.env.example) | Environment variables | Deployers |
+| [RELEASE_NOTES_v1.1.1.md](../releases/RELEASE_NOTES_v1.1.1.md) | v1.1.1 details | Upgrading users |
+| [CHANGELOG.md](../../CHANGELOG.md) | All versions | Everyone |
+| [.env.example](../../.env.example) | Environment variables | Deployers |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Production deployment | DevOps |
-| [SECURITY.md](./SECURITY.md) | Security best practices | Security teams |
+| [SECURITY.md](../../SECURITY.md) | Security best practices | Security teams |
 | [PERFORMANCE.md](./PERFORMANCE.md) | Performance tuning | Advanced users |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Common issues | Support |
 
@@ -215,10 +196,7 @@ Enable these features via environment variables:
 
 | Script | Type | Use Case |
 |--------|------|----------|
-| `install-claude-desktop.sh` | Interactive | First-time setup, development |
-| `install-claude-desktop-noninteractive.sh` | Non-interactive | CI/CD, automation |
 | `setup-oauth.sh` | Interactive | OAuth credential setup |
-| `setup-claude-oauth.sh` | Interactive | Claude-specific OAuth |
 
 ---
 

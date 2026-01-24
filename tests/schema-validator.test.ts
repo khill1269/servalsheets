@@ -4,7 +4,11 @@ import {
   getSchemaValidator,
   resetSchemaValidator,
 } from '../../src/services/schema-validator.js';
-import { DiscoveryApiClient, type DiscoverySchema, type SchemaComparison } from '../../src/services/discovery-client.js';
+import {
+  DiscoveryApiClient,
+  type DiscoverySchema,
+  type SchemaComparison,
+} from '../../src/services/discovery-client.js';
 import { SchemaCache } from '../../src/services/schema-cache.js';
 
 describe('SchemaValidator', () => {
@@ -262,7 +266,9 @@ describe('SchemaValidator', () => {
       const result = await validator.compareSchemas('sheets', currentSchema, newSchema);
 
       expect(result.comparison?.newMethods.length).toBeGreaterThan(0);
-      expect(result.issues.some((issue) => issue.type === 'new_feature' && issue.path.includes('create'))).toBe(true);
+      expect(
+        result.issues.some((issue) => issue.type === 'new_feature' && issue.path.includes('create'))
+      ).toBe(true);
     });
   });
 
@@ -294,9 +300,7 @@ describe('SchemaValidator', () => {
         version: 'v4',
         newFields: [],
         deprecatedFields: [],
-        changedFields: [
-          { path: 'Spreadsheet.count', oldType: 'string', newType: 'integer' },
-        ],
+        changedFields: [{ path: 'Spreadsheet.count', oldType: 'string', newType: 'integer' }],
         newMethods: [],
         removedMethods: [],
         hasChanges: true,
@@ -312,9 +316,7 @@ describe('SchemaValidator', () => {
       const comparison: SchemaComparison = {
         api: 'sheets',
         version: 'v4',
-        newFields: [
-          { path: 'Spreadsheet.newField', type: 'string', description: 'A new field' },
-        ],
+        newFields: [{ path: 'Spreadsheet.newField', type: 'string', description: 'A new field' }],
         deprecatedFields: [],
         changedFields: [],
         newMethods: [],

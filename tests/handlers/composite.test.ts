@@ -33,25 +33,32 @@ describe('Composite Handler', () => {
         get: vi.fn().mockResolvedValue({
           data: {
             spreadsheetId: 'test123',
-            sheets: [{
-              properties: {
-                sheetId: 0,
-                title: 'Sheet1',
-                index: 0,
-                gridProperties: { rowCount: 1000, columnCount: 26 },
+            sheets: [
+              {
+                properties: {
+                  sheetId: 0,
+                  title: 'Sheet1',
+                  index: 0,
+                  gridProperties: { rowCount: 1000, columnCount: 26 },
+                },
               },
-            }],
+            ],
           },
         }),
         values: {
           get: vi.fn().mockResolvedValue({
             data: {
               range: 'Sheet1!A1:C10',
-              values: [['Name', 'Age', 'Email'], ['Alice', '30', 'alice@test.com']],
+              values: [
+                ['Name', 'Age', 'Email'],
+                ['Alice', '30', 'alice@test.com'],
+              ],
             },
           }),
           update: vi.fn().mockResolvedValue({ data: { updatedRange: 'Sheet1!A1:C10' } }),
-          append: vi.fn().mockResolvedValue({ data: { updates: { updatedRange: 'Sheet1!A2:C2' } } }),
+          append: vi
+            .fn()
+            .mockResolvedValue({ data: { updates: { updatedRange: 'Sheet1!A2:C2' } } }),
           clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A2:Z1000' } }),
         },
         batchUpdate: vi.fn().mockResolvedValue({ data: { spreadsheetId: 'test123', replies: [] } }),

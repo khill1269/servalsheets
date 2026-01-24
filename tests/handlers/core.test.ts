@@ -109,77 +109,78 @@ const createMockDriveApi = () => ({
 });
 
 // Mock handler context
-const createMockContext = (): HandlerContext => ({
-  requestId: 'test-request',
-  timestamp: new Date(),
-  auth: {
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/drive',
-    ],
-  },
-  session: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-    clear: vi.fn(),
-    has: vi.fn(),
-    keys: vi.fn(),
-  },
-  capabilities: {
-    supports: vi.fn(() => true),
-    requireCapability: vi.fn(),
-    getCapability: vi.fn(),
-  },
-  googleClient: {
-    sheets: vi.fn(),
-    drive: vi.fn(),
-  } as any,
-  authService: {
-    isAuthenticated: vi.fn().mockReturnValue(true),
-    getClient: vi.fn().mockResolvedValue({}),
-  } as any,
-  elicitationServer: {
-    request: vi.fn().mockResolvedValue({
-      confirmed: true,
-      reason: '',
-    }),
-    elicitInput: vi.fn().mockResolvedValue({
-      action: 'accept',
-      content: { confirm: true },
-    }),
-    getClientCapabilities: vi.fn().mockReturnValue({
-      elicitation: { form: true },
-    }),
-  } as any,
-  snapshotService: {
-    createSnapshot: vi.fn().mockResolvedValue({
-      snapshotId: 'snapshot-123',
-      timestamp: new Date(),
-    }),
-    create: vi.fn().mockResolvedValue({
-      id: 'snapshot-123',
-      timestamp: new Date(),
-    }),
-  } as any,
-  impactAnalyzer: {
-    analyzeOperation: vi.fn().mockResolvedValue({
-      severity: 'low',
-      cellsAffected: 0,
-      formulasAffected: [],
-      chartsAffected: [],
-      warnings: [],
-    }),
-  } as any,
-  rangeResolver: {
-    resolve: vi.fn(),
-  } as any,
-  batchCompiler: {
-    compile: vi.fn(),
-    execute: vi.fn(),
-  } as any,
-} as any);
+const createMockContext = (): HandlerContext =>
+  ({
+    requestId: 'test-request',
+    timestamp: new Date(),
+    auth: {
+      scopes: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive',
+      ],
+    },
+    session: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      has: vi.fn(),
+      keys: vi.fn(),
+    },
+    capabilities: {
+      supports: vi.fn(() => true),
+      requireCapability: vi.fn(),
+      getCapability: vi.fn(),
+    },
+    googleClient: {
+      sheets: vi.fn(),
+      drive: vi.fn(),
+    } as any,
+    authService: {
+      isAuthenticated: vi.fn().mockReturnValue(true),
+      getClient: vi.fn().mockResolvedValue({}),
+    } as any,
+    elicitationServer: {
+      request: vi.fn().mockResolvedValue({
+        confirmed: true,
+        reason: '',
+      }),
+      elicitInput: vi.fn().mockResolvedValue({
+        action: 'accept',
+        content: { confirm: true },
+      }),
+      getClientCapabilities: vi.fn().mockReturnValue({
+        elicitation: { form: true },
+      }),
+    } as any,
+    snapshotService: {
+      createSnapshot: vi.fn().mockResolvedValue({
+        snapshotId: 'snapshot-123',
+        timestamp: new Date(),
+      }),
+      create: vi.fn().mockResolvedValue({
+        id: 'snapshot-123',
+        timestamp: new Date(),
+      }),
+    } as any,
+    impactAnalyzer: {
+      analyzeOperation: vi.fn().mockResolvedValue({
+        severity: 'low',
+        cellsAffected: 0,
+        formulasAffected: [],
+        chartsAffected: [],
+        warnings: [],
+      }),
+    } as any,
+    rangeResolver: {
+      resolve: vi.fn(),
+    } as any,
+    batchCompiler: {
+      compile: vi.fn(),
+      execute: vi.fn(),
+    } as any,
+  }) as any;
 
 describe('SheetsCoreHandler', () => {
   let mockApi: ReturnType<typeof createMockSheetsApi>;
@@ -410,7 +411,9 @@ describe('SheetsCoreHandler', () => {
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'get_comprehensive');
         expect((result.response as any).comprehensiveMetadata).toBeDefined();
-        expect((result.response as any).comprehensiveMetadata.spreadsheetId).toBe('test-spreadsheet-id');
+        expect((result.response as any).comprehensiveMetadata.spreadsheetId).toBe(
+          'test-spreadsheet-id'
+        );
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -763,10 +766,12 @@ describe('SheetsCoreHandler', () => {
       handler = new SheetsCoreHandler(mockContext, mockApi as any, mockDriveApi as any);
 
       // requireAuth() throws before the try-catch, so we expect it to throw
-      await expect(handler.handle({
-        action: 'get',
-        spreadsheetId: 'test-id',
-      })).rejects.toThrow();
+      await expect(
+        handler.handle({
+          action: 'get',
+          spreadsheetId: 'test-id',
+        })
+      ).rejects.toThrow();
     });
 
     it('should handle API errors', async () => {

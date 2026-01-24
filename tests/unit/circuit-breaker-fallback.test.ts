@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { CircuitBreaker, FallbackStrategies, type FallbackStrategy } from '../../src/utils/circuit-breaker.js';
+import {
+  CircuitBreaker,
+  FallbackStrategies,
+  type FallbackStrategy,
+} from '../../src/utils/circuit-breaker.js';
 
 describe('CircuitBreaker - Fallback Strategies', () => {
   let breaker: CircuitBreaker;
@@ -82,7 +86,9 @@ describe('CircuitBreaker - Fallback Strategies', () => {
       });
 
       // Operation fails, fallbacks should execute immediately (new behavior)
-      const result = await breaker.execute(async () => { throw new Error('fail'); });
+      const result = await breaker.execute(async () => {
+        throw new Error('fail');
+      });
 
       expect(result).toBe('high-success');
       expect(executionOrder).toEqual(['high']); // High priority tried first and succeeded
@@ -112,7 +118,9 @@ describe('CircuitBreaker - Fallback Strategies', () => {
       });
 
       // Operation fails, should try both fallbacks
-      const result = await breaker.execute(async () => { throw new Error('fail'); });
+      const result = await breaker.execute(async () => {
+        throw new Error('fail');
+      });
 
       expect(result).toBe('fallback-2-success');
       expect(executionOrder).toEqual(['fallback-1', 'fallback-2']);
@@ -145,7 +153,9 @@ describe('CircuitBreaker - Fallback Strategies', () => {
 
       // Operation fails with non-auth error, should skip auth-only and use catch-all
       const nonAuthError = new Error('network timeout');
-      const result = await breaker.execute(async () => { throw nonAuthError; });
+      const result = await breaker.execute(async () => {
+        throw nonAuthError;
+      });
 
       expect(result).toBe('catch-all-fallback');
       expect(executionOrder).toEqual(['catch-all']); // auth-only was skipped
@@ -238,8 +248,16 @@ describe('CircuitBreaker - Fallback Strategies', () => {
         // Force circuit to open (first call uses fallback, so we need to count failures)
         // Clear fallbacks temporarily to force real failures
         breaker.clearFallbacks();
-        await expect(breaker.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
-        await expect(breaker.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow();
+        await expect(
+          breaker.execute(async () => {
+            throw new Error('fail');
+          })
+        ).rejects.toThrow();
 
         expect(breaker.getState()).toBe('open');
 
@@ -251,7 +269,9 @@ describe('CircuitBreaker - Fallback Strategies', () => {
         });
 
         // Should use fallback instead of throwing
-        const result = await breaker.execute(async () => { throw new Error('fail'); });
+        const result = await breaker.execute(async () => {
+          throw new Error('fail');
+        });
         expect(result).toBe('fallback-data');
       });
     });
@@ -260,14 +280,24 @@ describe('CircuitBreaker - Fallback Strategies', () => {
   describe('Backwards Compatibility', () => {
     it('should support legacy single fallback parameter', async () => {
       // Force circuit to open (no registered strategies)
-      await expect(breaker.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
-      await expect(breaker.execute(async () => { throw new Error('fail'); })).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow();
+      await expect(
+        breaker.execute(async () => {
+          throw new Error('fail');
+        })
+      ).rejects.toThrow();
 
       expect(breaker.getState()).toBe('open');
 
       // Use legacy fallback parameter (no registered strategies)
       const result = await breaker.execute(
-        async () => { throw new Error('fail'); },
+        async () => {
+          throw new Error('fail');
+        },
         async () => 'legacy-fallback'
       );
 
@@ -285,7 +315,9 @@ describe('CircuitBreaker - Fallback Strategies', () => {
 
       // Operation fails, should use registered strategy over legacy fallback
       const result = await breaker.execute(
-        async () => { throw new Error('fail'); },
+        async () => {
+          throw new Error('fail');
+        },
         async () => 'legacy-fallback'
       );
 

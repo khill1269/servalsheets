@@ -4,7 +4,7 @@ This guide helps Claude (and other AI assistants) use ServalSheets MCP server ef
 
 ## Overview
 
-ServalSheets provides 15 tools with 156 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
+ServalSheets provides 19 tools with 252 actions for comprehensive Google Sheets operations. It's production-grade with safety rails, semantic range resolution, and intelligent batching.
 
 ## MCP Protocol Notes (2025-11-25)
 
@@ -25,7 +25,7 @@ ServalSheets follows MCP 2025-11-25. Use protocol-level features when available.
 
 ## Core Capabilities
 
-### 1. Data Operations (sheets_values)
+### 1. Data Operations (sheets_data)
 **What it does**: Read, write, append, and batch operations on cell values
 
 **Best practices**:
@@ -37,7 +37,7 @@ ServalSheets follows MCP 2025-11-25. Use protocol-level features when available.
 **Example workflow**:
 ```javascript
 // 1. Read data
-const data = await sheets_values({
+const data = await sheets_data({
   action: 'read',
   spreadsheetId: 'xxx',
   range: { a1: 'Sales!A1:D100' },
@@ -48,7 +48,7 @@ const data = await sheets_values({
 const processed = processData(data.values);
 
 // 3. Write back
-await sheets_values({
+await sheets_data({
   action: 'write',
   spreadsheetId: 'xxx',
   range: { a1: 'Results!A1' },
@@ -68,7 +68,7 @@ await sheets_values({
 **Example**:
 ```javascript
 // Instead of asking user for column letter
-await sheets_values({
+await sheets_data({
   action: 'read',
   spreadsheetId: 'xxx',
   range: {
@@ -116,7 +116,7 @@ await sheets_values({
 }
 ```
 
-### 4. Data Analysis (sheets_analysis)
+### 4. Data Analysis (sheets_analyze)
 **What it does**: Analyze data quality, formulas, statistics, correlations
 
 **When to use**:
@@ -127,31 +127,31 @@ await sheets_values({
 **Example workflow**:
 ```javascript
 // 1. Check data quality
-const quality = await sheets_analysis({
-  action: 'data_quality',
+const quality = await sheets_analyze({
+  action: 'analyze_quality',
   spreadsheetId: 'xxx',
   range: { a1: 'Data!A1:Z100' }
 });
 // Shows: empty headers, duplicates, mixed types, outliers
 
 // 2. Audit formulas
-const audit = await sheets_analysis({
-  action: 'formula_audit',
+const audit = await sheets_analyze({
+  action: 'analyze_formulas',
   spreadsheetId: 'xxx',
   range: { a1: 'Calculations!A1:Z100' }
 });
 // Shows: broken references, volatile functions, complex formulas
 
 // 3. Get statistics
-const stats = await sheets_analysis({
-  action: 'statistics',
+const stats = await sheets_analyze({
+  action: 'analyze_data',
   spreadsheetId: 'xxx',
   range: { a1: 'Sales!B2:F100' }
 });
 // Shows: mean, median, stdDev, min, max for each column
 ```
 
-### 5. Formatting and Rules (sheets_format, sheets_rules)
+### 5. Formatting and Rules (sheets_format, sheets_format)
 **What it does**: Apply text/number formatting, plus conditional formatting and data validation rules.
 
 **Common patterns**:
@@ -179,9 +179,9 @@ await sheets_format({
 });
 
 // Conditional formatting (highlight > threshold)
-// Note: sheetId is required; get it from sheets_spreadsheet or sheets:///{spreadsheetId}
-await sheets_rules({
-  action: 'add_conditional_format',
+// Note: sheetId is required; get it from sheets_core or sheets:///{spreadsheetId}
+await sheets_format({
+  action: 'rule_add_conditional_format',
   spreadsheetId: 'xxx',
   sheetId: 0,
   range: { a1: 'Data!D2:D100' },
@@ -198,15 +198,15 @@ await sheets_rules({
 });
 ```
 
-### 6. Charts (sheets_charts)
+### 6. Charts (sheets_visualize)
 **What it does**: Create, update, delete charts
 
 **Available chart types**: BAR, COLUMN, LINE, AREA, SCATTER, COMBO, PIE, HISTOGRAM, CANDLESTICK, WATERFALL
 
 **Example**:
 ```javascript
-await sheets_charts({
-  action: 'create',
+await sheets_visualize({
+  action: 'chart_create',
   spreadsheetId: 'xxx',
   sheetId: 0,
   chartType: 'COLUMN',
@@ -227,7 +227,7 @@ await sheets_charts({
 });
 ```
 
-### 7. Pivot Tables (sheets_pivot)
+### 7. Pivot Tables (sheets_visualize)
 **What it does**: Create and manage pivot tables
 
 **When to use**:
@@ -235,8 +235,8 @@ await sheets_charts({
 - Need to aggregate data dynamically
 - Want to analyze data from multiple dimensions
 
-### 8. Version Control (sheets_versions)
-**What it does**: List revisions and manage snapshots (restore points). Use `keep_revision` to pin a revision.
+### 8. Version Control (sheets_collaborate)
+**What it does**: List revisions and manage snapshots (restore points). Use `version_keep_revision` to pin a revision.
 
 **When to use**:
 - User wants to audit changes or list revisions
@@ -245,44 +245,44 @@ await sheets_charts({
 
 ```javascript
 // List recent revisions
-const revisions = await sheets_versions({
-  action: 'list_revisions',
+const revisions = await sheets_collaborate({
+  action: 'version_list_revisions',
   spreadsheetId: 'xxx',
   pageSize: 20
 });
 
 // Create a snapshot restore point
-const snapshot = await sheets_versions({
-  action: 'create_snapshot',
+const snapshot = await sheets_collaborate({
+  action: 'version_create_snapshot',
   spreadsheetId: 'xxx',
   name: 'Before bulk update'
 });
 
 // Restore from a snapshot copy
-await sheets_versions({
-  action: 'restore_snapshot',
+await sheets_collaborate({
+  action: 'version_restore_snapshot',
   spreadsheetId: 'xxx',
   snapshotId: snapshot.snapshot?.id ?? 'snapshot-id'
 });
 ```
 
-Note: `restore_revision` currently returns FEATURE_UNAVAILABLE; use snapshots when you need a restorable copy.
+Note: `version_restore_revision` currently returns FEATURE_UNAVAILABLE; use snapshots when you need a restorable copy.
 
 ## Common Workflows
 
 ### Workflow 1: Data Import and Validation
 ```javascript
 // 1. Read user's source data
-const source = await sheets_values({ action: 'read', ... });
+const source = await sheets_data({ action: 'read', ... });
 
 // 2. Validate and clean
-const quality = await sheets_analysis({ action: 'data_quality', ... });
+const quality = await sheets_analyze({ action: 'analyze_quality', ... });
 if (quality.dataQuality.issues.length > 0) {
   // Inform user about issues
 }
 
 // 3. Write to destination with safety
-await sheets_values({
+await sheets_data({
   action: 'write',
   ...,
   safety: {
@@ -292,7 +292,7 @@ await sheets_values({
 });
 
 // 4. If preview looks good, execute
-await sheets_values({ action: 'write', ... });
+await sheets_data({ action: 'write', ... });
 ```
 
 ### Workflow 2: Automated Report Generation
@@ -300,11 +300,11 @@ await sheets_values({ action: 'write', ... });
 const spreadsheetId = 'xxx';
 
 // 1. Create new sheet for report
-const report = await sheets_sheet({ action: 'add', spreadsheetId, title: 'Monthly Report' });
+const report = await sheets_core({ action: 'add_sheet', spreadsheetId, title: 'Monthly Report' });
 const reportSheetId = report.sheet?.sheetId ?? 0;
 
 // 2. Write headers and formulas
-await sheets_values({
+await sheets_data({
   action: 'write',
   spreadsheetId,
   range: { a1: 'Monthly Report!A1:E1' },
@@ -313,7 +313,7 @@ await sheets_values({
 });
 
 // 3. Write formulas for calculations
-await sheets_values({
+await sheets_data({
   action: 'write',
   spreadsheetId,
   range: { a1: 'Monthly Report!D2' },
@@ -330,8 +330,8 @@ await sheets_format({
 });
 
 // 5. Create chart
-await sheets_charts({
-  action: 'create',
+await sheets_visualize({
+  action: 'chart_create',
   spreadsheetId,
   sheetId: reportSheetId,
   chartType: 'LINE',
@@ -343,37 +343,36 @@ await sheets_charts({
 ### Workflow 3: Data Quality Monitoring
 ```javascript
 // 1. Check data quality
-const quality = await sheets_analysis({
-  action: 'data_quality',
+const quality = await sheets_analyze({
+  action: 'analyze_quality',
   spreadsheetId: 'xxx',
   range: { a1: 'Data!A1:Z1000' }
 });
 
 // 2. Audit formulas
-const formulas = await sheets_analysis({
-  action: 'formula_audit',
+const formulas = await sheets_analyze({
+  action: 'analyze_formulas',
   spreadsheetId: 'xxx',
   range: { a1: 'Calculations!A1:Z1000' }
 });
 
 // 3. Compare with expected state
-const comparison = await sheets_analysis({
-  action: 'compare_ranges',
+const comparison = await sheets_analyze({
+  action: 'analyze_data',
   spreadsheetId: 'xxx',
-  range1: { a1: 'Current!A1:Z100' },
-  range2: { a1: 'Expected!A1:Z100' }
+  range: { a1: 'Current!A1:Z100' }
 });
 
 // 4. Report findings to user
 // Quality issues: X duplicates, Y empty headers, Z outliers
 // Formula issues: A broken references, B volatile functions
-// Differences: C cells changed
+// Stats: C columns profiled, D anomalies detected
 ```
 
 ## Best Practices for Claude
 
 ### 1. Always Ask Before Destructive Operations
-❌ DON'T: await sheets_values({ action: 'clear', range: { a1: 'Data!A1:Z1000' } })
+❌ DON'T: await sheets_data({ action: 'clear', range: { a1: 'Data!A1:Z1000' } })
 
 ✅ DO:
 - "I found 1000 rows. Do you want me to clear all of them?"
@@ -383,7 +382,7 @@ const comparison = await sheets_analysis({
 ### 2. Use Semantic Ranges When Possible
 ❌ DON'T: "Which column has the revenue data? A? B? C?"
 
-✅ DO: await sheets_values({
+✅ DO: await sheets_data({
   range: { semantic: { sheet: 'Sales', column: 'Revenue' } }
 })
 // Let ServalSheets find the column
@@ -392,7 +391,7 @@ const comparison = await sheets_analysis({
 ❌ DON'T: Write formulas without checking data quality
 
 ✅ DO:
-1. Run sheets_analysis({ action: 'data_quality' })
+1. Run sheets_analyze({ action: 'analyze_quality' })
 2. Check for empty headers, duplicates, type mismatches
 3. Inform user of issues before proceeding
 
@@ -411,18 +410,18 @@ const comparison = await sheets_analysis({
 
 ### 5. Create Restore Points for Major Changes
 ✅ DO:
-const snapshot = await sheets_versions({
-  action: 'create_snapshot',
+const snapshot = await sheets_collaborate({
+  action: 'version_create_snapshot',
   spreadsheetId: 'xxx',
   name: 'Before bulk update'
 });
 
 // Now do the risky operation
-await sheets_values({ action: 'write', ... });
+await sheets_data({ action: 'write', ... });
 
 // If something goes wrong:
-await sheets_versions({
-  action: 'restore_snapshot',
+await sheets_collaborate({
+  action: 'version_restore_snapshot',
   spreadsheetId: 'xxx',
   snapshotId: snapshot.snapshot?.id ?? 'snapshot-id'
 });
@@ -430,11 +429,11 @@ await sheets_versions({
 ### 6. Batch Operations for Efficiency
 ❌ DON'T:
 for (const range of ranges) {
-  await sheets_values({ action: 'read', range });
+  await sheets_data({ action: 'read', range });
 }
 
 ✅ DO:
-await sheets_values({
+await sheets_data({
   action: 'batch_read',
   ranges: ranges,
   valueRenderOption: 'FORMATTED_VALUE'
@@ -450,7 +449,7 @@ All ServalSheets errors include:
 
 ```javascript
 try {
-  await sheets_values({ action: 'write', ... });
+  await sheets_data({ action: 'write', ... });
 } catch (error) {
   if (error.code === 'PERMISSION_DENIED') {
     // Inform user: "You don't have edit access. Ask the owner for permission."
@@ -466,20 +465,20 @@ try {
 
 | User says... | Use this tool | Action |
 |---|---|---|
-| "Read data from column B" | sheets_values | read |
-| "Update the Revenue column" | sheets_values + semantic range | write |
-| "Add a new sheet called Sales" | sheets_sheet | add |
+| "Read data from column B" | sheets_data | read |
+| "Update the Revenue column" | sheets_data + semantic range | write |
+| "Add a new sheet called Sales" | sheets_core | add_sheet |
 | "Delete rows 10-20" | sheets_dimensions | delete_rows |
 | "Format as currency" | sheets_format | set_number_format |
-| "Add a chart showing..." | sheets_charts | create |
-| "Is my data clean?" | sheets_analysis | data_quality |
-| "Show me statistics" | sheets_analysis | statistics |
-| "Create a pivot table" | sheets_pivot | create |
-| "Add conditional formatting" | sheets_rules | add_conditional_format |
+| "Add a chart showing..." | sheets_visualize | chart_create |
+| "Is my data clean?" | sheets_analyze | analyze_quality |
+| "Show me statistics" | sheets_analyze | analyze_data |
+| "Create a pivot table" | sheets_visualize | pivot_create |
+| "Add conditional formatting" | sheets_format | rule_add_conditional_format |
 | "Protect this range" | sheets_advanced | add_protected_range |
-| "Undo my last change" | sheets_versions | restore_snapshot |
-| "Who has access?" | sheets_sharing | list_permissions |
-| "Add a comment" | sheets_comments | add |
+| "Undo my last change" | sheets_history | undo |
+| "Who has access?" | sheets_collaborate | share_list |
+| "Add a comment" | sheets_collaborate | comment_add |
 
 ## Advanced Tips
 
@@ -488,7 +487,7 @@ try {
 // Example: "Clean up my data and create a report"
 
 // Step 1: Analyze data quality
-const quality = await sheets_analysis({ action: 'data_quality', ... });
+const quality = await sheets_analyze({ action: 'analyze_quality', ... });
 
 // Step 2: Remove duplicates (if found)
 if (quality.dataQuality.issues.some(i => i.type === 'DUPLICATE_ROW')) {
@@ -496,13 +495,13 @@ if (quality.dataQuality.issues.some(i => i.type === 'DUPLICATE_ROW')) {
 }
 
 // Step 3: Create summary sheet
-await sheets_sheet({ action: 'add', spreadsheetId: 'xxx', title: 'Summary' });
+await sheets_core({ action: 'add_sheet', spreadsheetId: 'xxx', title: 'Summary' });
 
 // Step 4: Add pivot table
-await sheets_pivot({ action: 'create', ... });
+await sheets_visualize({ action: 'pivot_create', ... });
 
 // Step 5: Add chart
-await sheets_charts({ action: 'create', ... });
+await sheets_visualize({ action: 'chart_create', ... });
 ```
 
 ### 2. Using Named Ranges
@@ -515,7 +514,7 @@ await sheets_advanced({
 });
 
 // Later, reference it easily
-await sheets_values({
+await sheets_data({
   action: 'read',
   range: { namedRange: 'SalesData' }
 });

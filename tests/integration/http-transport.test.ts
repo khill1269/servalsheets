@@ -38,7 +38,10 @@ describe('HTTP Transport Integration Tests', () => {
 
   afterAll(async () => {
     // Clean up any active sessions/transports
-    const sessions = server.sessions as Map<string, { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }>;
+    const sessions = server.sessions as Map<
+      string,
+      { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+    >;
     sessions.forEach((session) => {
       if (typeof session.transport?.close === 'function') {
         session.transport.close();
@@ -52,10 +55,7 @@ describe('HTTP Transport Integration Tests', () => {
 
   describe('Health and Info Endpoints', () => {
     it('should return healthy status on /health', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(200)
-        .expect('Content-Type', /json/);
+      const response = await request(app).get('/health').expect(200).expect('Content-Type', /json/);
 
       // May be 'degraded' if OAuth tokens not configured (expected in test env)
       expect(['healthy', 'degraded']).toContain(response.body.status);
@@ -65,10 +65,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should return server info on /info', async () => {
-      const response = await request(app)
-        .get('/info')
-        .expect(200)
-        .expect('Content-Type', /json/);
+      const response = await request(app).get('/info').expect(200).expect('Content-Type', /json/);
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
@@ -189,23 +186,19 @@ describe('HTTP Transport Integration Tests', () => {
       expect([200, 406, 426]).toContain(createResponse.status);
 
       // Now delete it
-      const deleteResponse = await request(app)
-        .delete(`/session/${sessionId}`)
-        .timeout({
-          // Prevent occasional hangs from causing global Vitest timeout.
-          // Either response is acceptable (200 = deleted, 404 = already gone).
-          response: 2000,
-          deadline: 5000,
-        });
+      const deleteResponse = await request(app).delete(`/session/${sessionId}`).timeout({
+        // Prevent occasional hangs from causing global Vitest timeout.
+        // Either response is acceptable (200 = deleted, 404 = already gone).
+        response: 2000,
+        deadline: 5000,
+      });
 
       // Delete should return 200 for success or 404 if session not found
       expect([200, 404]).toContain(deleteResponse.status);
     });
 
     it('should return 404 when deleting non-existent session', async () => {
-      const response = await request(app)
-        .delete('/session/non-existent-session')
-        .expect(404);
+      const response = await request(app).delete('/session/non-existent-session').expect(404);
 
       // Error format may vary - check for error indication
       expect(response.body.error).toBeDefined();
@@ -214,9 +207,7 @@ describe('HTTP Transport Integration Tests', () => {
 
   describe('Security Headers', () => {
     it('should include security headers from helmet', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       // Helmet adds various security headers
       expect(response.headers['x-content-type-options']).toBeDefined();
@@ -232,9 +223,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should include request ID in response', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.headers['x-request-id']).toBeDefined();
       expect(typeof response.headers['x-request-id']).toBe('string');
@@ -289,9 +278,7 @@ describe('HTTP Transport Integration Tests', () => {
     it('should accept requests under rate limit', async () => {
       // Make several requests
       for (let i = 0; i < 5; i++) {
-        await request(app)
-          .get('/health')
-          .expect(200);
+        await request(app).get('/health').expect(200);
       }
     });
 

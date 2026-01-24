@@ -8,6 +8,19 @@
 
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { getSessionContext, type SpreadsheetContext } from '../services/session-context.js';
+import { unwrapRequest } from './base.js';
+import { ValidationError } from '../core/errors.js';
+import {
+  saveCheckpoint,
+  loadCheckpoint,
+  loadCheckpointByTimestamp,
+  listCheckpointsForSession,
+  listAllCheckpoints,
+  deleteCheckpoint,
+  isCheckpointsEnabled,
+  getOperationCount,
+  type Checkpoint,
+} from '../utils/checkpoint.js';
 
 // ============================================================================
 // HANDLER CLASS
@@ -38,10 +51,11 @@ export class SessionHandler {
   }
 
   async handle(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
+    const req = unwrapRequest<SheetsSessionInput['request']>(input);
     const result = await handleSheetsSession(input);
 
     // Apply verbosity filtering (LLM optimization)
-    const verbosity = input.verbosity ?? 'standard';
+    const verbosity = req.verbosity ?? 'standard';
     const filteredResponse = this.applyVerbosityFilter(result.response, verbosity);
 
     return { response: filteredResponse };
@@ -57,12 +71,13 @@ export class SessionHandler {
  */
 export async function handleSheetsSession(input: SheetsSessionInput): Promise<SheetsSessionOutput> {
   const session = getSessionContext();
-  const { action } = input;
+  const req = unwrapRequest<SheetsSessionInput['request']>(input);
+  const { action } = req;
 
   try {
     switch (action) {
       case 'set_active': {
-        const { spreadsheetId, title, sheetNames } = input;
+        const { spreadsheetId, title, sheetNames } = req;
         // Type assertion: refine() validates these are defined for set_active action
         const context: SpreadsheetContext = {
           spreadsheetId: spreadsheetId!,
@@ -115,7 +130,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           undoable,
           snapshotId,
           cellsAffected,
-        } = input;
+        } = req;
 
         // Type assertion: refine() validates required fields are defined for record_operation action
         const operationId = session.recordOperation({
@@ -149,7 +164,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'get_history': {
-        const limit = input.limit ?? 10;
+        const limit = req.limit ?? 10;
         return {
           response: {
             success: true,
@@ -160,7 +175,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'find_by_reference': {
-        const { reference, referenceType } = input;
+        const { reference, referenceType } = req;
 
         // Type assertion: refine() validates these are defined for find_by_reference action
         if (referenceType === 'spreadsheet') {
@@ -187,7 +202,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'update_preferences': {
-        const { confirmationLevel, dryRunDefault, snapshotDefault } = input;
+        const { confirmationLevel, dryRunDefault, snapshotDefault } = req;
         const updates: Record<string, unknown> = {};
 
         if (confirmationLevel) {
@@ -223,7 +238,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
       }
 
       case 'set_pending': {
-        const { type, step, totalSteps, context } = input;
+        const { type, step, totalSteps, context } = req;
         // Type assertion: refine() validates these are defined for set_pending action
         session.setPendingOperation({
           type: type!,
@@ -261,6 +276,172 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         };
       }
 
+      case 'save_checkpoint': {
+        if (!isCheckpointsEnabled()) {
+          return {
+            response: {
+              success: false,
+              error: {
+                code: 'CHECKPOINTS_DISABLED',
+                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
+                retryable: false,
+              },
+            },
+          };
+        }
+
+        const { sessionId, description } = req;
+        const activeSpreadsheet = session.getActiveSpreadsheet();
+        const history = session.getOperationHistory(100);
+
+        const checkpoint: Checkpoint = {
+          sessionId: sessionId!,
+          timestamp: Date.now(),
+          createdAt: new Date().toISOString(),
+          description,
+          completedSteps: getOperationCount(),
+          completedOperations: history.map((op) => `${op.tool}.${op.action}`),
+          spreadsheetId: activeSpreadsheet?.spreadsheetId,
+          spreadsheetTitle: activeSpreadsheet?.title,
+          sheetNames: activeSpreadsheet?.sheetNames,
+          lastRange: activeSpreadsheet?.lastRange,
+          context: {},
+          preferences: session.getPreferences() as unknown as Record<string, unknown>,
+        };
+
+        const filepath = saveCheckpoint(checkpoint);
+
+        return {
+          response: {
+            success: true,
+            action: 'save_checkpoint',
+            checkpointPath: filepath,
+            checkpoint: {
+              sessionId: checkpoint.sessionId,
+              timestamp: checkpoint.timestamp,
+              createdAt: checkpoint.createdAt,
+              description: checkpoint.description,
+              completedSteps: checkpoint.completedSteps,
+              spreadsheetTitle: checkpoint.spreadsheetTitle,
+            },
+            message: `Checkpoint saved. Resume with: sheets_session.load_checkpoint({sessionId: "${sessionId}"})`,
+          },
+        };
+      }
+
+      case 'load_checkpoint': {
+        if (!isCheckpointsEnabled()) {
+          return {
+            response: {
+              success: false,
+              error: {
+                code: 'CHECKPOINTS_DISABLED',
+                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
+                retryable: false,
+              },
+            },
+          };
+        }
+
+        const { sessionId, timestamp } = req;
+        const checkpoint = timestamp
+          ? loadCheckpointByTimestamp(sessionId!, timestamp)
+          : loadCheckpoint(sessionId!);
+
+        if (!checkpoint) {
+          return {
+            response: {
+              success: false,
+              error: {
+                code: 'CHECKPOINT_NOT_FOUND',
+                message: `No checkpoint found for session "${sessionId}"`,
+                retryable: false,
+              },
+            },
+          };
+        }
+
+        // Restore session state
+        if (checkpoint.spreadsheetId && checkpoint.spreadsheetTitle) {
+          session.setActiveSpreadsheet({
+            spreadsheetId: checkpoint.spreadsheetId,
+            title: checkpoint.spreadsheetTitle,
+            sheetNames: checkpoint.sheetNames || [],
+            activatedAt: Date.now(),
+            lastRange: checkpoint.lastRange,
+          });
+        }
+
+        return {
+          response: {
+            success: true,
+            action: 'load_checkpoint',
+            checkpoint: {
+              sessionId: checkpoint.sessionId,
+              timestamp: checkpoint.timestamp,
+              createdAt: checkpoint.createdAt,
+              description: checkpoint.description,
+              completedSteps: checkpoint.completedSteps,
+              spreadsheetTitle: checkpoint.spreadsheetTitle,
+            },
+            message: `Resumed from checkpoint. ${checkpoint.completedSteps} steps already completed.`,
+          },
+        };
+      }
+
+      case 'list_checkpoints': {
+        if (!isCheckpointsEnabled()) {
+          return {
+            response: {
+              success: true,
+              action: 'list_checkpoints',
+              checkpoints: [],
+              message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
+            },
+          };
+        }
+
+        const { sessionId } = req;
+        const checkpoints = sessionId ? listCheckpointsForSession(sessionId) : listAllCheckpoints();
+
+        return {
+          response: {
+            success: true,
+            action: 'list_checkpoints',
+            checkpoints,
+          },
+        };
+      }
+
+      case 'delete_checkpoint': {
+        if (!isCheckpointsEnabled()) {
+          return {
+            response: {
+              success: false,
+              error: {
+                code: 'CHECKPOINTS_DISABLED',
+                message: 'Checkpoints disabled. Set ENABLE_CHECKPOINTS=true in .env.local',
+                retryable: false,
+              },
+            },
+          };
+        }
+
+        const { sessionId, timestamp } = req;
+        const deleted = deleteCheckpoint(sessionId!, timestamp);
+
+        return {
+          response: {
+            success: true,
+            action: 'delete_checkpoint',
+            deleted,
+            message: deleted
+              ? `Checkpoint(s) deleted for session "${sessionId}"`
+              : `No checkpoints found for session "${sessionId}"`,
+          },
+        };
+      }
+
       case 'reset': {
         session.reset();
         return {
@@ -274,7 +455,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
 
       default: {
         const exhaustiveCheck: never = action;
-        throw new Error(`Unknown action: ${exhaustiveCheck}`);
+        throw new ValidationError(`Unknown action: ${exhaustiveCheck}`, 'action');
       }
     }
   } catch (error) {

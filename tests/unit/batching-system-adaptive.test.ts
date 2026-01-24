@@ -4,11 +4,11 @@
  * Verifies integration between batching system and adaptive window
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { sheets_v4 } from "googleapis";
-import { BatchingSystem } from "../../src/services/batching-system.js";
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { sheets_v4 } from 'googleapis';
+import { BatchingSystem } from '../../src/services/batching-system.js';
 
-describe("BatchingSystem with Adaptive Window", () => {
+describe('BatchingSystem with Adaptive Window', () => {
   let sheetsApi: sheets_v4.Sheets;
   let batchingSystem: BatchingSystem;
 
@@ -19,22 +19,16 @@ describe("BatchingSystem with Adaptive Window", () => {
         values: {
           batchUpdate: vi.fn().mockResolvedValue({
             data: {
-              responses: [
-                { updatedCells: 1 },
-                { updatedCells: 1 },
-              ],
+              responses: [{ updatedCells: 1 }, { updatedCells: 1 }],
             },
           }),
           batchClear: vi.fn().mockResolvedValue({
-            data: { clearedRanges: ["A1", "B1"] },
+            data: { clearedRanges: ['A1', 'B1'] },
           }),
         },
         batchUpdate: vi.fn().mockResolvedValue({
           data: {
-            replies: [
-              { updateCells: {} },
-              { updateCells: {} },
-            ],
+            replies: [{ updateCells: {} }, { updateCells: {} }],
           },
         }),
       },
@@ -45,8 +39,8 @@ describe("BatchingSystem with Adaptive Window", () => {
     batchingSystem?.destroy();
   });
 
-  describe("Adaptive Window Initialization", () => {
-    it("should initialize with adaptive window enabled by default", () => {
+  describe('Adaptive Window Initialization', () => {
+    it('should initialize with adaptive window enabled by default', () => {
       batchingSystem = new BatchingSystem(sheetsApi);
       const stats = batchingSystem.getStats();
 
@@ -55,7 +49,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(stats.avgWindowMs).toBeDefined();
     });
 
-    it("should initialize with custom adaptive config", () => {
+    it('should initialize with custom adaptive config', () => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
         adaptiveConfig: {
@@ -69,7 +63,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(stats.currentWindowMs).toBe(40);
     });
 
-    it("should disable adaptive window when specified", () => {
+    it('should disable adaptive window when specified', () => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: false,
         windowMs: 75,
@@ -81,7 +75,7 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("Low Traffic Adaptation", () => {
+  describe('Low Traffic Adaptation', () => {
     beforeEach(() => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
@@ -95,18 +89,18 @@ describe("BatchingSystem with Adaptive Window", () => {
       });
     });
 
-    it("should increase window size for low traffic", async () => {
+    it('should increase window size for low traffic', async () => {
       const initialStats = batchingSystem.getStats();
       const initialWindow = initialStats.currentWindowMs!;
 
       // Execute a single operation (low traffic)
       const promise = batchingSystem.execute({
-        id: "test-1",
-        type: "values:update",
-        spreadsheetId: "test-sheet",
+        id: 'test-1',
+        type: 'values:update',
+        spreadsheetId: 'test-sheet',
         params: {
-          range: "Sheet1!A1",
-          values: [["test"]],
+          range: 'Sheet1!A1',
+          values: [['test']],
         },
       });
 
@@ -122,18 +116,18 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(finalWindow).toBeGreaterThan(initialWindow);
     });
 
-    it("should gradually increase window with repeated low traffic", async () => {
+    it('should gradually increase window with repeated low traffic', async () => {
       const windows: number[] = [batchingSystem.getStats().currentWindowMs!];
 
       // Execute several single operations
       for (let i = 0; i < 3; i++) {
         const promise = batchingSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
@@ -151,7 +145,7 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("High Traffic Adaptation", () => {
+  describe('High Traffic Adaptation', () => {
     beforeEach(() => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
@@ -166,7 +160,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       });
     });
 
-    it("should decrease window size for high traffic", async () => {
+    it('should decrease window size for high traffic', async () => {
       const initialStats = batchingSystem.getStats();
       const initialWindow = initialStats.currentWindowMs!;
 
@@ -176,13 +170,13 @@ describe("BatchingSystem with Adaptive Window", () => {
         promises.push(
           batchingSystem.execute({
             id: `test-${i}`,
-            type: "values:update",
-            spreadsheetId: "test-sheet",
+            type: 'values:update',
+            spreadsheetId: 'test-sheet',
             params: {
               range: `Sheet1!A${i + 1}`,
-              values: [["test"]],
+              values: [['test']],
             },
-          }),
+          })
         );
       }
 
@@ -198,7 +192,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(finalWindow).toBeLessThan(initialWindow);
     });
 
-    it("should gradually decrease window with repeated high traffic", async () => {
+    it('should gradually decrease window with repeated high traffic', async () => {
       const windows: number[] = [batchingSystem.getStats().currentWindowMs!];
 
       // Execute several large batches
@@ -208,13 +202,13 @@ describe("BatchingSystem with Adaptive Window", () => {
           promises.push(
             batchingSystem.execute({
               id: `test-${batch}-${i}`,
-              type: "values:update",
-              spreadsheetId: "test-sheet",
+              type: 'values:update',
+              spreadsheetId: 'test-sheet',
               params: {
                 range: `Sheet1!A${i + 1}`,
-                values: [["test"]],
+                values: [['test']],
               },
-            }),
+            })
           );
         }
 
@@ -232,7 +226,7 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("Optimal Traffic Range", () => {
+  describe('Optimal Traffic Range', () => {
     beforeEach(() => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
@@ -247,7 +241,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       });
     });
 
-    it("should maintain stable window for optimal traffic", async () => {
+    it('should maintain stable window for optimal traffic', async () => {
       const initialWindow = batchingSystem.getStats().currentWindowMs!;
       const windows: number[] = [initialWindow];
 
@@ -258,13 +252,13 @@ describe("BatchingSystem with Adaptive Window", () => {
           promises.push(
             batchingSystem.execute({
               id: `test-${batch}-${i}`,
-              type: "values:update",
-              spreadsheetId: "test-sheet",
+              type: 'values:update',
+              spreadsheetId: 'test-sheet',
               params: {
                 range: `Sheet1!A${i + 1}`,
-                values: [["test"]],
+                values: [['test']],
               },
-            }),
+            })
           );
         }
 
@@ -285,8 +279,8 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("Window Bounds", () => {
-    it("should respect minimum window", async () => {
+  describe('Window Bounds', () => {
+    it('should respect minimum window', async () => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
         adaptiveConfig: {
@@ -304,13 +298,13 @@ describe("BatchingSystem with Adaptive Window", () => {
           promises.push(
             batchingSystem.execute({
               id: `test-${batch}-${i}`,
-              type: "values:update",
-              spreadsheetId: "test-sheet",
+              type: 'values:update',
+              spreadsheetId: 'test-sheet',
               params: {
                 range: `Sheet1!A${i + 1}`,
-                values: [["test"]],
+                values: [['test']],
               },
-            }),
+            })
           );
         }
 
@@ -323,7 +317,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(finalWindow).toBeGreaterThanOrEqual(15);
     });
 
-    it("should respect maximum window", async () => {
+    it('should respect maximum window', async () => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
         adaptiveConfig: {
@@ -338,11 +332,11 @@ describe("BatchingSystem with Adaptive Window", () => {
       for (let i = 0; i < 10; i++) {
         const promise = batchingSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
@@ -356,7 +350,7 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("Statistics Integration", () => {
+  describe('Statistics Integration', () => {
     beforeEach(() => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: true,
@@ -366,14 +360,14 @@ describe("BatchingSystem with Adaptive Window", () => {
       });
     });
 
-    it("should include adaptive window stats", async () => {
+    it('should include adaptive window stats', async () => {
       const promise = batchingSystem.execute({
-        id: "test-1",
-        type: "values:update",
-        spreadsheetId: "test-sheet",
+        id: 'test-1',
+        type: 'values:update',
+        spreadsheetId: 'test-sheet',
         params: {
-          range: "Sheet1!A1",
-          values: [["test"]],
+          range: 'Sheet1!A1',
+          values: [['test']],
         },
       });
 
@@ -389,7 +383,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(stats.avgWindowMs).toBeGreaterThan(0);
     });
 
-    it("should update average window over time", async () => {
+    it('should update average window over time', async () => {
       const stats1 = batchingSystem.getStats();
       expect(stats1.avgWindowMs).toBe(stats1.currentWindowMs);
 
@@ -397,11 +391,11 @@ describe("BatchingSystem with Adaptive Window", () => {
       for (let i = 0; i < 3; i++) {
         const promise = batchingSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
@@ -416,17 +410,17 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(stats2.avgWindowMs).toBeGreaterThan(0);
     });
 
-    it("should reset adaptive window with stats", () => {
+    it('should reset adaptive window with stats', () => {
       const initialWindow = batchingSystem.getStats().currentWindowMs!;
 
       // Execute operation to change window
       const promise = batchingSystem.execute({
-        id: "test-1",
-        type: "values:update",
-        spreadsheetId: "test-sheet",
+        id: 'test-1',
+        type: 'values:update',
+        spreadsheetId: 'test-sheet',
         params: {
-          range: "Sheet1!A1",
-          values: [["test"]],
+          range: 'Sheet1!A1',
+          values: [['test']],
         },
       });
 
@@ -438,8 +432,8 @@ describe("BatchingSystem with Adaptive Window", () => {
     });
   });
 
-  describe("Comparison with Fixed Window", () => {
-    it("should use fixed window when adaptive is disabled", async () => {
+  describe('Comparison with Fixed Window', () => {
+    it('should use fixed window when adaptive is disabled', async () => {
       batchingSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: false,
         windowMs: 60,
@@ -452,11 +446,11 @@ describe("BatchingSystem with Adaptive Window", () => {
       for (let i = 0; i < 5; i++) {
         await batchingSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
@@ -469,7 +463,7 @@ describe("BatchingSystem with Adaptive Window", () => {
       expect(stats2.currentWindowMs).toBeUndefined();
     });
 
-    it("should improve batching efficiency with adaptive window", async () => {
+    it('should improve batching efficiency with adaptive window', async () => {
       // Test with fixed window
       const fixedSystem = new BatchingSystem(sheetsApi, {
         adaptiveWindow: false,
@@ -480,18 +474,16 @@ describe("BatchingSystem with Adaptive Window", () => {
       for (let i = 0; i < 20; i++) {
         await fixedSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
         // Varying delays to test traffic pattern handling
-        await new Promise((resolve) =>
-          setTimeout(resolve, i % 3 === 0 ? 10 : 100),
-        );
+        await new Promise((resolve) => setTimeout(resolve, i % 3 === 0 ? 10 : 100));
       }
 
       await fixedSystem.flush();
@@ -509,17 +501,15 @@ describe("BatchingSystem with Adaptive Window", () => {
       for (let i = 0; i < 20; i++) {
         await adaptiveSystem.execute({
           id: `test-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
 
-        await new Promise((resolve) =>
-          setTimeout(resolve, i % 3 === 0 ? 10 : 100),
-        );
+        await new Promise((resolve) => setTimeout(resolve, i % 3 === 0 ? 10 : 100));
       }
 
       await adaptiveSystem.flush();

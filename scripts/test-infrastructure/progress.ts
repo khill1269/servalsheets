@@ -91,9 +91,10 @@ export class ProgressTracker {
     ].join(' | ');
 
     // Current test
-    const current = this.currentTool && this.currentAction
-      ? `${this.currentTool}.${this.currentAction}`
-      : 'Starting...';
+    const current =
+      this.currentTool && this.currentAction
+        ? `${this.currentTool}.${this.currentAction}`
+        : 'Starting...';
 
     // Full line
     const line = [

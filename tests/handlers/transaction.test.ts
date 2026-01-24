@@ -118,9 +118,9 @@ describe('TransactionHandler', () => {
     });
 
     it('should handle transaction manager errors', async () => {
-      mockTransactionManager.begin = vi.fn().mockRejectedValue(
-        new Error('Maximum concurrent transactions reached')
-      );
+      mockTransactionManager.begin = vi
+        .fn()
+        .mockRejectedValue(new Error('Maximum concurrent transactions reached'));
 
       const result = await handler.handle({
         action: 'begin',
@@ -147,9 +147,7 @@ describe('TransactionHandler', () => {
       mockTransactionManager.queue = vi.fn().mockResolvedValue(mockOperationId);
       mockTransactionManager.getTransaction = vi.fn().mockReturnValue({
         id: mockTxId,
-        operations: [
-          { id: mockOperationId, type: 'custom', tool: 'sheets_values', action: 'write' }
-        ],
+        operations: [{ id: mockOperationId, type: 'custom', tool: 'sheets_data', action: 'write' }],
         status: 'queued',
       } as Transaction);
 
@@ -157,7 +155,7 @@ describe('TransactionHandler', () => {
         action: 'queue',
         transactionId: mockTxId,
         operation: {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'write',
           params: { range: 'A1:B2', values: [[1, 2]] },
         },
@@ -173,7 +171,7 @@ describe('TransactionHandler', () => {
 
       expect(mockTransactionManager.queue).toHaveBeenCalledWith(mockTxId, {
         type: 'custom',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1:B2', values: [[1, 2]] },
       });
@@ -186,7 +184,7 @@ describe('TransactionHandler', () => {
       const mockOperations = Array.from({ length: 25 }, (_, i) => ({
         id: `op_${i}`,
         type: 'custom',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
       }));
 
@@ -235,7 +233,7 @@ describe('TransactionHandler', () => {
         action: 'queue',
         transactionId: mockTxId,
         operation: {
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'append',
           params: {},
         },
@@ -245,7 +243,9 @@ describe('TransactionHandler', () => {
       if (result.response.success && result.response._meta?.warnings) {
         expect(result.response._meta.warnings[0]).toContain('Large transaction');
         expect(result.response._meta.warnings[0]).toContain('55 operations');
-        expect(result.response._meta.warnings[0]).toContain('splitting into multiple smaller transactions');
+        expect(result.response._meta.warnings[0]).toContain(
+          'splitting into multiple smaller transactions'
+        );
       }
     });
   });
@@ -388,9 +388,9 @@ describe('TransactionHandler', () => {
     it('should handle rollback errors', async () => {
       const mockTxId = 'txn-rollback-error';
 
-      mockTransactionManager.rollback = vi.fn().mockRejectedValue(
-        new Error('No snapshot available for rollback')
-      );
+      mockTransactionManager.rollback = vi
+        .fn()
+        .mockRejectedValue(new Error('No snapshot available for rollback'));
 
       const result = await handler.handle({
         action: 'rollback',
@@ -574,7 +574,7 @@ describe('TransactionHandler', () => {
       const queueResult = await handler.handle({
         action: 'queue',
         transactionId: 'txn-1',
-        operation: { tool: 'sheets_values', action: 'write', params: {} },
+        operation: { tool: 'sheets_data', action: 'write', params: {} },
       });
       expect(SheetsTransactionOutputSchema.safeParse(queueResult).success).toBe(true);
 

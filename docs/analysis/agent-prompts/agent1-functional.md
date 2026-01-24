@@ -107,7 +107,7 @@ For each category:
 - Files: `src/handlers/auth.ts`, `src/services/token-manager.ts`
 
 ### Core Data Operations (Category 2)
-- Count actual actions in sheets_values tool
+- Count actual actions in sheets_data tool
 - Verify batching system implementation
 - Check cache TTL and invalidation
 - Files: `src/handlers/values.ts`, `src/services/batching-system.ts`

@@ -78,8 +78,43 @@ export interface BrokenReference {
   cell: string;
   formula: string;
   brokenRefs: string[];
-  errorType: '#REF!' | '#NAME?' | '#VALUE!' | 'MISSING_SHEET';
+  errorType:
+    | '#REF!'
+    | '#NAME?'
+    | '#VALUE!'
+    | '#DIV/0!'
+    | '#N/A'
+    | '#NULL!'
+    | '#NUM!'
+    | '#ERROR!'
+    | 'MISSING_SHEET';
   suggestion: string;
+}
+
+/**
+ * Formula error detected from cell evaluation
+ * This captures errors that appear in cell VALUES, not just formula text
+ */
+export interface FormulaError {
+  cell: string;
+  formula: string;
+  errorType: '#REF!' | '#NAME?' | '#VALUE!' | '#DIV/0!' | '#N/A' | '#NULL!' | '#NUM!' | '#ERROR!';
+  errorValue: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  suggestion: string;
+  possibleCauses: string[];
+}
+
+/**
+ * Summary of formula health for a spreadsheet
+ */
+export interface FormulaHealthSummary {
+  totalFormulas: number;
+  healthyFormulas: number;
+  errorCount: number;
+  errorsByType: Record<string, number>;
+  criticalErrors: FormulaError[];
+  healthScore: number; // 0-100
 }
 
 export interface OptimizationSuggestion {
@@ -558,4 +593,225 @@ export function generateOptimizations(
   }
 
   return suggestions;
+}
+
+// ============================================================================
+// Formula Error Detection (from cell VALUES, not just formula text)
+// ============================================================================
+
+/**
+ * All Google Sheets error types
+ */
+const SHEET_ERROR_TYPES = [
+  '#REF!',
+  '#NAME?',
+  '#VALUE!',
+  '#DIV/0!',
+  '#N/A',
+  '#NULL!',
+  '#NUM!',
+  '#ERROR!',
+] as const;
+
+type SheetErrorType = (typeof SHEET_ERROR_TYPES)[number];
+
+/**
+ * Error metadata for generating helpful suggestions
+ */
+const ERROR_METADATA: Record<
+  SheetErrorType,
+  {
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    suggestion: string;
+    possibleCauses: string[];
+  }
+> = {
+  '#REF!': {
+    severity: 'critical',
+    suggestion:
+      'A referenced cell, range, or sheet was deleted. Update the formula with valid references.',
+    possibleCauses: [
+      'Referenced cell or range was deleted',
+      'Referenced sheet was deleted or renamed',
+      'Copy/paste operation broke relative references',
+      'Row or column containing referenced cells was deleted',
+    ],
+  },
+  '#NAME?': {
+    severity: 'high',
+    suggestion: 'Check for typos in function names, named ranges, or missing quotes around text.',
+    possibleCauses: [
+      'Misspelled function name (e.g., SUMM instead of SUM)',
+      'Named range does not exist',
+      'Text value missing quotes',
+      'Add-on function not available',
+    ],
+  },
+  '#VALUE!': {
+    severity: 'medium',
+    suggestion: 'Check that the data types match what the formula expects (numbers vs text).',
+    possibleCauses: [
+      'Text value where number expected',
+      'Array formula returning wrong dimensions',
+      'Date/time format mismatch',
+      'Incompatible operand types',
+    ],
+  },
+  '#DIV/0!': {
+    severity: 'medium',
+    suggestion:
+      'The formula is dividing by zero or an empty cell. Add error handling with IFERROR.',
+    possibleCauses: [
+      'Dividing by zero explicitly',
+      'Dividing by empty cell',
+      'AVERAGE of empty range',
+      'Divisor cell contains text',
+    ],
+  },
+  '#N/A': {
+    severity: 'low',
+    suggestion: 'Lookup value not found. Verify the lookup value exists in the search range.',
+    possibleCauses: [
+      'VLOOKUP/HLOOKUP/MATCH value not found',
+      'FILTER returned no results',
+      'INDEX out of range',
+      'Extra spaces or formatting differences',
+    ],
+  },
+  '#NULL!': {
+    severity: 'low',
+    suggestion: 'Invalid range intersection. Check for missing operators between ranges.',
+    possibleCauses: [
+      'Missing comma between arguments',
+      'Invalid range intersection operator (space)',
+      'Typo in range specification',
+    ],
+  },
+  '#NUM!': {
+    severity: 'medium',
+    suggestion: 'Invalid numeric value or calculation result too large/small.',
+    possibleCauses: [
+      'Number too large for Google Sheets',
+      'Invalid argument for math function (e.g., SQRT of negative)',
+      'IRR or RATE cannot converge',
+      'Date calculation resulting in invalid date',
+    ],
+  },
+  '#ERROR!': {
+    severity: 'high',
+    suggestion: 'Google Sheets cannot parse the formula. Check syntax and function arguments.',
+    possibleCauses: [
+      'Formula syntax error',
+      'Unsupported function',
+      'Invalid characters in formula',
+      'Missing required arguments',
+    ],
+  },
+};
+
+/**
+ * Detect formula errors from cell values
+ *
+ * CRITICAL: This function analyzes cell VALUES (what the user sees),
+ * not just formula text. A formula like =VLOOKUP(A1, DeletedSheet!A:B, 2)
+ * will show #REF! in the cell value even though the formula text itself
+ * might not contain #REF!.
+ *
+ * @param cells Array of cells with formula and evaluated value
+ * @returns Array of detected formula errors
+ */
+export function detectFormulaErrors(
+  cells: Array<{
+    cell: string;
+    formula: string;
+    value?: string | number | boolean | null;
+    formattedValue?: string;
+  }>
+): FormulaError[] {
+  const errors: FormulaError[] = [];
+
+  for (const { cell, formula, value, formattedValue } of cells) {
+    // Check the displayed/formatted value for errors (what user sees)
+    const displayValue = formattedValue ?? String(value ?? '');
+
+    for (const errorType of SHEET_ERROR_TYPES) {
+      if (displayValue.includes(errorType) || String(value).includes(errorType)) {
+        const metadata = ERROR_METADATA[errorType];
+        errors.push({
+          cell,
+          formula,
+          errorType,
+          errorValue: displayValue,
+          severity: metadata.severity,
+          suggestion: metadata.suggestion,
+          possibleCauses: metadata.possibleCauses,
+        });
+        break; // Only report first error per cell
+      }
+    }
+
+    // Also check if formula text itself contains error (embedded #REF!)
+    if (!errors.some((e) => e.cell === cell)) {
+      for (const errorType of SHEET_ERROR_TYPES) {
+        if (formula.includes(errorType)) {
+          const metadata = ERROR_METADATA[errorType];
+          errors.push({
+            cell,
+            formula,
+            errorType,
+            errorValue: formula,
+            severity: metadata.severity,
+            suggestion: metadata.suggestion,
+            possibleCauses: metadata.possibleCauses,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Calculate formula health summary
+ *
+ * @param totalFormulas Total number of formulas analyzed
+ * @param errors Detected formula errors
+ * @returns Health summary with score and breakdown
+ */
+export function calculateFormulaHealth(
+  totalFormulas: number,
+  errors: FormulaError[]
+): FormulaHealthSummary {
+  const errorsByType: Record<string, number> = {};
+
+  for (const error of errors) {
+    errorsByType[error.errorType] = (errorsByType[error.errorType] || 0) + 1;
+  }
+
+  const criticalErrors = errors.filter((e) => e.severity === 'critical');
+  const highErrors = errors.filter((e) => e.severity === 'high');
+
+  // Calculate health score:
+  // - Start at 100
+  // - Critical errors: -10 points each (max -50)
+  // - High errors: -5 points each (max -25)
+  // - Medium errors: -2 points each (max -15)
+  // - Low errors: -1 point each (max -10)
+  let healthScore = 100;
+  healthScore -= Math.min(50, criticalErrors.length * 10);
+  healthScore -= Math.min(25, highErrors.length * 5);
+  healthScore -= Math.min(15, errors.filter((e) => e.severity === 'medium').length * 2);
+  healthScore -= Math.min(10, errors.filter((e) => e.severity === 'low').length);
+  healthScore = Math.max(0, healthScore);
+
+  return {
+    totalFormulas,
+    healthyFormulas: totalFormulas - errors.length,
+    errorCount: errors.length,
+    errorsByType,
+    criticalErrors,
+    healthScore,
+  };
 }

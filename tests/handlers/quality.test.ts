@@ -190,7 +190,6 @@ describe('QualityHandler', () => {
       const parseResult = SheetsQualityOutputSchema.safeParse(result);
       expect(parseResult.success).toBe(true);
     });
-
   });
 
   describe('resolve_conflict action', () => {
@@ -263,9 +262,7 @@ describe('QualityHandler', () => {
           cellsAffected: 1000,
           rowsAffected: 100,
           columnsAffected: 10,
-          formulasAffected: [
-            { cell: 'C1', formula: '=SUM(A1:B10)', impactType: 'broken' },
-          ],
+          formulasAffected: [{ cell: 'C1', formula: '=SUM(A1:B10)', impactType: 'broken' }],
           chartsAffected: [
             { title: 'Chart 1', chartType: 'LINE', impactType: 'data_source_changed' },
           ],

@@ -2,17 +2,18 @@
  * ServalSheets - Visualize Handler
  *
  * Consolidated handler for sheets_visualize tool (chart and pivot table operations)
- * Merges: charts.ts (10 actions) + pivot.ts (7 actions) = 17 actions total
+ * Charts (11 actions) + Pivot tables (7 actions) = 18 actions total
  * MCP Protocol: 2025-11-25
  */
 
 import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type {
   SheetsVisualizeInput,
   SheetsVisualizeOutput,
   VisualizeResponse,
+  VisualizeRequest,
   ChartCreateInput,
   SuggestChartInput,
   ChartUpdateInput,
@@ -22,7 +23,8 @@ import type {
   ChartMoveInput,
   ChartResizeInput,
   ChartUpdateDataRangeInput,
-  ChartExportInput,
+  ChartAddTrendlineInput,
+  ChartRemoveTrendlineInput,
   PivotCreateInput,
   SuggestPivotInput,
   PivotUpdateInput,
@@ -33,6 +35,7 @@ import type {
 } from '../schemas/visualize.js';
 import type { RangeInput } from '../schemas/shared.js';
 import {
+  buildGridRangeInput,
   parseA1Notation,
   parseCellReference,
   toGridRange,
@@ -41,8 +44,30 @@ import {
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { checkSamplingSupport } from '../mcp/sampling.js';
+import { isLLMFallbackAvailable, createMessageWithFallback } from '../services/llm-fallback.js';
+import { logger } from '../utils/logger.js';
 
 type VisualizeSuccess = Extract<VisualizeResponse, { success: true }>;
+
+/**
+ * Extended BasicChartSeries type that includes trendline and dataLabel properties.
+ * These properties exist in the Google Sheets API but are missing from googleapis type definitions.
+ */
+interface ExtendedBasicChartSeries extends sheets_v4.Schema$BasicChartSeries {
+  trendline?: {
+    type?: string;
+    label?: string;
+    showR2?: boolean;
+    labeledDataKey?: string;
+    polynomialDegree?: number;
+    color?: sheets_v4.Schema$Color;
+  };
+  dataLabel?: {
+    type?: string;
+    placement?: string;
+    textFormat?: sheets_v4.Schema$TextFormat;
+  };
+}
 
 export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVisualizeOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -57,16 +82,16 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
    */
   async handle(input: SheetsVisualizeInput): Promise<SheetsVisualizeOutput> {
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(input) as SheetsVisualizeInput;
+    const rawReq = unwrapRequest<SheetsVisualizeInput['request']>(input);
+    const req = this.inferRequestParameters(rawReq) as VisualizeRequest;
 
     try {
-      const req = inferredRequest;
       let response: VisualizeResponse;
 
-      // Route to appropriate handler based on action (17 total)
+      // Route to appropriate handler based on action (18 total)
       switch (req.action) {
         // ====================================================================
-        // CHART ACTIONS (10)
+        // CHART ACTIONS (11)
         // ====================================================================
         case 'chart_create':
           response = await this.handleChartCreate(req as ChartCreateInput);
@@ -95,8 +120,11 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
         case 'chart_update_data_range':
           response = await this.handleChartUpdateDataRange(req as ChartUpdateDataRangeInput);
           break;
-        case 'chart_export':
-          response = await this.handleChartExport(req as ChartExportInput);
+        case 'chart_add_trendline':
+          response = await this.handleChartAddTrendline(req as ChartAddTrendlineInput);
+          break;
+        case 'chart_remove_trendline':
+          response = await this.handleChartRemoveTrendline(req as ChartRemoveTrendlineInput);
           break;
 
         // ====================================================================
@@ -124,29 +152,31 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
           response = await this.handlePivotRefresh(req as PivotRefreshInput);
           break;
 
-        default:
+        default: {
+          const _exhaustiveCheck: never = req;
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
           });
+        }
       }
 
       // Track context on success
       if (response.success) {
         this.trackContextFromRequest({
-          spreadsheetId: inferredRequest.spreadsheetId,
+          spreadsheetId: 'spreadsheetId' in req ? req.spreadsheetId : undefined,
           sheetId:
-            'sheetId' in inferredRequest
-              ? typeof inferredRequest.sheetId === 'number'
-                ? inferredRequest.sheetId
+            'sheetId' in req
+              ? typeof req.sheetId === 'number'
+                ? req.sheetId
                 : undefined
               : undefined,
         });
       }
 
       // Apply verbosity filtering (LLM optimization)
-      const verbosity = inferredRequest.verbosity ?? 'standard';
+      const verbosity = req.verbosity ?? 'standard';
       const filteredResponse = super.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
@@ -156,7 +186,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
   }
 
   protected createIntents(input: SheetsVisualizeInput): Intent[] {
-    const req = input;
+    const req = unwrapRequest<SheetsVisualizeInput['request']>(input);
     if ('spreadsheetId' in req && req.spreadsheetId) {
       // Determine intent type and destructiveness
       const destructiveActions = ['chart_delete', 'pivot_delete'] as const;
@@ -234,16 +264,17 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
   }
 
   private async handleSuggestChart(input: SuggestChartInput): Promise<VisualizeResponse> {
-    // Check if server exists and client supports sampling
+    // Check if LLM fallback is available or server supports sampling
     const samplingSupport = this.context.server
       ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
       : { supported: false };
+    const hasLLMFallback = isLLMFallbackAvailable();
 
-    if (!this.context.server || !samplingSupport.supported) {
+    if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
         message:
-          'Chart suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
+          'Chart suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
         retryable: false,
       });
     }
@@ -256,7 +287,6 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
       });
     }
 
-    const server = this.context.server;
     const startTime = Date.now();
 
     try {
@@ -330,44 +360,26 @@ Format your response as JSON:
   ]
 }`;
 
-      const samplingRequest = {
-        messages: [
-          {
-            role: 'user' as const,
-            content: {
-              type: 'text' as const,
-              text: prompt,
-            },
-          },
-        ],
-        systemPrompt: `You are an expert data visualization consultant.
+      const systemPrompt = `You are an expert data visualization consultant.
 Analyze spreadsheet data and recommend the most effective chart types.
 Consider data types, relationships, and visualization best practices.
-Always return valid JSON in the exact format requested.`,
-        modelPreferences: {
-          hints: [{ name: 'claude-3-5-sonnet-20241022' }],
-          intelligencePriority: 0.8,
-        },
-        maxTokens: 2048,
-      };
+Always return valid JSON in the exact format requested.`;
 
-      const samplingResult = await server.createMessage(samplingRequest);
+      // Use LLM fallback or MCP sampling
+      const llmResult = await createMessageWithFallback(
+        this.context.server as Parameters<typeof createMessageWithFallback>[0],
+        {
+          messages: [{ role: 'user', content: prompt }],
+          systemPrompt,
+          maxTokens: 2048,
+        }
+      );
       const duration = Date.now() - startTime;
 
-      // Extract JSON from response
-      const contentArray = Array.isArray(samplingResult.content)
-        ? samplingResult.content
-        : [samplingResult.content];
-      const textContent = contentArray.find((c) => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        return this.error({
-          code: 'INTERNAL_ERROR',
-          message: 'No text content in sampling response',
-          retryable: true,
-        });
-      }
+      // Extract text from response
+      const responseText = llmResult.content;
 
-      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         return this.error({
           code: 'INTERNAL_ERROR',
@@ -396,20 +408,45 @@ Always return valid JSON in the exact format requested.`,
 
   private async handleChartUpdate(input: ChartUpdateInput): Promise<VisualizeResponse> {
     const requests: sheets_v4.Schema$Request[] = [];
-    const specUpdates: sheets_v4.Schema$ChartSpec = {};
 
-    if (input.chartType) {
-      specUpdates.basicChart = { chartType: input.chartType };
-    }
-    if (input.options?.title) {
-      specUpdates.title = input.options.title;
-    }
+    // If updating chart spec properties (title, chartType), we need to fetch and merge with existing spec
+    if (input.chartType || input.options?.title) {
+      // Fetch existing chart to get current spec
+      const getResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.charts',
+      });
 
-    if (Object.keys(specUpdates).length > 0) {
+      let existingSpec: sheets_v4.Schema$ChartSpec | undefined;
+      for (const sheet of getResponse.data.sheets || []) {
+        const chart = sheet.charts?.find((c) => c.chartId === input.chartId);
+        if (chart?.spec) {
+          existingSpec = chart.spec;
+          break;
+        }
+      }
+
+      if (!existingSpec) {
+        return this.error({
+          code: 'RANGE_NOT_FOUND',
+          message: `Chart with ID ${input.chartId} not found`,
+          retryable: false,
+        });
+      }
+
+      // Merge updates into existing spec
+      const updatedSpec = { ...existingSpec };
+      if (input.options?.title) {
+        updatedSpec.title = input.options.title;
+      }
+      if (input.chartType && updatedSpec.basicChart) {
+        updatedSpec.basicChart = { ...updatedSpec.basicChart, chartType: input.chartType };
+      }
+
       requests.push({
         updateChartSpec: {
           chartId: input.chartId,
-          spec: specUpdates,
+          spec: updatedSpec,
         },
       });
     }
@@ -424,7 +461,7 @@ Always return valid JSON in the exact format requested.`,
         updateEmbeddedObjectPosition: {
           objectId: input.chartId,
           newPosition: position,
-          fields: 'overlayPosition',
+          fields: '*',
         },
       });
     }
@@ -590,7 +627,7 @@ Always return valid JSON in the exact format requested.`,
             updateEmbeddedObjectPosition: {
               objectId: input.chartId,
               newPosition: position,
-              fields: 'overlayPosition',
+              fields: '*',
             },
           },
         ],
@@ -619,7 +656,7 @@ Always return valid JSON in the exact format requested.`,
                   heightPixels: input.height,
                 },
               },
-              fields: 'overlayPosition',
+              fields: '*',
             },
           },
         ],
@@ -656,14 +693,184 @@ Always return valid JSON in the exact format requested.`,
     return this.success('chart_update_data_range', {});
   }
 
-  private async handleChartExport(_input: ChartExportInput): Promise<VisualizeResponse> {
-    // Exporting charts requires Drive export endpoints which are not wired here.
-    return this.error({
-      code: 'FEATURE_UNAVAILABLE',
-      message: 'Chart export is not yet available in this server build.',
-      retryable: false,
-      suggestedFix: 'Use Google Sheets UI to export or add Drive export integration.',
+  private async handleChartAddTrendline(input: ChartAddTrendlineInput): Promise<VisualizeResponse> {
+    // Trendlines are only supported on certain chart types
+    const compatibleTypes = ['LINE', 'AREA', 'SCATTER', 'STEPPED_AREA', 'COLUMN'];
+
+    // Fetch existing chart spec
+    const getResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.charts',
     });
+
+    let existingChart: sheets_v4.Schema$EmbeddedChart | undefined;
+    for (const sheet of getResponse.data.sheets ?? []) {
+      const chart = sheet.charts?.find((c) => c.chartId === input.chartId);
+      if (chart) {
+        existingChart = chart;
+        break;
+      }
+    }
+
+    if (!existingChart?.spec?.basicChart) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
+        retryable: false,
+      });
+    }
+
+    const chartType = existingChart.spec.basicChart.chartType ?? '';
+    if (!compatibleTypes.includes(chartType)) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Trendlines are not supported on ${chartType} charts. Use LINE, AREA, SCATTER, STEPPED_AREA, or COLUMN charts.`,
+        retryable: false,
+      });
+    }
+
+    const series = [...(existingChart.spec.basicChart.series ?? [])] as ExtendedBasicChartSeries[];
+    if (input.seriesIndex >= series.length) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
+        retryable: false,
+      });
+    }
+
+    if (input.safety?.dryRun) {
+      return this.success('chart_add_trendline', { chartId: input.chartId }, undefined, true);
+    }
+
+    // Build trendline spec (googleapis types don't include trendline, but the API supports it)
+    const trendlineSpec: ExtendedBasicChartSeries['trendline'] = {
+      type: input.trendline.type,
+      label: input.trendline.label,
+      showR2: input.trendline.showRSquared,
+      labeledDataKey: input.trendline.showEquation ? 'FORMULA' : undefined,
+    };
+
+    // Add polynomial degree if applicable
+    if (input.trendline.type === 'POLYNOMIAL' && input.trendline.polynomialDegree) {
+      trendlineSpec.polynomialDegree = input.trendline.polynomialDegree;
+    }
+
+    // Add color if specified
+    if (input.trendline.color) {
+      trendlineSpec.color = {
+        red: input.trendline.color.red,
+        green: input.trendline.color.green,
+        blue: input.trendline.color.blue,
+        alpha: input.trendline.color.alpha,
+      };
+    }
+
+    // Update series with trendline
+    series[input.seriesIndex] = {
+      ...series[input.seriesIndex],
+      trendline: trendlineSpec,
+    };
+
+    // Update the chart spec
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateChartSpec: {
+              chartId: input.chartId,
+              spec: {
+                ...existingChart.spec,
+                basicChart: {
+                  ...existingChart.spec.basicChart,
+                  series,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('chart_add_trendline', { chartId: input.chartId });
+  }
+
+  private async handleChartRemoveTrendline(
+    input: ChartRemoveTrendlineInput
+  ): Promise<VisualizeResponse> {
+    // Fetch existing chart spec
+    const getResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.charts',
+    });
+
+    let existingChart: sheets_v4.Schema$EmbeddedChart | undefined;
+    for (const sheet of getResponse.data.sheets ?? []) {
+      const chart = sheet.charts?.find((c) => c.chartId === input.chartId);
+      if (chart) {
+        existingChart = chart;
+        break;
+      }
+    }
+
+    if (!existingChart?.spec?.basicChart) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
+        retryable: false,
+      });
+    }
+
+    // Cast to extended type (googleapis types don't include trendline, but the API supports it)
+    const series = [...(existingChart.spec.basicChart.series ?? [])] as ExtendedBasicChartSeries[];
+    if (input.seriesIndex >= series.length) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
+        retryable: false,
+      });
+    }
+
+    if (!series[input.seriesIndex]?.trendline) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `No trendline found on series ${input.seriesIndex}`,
+        retryable: false,
+      });
+    }
+
+    if (input.safety?.dryRun) {
+      return this.success('chart_remove_trendline', { chartId: input.chartId }, undefined, true);
+    }
+
+    // Remove trendline from series
+    series[input.seriesIndex] = {
+      ...series[input.seriesIndex],
+      trendline: undefined,
+    };
+
+    // Update the chart spec
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateChartSpec: {
+              chartId: input.chartId,
+              spec: {
+                ...existingChart.spec,
+                basicChart: {
+                  ...existingChart.spec.basicChart,
+                  series,
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('chart_remove_trendline', { chartId: input.chartId });
   }
 
   // ============================================================
@@ -722,16 +929,17 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSuggestPivot(input: SuggestPivotInput): Promise<VisualizeResponse> {
-    // Check if server exists and client supports sampling
+    // Check if LLM fallback is available or server supports sampling
     const samplingSupport = this.context.server
       ? checkSamplingSupport(this.context.server.getClientCapabilities?.())
       : { supported: false };
+    const hasLLMFallback = isLLMFallbackAvailable();
 
-    if (!this.context.server || !samplingSupport.supported) {
+    if (!hasLLMFallback && (!this.context.server || !samplingSupport.supported)) {
       return this.error({
         code: 'FEATURE_UNAVAILABLE',
         message:
-          'Pivot table suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
+          'Pivot table suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
         retryable: false,
       });
     }
@@ -744,7 +952,7 @@ Always return valid JSON in the exact format requested.`,
       });
     }
 
-    const server = this.context.server;
+    const _server = this.context.server;
     const startTime = Date.now();
 
     try {
@@ -821,44 +1029,26 @@ Format your response as JSON:
   ]
 }`;
 
-      const samplingRequest = {
-        messages: [
-          {
-            role: 'user' as const,
-            content: {
-              type: 'text' as const,
-              text: prompt,
-            },
-          },
-        ],
-        systemPrompt: `You are an expert data analyst specializing in pivot table design.
+      const systemPrompt = `You are an expert data analyst specializing in pivot table design.
 Analyze spreadsheet data and recommend pivot table configurations that reveal meaningful insights.
 Consider data types, cardinality, and business intelligence best practices.
-Always return valid JSON in the exact format requested.`,
-        modelPreferences: {
-          hints: [{ name: 'claude-3-5-sonnet-20241022' }],
-          intelligencePriority: 0.8,
-        },
-        maxTokens: 2048,
-      };
+Always return valid JSON in the exact format requested.`;
 
-      const samplingResult = await server.createMessage(samplingRequest);
+      // Use LLM fallback or MCP sampling
+      const llmResult = await createMessageWithFallback(
+        this.context.server as Parameters<typeof createMessageWithFallback>[0],
+        {
+          messages: [{ role: 'user', content: prompt }],
+          systemPrompt,
+          maxTokens: 2048,
+        }
+      );
       const duration = Date.now() - startTime;
 
-      // Extract JSON from response
-      const contentArray = Array.isArray(samplingResult.content)
-        ? samplingResult.content
-        : [samplingResult.content];
-      const textContent = contentArray.find((c) => c.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        return this.error({
-          code: 'INTERNAL_ERROR',
-          message: 'No text content in sampling response',
-          retryable: true,
-        });
-      }
+      // Extract text from response
+      const responseText = llmResult.content;
 
-      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         return this.error({
           code: 'INTERNAL_ERROR',
@@ -1010,7 +1200,7 @@ Always return valid JSON in the exact format requested.`,
   private async handlePivotGet(input: PivotGetInput): Promise<VisualizeResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      ranges: [`'${input.sheetId}'!1:1`],
+      // Don't use ranges with sheetId - filter from response instead
       includeGridData: true,
       fields:
         'sheets.data.rowData.values.pivotTable,sheets.properties.sheetId,sheets.properties.title',
@@ -1131,14 +1321,52 @@ Always return valid JSON in the exact format requested.`,
             },
           },
         ],
-        series: seriesRanges.map((range, idx) => ({
-          series: { sourceRange: { sources: [range] } },
-          targetAxis: 'LEFT_AXIS',
-          color: data.series?.[idx]?.color,
-        })),
+        // Use extended type to support trendline/dataLabel (googleapis types are incomplete)
+        series: seriesRanges.map((range, idx) => {
+          const seriesData = data.series?.[idx];
+          const result: ExtendedBasicChartSeries = {
+            series: { sourceRange: { sources: [range] } },
+            // BAR charts require BOTTOM_AXIS, all others use LEFT_AXIS
+            targetAxis: chartType === 'BAR' ? 'BOTTOM_AXIS' : 'LEFT_AXIS',
+            color: seriesData?.color,
+          };
+
+          // Add trendline if configured (only for compatible chart types)
+          if (
+            seriesData?.trendline &&
+            chartType &&
+            ['LINE', 'AREA', 'SCATTER', 'STEPPED_AREA', 'COLUMN'].includes(chartType)
+          ) {
+            result.trendline = {
+              type: seriesData.trendline.type,
+              label: seriesData.trendline.label,
+              showR2: seriesData.trendline.showRSquared,
+              labeledDataKey: seriesData.trendline.showEquation ? 'FORMULA' : undefined,
+              polynomialDegree:
+                seriesData.trendline.type === 'POLYNOMIAL'
+                  ? seriesData.trendline.polynomialDegree
+                  : undefined,
+              color: seriesData.trendline.color,
+            };
+          }
+
+          // Add data label if configured
+          if (seriesData?.dataLabel && seriesData.dataLabel.type !== 'NONE') {
+            result.dataLabel = {
+              type: seriesData.dataLabel.type,
+              placement: seriesData.dataLabel.placement,
+              textFormat: seriesData.dataLabel.textFormat,
+            };
+          }
+
+          return result;
+        }),
         legendPosition: options?.legendPosition,
         threeDimensional: options?.is3D,
-        stackedType: options?.stacked ? 'STACKED' : 'NOT_STACKED',
+        // stackedType only supported for BAR, COLUMN, AREA, STEPPED_AREA charts
+        ...(chartType && ['BAR', 'COLUMN', 'AREA', 'STEPPED_AREA'].includes(chartType)
+          ? { stackedType: options?.stacked ? 'STACKED' : 'NOT_STACKED' }
+          : {}),
       },
     };
   }
@@ -1341,7 +1569,7 @@ Always return valid JSON in the exact format requested.`,
   ): sheets_v4.Schema$PivotGroup => ({
     sourceColumnOffset: group.sourceColumnOffset,
     showTotals: group.showTotals,
-    sortOrder: group.sortOrder,
+    sortOrder: group.sortOrder ?? 'ASCENDING',
     groupRule: group.groupRule
       ? {
           dateTimeRule: group.groupRule.dateTimeRule
@@ -1396,13 +1624,13 @@ Always return valid JSON in the exact format requested.`,
     range: sheets_v4.Schema$GridRange | undefined,
     fallbackSheetId: number
   ): GridRangeInput {
-    return {
-      sheetId: range?.sheetId ?? fallbackSheetId,
-      startRowIndex: range?.startRowIndex ?? undefined,
-      endRowIndex: range?.endRowIndex ?? undefined,
-      startColumnIndex: range?.startColumnIndex ?? undefined,
-      endColumnIndex: range?.endColumnIndex ?? undefined,
-    };
+    return buildGridRangeInput(
+      range?.sheetId ?? fallbackSheetId,
+      range?.startRowIndex ?? undefined,
+      range?.endRowIndex ?? undefined,
+      range?.startColumnIndex ?? undefined,
+      range?.endColumnIndex ?? undefined
+    );
   }
 
   private async findPivotRange(
@@ -1438,16 +1666,64 @@ Always return valid JSON in the exact format requested.`,
     rangeInput: RangeInput
   ): Promise<GridRangeInput> {
     const a1 = await this.resolveRange(spreadsheetId, rangeInput);
-    const parsed = parseA1Notation(a1);
+
+    // Handle comma-separated ranges by parsing each one
+    // Charts that need multiple ranges should use the series.column pattern instead
+    const ranges = this.splitRangeNotation(a1);
+    if (ranges.length > 1) {
+      logger.warn(
+        `Multiple comma-separated ranges detected: "${a1}". Using first range only. ` +
+          `For multi-series charts, use the series[].column pattern instead.`
+      );
+    }
+
+    const firstRange = ranges[0] || a1;
+    const parsed = parseA1Notation(firstRange);
     const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
 
-    return {
+    return buildGridRangeInput(
       sheetId,
-      startRowIndex: parsed.startRow,
-      endRowIndex: parsed.endRow,
-      startColumnIndex: parsed.startCol,
-      endColumnIndex: parsed.endCol,
-    };
+      parsed.startRow,
+      parsed.endRow,
+      parsed.startCol,
+      parsed.endCol
+    );
+  }
+
+  /**
+   * Split comma-separated A1 notation, respecting quoted sheet names
+   * E.g., "'Sheet One'!A1:B2,C1:D2" -> ["'Sheet One'!A1:B2", "C1:D2"]
+   */
+  private splitRangeNotation(notation: string): string[] {
+    if (!notation.includes(',')) {
+      return [notation];
+    }
+
+    const ranges: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (const char of notation) {
+      if (char === "'" && !inQuotes) {
+        inQuotes = true;
+        current += char;
+      } else if (char === "'" && inQuotes) {
+        inQuotes = false;
+        current += char;
+      } else if (char === ',' && !inQuotes) {
+        if (current.trim()) {
+          ranges.push(current.trim());
+        }
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) {
+      ranges.push(current.trim());
+    }
+
+    return ranges;
   }
 }
 

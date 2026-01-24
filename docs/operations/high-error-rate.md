@@ -292,7 +292,7 @@ await limiter.acquire();
 ```typescript
 // Add structured error context
 logger.error('API call failed', {
-  operation: 'sheets_spreadsheet:read',
+  operation: 'sheets_core:read',
   spreadsheetId: redact(spreadsheetId),
   error: {
     code: error.code,

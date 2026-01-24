@@ -22,6 +22,8 @@ import type {
   QualityResolveConflictInput,
   QualityAnalyzeImpactInput,
 } from '../schemas/quality.js';
+import { unwrapRequest } from './base.js';
+import { ValidationError } from '../core/errors.js';
 
 export interface QualityHandlerOptions {
   // Options can be added as needed
@@ -53,28 +55,33 @@ export class QualityHandler {
   }
 
   async handle(input: SheetsQualityInput): Promise<SheetsQualityOutput> {
+    const req = unwrapRequest<SheetsQualityInput['request']>(input);
     try {
       let response: QualityResponse;
 
-      switch (input.action) {
+      switch (req.action) {
         case 'validate':
-          response = await this.handleValidate(input as QualityValidateInput);
+          response = await this.handleValidate(req as QualityValidateInput);
           break;
         case 'detect_conflicts':
-          response = await this.handleDetectConflicts(input as QualityDetectConflictsInput);
+          response = await this.handleDetectConflicts(req as QualityDetectConflictsInput);
           break;
         case 'resolve_conflict':
-          response = await this.handleResolveConflict(input as QualityResolveConflictInput);
+          response = await this.handleResolveConflict(req as QualityResolveConflictInput);
           break;
         case 'analyze_impact':
-          response = await this.handleAnalyzeImpact(input as QualityAnalyzeImpactInput);
+          response = await this.handleAnalyzeImpact(req as QualityAnalyzeImpactInput);
           break;
         default:
-          throw new Error(`Unknown action: ${(input as { action?: string }).action}`);
+          throw new ValidationError(
+            `Unknown action: ${(input as { action?: string }).action}`,
+            'action',
+            'validate | detect_conflicts | resolve_conflict | analyze_impact'
+          );
       }
 
       // Apply verbosity filtering (LLM optimization)
-      const verbosity = input.verbosity ?? 'standard';
+      const verbosity = req.verbosity ?? 'standard';
       const filteredResponse = this.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
@@ -98,7 +105,12 @@ export class QualityHandler {
    */
   private async handleValidate(input: QualityValidateInput): Promise<QualityResponse> {
     const validationEngine = getValidationEngine();
-    const report = await validationEngine.validate(input.value, input.context);
+    // Pass rules filter to validation engine - only run specified rules if provided
+    const contextWithRules = {
+      ...input.context,
+      rules: input.rules, // Filter to only these rule IDs if specified
+    };
+    const report = await validationEngine.validate(input.value, contextWithRules);
 
     // Check if dry run mode is enabled
     const isDryRun = input.safety?.dryRun ?? false;

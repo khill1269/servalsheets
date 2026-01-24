@@ -66,7 +66,7 @@ export class TestLogger {
     action: string,
     phase: string,
     message: string,
-    data?: any,
+    data?: any
   ): void {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -94,7 +94,7 @@ export class TestLogger {
     const reset = '\x1b[0m';
 
     console.log(
-      `${color}[${level.toUpperCase()}]${reset} ${tool}.${action} (${phase}): ${message}`,
+      `${color}[${level.toUpperCase()}]${reset} ${tool}.${action} (${phase}): ${message}`
     );
   }
 
@@ -104,7 +104,7 @@ export class TestLogger {
     action: string,
     phase: string,
     message: string,
-    data?: any,
+    data?: any
   ): void {
     this.log('debug', requestId, tool, action, phase, message, data);
   }
@@ -115,7 +115,7 @@ export class TestLogger {
     action: string,
     phase: string,
     message: string,
-    data?: any,
+    data?: any
   ): void {
     this.log('info', requestId, tool, action, phase, message, data);
   }
@@ -126,7 +126,7 @@ export class TestLogger {
     action: string,
     phase: string,
     message: string,
-    data?: any,
+    data?: any
   ): void {
     this.log('warn', requestId, tool, action, phase, message, data);
   }
@@ -137,7 +137,7 @@ export class TestLogger {
     action: string,
     phase: string,
     message: string,
-    error?: any,
+    error?: any
   ): void {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -154,9 +154,7 @@ export class TestLogger {
     this.entries.push(entry);
     appendFileSync(this.logFile, JSON.stringify(entry) + '\n');
 
-    console.error(
-      `\x1b[31m[ERROR]\x1b[0m ${tool}.${action} (${phase}): ${message}`,
-    );
+    console.error(`\x1b[31m[ERROR]\x1b[0m ${tool}.${action} (${phase}): ${message}`);
     if (error) {
       console.error('  Error details:', this.serializeError(error));
     }

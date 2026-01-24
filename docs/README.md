@@ -34,7 +34,7 @@ docs/
 
 | Goal | Start Here |
 |------|------------|
-| **New user** | [QUICKSTART.md](../QUICKSTART.md) → [CLAUDE_DESKTOP_SETUP](./guides/CLAUDE_DESKTOP_SETUP.md) |
+| **New user** | [FIRST_TIME_USER.md](./guides/FIRST_TIME_USER.md) → [CLAUDE_DESKTOP_SETUP](./guides/CLAUDE_DESKTOP_SETUP.md) |
 | **Developer** | [TESTING.md](./development/TESTING.md) → [HANDLER_PATTERNS](./development/HANDLER_PATTERNS.md) |
 | **Production deploy** | [DEPLOYMENT.md](./guides/DEPLOYMENT.md) → [operations/](./operations/) |
 | **Troubleshooting** | [TROUBLESHOOTING.md](./guides/TROUBLESHOOTING.md) |
@@ -61,7 +61,7 @@ End-user and administrator documentation:
 | [SKILL.md](./guides/SKILL.md) | Claude skill integration |
 
 ### Examples (`examples/`)
-Request/response examples for production tools (17 tools, 226 actions):
+Request/response examples for production tools (see `src/schemas/index.ts` for tool/action counts):
 
 | File | Coverage |
 |------|----------|
@@ -73,7 +73,7 @@ Request/response examples for production tools (17 tools, 226 actions):
 | [error-handling-examples.json](./examples/error-handling-examples.json) | Error handling patterns |
 
 **Note:** For complete tool documentation, see:
-- `npm run show:tools` - List all 17 tools with action counts
+- `npm run show:tools` - List all tools with action counts
 - `server.json` - Auto-generated MCP tool definitions
 - [ACTION_REFERENCE.md](./guides/ACTION_REFERENCE.md) - Tool reference guide
 
@@ -142,7 +142,6 @@ npm run docs:watch     # Watch mode
 | File | Description |
 |------|-------------|
 | [README.md](../README.md) | Project overview |
-| [QUICKSTART.md](../QUICKSTART.md) | 5-minute quickstart |
 | [CHANGELOG.md](../CHANGELOG.md) | Version history |
 | [SECURITY.md](../SECURITY.md) | Security policy |
 | [SKILL.md](../SKILL.md) | Claude skill definition |
@@ -151,7 +150,6 @@ npm run docs:watch     # Watch mode
 | File | Description |
 |------|-------------|
 | [.env.example](../.env.example) | Environment variables |
-| [.env.oauth.example](../.env.oauth.example) | OAuth configuration |
 | [claude_desktop_config.example.json](../claude_desktop_config.example.json) | Claude Desktop config |
 
 ### Knowledge Base (`src/knowledge/`)

@@ -49,9 +49,7 @@ describe('DimensionsHandler', () => {
     // Mock sheet metadata
     mockApi.spreadsheets.get.mockResolvedValue({
       data: {
-        sheets: [
-          { properties: { sheetId: 0, title: 'Sheet1' } },
-        ],
+        sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
       },
     });
   });
@@ -61,7 +59,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'insert_rows',
+        action: 'insert',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -70,22 +69,24 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'insert_rows');
+      expect(result.response).toHaveProperty('action', 'insert');
       expect(result.response).toHaveProperty('rowsAffected', 3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            insertDimension: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 8, // startIndex + count
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 8, // startIndex + count
+                },
+                inheritFromBefore: false,
               },
-              inheritFromBefore: false,
             },
-          }],
+          ],
         },
       });
 
@@ -97,7 +98,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'insert_columns',
+        action: 'insert',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -106,22 +108,24 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'insert_columns');
+      expect(result.response).toHaveProperty('action', 'insert');
       expect(result.response).toHaveProperty('columnsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            insertDimension: {
-              range: {
-                sheetId: 0,
-                dimension: 'COLUMNS',
-                startIndex: 2,
-                endIndex: 7,
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'COLUMNS',
+                  startIndex: 2,
+                  endIndex: 7,
+                },
+                inheritFromBefore: true,
               },
-              inheritFromBefore: true,
             },
-          }],
+          ],
         },
       });
     });
@@ -130,7 +134,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'insert_rows',
+        action: 'insert',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -148,7 +153,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'delete_rows',
+        action: 'delete',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -156,21 +162,23 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'delete_rows');
+      expect(result.response).toHaveProperty('action', 'delete');
       expect(result.response).toHaveProperty('rowsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            deleteDimension: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 10,
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 10,
+                },
               },
             },
-          }],
+          ],
         },
       });
     });
@@ -179,7 +187,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'delete_columns',
+        action: 'delete',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -187,28 +196,31 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'delete_columns');
+      expect(result.response).toHaveProperty('action', 'delete');
       expect(result.response).toHaveProperty('columnsAffected', 3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            deleteDimension: {
-              range: {
-                sheetId: 0,
-                dimension: 'COLUMNS',
-                startIndex: 2,
-                endIndex: 5,
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'COLUMNS',
+                  startIndex: 2,
+                  endIndex: 5,
+                },
               },
             },
-          }],
+          ],
         },
       });
     });
 
     it('should respect dryRun for delete operations', async () => {
       const result = await handler.handle({
-        action: 'delete_rows',
+        action: 'delete',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -228,7 +240,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'move_rows',
+        action: 'move',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -237,22 +250,24 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'move_rows');
+      expect(result.response).toHaveProperty('action', 'move');
       expect(result.response).toHaveProperty('rowsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            moveDimension: {
-              source: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 10,
+          requests: [
+            {
+              moveDimension: {
+                source: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 10,
+                },
+                destinationIndex: 15,
               },
-              destinationIndex: 15,
             },
-          }],
+          ],
         },
       });
     });
@@ -261,7 +276,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'move_columns',
+        action: 'move',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -270,22 +286,24 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'move_columns');
+      expect(result.response).toHaveProperty('action', 'move');
       expect(result.response).toHaveProperty('columnsAffected', 3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            moveDimension: {
-              source: {
-                sheetId: 0,
-                dimension: 'COLUMNS',
-                startIndex: 2,
-                endIndex: 5,
+          requests: [
+            {
+              moveDimension: {
+                source: {
+                  sheetId: 0,
+                  dimension: 'COLUMNS',
+                  startIndex: 2,
+                  endIndex: 5,
+                },
+                destinationIndex: 10,
               },
-              destinationIndex: 10,
             },
-          }],
+          ],
         },
       });
     });
@@ -296,7 +314,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'resize_rows',
+        action: 'resize',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -305,25 +324,27 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'resize_rows');
+      expect(result.response).toHaveProperty('action', 'resize');
       expect(result.response).toHaveProperty('rowsAffected', 10);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 0,
-                endIndex: 10,
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 0,
+                  endIndex: 10,
+                },
+                properties: {
+                  pixelSize: 30,
+                },
+                fields: 'pixelSize',
               },
-              properties: {
-                pixelSize: 30,
-              },
-              fields: 'pixelSize',
             },
-          }],
+          ],
         },
       });
     });
@@ -332,7 +353,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'resize_columns',
+        action: 'resize',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -341,25 +363,27 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'resize_columns');
+      expect(result.response).toHaveProperty('action', 'resize');
       expect(result.response).toHaveProperty('columnsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: {
-                sheetId: 0,
-                dimension: 'COLUMNS',
-                startIndex: 0,
-                endIndex: 5,
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'COLUMNS',
+                  startIndex: 0,
+                  endIndex: 5,
+                },
+                properties: {
+                  pixelSize: 150,
+                },
+                fields: 'pixelSize',
               },
-              properties: {
-                pixelSize: 150,
-              },
-              fields: 'pixelSize',
             },
-          }],
+          ],
         },
       });
     });
@@ -382,16 +406,18 @@ describe('DimensionsHandler', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            autoResizeDimensions: {
-              dimensions: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 0,
-                endIndex: 20,
+          requests: [
+            {
+              autoResizeDimensions: {
+                dimensions: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 0,
+                  endIndex: 20,
+                },
               },
             },
-          }],
+          ],
         },
       });
     });
@@ -419,7 +445,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'hide_rows',
+        action: 'hide',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -427,25 +454,27 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'hide_rows');
+      expect(result.response).toHaveProperty('action', 'hide');
       expect(result.response).toHaveProperty('rowsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 10,
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 10,
+                },
+                properties: {
+                  hiddenByUser: true,
+                },
+                fields: 'hiddenByUser',
               },
-              properties: {
-                hiddenByUser: true,
-              },
-              fields: 'hiddenByUser',
             },
-          }],
+          ],
         },
       });
     });
@@ -454,7 +483,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'hide_columns',
+        action: 'hide',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -462,7 +492,7 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'hide_columns');
+      expect(result.response).toHaveProperty('action', 'hide');
       expect(result.response).toHaveProperty('columnsAffected', 3);
     });
 
@@ -470,7 +500,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'show_rows',
+        action: 'show',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -478,25 +509,27 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'show_rows');
+      expect(result.response).toHaveProperty('action', 'show');
       expect(result.response).toHaveProperty('rowsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateDimensionProperties: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 10,
+          requests: [
+            {
+              updateDimensionProperties: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 10,
+                },
+                properties: {
+                  hiddenByUser: false,
+                },
+                fields: 'hiddenByUser',
               },
-              properties: {
-                hiddenByUser: false,
-              },
-              fields: 'hiddenByUser',
             },
-          }],
+          ],
         },
       });
     });
@@ -505,7 +538,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'show_columns',
+        action: 'show',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -513,7 +547,7 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'show_columns');
+      expect(result.response).toHaveProperty('action', 'show');
       expect(result.response).toHaveProperty('columnsAffected', 3);
     });
   });
@@ -523,29 +557,32 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'freeze_rows',
+        action: 'freeze',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
-        frozenRowCount: 2,
+        count: 2,
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'freeze_rows');
+      expect(result.response).toHaveProperty('action', 'freeze');
       expect(result.response).toHaveProperty('rowsAffected', 2);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: {
-                sheetId: 0,
-                gridProperties: {
-                  frozenRowCount: 2,
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: 0,
+                  gridProperties: {
+                    frozenRowCount: 2,
+                  },
                 },
+                fields: 'gridProperties.frozenRowCount',
               },
-              fields: 'gridProperties.frozenRowCount',
             },
-          }],
+          ],
         },
       });
     });
@@ -554,29 +591,32 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'freeze_columns',
+        action: 'freeze',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
-        frozenColumnCount: 3,
+        count: 3,
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'freeze_columns');
+      expect(result.response).toHaveProperty('action', 'freeze');
       expect(result.response).toHaveProperty('columnsAffected', 3);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            updateSheetProperties: {
-              properties: {
-                sheetId: 0,
-                gridProperties: {
-                  frozenColumnCount: 3,
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: 0,
+                  gridProperties: {
+                    frozenColumnCount: 3,
+                  },
                 },
+                fields: 'gridProperties.frozenColumnCount',
               },
-              fields: 'gridProperties.frozenColumnCount',
             },
-          }],
+          ],
         },
       });
     });
@@ -585,10 +625,11 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'freeze_rows',
+        action: 'freeze',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
-        frozenRowCount: 0,
+        count: 0,
       });
 
       expect(result.response.success).toBe(true);
@@ -601,7 +642,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'group_rows',
+        action: 'group',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -609,21 +651,23 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'group_rows');
+      expect(result.response).toHaveProperty('action', 'group');
       expect(result.response).toHaveProperty('rowsAffected', 10);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            addDimensionGroup: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 15,
+          requests: [
+            {
+              addDimensionGroup: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 15,
+                },
               },
             },
-          }],
+          ],
         },
       });
     });
@@ -632,7 +676,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'group_columns',
+        action: 'group',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -640,7 +685,7 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'group_columns');
+      expect(result.response).toHaveProperty('action', 'group');
       expect(result.response).toHaveProperty('columnsAffected', 6);
     });
 
@@ -648,7 +693,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'ungroup_rows',
+        action: 'ungroup',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -656,21 +702,23 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'ungroup_rows');
+      expect(result.response).toHaveProperty('action', 'ungroup');
       expect(result.response).toHaveProperty('rowsAffected', 10);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            deleteDimensionGroup: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: 5,
-                endIndex: 15,
+          requests: [
+            {
+              deleteDimensionGroup: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 5,
+                  endIndex: 15,
+                },
               },
             },
-          }],
+          ],
         },
       });
     });
@@ -679,7 +727,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'ungroup_columns',
+        action: 'ungroup',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 2,
@@ -687,7 +736,7 @@ describe('DimensionsHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'ungroup_columns');
+      expect(result.response).toHaveProperty('action', 'ungroup');
       expect(result.response).toHaveProperty('columnsAffected', 6);
     });
   });
@@ -697,25 +746,28 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'append_rows',
+        action: 'append',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 10,
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'append_rows');
+      expect(result.response).toHaveProperty('action', 'append');
       expect(result.response).toHaveProperty('rowsAffected', 10);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            appendDimension: {
-              sheetId: 0,
-              dimension: 'ROWS',
-              length: 10,
+          requests: [
+            {
+              appendDimension: {
+                sheetId: 0,
+                dimension: 'ROWS',
+                length: 10,
+              },
             },
-          }],
+          ],
         },
       });
     });
@@ -724,25 +776,28 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'append_columns',
+        action: 'append',
+        dimension: 'COLUMNS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         count: 5,
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response).toHaveProperty('action', 'append_columns');
+      expect(result.response).toHaveProperty('action', 'append');
       expect(result.response).toHaveProperty('columnsAffected', 5);
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
         requestBody: {
-          requests: [{
-            appendDimension: {
-              sheetId: 0,
-              dimension: 'COLUMNS',
-              length: 5,
+          requests: [
+            {
+              appendDimension: {
+                sheetId: 0,
+                dimension: 'COLUMNS',
+                length: 5,
+              },
             },
-          }],
+          ],
         },
       });
     });
@@ -755,7 +810,8 @@ describe('DimensionsHandler', () => {
       );
 
       const result = await handler.handle({
-        action: 'insert_rows',
+        action: 'insert',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -782,7 +838,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('Test error'));
 
       const result = await handler.handle({
-        action: 'delete_rows',
+        action: 'delete',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -797,7 +854,8 @@ describe('DimensionsHandler', () => {
   describe('Safety Features', () => {
     it('should respect dryRun for move operations', async () => {
       const result = await handler.handle({
-        action: 'move_rows',
+        action: 'move',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 5,
@@ -815,7 +873,8 @@ describe('DimensionsHandler', () => {
       mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
 
       const result = await handler.handle({
-        action: 'insert_rows',
+        action: 'insert',
+        dimension: 'ROWS',
         spreadsheetId: 'test-sheet-id',
         sheetId: 0,
         startIndex: 0,
@@ -838,13 +897,13 @@ describe('DimensionsHandler', () => {
         action: string;
         params: Record<string, any>;
       }> = [
-        { action: 'insert_rows', params: { startIndex: 0, count: 1 } },
-        { action: 'delete_rows', params: { startIndex: 0, endIndex: 1 } },
-        { action: 'resize_rows', params: { startIndex: 0, endIndex: 5, pixelSize: 30 } },
-        { action: 'hide_rows', params: { startIndex: 0, endIndex: 5 } },
-        { action: 'freeze_rows', params: { frozenRowCount: 1 } },
-        { action: 'group_rows', params: { startIndex: 0, endIndex: 5 } },
-        { action: 'append_rows', params: { count: 5 } },
+        { action: 'insert', params: { dimension: 'ROWS', startIndex: 0, count: 1 } },
+        { action: 'delete', params: { dimension: 'ROWS', startIndex: 0, endIndex: 1 } },
+        { action: 'resize', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5, pixelSize: 30 } },
+        { action: 'hide', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5 } },
+        { action: 'freeze', params: { dimension: 'ROWS', frozenCount: 1 } },
+        { action: 'group', params: { dimension: 'ROWS', startIndex: 0, endIndex: 5 } },
+        { action: 'append', params: { dimension: 'ROWS', count: 5 } },
       ];
 
       for (const { action, params } of actions) {
@@ -858,6 +917,280 @@ describe('DimensionsHandler', () => {
         const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
       }
+    });
+  });
+
+  // ============================================================
+  // Range Utility Operations (100% Google API Coverage)
+  // ============================================================
+
+  describe('Range Utility Operations', () => {
+    describe('trim_whitespace', () => {
+      it('should trim whitespace from cells in range', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({
+          data: { replies: [{ trimWhitespace: { cellsChangedCount: 15 } }] },
+        });
+
+        const result = await handler.handle({
+          action: 'trim_whitespace',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D10',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'trim_whitespace');
+        expect(result.response).toHaveProperty('cellsChanged', 15);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                trimWhitespace: {
+                  range: expect.objectContaining({ sheetId: 0 }),
+                },
+              },
+            ],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for trim_whitespace', async () => {
+        const result = await handler.handle({
+          action: 'trim_whitespace',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D10',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('cellsChanged', 0);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('randomize_range', () => {
+      it('should randomize row order in range', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'randomize_range',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D10',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'randomize_range');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                randomizeRange: {
+                  range: expect.objectContaining({ sheetId: 0 }),
+                },
+              },
+            ],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should respect dryRun for randomize_range', async () => {
+        const result = await handler.handle({
+          action: 'randomize_range',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:D10',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('text_to_columns', () => {
+      it('should split text to columns with auto-detect delimiter', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'text_to_columns',
+          spreadsheetId: 'test-sheet-id',
+          source: 'Sheet1!A1:A10',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'text_to_columns');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                textToColumns: {
+                  source: expect.objectContaining({ sheetId: 0 }),
+                  delimiterType: 'AUTODETECT',
+                  delimiter: undefined,
+                },
+              },
+            ],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should split text to columns with custom delimiter', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'text_to_columns',
+          spreadsheetId: 'test-sheet-id',
+          source: 'Sheet1!A1:A10',
+          delimiterType: 'CUSTOM',
+          delimiter: '|',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                textToColumns: {
+                  source: expect.objectContaining({ sheetId: 0 }),
+                  delimiterType: 'CUSTOM',
+                  delimiter: '|',
+                },
+              },
+            ],
+          },
+        });
+      });
+
+      it('should respect dryRun for text_to_columns', async () => {
+        const result = await handler.handle({
+          action: 'text_to_columns',
+          spreadsheetId: 'test-sheet-id',
+          source: 'Sheet1!A1:A10',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('auto_fill', () => {
+      it('should auto-fill with range mode', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'auto_fill',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:A10',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(result.response).toHaveProperty('action', 'auto_fill');
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                autoFill: expect.objectContaining({
+                  range: expect.objectContaining({ sheetId: 0 }),
+                }),
+              },
+            ],
+          },
+        });
+
+        const parseResult = SheetsDimensionsOutputSchema.safeParse(result);
+        expect(parseResult.success).toBe(true);
+      });
+
+      it('should auto-fill with sourceAndDestination mode', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'auto_fill',
+          spreadsheetId: 'test-sheet-id',
+          sourceRange: 'Sheet1!A1:A3',
+          fillLength: 10,
+          dimension: 'ROWS',
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                autoFill: expect.objectContaining({
+                  sourceAndDestination: expect.objectContaining({
+                    fillLength: 10,
+                    dimension: 'ROWS',
+                  }),
+                }),
+              },
+            ],
+          },
+        });
+      });
+
+      it('should auto-fill with alternate series', async () => {
+        mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+        const result = await handler.handle({
+          action: 'auto_fill',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:A10',
+          useAlternateSeries: true,
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+          spreadsheetId: 'test-sheet-id',
+          requestBody: {
+            requests: [
+              {
+                autoFill: expect.objectContaining({
+                  useAlternateSeries: true,
+                }),
+              },
+            ],
+          },
+        });
+      });
+
+      it('should return error when neither range nor sourceRange provided', async () => {
+        const result = await handler.handle({
+          action: 'auto_fill',
+          spreadsheetId: 'test-sheet-id',
+        } as any);
+
+        expect(result.response.success).toBe(false);
+        if (!result.response.success) {
+          expect(result.response.error.code).toBe('INVALID_PARAMS');
+        }
+      });
+
+      it('should respect dryRun for auto_fill', async () => {
+        const result = await handler.handle({
+          action: 'auto_fill',
+          spreadsheetId: 'test-sheet-id',
+          range: 'Sheet1!A1:A10',
+          safety: { dryRun: true },
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+      });
     });
   });
 });

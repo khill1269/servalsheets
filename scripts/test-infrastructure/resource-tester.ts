@@ -68,7 +68,7 @@ export class ResourceTester {
         uri: 'history://failures',
         category: 'history',
         description: 'Failed operations only',
-      },
+      }
     );
 
     // Cache resources (2) - dynamic runtime data, no field validation
@@ -82,7 +82,7 @@ export class ResourceTester {
         uri: 'cache://deduplication',
         category: 'cache',
         description: 'Request deduplication stats',
-      },
+      }
     );
 
     // Metrics resources (6) - dynamic runtime data, no field validation
@@ -116,18 +116,11 @@ export class ResourceTester {
         uri: 'metrics://service',
         category: 'metrics',
         description: 'Service metadata',
-      },
+      }
     );
 
     // Feature resources (12 total: 6 features × 2 each)
-    const features = [
-      'transaction',
-      'conflict',
-      'impact',
-      'validation',
-      'confirm',
-      'analyze',
-    ];
+    const features = ['transaction', 'conflict', 'impact', 'validation', 'confirm', 'analyze'];
 
     for (const feature of features) {
       this.resources.push(
@@ -142,7 +135,7 @@ export class ResourceTester {
           category: feature,
           description: `${feature} documentation`,
           // Help endpoints have structured content - validation can remain
-        },
+        }
       );
     }
 
@@ -156,7 +149,7 @@ export class ResourceTester {
   async testResource(
     client: any,
     logger: TestLogger,
-    resource: ResourceTest,
+    resource: ResourceTest
   ): Promise<ResourceTestResult> {
     const startTime = Date.now();
     const requestId = `resource-${Date.now()}`;
@@ -223,7 +216,7 @@ export class ResourceTester {
           contentSize,
           mimeType,
           duration,
-        },
+        }
       );
 
       return {
@@ -246,7 +239,7 @@ export class ResourceTester {
         resource.category,
         'error',
         `Failed: ${resource.uri}`,
-        error,
+        error
       );
 
       return {
@@ -267,7 +260,7 @@ export class ResourceTester {
   async testAllResources(
     client: any,
     logger: TestLogger,
-    db: TestDatabase,
+    db: TestDatabase
   ): Promise<Map<string, ResourceTestResult>> {
     const results = new Map<string, ResourceTestResult>();
 

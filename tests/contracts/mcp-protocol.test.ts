@@ -12,7 +12,10 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerServalSheetsTools, registerServalSheetsPrompts } from '../../src/mcp/registration.js';
+import {
+  registerServalSheetsTools,
+  registerServalSheetsPrompts,
+} from '../../src/mcp/registration.js';
 import { TOOL_COUNT } from '../../src/schemas/index.js';
 
 // Monkey-patches removed: All schemas now use flattened z.object() pattern
@@ -69,7 +72,10 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all tools should have required fields', () => {
-      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
+      const tools = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredTools'
+      ) as Record<string, unknown>;
 
       for (const [name, toolDefUnknown] of Object.entries(tools)) {
         const toolDef = toolDefUnknown as {
@@ -105,7 +111,10 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all tool names should follow naming convention', () => {
-      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
+      const tools = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredTools'
+      ) as Record<string, unknown>;
 
       for (const name of Object.keys(tools)) {
         // Tool names should be lowercase with underscores
@@ -117,7 +126,10 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('tool names should be unique', () => {
-      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
+      const tools = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredTools'
+      ) as Record<string, unknown>;
 
       // Object keys are unique by definition
       const toolNames = Object.keys(tools);
@@ -125,7 +137,10 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all tools should have annotations', () => {
-      const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools') as Record<string, unknown>;
+      const tools = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredTools'
+      ) as Record<string, unknown>;
 
       for (const toolDefUnknown of Object.values(tools)) {
         const toolDef = toolDefUnknown as { annotations?: unknown };
@@ -139,7 +154,10 @@ describe('MCP Protocol Compliance', () => {
 
   describe('Prompt Registration', () => {
     it('should register prompts', () => {
-      const prompts = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredPrompts');
+      const prompts = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredPrompts'
+      );
 
       expect(prompts).toBeDefined();
       const promptNames = Object.keys(prompts!);
@@ -147,7 +165,10 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('all prompts should have handlers', () => {
-      const prompts = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredPrompts') as Record<string, unknown>;
+      const prompts = getPrivateField<Record<string, unknown>>(
+        server as unknown,
+        '_registeredPrompts'
+      ) as Record<string, unknown>;
 
       for (const [name, promptDefUnknown] of Object.entries(prompts)) {
         const promptDef = promptDefUnknown as {

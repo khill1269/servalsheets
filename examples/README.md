@@ -53,7 +53,7 @@ You need Google Sheets API credentials. Choose one method:
    export GOOGLE_ACCESS_TOKEN=ya29.xxx
    ```
 
-See [QUICKSTART_CREDENTIALS.md](../QUICKSTART_CREDENTIALS.md) for detailed instructions.
+See [QUICKSTART_CREDENTIALS.md](../docs/guides/QUICKSTART_CREDENTIALS.md) for detailed instructions.
 
 ### 4. Prepare a Test Spreadsheet
 

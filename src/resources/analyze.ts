@@ -181,7 +181,7 @@ Get actionable recommendations for improving, organizing, or utilizing your data
 ### Basic Analysis
 \`\`\`
 sheets_analyze({
-  action: 'analyze',
+  action: 'analyze_data',
   spreadsheetId: 'your-id',
   range: { a1: 'Sheet1!A1:Z100' },
   analysisTypes: ['summary', 'quality']
@@ -191,7 +191,7 @@ sheets_analyze({
 ### Find Anomalies
 \`\`\`
 sheets_analyze({
-  action: 'analyze',
+  action: 'analyze_data',
   spreadsheetId: 'your-id',
   range: { sheetName: 'Sales', range: 'A:F' },
   analysisTypes: ['anomalies', 'patterns'],

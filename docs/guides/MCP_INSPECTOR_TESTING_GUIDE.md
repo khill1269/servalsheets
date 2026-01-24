@@ -21,17 +21,6 @@ This will:
 
 ---
 
-### Method 2: Using Configuration File
-
-**Step 1: Use the provided config**
-```bash
-npx @modelcontextprotocol/inspector --config mcp-inspector-config.json
-```
-
-**Step 2: In the web UI, select "servalsheets" from the dropdown**
-
----
-
 ## 📋 Comprehensive Test Checklist
 
 ### Phase 1: Server Connection ✅
@@ -41,32 +30,8 @@ npx @modelcontextprotocol/inspector --config mcp-inspector-config.json
 - [ ] Protocol version: 2025-11-25
 
 ### Phase 2: Tool Discovery ✅
-- [ ] List all tools (should show 17 tools)
-- [ ] Verify tool names match expected:
-  - sheets_auth
-  - sheets_spreadsheet
-  - sheets_sheet
-  - sheets_values
-  - sheets_cells
-  - sheets_format
-  - sheets_dimensions
-  - sheets_rules
-  - sheets_charts
-  - sheets_pivot
-  - sheets_filter_sort
-  - sheets_sharing
-  - sheets_comments
-  - sheets_versions
-  - sheets_analysis
-  - sheets_advanced
-  - sheets_transaction
-  - sheets_validation
-  - sheets_conflict
-  - sheets_impact
-  - sheets_history
-  - sheets_confirm
-  - sheets_analyze
-  - sheets_fix
+- [ ] List all tools (compare against `src/schemas/index.ts` or `server.json`)
+- [ ] Verify tool names and descriptions match generated metadata
 
 ### Phase 3: Schema Validation ✅
 For each tool, verify:
@@ -93,7 +58,7 @@ For each tool, verify:
 **Test 2: Spreadsheet Operations** (Requires auth)
 ```json
 {
-  "name": "sheets_spreadsheet",
+  "name": "sheets_core",
   "arguments": {
     "request": {
       "action": "get",
@@ -107,10 +72,10 @@ For each tool, verify:
 **Test 3: Analysis** (Read-only, requires auth)
 ```json
 {
-  "name": "sheets_analysis",
+  "name": "sheets_analyze",
   "arguments": {
     "request": {
-      "action": "data_quality",
+      "action": "analyze_quality",
       "spreadsheetId": "1Sz5aRCE1D17NI4BT6KGiGCA7cSpbQ1vPM5BoskkzrM4"
     }
   }
@@ -178,7 +143,7 @@ For each tool, verify:
 **Test Invalid Action**
 ```json
 {
-  "name": "sheets_spreadsheet",
+  "name": "sheets_core",
   "arguments": {
     "request": {
       "action": "invalid_action",
@@ -192,7 +157,7 @@ For each tool, verify:
 **Test Missing Required Field**
 ```json
 {
-  "name": "sheets_spreadsheet",
+  "name": "sheets_core",
   "arguments": {
     "request": {
       "action": "get"
@@ -205,7 +170,7 @@ For each tool, verify:
 **Test Invalid Spreadsheet ID**
 ```json
 {
-  "name": "sheets_spreadsheet",
+  "name": "sheets_core",
   "arguments": {
     "request": {
       "action": "get",
@@ -318,7 +283,7 @@ Tools will execute successfully and return structured data:
 
 ### ✅ Good Signs:
 - Server connects immediately
-- All 17 tools are listed
+- All 19 tools are listed
 - Schemas are well-formed
 - Error messages are helpful
 - Responses are fast
@@ -376,7 +341,7 @@ For full testing with Google Sheets access:
 
 ### Full Tests (15 minutes):
 1. [ ] Complete minimum tests
-2. [ ] Test all 17 tools (at least status/list actions)
+2. [ ] Test all 19 tools (at least status/list actions)
 3. [ ] Test with valid spreadsheet ID (requires auth)
 4. [ ] Test error scenarios
 5. [ ] Verify response structures

@@ -1,7 +1,7 @@
 # ServalSheets v1.4.0 - Testing Guide
 
 **Package:** `servalsheets-1.4.0.mcpb`
-**Version:** 1.4.0 (17 tools, 226 actions)
+**Version:** 1.4.0 (19 tools, 252 actions)
 **Updated:** 2026-01-16
 **Status:** Production Ready ✅
 
@@ -102,8 +102,8 @@ npm run start:remote
 - **sheets_history** - Undo/redo/revert operations
 
 ### Architecture
-- **17 tools** (after Wave 5 consolidation)
-- **226 actions** across all tools
+- **19 tools** (after Wave 5 consolidation + Tier 7 enterprise)
+- **252 actions** across all tools
 - **100% metadata synchronized**
 - **Production ready** - All verification checks passing
 
@@ -261,29 +261,31 @@ curl -H "traceparent: 00-$(openssl rand -hex 16)-$(openssl rand -hex 8)-01" \
 
 ---
 
-## 📊 Available Tools (17)
+## 📊 Available Tools (16)
 
 | Tool | Actions | Description |
 |------|---------|-------------|
 | **sheets_auth** | 4 | OAuth authentication |
-| **sheets_core** | 15 | Spreadsheet CRUD operations |
-| **sheets_data** | 21 | Cell data read/write |
-| **sheets_dimensions** | 35 | Rows, columns, filtering |
-| **sheets_format** | 18 | Cell formatting, styles |
-| **sheets_visualize** | 17 | Charts and pivot tables |
-| **sheets_collaborate** | 28 | Sharing and comments |
-| **sheets_advanced** | 27 | Named ranges, formulas, protection |
-| **sheets_analysis** | 13 | Legacy analysis |
+| **sheets_core** | 15 | Spreadsheet and sheet management |
+| **sheets_data** | 20 | Cell data read/write, notes, validation |
+| **sheets_format** | 18 | Cell formatting and rules |
+| **sheets_dimensions** | 39 | Rows, columns, filters, sorting |
+| **sheets_visualize** | 16 | Charts and pivot tables |
+| **sheets_collaborate** | 28 | Sharing, comments, versions |
+| **sheets_advanced** | 19 | Named/protected ranges, metadata, tables |
 | **sheets_analyze** | 11 | AI-powered analysis |
 | **sheets_session** | 13 | Conversational context |
 | **sheets_composite** | 4 | High-level operations |
-| **sheets_quality** | 4 | Data validation |
+| **sheets_quality** | 4 | Validation, conflicts, impact |
 | **sheets_history** | 7 | Undo/redo/revert |
 | **sheets_transaction** | 6 | Multi-operation transactions |
-| **sheets_confirm** | 2 | Safety confirmations |
+| **sheets_confirm** | 5 | Safety confirmations |
 | **sheets_fix** | 1 | Auto-repair |
+| **sheets_templates** | 8 | Enterprise templates |
+| **sheets_bigquery** | 14 | BigQuery Connected Sheets |
+| **sheets_appsscript** | 14 | Apps Script automation |
 
-**Total:** 226 actions
+**Total:** 252 actions
 
 ---
 

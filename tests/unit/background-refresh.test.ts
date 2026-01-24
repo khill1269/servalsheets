@@ -5,12 +5,12 @@
  * that proactively refreshes cache entries before they expire.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { sheets_v4 } from "googleapis";
-import { PrefetchingSystem } from "../../src/services/prefetching-system.js";
-import { cacheManager } from "../../src/utils/cache-manager.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { sheets_v4 } from 'googleapis';
+import { PrefetchingSystem } from '../../src/services/prefetching-system.js';
+import { cacheManager } from '../../src/utils/cache-manager.js';
 
-describe("Background Refresh", () => {
+describe('Background Refresh', () => {
   let mockSheetsApi: sheets_v4.Sheets;
   let prefetchSystem: PrefetchingSystem;
 
@@ -24,18 +24,18 @@ describe("Background Refresh", () => {
       spreadsheets: {
         values: {
           get: vi.fn().mockResolvedValue({
-            data: { values: [["test", "data"]] },
+            data: { values: [['test', 'data']] },
           }),
         },
         get: vi.fn().mockResolvedValue({
           data: {
-            spreadsheetId: "test-id",
-            properties: { title: "Test Sheet" },
+            spreadsheetId: 'test-id',
+            properties: { title: 'Test Sheet' },
             sheets: [
               {
                 properties: {
                   sheetId: 0,
-                  title: "Sheet1",
+                  title: 'Sheet1',
                 },
               },
             ],
@@ -57,19 +57,19 @@ describe("Background Refresh", () => {
     prefetchSystem.destroy();
   });
 
-  it("detects expiring cache entries", async () => {
+  it('detects expiring cache entries', async () => {
     // Add cache entry with short TTL
     cacheManager.set(
-      "test-key",
-      { data: "test" },
-      { namespace: "prefetch", ttl: 120 }, // Expires in 120ms
+      'test-key',
+      { data: 'test' },
+      { namespace: 'prefetch', ttl: 120 } // Expires in 120ms
     );
 
     // Wait for entry to be within refresh threshold
     await new Promise((resolve) => setTimeout(resolve, 30));
 
     // Get expiring entries within 200ms threshold
-    const expiring = cacheManager.getExpiringEntries(200, "prefetch");
+    const expiring = cacheManager.getExpiringEntries(200, 'prefetch');
 
     // Should detect the expiring entry (or none if already expired)
     expect(expiring.length).toBeGreaterThanOrEqual(0);
@@ -82,9 +82,9 @@ describe("Background Refresh", () => {
     }
   });
 
-  it("triggers refresh before expiry", async () => {
+  it('triggers refresh before expiry', async () => {
     // Prefetch some data
-    await prefetchSystem.prefetchOnOpen("test-spreadsheet-id");
+    await prefetchSystem.prefetchOnOpen('test-spreadsheet-id');
 
     // Wait for prefetch to complete
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -101,20 +101,20 @@ describe("Background Refresh", () => {
     expect(stats.totalRefreshes).toBeGreaterThanOrEqual(0);
   });
 
-  it("refreshes hot entries first", async () => {
-    const spreadsheetId = "hot-spreadsheet";
+  it('refreshes hot entries first', async () => {
+    const spreadsheetId = 'hot-spreadsheet';
 
     // Create multiple cache entries
     cacheManager.set(
       `${spreadsheetId}:range=A1:B10&type=values`,
-      { values: [["hot"]] },
-      { namespace: "prefetch", ttl: 150 },
+      { values: [['hot']] },
+      { namespace: 'prefetch', ttl: 150 }
     );
 
     cacheManager.set(
       `${spreadsheetId}:range=C1:D10&type=values`,
-      { values: [["cold"]] },
-      { namespace: "prefetch", ttl: 150 },
+      { values: [['cold']] },
+      { namespace: 'prefetch', ttl: 150 }
     );
 
     // Mark first entry as hot (frequently accessed)
@@ -131,14 +131,12 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("handles refresh failures gracefully", async () => {
+  it('handles refresh failures gracefully', async () => {
     // Mock API to fail
-    mockSheetsApi.spreadsheets.values.get = vi
-      .fn()
-      .mockRejectedValue(new Error("API Error"));
+    mockSheetsApi.spreadsheets.values.get = vi.fn().mockRejectedValue(new Error('API Error'));
 
     // Prefetch data
-    await prefetchSystem.prefetchOnOpen("test-id").catch(() => {
+    await prefetchSystem.prefetchOnOpen('test-id').catch(() => {
       // Ignore initial failure
     });
 
@@ -149,20 +147,16 @@ describe("Background Refresh", () => {
     expect(stats.failedPrefetches).toBeGreaterThanOrEqual(0);
   });
 
-  it("updates cache with refreshed data", async () => {
-    const spreadsheetId = "test-spreadsheet";
+  it('updates cache with refreshed data', async () => {
+    const spreadsheetId = 'test-spreadsheet';
     const cacheKey = `${spreadsheetId}:range=A1:B10&type=values`;
 
     // Initial cache
-    cacheManager.set(
-      cacheKey,
-      { values: [["old", "data"]] },
-      { namespace: "prefetch", ttl: 150 },
-    );
+    cacheManager.set(cacheKey, { values: [['old', 'data']] }, { namespace: 'prefetch', ttl: 150 });
 
     // Mock new data
     mockSheetsApi.spreadsheets.values.get = vi.fn().mockResolvedValue({
-      data: { values: [["new", "data"]] },
+      data: { values: [['new', 'data']] },
     });
 
     // Wait for refresh threshold
@@ -172,19 +166,19 @@ describe("Background Refresh", () => {
     // (In real scenario, this happens automatically)
   });
 
-  it("tracks refresh metrics", async () => {
+  it('tracks refresh metrics', async () => {
     // Prefetch data
-    await prefetchSystem.prefetchOnOpen("test-id");
+    await prefetchSystem.prefetchOnOpen('test-id');
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const stats = prefetchSystem.getStats();
 
     // Verify all refresh metrics are present
-    expect(stats).toHaveProperty("totalRefreshes");
-    expect(stats).toHaveProperty("successfulRefreshes");
-    expect(stats).toHaveProperty("failedRefreshes");
-    expect(stats).toHaveProperty("refreshHitRate");
+    expect(stats).toHaveProperty('totalRefreshes');
+    expect(stats).toHaveProperty('successfulRefreshes');
+    expect(stats).toHaveProperty('failedRefreshes');
+    expect(stats).toHaveProperty('refreshHitRate');
 
     // Metrics should be non-negative
     expect(stats.totalRefreshes).toBeGreaterThanOrEqual(0);
@@ -194,11 +188,11 @@ describe("Background Refresh", () => {
     expect(stats.refreshHitRate).toBeLessThanOrEqual(100);
   });
 
-  it("respects refresh interval", async () => {
+  it('respects refresh interval', async () => {
     const startTime = Date.now();
 
     // Prefetch data
-    await prefetchSystem.prefetchOnOpen("test-id");
+    await prefetchSystem.prefetchOnOpen('test-id');
 
     // Wait for one refresh cycle
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -209,7 +203,7 @@ describe("Background Refresh", () => {
     expect(elapsedTime).toBeLessThan(500);
   });
 
-  it("stops on cleanup", () => {
+  it('stops on cleanup', () => {
     const stats1 = prefetchSystem.getStats();
     expect(stats1).toBeDefined();
 
@@ -221,13 +215,13 @@ describe("Background Refresh", () => {
     expect(stats2).toBeDefined();
   });
 
-  it("handles concurrent refreshes", async () => {
+  it('handles concurrent refreshes', async () => {
     // Create multiple cache entries
     for (let i = 0; i < 5; i++) {
       cacheManager.set(
         `test-id:range=A${i}:B${i}&type=values`,
         { values: [[`data${i}`]] },
-        { namespace: "prefetch", ttl: 150 },
+        { namespace: 'prefetch', ttl: 150 }
       );
     }
 
@@ -239,15 +233,11 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("no refresh for cold data", async () => {
-    const coldKey = "cold-spreadsheet:range=Z1:Z10&type=values";
+  it('no refresh for cold data', async () => {
+    const coldKey = 'cold-spreadsheet:range=Z1:Z10&type=values';
 
     // Add cache entry but never access it
-    cacheManager.set(
-      coldKey,
-      { values: [["cold"]] },
-      { namespace: "prefetch", ttl: 150 },
-    );
+    cacheManager.set(coldKey, { values: [['cold']] }, { namespace: 'prefetch', ttl: 150 });
 
     // Wait for entry to approach expiry
     await new Promise((resolve) => setTimeout(resolve, 60));
@@ -258,28 +248,32 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("parses cache keys correctly", async () => {
+  it('parses cache keys correctly', async () => {
     const testCases = [
       {
         key: 'test-id:range="A1:B10"&type="values"',
-        expected: { spreadsheetId: "test-id", range: "A1:B10" },
+        expected: { spreadsheetId: 'test-id', range: 'A1:B10' },
       },
       {
         key: 'spreadsheet:comprehensive:spreadsheetId="test-id"',
-        expected: { spreadsheetId: "test-id", comprehensive: true },
+        expected: { spreadsheetId: 'test-id', comprehensive: true },
       },
       {
         key: 'test-id:type="metadata"',
-        expected: { spreadsheetId: "test-id", comprehensive: true },
+        expected: { spreadsheetId: 'test-id', comprehensive: true },
       },
     ];
 
     // Test that system can parse different cache key formats
     for (const testCase of testCases) {
-      cacheManager.set(testCase.key, { test: true }, {
-        namespace: "prefetch",
-        ttl: 150,
-      });
+      cacheManager.set(
+        testCase.key,
+        { test: true },
+        {
+          namespace: 'prefetch',
+          ttl: 150,
+        }
+      );
     }
 
     await new Promise((resolve) => setTimeout(resolve, 60));
@@ -289,12 +283,12 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("limits metadata storage to prevent memory bloat", async () => {
+  it('limits metadata storage to prevent memory bloat', async () => {
     // Create many prefetch operations to test metadata limit
     for (let i = 0; i < 1100; i++) {
       await prefetchSystem.prefetch({
         spreadsheetId: `sheet-${i}`,
-        range: "A1:B10",
+        range: 'A1:B10',
       });
     }
 
@@ -306,17 +300,17 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("calculates refresh priority correctly", async () => {
-    const spreadsheetId = "priority-test";
+  it('calculates refresh priority correctly', async () => {
+    const spreadsheetId = 'priority-test';
 
     // Create entries with different access patterns
     const hotKey = `${spreadsheetId}:hot`;
     const warmKey = `${spreadsheetId}:warm`;
     const coldKey = `${spreadsheetId}:cold`;
 
-    cacheManager.set(hotKey, { data: "hot" }, { namespace: "prefetch", ttl: 150 });
-    cacheManager.set(warmKey, { data: "warm" }, { namespace: "prefetch", ttl: 150 });
-    cacheManager.set(coldKey, { data: "cold" }, { namespace: "prefetch", ttl: 150 });
+    cacheManager.set(hotKey, { data: 'hot' }, { namespace: 'prefetch', ttl: 150 });
+    cacheManager.set(warmKey, { data: 'warm' }, { namespace: 'prefetch', ttl: 150 });
+    cacheManager.set(coldKey, { data: 'cold' }, { namespace: 'prefetch', ttl: 150 });
 
     // Mark hot entry as frequently accessed
     for (let i = 0; i < 10; i++) {
@@ -337,9 +331,9 @@ describe("Background Refresh", () => {
     expect(stats).toBeDefined();
   });
 
-  it("refreshes comprehensive metadata", async () => {
+  it('refreshes comprehensive metadata', async () => {
     // Prefetch comprehensive metadata
-    await prefetchSystem.prefetchOnOpen("comprehensive-test");
+    await prefetchSystem.prefetchOnOpen('comprehensive-test');
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -350,31 +344,22 @@ describe("Background Refresh", () => {
     expect(stats.totalPrefetches).toBeGreaterThan(0);
   });
 
-  it("handles mixed namespace refreshes", async () => {
+  it('handles mixed namespace refreshes', async () => {
     // Add entries to different namespaces
-    cacheManager.set(
-      "prefetch:entry",
-      { data: "prefetch" },
-      { namespace: "prefetch", ttl: 150 },
-    );
+    cacheManager.set('prefetch:entry', { data: 'prefetch' }, { namespace: 'prefetch', ttl: 150 });
 
     cacheManager.set(
-      "spreadsheet:entry",
-      { data: "spreadsheet" },
-      { namespace: "spreadsheet", ttl: 150 },
+      'spreadsheet:entry',
+      { data: 'spreadsheet' },
+      { namespace: 'spreadsheet', ttl: 150 }
     );
 
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     // System should handle both namespaces
-    const prefetchExpiring = cacheManager.getExpiringEntries(100, "prefetch");
-    const spreadsheetExpiring = cacheManager.getExpiringEntries(
-      100,
-      "spreadsheet",
-    );
+    const prefetchExpiring = cacheManager.getExpiringEntries(100, 'prefetch');
+    const spreadsheetExpiring = cacheManager.getExpiringEntries(100, 'spreadsheet');
 
-    expect(prefetchExpiring.length + spreadsheetExpiring.length).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(prefetchExpiring.length + spreadsheetExpiring.length).toBeGreaterThanOrEqual(0);
   });
 });

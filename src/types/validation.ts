@@ -91,6 +91,9 @@ export interface ValidationContext {
   /** Operation type */
   operationType?: string;
 
+  /** Specific rule IDs to run (if omitted, all rules run) */
+  rules?: string[];
+
   /** Additional data */
   metadata?: Record<string, unknown>;
 }

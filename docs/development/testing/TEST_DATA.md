@@ -43,7 +43,7 @@ const formatInput = createFormatApplyInput({
 
 const analyzeInput = createAnalyzeInput({
   range: { a1: "Sheet1!A1:B2" },
-  analysisTypes: ["summary", "statistics"],
+  analysisTypes: ["summary", "quality"],
 });
 ```
 

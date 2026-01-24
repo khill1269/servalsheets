@@ -54,6 +54,13 @@ coverage/
 .nyc_output/
 .vitest/
 
+# Test output files
+test-errors.csv
+test-errors.log
+test-performance.json
+test-results-comprehensive.json
+test-results*.json
+
 # Temporary files
 tmp/
 temp/

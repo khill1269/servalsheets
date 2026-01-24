@@ -1,0 +1,18 @@
+/**
+ * ServalSheets - MCP Registration
+ *
+ * Main entry point for tool, resource, and prompt registration.
+ * Orchestrates registration across multiple modules.
+ *
+ * @module mcp/registration
+ */
+export { TOOL_DEFINITIONS } from './tool-definitions.js';
+// Re-export helpers
+export { prepareSchemaForRegistration, verifySchemaIfNeeded } from './schema-helpers.js';
+// Re-export handler functions
+export { createToolHandlerMap, buildToolResponse, registerServalSheetsTools, } from './tool-handlers.js';
+// Re-export resource registration
+export { registerServalSheetsResources } from './resource-registration.js';
+// Re-export prompt registration
+export { registerServalSheetsPrompts } from './prompt-registration.js';
+//# sourceMappingURL=index.js.map

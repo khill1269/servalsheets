@@ -227,10 +227,10 @@ describe('ValuesHandler', () => {
 ```typescript
 // tests/integration/mcp-tools-list.test.ts
 describe('MCP tools/list integration', () => {
-  it('should return all 17 tools with valid schemas', async () => {
+  it('should return all 16 tools with valid schemas', async () => {
     const tools = await server.listTools();
 
-    expect(tools.tools).toHaveLength(26);
+    expect(tools.tools).toHaveLength(16);
     tools.tools.forEach(tool => {
       expect(tool.inputSchema.type).toBe('object');
       expect(tool.name).toMatch(/^sheets_/);

@@ -1,0 +1,179 @@
+#!/usr/bin/env node
+/**
+ * ServalSheets - CLI Entry Point
+ * MCP Protocol: 2025-11-25
+ *
+ * Supports multiple transports:
+ * - STDIO (default): For Claude Desktop and MCP clients
+ * - HTTP: For web-based integrations
+ */
+// Load environment variables from .env file (silently to avoid MCP JSON parsing errors)
+import dotenv from 'dotenv';
+// Suppress dotenv's informational banner to prevent Claude Desktop JSON parsing errors
+// The banner "[dotenv@17.2.3] injecting env..." breaks STDIO transport JSON parsing
+dotenv.config({ quiet: true });
+import { logger } from './utils/logger.js';
+import { VERSION } from './version.js';
+import { startBackgroundTasks, registerSignalHandlers, logEnvironmentConfig, requireEncryptionKeyInProduction, ensureEncryptionKey, } from './startup/lifecycle.js';
+const args = process.argv.slice(2);
+// Parse command line arguments
+const cliOptions = {
+    transport: 'stdio', // Default transport
+};
+for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const nextArg = args[i + 1];
+    if (arg === '--service-account' && nextArg) {
+        cliOptions.serviceAccountKeyPath = nextArg;
+        i++;
+    }
+    else if (arg === '--access-token' && nextArg) {
+        cliOptions.accessToken = nextArg;
+        i++;
+    }
+    else if (arg === '--stdio') {
+        cliOptions.transport = 'stdio';
+    }
+    else if (arg === '--http') {
+        cliOptions.transport = 'http';
+    }
+    else if (arg === '--port' && nextArg) {
+        cliOptions.port = parseInt(nextArg, 10);
+        i++;
+    }
+    else if (arg === '--version' || arg === '-v') {
+        // Dynamic import to get version from package.json
+        import('../package.json', { assert: { type: 'json' } })
+            .then((pkg) => {
+            // eslint-disable-next-line no-console
+            console.log(`servalsheets v${pkg.default.version}`);
+            process.exit(0);
+        })
+            .catch(() => {
+            // eslint-disable-next-line no-console
+            console.log(`servalsheets v${VERSION}`);
+            process.exit(0);
+        });
+        // Prevent further execution while waiting for import
+        await new Promise(() => { });
+    }
+    else if (arg === '--help' || arg === '-h') {
+        // eslint-disable-next-line no-console
+        console.log(`
+ServalSheets - Google Sheets MCP Server
+
+Usage:
+  servalsheets [options]
+
+Transport Options:
+  --stdio                   Use STDIO transport (default)
+  --http                    Use HTTP transport
+  --port <port>             Port for HTTP server (default: 3000)
+
+Authentication Options:
+  --service-account <path>  Path to service account key JSON file
+  --access-token <token>    OAuth2 access token
+
+Other Options:
+  --version, -v             Show version
+  --help, -h                Show this help message
+
+Environment Variables:
+  GOOGLE_APPLICATION_CREDENTIALS  Path to service account key
+  GOOGLE_ACCESS_TOKEN             OAuth2 access token
+  GOOGLE_CLIENT_ID                OAuth2 client ID
+  GOOGLE_CLIENT_SECRET            OAuth2 client secret
+  GOOGLE_TOKEN_STORE_PATH         Encrypted token store file path
+  ENCRYPTION_KEY                  Token store encryption key (64-char hex)
+  PORT                            HTTP server port (default: 3000)
+
+Examples:
+  # STDIO transport (for Claude Desktop)
+  servalsheets --stdio
+
+  # HTTP transport
+  servalsheets --http --port 8080
+
+  # Using service account
+  servalsheets --service-account ./credentials.json
+
+  # Using access token
+  servalsheets --access-token ya29.xxx
+
+  # Using environment variables
+  export GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
+  servalsheets
+`);
+        process.exit(0);
+    }
+}
+// Check environment variables
+// Support both GOOGLE_* and OAUTH_* prefixes for flexibility
+const serviceAccountPath = cliOptions.serviceAccountKeyPath ?? process.env['GOOGLE_APPLICATION_CREDENTIALS'];
+const accessToken = cliOptions.accessToken ?? process.env['GOOGLE_ACCESS_TOKEN'];
+const clientId = process.env['GOOGLE_CLIENT_ID'] ?? process.env['OAUTH_CLIENT_ID'];
+const clientSecret = process.env['GOOGLE_CLIENT_SECRET'] ?? process.env['OAUTH_CLIENT_SECRET'];
+const redirectUri = process.env['GOOGLE_REDIRECT_URI'] ?? process.env['OAUTH_REDIRECT_URI'];
+const tokenStorePath = process.env['GOOGLE_TOKEN_STORE_PATH'];
+const tokenStoreKey = process.env['ENCRYPTION_KEY'];
+// Build server options
+const serverOptions = {};
+// Build Google API options only if we have credentials
+const sharedGoogleOptions = {
+    tokenStorePath,
+    tokenStoreKey,
+};
+if (serviceAccountPath) {
+    serverOptions.googleApiOptions = {
+        serviceAccountKeyPath: serviceAccountPath,
+        ...sharedGoogleOptions,
+    };
+}
+else if (accessToken) {
+    serverOptions.googleApiOptions = {
+        accessToken: accessToken,
+        ...sharedGoogleOptions,
+    };
+}
+else if (clientId && clientSecret) {
+    serverOptions.googleApiOptions = {
+        credentials: { clientId, clientSecret, redirectUri },
+        ...sharedGoogleOptions,
+    };
+}
+// Initialize and start server
+(async () => {
+    try {
+        // CRITICAL-004 FIX: Validate production security requirements
+        // This ensures ENCRYPTION_KEY is set in production mode
+        requireEncryptionKeyInProduction();
+        // Ensure encryption key is available (generates temporary key in development)
+        ensureEncryptionKey();
+        // Log environment configuration
+        logEnvironmentConfig();
+        // Start background tasks and validate configuration
+        await startBackgroundTasks();
+        // Register signal handlers for graceful shutdown
+        registerSignalHandlers();
+        if (cliOptions.transport === 'http') {
+            // Start HTTP server
+            const port = cliOptions.port ?? parseInt(process.env['PORT'] ?? '3000', 10);
+            // Dynamic import to avoid loading HTTP dependencies for STDIO mode
+            const { startHttpServer } = await import('./http-server.js');
+            await startHttpServer({ port, ...serverOptions });
+            logger.info(`ServalSheets HTTP server started on port ${port}`);
+        }
+        else {
+            // Start STDIO server (default)
+            // Uses createServalSheetsServer to get automatic Redis support
+            const { createServalSheetsServer } = await import('./server.js');
+            await createServalSheetsServer(serverOptions);
+            logger.info('ServalSheets STDIO server started successfully');
+        }
+    }
+    catch (error) {
+        logger.error('Failed to start ServalSheets server', { error });
+        process.exit(1);
+    }
+})();
+//# sourceMappingURL=cli.js.map

@@ -36,7 +36,7 @@
 │  ┌───────────────────────────▼───────────────────────┐                                 │
 │  │              Tool Registration                      │                                │
 │  │  ┌──────────────────────────────────────────────┐  │                                │
-│  │  │ TOOL_DEFINITIONS (16 tools, 165 actions)     │  │                                │
+│  │  │ TOOL_DEFINITIONS (16 tools, 207 actions)     │  │                                │
 │  │  │ ├── schemas/*.ts (Zod discriminated unions)  │  │                                │
 │  │  │ ├── annotations.ts (64 MCP hints)            │  │                                │
 │  │  │ └── schema-compat.ts (SDK compatibility)     │  │                                │
@@ -47,16 +47,16 @@
 │  │              Handler Layer (Lazy-Loaded)           │                                │
 │  │  ┌──────────────────────────────────────────────┐  │                                │
 │  │  │ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐    │  │                                │
-│  │  │ │Auth │ │Sprd │ │Sheet│ │Vals │ │Cells│    │  │                                │
+│  │  │ │Auth │ │Core │ │Data │ │Fmt  │ │Dims │    │  │                                │
 │  │  │ └─────┘ └─────┘ └─────┘ └─────┘ └─────┘    │  │                                │
 │  │  │ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐    │  │                                │
-│  │  │ │Fmt  │ │Dims │ │Rules│ │Chart│ │Pivot│    │  │                                │
+│  │  │ │Viz  │ │Colab│ │Adv  │ │Txn  │ │Qual │    │  │                                │
 │  │  │ └─────┘ └─────┘ └─────┘ └─────┘ └─────┘    │  │                                │
 │  │  │ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐    │  │                                │
-│  │  │ │Filt │ │Share│ │Cmnts│ │Vers │ │Anlys│    │  │                                │
+│  │  │ │Hist │ │Conf │ │Anlyz│ │Fix  │ │Comp │    │  │                                │
 │  │  │ └─────┘ └─────┘ └─────┘ └─────┘ └─────┘    │  │                                │
 │  │  │ ┌─────┐                                     │  │                                │
-│  │  │ │Advn │ (16 handlers total)                 │  │                                │
+│  │  │ │Sess │ (16 handlers total)                 │  │                                │
 │  │  │ └─────┘                                     │  │                                │
 │  │  └──────────────────────────────────────────────┘  │                                │
 │  └───────────────────────────┬───────────────────────┘                                 │
@@ -152,19 +152,19 @@
 
   sheets_dimensions ████████████████████████████████████████████ 21 (12.7%)
   sheets_advanced   ██████████████████████████████████████ 19 (11.5%)
-  sheets_filter_sort████████████████████████████ 14 (8.5%)
-  sheets_analysis   ██████████████████████████ 13 (7.9%)
-  sheets_cells      ████████████████████████ 12 (7.3%)
-  sheets_comments   ████████████████████ 10 (6.1%)
-  sheets_versions   ████████████████████ 10 (6.1%)
-  sheets_charts     █████████████████ 9 (5.5%)
+  sheets_dimensions████████████████████████████ 14 (8.5%)
+  sheets_analyze   ██████████████████████████ 13 (7.9%)
+  sheets_data      ████████████████████████ 12 (7.3%)
+  sheets_collaborate   ████████████████████ 10 (6.1%)
+  sheets_collaborate   ████████████████████ 10 (6.1%)
+  sheets_visualize     █████████████████ 9 (5.5%)
   sheets_format     █████████████████ 9 (5.5%)
-  sheets_values     █████████████████ 9 (5.5%)
-  sheets_rules      ████████████████ 8 (4.8%)
-  sheets_sharing    ████████████████ 8 (4.8%)
-  sheets_sheet      ██████████████ 7 (4.2%)
-  sheets_spreadsheet████████████ 6 (3.6%)
-  sheets_pivot      ████████████ 6 (3.6%)
+  sheets_data     █████████████████ 9 (5.5%)
+  sheets_format      ████████████████ 8 (4.8%)
+  sheets_collaborate    ████████████████ 8 (4.8%)
+  sheets_core      ██████████████ 7 (4.2%)
+  sheets_core████████████ 6 (3.6%)
+  sheets_visualize      ████████████ 6 (3.6%)
   sheets_auth       ████████ 4 (2.4%)
 
   Legend: █ = 0.5 actions

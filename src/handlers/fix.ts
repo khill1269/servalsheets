@@ -2,15 +2,17 @@
  * ServalSheets - Fix Handler
  *
  * Automated issue resolution based on analysis results.
- * Takes issues from sheets_analysis and applies fixes in transaction.
+ * Takes issues from sheets_analyze and applies fixes in transaction.
  */
 
 import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
+import { ValidationError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
 import type {
   SheetsFixInput,
   SheetsFixOutput,
+  FixRequest,
   FixOperation,
   IssueToFix,
   FixResult,
@@ -25,63 +27,65 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   }
 
   async handle(input: SheetsFixInput): Promise<SheetsFixOutput> {
-    // Input is now the action directly (no request wrapper)
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(input) as SheetsFixInput;
+    const rawReq = unwrapRequest<SheetsFixInput['request']>(input);
+    const req = this.inferRequestParameters(rawReq) as FixRequest & {
+      verbosity?: 'minimal' | 'standard' | 'detailed';
+    };
 
     // Type narrow to ensure required fields are present
-    if (!inferredRequest.spreadsheetId || !inferredRequest.issues) {
+    if (!req.spreadsheetId || !req.issues) {
       return {
         response: this.mapError(new Error('Missing required fields: spreadsheetId and issues')),
       };
     }
 
-    const mode = inferredRequest.mode ?? 'preview';
+    const mode = req.mode ?? 'preview';
+    const verbosity = req.verbosity ?? 'standard';
 
     try {
       // Filter issues based on user preferences
-      const filteredIssues = this.filterIssues(inferredRequest.issues, inferredRequest.filters);
+      const filteredIssues = this.filterIssues(req.issues, req.filters);
 
       if (filteredIssues.length === 0) {
+        const response = {
+          success: true as const,
+          mode,
+          operations: [] as FixOperation[],
+          summary: { total: 0, skipped: req.issues.length },
+          message: 'No issues matched the filters',
+        };
         return {
-          response: {
-            success: true,
-            mode,
-            operations: [],
-            summary: { total: 0, skipped: inferredRequest.issues.length },
-            message: 'No issues matched the filters',
-          },
+          response: super.applyVerbosityFilter(response, verbosity),
         };
       }
 
       // Generate fix operations
-      const operations = await this.generateFixOperations(
-        inferredRequest.spreadsheetId,
-        filteredIssues
-      );
+      const operations = await this.generateFixOperations(req.spreadsheetId, filteredIssues);
 
       // Preview mode - just return operations
-      if (mode === 'preview' || inferredRequest.safety?.dryRun) {
-        return {
-          response: {
-            success: true,
-            mode: 'preview',
-            operations,
-            summary: {
-              total: operations.length,
-            },
-            message: `Preview: ${operations.length} operation(s) ready to apply. Use mode="apply" to execute.`,
+      if (mode === 'preview' || req.safety?.dryRun) {
+        const response = {
+          success: true as const,
+          mode: 'preview' as const,
+          operations,
+          summary: {
+            total: operations.length,
           },
+          message: `Preview: ${operations.length} operation(s) ready to apply. Use mode="apply" to execute.`,
+        };
+        return {
+          response: super.applyVerbosityFilter(response, verbosity),
         };
       }
 
       // Apply mode - execute operations
       const snapshot =
-        inferredRequest.safety?.createSnapshot !== false
-          ? await this.createSnapshot(inferredRequest.spreadsheetId)
+        req.safety?.createSnapshot !== false
+          ? await this.createSnapshot(req.spreadsheetId)
           : undefined;
 
-      const results = await this.applyFixOperations(inferredRequest.spreadsheetId, operations);
+      const results = await this.applyFixOperations(req.spreadsheetId, operations);
 
       // Count successes/failures
       const applied = results.filter((r) => r.success).length;
@@ -90,24 +94,27 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       // Track context on success
       if (applied > 0) {
         this.trackContextFromRequest({
-          spreadsheetId: inferredRequest.spreadsheetId,
+          spreadsheetId: req.spreadsheetId,
         });
       }
 
-      return {
-        response: {
-          success: true,
-          mode: 'apply',
-          operations,
-          results,
-          snapshotId: snapshot?.revisionId,
-          summary: {
-            total: operations.length,
-            applied,
-            failed,
-          },
-          message: `Applied ${applied}/${operations.length} fix(es). ${failed} failed.`,
+      const response = {
+        success: true as const,
+        mode: 'apply' as const,
+        operations,
+        results,
+        snapshotId: snapshot?.revisionId,
+        summary: {
+          total: operations.length,
+          applied,
+          failed,
         },
+        message: `Applied ${applied}/${operations.length} fix(es). ${failed} failed.`,
+      };
+
+      // Apply verbosity filtering (LLM optimization)
+      return {
+        response: super.applyVerbosityFilter(response, verbosity),
       };
     } catch (err) {
       return { response: this.mapError(err) };
@@ -115,13 +122,13 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   }
 
   protected createIntents(input: SheetsFixInput): Intent[] {
-    // Input is now the action directly (no request wrapper)
+    const req = unwrapRequest<SheetsFixInput['request']>(input);
 
-    if ((input.mode ?? 'preview') === 'preview' || input.safety?.dryRun) {
+    if ((req.mode ?? 'preview') === 'preview' || req.safety?.dryRun) {
       return []; // Read-only preview
     }
 
-    if (!input.spreadsheetId || !input.issues) {
+    if (!req.spreadsheetId || !req.issues) {
       return []; // Missing required fields
     }
 
@@ -130,10 +137,10 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       {
         type: 'SET_VALUES' as const,
         target: {
-          spreadsheetId: input.spreadsheetId,
+          spreadsheetId: req.spreadsheetId,
         },
         payload: {
-          issues: input.issues,
+          issues: req.issues,
         },
         metadata: {
           sourceTool: 'sheets_fix',
@@ -148,7 +155,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
   /**
    * Filter issues based on user preferences
    */
-  private filterIssues(issues: IssueToFix[], filters?: SheetsFixInput['filters']): IssueToFix[] {
+  private filterIssues(issues: IssueToFix[], filters?: FixRequest['filters']): IssueToFix[] {
     if (!filters) return issues;
 
     let filtered = issues;
@@ -414,7 +421,7 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
       });
 
       // Note: Google Sheets API doesn't have a direct "create snapshot" endpoint
-      // Versions are auto-created. We'd use sheets_versions tool here in real implementation
+      // Versions are auto-created. We'd use sheets_collaborate version_create_snapshot here in real implementation
       return { revisionId: `auto_${Date.now()}` };
     } catch {
       // OK: Explicit empty - typed as optional, snapshot creation failed (versions API not available)
@@ -540,7 +547,11 @@ export class FixHandler extends BaseHandler<SheetsFixInput, SheetsFixOutput> {
         break;
 
       default:
-        throw new Error(`Unsupported tool: ${tool}`);
+        throw new ValidationError(
+          `Unsupported tool: ${tool}`,
+          'tool',
+          'sheets_data | sheets_format | sheets_dimensions | sheets_core'
+        );
     }
   }
 }

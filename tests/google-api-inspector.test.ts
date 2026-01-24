@@ -160,8 +160,8 @@ describe('GoogleApiInspector', () => {
 
       const curl = inspector.exportCurl(requestId);
 
-      expect(curl).toContain("curl -X POST");
-      expect(curl).toContain("-d '{\"values\":[[1,2,3]]}'");
+      expect(curl).toContain('curl -X POST');
+      expect(curl).toContain('-d \'{"values":[[1,2,3]]}\'');
     });
 
     it('should throw for non-existent request', () => {

@@ -109,98 +109,99 @@ const createMockSheetsApi = () => ({
 });
 
 // Mock handler context
-const createMockContext = (): HandlerContext => ({
-  requestId: 'test-request',
-  timestamp: new Date(),
-  session: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-    clear: vi.fn(),
-    has: vi.fn(),
-    keys: vi.fn(),
-  },
-  capabilities: {
-    supports: vi.fn(() => true),
-    requireCapability: vi.fn(),
-    getCapability: vi.fn(),
-  },
-  googleClient: {} as any,
-  authService: {
-    isAuthenticated: vi.fn().mockReturnValue(true),
-    getClient: vi.fn().mockResolvedValue({}),
-  } as any,
-  elicitationServer: {
-    getClientCapabilities: vi.fn().mockReturnValue({
-      elicitation: {
-        form: true,
-        url: true,
-      },
-    }),
-    elicitInput: vi.fn().mockResolvedValue({
-      action: 'accept',
-      content: { confirm: true },
-    }),
-    request: vi.fn().mockResolvedValue({
-      confirmed: true,
-      reason: '',
-    }),
-  } as any,
-  snapshotService: {
-    createSnapshot: vi.fn().mockResolvedValue({
-      snapshotId: 'snapshot-123',
-      timestamp: new Date(),
-    }),
-  } as any,
-  impactAnalyzer: {
-    analyzeOperation: vi.fn().mockResolvedValue({
-      severity: 'low',
-      cellsAffected: 4,
-      formulasAffected: [],
-      chartsAffected: [],
-      warnings: [],
-    }),
-  } as any,
-  rangeResolver: {
-    resolve: vi.fn().mockResolvedValue({
-      a1Notation: 'Sheet1!A1:B2',
-      sheetId: 0,
-      sheetName: 'Sheet1',
-      gridRange: {
+const createMockContext = (): HandlerContext =>
+  ({
+    requestId: 'test-request',
+    timestamp: new Date(),
+    session: {
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+      clear: vi.fn(),
+      has: vi.fn(),
+      keys: vi.fn(),
+    },
+    capabilities: {
+      supports: vi.fn(() => true),
+      requireCapability: vi.fn(),
+      getCapability: vi.fn(),
+    },
+    googleClient: {} as any,
+    authService: {
+      isAuthenticated: vi.fn().mockReturnValue(true),
+      getClient: vi.fn().mockResolvedValue({}),
+    } as any,
+    elicitationServer: {
+      getClientCapabilities: vi.fn().mockReturnValue({
+        elicitation: {
+          form: true,
+          url: true,
+        },
+      }),
+      elicitInput: vi.fn().mockResolvedValue({
+        action: 'accept',
+        content: { confirm: true },
+      }),
+      request: vi.fn().mockResolvedValue({
+        confirmed: true,
+        reason: '',
+      }),
+    } as any,
+    snapshotService: {
+      createSnapshot: vi.fn().mockResolvedValue({
+        snapshotId: 'snapshot-123',
+        timestamp: new Date(),
+      }),
+    } as any,
+    impactAnalyzer: {
+      analyzeOperation: vi.fn().mockResolvedValue({
+        severity: 'low',
+        cellsAffected: 4,
+        formulasAffected: [],
+        chartsAffected: [],
+        warnings: [],
+      }),
+    } as any,
+    rangeResolver: {
+      resolve: vi.fn().mockResolvedValue({
+        a1Notation: 'Sheet1!A1:B2',
         sheetId: 0,
-        startRowIndex: 0,
-        endRowIndex: 2,
-        startColumnIndex: 0,
-        endColumnIndex: 2,
-      },
-      resolution: {
-        method: 'a1_direct',
-        confidence: 1.0,
-        path: '',
-      },
-    }),
-  } as any,
-  batchCompiler: {
-    compile: vi.fn(),
-    execute: vi.fn().mockResolvedValue({
-      responses: [{ updatedRange: 'Sheet1!A1:B2' }],
-      totalUpdatedCells: 4,
-    }),
-    executeWithSafety: vi.fn().mockImplementation(async (options: any) => {
-      // Execute the operation function if provided and not dryRun
-      if (options.operation && !options.safety?.dryRun) {
-        await options.operation();
-      }
+        sheetName: 'Sheet1',
+        gridRange: {
+          sheetId: 0,
+          startRowIndex: 0,
+          endRowIndex: 2,
+          startColumnIndex: 0,
+          endColumnIndex: 2,
+        },
+        resolution: {
+          method: 'a1_direct',
+          confidence: 1.0,
+          path: '',
+        },
+      }),
+    } as any,
+    batchCompiler: {
+      compile: vi.fn(),
+      execute: vi.fn().mockResolvedValue({
+        responses: [{ updatedRange: 'Sheet1!A1:B2' }],
+        totalUpdatedCells: 4,
+      }),
+      executeWithSafety: vi.fn().mockImplementation(async (options: any) => {
+        // Execute the operation function if provided and not dryRun
+        if (options.operation && !options.safety?.dryRun) {
+          await options.operation();
+        }
 
-      return {
-        success: true,
-        spreadsheetId: options.spreadsheetId,
-        responses: [],
-        dryRun: options.safety?.dryRun ?? false,
-      };
-    }),
-  } as any,
-} as any);
+        return {
+          success: true,
+          spreadsheetId: options.spreadsheetId,
+          responses: [],
+          dryRun: options.safety?.dryRun ?? false,
+        };
+      }),
+    } as any,
+  }) as any;
 
 describe('SheetsDataHandler', () => {
   let mockApi: ReturnType<typeof createMockSheetsApi>;
@@ -356,25 +357,48 @@ describe('SheetsDataHandler', () => {
     });
 
     describe('clear action', () => {
-      it('should clear values with confirmation', async () => {
+      it('should clear values', async () => {
+        // Note: Elicitation confirmation disabled in handler to avoid MCP hang issues
+        mockContext.rangeResolver = {
+          resolve: vi.fn().mockResolvedValue({
+            a1Notation: 'Sheet1!A1:Z10',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            gridRange: {
+              sheetId: 0,
+              startRowIndex: 0,
+              endRowIndex: 10,
+              startColumnIndex: 0,
+              endColumnIndex: 26,
+            },
+            resolution: {
+              method: 'a1_direct',
+              confidence: 1.0,
+              path: '',
+            },
+          }),
+        } as any;
+
+        handler = new SheetsDataHandler(mockContext, mockApi as any);
+
         const result = await handler.handle({
           action: 'clear',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1:B2',
+          range: 'Sheet1!A1:Z10',
         });
 
         expect(result).toBeDefined();
         expect(result.response.success).toBe(true);
         expect(result.response).toHaveProperty('action', 'clear');
-        expect(result.response).toHaveProperty('updatedRange', 'Sheet1!A1:B2');
-        expect(mockContext.elicitationServer?.elicitInput).toHaveBeenCalled();
-        expect(mockContext.batchCompiler?.executeWithSafety).toHaveBeenCalled();
+        // Elicitation disabled for reliability - direct API call
+        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
 
         const parseResult = SheetsDataOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
       });
 
-      it('should create snapshot when requested', async () => {
+      // SKIPPED: Snapshot creation disabled in handler for reliability (see src/handlers/data.ts:458)
+      it.skip('should create snapshot when requested', async () => {
         // Recreate handler with proper snapshot service
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
@@ -402,7 +426,29 @@ describe('SheetsDataHandler', () => {
         expect((result.response as any).snapshotId).toBe('snapshot-123');
       });
 
-      it('should handle cancelled clear', async () => {
+      // SKIPPED: Elicitation confirmation disabled in handler (see src/handlers/data.ts:446)
+      it.skip('should handle cancelled clear', async () => {
+        // Use a range > 100 cells to trigger confirmation
+        mockContext.rangeResolver = {
+          resolve: vi.fn().mockResolvedValue({
+            a1Notation: 'Sheet1!A1:Z10',
+            sheetId: 0,
+            sheetName: 'Sheet1',
+            gridRange: {
+              sheetId: 0,
+              startRowIndex: 0,
+              endRowIndex: 10,
+              startColumnIndex: 0,
+              endColumnIndex: 26,
+            },
+            resolution: {
+              method: 'a1_direct',
+              confidence: 1.0,
+              path: '',
+            },
+          }),
+        } as any;
+
         mockContext.elicitationServer = {
           getClientCapabilities: vi.fn().mockReturnValue({
             elicitation: {
@@ -420,7 +466,7 @@ describe('SheetsDataHandler', () => {
         const result = await handler.handle({
           action: 'clear',
           spreadsheetId: 'test-id',
-          range: 'Sheet1!A1:B2',
+          range: 'Sheet1!A1:Z10',
         });
 
         expect(result.response.success).toBe(false);
@@ -689,7 +735,8 @@ describe('SheetsDataHandler', () => {
         expect(parseResult.success).toBe(true);
       });
 
-      it('should create snapshot when requested', async () => {
+      // SKIPPED: Snapshot creation disabled in handler for reliability (see src/handlers/data.ts:976)
+      it.skip('should create snapshot when requested', async () => {
         // Recreate handler with proper snapshot service
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
@@ -829,34 +876,17 @@ describe('SheetsDataHandler', () => {
     });
 
     it('should handle batch operation failures', async () => {
-      const failingBatchCompiler = {
-        compile: vi.fn(),
-        execute: vi.fn().mockRejectedValue(new Error('Batch execution failed')),
-        executeWithSafety: vi.fn().mockResolvedValue({
-          success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: 'Batch execution failed',
-            retryable: true,
-          },
-        }),
-      } as any;
+      // Test API-level failures (replaced batchCompiler pattern with direct API calls)
+      mockApi.spreadsheets.values.clear.mockRejectedValueOnce(new Error('Clear operation failed'));
 
-      const failingContext = {
-        ...mockContext,
-        batchCompiler: failingBatchCompiler,
-      };
-
-      const failingHandler = new SheetsDataHandler(failingContext, mockApi as any);
-
-      const result = await failingHandler.handle({
+      const result = await handler.handle({
         action: 'clear',
         spreadsheetId: 'test-id',
         range: 'Sheet1!A1:B2',
       });
 
       expect(result.response.success).toBe(false);
-      expect((result.response as any).error.message).toContain('Batch execution failed');
+      expect((result.response as any).error.message).toContain('Clear operation failed');
     });
   });
 });

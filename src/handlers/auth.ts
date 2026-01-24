@@ -24,6 +24,7 @@ import { startCallbackServer, extractPortFromRedirectUri } from '../utils/oauth-
 import { TokenManager } from '../services/token-manager.js';
 import { logger } from '../utils/logger.js';
 import open from 'open';
+import { unwrapRequest } from './base.js';
 
 export interface AuthHandlerOptions {
   googleClient?: GoogleApiClient | null;
@@ -61,19 +62,43 @@ export class AuthHandler {
     this.elicitationServer = options.elicitationServer;
   }
 
+  /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: AuthResponse,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): AuthResponse {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field and instructions
+      const { _meta, instructions: _instructions, ...rest } = response as Record<string, unknown>;
+      return rest as AuthResponse;
+    }
+
+    return response;
+  }
+
   async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
-    // Input is now the action directly (no request wrapper)
+    const req = unwrapRequest<SheetsAuthInput['request']>(input) as SheetsAuthInput['request'] & {
+      verbosity?: 'minimal' | 'standard' | 'detailed';
+    };
+    const verbosity = req.verbosity ?? 'standard';
+
     try {
       let response: AuthResponse;
-      switch (input.action) {
+      switch (req.action) {
         case 'status':
           response = await this.handleStatus();
           break;
         case 'login':
-          response = await this.handleLogin(input as AuthLoginInput);
+          response = await this.handleLogin(req as AuthLoginInput);
           break;
         case 'callback':
-          response = await this.handleCallback(input as AuthCallbackInput);
+          response = await this.handleCallback(req as AuthCallbackInput);
           break;
         case 'logout':
           response = await this.handleLogout();
@@ -92,7 +117,8 @@ export class AuthHandler {
         }
       }
 
-      return { response };
+      // Apply verbosity filtering (LLM optimization)
+      return { response: this.applyVerbosityFilter(response, verbosity) };
     } catch (error) {
       return {
         response: {

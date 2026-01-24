@@ -1,14 +1,14 @@
 /**
  * Tool 15: sheets_advanced
- * Advanced features & formula intelligence: named ranges, protected ranges, metadata, banding, and AI-powered formula operations
+ * Advanced features: named ranges, protected ranges, metadata, banding, tables, and smart chips
  *
- * 27 Actions:
+ * 23 Actions:
  * Named Ranges (5): add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
  * Protected Ranges (4): add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
  * Metadata (3): set_metadata, get_metadata, delete_metadata
  * Banding (4): add_banding, update_banding, delete_banding, list_banding
  * Tables (3): create_table, delete_table, list_tables
- * Formula Intelligence (8): formula_generate, formula_suggest, formula_explain, formula_optimize, formula_fix, formula_trace_precedents, formula_trace_dependents, formula_manage_named_ranges
+ * Smart Chips (4): add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
  */
 
 import { z } from 'zod';
@@ -24,7 +24,7 @@ import {
   ResponseMetaSchema,
   type ToolAnnotations,
 } from './shared.js';
-import { FORMULA_MAX_LENGTH, NAMED_RANGE_NAME_MAX_LENGTH } from '../config/google-limits.js';
+import { NAMED_RANGE_NAME_MAX_LENGTH } from '../config/google-limits.js';
 
 // ============================================================================
 // Common Schemas
@@ -54,7 +54,7 @@ const NamedRangeSchema = z.object({
 });
 
 const ProtectedRangeSchema = z.object({
-  protectedRangeId: z.number().int(),
+  protectedRangeId: z.coerce.number().int(),
   range: GridRangeSchema,
   description: z.string().optional(),
   warningOnly: z.boolean(),
@@ -87,8 +87,8 @@ const MetadataLocationSchema = z.object({
     .object({
       sheetId: SheetIdSchema,
       dimension: z.enum(['ROWS', 'COLUMNS']),
-      startIndex: z.number().int().min(0),
-      endIndex: z.number().int().min(1),
+      startIndex: z.coerce.number().int().min(0),
+      endIndex: z.coerce.number().int().min(1),
     })
     .optional(),
 });
@@ -155,7 +155,7 @@ const AddProtectedRangeActionSchema = CommonFieldsSchema.extend({
 
 const UpdateProtectedRangeActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_protected_range').describe('Update a protected range'),
-  protectedRangeId: z.number().int().describe('Protected range ID'),
+  protectedRangeId: z.coerce.number().int().describe('Protected range ID'),
   description: z.string().optional().describe('New description'),
   warningOnly: z.boolean().optional().describe('New warning only setting'),
   editors: EditorsSchema.optional().describe('New editors'),
@@ -164,7 +164,7 @@ const UpdateProtectedRangeActionSchema = CommonFieldsSchema.extend({
 
 const DeleteProtectedRangeActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete_protected_range').describe('Delete a protected range'),
-  protectedRangeId: z.number().int().describe('Protected range ID'),
+  protectedRangeId: z.coerce.number().int().describe('Protected range ID'),
 });
 
 const ListProtectedRangesActionSchema = CommonFieldsSchema.extend({
@@ -190,13 +190,13 @@ const SetMetadataActionSchema = CommonFieldsSchema.extend({
 
 const GetMetadataActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_metadata').describe('Get developer metadata'),
-  metadataId: z.number().int().optional().describe('Metadata ID (omit to list all)'),
+  metadataId: z.coerce.number().int().optional().describe('Metadata ID (omit to list all)'),
   metadataKey: z.string().optional().describe('Filter by key'),
 });
 
 const DeleteMetadataActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete_metadata').describe('Delete developer metadata'),
-  metadataId: z.number().int().describe('Metadata ID'),
+  metadataId: z.coerce.number().int().describe('Metadata ID'),
 });
 
 // ============================================================================
@@ -212,14 +212,14 @@ const AddBandingActionSchema = CommonFieldsSchema.extend({
 
 const UpdateBandingActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_banding').describe('Update banding properties'),
-  bandedRangeId: z.number().int().describe('Banded range ID'),
+  bandedRangeId: z.coerce.number().int().describe('Banded range ID'),
   rowProperties: BandingPropertiesSchema.optional().describe('New row properties'),
   columnProperties: BandingPropertiesSchema.optional().describe('New column properties'),
 });
 
 const DeleteBandingActionSchema = CommonFieldsSchema.extend({
   action: z.literal('delete_banding').describe('Delete banding'),
-  bandedRangeId: z.number().int().describe('Banded range ID'),
+  bandedRangeId: z.coerce.number().int().describe('Banded range ID'),
 });
 
 const ListBandingActionSchema = CommonFieldsSchema.extend({
@@ -247,120 +247,43 @@ const ListTablesActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
-// Formula Intelligence Action Schemas (8 actions)
+// Smart Chips Action Schemas (4 actions) - NEW June 2025
 // ============================================================================
 
-const FormulaGenerateActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_generate').describe('Generate formula from natural language'),
-  formulaDescription: z.string().min(1).describe('Natural language description of desired formula'),
-  context: z
-    .object({
-      spreadsheetId: SpreadsheetIdSchema.optional(),
-      range: RangeInputSchema.optional(),
-      sampleData: z.array(z.array(z.unknown())).optional(),
-      columnHeaders: z.array(z.string()).optional(),
-    })
+const AddPersonChipActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('add_person_chip').describe('Add a person chip (@mention)'),
+  range: RangeInputSchema.describe('Cell to add the chip to'),
+  email: z.string().email().describe('Email address of the person to mention'),
+  displayFormat: z
+    .enum(['SHORT', 'FULL'])
     .optional()
-    .describe('Context for formula generation'),
-  outputType: z
-    .enum(['formula', 'arrayFormula', 'lambda'])
-    .optional()
-    .default('formula')
-    .describe('Type of formula to generate'),
-  complexityLevel: z
-    .enum(['simple', 'intermediate', 'advanced'])
-    .optional()
-    .default('intermediate')
-    .describe('Complexity level'),
+    .default('SHORT')
+    .describe('Display format: SHORT (name only) or FULL (name and email)'),
 });
 
-const FormulaSuggestActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_suggest').describe('Suggest formulas based on data patterns'),
-  range: RangeInputSchema.describe('Range to analyze for suggestions'),
-  goal: z
-    .enum(['calculate', 'aggregate', 'lookup', 'transform', 'validate', 'any'])
-    .optional()
-    .default('any')
-    .describe('Formula goal'),
-  maxSuggestions: z
-    .number()
-    .int()
-    .min(1)
-    .max(10)
-    .optional()
-    .default(3)
-    .describe('Number of suggestions'),
+const AddDriveChipActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('add_drive_chip').describe('Add a Google Drive file chip'),
+  range: RangeInputSchema.describe('Cell to add the chip to'),
+  fileId: z.string().describe('Google Drive file ID'),
+  displayText: z.string().optional().describe('Optional display text for the chip'),
 });
 
-const FormulaExplainActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_explain').describe('Explain what a formula does'),
-  formula: z
-    .string()
-    .min(1, 'Formula cannot be empty')
-    .max(
-      FORMULA_MAX_LENGTH,
-      `Formula exceeds Google Sheets limit of ${FORMULA_MAX_LENGTH} characters`
-    )
+const AddRichLinkChipActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('add_rich_link_chip').describe('Add a rich link chip (URL with preview)'),
+  range: RangeInputSchema.describe('Cell to add the chip to'),
+  uri: z.string().url().describe('URL for the rich link'),
+  displayText: z.string().optional().describe('Optional display text for the chip'),
+});
+
+const ListChipsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list_chips').describe('List all smart chips in a range'),
+  range: RangeInputSchema.optional().describe('Range to search (defaults to entire sheet)'),
+  sheetId: SheetIdSchema.optional().describe('Sheet to search'),
+  chipType: z
+    .enum(['person', 'drive', 'rich_link', 'all'])
     .optional()
-    .describe('Formula to explain (optional if cell provided)'),
-  cell: z.string().optional().describe('Cell reference (A1 notation)'),
-  detail: z
-    .enum(['brief', 'detailed', 'step_by_step'])
-    .optional()
-    .default('detailed')
-    .describe('Level of detail'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID for cell reference'),
-});
-
-const FormulaOptimizeActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_optimize').describe('Optimize a formula for performance/readability'),
-  formula: z.string().min(1).max(FORMULA_MAX_LENGTH).optional().describe('Formula to optimize'),
-  cell: z.string().optional().describe('Cell reference'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID for cell reference'),
-  optimizationGoals: z
-    .array(z.enum(['performance', 'readability', 'maintainability', 'all']))
-    .optional()
-    .default(['all'])
-    .describe('Optimization goals'),
-});
-
-const FormulaFixActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_fix').describe('Fix a broken formula'),
-  formula: z.string().min(1).max(FORMULA_MAX_LENGTH).optional().describe('Formula to fix'),
-  cell: z.string().optional().describe('Cell reference'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID for cell reference'),
-  errorMessage: z.string().optional().describe('Error message if known'),
-  applyFix: z.boolean().optional().default(false).describe('Apply fix automatically'),
-});
-
-const FormulaTracePrecedentsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_trace_precedents').describe('Find cells that feed into a formula'),
-  cell: z.string().describe('Cell reference to trace'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID'),
-  depth: z.number().int().min(1).max(10).optional().default(1).describe('Trace depth (1-10)'),
-  includeIndirect: z.boolean().optional().default(false).describe('Include INDIRECT references'),
-  scope: z.enum(['sheet', 'workbook']).optional().default('sheet').describe('Trace scope'),
-});
-
-const FormulaTraceDependentsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('formula_trace_dependents').describe('Find cells that depend on a cell'),
-  cell: z.string().describe('Cell reference to trace'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID'),
-  depth: z.number().int().min(1).max(10).optional().default(1).describe('Trace depth (1-10)'),
-  includeIndirect: z.boolean().optional().default(false).describe('Include INDIRECT references'),
-  scope: z.enum(['sheet', 'workbook']).optional().default('sheet').describe('Trace scope'),
-});
-
-const FormulaManageNamedRangesActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('formula_manage_named_ranges')
-    .describe('Suggest named ranges for formula readability'),
-  range: RangeInputSchema.optional().describe('Range to analyze'),
-  operation: z
-    .enum(['create', 'update', 'delete', 'list'])
-    .optional()
-    .default('list')
-    .describe('Operation to perform'),
+    .default('all')
+    .describe('Filter by chip type'),
 });
 
 // ============================================================================
@@ -368,7 +291,7 @@ const FormulaManageNamedRangesActionSchema = CommonFieldsSchema.extend({
 // ============================================================================
 
 /**
- * All advanced operation inputs (27 actions)
+ * All advanced operation inputs (23 actions)
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
@@ -376,41 +299,39 @@ const FormulaManageNamedRangesActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsAdvancedInputSchema = z.discriminatedUnion('action', [
-  // Named ranges (5)
-  AddNamedRangeActionSchema,
-  UpdateNamedRangeActionSchema,
-  DeleteNamedRangeActionSchema,
-  ListNamedRangesActionSchema,
-  GetNamedRangeActionSchema,
-  // Protected ranges (4)
-  AddProtectedRangeActionSchema,
-  UpdateProtectedRangeActionSchema,
-  DeleteProtectedRangeActionSchema,
-  ListProtectedRangesActionSchema,
-  // Metadata (3)
-  SetMetadataActionSchema,
-  GetMetadataActionSchema,
-  DeleteMetadataActionSchema,
-  // Banding (4)
-  AddBandingActionSchema,
-  UpdateBandingActionSchema,
-  DeleteBandingActionSchema,
-  ListBandingActionSchema,
-  // Tables (3)
-  CreateTableActionSchema,
-  DeleteTableActionSchema,
-  ListTablesActionSchema,
-  // Formula intelligence (8)
-  FormulaGenerateActionSchema,
-  FormulaSuggestActionSchema,
-  FormulaExplainActionSchema,
-  FormulaOptimizeActionSchema,
-  FormulaFixActionSchema,
-  FormulaTracePrecedentsActionSchema,
-  FormulaTraceDependentsActionSchema,
-  FormulaManageNamedRangesActionSchema,
-]);
+export const SheetsAdvancedInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Named ranges (5)
+    AddNamedRangeActionSchema,
+    UpdateNamedRangeActionSchema,
+    DeleteNamedRangeActionSchema,
+    ListNamedRangesActionSchema,
+    GetNamedRangeActionSchema,
+    // Protected ranges (4)
+    AddProtectedRangeActionSchema,
+    UpdateProtectedRangeActionSchema,
+    DeleteProtectedRangeActionSchema,
+    ListProtectedRangesActionSchema,
+    // Metadata (3)
+    SetMetadataActionSchema,
+    GetMetadataActionSchema,
+    DeleteMetadataActionSchema,
+    // Banding (4)
+    AddBandingActionSchema,
+    UpdateBandingActionSchema,
+    DeleteBandingActionSchema,
+    ListBandingActionSchema,
+    // Tables (3)
+    CreateTableActionSchema,
+    DeleteTableActionSchema,
+    ListTablesActionSchema,
+    // Smart Chips (4) - NEW June 2025
+    AddPersonChipActionSchema,
+    AddDriveChipActionSchema,
+    AddRichLinkChipActionSchema,
+    ListChipsActionSchema,
+  ]),
+});
 
 const AdvancedResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -425,7 +346,7 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
     // Metadata fields
     metadata: z
       .object({
-        metadataId: z.number().int(),
+        metadataId: z.coerce.number().int(),
         metadataKey: z.string(),
         metadataValue: z.string(),
         visibility: z.enum(['DOCUMENT', 'PROJECT']),
@@ -435,7 +356,7 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
     metadataList: z
       .array(
         z.object({
-          metadataId: z.number().int(),
+          metadataId: z.coerce.number().int(),
           metadataKey: z.string(),
           metadataValue: z.string(),
         })
@@ -444,7 +365,7 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
     // Banding fields
     bandedRange: z
       .object({
-        bandedRangeId: z.number().int(),
+        bandedRangeId: z.coerce.number().int(),
         range: GridRangeSchema,
         rowProperties: BandingPropertiesSchema.optional(),
         columnProperties: BandingPropertiesSchema.optional(),
@@ -453,7 +374,7 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
     bandedRanges: z
       .array(
         z.object({
-          bandedRangeId: z.number().int(),
+          bandedRangeId: z.coerce.number().int(),
           range: GridRangeSchema,
         })
       )
@@ -474,48 +395,33 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
         })
       )
       .optional(),
-    // Formula intelligence fields
-    formula: z.string().optional(),
-    suggestions: z
-      .array(
-        z.object({
-          formula: z.string(),
-          description: z.string(),
-          confidence: z.number().min(0).max(1),
-        })
-      )
+    // Smart Chip fields (June 2025 API)
+    chip: z
+      .object({
+        type: z.enum(['person', 'drive', 'rich_link']),
+        cell: z.string().describe('Cell where chip was added (A1 notation)'),
+        email: z.string().optional().describe('Person email (for person chips)'),
+        fileId: z.string().optional().describe('Drive file ID (for drive chips)'),
+        uri: z.string().optional().describe('URI (for rich link chips)'),
+        displayText: z.string().optional().describe('Display text shown for the chip'),
+      })
       .optional(),
-    explanation: z.string().optional(),
-    optimizedFormula: z.string().optional(),
-    improvements: z
+    chips: z
       .array(
         z.object({
-          type: z.string(),
-          before: z.string(),
-          after: z.string(),
-          benefit: z.string(),
-        })
-      )
-      .optional(),
-    precedents: z
-      .array(
-        z.object({
+          type: z.enum(['person', 'drive', 'rich_link']),
           cell: z.string(),
-          formula: z.string().optional(),
-        })
-      )
-      .optional(),
-    dependents: z
-      .array(
-        z.object({
-          cell: z.string(),
-          formula: z.string().optional(),
+          email: z.string().optional(),
+          fileId: z.string().optional(),
+          uri: z.string().optional(),
+          displayText: z.string().optional(),
         })
       )
       .optional(),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
@@ -529,9 +435,9 @@ export const SheetsAdvancedOutputSchema = z.object({
 });
 
 export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
-  title: 'Advanced Features & Formula Intelligence',
+  title: 'Advanced Features',
   readOnlyHint: false,
-  destructiveHint: false,
+  destructiveHint: true,
   idempotentHint: false,
   openWorldHint: true,
 };
@@ -539,144 +445,132 @@ export const SHEETS_ADVANCED_ANNOTATIONS: ToolAnnotations = {
 export type SheetsAdvancedInput = z.infer<typeof SheetsAdvancedInputSchema>;
 export type SheetsAdvancedOutput = z.infer<typeof SheetsAdvancedOutputSchema>;
 export type AdvancedResponse = z.infer<typeof AdvancedResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type AdvancedRequest = SheetsAdvancedInput['request'];
 
-// Type narrowing helpers for handler methods (27 action types)
+// Type narrowing helpers for handler methods (19 action types)
 // Named ranges
-export type AdvancedAddNamedRangeInput = SheetsAdvancedInput & {
+export type AdvancedAddNamedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'add_named_range';
   spreadsheetId: string;
   name: string;
   range: z.infer<typeof RangeInputSchema>;
 };
-export type AdvancedUpdateNamedRangeInput = SheetsAdvancedInput & {
+export type AdvancedUpdateNamedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'update_named_range';
   spreadsheetId: string;
   namedRangeId: string;
 };
-export type AdvancedDeleteNamedRangeInput = SheetsAdvancedInput & {
+export type AdvancedDeleteNamedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'delete_named_range';
   spreadsheetId: string;
   namedRangeId: string;
 };
-export type AdvancedListNamedRangesInput = SheetsAdvancedInput & {
+export type AdvancedListNamedRangesInput = SheetsAdvancedInput['request'] & {
   action: 'list_named_ranges';
   spreadsheetId: string;
 };
-export type AdvancedGetNamedRangeInput = SheetsAdvancedInput & {
+export type AdvancedGetNamedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'get_named_range';
   spreadsheetId: string;
   name: string;
 };
 
 // Protected ranges
-export type AdvancedAddProtectedRangeInput = SheetsAdvancedInput & {
+export type AdvancedAddProtectedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'add_protected_range';
   spreadsheetId: string;
   range: z.infer<typeof RangeInputSchema>;
 };
-export type AdvancedUpdateProtectedRangeInput = SheetsAdvancedInput & {
+export type AdvancedUpdateProtectedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'update_protected_range';
   spreadsheetId: string;
   protectedRangeId: number;
 };
-export type AdvancedDeleteProtectedRangeInput = SheetsAdvancedInput & {
+export type AdvancedDeleteProtectedRangeInput = SheetsAdvancedInput['request'] & {
   action: 'delete_protected_range';
   spreadsheetId: string;
   protectedRangeId: number;
 };
-export type AdvancedListProtectedRangesInput = SheetsAdvancedInput & {
+export type AdvancedListProtectedRangesInput = SheetsAdvancedInput['request'] & {
   action: 'list_protected_ranges';
   spreadsheetId: string;
 };
 
 // Metadata
-export type AdvancedSetMetadataInput = SheetsAdvancedInput & {
+export type AdvancedSetMetadataInput = SheetsAdvancedInput['request'] & {
   action: 'set_metadata';
   spreadsheetId: string;
   metadataKey: string;
   metadataValue: string;
 };
-export type AdvancedGetMetadataInput = SheetsAdvancedInput & {
+export type AdvancedGetMetadataInput = SheetsAdvancedInput['request'] & {
   action: 'get_metadata';
   spreadsheetId: string;
 };
-export type AdvancedDeleteMetadataInput = SheetsAdvancedInput & {
+export type AdvancedDeleteMetadataInput = SheetsAdvancedInput['request'] & {
   action: 'delete_metadata';
   spreadsheetId: string;
   metadataId: number;
 };
 
 // Banding
-export type AdvancedAddBandingInput = SheetsAdvancedInput & {
+export type AdvancedAddBandingInput = SheetsAdvancedInput['request'] & {
   action: 'add_banding';
   spreadsheetId: string;
   range: z.infer<typeof RangeInputSchema>;
 };
-export type AdvancedUpdateBandingInput = SheetsAdvancedInput & {
+export type AdvancedUpdateBandingInput = SheetsAdvancedInput['request'] & {
   action: 'update_banding';
   spreadsheetId: string;
   bandedRangeId: number;
 };
-export type AdvancedDeleteBandingInput = SheetsAdvancedInput & {
+export type AdvancedDeleteBandingInput = SheetsAdvancedInput['request'] & {
   action: 'delete_banding';
   spreadsheetId: string;
   bandedRangeId: number;
 };
-export type AdvancedListBandingInput = SheetsAdvancedInput & {
+export type AdvancedListBandingInput = SheetsAdvancedInput['request'] & {
   action: 'list_banding';
   spreadsheetId: string;
 };
 
 // Tables
-export type AdvancedCreateTableInput = SheetsAdvancedInput & {
+export type AdvancedCreateTableInput = SheetsAdvancedInput['request'] & {
   action: 'create_table';
   spreadsheetId: string;
   range: z.infer<typeof RangeInputSchema>;
 };
-export type AdvancedDeleteTableInput = SheetsAdvancedInput & {
+export type AdvancedDeleteTableInput = SheetsAdvancedInput['request'] & {
   action: 'delete_table';
   spreadsheetId: string;
   tableId: string;
 };
-export type AdvancedListTablesInput = SheetsAdvancedInput & {
+export type AdvancedListTablesInput = SheetsAdvancedInput['request'] & {
   action: 'list_tables';
   spreadsheetId: string;
 };
 
-// Formula intelligence
-export type AdvancedFormulaGenerateInput = SheetsAdvancedInput & {
-  action: 'formula_generate';
-  spreadsheetId: string;
-  formulaDescription: string;
-};
-export type AdvancedFormulaSuggestInput = SheetsAdvancedInput & {
-  action: 'formula_suggest';
+// Smart Chips (June 2025 API)
+export type AdvancedAddPersonChipInput = SheetsAdvancedInput['request'] & {
+  action: 'add_person_chip';
   spreadsheetId: string;
   range: z.infer<typeof RangeInputSchema>;
+  email: string;
 };
-export type AdvancedFormulaExplainInput = SheetsAdvancedInput & {
-  action: 'formula_explain';
+export type AdvancedAddDriveChipInput = SheetsAdvancedInput['request'] & {
+  action: 'add_drive_chip';
   spreadsheetId: string;
+  range: z.infer<typeof RangeInputSchema>;
+  fileId: string;
 };
-export type AdvancedFormulaOptimizeInput = SheetsAdvancedInput & {
-  action: 'formula_optimize';
+export type AdvancedAddRichLinkChipInput = SheetsAdvancedInput['request'] & {
+  action: 'add_rich_link_chip';
   spreadsheetId: string;
+  range: z.infer<typeof RangeInputSchema>;
+  uri: string;
 };
-export type AdvancedFormulaFixInput = SheetsAdvancedInput & {
-  action: 'formula_fix';
-  spreadsheetId: string;
-};
-export type AdvancedFormulaTracePrecedentsInput = SheetsAdvancedInput & {
-  action: 'formula_trace_precedents';
-  spreadsheetId: string;
-  cell: string;
-};
-export type AdvancedFormulaTraceDependentsInput = SheetsAdvancedInput & {
-  action: 'formula_trace_dependents';
-  spreadsheetId: string;
-  cell: string;
-};
-export type AdvancedFormulaManageNamedRangesInput = SheetsAdvancedInput & {
-  action: 'formula_manage_named_ranges';
+export type AdvancedListChipsInput = SheetsAdvancedInput['request'] & {
+  action: 'list_chips';
   spreadsheetId: string;
 };

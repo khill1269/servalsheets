@@ -24,9 +24,11 @@ import { vi } from 'vitest';
 export class MockOAuth2Client {
   credentials: any = {};
 
-  generateAuthUrl = vi.fn().mockReturnValue(
-    'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&redirect_uri=http://localhost:3000/callback&scope=https://www.googleapis.com/auth/spreadsheets&access_type=offline&response_type=code'
-  );
+  generateAuthUrl = vi
+    .fn()
+    .mockReturnValue(
+      'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&redirect_uri=http://localhost:3000/callback&scope=https://www.googleapis.com/auth/spreadsheets&access_type=offline&response_type=code'
+    );
 
   getToken = vi.fn().mockResolvedValue({
     tokens: {

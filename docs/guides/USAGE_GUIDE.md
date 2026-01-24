@@ -28,7 +28,7 @@ Version: 1.0.0 | Last Updated: 2026-01-03
 
 ### Key Features
 
-- **15 Tools, 156 Actions**: Comprehensive Google Sheets API v4 coverage
+- **19 Tools, 244 Actions**: Comprehensive Google Sheets API v4 coverage
 - **Safety Rails**: Dry-run preview, effect scope limits, expected state validation, auto-snapshots
 - **Smart Operations**: Semantic range resolution (find columns by header name), tiered diff engine
 - **Production Ready**: Rate limiting, encrypted token storage, structured logging, health checks
@@ -269,7 +269,7 @@ npx @modelcontextprotocol/inspector node dist/cli.js
 Then in the inspector, try:
 ```json
 {
-  "tool": "sheets_spreadsheet",
+  "tool": "sheets_core",
   "arguments": {
     "action": "get",
     "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
@@ -285,7 +285,7 @@ Once you have credentials configured:
 
 ```json
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "read",
     "spreadsheetId": "YOUR_SPREADSHEET_ID",
@@ -385,19 +385,19 @@ Once configured, just ask Claude naturally:
 ```
 You: "Read the data from spreadsheet 1Bxi...upms, range A1:D10"
 
-Claude: [Calls sheets_values tool, returns data]
+Claude: [Calls sheets_data tool, returns data]
 ```
 
 ```
 You: "Analyze the data quality in that spreadsheet"
 
-Claude: [Calls sheets_analysis tool, shows completeness, duplicates, outliers]
+Claude: [Calls sheets_analyze tool, shows completeness, duplicates, outliers]
 ```
 
 ```
 You: "Create a bar chart showing monthly sales"
 
-Claude: [Calls sheets_charts tool, creates visualization]
+Claude: [Calls sheets_visualize tool, creates visualization]
 ```
 
 **Pro tip**: Claude can perform multi-step operations automatically, like "read the data, clean it, analyze it, and create a summary report."
@@ -438,7 +438,7 @@ console.log('Available tools:', tools);
 
 // Call a tool
 const result = await client.callTool({
-  name: 'sheets_values',
+  name: 'sheets_data',
   arguments: {
     request: {
       action: 'read',
@@ -476,7 +476,7 @@ async def main():
 
         # Call tool
         result = await client.call_tool(
-            name='sheets_values',
+            name='sheets_data',
             arguments={
                 'request': {
                     'action': 'read',
@@ -508,7 +508,7 @@ Then use standard HTTP requests:
 curl -X POST http://localhost:3000/mcp/v1/tools/call \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "sheets_values",
+    "name": "sheets_data",
     "arguments": {
       "request": {
         "action": "read",
@@ -529,7 +529,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "sheets_values",
+    "name": "sheets_data",
     "arguments": {
       "request": {
         "action": "read",
@@ -561,7 +561,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 ```javascript
 // Step 1: Read the data
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "read",
     "spreadsheetId": "xxx",
@@ -572,9 +572,9 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 
 // Step 2: Check data quality
 {
-  "tool": "sheets_analysis",
+  "tool": "sheets_analyze",
   "arguments": {
-    "action": "data_quality",
+    "action": "analyze_quality",
     "spreadsheetId": "xxx",
     "range": { "a1": "Sales!A1:D100" }
   }
@@ -583,9 +583,9 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 
 // Step 3: Get statistics
 {
-  "tool": "sheets_analysis",
+  "tool": "sheets_analyze",
   "arguments": {
-    "action": "statistics",
+    "action": "analyze_data",
     "spreadsheetId": "xxx",
     "range": { "a1": "Sales!B2:D100" }
   }
@@ -600,7 +600,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 ```javascript
 // Step 1: Preview with dry-run
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "write",
     "spreadsheetId": "xxx",
@@ -616,7 +616,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 
 // Step 2: Execute if safe
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "write",
     "spreadsheetId": "xxx",
@@ -637,7 +637,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 ```javascript
 // Step 1: Write summary data
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "write",
     "spreadsheetId": "xxx",
@@ -683,7 +683,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 
 // Step 4: Create chart
 {
-  "tool": "sheets_charts",
+  "tool": "sheets_visualize",
   "arguments": {
     "action": "create",
     "spreadsheetId": "xxx",
@@ -703,7 +703,7 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 ```javascript
 // Instead of guessing column letters...
 {
-  "tool": "sheets_values",
+  "tool": "sheets_data",
   "arguments": {
     "action": "read",
     "spreadsheetId": "xxx",
@@ -950,11 +950,11 @@ export LOG_LEVEL=debug
 
 | Tool | Purpose | Read-Only? |
 |------|---------|------------|
-| `sheets_values` | Read/write cell values | No |
-| `sheets_analysis` | Analyze data quality | Yes |
+| `sheets_data` | Read/write cell values | No |
+| `sheets_analyze` | Analyze data quality | Yes |
 | `sheets_format` | Format cells | No |
-| `sheets_charts` | Create charts | No |
-| `sheets_spreadsheet` | Manage spreadsheets | No |
+| `sheets_visualize` | Create charts | No |
+| `sheets_core` | Manage spreadsheets | No |
 
 ### Essential Safety Features
 

@@ -106,15 +106,17 @@ const ClearActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsHistoryInputSchema = z.discriminatedUnion('action', [
-  ListActionSchema,
-  GetActionSchema,
-  StatsActionSchema,
-  UndoActionSchema,
-  RedoActionSchema,
-  RevertToActionSchema,
-  ClearActionSchema,
-]);
+export const SheetsHistoryInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    ListActionSchema,
+    GetActionSchema,
+    StatsActionSchema,
+    UndoActionSchema,
+    RedoActionSchema,
+    RevertToActionSchema,
+    ClearActionSchema,
+  ]),
+});
 
 const HistoryResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -130,8 +132,8 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
           spreadsheetId: z.string().optional(),
           range: z.string().optional(),
           success: z.boolean(),
-          duration: z.number(),
-          timestamp: z.number(),
+          duration: z.coerce.number(),
+          timestamp: z.coerce.number(),
           error: z.string().optional(),
           snapshotId: z.string().optional(),
         })
@@ -140,7 +142,7 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
     // Pagination (MCP 2025-11-25)
     nextCursor: z.string().optional().describe('Cursor for next page (null = no more data)'),
     hasMore: z.boolean().optional().describe('True if more history items available'),
-    totalCount: z.number().int().optional().describe('Total number of history items'),
+    totalCount: z.coerce.number().int().optional().describe('Total number of history items'),
     // get response
     operation: z
       .object({
@@ -152,8 +154,8 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
         spreadsheetId: z.string().optional(),
         range: z.string().optional(),
         success: z.boolean(),
-        duration: z.number(),
-        timestamp: z.number(),
+        duration: z.coerce.number(),
+        timestamp: z.coerce.number(),
         error: z.string().optional(),
         snapshotId: z.string().optional(),
       })
@@ -161,13 +163,13 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
     // stats response
     stats: z
       .object({
-        totalOperations: z.number(),
-        successfulOperations: z.number(),
-        failedOperations: z.number(),
-        successRate: z.number(),
-        avgDuration: z.number(),
-        operationsByTool: z.record(z.string(), z.number()),
-        recentFailures: z.number(),
+        totalOperations: z.coerce.number(),
+        successfulOperations: z.coerce.number(),
+        failedOperations: z.coerce.number(),
+        successRate: z.coerce.number(),
+        avgDuration: z.coerce.number(),
+        operationsByTool: z.record(z.string(), z.coerce.number()),
+        recentFailures: z.coerce.number(),
       })
       .optional(),
     // undo/redo/revert response
@@ -180,12 +182,12 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
         id: z.string(),
         tool: z.string(),
         action: z.string(),
-        timestamp: z.number(),
+        timestamp: z.coerce.number(),
       })
       .optional()
       .describe('Details of operation that was undone/redone'),
     // clear response
-    operationsCleared: z.number().optional().describe('Number of operations cleared'),
+    operationsCleared: z.coerce.number().optional().describe('Number of operations cleared'),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),
@@ -214,22 +216,22 @@ export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 
 // Type narrowing helpers for handler methods
 // These provide type safety similar to discriminated union Extract<>
-export type HistoryListInput = SheetsHistoryInput & { action: 'list' };
-export type HistoryGetInput = SheetsHistoryInput & {
+export type HistoryListInput = SheetsHistoryInput['request'] & { action: 'list' };
+export type HistoryGetInput = SheetsHistoryInput['request'] & {
   action: 'get';
   operationId: string;
 };
-export type HistoryStatsInput = SheetsHistoryInput & { action: 'stats' };
-export type HistoryUndoInput = SheetsHistoryInput & {
+export type HistoryStatsInput = SheetsHistoryInput['request'] & { action: 'stats' };
+export type HistoryUndoInput = SheetsHistoryInput['request'] & {
   action: 'undo';
   spreadsheetId: string;
 };
-export type HistoryRedoInput = SheetsHistoryInput & {
+export type HistoryRedoInput = SheetsHistoryInput['request'] & {
   action: 'redo';
   spreadsheetId: string;
 };
-export type HistoryRevertToInput = SheetsHistoryInput & {
+export type HistoryRevertToInput = SheetsHistoryInput['request'] & {
   action: 'revert_to';
   operationId: string;
 };
-export type HistoryClearInput = SheetsHistoryInput & { action: 'clear' };
+export type HistoryClearInput = SheetsHistoryInput['request'] & { action: 'clear' };

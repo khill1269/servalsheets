@@ -351,7 +351,9 @@ describe('executeWithRetry', () => {
         attempts += 1;
         if (attempts < 2) {
           const error = new Error('rate limit');
-          (error as unknown as { response: { status: number; headers: Record<string, string> } }).response = {
+          (
+            error as unknown as { response: { status: number; headers: Record<string, string> } }
+          ).response = {
             status: 429,
             headers: { 'retry-after': '5' }, // 5 seconds
           };

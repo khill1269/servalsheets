@@ -105,14 +105,16 @@ const ListActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsTransactionInputSchema = z.discriminatedUnion('action', [
-  BeginActionSchema,
-  QueueActionSchema,
-  CommitActionSchema,
-  RollbackActionSchema,
-  StatusActionSchema,
-  ListActionSchema,
-]);
+export const SheetsTransactionInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    BeginActionSchema,
+    QueueActionSchema,
+    CommitActionSchema,
+    RollbackActionSchema,
+    StatusActionSchema,
+    ListActionSchema,
+  ]),
+});
 
 const TransactionResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -122,15 +124,25 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
     status: z
       .enum(['pending', 'queued', 'executing', 'committed', 'rolled_back', 'failed'])
       .optional(),
-    operationsQueued: z.number().int().min(0).optional().describe('Number of operations queued'),
+    operationsQueued: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Number of operations queued'),
     operationsExecuted: z
       .number()
       .int()
       .min(0)
       .optional()
       .describe('Number of operations executed'),
-    apiCallsSaved: z.number().int().min(0).optional().describe('API calls saved by batching'),
-    duration: z.number().optional().describe('Execution duration in ms'),
+    apiCallsSaved: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('API calls saved by batching'),
+    duration: z.coerce.number().optional().describe('Execution duration in ms'),
     snapshotId: z.string().optional().describe('Snapshot ID for rollback'),
     message: z.string().optional(),
     transactions: z
@@ -139,7 +151,7 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
           id: z.string(),
           spreadsheetId: z.string(),
           status: z.string(),
-          operationCount: z.number(),
+          operationCount: z.coerce.number(),
           created: z.string(),
         })
       )
@@ -168,28 +180,30 @@ export const SHEETS_TRANSACTION_ANNOTATIONS: ToolAnnotations = {
 export type SheetsTransactionInput = z.infer<typeof SheetsTransactionInputSchema>;
 export type SheetsTransactionOutput = z.infer<typeof SheetsTransactionOutputSchema>;
 export type TransactionResponse = z.infer<typeof TransactionResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type TransactionRequest = SheetsTransactionInput['request'];
 
 // Type narrowing helpers for handler methods
 // These provide type safety similar to discriminated union Extract<>
-export type TransactionBeginInput = SheetsTransactionInput & {
+export type TransactionBeginInput = SheetsTransactionInput['request'] & {
   action: 'begin';
   spreadsheetId: string;
 };
-export type TransactionQueueInput = SheetsTransactionInput & {
+export type TransactionQueueInput = SheetsTransactionInput['request'] & {
   action: 'queue';
   transactionId: string;
   operation: { tool: string; action: string; params: Record<string, unknown> };
 };
-export type TransactionCommitInput = SheetsTransactionInput & {
+export type TransactionCommitInput = SheetsTransactionInput['request'] & {
   action: 'commit';
   transactionId: string;
 };
-export type TransactionRollbackInput = SheetsTransactionInput & {
+export type TransactionRollbackInput = SheetsTransactionInput['request'] & {
   action: 'rollback';
   transactionId: string;
 };
-export type TransactionStatusInput = SheetsTransactionInput & {
+export type TransactionStatusInput = SheetsTransactionInput['request'] & {
   action: 'status';
   transactionId: string;
 };
-export type TransactionListInput = SheetsTransactionInput & { action: 'list' };
+export type TransactionListInput = SheetsTransactionInput['request'] & { action: 'list' };

@@ -16,7 +16,7 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import type { HotCache } from '../utils/hot-cache.js';
+import type { ICache } from '../utils/cache-adapter.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -96,7 +96,7 @@ export type SheetData = SheetMetadata | SheetStructure | SheetSample | SheetFull
  * Tiered Retrieval Configuration
  */
 export interface TieredRetrievalConfig {
-  cache: HotCache;
+  cache: ICache;
   sheetsApi: sheets_v4.Sheets;
   defaultSampleSize?: number; // Default: 100 rows
   maxSampleSize?: number; // Default: 500 rows
@@ -118,7 +118,7 @@ const TIER_TTL = {
  * Provides progressive data fetching with caching and field optimization
  */
 export class TieredRetrieval {
-  private cache: HotCache;
+  private cache: ICache;
   private sheetsApi: sheets_v4.Sheets;
   private defaultSampleSize: number;
   private maxSampleSize: number;

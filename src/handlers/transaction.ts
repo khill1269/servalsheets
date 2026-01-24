@@ -10,6 +10,8 @@ import type {
   SheetsTransactionOutput,
   TransactionResponse,
 } from '../schemas/transaction.js';
+import { unwrapRequest } from './base.js';
+import { ValidationError } from '../core/errors.js';
 
 export interface TransactionHandlerOptions {
   // Options can be added as needed
@@ -41,29 +43,32 @@ export class TransactionHandler {
   }
 
   async handle(input: SheetsTransactionInput): Promise<SheetsTransactionOutput> {
-    // Input is now the action directly (no request wrapper)
+    const req = unwrapRequest<SheetsTransactionInput['request']>(input);
     const transactionManager = getTransactionManager();
 
     try {
       let response: TransactionResponse;
 
-      switch (input.action) {
+      switch (req.action) {
         case 'begin': {
           // Type assertion after validation
-          if (!input.spreadsheetId) {
-            throw new Error('spreadsheetId is required for begin action');
+          if (!req.spreadsheetId) {
+            throw new ValidationError(
+              'spreadsheetId is required for begin action',
+              'spreadsheetId'
+            );
           }
 
           // NOTE: autoSnapshot is controlled by TransactionManager config, not per-transaction
           // The input.autoSnapshot parameter is currently ignored (design limitation)
-          const txId = await transactionManager.begin(input.spreadsheetId, {
-            autoCommit: false, // Fixed: was incorrectly using input.autoSnapshot
-            autoRollback: input.autoRollback ?? true,
-            isolationLevel: input.isolationLevel ?? 'read_committed',
+          const txId = await transactionManager.begin(req.spreadsheetId, {
+            autoCommit: false, // Fixed: was incorrectly using req.autoSnapshot
+            autoRollback: req.autoRollback ?? true,
+            isolationLevel: req.isolationLevel ?? 'read_committed',
           });
 
           // Warn about snapshot limitations for large spreadsheets
-          const snapshotWarning = input.autoSnapshot
+          const snapshotWarning = req.autoSnapshot
             ? ' Note: Snapshots are metadata-only and may fail for very large spreadsheets (>50MB metadata).'
             : '';
 
@@ -73,25 +78,28 @@ export class TransactionHandler {
             transactionId: txId,
             status: 'pending',
             operationsQueued: 0,
-            message: `Transaction ${txId} started for spreadsheet ${input.spreadsheetId}.${snapshotWarning}`,
+            message: `Transaction ${txId} started for spreadsheet ${req.spreadsheetId}.${snapshotWarning}`,
           };
           break;
         }
 
         case 'queue': {
           // Type assertion after validation
-          if (!input.transactionId || !input.operation) {
-            throw new Error('transactionId and operation are required for queue action');
+          if (!req.transactionId || !req.operation) {
+            throw new ValidationError(
+              'transactionId and operation are required for queue action',
+              'transactionId'
+            );
           }
 
-          await transactionManager.queue(input.transactionId, {
+          await transactionManager.queue(req.transactionId, {
             type: 'custom',
-            tool: input.operation.tool,
-            action: input.operation.action,
-            params: input.operation.params,
+            tool: req.operation.tool,
+            action: req.operation.action,
+            params: req.operation.params,
           });
 
-          const tx = transactionManager.getTransaction(input.transactionId);
+          const tx = transactionManager.getTransaction(req.transactionId);
 
           // Generate warnings for large transactions
           const warnings: string[] = [];
@@ -108,7 +116,7 @@ export class TransactionHandler {
           response = {
             success: true,
             action: 'queue',
-            transactionId: input.transactionId,
+            transactionId: req.transactionId,
             operationsQueued: tx.operations.length,
             message: `Operation queued. ${tx.operations.length} operation(s) in transaction.`,
             _meta: warnings.length > 0 ? { warnings } : undefined,
@@ -118,17 +126,20 @@ export class TransactionHandler {
 
         case 'commit': {
           // Type assertion after validation
-          if (!input.transactionId) {
-            throw new Error('transactionId is required for commit action');
+          if (!req.transactionId) {
+            throw new ValidationError(
+              'transactionId is required for commit action',
+              'transactionId'
+            );
           }
 
-          const result = await transactionManager.commit(input.transactionId);
+          const result = await transactionManager.commit(req.transactionId);
 
           if (result.success) {
             response = {
               success: true,
               action: 'commit',
-              transactionId: input.transactionId,
+              transactionId: req.transactionId,
               status: 'committed',
               operationsExecuted: result.operationResults.length,
               apiCallsSaved: result.apiCallsSaved,
@@ -153,34 +164,40 @@ export class TransactionHandler {
 
         case 'rollback': {
           // Type assertion after validation
-          if (!input.transactionId) {
-            throw new Error('transactionId is required for rollback action');
+          if (!req.transactionId) {
+            throw new ValidationError(
+              'transactionId is required for rollback action',
+              'transactionId'
+            );
           }
 
-          await transactionManager.rollback(input.transactionId);
+          await transactionManager.rollback(req.transactionId);
 
           response = {
             success: true,
             action: 'rollback',
-            transactionId: input.transactionId,
+            transactionId: req.transactionId,
             status: 'rolled_back',
-            message: `Transaction ${input.transactionId} rolled back successfully.`,
+            message: `Transaction ${req.transactionId} rolled back successfully.`,
           };
           break;
         }
 
         case 'status': {
           // Type assertion after validation
-          if (!input.transactionId) {
-            throw new Error('transactionId is required for status action');
+          if (!req.transactionId) {
+            throw new ValidationError(
+              'transactionId is required for status action',
+              'transactionId'
+            );
           }
 
-          const tx = transactionManager.getTransaction(input.transactionId);
+          const tx = transactionManager.getTransaction(req.transactionId);
 
           response = {
             success: true,
             action: 'status',
-            transactionId: input.transactionId,
+            transactionId: req.transactionId,
             status: tx.status,
             operationsQueued: tx.operations.length,
             snapshotId: tx.snapshot?.id,
@@ -211,12 +228,12 @@ export class TransactionHandler {
 
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
-          const _exhaustiveCheck: never = input;
+          const _exhaustiveCheck: never = req;
           response = {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unsupported action: ${(_exhaustiveCheck as SheetsTransactionInput).action}`,
+              message: `Unsupported action: ${(req as { action: string }).action}`,
               retryable: false,
             },
           };
@@ -224,7 +241,7 @@ export class TransactionHandler {
       }
 
       // Apply verbosity filtering (LLM optimization)
-      const verbosity = input.verbosity ?? 'standard';
+      const verbosity = req.verbosity ?? 'standard';
       const filteredResponse = this.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };

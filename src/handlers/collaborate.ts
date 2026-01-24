@@ -7,12 +7,13 @@
  */
 
 import type { drive_v3 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type {
   SheetsCollaborateInput,
   SheetsCollaborateOutput,
   CollaborateResponse,
+  CollaborateRequest,
   CollaborateShareAddInput,
   CollaborateShareUpdateInput,
   CollaborateShareRemoveInput,
@@ -63,7 +64,8 @@ export class CollaborateHandler extends BaseHandler<
 
   async handle(input: SheetsCollaborateInput): Promise<SheetsCollaborateOutput> {
     // Track spreadsheet ID for better error messages
-    this.trackSpreadsheetId(input.spreadsheetId);
+    const req = unwrapRequest<SheetsCollaborateInput['request']>(input);
+    this.trackSpreadsheetId(req.spreadsheetId);
 
     if (!this.driveApi) {
       return {
@@ -71,8 +73,8 @@ export class CollaborateHandler extends BaseHandler<
           code: 'INTERNAL_ERROR',
           message: 'Drive API not available - required for collaboration operations',
           details: {
-            action: input.action,
-            spreadsheetId: input.spreadsheetId,
+            action: req.action,
+            spreadsheetId: req.spreadsheetId,
             requiredScope: 'https://www.googleapis.com/auth/drive.file',
           },
           retryable: false,
@@ -88,13 +90,13 @@ export class CollaborateHandler extends BaseHandler<
     }
 
     // Check for elevated access for sharing operations
-    if (input.action.startsWith('share_') && !this.context.auth?.hasElevatedAccess) {
+    if (req.action.startsWith('share_') && !this.context.auth?.hasElevatedAccess) {
       // Use incremental scope consent system
       const validator = new ScopeValidator({
         scopes: this.context.auth?.scopes ?? [],
       });
 
-      const operation = `sheets_collaborate.${input.action}`;
+      const operation = `sheets_collaborate.${req.action}`;
       const requirements = validator.getOperationRequirements(operation);
 
       // Generate authorization URL for incremental consent
@@ -130,11 +132,10 @@ export class CollaborateHandler extends BaseHandler<
     }
 
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(input) as SheetsCollaborateInput;
+    const inferredReq = this.inferRequestParameters(req) as CollaborateRequest;
 
     // Audit log: Elevated scope operation for sharing
-    if (inferredRequest.action.startsWith('share_')) {
-      const req = inferredRequest;
+    if (inferredReq.action.startsWith('share_')) {
       logger.info('Elevated scope operation', {
         operation: `collaborate:${req.action}`,
         resourceId: req.spreadsheetId,
@@ -145,143 +146,131 @@ export class CollaborateHandler extends BaseHandler<
 
     try {
       let response: CollaborateResponse;
-      switch (inferredRequest.action) {
+      switch (inferredReq.action) {
         // ========== SHARING ACTIONS ==========
         case 'share_add':
-          response = await this.handleShareAdd(inferredRequest as CollaborateShareAddInput);
+          response = await this.handleShareAdd(inferredReq as CollaborateShareAddInput);
           break;
         case 'share_update':
-          response = await this.handleShareUpdate(inferredRequest as CollaborateShareUpdateInput);
+          response = await this.handleShareUpdate(inferredReq as CollaborateShareUpdateInput);
           break;
         case 'share_remove':
-          response = await this.handleShareRemove(inferredRequest as CollaborateShareRemoveInput);
+          response = await this.handleShareRemove(inferredReq as CollaborateShareRemoveInput);
           break;
         case 'share_list':
-          response = await this.handleShareList(inferredRequest as CollaborateShareListInput);
+          response = await this.handleShareList(inferredReq as CollaborateShareListInput);
           break;
         case 'share_get':
-          response = await this.handleShareGet(inferredRequest as CollaborateShareGetInput);
+          response = await this.handleShareGet(inferredReq as CollaborateShareGetInput);
           break;
         case 'share_transfer_ownership':
           response = await this.handleShareTransferOwnership(
-            inferredRequest as CollaborateShareTransferOwnershipInput
+            inferredReq as CollaborateShareTransferOwnershipInput
           );
           break;
         case 'share_set_link':
-          response = await this.handleShareSetLink(inferredRequest as CollaborateShareSetLinkInput);
+          response = await this.handleShareSetLink(inferredReq as CollaborateShareSetLinkInput);
           break;
         case 'share_get_link':
-          response = await this.handleShareGetLink(inferredRequest as CollaborateShareGetLinkInput);
+          response = await this.handleShareGetLink(inferredReq as CollaborateShareGetLinkInput);
           break;
 
         // ========== COMMENT ACTIONS ==========
         case 'comment_add':
-          response = await this.handleCommentAdd(inferredRequest as CollaborateCommentAddInput);
+          response = await this.handleCommentAdd(inferredReq as CollaborateCommentAddInput);
           break;
         case 'comment_update':
-          response = await this.handleCommentUpdate(
-            inferredRequest as CollaborateCommentUpdateInput
-          );
+          response = await this.handleCommentUpdate(inferredReq as CollaborateCommentUpdateInput);
           break;
         case 'comment_delete':
-          response = await this.handleCommentDelete(
-            inferredRequest as CollaborateCommentDeleteInput
-          );
+          response = await this.handleCommentDelete(inferredReq as CollaborateCommentDeleteInput);
           break;
         case 'comment_list':
-          response = await this.handleCommentList(inferredRequest as CollaborateCommentListInput);
+          response = await this.handleCommentList(inferredReq as CollaborateCommentListInput);
           break;
         case 'comment_get':
-          response = await this.handleCommentGet(inferredRequest as CollaborateCommentGetInput);
+          response = await this.handleCommentGet(inferredReq as CollaborateCommentGetInput);
           break;
         case 'comment_resolve':
-          response = await this.handleCommentResolve(
-            inferredRequest as CollaborateCommentResolveInput
-          );
+          response = await this.handleCommentResolve(inferredReq as CollaborateCommentResolveInput);
           break;
         case 'comment_reopen':
-          response = await this.handleCommentReopen(
-            inferredRequest as CollaborateCommentReopenInput
-          );
+          response = await this.handleCommentReopen(inferredReq as CollaborateCommentReopenInput);
           break;
         case 'comment_add_reply':
           response = await this.handleCommentAddReply(
-            inferredRequest as CollaborateCommentAddReplyInput
+            inferredReq as CollaborateCommentAddReplyInput
           );
           break;
         case 'comment_update_reply':
           response = await this.handleCommentUpdateReply(
-            inferredRequest as CollaborateCommentUpdateReplyInput
+            inferredReq as CollaborateCommentUpdateReplyInput
           );
           break;
         case 'comment_delete_reply':
           response = await this.handleCommentDeleteReply(
-            inferredRequest as CollaborateCommentDeleteReplyInput
+            inferredReq as CollaborateCommentDeleteReplyInput
           );
           break;
 
         // ========== VERSION ACTIONS ==========
         case 'version_list_revisions':
           response = await this.handleVersionListRevisions(
-            inferredRequest as CollaborateVersionListRevisionsInput
+            inferredReq as CollaborateVersionListRevisionsInput
           );
           break;
         case 'version_get_revision':
           response = await this.handleVersionGetRevision(
-            inferredRequest as CollaborateVersionGetRevisionInput
+            inferredReq as CollaborateVersionGetRevisionInput
           );
           break;
         case 'version_restore_revision':
           response = await this.handleVersionRestoreRevision(
-            inferredRequest as CollaborateVersionRestoreRevisionInput
+            inferredReq as CollaborateVersionRestoreRevisionInput
           );
           break;
         case 'version_keep_revision':
           response = await this.handleVersionKeepRevision(
-            inferredRequest as CollaborateVersionKeepRevisionInput
+            inferredReq as CollaborateVersionKeepRevisionInput
           );
           break;
         case 'version_create_snapshot':
           response = await this.handleVersionCreateSnapshot(
-            inferredRequest as CollaborateVersionCreateSnapshotInput
+            inferredReq as CollaborateVersionCreateSnapshotInput
           );
           break;
         case 'version_list_snapshots':
           response = await this.handleVersionListSnapshots(
-            inferredRequest as CollaborateVersionListSnapshotsInput
+            inferredReq as CollaborateVersionListSnapshotsInput
           );
           break;
         case 'version_restore_snapshot':
           response = await this.handleVersionRestoreSnapshot(
-            inferredRequest as CollaborateVersionRestoreSnapshotInput
+            inferredReq as CollaborateVersionRestoreSnapshotInput
           );
           break;
         case 'version_delete_snapshot':
           response = await this.handleVersionDeleteSnapshot(
-            inferredRequest as CollaborateVersionDeleteSnapshotInput
+            inferredReq as CollaborateVersionDeleteSnapshotInput
           );
           break;
         case 'version_compare':
-          response = await this.handleVersionCompare(
-            inferredRequest as CollaborateVersionCompareInput
-          );
+          response = await this.handleVersionCompare(inferredReq as CollaborateVersionCompareInput);
           break;
         case 'version_export':
-          response = await this.handleVersionExport(
-            inferredRequest as CollaborateVersionExportInput
-          );
+          response = await this.handleVersionExport(inferredReq as CollaborateVersionExportInput);
           break;
 
         default:
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(inferredRequest as { action: string }).action}`,
+            message: `Unknown action: ${(inferredReq as { action: string }).action}`,
             retryable: false,
           });
       }
 
       // Apply verbosity filtering (LLM optimization) - uses base handler implementation
-      const verbosity = inferredRequest.verbosity ?? 'standard';
+      const verbosity = inferredReq.verbosity ?? 'standard';
       const filteredResponse = super.applyVerbosityFilter(
         response,
         verbosity
@@ -451,10 +440,11 @@ export class CollaborateHandler extends BaseHandler<
         fields: 'permissions(id,type)',
       });
       const anyone = (list.data.permissions ?? []).find((p) => p.type === 'anyone');
-      if (anyone && !input.safety?.dryRun) {
+      // Only delete if we have a valid permission ID
+      if (anyone?.id && !input.safety?.dryRun) {
         await this.driveApi!.permissions.delete({
           fileId: input.spreadsheetId!,
-          permissionId: anyone.id!,
+          permissionId: anyone.id,
           supportsAllDrives: true,
         });
       }
@@ -495,7 +485,7 @@ export class CollaborateHandler extends BaseHandler<
         anchor: input.anchor,
       },
       fields:
-        'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
 
     return this.success('comment_add', { comment: this.mapComment(response.data) });
@@ -513,7 +503,7 @@ export class CollaborateHandler extends BaseHandler<
       commentId: input.commentId!,
       requestBody: { content: input.content! },
       fields:
-        'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
 
     return this.success('comment_update', { comment: this.mapComment(response.data) });
@@ -573,7 +563,7 @@ export class CollaborateHandler extends BaseHandler<
       pageToken: input.startIndex ? String(input.startIndex) : undefined,
       pageSize: input.maxResults ?? 100,
       fields:
-        'comments(id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)))',
+        'comments(id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName)))',
     });
 
     const comments = (response.data.comments ?? []).map(this.mapComment);
@@ -585,7 +575,7 @@ export class CollaborateHandler extends BaseHandler<
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
       fields:
-        'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor,replies(id,content,createdTime,author/displayName)',
+        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor,replies(id,content,createdTime,author(displayName))',
     });
 
     return this.success('comment_get', { comment: this.mapComment(response.data) });
@@ -594,12 +584,19 @@ export class CollaborateHandler extends BaseHandler<
   private async handleCommentResolve(
     input: CollaborateCommentResolveInput
   ): Promise<CollaborateResponse> {
+    // First get the existing comment to preserve its content
+    const existing = await this.driveApi!.comments.get({
+      fileId: input.spreadsheetId!,
+      commentId: input.commentId!,
+      fields: 'content',
+    });
+
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      requestBody: { resolved: true },
+      requestBody: { content: existing.data.content ?? '', resolved: true },
       fields:
-        'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
     return this.success('comment_resolve', { comment: this.mapComment(response.data) });
   }
@@ -607,12 +604,19 @@ export class CollaborateHandler extends BaseHandler<
   private async handleCommentReopen(
     input: CollaborateCommentReopenInput
   ): Promise<CollaborateResponse> {
+    // First get the existing comment to preserve its content
+    const existing = await this.driveApi!.comments.get({
+      fileId: input.spreadsheetId!,
+      commentId: input.commentId!,
+      fields: 'content',
+    });
+
     const response = await this.driveApi!.comments.update({
       fileId: input.spreadsheetId!,
       commentId: input.commentId!,
-      requestBody: { resolved: false },
+      requestBody: { content: existing.data.content ?? '', resolved: false },
       fields:
-        'id,content,createdTime,modifiedTime,author/displayName,author/emailAddress,resolved,anchor',
+        'id,content,createdTime,modifiedTime,author(displayName,emailAddress),resolved,anchor',
     });
     return this.success('comment_reopen', { comment: this.mapComment(response.data) });
   }
@@ -642,6 +646,7 @@ export class CollaborateHandler extends BaseHandler<
       commentId: input.commentId!,
       replyId: input.replyId!,
       requestBody: { content: input.content! },
+      fields: 'id',
     });
 
     return this.success('comment_update_reply', { replyId: input.replyId! });
@@ -1073,7 +1078,7 @@ export class CollaborateHandler extends BaseHandler<
    * - version_compare: Requires complex diff algorithm for revision comparison
    *   Implementation would need semantic diff of spreadsheet state
    */
-  private featureUnavailable(action: SheetsCollaborateInput['action']): CollaborateResponse {
+  private featureUnavailable(action: CollaborateRequest['action']): CollaborateResponse {
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
       message: `${action} is unavailable in this server build. This feature requires additional implementation work.`,

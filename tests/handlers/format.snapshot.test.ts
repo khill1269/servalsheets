@@ -4,9 +4,9 @@
  * Snapshot tests for handler output stability.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { FormatHandler } from "../../src/handlers/format.js";
-import type { HandlerContext } from "../../src/handlers/base.js";
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { FormatHandler } from '../../src/handlers/format.js';
+import type { HandlerContext } from '../../src/handlers/base.js';
 
 const createMockSheetsApi = () => ({
   spreadsheets: {
@@ -24,14 +24,14 @@ const createMockContext = (): HandlerContext => ({
   } as any,
   rangeResolver: {
     resolve: vi.fn().mockResolvedValue({
-      a1Notation: "Sheet1!A1:B2",
+      a1Notation: 'Sheet1!A1:B2',
       sheetId: 0,
-      sheetName: "Sheet1",
+      sheetName: 'Sheet1',
     }),
   } as any,
 });
 
-describe("FormatHandler Snapshots", () => {
+describe('FormatHandler Snapshots', () => {
   let mockApi: ReturnType<typeof createMockSheetsApi>;
   let mockContext: HandlerContext;
   let handler: FormatHandler;
@@ -44,17 +44,17 @@ describe("FormatHandler Snapshots", () => {
 
     mockApi.spreadsheets.get.mockResolvedValue({
       data: {
-        sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }],
+        sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
       },
     });
     mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: {} });
   });
 
-  it("matches snapshot for set_format response", async () => {
+  it('matches snapshot for set_format response', async () => {
     const result = await handler.handle({
-      action: "set_format",
-      spreadsheetId: "test-id",
-      range: { a1: "Sheet1!A1:B2" },
+      action: 'set_format',
+      spreadsheetId: 'test-id',
+      range: { a1: 'Sheet1!A1:B2' },
       format: {
         backgroundColor: { red: 1, green: 0, blue: 0 },
         textFormat: { bold: true },

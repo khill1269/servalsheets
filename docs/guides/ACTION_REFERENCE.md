@@ -1,8 +1,8 @@
 # ServalSheets - Action Reference
 
-**Version**: v1.4.0
-**Date**: 2026-01-14
-**Total**: 17 tools, 226 actions
+**Version**: v1.5.0
+**Date**: 2026-01-20
+**Total**: 19 tools, 244 actions
 
 ## Current Tool List
 
@@ -24,7 +24,7 @@ npm run check:drift
 
 ## Tool Categories
 
-ServalSheets provides 17 production tools across these categories:
+ServalSheets provides 19 production tools across these categories:
 
 ### Core Operations
 - **sheets_auth** - Authentication & OAuth
@@ -32,11 +32,10 @@ ServalSheets provides 17 production tools across these categories:
 - **sheets_data** - Read/write cell values
 - **sheets_dimensions** - Row/column operations
 - **sheets_format** - Cell formatting
-- **sheets_advanced** - Named ranges, filters, protection
+- **sheets_advanced** - Named ranges, protection, metadata
 
 ### Analysis & Quality
-- **sheets_analysis** - Data quality analysis
-- **sheets_analyze** - AI-powered analysis (with Sampling)
+- **sheets_analyze** - AI-powered analysis (quality, patterns, formulas)
 - **sheets_quality** - Validation and quality checks
 
 ### Collaboration
@@ -75,8 +74,8 @@ npm run gen:metadata
 ```
 
 This will show:
-- Total tools: 17
-- Total actions: 226
+- Total tools: 19
+- Total actions: 244
 - Per-tool action counts
 
 ## Important Notes
@@ -90,4 +89,4 @@ For the most accurate and up-to-date information:
 
 ---
 
-**Last Updated:** 2026-01-14 (v1.4.0)
+**Last Updated:** 2026-01-20 (v1.5.0)

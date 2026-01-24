@@ -18,24 +18,23 @@ ServalSheets v1.1.1 includes production-ready performance and observability feat
 - [ ] Google Cloud project with Sheets API enabled
 - [ ] Service account JSON key OR OAuth tokens
 
-## 🚀 Automated Setup (Recommended)
+## 🚀 Automated OAuth Setup (Optional)
 
-Use the interactive installation script for easiest setup:
+Use the OAuth setup script for the fastest OAuth-based setup:
 
 ```bash
 cd /path/to/servalsheets
 npm install
 npm run build
-./install-claude-desktop.sh
+./setup-oauth.sh
 ```
 
 The script will:
-1. Auto-detect your Google credentials
-2. Offer optional feature configuration (tracing, rate limits, log level)
-3. Generate Claude Desktop config automatically
-4. Provide service account email for sheet sharing
+1. Run OAuth authentication in your browser
+2. Create `claude_desktop_config.json` pointing at `dist/cli.js`
+3. Verify tokens and config files
 
-**Skip to [Step 4: Test](#step-4-test-the-setup)** if using the automated script.
+**Skip to [Step 4: Test](#step-4-test-the-setup)** if you used the script.
 
 ## 🔧 Manual Setup (5 minutes)
 
@@ -359,32 +358,34 @@ The following features are **always active** in v1.1.1:
 
 ## 📊 Verify Tools Are Loaded
 
-You should see **17 tools** available:
+You should see **19 tools** available:
 
 1. `sheets_auth` - Authentication & OAuth
 2. `sheets_core` - Spreadsheet CRUD operations
 3. `sheets_data` - Read/write cell values
 4. `sheets_dimensions` - Row/column operations
 5. `sheets_format` - Cell formatting
-6. `sheets_advanced` - Named ranges, filters, protection
-7. `sheets_analysis` - Data quality analysis
-8. `sheets_analyze` - AI-powered analysis (with Sampling)
-9. `sheets_quality` - Validation and quality checks
-10. `sheets_collaborate` - Sharing and permissions
-11. `sheets_session` - Session context management
-12. `sheets_composite` - Multi-step operations
-13. `sheets_visualize` - Charts and visualization
-14. `sheets_transaction` - Transaction management
-15. `sheets_history` - Operation history
-16. `sheets_confirm` - User confirmation (with Elicitation)
-17. `sheets_fix` - Automated issue resolution
+6. `sheets_advanced` - Named ranges, protection, metadata
+7. `sheets_analyze` - AI-powered analysis (quality, patterns, formulas)
+8. `sheets_quality` - Validation and quality checks
+9. `sheets_collaborate` - Sharing and permissions
+10. `sheets_session` - Session context management
+11. `sheets_composite` - Multi-step operations
+12. `sheets_visualize` - Charts and visualization
+13. `sheets_transaction` - Transaction management
+14. `sheets_history` - Operation history
+15. `sheets_confirm` - User confirmation (Elicitation)
+16. `sheets_fix` - Automated issue resolution
+17. `sheets_templates` - Enterprise templates (Tier 7)
+18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
+19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 17 tools, 226 actions
+**Total**: 19 tools, 252 actions
 
 To see the current action breakdown, run:
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 17 tools, 226 actions
+# Output: ✅ Total: 19 tools, 252 actions
 ```
 
 ## 🎯 Example Tasks

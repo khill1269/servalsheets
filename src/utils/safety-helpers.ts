@@ -237,8 +237,8 @@ export function buildSnapshotInfo(
     snapshotId: snapshot.snapshotId,
     createdAt: snapshot.createdAt,
     undoInstructions: [
-      `To undo: sheets_versions action="restore" revisionId="${snapshot.snapshotId}"`,
-      'Or: sheets_history action="rollback"',
+      `To undo: sheets_collaborate action="version_restore_snapshot" snapshotId="${snapshot.snapshotId}"`,
+      'Or: sheets_history action="undo"',
     ],
   };
 }

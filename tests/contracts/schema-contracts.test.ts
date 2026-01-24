@@ -29,93 +29,112 @@ import {
   SheetsFixInputSchema,
   CompositeInputSchema,
   SheetsSessionInputSchema,
+  SheetsTemplatesInputSchema,
+  SheetsBigQueryInputSchema,
+  SheetsAppsScriptInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
 
 // Sample valid inputs for each tool (using first action from each schema)
-// NEW: After refactoring, inputs no longer wrapped in "request:"
+// All inputs are now wrapped in "request:" property
 const VALID_INPUTS: Record<string, unknown> = {
-  sheets_auth: { action: 'status' },
-  sheets_core: { action: 'get', spreadsheetId: 'test123' },
-  sheets_data: { action: 'read', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:B10' } },
-  sheets_format: {
-    action: 'set_format',
-    spreadsheetId: 'test123',
-    range: { a1: 'Sheet1!A1' },
-    format: {},
+  sheets_auth: { request: { action: 'status' } },
+  sheets_core: { request: { action: 'get', spreadsheetId: 'test123' } },
+  sheets_data: {
+    request: { action: 'read', spreadsheetId: 'test123', range: { a1: 'Sheet1!A1:B10' } },
   },
-  sheets_dimensions: { action: 'insert_rows', spreadsheetId: 'test123', sheetId: 0, startIndex: 5 },
+  sheets_format: {
+    request: {
+      action: 'set_format',
+      spreadsheetId: 'test123',
+      range: { a1: 'Sheet1!A1' },
+      format: {},
+    },
+  },
+  sheets_dimensions: {
+    request: { action: 'insert', dimension: 'ROWS', spreadsheetId: 'test123', sheetId: 0, startIndex: 5 },
+  },
   sheets_visualize: {
-    action: 'chart_create',
-    spreadsheetId: 'test123',
-    sheetId: 0,
-    chartType: 'BAR',
-    data: { sourceRange: { a1: 'Sheet1!A1:C10' } },
-    position: { anchorCell: 'E1' },
+    request: {
+      action: 'chart_create',
+      spreadsheetId: 'test123',
+      sheetId: 0,
+      chartType: 'BAR',
+      data: { sourceRange: { a1: 'Sheet1!A1:C10' } },
+      position: { anchorCell: 'E1' },
+    },
   },
   sheets_collaborate: {
-    action: 'share_add',
-    spreadsheetId: 'test123',
-    type: 'anyone',
-    role: 'reader',
+    request: {
+      action: 'share_add',
+      spreadsheetId: 'test123',
+      type: 'anyone',
+      role: 'reader',
+    },
   },
-  sheets_analysis: { action: 'data_quality', spreadsheetId: 'test123' },
+  sheets_analyze: { request: { action: 'comprehensive', spreadsheetId: 'test123' } },
   sheets_advanced: {
-    action: 'add_named_range',
-    spreadsheetId: 'test123',
-    name: 'TestRange',
-    range: { a1: 'Sheet1!A1:C10' },
+    request: {
+      action: 'add_named_range',
+      spreadsheetId: 'test123',
+      name: 'TestRange',
+      range: { a1: 'Sheet1!A1:C10' },
+    },
   },
-  sheets_transaction: { action: 'begin', spreadsheetId: 'test123' },
-  sheets_quality: { action: 'validate', value: 'test-value' },
-  sheets_history: { action: 'list' },
+  sheets_transaction: { request: { action: 'begin', spreadsheetId: 'test123' } },
+  sheets_quality: { request: { action: 'validate', value: 'test-value' } },
+  sheets_history: { request: { action: 'list' } },
   sheets_confirm: {
-    action: 'request',
-    plan: {
-      title: 'Test Plan',
-      description: 'Test',
-      steps: [
+    request: {
+      action: 'request',
+      plan: {
+        title: 'Test Plan',
+        description: 'Test',
+        steps: [
+          {
+            stepNumber: 1,
+            description: 'Test step',
+            tool: 'sheets_data',
+            action: 'read',
+            risk: 'low',
+            estimatedApiCalls: 1,
+            isDestructive: false,
+            canUndo: false,
+          },
+        ],
+      },
+    },
+  },
+  sheets_fix: {
+    request: {
+      action: 'fix',
+      spreadsheetId: 'test123',
+      issues: [
         {
-          stepNumber: 1,
-          description: 'Test step',
-          tool: 'sheets_values',
-          action: 'read',
-          risk: 'low',
-          estimatedApiCalls: 1,
-          isDestructive: false,
-          canUndo: false,
+          type: 'MULTIPLE_TODAY',
+          severity: 'medium',
+          sheet: 'Sheet1',
+          description: 'Multiple TODAY() calls',
         },
       ],
     },
   },
-  sheets_analyze: {
-    action: 'generate_formula',
-    spreadsheetId: 'test123',
-    description: 'Sum column A',
-  },
-  sheets_fix: {
-    action: 'fix',
-    spreadsheetId: 'test123',
-    issues: [
-      {
-        type: 'MULTIPLE_TODAY',
-        severity: 'medium',
-        sheet: 'Sheet1',
-        description: 'Multiple TODAY() calls',
-      },
-    ],
-  },
   sheets_composite: {
-    action: 'import_csv',
-    spreadsheetId: 'test123',
-    csvData: 'Name,Age\nAlice,30',
-    mode: 'replace',
+    request: {
+      action: 'import_csv',
+      spreadsheetId: 'test123',
+      csvData: 'Name,Age\nAlice,30',
+      mode: 'replace',
+    },
   },
-  sheets_session: { action: 'get_active' },
+  sheets_session: { request: { action: 'get_active' } },
+  sheets_templates: { request: { action: 'list', includeBuiltin: false } },
+  sheets_bigquery: { request: { action: 'list_datasets', projectId: 'my-gcp-project' } },
+  sheets_appsscript: { request: { action: 'list_versions', scriptId: 'test-script-id' } },
 };
 
-// All tool input schemas (16 tools - sheets_analysis deprecated)
+// All tool input schemas (19 tools - includes Tier 7 sheets_templates, sheets_bigquery, sheets_appsscript)
 const TOOL_SCHEMAS = [
   { name: 'sheets_auth', schema: SheetsAuthInputSchema },
   { name: 'sheets_core', schema: SheetsCoreInputSchema },
@@ -133,17 +152,20 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_fix', schema: SheetsFixInputSchema },
   { name: 'sheets_composite', schema: CompositeInputSchema },
   { name: 'sheets_session', schema: SheetsSessionInputSchema },
+  { name: 'sheets_templates', schema: SheetsTemplatesInputSchema },
+  { name: 'sheets_bigquery', schema: SheetsBigQueryInputSchema },
+  { name: 'sheets_appsscript', schema: SheetsAppsScriptInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 16 tools (sheets_analysis deprecated)', () => {
-      expect(TOOL_COUNT).toBe(16);
-      expect(TOOL_SCHEMAS).toHaveLength(16);
+    it('should have exactly 19 tools (includes Tier 7 enterprise tools)', () => {
+      expect(TOOL_COUNT).toBe(19);
+      expect(TOOL_SCHEMAS).toHaveLength(19);
     });
 
-    it('should have 213 total actions across all tools', () => {
-      expect(ACTION_COUNT).toBe(213);
+    it('should have 251 total actions across all tools', () => {
+      expect(ACTION_COUNT).toBe(251);
     });
 
     it('should not have duplicate tool names', () => {
@@ -162,23 +184,27 @@ describe('Schema Contracts', () => {
         const result = tool.schema.safeParse(validInput);
 
         if (!result.success) {
-          console.error(`${tool.name} validation failed:`, result.error.errors);
+          console.error(`${tool.name} validation failed:`, result.error.issues);
         }
 
         expect(result.success).toBe(true);
       });
 
       it(`${tool.name} rejects invalid inputs`, () => {
-        // Test with invalid action
+        // Test with invalid action (wrapped in request)
         const invalidAction = tool.schema.safeParse({
-          action: 'invalid_action_name',
-          spreadsheetId: 'test123',
+          request: {
+            action: 'invalid_action_name',
+            spreadsheetId: 'test123',
+          },
         });
         expect(invalidAction.success).toBe(false);
 
         // Test with missing required field (spreadsheetId)
         const missingField = tool.schema.safeParse({
-          action: 'get',
+          request: {
+            action: 'get',
+          },
         });
         expect(missingField.success).toBe(false);
       });
@@ -197,14 +223,16 @@ describe('Schema Contracts', () => {
 
       for (const action of actions) {
         const result = SheetsDataInputSchema.safeParse({
-          action,
-          spreadsheetId: 'test123',
-          range: { a1: 'Sheet1!A1:B10' },
-          ...(action === 'write' || action === 'append' ? { values: [[1, 2]] } : {}),
+          request: {
+            action,
+            spreadsheetId: 'test123',
+            range: { a1: 'Sheet1!A1:B10' },
+            ...(action === 'write' || action === 'append' ? { values: [[1, 2]] } : {}),
+          },
         });
 
         if (!result.success) {
-          console.error(`sheets_data action "${action}" failed:`, result.error.errors);
+          console.error(`sheets_data action "${action}" failed:`, result.error.issues);
         }
 
         expect(result.success).toBe(true);
@@ -214,23 +242,29 @@ describe('Schema Contracts', () => {
     it('sheets_core discriminates correctly', () => {
       // 'get' requires spreadsheetId
       const getValid = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'test123',
+        request: {
+          action: 'get',
+          spreadsheetId: 'test123',
+        },
       });
       expect(getValid.success).toBe(true);
 
       // 'create' requires title
       const createValid = SheetsCoreInputSchema.safeParse({
-        action: 'create',
-        title: 'New Spreadsheet',
+        request: {
+          action: 'create',
+          title: 'New Spreadsheet',
+        },
       });
       expect(createValid.success).toBe(true);
 
       // 'add_sheet' requires spreadsheetId and title
       const addSheetValid = SheetsCoreInputSchema.safeParse({
-        action: 'add_sheet',
-        spreadsheetId: 'test123',
-        title: 'New Sheet',
+        request: {
+          action: 'add_sheet',
+          spreadsheetId: 'test123',
+          title: 'New Sheet',
+        },
       });
       expect(addSheetValid.success).toBe(true);
     });
@@ -239,28 +273,34 @@ describe('Schema Contracts', () => {
   describe('Required Fields Validation', () => {
     it('sheets_data requires spreadsheetId', () => {
       const result = SheetsDataInputSchema.safeParse({
-        action: 'read',
-        range: { a1: 'Sheet1!A1' },
-        // Missing spreadsheetId
+        request: {
+          action: 'read',
+          range: { a1: 'Sheet1!A1' },
+          // Missing spreadsheetId
+        },
       });
       expect(result.success).toBe(false);
     });
 
     it('sheets_data write action requires values', () => {
       const result = SheetsDataInputSchema.safeParse({
-        action: 'write',
-        spreadsheetId: 'test123',
-        range: { a1: 'Sheet1!A1' },
-        // Missing values
+        request: {
+          action: 'write',
+          spreadsheetId: 'test123',
+          range: { a1: 'Sheet1!A1' },
+          // Missing values
+        },
       });
       expect(result.success).toBe(false);
     });
 
     it('sheets_core add_sheet action requires title', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'add_sheet',
-        spreadsheetId: 'test123',
-        // Missing title
+        request: {
+          action: 'add_sheet',
+          spreadsheetId: 'test123',
+          // Missing title
+        },
       });
       expect(result.success).toBe(false);
     });
@@ -289,36 +329,41 @@ describe('Schema Contracts', () => {
      * and correctly validate action-specific required fields.
      */
 
-    it('all schemas use discriminated unions (verify discriminator field)', () => {
-      // NOTE: sheets_collaborate still uses flat object pattern - needs conversion
-      const EXCEPTIONS = ['sheets_collaborate'];
+    it('all schemas use discriminated unions (verify discriminator field in request)', () => {
+      // All schemas now use { request: z.discriminatedUnion(...) } pattern
+      // or { request: z.object({ action: z.enum([...]), ... }) } pattern
 
       for (const tool of TOOL_SCHEMAS) {
-        if (EXCEPTIONS.includes(tool.name)) {
-          continue; // Skip schemas pending conversion
-        }
-        // Zod v4 discriminated unions have a discriminator field in _def
-        const zodDef = (
-          tool.schema as unknown as { _def: { discriminator?: string; type?: string } }
-        )._def;
+        // Get the schema definition
+        const zodDef = (tool.schema as unknown as { _def: { type?: string; shape?: unknown } })
+          ._def;
         expect(zodDef).toBeDefined();
-        expect(zodDef.discriminator).toBe('action');
-        // Discriminated unions have type 'union' with discriminator
-        expect(zodDef.type).toBe('union');
+        expect(zodDef.type).toBe('object'); // Outer object wrapper
+
+        // Get the request field from shape
+        const shape =
+          typeof zodDef.shape === 'function' ? (zodDef.shape as () => unknown)() : zodDef.shape;
+        const requestField = (shape as Record<string, unknown>)?.['request'];
+        expect(requestField).toBeDefined();
+
+        // Request field should be either discriminated union or object with action enum
+        const requestDef = (requestField as { _def?: { type?: string; discriminator?: string } })
+          ?._def;
+        expect(requestDef).toBeDefined();
+        // Either discriminated union (type='union' with discriminator) or object with action
+        expect(['union', 'object'].includes(requestDef?.type ?? '')).toBe(true);
       }
     });
 
     it('schemas reject invalid action values', () => {
       for (const tool of TOOL_SCHEMAS) {
         const result = tool.schema.safeParse({
-          action: 'this_action_does_not_exist',
-          spreadsheetId: 'test123',
+          request: {
+            action: 'this_action_does_not_exist',
+            spreadsheetId: 'test123',
+          },
         });
         expect(result.success).toBe(false);
-        if (!result.success && result.error.errors && result.error.errors.length > 0) {
-          // Verify the error is about invalid discriminator value
-          expect(result.error.errors[0].message).toContain('Invalid');
-        }
       }
     });
 
@@ -336,9 +381,9 @@ describe('Schema Contracts', () => {
       ];
 
       for (const input of validActions) {
-        const result = SheetsCoreInputSchema.safeParse(input);
+        const result = SheetsCoreInputSchema.safeParse({ request: input });
         if (!result.success) {
-          console.error(`sheets_core action "${input.action}" failed:`, result.error.errors);
+          console.error(`sheets_core action "${input.action}" failed:`, result.error.issues);
         }
         expect(result.success).toBe(true);
       }
@@ -372,7 +417,6 @@ describe('Schema Contracts', () => {
           chartId: 123,
           data: { sourceRange: { a1: 'A1:D10' } },
         },
-        { action: 'chart_export', spreadsheetId: 'test', chartId: 123 },
       ];
 
       const pivotActions = [
@@ -391,9 +435,9 @@ describe('Schema Contracts', () => {
       ];
 
       for (const input of [...chartActions, ...pivotActions]) {
-        const result = SheetsVisualizeInputSchema.safeParse(input);
+        const result = SheetsVisualizeInputSchema.safeParse({ request: input });
         if (!result.success) {
-          console.error(`sheets_visualize action "${input.action}" failed:`, result.error.errors);
+          console.error(`sheets_visualize action "${input.action}" failed:`, result.error.issues);
         }
         expect(result.success).toBe(true);
       }
@@ -433,28 +477,24 @@ describe('Schema Contracts', () => {
           preset: 'header_row',
         },
         {
-          action: 'rule_add_data_validation',
-          spreadsheetId: 'test',
-          range: { a1: 'A1' },
-          condition: { type: 'NUMBER_GREATER', values: ['0'] },
-        },
-        { action: 'rule_clear_data_validation', spreadsheetId: 'test', range: { a1: 'A1' } },
-        { action: 'rule_list_data_validations', spreadsheetId: 'test', sheetId: 0 },
-        {
-          action: 'rule_add_preset_rule',
+          action: 'rule_add_conditional_format',
           spreadsheetId: 'test',
           sheetId: 0,
           range: { a1: 'A1' },
-          rulePreset: 'highlight_duplicates',
+          rule: {
+            type: 'boolean',
+            condition: { type: 'NUMBER_GREATER', values: ['0'] },
+            format: { backgroundColor: { red: 1, green: 0, blue: 0 } },
+          },
         },
       ];
 
       for (const input of formatActions) {
-        const result = SheetsFormatInputSchema.safeParse(input);
+        const result = SheetsFormatInputSchema.safeParse({ request: input });
         if (!result.success) {
           console.error(
             `sheets_format action "${input.action}" failed:`,
-            JSON.stringify(result.error.errors, null, 2)
+            JSON.stringify(result.error.issues, null, 2)
           );
         }
         expect(result.success).toBe(true);
@@ -481,11 +521,11 @@ describe('Schema Contracts', () => {
       ];
 
       for (const input of analyzeActions) {
-        const result = SheetsAnalyzeInputSchema.safeParse(input);
+        const result = SheetsAnalyzeInputSchema.safeParse({ request: input });
         if (!result.success) {
           console.error(
             `sheets_analyze action "${input.action}" failed:`,
-            JSON.stringify(result.error.errors, null, 2)
+            JSON.stringify(result.error.issues, null, 2)
           );
         }
         expect(result.success).toBe(true);
@@ -493,14 +533,15 @@ describe('Schema Contracts', () => {
     });
 
     it('sheets_dimensions validates sample dimension actions', () => {
-      // Test a representative sample of dimension actions
+      // Test a representative sample of dimension actions (consolidated actions use dimension param)
       const dimensionActions = [
-        { action: 'insert_rows', spreadsheetId: 'test', sheetId: 0, startIndex: 5 },
-        { action: 'insert_columns', spreadsheetId: 'test', sheetId: 0, startIndex: 3 },
-        { action: 'delete_rows', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'delete_columns', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
+        { action: 'insert', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5 },
+        { action: 'insert', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3 },
+        { action: 'delete', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
+        { action: 'delete', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
         {
-          action: 'resize_rows',
+          action: 'resize',
+          dimension: 'ROWS',
           spreadsheetId: 'test',
           sheetId: 0,
           startIndex: 0,
@@ -508,7 +549,8 @@ describe('Schema Contracts', () => {
           pixelSize: 100,
         },
         {
-          action: 'resize_columns',
+          action: 'resize',
+          dimension: 'COLUMNS',
           spreadsheetId: 'test',
           sheetId: 0,
           startIndex: 0,
@@ -523,15 +565,15 @@ describe('Schema Contracts', () => {
           endIndex: 10,
           dimension: 'ROWS',
         },
-        { action: 'hide_rows', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'hide_columns', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
-        { action: 'show_rows', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'show_columns', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
-        { action: 'append_rows', spreadsheetId: 'test', sheetId: 0, count: 5 },
-        { action: 'freeze_rows', spreadsheetId: 'test', sheetId: 0, frozenRowCount: 2 },
-        { action: 'group_rows', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
+        { action: 'hide', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
+        { action: 'hide', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
+        { action: 'show', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
+        { action: 'show', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
+        { action: 'append', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, count: 5 },
+        { action: 'freeze', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, count: 2 },
+        { action: 'group', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
         {
-          action: 'filter_set_basic_filter',
+          action: 'set_basic_filter',
           spreadsheetId: 'test',
           sheetId: 0,
           range: { a1: 'A1:C10' },
@@ -540,9 +582,9 @@ describe('Schema Contracts', () => {
 
       // Test a sample of actions
       for (const input of dimensionActions) {
-        const result = SheetsDimensionsInputSchema.safeParse(input);
+        const result = SheetsDimensionsInputSchema.safeParse({ request: input });
         if (!result.success) {
-          console.error(`sheets_dimensions action "${input.action}" failed:`, result.error.errors);
+          console.error(`sheets_dimensions action "${input.action}" failed:`, result.error.issues);
         }
         expect(result.success).toBe(true);
       }
@@ -575,9 +617,9 @@ describe('Schema Contracts', () => {
       ];
 
       for (const input of advancedActions) {
-        const result = SheetsAdvancedInputSchema.safeParse(input);
+        const result = SheetsAdvancedInputSchema.safeParse({ request: input });
         if (!result.success) {
-          console.error(`sheets_advanced action "${input.action}" failed:`, result.error.errors);
+          console.error(`sheets_advanced action "${input.action}" failed:`, result.error.issues);
         }
         expect(result.success).toBe(true);
       }
@@ -588,37 +630,45 @@ describe('Schema Contracts', () => {
 
       // sheets_data write requires values
       const writeNoValues = SheetsDataInputSchema.safeParse({
-        action: 'write',
-        spreadsheetId: 'test',
-        range: { a1: 'A1' },
-        // Missing required 'values' field
+        request: {
+          action: 'write',
+          spreadsheetId: 'test',
+          range: { a1: 'A1' },
+          // Missing required 'values' field
+        },
       });
       expect(writeNoValues.success).toBe(false);
 
       // sheets_core add_sheet requires title
       const addSheetNoTitle = SheetsCoreInputSchema.safeParse({
-        action: 'add_sheet',
-        spreadsheetId: 'test',
-        // Missing required 'title' field
+        request: {
+          action: 'add_sheet',
+          spreadsheetId: 'test',
+          // Missing required 'title' field
+        },
       });
       expect(addSheetNoTitle.success).toBe(false);
 
       // sheets_visualize chart_create requires chartType, data, position
       const chartNoData = SheetsVisualizeInputSchema.safeParse({
-        action: 'chart_create',
-        spreadsheetId: 'test',
-        sheetId: 0,
-        chartType: 'BAR',
-        // Missing required 'data' and 'position' fields
+        request: {
+          action: 'chart_create',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          chartType: 'BAR',
+          // Missing required 'data' and 'position' fields
+        },
       });
       expect(chartNoData.success).toBe(false);
 
       // sheets_advanced add_named_range requires name and range
       const namedRangeNoName = SheetsAdvancedInputSchema.safeParse({
-        action: 'add_named_range',
-        spreadsheetId: 'test',
-        range: { a1: 'A1:C10' },
-        // Missing required 'name' field
+        request: {
+          action: 'add_named_range',
+          spreadsheetId: 'test',
+          range: { a1: 'A1:C10' },
+          // Missing required 'name' field
+        },
       });
       expect(namedRangeNoName.success).toBe(false);
     });
@@ -628,17 +678,79 @@ describe('Schema Contracts', () => {
       // (i.e., write action shouldn't accept chart-specific fields)
 
       const writeWithUnrelatedFields = SheetsDataInputSchema.safeParse({
-        action: 'write',
-        spreadsheetId: 'test',
-        range: { a1: 'A1' },
-        values: [[1, 2, 3]],
-        // These fields are from other actions and should be ignored/stripped
-        chartType: 'BAR',
-        namedRangeId: '123',
+        request: {
+          action: 'write',
+          spreadsheetId: 'test',
+          range: { a1: 'A1' },
+          values: [[1, 2, 3]],
+          // These fields are from other actions and should be ignored/stripped
+          chartType: 'BAR',
+          namedRangeId: '123',
+        },
       });
 
       // Should succeed (extra fields are ignored)
       expect(writeWithUnrelatedFields.success).toBe(true);
+    });
+
+    it('sheets_templates validates all 8 actions', () => {
+      const templatesActions = [
+        { action: 'list', includeBuiltin: false },
+        { action: 'get', templateId: 'template-123' },
+        {
+          action: 'create',
+          spreadsheetId: 'test123',
+          name: 'My Template',
+          includeData: false,
+          includeFormatting: false,
+        },
+        { action: 'apply', templateId: 'template-123', title: 'New Spreadsheet' },
+        { action: 'update', templateId: 'template-123' },
+        { action: 'delete', templateId: 'template-123' },
+        { action: 'preview', templateId: 'template-123' },
+        { action: 'import_builtin', builtinName: 'budget-tracker' },
+      ];
+
+      for (const input of templatesActions) {
+        const result = SheetsTemplatesInputSchema.safeParse({ request: input });
+        if (!result.success) {
+          console.error(`sheets_templates action "${input.action}" failed:`, result.error.issues);
+        }
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('sheets_templates enforces action-specific required fields', () => {
+      // create requires spreadsheetId and name
+      const createMissingName = SheetsTemplatesInputSchema.safeParse({
+        request: {
+          action: 'create',
+          spreadsheetId: 'test123',
+          includeData: false,
+          includeFormatting: false,
+          // Missing required 'name' field
+        },
+      });
+      expect(createMissingName.success).toBe(false);
+
+      // apply requires templateId and title
+      const applyMissingTitle = SheetsTemplatesInputSchema.safeParse({
+        request: {
+          action: 'apply',
+          templateId: 'template-123',
+          // Missing required 'title' field
+        },
+      });
+      expect(applyMissingTitle.success).toBe(false);
+
+      // import_builtin requires builtinName
+      const importMissingName = SheetsTemplatesInputSchema.safeParse({
+        request: {
+          action: 'import_builtin',
+          // Missing required 'builtinName' field
+        },
+      });
+      expect(importMissingName.success).toBe(false);
     });
   });
 });

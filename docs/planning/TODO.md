@@ -4,7 +4,7 @@
 
 **Current Production Status (2026-01-16):**
 - ✅ **Version:** 1.4.0
-- ✅ **Architecture:** 17 tools, 226 actions (after Wave 5 consolidation)
+- ✅ **Architecture:** 16 tools, 207 actions (current consolidated set)
 - ✅ **Status:** Production ready, all verification checks passing
 - ✅ **Phases 0-4 and Phase 7:** COMPLETE
 
@@ -17,7 +17,7 @@
 
 *Generated: 2026-01-07 (Updated with comprehensive audit findings)*
 
-**⚠️ NOTE:** This document contains historical planning information. Many tasks reference previous architectures with 24-26 tools. **Current production architecture: 17 tools, 226 actions** (as of v1.4.0).
+**⚠️ NOTE:** This document contains historical planning information. Many tasks reference previous architectures with 24-26 tools. **Current production architecture: 16 tools, 207 actions** (as of v1.4.0).
 
 ## 🔥 IN PROGRESS
 
@@ -321,7 +321,7 @@ Files: src/server.ts, src/mcp/completions.ts
 - [x] Read completions.ts:90 (sheets_analyze actions)
 - [x] Compare with analyze.ts:49 (actual actions)
 - [x] Update TOOL_ACTIONS for sheets_analyze: ['analyze', 'generate_formula', 'suggest_chart', 'get_stats']
-- [x] Update sheets_analysis: Added 5 missing actions (detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart)
+- [x] Update sheets_analyze: Added 5 missing actions (detect_patterns, column_analysis, suggest_templates, generate_formula, suggest_chart)
 - [x] Update sheets_history: Added 4 missing actions (undo, redo, revert_to, clear)
 - [x] Add sheets_fix to TOOL_ACTIONS (no actions - single request mode)
 - [x] Update total count to 188 actions
@@ -567,7 +567,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ### Proposed 11-Tool Structure (for future reference)
 
 **Current Architecture (24 tools)**: One tool per capability domain
-- sheets_auth, sheets_spreadsheet, sheets_sheet, sheets_values, sheets_cells, sheets_format, sheets_dimensions, sheets_rules, sheets_charts, sheets_pivot, sheets_filter_sort, sheets_sharing, sheets_comments, sheets_versions, sheets_analysis, sheets_advanced, sheets_transaction, sheets_validation, sheets_conflict, sheets_impact, sheets_history, sheets_confirm, sheets_analyze, sheets_fix
+- sheets_auth, sheets_core, sheets_core, sheets_data, sheets_data, sheets_format, sheets_dimensions, sheets_format, sheets_visualize, sheets_visualize, sheets_dimensions, sheets_collaborate, sheets_collaborate, sheets_collaborate, sheets_analyze, sheets_advanced, sheets_transaction, sheets_quality, sheets_quality, sheets_quality, sheets_history, sheets_confirm, sheets_analyze, sheets_fix
 - Total: 24 tools with 188 actions
 
 **Potential Target Architecture (11 tools)**: Grouped by workflow/feature set
@@ -575,7 +575,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 2. **sheets_format** - Styling and appearance (combines: format, dimensions)
 3. **sheets_data** - Data manipulation (combines: rules, charts, pivot, filter_sort)
 4. **sheets_collab** - Collaboration features (combines: sharing, comments, versions)
-5. **sheets_analysis** - AI-powered analysis (combines: analysis, advanced, analyze)
+5. **sheets_analyze** - AI-powered analysis (combines: analysis, advanced, analyze)
 6. **sheets_enterprise** - Advanced features (combines: transaction, validation, conflict, impact, history)
 7. **sheets_auth** - Authentication (keeps as-is)
 8. **sheets_confirm** - User confirmation (keeps as-is)

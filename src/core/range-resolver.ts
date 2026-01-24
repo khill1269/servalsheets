@@ -301,7 +301,25 @@ export class RangeResolver {
     const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === grid.sheetId);
 
     if (!sheet?.properties) {
-      throw new RangeResolutionError(`Sheet with ID ${grid.sheetId} not found`, 'SHEET_NOT_FOUND');
+      const availableSheets =
+        response.data.sheets
+          ?.slice(0, 5)
+          .map((s) => `${s.properties?.title} (id: ${s.properties?.sheetId})`)
+          .filter(Boolean) ?? [];
+      const totalSheets = response.data.sheets?.length ?? 0;
+      throw new RangeResolutionError(
+        `Sheet with ID ${grid.sheetId} not found. Available sheets: ${availableSheets.join(', ')}${totalSheets > 5 ? ` (+${totalSheets - 5} more)` : ''}. Use sheets_core action:"list_sheets" to get valid sheet IDs.`,
+        'SHEET_NOT_FOUND',
+        {
+          requestedSheetId: grid.sheetId,
+          availableSheets: response.data.sheets?.map((s) => ({
+            name: s.properties?.title,
+            id: s.properties?.sheetId,
+          })),
+          hint: 'Sheet IDs change when sheets are deleted/recreated. Always fetch current IDs before operations.',
+          suggestedAction: 'sheets_core action:"list_sheets"',
+        }
+      );
     }
 
     const sheetTitle = sheet.properties.title ?? 'Sheet1';

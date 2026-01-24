@@ -86,7 +86,7 @@ This document describes the improvements made to ServalSheets based on analysis 
 ```typescript
 // Preview what will be replaced
 {
-  "action": "replace",
+  "action": "find_replace",
   "spreadsheetId": "abc123",
   "find": "old value",
   "replacement": "new value",
@@ -96,7 +96,7 @@ This document describes the improvements made to ServalSheets based on analysis 
 // Response shows what would change
 {
   "success": true,
-  "action": "replace",
+  "action": "find_replace",
   "replacementsCount": 5,
   "replacementPreview": [
     {
@@ -188,7 +188,7 @@ This document describes the improvements made to ServalSheets based on analysis 
 #### Rules Dry Run
 ```typescript
 {
-  "action": "add_conditional_format",
+  "action": "rule_add_conditional_format",
   "spreadsheetId": "abc123",
   "sheetId": 0,
   "range": { "a1": "A1:A100" },
@@ -201,7 +201,7 @@ This document describes the improvements made to ServalSheets based on analysis 
 // Response shows impact
 {
   "success": true,
-  "action": "add_conditional_format",
+  "action": "rule_add_conditional_format",
   "ruleIndex": 0,
   "dryRun": true,
   "rulePreview": {
@@ -293,7 +293,7 @@ This document describes the improvements made to ServalSheets based on analysis 
         "estimatedImpact": "Slow load times, high memory usage",
         "recommendation": "Consider splitting into multiple smaller spreadsheets",
         "executableFix": {
-          "tool": "sheets_spreadsheet",
+          "tool": "sheets_core",
           "action": "create",
           "params": {
             "title": "abc123-split",
@@ -311,8 +311,8 @@ This document describes the improvements made to ServalSheets based on analysis 
         "estimatedImpact": "Increased rendering time",
         "recommendation": "Consolidate or remove unused conditional formats",
         "executableFix": {
-          "tool": "sheets_rules",
-          "action": "list_conditional_formats",
+          "tool": "sheets_format",
+          "action": "rule_list_conditional_formats",
           "params": {
             "spreadsheetId": "abc123"
           },
@@ -388,7 +388,7 @@ No migration needed! All existing code continues to work unchanged.
 #### 2. Use Diff Preview
 ```diff
   {
-    "action": "replace",
+    "action": "find_replace",
     "spreadsheetId": "abc123",
     "find": "old",
 -   "replacement": "new"
@@ -484,13 +484,13 @@ No migration needed! All existing code continues to work unchanged.
 
 ```bash
 # Test pagination
-sheets_values action=read spreadsheetId=ID range={a1:"A1:Z5000"} pageSize=1000
+sheets_data action=read spreadsheetId=ID range={a1:"A1:Z5000"} pageSize=1000
 
 # Test diff preview
-sheets_values action=replace spreadsheetId=ID find="old" replacement="new" previewMode=true
+sheets_data action=replace spreadsheetId=ID find="old" replacement="new" previewMode=true
 
 # Test dry run
-sheets_validation action=validate value={...} safety={dryRun:true}
+sheets_quality action=validate value={...} safety={dryRun:true}
 
 # Test resources
 # Access via MCP client: sheets://spreadsheets/ID/sheets

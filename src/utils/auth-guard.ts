@@ -53,6 +53,13 @@ export function checkAuth(googleClient: GoogleApiClient | null): AuthGuardResult
     };
   }
 
+  // Service accounts and application default credentials are always authenticated
+  // They use automatic credential management and don't need OAuth tokens
+  const authType = googleClient.authType;
+  if (authType === 'service_account' || authType === 'application_default') {
+    return { authenticated: true };
+  }
+
   const tokenStatus = googleClient.getTokenStatus();
   const hasValidAuth = tokenStatus.hasAccessToken || tokenStatus.hasRefreshToken;
 

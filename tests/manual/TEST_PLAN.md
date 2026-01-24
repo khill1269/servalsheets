@@ -10,219 +10,205 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] sheets_auth:login (if needed)
 
 ### Phase 2: Setup - Create Test Spreadsheet
-- [ ] sheets_spreadsheet:create - Create test spreadsheet with initial sheet
+- [ ] sheets_core:create - Create test spreadsheet with initial sheet
 
 ### Phase 3: Core Operations
 
-#### sheets_spreadsheet (8 actions)
-- [ ] list
+#### sheets_core (15 actions)
 - [ ] get
-- [ ] get_url
-- [ ] get_comprehensive  
-- [ ] update_properties
+- [ ] create
 - [ ] copy
+- [ ] update_properties
+- [ ] get_url
 - [ ] batch_get
-
-#### sheets_sheet (7 actions)
+- [ ] get_comprehensive
 - [ ] list
-- [ ] add
-- [ ] get
-- [ ] update
-- [ ] duplicate
-- [ ] copy_to (to same spreadsheet)
-- [ ] delete
+- [ ] add_sheet
+- [ ] delete_sheet
+- [ ] duplicate_sheet
+- [ ] update_sheet
+- [ ] copy_sheet_to
+- [ ] list_sheets
+- [ ] get_sheet
 
-#### sheets_values (9 actions)
-- [ ] batch_write (write test data)
-- [ ] batch_read
+#### sheets_data (20 actions)
 - [ ] read
-- [ ] write  
+- [ ] write
 - [ ] append
-- [ ] find
-- [ ] replace
 - [ ] clear
+- [ ] batch_read
+- [ ] batch_write
 - [ ] batch_clear
-
-#### sheets_cells (12 actions)
+- [ ] find_replace
 - [ ] add_note
 - [ ] get_note
 - [ ] clear_note
-- [ ] set_hyperlink
-- [ ] clear_hyperlink
-- [ ] merge
-- [ ] get_merges
-- [ ] unmerge
 - [ ] set_validation
 - [ ] clear_validation
-- [ ] copy
-- [ ] cut
+- [ ] set_hyperlink
+- [ ] clear_hyperlink
+- [ ] merge_cells
+- [ ] unmerge_cells
+- [ ] get_merges
+- [ ] cut_paste
+- [ ] copy_paste
 
-#### sheets_format (9 actions)
+#### sheets_format (18 actions)
+- [ ] set_format
+- [ ] suggest_format
 - [ ] set_background
 - [ ] set_text_format
 - [ ] set_number_format
 - [ ] set_alignment
 - [ ] set_borders
-- [ ] set_format
+- [ ] clear_format
 - [ ] apply_preset
 - [ ] auto_fit
-- [ ] clear_format
+- [ ] rule_add_conditional_format
+- [ ] rule_update_conditional_format
+- [ ] rule_delete_conditional_format
+- [ ] rule_list_conditional_formats
+- [ ] set_data_validation
+- [ ] clear_data_validation
+- [ ] list_data_validations
+- [ ] add_conditional_format_rule
 
-#### sheets_dimensions (21 actions)
+#### sheets_dimensions (39 actions)
 - [ ] insert_rows
 - [ ] insert_columns
+- [ ] delete_rows
+- [ ] delete_columns
+- [ ] move_rows
+- [ ] move_columns
 - [ ] resize_rows
 - [ ] resize_columns
 - [ ] auto_resize
+- [ ] hide_rows
+- [ ] hide_columns
+- [ ] show_rows
+- [ ] show_columns
 - [ ] freeze_rows
 - [ ] freeze_columns
-- [ ] hide_rows
-- [ ] show_rows
-- [ ] hide_columns
-- [ ] show_columns
 - [ ] group_rows
-- [ ] ungroup_rows
 - [ ] group_columns
+- [ ] ungroup_rows
 - [ ] ungroup_columns
-- [ ] move_rows
-- [ ] move_columns
 - [ ] append_rows
 - [ ] append_columns
-- [ ] delete_rows
-- [ ] delete_columns
-
-#### sheets_rules (8 actions)
-- [ ] list_conditional_formats
-- [ ] add_conditional_format
-- [ ] update_conditional_format
-- [ ] delete_conditional_format
-- [ ] list_data_validations
-- [ ] add_data_validation
-- [ ] clear_data_validation
-- [ ] add_preset_rule
-
-#### sheets_charts (9 actions)
-- [ ] list
-- [ ] create
-- [ ] get
-- [ ] update
-- [ ] move
-- [ ] resize
-- [ ] update_data_range
-- [ ] export
-- [ ] delete
-
-#### sheets_pivot (6 actions)
-- [ ] list
-- [ ] create
-- [ ] get
-- [ ] update
-- [ ] refresh
-- [ ] delete
-
-#### sheets_filter_sort (14 actions)
 - [ ] set_basic_filter
-- [ ] get_basic_filter
-- [ ] update_filter_criteria
 - [ ] clear_basic_filter
+- [ ] get_basic_filter
+- [ ] filter_update_filter_criteria
 - [ ] sort_range
+- [ ] trim_whitespace
+- [ ] randomize_range
+- [ ] text_to_columns
+- [ ] auto_fill
 - [ ] create_filter_view
-- [ ] get_filter_view
 - [ ] update_filter_view
 - [ ] delete_filter_view
 - [ ] list_filter_views
+- [ ] get_filter_view
 - [ ] create_slicer
 - [ ] update_slicer
 - [ ] delete_slicer
 - [ ] list_slicers
 
-#### sheets_sharing (8 actions)
-- [ ] list_permissions
-- [ ] get_sharing_link
-- [ ] share
-- [ ] get_permission
-- [ ] update_permission
-- [ ] remove_permission
-- [ ] set_link_sharing
-- [ ] transfer_ownership (skip - requires another user)
-
-#### sheets_comments (10 actions)
-- [ ] list
-- [ ] add
-- [ ] get
-- [ ] update
-- [ ] resolve
-- [ ] reopen
-- [ ] add_reply
-- [ ] update_reply
-- [ ] delete_reply
-- [ ] delete
-
-#### sheets_versions (10 actions)
-- [ ] list_revisions
-- [ ] get_revision
-- [ ] keep_revision
-- [ ] create_snapshot
-- [ ] list_snapshots
-- [ ] compare
-- [ ] export_version
-- [ ] restore_snapshot
-- [ ] delete_snapshot
-- [ ] restore_revision
-
-#### sheets_analysis (13 actions)
-- [ ] statistics
-- [ ] data_quality
-- [ ] formula_audit
-- [ ] structure_analysis
-- [ ] column_analysis
-- [ ] detect_patterns
-- [ ] correlations
-- [ ] summary
-- [ ] dependencies
-- [ ] compare_ranges
-- [ ] suggest_templates
-- [ ] generate_formula
+#### sheets_visualize (16 actions)
+- [ ] chart_create
 - [ ] suggest_chart
+- [ ] chart_update
+- [ ] chart_delete
+- [ ] chart_list
+- [ ] chart_get
+- [ ] chart_move
+- [ ] chart_resize
+- [ ] chart_update_data_range
+- [ ] pivot_create
+- [ ] suggest_pivot
+- [ ] pivot_update
+- [ ] pivot_delete
+- [ ] pivot_list
+- [ ] pivot_get
+- [ ] pivot_refresh
+
+#### sheets_collaborate (28 actions)
+- [ ] share_add
+- [ ] share_update
+- [ ] share_remove
+- [ ] share_list
+- [ ] share_get
+- [ ] share_transfer_ownership
+- [ ] share_set_link
+- [ ] share_get_link
+- [ ] comment_add
+- [ ] comment_update
+- [ ] comment_delete
+- [ ] comment_list
+- [ ] comment_get
+- [ ] comment_resolve
+- [ ] comment_reopen
+- [ ] comment_add_reply
+- [ ] comment_update_reply
+- [ ] comment_delete_reply
+- [ ] version_list_revisions
+- [ ] version_get_revision
+- [ ] version_restore_revision
+- [ ] version_keep_revision
+- [ ] version_create_snapshot
+- [ ] version_list_snapshots
+- [ ] version_restore_snapshot
+- [ ] version_delete_snapshot
+- [ ] version_compare
+- [ ] version_export
+
+#### sheets_analyze (11 actions)
+- [ ] comprehensive
+- [ ] analyze_data
+- [ ] suggest_visualization
+- [ ] generate_formula
+- [ ] detect_patterns
+- [ ] analyze_structure
+- [ ] analyze_quality
+- [ ] analyze_performance
+- [ ] analyze_formulas
+- [ ] query_natural_language
+- [ ] explain_analysis
 
 #### sheets_advanced (19 actions)
-- [ ] list_named_ranges
 - [ ] add_named_range
-- [ ] get_named_range
 - [ ] update_named_range
 - [ ] delete_named_range
-- [ ] list_protected_ranges
+- [ ] list_named_ranges
+- [ ] get_named_range
 - [ ] add_protected_range
 - [ ] update_protected_range
 - [ ] delete_protected_range
+- [ ] list_protected_ranges
 - [ ] set_metadata
 - [ ] get_metadata
 - [ ] delete_metadata
-- [ ] list_banding
 - [ ] add_banding
 - [ ] update_banding
 - [ ] delete_banding
-- [ ] list_tables
+- [ ] list_banding
 - [ ] create_table
 - [ ] delete_table
+- [ ] list_tables
 
 #### sheets_transaction (6 actions)
 - [ ] begin
-- [ ] status
 - [ ] queue
-- [ ] list
 - [ ] commit
 - [ ] rollback
+- [ ] status
+- [ ] list
 
-#### sheets_validation (1 action)
+#### sheets_quality (4 actions)
 - [ ] validate
-
-#### sheets_conflict (2 actions)
-- [ ] detect
-- [ ] resolve
-
-#### sheets_impact (1 action)
-- [ ] analyze
+- [ ] detect_conflicts
+- [ ] resolve_conflict
+- [ ] analyze_impact
 
 #### sheets_history (7 actions)
 - [ ] list
@@ -234,14 +220,8 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear
 
 #### sheets_confirm (2 actions)
-- [ ] get_stats
 - [ ] request (skip - requires elicitation)
-
-#### sheets_analyze (4 actions)
 - [ ] get_stats
-- [ ] analyze (skip - requires sampling)
-- [ ] generate_formula (skip - requires sampling)
-- [ ] suggest_chart (skip - requires sampling)
 
 #### sheets_fix (1 action)
 - [ ] fix (preview mode)
@@ -267,4 +247,4 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear_pending
 - [ ] reset
 
-## Total: 26 tools, 208 actions
+## Total: 16 tools, 207 actions

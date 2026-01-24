@@ -138,7 +138,7 @@ Change from stdio to HTTP transport:
 
 **Or use the automated script**:
 ```bash
-./setup-claude-oauth.sh
+./setup-oauth.sh
 ```
 
 ---

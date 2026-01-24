@@ -792,6 +792,24 @@ export class TransactionManager {
           },
         };
 
+      // Generic freeze action (used by LLMs via sheets_dimensions tool)
+      case 'sheets_dimensions:freeze': {
+        const dimension = params['dimension'] as string | undefined;
+        const count = params['count'] as number | undefined;
+        const isRows = !dimension || dimension.toUpperCase() === 'ROWS';
+        return {
+          updateSheetProperties: {
+            properties: {
+              sheetId: params['sheetId'] as number,
+              gridProperties: isRows
+                ? { frozenRowCount: count ?? 0 }
+                : { frozenColumnCount: count ?? 0 },
+            },
+            fields: isRows ? 'gridProperties.frozenRowCount' : 'gridProperties.frozenColumnCount',
+          },
+        };
+      }
+
       // sheets_advanced operations
       case 'sheets_advanced:add_named_range':
         return {

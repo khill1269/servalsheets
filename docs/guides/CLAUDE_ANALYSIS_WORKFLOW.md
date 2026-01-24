@@ -30,7 +30,7 @@
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  STEP 2: Spreadsheet Context                                    │
-│  ► sheets_spreadsheet action="get"                              │
+│  ► sheets_core action="get"                              │
 │  • Get spreadsheet title, sheets list, properties               │
 │  • Cache spreadsheetId for subsequent operations                │
 │  • Verify sheet names exist before range operations             │
@@ -38,10 +38,10 @@
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  STEP 3: Data Quality Analysis (if modifying data)              │
-│  ► sheets_analysis action="data_quality"                        │
+│  ► sheets_analyze action="analyze_quality"                        │
 │  • Check for empty cells, duplicates, mixed types               │
 │  • Identify issues BEFORE making changes                        │
-│  • Use sheets_analysis action="formula_audit" for formula ops   │
+│  • Use sheets_analyze action="analyze_formulas" for formula ops │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -57,7 +57,7 @@
 │  ► Operation with safety:{createSnapshot:true}                  │
 │  • Creates automatic restore point before execution             │
 │  • Enables instant rollback if issues discovered                │
-│  • Use sheets_history action="rollback" to undo                 │
+│  • Use sheets_history action="undo" to rollback                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -71,14 +71,14 @@
 { 
   "action": "get", 
   "spreadsheetId": "1ABC..." 
-}  // → sheets_spreadsheet
+}  // → sheets_core
 
 // Step 3: Analyze data quality
 { 
-  "action": "data_quality",
+  "action": "analyze_quality",
   "spreadsheetId": "1ABC...",
   "range": { "a1": "Sheet1!A1:Z100" }
-}  // → sheets_analysis
+}  // → sheets_analyze
 
 // Step 4: Preview write (dry run)
 {
@@ -87,7 +87,7 @@
   "range": { "a1": "Sheet1!A1:B10" },
   "values": [["Header1", "Header2"], ["Data1", "Data2"]],
   "safety": { "dryRun": true }
-}  // → sheets_values
+}  // → sheets_data
 
 // Step 5: Execute with snapshot
 {
@@ -96,7 +96,7 @@
   "range": { "a1": "Sheet1!A1:B10" },
   "values": [["Header1", "Header2"], ["Data1", "Data2"]],
   "safety": { "createSnapshot": true }
-}  // → sheets_values
+}  // → sheets_data
 ```
 
 ---
@@ -109,20 +109,20 @@
 User wants to analyze spreadsheet data
 │
 ├── Need fast, deterministic checks? (<1 second)
-│   └── ✅ sheets_analysis
-│       • data_quality - duplicates, empty cells, mixed types
-│       • formula_audit - errors, broken refs, performance issues
-│       • statistics - mean, median, std dev, correlations
-│       • structure - sheet layout, named ranges, protection
+│   └── ✅ sheets_analyze
+│       • analyze_quality - duplicates, empty cells, mixed types
+│       • analyze_formulas - errors, broken refs, performance issues
+│       • analyze_data - mean, median, std dev, correlations
+│       • analyze_structure - sheet layout, named ranges, protection
 │
 ├── Need AI-powered insights? (2-5 seconds)
 │   └── ✅ sheets_analyze
-│       • analyze - patterns, trends, anomalies with AI reasoning
+│       • detect_patterns - patterns, trends, anomalies with AI reasoning
 │       • generate_formula - natural language → Google Sheets formula
-│       • suggest_chart - AI recommends best visualization
+│       • suggest_visualization - AI recommends best visualization
 │
 └── BEST PRACTICE: Use BOTH in sequence
-    1. sheets_analysis first (fast baseline)
+    1. sheets_analyze first (fast baseline)
     2. sheets_analyze second (deeper AI insights)
 ```
 
@@ -132,13 +132,13 @@ User wants to analyze spreadsheet data
 User wants to modify data
 │
 ├── Single range operation?
-│   └── ✅ sheets_values action="write"
+│   └── ✅ sheets_data action="write"
 │
 ├── Multiple ranges in one operation?
-│   └── ✅ sheets_values action="batch_write"
+│   └── ✅ sheets_data action="batch_write"
 │
 ├── Append rows to end of data?
-│   └── ✅ sheets_values action="append"
+│   └── ✅ sheets_data action="append"
 │
 ├── 2+ operations that must succeed together?
 │   └── ✅ sheets_transaction
@@ -158,7 +158,7 @@ User wants to modify data
 User wants to delete rows/columns/sheets
 │
 ├── Check dependencies first
-│   └── sheets_impact action="analyze" changeType="delete"
+│   └── sheets_quality action="analyze_impact" changeType="delete"
 │
 ├── Get user confirmation
 │   └── sheets_confirm action="request" with detailed plan
@@ -179,15 +179,15 @@ User wants to delete rows/columns/sheets
 ```json
 // Fast path - no confirmation needed
 sheets_auth      → { "action": "status" }
-sheets_analysis  → { "action": "data_quality", "spreadsheetId": "...", "range": {...} }
-sheets_analysis  → { "action": "statistics", "spreadsheetId": "...", "range": {...} }
+sheets_analyze  → { "action": "analyze_quality", "spreadsheetId": "...", "range": {...} }
+sheets_analyze  → { "action": "analyze_data", "spreadsheetId": "...", "range": {...} }
 ```
 
 ### Pattern 2: Safe Write Operation
 
 ```json
 // Single write with safety rails
-sheets_values → {
+sheets_data → {
   "action": "write",
   "spreadsheetId": "1ABC...",
   "range": { "a1": "Sheet1!A1:D10" },
@@ -199,7 +199,7 @@ sheets_values → {
 }
 
 // After user approval, execute:
-sheets_values → {
+sheets_data → {
   "action": "write",
   "spreadsheetId": "1ABC...",
   "range": { "a1": "Sheet1!A1:D10" },
@@ -227,7 +227,7 @@ sheets_transaction → {
   "action": "queue",
   "transactionId": "tx_123",
   "operation": {
-    "tool": "sheets_values",
+    "tool": "sheets_data",
     "action": "write",
     "args": { "range": {...}, "values": [[...]] }
   }
@@ -238,8 +238,8 @@ sheets_transaction → {
   "transactionId": "tx_123",
   "operation": {
     "tool": "sheets_format",
-    "action": "set_font",
-    "args": { "range": {...}, "bold": true }
+    "action": "set_text_format",
+    "args": { "range": {...}, "textFormat": { "bold": true } }
   }
 }
 
@@ -263,7 +263,7 @@ sheets_analyze → {
 // Returns: "=(B2-C2)/C2*100" with explanation
 
 // Step 2: Apply the generated formula
-sheets_values → {
+sheets_data → {
   "action": "write",
   "spreadsheetId": "1ABC...",
   "range": { "a1": "Sheet1!D2" },
@@ -310,7 +310,7 @@ sheets_confirm → {
       {
         "stepNumber": 2,
         "description": "Fill 15 empty cells in required columns",
-        "tool": "sheets_values",
+        "tool": "sheets_data",
         "action": "write",
         "risk": "medium",
         "isDestructive": false,
@@ -340,8 +340,8 @@ sheets_confirm → {
 
 ```json
 // Create manual snapshot before risky operation
-sheets_versions → {
-  "action": "create_snapshot",
+sheets_collaborate → {
+  "action": "version_create_snapshot",
   "spreadsheetId": "1ABC...",
   "description": "Before bulk data import 2024-01-09"
 }
@@ -350,8 +350,8 @@ sheets_versions → {
 // ... perform operations ...
 
 // If something goes wrong, rollback:
-sheets_versions → {
-  "action": "restore",
+sheets_collaborate → {
+  "action": "version_restore_revision",
   "spreadsheetId": "1ABC...",
   "revisionId": "snap_123"
 }
@@ -381,7 +381,7 @@ sheets_versions → {
 | `TOKEN_NOT_FOUND` | First time use | `sheets_auth action="login"` |
 | `AUTH_EXPIRED` | Token expired | Auto-refreshes, or re-login |
 | `PERMISSION_DENIED` | No access to sheet | Request owner to share |
-| `RANGE_NOT_FOUND` | Invalid range/sheet name | Use `sheets_sheet action="list"` to verify |
+| `RANGE_NOT_FOUND` | Invalid range/sheet name | Use `sheets_core action="list"` to verify |
 | `QUOTA_EXCEEDED` | Too many API calls | Wait 60s, use batch operations |
 | `VALIDATION_FAILED` | Invalid input format | Check schema requirements |
 
@@ -394,7 +394,7 @@ Error detected
 │   └── sheets_auth action="login" → Complete OAuth → Retry
 │
 ├── RANGE_NOT_FOUND
-│   └── sheets_sheet action="list" → Verify sheet name → Fix range → Retry
+│   └── sheets_core action="list" → Verify sheet name → Fix range → Retry
 │
 ├── QUOTA_EXCEEDED
 │   └── Wait 60 seconds → Use batch operations → Retry
@@ -416,9 +416,9 @@ Error detected
 ┌────────────────────────────────────────────────────────────────┐
 │  INEFFICIENT: Multiple single operations (10 API calls)       │
 ├────────────────────────────────────────────────────────────────┤
-│  sheets_values action="write" range="A1"  → 1 call            │
-│  sheets_values action="write" range="A2"  → 1 call            │
-│  sheets_values action="write" range="A3"  → 1 call            │
+│  sheets_data action="write" range="A1"  → 1 call            │
+│  sheets_data action="write" range="A2"  → 1 call            │
+│  sheets_data action="write" range="A3"  → 1 call            │
 │  ... (7 more)                             → 7 calls           │
 │  TOTAL: 10 API calls                                          │
 └────────────────────────────────────────────────────────────────┘
@@ -426,7 +426,7 @@ Error detected
 ┌────────────────────────────────────────────────────────────────┐
 │  EFFICIENT: Batch operation (1 API call)                      │
 ├────────────────────────────────────────────────────────────────┤
-│  sheets_values action="batch_write" → 1 call                  │
+│  sheets_data action="batch_write" → 1 call                  │
 │    ranges: ["A1:A10"]                                         │
 │    values: [[...10 values...]]                                │
 │  TOTAL: 1 API call (90% reduction!)                           │
@@ -444,8 +444,8 @@ Error detected
 
 ### Caching Strategy
 
-- **Cache spreadsheetId** after first `sheets_spreadsheet action="get"`
-- **Cache sheet names/IDs** after `sheets_sheet action="list"`
+- **Cache spreadsheetId** after first `sheets_core action="get"`
+- **Cache sheet names/IDs** after `sheets_core action="list"`
 - **Use batch_read** instead of multiple single reads
 - **Check auth status once** at session start, not before every operation
 
@@ -457,12 +457,12 @@ Error detected
 
 ```
 1. sheets_auth action="status"                    // Verify auth
-2. sheets_spreadsheet action="get"                // Get metadata
-3. sheets_analysis action="data_quality"          // Check existing data
-4. sheets_values action="write" dryRun:true       // Preview import
+2. sheets_core action="get"                // Get metadata
+3. sheets_analyze action="analyze_quality"          // Check existing data
+4. sheets_data action="write" safety:{dryRun:true}  // Preview import
 5. sheets_confirm action="request"                // Get user approval
-6. sheets_values action="write" createSnapshot:true // Execute
-7. sheets_format action="set_font" bold:true      // Format headers
+6. sheets_data action="write" safety:{createSnapshot:true} // Execute
+7. sheets_format action="set_text_format"          // Format headers
 8. sheets_dimensions action="auto_resize"         // Fit columns
 ```
 
@@ -470,35 +470,35 @@ Error detected
 
 ```
 1. sheets_auth action="status"                    // Verify auth
-2. sheets_values action="read"                    // Get data
-3. sheets_analysis action="statistics"            // Calculate stats
-4. sheets_analyze action="analyze"                // AI pattern detection
-5. sheets_analyze action="suggest_chart"          // Get chart recommendation
-6. sheets_charts action="create"                  // Create visualization
+2. sheets_data action="read"                    // Get data
+3. sheets_analyze action="analyze_data"            // Calculate stats
+4. sheets_analyze action="detect_patterns"         // AI pattern detection
+5. sheets_analyze action="suggest_visualization"          // Get chart recommendation
+6. sheets_visualize action="chart_create"            // Create visualization
 ```
 
 ### Workflow 3: Clean Data Quality Issues
 
 ```
-1. sheets_analysis action="data_quality"          // Find issues
-2. sheets_analysis action="formula_audit"         // Check formulas
-3. sheets_impact action="analyze"                 // Check dependencies
+1. sheets_analyze action="analyze_quality"          // Find issues
+2. sheets_analyze action="analyze_formulas"        // Check formulas
+3. sheets_quality action="analyze_impact"          // Check dependencies
 4. sheets_confirm action="request"                // User approval
-5. sheets_fix action="preview" mode="preview"     // Preview fixes
-6. sheets_fix action="apply" createSnapshot:true  // Apply fixes
-7. sheets_analysis action="data_quality"          // Verify fixes
+5. sheets_fix action="fix" mode="preview"          // Preview fixes
+6. sheets_fix action="fix" mode="apply" safety:{createSnapshot:true} // Apply fixes
+7. sheets_analyze action="analyze_quality"          // Verify fixes
 ```
 
 ### Workflow 4: Collaborative Editing Setup
 
 ```
-1. sheets_spreadsheet action="create"             // New spreadsheet
-2. sheets_sheet action="add"                      // Add sheets
+1. sheets_core action="create"             // New spreadsheet
+2. sheets_core action="add_sheet"                      // Add sheets
 3. sheets_advanced action="add_named_range"       // Define ranges
 4. sheets_advanced action="add_protected_range"   // Protect headers
-5. sheets_rules action="add_validation"           // Add dropdowns
+5. sheets_format action="set_data_validation"           // Add dropdowns
 6. sheets_format action="apply_preset"            // Apply styling
-7. sheets_sharing action="share"                  // Share with team
+7. sheets_collaborate action="share_add"                  // Share with team
 ```
 
 ---
@@ -508,47 +508,37 @@ Error detected
 | Tool | Primary Actions | Use Case |
 |------|----------------|----------|
 | `sheets_auth` | status, login, logout | Authentication |
-| `sheets_spreadsheet` | get, create, copy, list | Spreadsheet metadata |
-| `sheets_sheet` | list, add, delete, duplicate | Sheet (tab) management |
-| `sheets_values` | read, write, append, batch_read, batch_write | Cell data operations |
-| `sheets_cells` | merge, add_note, set_hyperlink | Individual cell properties |
-| `sheets_format` | set_font, set_colors, set_borders | Visual formatting |
-| `sheets_dimensions` | insert_rows, delete_rows, freeze, auto_resize | Row/column structure |
-| `sheets_rules` | add_conditional_format, add_validation | Rules & validation |
-| `sheets_charts` | create, update, delete | Chart visualization |
-| `sheets_pivot` | create, refresh | Pivot table aggregation |
-| `sheets_filter_sort` | set_filter, sort_range | Filtering & sorting |
-| `sheets_sharing` | share, revoke, get_link | Permission management |
-| `sheets_comments` | add, reply, resolve | Collaboration comments |
-| `sheets_versions` | create_snapshot, restore | Version control |
-| `sheets_analysis` | data_quality, formula_audit, statistics | Fast deterministic analysis |
-| `sheets_analyze` | analyze, generate_formula, suggest_chart | AI-powered analysis |
-| `sheets_advanced` | add_named_range, add_protected_range | Advanced features |
+| `sheets_core` | get, create, add_sheet, delete_sheet | Spreadsheet & sheet management |
+| `sheets_data` | read, write, append, find_replace | Cell values, notes, links |
+| `sheets_format` | set_format, set_number_format, rule_add_conditional_format | Formatting & validation |
+| `sheets_dimensions` | insert_rows, delete_rows, resize_columns, sort_range | Row/column operations |
+| `sheets_visualize` | chart_create, chart_update, pivot_create | Charts & pivots |
+| `sheets_collaborate` | share_add, comment_add, version_list_revisions | Sharing, comments, versions |
+| `sheets_advanced` | add_named_range, add_protected_range, set_metadata | Named ranges & protection |
 | `sheets_transaction` | begin, queue, commit | Atomic batch operations |
-| `sheets_validation` | validate | Pre-flight validation |
-| `sheets_conflict` | detect, resolve | Conflict management |
-| `sheets_impact` | analyze | Change impact analysis |
-| `sheets_history` | list, rollback | Operation audit trail |
+| `sheets_quality` | validate, detect_conflicts, analyze_impact | Validation & impact |
+| `sheets_history` | list, undo, revert_to | Operation history |
 | `sheets_confirm` | request, get_stats | User confirmation UI |
-| `sheets_fix` | preview, apply | Auto-fix issues |
-| `sheets_macros` | record, play, save | Macro recording |
-| `sheets_custom_functions` | create, list, execute | Custom functions |
+| `sheets_analyze` | comprehensive, analyze_data, suggest_visualization | Analysis & AI insights |
+| `sheets_fix` | fix | Automated fixes |
+| `sheets_composite` | import_csv, smart_append, bulk_update | Composite operations |
+| `sheets_session` | set_active, get_context, find_by_reference | Session context |
 
 ---
 
 ## Checklist: Before Any Sheet Operation
 
 - [ ] **Auth checked** - `sheets_auth action="status"` returns authenticated
-- [ ] **Spreadsheet exists** - Verified with `sheets_spreadsheet action="get"`
-- [ ] **Sheet name valid** - Confirmed with `sheets_sheet action="list"`
+- [ ] **Spreadsheet exists** - Verified with `sheets_core action="get"`
+- [ ] **Sheet name valid** - Confirmed with `sheets_core action="list_sheets"`
 - [ ] **Range format correct** - Using `{ "a1": "Sheet1!A1:D10" }` object format
-- [ ] **Data analyzed** - Ran `sheets_analysis action="data_quality"` if modifying
-- [ ] **Impact assessed** - Used `sheets_impact action="analyze"` for deletions
+- [ ] **Data analyzed** - Ran `sheets_analyze action="analyze_quality"` if modifying
+- [ ] **Impact assessed** - Used `sheets_quality action="analyze_impact"` for deletions
 - [ ] **Dry-run completed** - Previewed with `safety: { dryRun: true }`
 - [ ] **User confirmed** - Got approval via `sheets_confirm` for >100 cells
 - [ ] **Snapshot created** - Executing with `safety: { createSnapshot: true }`
 
 ---
 
-*Last Updated: 2026-01-09*
-*ServalSheets Version: 1.3.0*
+*Last Updated: 2026-01-16*
+*ServalSheets Version: 1.4.0*

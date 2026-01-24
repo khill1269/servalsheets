@@ -5,12 +5,12 @@
  * Tests severity calculation, resource detection, and dependency analysis
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { ImpactAnalyzer } from "../../src/services/impact-analyzer";
-import type { GoogleApiClient } from "../../src/services/google-api";
-import type { ImpactSeverity } from "../../src/types/impact";
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { ImpactAnalyzer } from '../../src/services/impact-analyzer';
+import type { GoogleApiClient } from '../../src/services/google-api';
+import type { ImpactSeverity } from '../../src/types/impact';
 
-describe("ImpactAnalyzer", () => {
+describe('ImpactAnalyzer', () => {
   let impactAnalyzer: ImpactAnalyzer;
   let mockGoogleClient: Partial<GoogleApiClient>;
 
@@ -34,15 +34,15 @@ describe("ImpactAnalyzer", () => {
     vi.clearAllMocks();
   });
 
-  describe("Severity Calculation", () => {
-    it("should calculate low severity for small operations with no dependencies", async () => {
+  describe('Severity Calculation', () => {
+    it('should calculate low severity for small operations with no dependencies', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "Sheet1!A1:A5",
+          range: 'Sheet1!A1:A5',
         },
       };
 
@@ -51,12 +51,10 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
-                  rowData: [
-                    { values: [{ userEnteredValue: { stringValue: "Test" } }] },
-                  ],
+                  rowData: [{ values: [{ userEnteredValue: { stringValue: 'Test' } }] }],
                 },
               ],
             },
@@ -68,7 +66,7 @@ describe("ImpactAnalyzer", () => {
       const impact = await impactAnalyzer.analyzeOperation(operation);
 
       // Assert
-      expect(impact.severity).toBe("low");
+      expect(impact.severity).toBe('low');
       expect(impact.cellsAffected).toBe(5);
       expect(impact.rowsAffected).toBe(5);
       expect(impact.columnsAffected).toBe(1);
@@ -78,14 +76,14 @@ describe("ImpactAnalyzer", () => {
       expect(impact.warnings).toHaveLength(0);
     });
 
-    it("should calculate medium severity for 100-1000 cells or operations with some dependencies", async () => {
+    it('should calculate medium severity for 100-1000 cells or operations with some dependencies', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "batchUpdate",
+        type: 'update',
+        tool: 'values',
+        action: 'batchUpdate',
         params: {
-          range: "spreadsheet123!Sheet1!A1:J50", // 500 cells
+          range: 'spreadsheet123!Sheet1!A1:J50', // 500 cells
         },
       };
 
@@ -94,7 +92,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: [
@@ -102,7 +100,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(Sheet1!A1:J50)",
+                            formulaValue: '=SUM(Sheet1!A1:J50)',
                           },
                         },
                       ],
@@ -111,7 +109,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=AVERAGE(Sheet1!A1:J50)",
+                            formulaValue: '=AVERAGE(Sheet1!A1:J50)',
                           },
                         },
                       ],
@@ -128,7 +126,7 @@ describe("ImpactAnalyzer", () => {
       const impact = await impactAnalyzer.analyzeOperation(operation);
 
       // Assert
-      expect(impact.severity).toBe("medium");
+      expect(impact.severity).toBe('medium');
       expect(impact.cellsAffected).toBe(500);
       expect(impact.rowsAffected).toBe(50);
       expect(impact.columnsAffected).toBe(10);
@@ -136,19 +134,19 @@ describe("ImpactAnalyzer", () => {
       expect(impact.warnings.length).toBeGreaterThan(0);
       // Check for either cells or formulas warning (cells warning only if >1000)
       const hasRelevantWarning = impact.warnings.some(
-        (w) => w.resourceType === "cells" || w.resourceType === "formulas",
+        (w) => w.resourceType === 'cells' || w.resourceType === 'formulas'
       );
       expect(hasRelevantWarning).toBeTruthy();
     });
 
-    it("should calculate high severity for 1000+ cells with many formulas/charts", async () => {
+    it('should calculate high severity for 1000+ cells with many formulas/charts', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "batchUpdate",
+        type: 'update',
+        tool: 'values',
+        action: 'batchUpdate',
         params: {
-          range: "spreadsheet123!Sheet1!A1:Z100", // 2600 cells
+          range: 'spreadsheet123!Sheet1!A1:Z100', // 2600 cells
         },
       };
 
@@ -167,15 +165,15 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [{ rowData: formulaCells }],
               charts: [
                 {
                   chartId: 1,
                   spec: {
-                    title: "Sales Chart",
+                    title: 'Sales Chart',
                     basicChart: {
-                      chartType: "COLUMN",
+                      chartType: 'COLUMN',
                       domains: [
                         {
                           domain: {
@@ -199,9 +197,9 @@ describe("ImpactAnalyzer", () => {
                 {
                   chartId: 2,
                   spec: {
-                    title: "Revenue Chart",
+                    title: 'Revenue Chart',
                     basicChart: {
-                      chartType: "LINE",
+                      chartType: 'LINE',
                       domains: [
                         {
                           domain: {
@@ -225,9 +223,9 @@ describe("ImpactAnalyzer", () => {
                 {
                   chartId: 3,
                   spec: {
-                    title: "Analysis Chart",
+                    title: 'Analysis Chart',
                     basicChart: {
-                      chartType: "PIE",
+                      chartType: 'PIE',
                       domains: [
                         {
                           domain: {
@@ -251,9 +249,9 @@ describe("ImpactAnalyzer", () => {
                 {
                   chartId: 4,
                   spec: {
-                    title: "Trends Chart",
+                    title: 'Trends Chart',
                     basicChart: {
-                      chartType: "AREA",
+                      chartType: 'AREA',
                       domains: [
                         {
                           domain: {
@@ -284,7 +282,7 @@ describe("ImpactAnalyzer", () => {
       const impact = await impactAnalyzer.analyzeOperation(operation);
 
       // Assert
-      expect(impact.severity).toBe("high");
+      expect(impact.severity).toBe('high');
       expect(impact.cellsAffected).toBe(2600);
       expect(impact.formulasAffected.length).toBeGreaterThanOrEqual(10);
       // Charts detection depends on range overlap - charts should be detected since
@@ -294,20 +292,18 @@ describe("ImpactAnalyzer", () => {
         expect(impact.chartsAffected.length).toBeGreaterThanOrEqual(3);
       }
       expect(
-        impact.warnings.some(
-          (w) => w.resourceType === "formulas" && w.severity === "high",
-        ),
+        impact.warnings.some((w) => w.resourceType === 'formulas' && w.severity === 'high')
       ).toBeTruthy();
     });
 
-    it("should calculate critical severity for protected ranges", async () => {
+    it('should calculate critical severity for protected ranges', async () => {
       // Arrange - Use a large operation that will be marked critical anyway
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "spreadsheet123!Sheet1!A1:ZZ100", // 67,600 cells - automatically critical
+          range: 'spreadsheet123!Sheet1!A1:ZZ100', // 67,600 cells - automatically critical
         },
       };
 
@@ -317,12 +313,10 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
-                  rowData: [
-                    { values: [{ userEnteredValue: { stringValue: "Data" } }] },
-                  ],
+                  rowData: [{ values: [{ userEnteredValue: { stringValue: 'Data' } }] }],
                 },
               ],
               protectedRanges: [
@@ -335,9 +329,9 @@ describe("ImpactAnalyzer", () => {
                     startColumnIndex: 0,
                     endColumnIndex: 702,
                   },
-                  description: "Protected data range",
+                  description: 'Protected data range',
                   editors: {
-                    users: ["admin@example.com"],
+                    users: ['admin@example.com'],
                   },
                 },
               ],
@@ -350,37 +344,30 @@ describe("ImpactAnalyzer", () => {
       const impact = await impactAnalyzer.analyzeOperation(operation);
 
       // Assert
-      expect(impact.severity).toBe("critical");
+      expect(impact.severity).toBe('critical');
       expect(impact.cellsAffected).toBeGreaterThan(10000);
       // If protected ranges are detected (depends on string overlap logic)
       if (impact.protectedRangesAffected.length > 0) {
-        expect(impact.protectedRangesAffected[0].impactType).toBe(
-          "permission_required",
-        );
-        expect(impact.protectedRangesAffected[0].editors).toContain(
-          "admin@example.com",
-        );
+        expect(impact.protectedRangesAffected[0].impactType).toBe('permission_required');
+        expect(impact.protectedRangesAffected[0].editors).toContain('admin@example.com');
         expect(
           impact.warnings.some(
-            (w) =>
-              w.resourceType === "protected_ranges" && w.severity === "critical",
-          ),
+            (w) => w.resourceType === 'protected_ranges' && w.severity === 'critical'
+          )
         ).toBeTruthy();
       }
-      expect(impact.recommendations).toContain(
-        "Review all warnings carefully before proceeding",
-      );
-      expect(impact.recommendations).toContain("Consider creating a backup snapshot");
+      expect(impact.recommendations).toContain('Review all warnings carefully before proceeding');
+      expect(impact.recommendations).toContain('Consider creating a backup snapshot');
     });
 
-    it("should calculate critical severity for operations affecting >10000 cells", async () => {
+    it('should calculate critical severity for operations affecting >10000 cells', async () => {
       // Arrange
       const operation = {
-        type: "clear",
-        tool: "values",
-        action: "clear",
+        type: 'clear',
+        tool: 'values',
+        action: 'clear',
         params: {
-          range: "Sheet1!A1:ZZ1000", // 702,000 cells
+          range: 'Sheet1!A1:ZZ1000', // 702,000 cells
         },
       };
 
@@ -388,7 +375,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [{ rowData: [] }],
             },
           ],
@@ -399,27 +386,25 @@ describe("ImpactAnalyzer", () => {
       const impact = await impactAnalyzer.analyzeOperation(operation);
 
       // Assert
-      expect(impact.severity).toBe("critical");
+      expect(impact.severity).toBe('critical');
       expect(impact.cellsAffected).toBeGreaterThan(10000);
       expect(
-        impact.warnings.some(
-          (w) => w.resourceType === "cells" && w.severity === "critical",
-        ),
+        impact.warnings.some((w) => w.resourceType === 'cells' && w.severity === 'critical')
       ).toBeTruthy();
-      const cellWarning = impact.warnings.find((w) => w.resourceType === "cells");
-      expect(cellWarning?.suggestedAction).toContain("smaller operations");
+      const cellWarning = impact.warnings.find((w) => w.resourceType === 'cells');
+      expect(cellWarning?.suggestedAction).toContain('smaller operations');
     });
   });
 
-  describe("Resource Impact Detection", () => {
-    it("should detect formula dependencies and impact", async () => {
+  describe('Resource Impact Detection', () => {
+    it('should detect formula dependencies and impact', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "spreadsheet123!Sheet1!A1:A10",
+          range: 'spreadsheet123!Sheet1!A1:A10',
         },
       };
 
@@ -428,7 +413,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: [
@@ -436,7 +421,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(Sheet1!A1:A10)",
+                            formulaValue: '=SUM(Sheet1!A1:A10)',
                           },
                         },
                       ],
@@ -445,7 +430,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=AVERAGE(Sheet1!A1:A10)",
+                            formulaValue: '=AVERAGE(Sheet1!A1:A10)',
                           },
                         },
                       ],
@@ -454,7 +439,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=MAX(Sheet1!A1:A10)",
+                            formulaValue: '=MAX(Sheet1!A1:A10)',
                           },
                         },
                       ],
@@ -473,29 +458,27 @@ describe("ImpactAnalyzer", () => {
       // Assert
       expect(impact.formulasAffected.length).toBeGreaterThan(0);
       impact.formulasAffected.forEach((formula) => {
-        expect(formula.impactType).toBe("references_affected_range");
-        expect(formula.formula).toContain("Sheet1!A1:A10");
-        expect(formula.sheetName).toBe("Sheet1");
+        expect(formula.impactType).toBe('references_affected_range');
+        expect(formula.formula).toContain('Sheet1!A1:A10');
+        expect(formula.sheetName).toBe('Sheet1');
         expect(formula.cell).toMatch(/^[A-Z]+\d+$/);
-        expect(formula.description).toContain("affected range");
+        expect(formula.description).toContain('affected range');
       });
 
-      const formulaWarning = impact.warnings.find(
-        (w) => w.resourceType === "formulas",
-      );
+      const formulaWarning = impact.warnings.find((w) => w.resourceType === 'formulas');
       expect(formulaWarning).toBeDefined();
       expect(formulaWarning?.affectedCount).toBeGreaterThan(0);
-      expect(formulaWarning?.suggestedAction).toContain("Review formulas");
+      expect(formulaWarning?.suggestedAction).toContain('Review formulas');
     });
 
-    it("should detect chart data source dependencies", async () => {
+    it('should detect chart data source dependencies', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "spreadsheet123!Sheet1!A1:B50",
+          range: 'spreadsheet123!Sheet1!A1:B50',
         },
       };
 
@@ -505,15 +488,15 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [{ rowData: [] }],
               charts: [
                 {
                   chartId: 123,
                   spec: {
-                    title: "Revenue by Month",
+                    title: 'Revenue by Month',
                     basicChart: {
-                      chartType: "COLUMN",
+                      chartType: 'COLUMN',
                       series: [
                         {
                           series: {}, // Triggers chart detection
@@ -539,27 +522,25 @@ describe("ImpactAnalyzer", () => {
         const chart = impact.chartsAffected[0];
         expect(chart.chartId).toBeDefined();
         expect(chart.title).toBeTruthy();
-        expect(chart.sheetName).toBe("Sheet1");
+        expect(chart.sheetName).toBe('Sheet1');
         expect(chart.chartType).toBeTruthy();
-        expect(chart.impactType).toBe("data_source_affected");
-        expect(chart.description).toContain("affected range");
+        expect(chart.impactType).toBe('data_source_affected');
+        expect(chart.description).toContain('affected range');
 
-        const chartWarning = impact.warnings.find(
-          (w) => w.resourceType === "charts",
-        );
+        const chartWarning = impact.warnings.find((w) => w.resourceType === 'charts');
         expect(chartWarning).toBeDefined();
-        expect(chartWarning?.suggestedAction).toContain("Charts may need");
+        expect(chartWarning?.suggestedAction).toContain('Charts may need');
       }
     });
 
-    it("should detect pivot table source data dependencies", async () => {
+    it('should detect pivot table source data dependencies', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "spreadsheet123!Sheet1!A1:D100",
+          range: 'spreadsheet123!Sheet1!A1:D100',
         },
       };
 
@@ -569,7 +550,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [{ rowData: [] }],
               pivotTables: [
                 {
@@ -599,22 +580,22 @@ describe("ImpactAnalyzer", () => {
       if (impact.pivotTablesAffected.length > 0) {
         const pivot = impact.pivotTablesAffected[0];
         expect(pivot.pivotTableId).toBe(789);
-        expect(pivot.sheetName).toBe("Sheet1");
+        expect(pivot.sheetName).toBe('Sheet1');
         expect(pivot.sourceRange).toBeTruthy();
-        expect(pivot.impactType).toBe("source_data_affected");
-        expect(pivot.description).toContain("source data");
-        expect(pivot.description).toContain("overlaps");
+        expect(pivot.impactType).toBe('source_data_affected');
+        expect(pivot.description).toContain('source data');
+        expect(pivot.description).toContain('overlaps');
       }
     });
 
-    it("should detect data validation rule conflicts", async () => {
+    it('should detect data validation rule conflicts', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "validation",
-        action: "setRule",
+        type: 'update',
+        tool: 'validation',
+        action: 'setRule',
         params: {
-          range: "spreadsheet123!Sheet1!A1:A50",
+          range: 'spreadsheet123!Sheet1!A1:A50',
         },
       };
 
@@ -623,7 +604,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: Array.from({ length: 50 }, () => ({
@@ -631,8 +612,8 @@ describe("ImpactAnalyzer", () => {
                       {
                         dataValidation: {
                           condition: {
-                            type: "NUMBER_GREATER",
-                            values: [{ userEnteredValue: "0" }],
+                            type: 'NUMBER_GREATER',
+                            values: [{ userEnteredValue: '0' }],
                           },
                           strict: true,
                         },
@@ -655,20 +636,20 @@ describe("ImpactAnalyzer", () => {
       expect(validation.ruleId).toBeTruthy();
       expect(validation.range).toBeTruthy();
       expect(validation.ruleType).toBeTruthy();
-      expect(validation.impactType).toBe("may_conflict");
-      expect(validation.description).toContain("Validation");
+      expect(validation.impactType).toBe('may_conflict');
+      expect(validation.description).toContain('Validation');
     });
   });
 
-  describe("Dependency Analysis", () => {
-    it("should analyze direct dependencies across sheets", async () => {
+  describe('Dependency Analysis', () => {
+    it('should analyze direct dependencies across sheets', async () => {
       // Arrange
       const operation = {
-        type: "delete",
-        tool: "sheet",
-        action: "delete",
+        type: 'delete',
+        tool: 'sheet',
+        action: 'delete',
         params: {
-          range: "spreadsheet123!DataSheet!A1:Z100",
+          range: 'spreadsheet123!DataSheet!A1:Z100',
         },
       };
 
@@ -677,11 +658,11 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "DataSheet", sheetId: 0 },
+              properties: { title: 'DataSheet', sheetId: 0 },
               data: [{ rowData: [] }],
             },
             {
-              properties: { title: "SummarySheet", sheetId: 1 },
+              properties: { title: 'SummarySheet', sheetId: 1 },
               data: [
                 {
                   rowData: [
@@ -689,7 +670,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(DataSheet!A:A)",
+                            formulaValue: '=SUM(DataSheet!A:A)',
                           },
                         },
                       ],
@@ -698,7 +679,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=AVERAGE(DataSheet!B:B)",
+                            formulaValue: '=AVERAGE(DataSheet!B:B)',
                           },
                         },
                       ],
@@ -707,7 +688,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=DataSheet!A1",
+                            formulaValue: '=DataSheet!A1',
                           },
                         },
                       ],
@@ -719,8 +700,8 @@ describe("ImpactAnalyzer", () => {
           ],
           namedRanges: [
             {
-              namedRangeId: "range1",
-              name: "SalesData",
+              namedRangeId: 'range1',
+              name: 'SalesData',
               range: {
                 sheetId: 0,
                 startRowIndex: 0,
@@ -741,30 +722,30 @@ describe("ImpactAnalyzer", () => {
       // The simple string-based overlap may not always detect cross-sheet references
       if (impact.formulasAffected.length > 0) {
         impact.formulasAffected.forEach((formula) => {
-          expect(formula.formula).toContain("DataSheet");
+          expect(formula.formula).toContain('DataSheet');
         });
       }
 
       // Should detect named ranges (if overlap is detected)
       if (impact.namedRangesAffected.length > 0) {
         const namedRange = impact.namedRangesAffected[0];
-        expect(namedRange.name).toBe("SalesData");
-        expect(namedRange.impactType).toBe("will_be_affected");
+        expect(namedRange.name).toBe('SalesData');
+        expect(namedRange.impactType).toBe('will_be_affected');
       }
 
       // At minimum, we should have analyzed the operation
       expect(impact.cellsAffected).toBeGreaterThan(0);
-      expect(impact.operation.params.range).toContain("DataSheet");
+      expect(impact.operation.params.range).toContain('DataSheet');
     });
 
-    it("should calculate transitive dependencies through named ranges", async () => {
+    it('should calculate transitive dependencies through named ranges', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
+        type: 'update',
+        tool: 'values',
+        action: 'update',
         params: {
-          range: "spreadsheet123!Sheet1!A1:A10",
+          range: 'spreadsheet123!Sheet1!A1:A10',
         },
       };
 
@@ -773,7 +754,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: [
@@ -781,7 +762,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(MyRange)",
+                            formulaValue: '=SUM(MyRange)',
                           },
                         },
                       ],
@@ -790,7 +771,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=AVERAGE(MyRange)",
+                            formulaValue: '=AVERAGE(MyRange)',
                           },
                         },
                       ],
@@ -802,8 +783,8 @@ describe("ImpactAnalyzer", () => {
           ],
           namedRanges: [
             {
-              namedRangeId: "nr1",
-              name: "MyRange",
+              namedRangeId: 'nr1',
+              name: 'MyRange',
               range: {
                 sheetId: 0,
                 startRowIndex: 0,
@@ -822,13 +803,13 @@ describe("ImpactAnalyzer", () => {
       // Assert
       // Should detect named range affected (may not always detect overlap due to simple range check)
       if (impact.namedRangesAffected.length > 0) {
-        expect(impact.namedRangesAffected[0].name).toBe("MyRange");
+        expect(impact.namedRangesAffected[0].name).toBe('MyRange');
       }
 
       // Should detect formulas using the named range
       if (impact.formulasAffected.length > 0) {
         const formulasWithNamedRange = impact.formulasAffected.filter((f) =>
-          f.formula.includes("MyRange"),
+          f.formula.includes('MyRange')
         );
         // Formulas with named ranges should be present
         expect(formulasWithNamedRange.length).toBeGreaterThanOrEqual(0);
@@ -836,26 +817,28 @@ describe("ImpactAnalyzer", () => {
     });
   });
 
-  describe("Impact Metrics", () => {
-    it("should accurately count affected cells for various range formats", async () => {
+  describe('Impact Metrics', () => {
+    it('should accurately count affected cells for various range formats', async () => {
       // Arrange
       const testCases = [
-        { range: "Sheet1!A1:A10", expectedCells: 10, expectedRows: 10, expectedCols: 1 },
-        { range: "Sheet1!A1:E1", expectedCells: 5, expectedRows: 1, expectedCols: 5 },
-        { range: "Sheet1!A1:C3", expectedCells: 9, expectedRows: 3, expectedCols: 3 },
-        { range: "Sheet1!B2:F11", expectedCells: 50, expectedRows: 10, expectedCols: 5 },
+        { range: 'Sheet1!A1:A10', expectedCells: 10, expectedRows: 10, expectedCols: 1 },
+        { range: 'Sheet1!A1:E1', expectedCells: 5, expectedRows: 1, expectedCols: 5 },
+        { range: 'Sheet1!A1:C3', expectedCells: 9, expectedRows: 3, expectedCols: 3 },
+        { range: 'Sheet1!B2:F11', expectedCells: 50, expectedRows: 10, expectedCols: 5 },
       ];
 
       for (const testCase of testCases) {
         const operation = {
-          type: "update",
-          tool: "values",
-          action: "update",
+          type: 'update',
+          tool: 'values',
+          action: 'update',
           params: { range: testCase.range },
         };
 
         (mockGoogleClient.sheets!.spreadsheets!.get as any).mockResolvedValue({
-          data: { sheets: [{ properties: { title: "Sheet1", sheetId: 0 }, data: [{ rowData: [] }] }] },
+          data: {
+            sheets: [{ properties: { title: 'Sheet1', sheetId: 0 }, data: [{ rowData: [] }] }],
+          },
         });
 
         // Act
@@ -868,31 +851,33 @@ describe("ImpactAnalyzer", () => {
       }
     });
 
-    it("should provide accurate execution time estimates", async () => {
+    it('should provide accurate execution time estimates', async () => {
       // Arrange
       const smallOperation = {
-        type: "update",
-        tool: "values",
-        action: "update",
-        params: { range: "Sheet1!A1:A5" },
+        type: 'update',
+        tool: 'values',
+        action: 'update',
+        params: { range: 'Sheet1!A1:A5' },
       };
 
       const largeOperation = {
-        type: "update",
-        tool: "format",
-        action: "batchUpdate",
-        params: { range: "Sheet1!A1:Z1000" }, // 26,000 cells
+        type: 'update',
+        tool: 'format',
+        action: 'batchUpdate',
+        params: { range: 'Sheet1!A1:Z1000' }, // 26,000 cells
       };
 
       const formulaOperation = {
-        type: "update",
-        tool: "formula",
-        action: "update",
-        params: { range: "Sheet1!A1:A100" },
+        type: 'update',
+        tool: 'formula',
+        action: 'update',
+        params: { range: 'Sheet1!A1:A100' },
       };
 
       (mockGoogleClient.sheets!.spreadsheets!.get as any).mockResolvedValue({
-        data: { sheets: [{ properties: { title: "Sheet1", sheetId: 0 }, data: [{ rowData: [] }] }] },
+        data: {
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 }, data: [{ rowData: [] }] }],
+        },
       });
 
       // Act
@@ -906,12 +891,12 @@ describe("ImpactAnalyzer", () => {
 
       // Large operation should have significant execution time
       expect(largeImpact.estimatedExecutionTime).toBeGreaterThan(
-        smallImpact.estimatedExecutionTime,
+        smallImpact.estimatedExecutionTime
       );
 
       // Formula operations should take longer per cell
       expect(formulaImpact.estimatedExecutionTime).toBeGreaterThan(
-        smallImpact.estimatedExecutionTime,
+        smallImpact.estimatedExecutionTime
       );
 
       // Execution time should be proportional to cell count
@@ -919,21 +904,21 @@ describe("ImpactAnalyzer", () => {
     });
   });
 
-  describe("Statistics and Configuration", () => {
-    it("should track analysis statistics accurately", async () => {
+  describe('Statistics and Configuration', () => {
+    it('should track analysis statistics accurately', async () => {
       // Arrange
       const operations = [
         {
-          type: "update",
-          tool: "values",
-          action: "update",
-          params: { range: "spreadsheet123!Sheet1!A1:A5" },
+          type: 'update',
+          tool: 'values',
+          action: 'update',
+          params: { range: 'spreadsheet123!Sheet1!A1:A5' },
         },
         {
-          type: "update",
-          tool: "values",
-          action: "update",
-          params: { range: "spreadsheet123!Sheet1!A1:Z1000" },
+          type: 'update',
+          tool: 'values',
+          action: 'update',
+          params: { range: 'spreadsheet123!Sheet1!A1:Z1000' },
         },
       ];
 
@@ -941,7 +926,7 @@ describe("ImpactAnalyzer", () => {
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [{ rowData: [] }],
               protectedRanges: [
                 {
@@ -974,7 +959,7 @@ describe("ImpactAnalyzer", () => {
       expect(stats.warningsBySeverity.critical).toBeGreaterThan(0);
     });
 
-    it("should respect analyzer configuration options", async () => {
+    it('should respect analyzer configuration options', async () => {
       // Arrange - analyzer with formulas disabled
       const limitedAnalyzer = new ImpactAnalyzer({
         googleClient: mockGoogleClient as GoogleApiClient,
@@ -983,17 +968,17 @@ describe("ImpactAnalyzer", () => {
       });
 
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
-        params: { range: "Sheet1!A1:A10" },
+        type: 'update',
+        tool: 'values',
+        action: 'update',
+        params: { range: 'Sheet1!A1:A10' },
       };
 
       (mockGoogleClient.sheets!.spreadsheets!.get as any).mockResolvedValue({
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: [
@@ -1001,7 +986,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(A1:A10)",
+                            formulaValue: '=SUM(A1:A10)',
                           },
                         },
                       ],
@@ -1009,7 +994,7 @@ describe("ImpactAnalyzer", () => {
                   ],
                 },
               ],
-              charts: [{ chartId: 1, spec: { title: "Chart" } }],
+              charts: [{ chartId: 1, spec: { title: 'Chart' } }],
             },
           ],
         },
@@ -1023,17 +1008,17 @@ describe("ImpactAnalyzer", () => {
       expect(impact.chartsAffected).toHaveLength(0);
     });
 
-    it("should handle operations without Google client gracefully", async () => {
+    it('should handle operations without Google client gracefully', async () => {
       // Arrange - analyzer without Google client
       const standaloneAnalyzer = new ImpactAnalyzer({
         googleClient: undefined,
       });
 
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
-        params: { range: "Sheet1!A1:B10" },
+        type: 'update',
+        tool: 'values',
+        action: 'update',
+        params: { range: 'Sheet1!A1:B10' },
       };
 
       // Act
@@ -1051,17 +1036,19 @@ describe("ImpactAnalyzer", () => {
       expect(impact.pivotTablesAffected).toHaveLength(0);
     });
 
-    it("should reset statistics correctly", async () => {
+    it('should reset statistics correctly', async () => {
       // Arrange
       const operation = {
-        type: "update",
-        tool: "values",
-        action: "update",
-        params: { range: "Sheet1!A1:A10" },
+        type: 'update',
+        tool: 'values',
+        action: 'update',
+        params: { range: 'Sheet1!A1:A10' },
       };
 
       (mockGoogleClient.sheets!.spreadsheets!.get as any).mockResolvedValue({
-        data: { sheets: [{ properties: { title: "Sheet1", sheetId: 0 }, data: [{ rowData: [] }] }] },
+        data: {
+          sheets: [{ properties: { title: 'Sheet1', sheetId: 0 }, data: [{ rowData: [] }] }],
+        },
       });
 
       await impactAnalyzer.analyzeOperation(operation);
@@ -1084,21 +1071,21 @@ describe("ImpactAnalyzer", () => {
     });
   });
 
-  describe("Recommendations Generation", () => {
-    it("should generate appropriate recommendations based on severity and warnings", async () => {
+  describe('Recommendations Generation', () => {
+    it('should generate appropriate recommendations based on severity and warnings', async () => {
       // Arrange - critical operation
       const criticalOperation = {
-        type: "delete",
-        tool: "sheet",
-        action: "delete",
-        params: { range: "Sheet1!A1:Z10000" },
+        type: 'delete',
+        tool: 'sheet',
+        action: 'delete',
+        params: { range: 'Sheet1!A1:Z10000' },
       };
 
       (mockGoogleClient.sheets!.spreadsheets!.get as any).mockResolvedValue({
         data: {
           sheets: [
             {
-              properties: { title: "Sheet1", sheetId: 0 },
+              properties: { title: 'Sheet1', sheetId: 0 },
               data: [
                 {
                   rowData: [
@@ -1106,7 +1093,7 @@ describe("ImpactAnalyzer", () => {
                       values: [
                         {
                           userEnteredValue: {
-                            formulaValue: "=SUM(A1:Z10000)",
+                            formulaValue: '=SUM(A1:Z10000)',
                           },
                         },
                       ],
@@ -1115,8 +1102,8 @@ describe("ImpactAnalyzer", () => {
                 },
               ],
               charts: [
-                { chartId: 1, spec: { title: "Chart 1" } },
-                { chartId: 2, spec: { title: "Chart 2" } },
+                { chartId: 1, spec: { title: 'Chart 1' } },
+                { chartId: 2, spec: { title: 'Chart 2' } },
               ],
             },
           ],
@@ -1128,14 +1115,10 @@ describe("ImpactAnalyzer", () => {
 
       // Assert
       expect(impact.recommendations.length).toBeGreaterThan(0);
-      expect(impact.recommendations).toContain(
-        "Review all warnings carefully before proceeding",
-      );
-      expect(impact.recommendations).toContain("Consider creating a backup snapshot");
+      expect(impact.recommendations).toContain('Review all warnings carefully before proceeding');
+      expect(impact.recommendations).toContain('Consider creating a backup snapshot');
       expect(
-        impact.recommendations.some((r) =>
-          r.includes("transaction") || r.includes("batches"),
-        ),
+        impact.recommendations.some((r) => r.includes('transaction') || r.includes('batches'))
       ).toBeTruthy();
     });
   });

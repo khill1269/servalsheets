@@ -400,8 +400,8 @@ case "create_recommended_chart": {
   // Lookup stored recommendation
   const recommendation = await getStoredRecommendation(input.recommendationId);
   
-  // Execute via sheets_charts tool
-  const result = await this.context.callTool('sheets_charts', {
+  // Execute via sheets_visualize tool
+  const result = await this.context.callTool('sheets_visualize', {
     action: 'create',
     ...recommendation.createParams.params
   });
@@ -612,10 +612,10 @@ export function modifiedZScore(values: number[]): number[]
 | Analysis Category | Triggers Which Tool | Action |
 |-------------------|---------------------|--------|
 | DQ004: Duplicates | sheets_composite | deduplicate |
-| DQ010: Whitespace | sheets_values | batch_write (trimmed) |
+| DQ010: Whitespace | sheets_data | batch_write (trimmed) |
 | PF001: Volatile | sheets_fix | fix |
-| VR001: Time Series | sheets_charts | create (line) |
-| VR005: Pivot Potential | sheets_pivot | create |
+| VR001: Time Series | sheets_visualize | create (line) |
+| VR005: Pivot Potential | sheets_visualize | create |
 
 ### MCP Elicitation (SEP-1036)
 

@@ -95,6 +95,19 @@ export interface JsonSchemaOptions {
 }
 
 /**
+ * Whether to use $ref optimization in JSON Schema output
+ *
+ * When enabled, Zod schemas are converted with `reused: 'ref'` option,
+ * which creates `$defs` for shared types and references them with `$ref`.
+ * This reduces payload size by ~60% (527KB → 209KB for full mode).
+ *
+ * WARNING: Not all MCP clients handle `$refs` correctly. Test thoroughly.
+ *
+ * Set via SERVAL_SCHEMA_REFS=true environment variable.
+ */
+export const USE_SCHEMA_REFS = process.env['SERVAL_SCHEMA_REFS'] === 'true';
+
+/**
  * Converts a Zod schema to JSON Schema format
  *
  * Uses Zod v4's native toJSONSchema() method for conversion.
@@ -117,7 +130,11 @@ export function zodSchemaToJsonSchema(
   try {
     // ✅ Use Zod v4's native JSON Schema conversion
     // This works correctly with discriminated unions, objects, unions, etc.
-    const jsonSchema = z.toJSONSchema(schema);
+    //
+    // When USE_SCHEMA_REFS is enabled, use `reused: 'ref'` to create $defs
+    // for shared types. This reduces payload by ~60% (527KB → 209KB).
+    const jsonSchemaOptions = USE_SCHEMA_REFS ? { reused: 'ref' as const } : undefined;
+    const jsonSchema = z.toJSONSchema(schema, jsonSchemaOptions);
 
     // Remove $schema property (MCP doesn't need it)
     if (typeof jsonSchema === 'object' && jsonSchema !== null) {

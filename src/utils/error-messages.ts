@@ -115,7 +115,7 @@ export const ERROR_MESSAGES = {
     message: `Snapshot ${snapshotId} not found`,
     resolution: 'List available snapshots and use a valid snapshot ID',
     resolutionSteps: [
-      `1. Use sheets_versions action "list_snapshots" to see available snapshots`,
+      `1. Use sheets_collaborate action "version_list_snapshots" to see available snapshots`,
       `2. Verify the snapshot ID: ${snapshotId}`,
       `3. Check if snapshot was deleted or expired`,
       `4. Ensure you have access to the snapshot`,

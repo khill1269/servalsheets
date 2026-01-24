@@ -4,9 +4,9 @@
  * Verifies refresh-token failures return explicit errors (no silent success).
  */
 
-import { describe, it, expect } from "vitest";
-import { OAuthProvider } from "../../src/oauth-provider.js";
-import { InMemorySessionStore } from "../../src/storage/session-store.js";
+import { describe, it, expect } from 'vitest';
+import { OAuthProvider } from '../../src/oauth-provider.js';
+import { InMemorySessionStore } from '../../src/storage/session-store.js';
 
 type MockResponse = {
   statusCode: number;
@@ -31,27 +31,28 @@ function createMockResponse(): MockResponse {
   return res;
 }
 
-describe("OAuth refresh token errors", () => {
-  it("returns invalid_grant for missing refresh token", async () => {
+describe('OAuth refresh token errors', () => {
+  it('returns invalid_grant for missing refresh token', async () => {
     const oauthProvider = new OAuthProvider({
-      issuer: "https://test.servalsheets.example.com",
-      clientId: "test-client",
-      clientSecret: "test-secret",
-      jwtSecret: "jwt-secret",
-      stateSecret: "state-secret",
-      allowedRedirectUris: ["https://example.com/callback"],
+      issuer: 'https://test.servalsheets.example.com',
+      clientId: 'test-client',
+      clientSecret: 'test-secret',
+      jwtSecret: 'jwt-secret',
+      stateSecret: 'state-secret',
+      allowedRedirectUris: ['https://example.com/callback'],
       sessionStore: new InMemorySessionStore(),
     });
 
     const res = createMockResponse();
-    await (oauthProvider as unknown as { handleRefreshToken: (token: string, res: MockResponse) => Promise<void> }).handleRefreshToken(
-      "missing-refresh-token",
-      res,
-    );
+    await (
+      oauthProvider as unknown as {
+        handleRefreshToken: (token: string, res: MockResponse) => Promise<void>;
+      }
+    ).handleRefreshToken('missing-refresh-token', res);
 
     expect(res.statusCode).toBe(400);
     expect(res.body).toMatchObject({
-      error: "invalid_grant",
+      error: 'invalid_grant',
     });
 
     oauthProvider.destroy();

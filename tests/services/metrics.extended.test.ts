@@ -1,13 +1,13 @@
 /**
  * Extended tests for Metrics Service
- * 
+ *
  * Tests metrics collection, aggregation, and dashboard generation.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock dependencies
-vi.mock("../../src/utils/logger.js", () => ({
+vi.mock('../../src/utils/logger.js', () => ({
   logger: {
     info: vi.fn(),
     debug: vi.fn(),
@@ -21,9 +21,9 @@ import {
   getMetricsService,
   initMetricsService,
   resetMetricsService,
-} from "../../src/services/metrics.js";
+} from '../../src/services/metrics.js';
 
-describe("MetricsService", () => {
+describe('MetricsService', () => {
   let service: MetricsService;
 
   beforeEach(() => {
@@ -35,70 +35,70 @@ describe("MetricsService", () => {
     resetMetricsService();
   });
 
-  describe("recordApiCall", () => {
-    it("should record a successful API call", () => {
+  describe('recordApiCall', () => {
+    it('should record a successful API call', () => {
       service.recordApiCall({
-        tool: "sheets_values",
-        action: "read",
+        tool: 'sheets_data',
+        action: 'read',
         duration: 150,
         success: true,
       });
 
-      const metrics = service.getToolMetrics("sheets_values");
+      const metrics = service.getToolMetrics('sheets_data');
       expect(metrics.totalCalls).toBe(1);
       expect(metrics.successCalls).toBe(1);
       expect(metrics.failedCalls).toBe(0);
     });
 
-    it("should record a failed API call", () => {
+    it('should record a failed API call', () => {
       service.recordApiCall({
-        tool: "sheets_values",
-        action: "write",
+        tool: 'sheets_data',
+        action: 'write',
         duration: 200,
         success: false,
-        errorType: "PERMISSION_DENIED",
+        errorType: 'PERMISSION_DENIED',
       });
 
-      const metrics = service.getToolMetrics("sheets_values");
+      const metrics = service.getToolMetrics('sheets_data');
       expect(metrics.failedCalls).toBe(1);
     });
 
-    it("should track duration statistics", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 200, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 300, success: true });
+    it('should track duration statistics', () => {
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 200, success: true });
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 300, success: true });
 
-      const metrics = service.getToolMetrics("sheets_values");
+      const metrics = service.getToolMetrics('sheets_data');
       expect(metrics.avgDuration).toBe(200);
       expect(metrics.minDuration).toBe(100);
       expect(metrics.maxDuration).toBe(300);
     });
 
-    it("should track action-specific metrics", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 150, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "write", duration: 200, success: true });
+    it('should track action-specific metrics', () => {
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 150, success: true });
+      service.recordApiCall({ tool: 'sheets_data', action: 'write', duration: 200, success: true });
 
-      const actionMetrics = service.getActionMetrics("sheets_values", "read");
+      const actionMetrics = service.getActionMetrics('sheets_data', 'read');
       expect(actionMetrics.totalCalls).toBe(2);
     });
   });
 
-  describe("recordCacheHit", () => {
-    it("should track cache hits", () => {
-      service.recordCacheHit("values", true);
-      service.recordCacheHit("values", true);
-      service.recordCacheHit("values", false);
+  describe('recordCacheHit', () => {
+    it('should track cache hits', () => {
+      service.recordCacheHit('values', true);
+      service.recordCacheHit('values', true);
+      service.recordCacheHit('values', false);
 
-      const cacheMetrics = service.getCacheMetrics("values");
+      const cacheMetrics = service.getCacheMetrics('values');
       expect(cacheMetrics.hits).toBe(2);
       expect(cacheMetrics.misses).toBe(1);
       expect(cacheMetrics.hitRate).toBeCloseTo(0.667, 2);
     });
   });
 
-  describe("recordBatchOperation", () => {
-    it("should track batch operations", () => {
+  describe('recordBatchOperation', () => {
+    it('should track batch operations', () => {
       service.recordBatchOperation({
         requestCount: 5,
         executedCount: 5,
@@ -111,20 +111,30 @@ describe("MetricsService", () => {
       expect(batchMetrics.totalSavedCalls).toBe(4);
     });
 
-    it("should calculate batch efficiency", () => {
-      service.recordBatchOperation({ requestCount: 10, executedCount: 10, savedApiCalls: 9, duration: 200 });
-      service.recordBatchOperation({ requestCount: 5, executedCount: 5, savedApiCalls: 4, duration: 100 });
+    it('should calculate batch efficiency', () => {
+      service.recordBatchOperation({
+        requestCount: 10,
+        executedCount: 10,
+        savedApiCalls: 9,
+        duration: 200,
+      });
+      service.recordBatchOperation({
+        requestCount: 5,
+        executedCount: 5,
+        savedApiCalls: 4,
+        duration: 100,
+      });
 
       const batchMetrics = service.getBatchMetrics();
       expect(batchMetrics.avgEfficiency).toBeGreaterThan(0.8);
     });
   });
 
-  describe("recordRateLimitHit", () => {
-    it("should track rate limit hits", () => {
-      service.recordRateLimitHit("read");
-      service.recordRateLimitHit("read");
-      service.recordRateLimitHit("write");
+  describe('recordRateLimitHit', () => {
+    it('should track rate limit hits', () => {
+      service.recordRateLimitHit('read');
+      service.recordRateLimitHit('read');
+      service.recordRateLimitHit('write');
 
       const rateLimitMetrics = service.getRateLimitMetrics();
       expect(rateLimitMetrics.readLimits).toBe(2);
@@ -132,11 +142,11 @@ describe("MetricsService", () => {
     });
   });
 
-  describe("recordCircuitBreakerEvent", () => {
-    it("should track circuit breaker state changes", () => {
-      service.recordCircuitBreakerEvent("open");
-      service.recordCircuitBreakerEvent("half-open");
-      service.recordCircuitBreakerEvent("closed");
+  describe('recordCircuitBreakerEvent', () => {
+    it('should track circuit breaker state changes', () => {
+      service.recordCircuitBreakerEvent('open');
+      service.recordCircuitBreakerEvent('half-open');
+      service.recordCircuitBreakerEvent('closed');
 
       const cbMetrics = service.getCircuitBreakerMetrics();
       expect(cbMetrics.openEvents).toBe(1);
@@ -145,12 +155,22 @@ describe("MetricsService", () => {
     });
   });
 
-  describe("getOverallMetrics", () => {
-    it("should aggregate all metrics", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordApiCall({ tool: "sheets_format", action: "set_format", duration: 150, success: true });
-      service.recordCacheHit("values", true);
-      service.recordBatchOperation({ requestCount: 5, executedCount: 5, savedApiCalls: 4, duration: 200 });
+  describe('getOverallMetrics', () => {
+    it('should aggregate all metrics', () => {
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordApiCall({
+        tool: 'sheets_format',
+        action: 'set_format',
+        duration: 150,
+        success: true,
+      });
+      service.recordCacheHit('values', true);
+      service.recordBatchOperation({
+        requestCount: 5,
+        executedCount: 5,
+        savedApiCalls: 4,
+        duration: 200,
+      });
 
       const overall = service.getOverallMetrics();
       expect(overall.totalApiCalls).toBe(2);
@@ -158,20 +178,25 @@ describe("MetricsService", () => {
       expect(overall.totalBatches).toBe(1);
     });
 
-    it("should calculate success rate", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordApiCall({ tool: "sheets_values", action: "write", duration: 100, success: false });
+    it('should calculate success rate', () => {
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'write',
+        duration: 100,
+        success: false,
+      });
 
       const overall = service.getOverallMetrics();
       expect(overall.successRate).toBeCloseTo(0.667, 2);
     });
   });
 
-  describe("reset", () => {
-    it("should reset all metrics", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-      service.recordCacheHit("values", true);
+  describe('reset', () => {
+    it('should reset all metrics', () => {
+      service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+      service.recordCacheHit('values', true);
 
       service.reset();
 
@@ -181,22 +206,22 @@ describe("MetricsService", () => {
     });
   });
 
-  describe("singleton management", () => {
-    it("should return same instance from getMetricsService", () => {
+  describe('singleton management', () => {
+    it('should return same instance from getMetricsService', () => {
       const instance1 = getMetricsService();
       const instance2 = getMetricsService();
       expect(instance1).toBe(instance2);
     });
 
-    it("should initialize with options", () => {
+    it('should initialize with options', () => {
       resetMetricsService();
       const service = initMetricsService({ retentionPeriodMs: 60000 });
       expect(service).toBeDefined();
     });
 
-    it("should reset singleton with resetMetricsService", () => {
+    it('should reset singleton with resetMetricsService', () => {
       const instance1 = getMetricsService();
-      instance1.recordApiCall({ tool: "test", action: "test", duration: 100, success: true });
+      instance1.recordApiCall({ tool: 'test', action: 'test', duration: 100, success: true });
 
       resetMetricsService();
 
@@ -205,51 +230,98 @@ describe("MetricsService", () => {
     });
   });
 
-  describe("time-based metrics", () => {
-    it("should track metrics per time window", () => {
+  describe('time-based metrics', () => {
+    it('should track metrics per time window', () => {
       const now = Date.now();
-      
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true, timestamp: now - 30000 });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true, timestamp: now - 20000 });
-      service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true, timestamp: now });
+
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'read',
+        duration: 100,
+        success: true,
+        timestamp: now - 30000,
+      });
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'read',
+        duration: 100,
+        success: true,
+        timestamp: now - 20000,
+      });
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'read',
+        duration: 100,
+        success: true,
+        timestamp: now,
+      });
 
       const recentMetrics = service.getMetricsInWindow(60000); // Last minute
       expect(recentMetrics.totalApiCalls).toBe(3);
     });
   });
 
-  describe("error tracking", () => {
-    it("should categorize errors by type", () => {
-      service.recordApiCall({ tool: "sheets_values", action: "write", duration: 100, success: false, errorType: "PERMISSION_DENIED" });
-      service.recordApiCall({ tool: "sheets_values", action: "write", duration: 100, success: false, errorType: "PERMISSION_DENIED" });
-      service.recordApiCall({ tool: "sheets_values", action: "write", duration: 100, success: false, errorType: "NOT_FOUND" });
+  describe('error tracking', () => {
+    it('should categorize errors by type', () => {
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'write',
+        duration: 100,
+        success: false,
+        errorType: 'PERMISSION_DENIED',
+      });
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'write',
+        duration: 100,
+        success: false,
+        errorType: 'PERMISSION_DENIED',
+      });
+      service.recordApiCall({
+        tool: 'sheets_data',
+        action: 'write',
+        duration: 100,
+        success: false,
+        errorType: 'NOT_FOUND',
+      });
 
       const errorMetrics = service.getErrorMetrics();
-      expect(errorMetrics["PERMISSION_DENIED"]).toBe(2);
-      expect(errorMetrics["NOT_FOUND"]).toBe(1);
+      expect(errorMetrics['PERMISSION_DENIED']).toBe(2);
+      expect(errorMetrics['NOT_FOUND']).toBe(1);
     });
   });
 });
 
-describe("MetricsService Dashboard", () => {
+describe('MetricsService Dashboard', () => {
   let service: MetricsService;
 
   beforeEach(() => {
     resetMetricsService();
     service = new MetricsService();
-    
+
     // Seed some data
-    service.recordApiCall({ tool: "sheets_values", action: "read", duration: 100, success: true });
-    service.recordApiCall({ tool: "sheets_values", action: "write", duration: 200, success: true });
-    service.recordApiCall({ tool: "sheets_format", action: "set_format", duration: 150, success: false, errorType: "INVALID_REQUEST" });
-    service.recordCacheHit("values", true);
-    service.recordCacheHit("values", false);
-    service.recordBatchOperation({ requestCount: 5, executedCount: 5, savedApiCalls: 4, duration: 300 });
+    service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });
+    service.recordApiCall({ tool: 'sheets_data', action: 'write', duration: 200, success: true });
+    service.recordApiCall({
+      tool: 'sheets_format',
+      action: 'set_format',
+      duration: 150,
+      success: false,
+      errorType: 'INVALID_REQUEST',
+    });
+    service.recordCacheHit('values', true);
+    service.recordCacheHit('values', false);
+    service.recordBatchOperation({
+      requestCount: 5,
+      executedCount: 5,
+      savedApiCalls: 4,
+      duration: 300,
+    });
   });
 
-  it("should generate dashboard data", () => {
+  it('should generate dashboard data', () => {
     const dashboard = service.getDashboardData();
-    
+
     expect(dashboard).toBeDefined();
     expect(dashboard.overview).toBeDefined();
     expect(dashboard.toolBreakdown).toBeDefined();
@@ -257,10 +329,10 @@ describe("MetricsService Dashboard", () => {
     expect(dashboard.batchStats).toBeDefined();
   });
 
-  it("should include tool breakdown in dashboard", () => {
+  it('should include tool breakdown in dashboard', () => {
     const dashboard = service.getDashboardData();
-    
-    expect(dashboard.toolBreakdown).toHaveProperty("sheets_values");
-    expect(dashboard.toolBreakdown).toHaveProperty("sheets_format");
+
+    expect(dashboard.toolBreakdown).toHaveProperty('sheets_data');
+    expect(dashboard.toolBreakdown).toHaveProperty('sheets_format');
   });
 });

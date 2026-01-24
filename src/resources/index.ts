@@ -41,3 +41,6 @@ export { registerExamplesResources, readExamplesResource } from './examples.js';
 
 // Dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
 export { registerSheetResources, readSheetResource } from './sheets.js';
+
+// Schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
+export { registerSchemaResources, readSchemaResource, getToolSchema } from './schemas.js';

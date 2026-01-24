@@ -32,7 +32,7 @@ The V2 architecture attempted to consolidate 17 tools into 11 "super tools" grou
 - sheets_style (18 actions) - Consolidated from sheets_format
 - sheets_structure (27 actions) - Consolidated from sheets_core + sheets_dimensions + sheets_advanced
 - sheets_visualize (21 actions) - Consolidated from sheets_visualize
-- sheets_analyze (15 actions) - Consolidated from sheets_analysis + sheets_analyze
+- sheets_analyze (15 actions) - Consolidated from sheets_analyze + sheets_analyze
 - sheets_automate (12 actions) - Consolidated from sheets_fix + sheets_composite
 - sheets_share (16 actions) - Consolidated from sheets_collaborate
 - sheets_history (12 actions) - Consolidated from sheets_history

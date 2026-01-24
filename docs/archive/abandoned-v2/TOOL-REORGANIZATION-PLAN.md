@@ -15,27 +15,27 @@
 | # | Tool | Actions | Category | Issues |
 |---|------|---------|----------|--------|
 | 1 | sheets_auth | 4 | Core | ✅ Good |
-| 2 | sheets_spreadsheet | 8 | Core | ✅ Good |
-| 3 | sheets_sheet | 7 | Core | ✅ Good |
-| 4 | sheets_values | 9 | Core | ✅ Good |
-| 5 | sheets_cells | 12 | Core | ⚠️ Overlaps with values |
+| 2 | sheets_core | 8 | Core | ✅ Good |
+| 3 | sheets_core | 7 | Core | ✅ Good |
+| 4 | sheets_data | 9 | Core | ✅ Good |
+| 5 | sheets_data | 12 | Core | ⚠️ Overlaps with values |
 | 6 | sheets_format | 9 | Core | ✅ Good |
 | 7 | sheets_dimensions | 21 | Core | ✅ Good but large |
-| 8 | sheets_rules | 8 | Core | ⚠️ Should merge with format |
-| 9 | sheets_charts | 9 | Viz | ✅ Good |
-| 10 | sheets_pivot | 6 | Viz | ⚠️ Could merge with charts |
-| 11 | sheets_filter_sort | 14 | Viz | ✅ Good |
-| 12 | sheets_sharing | 8 | Collab | ✅ Good |
-| 13 | sheets_comments | 10 | Collab | ⚠️ Could merge with sharing |
-| 14 | sheets_versions | 10 | Collab | ⚠️ Overlaps with history |
+| 8 | sheets_format | 8 | Core | ⚠️ Should merge with format |
+| 9 | sheets_visualize | 9 | Viz | ✅ Good |
+| 10 | sheets_visualize | 6 | Viz | ⚠️ Could merge with charts |
+| 11 | sheets_dimensions | 14 | Viz | ✅ Good |
+| 12 | sheets_collaborate | 8 | Collab | ✅ Good |
+| 13 | sheets_collaborate | 10 | Collab | ⚠️ Could merge with sharing |
+| 14 | sheets_collaborate | 10 | Collab | ⚠️ Overlaps with history |
 | 15 | sheets_advanced | 19 | Core | ⚠️ Miscellaneous catch-all |
-| 16 | sheets_analysis | 13 | Analysis | ❌ DEPRECATED, confusing name |
-| 17 | sheets_analyze | 10 | Analysis | ⚠️ Confusing vs sheets_analysis |
+| 16 | sheets_analyze | 13 | Analysis | ❌ DEPRECATED, confusing name |
+| 17 | sheets_analyze | 10 | Analysis | ⚠️ Confusing vs sheets_analyze |
 | 18 | sheets_fix | 1 | Analysis | ⚠️ Single action tool |
 | 19 | sheets_transaction | 6 | Safety | ✅ Critical |
-| 20 | sheets_validation | 1 | Safety | ⚠️ Single action tool |
-| 21 | sheets_conflict | 2 | Safety | ⚠️ Low action count |
-| 22 | sheets_impact | 1 | Safety | ⚠️ Single action tool |
+| 20 | sheets_quality | 1 | Safety | ⚠️ Single action tool |
+| 21 | sheets_quality | 2 | Safety | ⚠️ Low action count |
+| 22 | sheets_quality | 1 | Safety | ⚠️ Single action tool |
 | 23 | sheets_history | 7 | Safety | ⚠️ Overlaps with versions |
 | 24 | sheets_confirm | 2 | MCP | ✅ Good |
 | 25 | sheets_session | 13 | MCP | ⚠️ Too many actions |
@@ -44,11 +44,11 @@
 ### Key Problems
 
 1. **Too Many Tools (26)** - LLMs struggle with >12 tool choices
-2. **Naming Confusion** - sheets_analysis vs sheets_analyze
+2. **Naming Confusion** - sheets_analyze vs sheets_analyze
 3. **Single-Action Tools** - validation (1), impact (1), conflict (2), fix (1)
 4. **Overlapping Tools** - cells/values, versions/history, rules/format
 5. **Inconsistent Granularity** - dimensions (21) vs validation (1)
-6. **Deprecated Code** - sheets_analysis still present
+6. **Deprecated Code** - sheets_analyze still present
 
 ---
 
@@ -142,12 +142,12 @@ logout    - Clear credentials
 ### 2. sheets_data (NEW - Consolidates values + cells)
 **Actions:** 28 | **Category:** Foundation
 
-Merges: `sheets_spreadsheet` + `sheets_values` + `sheets_cells`
+Merges: `sheets_core` + `sheets_data` + `sheets_data`
 
 **Rationale:** All data CRUD operations in one place. User thinks "I want to work with data" - one tool.
 
 ```
-# Spreadsheet Level (from sheets_spreadsheet)
+# Spreadsheet Level (from sheets_core)
 create              - Create new spreadsheet
 get                 - Get spreadsheet metadata
 get_url             - Get shareable URL
@@ -156,7 +156,7 @@ update_properties   - Update title, locale, etc.
 batch_get           - Get multiple spreadsheets
 list                - List accessible spreadsheets
 
-# Cell Values (from sheets_values)
+# Cell Values (from sheets_data)
 read                - Read range values
 write               - Write range values (with safety options)
 append              - Append rows to range
@@ -166,7 +166,7 @@ batch_write         - Write multiple ranges
 find                - Find values in range
 replace             - Find and replace
 
-# Cell Operations (from sheets_cells)
+# Cell Operations (from sheets_data)
 add_note            - Add cell note
 get_note            - Get cell note
 clear_note          - Remove cell note
@@ -200,7 +200,7 @@ get_properties      - Get cell properties
 ### 3. sheets_style (NEW - Consolidates format + rules)
 **Actions:** 18 | **Category:** Foundation
 
-Merges: `sheets_format` + `sheets_rules`
+Merges: `sheets_format` + `sheets_format`
 
 **Rationale:** "Make it look good" = one tool. Formatting and rules are both about appearance.
 
@@ -216,7 +216,7 @@ clear_format        - Clear all formatting
 apply_preset        - Apply named preset (header, currency, etc.)
 auto_fit            - Auto-resize to content
 
-# Rules (from sheets_rules)
+# Rules (from sheets_format)
 add_conditional     - Add conditional formatting rule
 update_conditional  - Update conditional rule
 delete_conditional  - Delete conditional rule
@@ -233,12 +233,12 @@ add_alternating     - Apply alternating colors (banding)
 ### 4. sheets_structure (NEW - Consolidates sheet + dimensions + advanced)
 **Actions:** 25 | **Category:** Structure
 
-Merges: `sheets_sheet` + `sheets_dimensions` + parts of `sheets_advanced`
+Merges: `sheets_core` + `sheets_dimensions` + parts of `sheets_advanced`
 
 **Rationale:** "Organize my spreadsheet" = one tool. Sheets, rows, columns, named ranges, protection.
 
 ```
-# Sheet Management (from sheets_sheet)
+# Sheet Management (from sheets_core)
 add_sheet           - Add new sheet/tab
 delete_sheet        - Delete sheet
 duplicate_sheet     - Duplicate sheet
@@ -277,12 +277,12 @@ list_protections    - List protected ranges
 ### 5. sheets_visualize (NEW - Consolidates charts + pivot + filter_sort)
 **Actions:** 20 | **Category:** Structure
 
-Merges: `sheets_charts` + `sheets_pivot` + `sheets_filter_sort`
+Merges: `sheets_visualize` + `sheets_visualize` + `sheets_dimensions`
 
 **Rationale:** "Help me see my data" = one tool. Charts, pivots, filters are all visualization.
 
 ```
-# Charts (from sheets_charts)
+# Charts (from sheets_visualize)
 create_chart        - Create chart
 update_chart        - Update chart properties
 delete_chart        - Delete chart
@@ -290,14 +290,14 @@ list_charts         - List all charts
 move_chart          - Move/resize chart
 export_chart        - Export chart as image
 
-# Pivot Tables (from sheets_pivot)
+# Pivot Tables (from sheets_visualize)
 create_pivot        - Create pivot table
 update_pivot        - Update pivot configuration
 delete_pivot        - Delete pivot table
 refresh_pivot       - Refresh pivot data
 list_pivots         - List all pivot tables
 
-# Filtering & Sorting (from sheets_filter_sort)
+# Filtering & Sorting (from sheets_dimensions)
 set_filter          - Set basic filter
 clear_filter        - Clear basic filter
 update_filter       - Update filter criteria
@@ -315,7 +315,7 @@ update_slicer       - Update slicer
 ### 6. sheets_analyze (ENHANCED - Consolidates analysis + AI)
 **Actions:** 15 | **Category:** Intelligence
 
-Merges: `sheets_analyze` + `sheets_analysis` (deprecated)
+Merges: `sheets_analyze` + `sheets_analyze` (deprecated)
 
 **Rationale:** Remove the confusing dual-tool situation. One comprehensive analysis tool.
 
@@ -373,12 +373,12 @@ migrate_data        - Move data between sheets/spreadsheets
 ### 8. sheets_share (ENHANCED - Consolidates sharing + comments)
 **Actions:** 16 | **Category:** Collaboration
 
-Merges: `sheets_sharing` + `sheets_comments`
+Merges: `sheets_collaborate` + `sheets_collaborate`
 
 **Rationale:** "Share with my team" = one tool. Permissions and comments are both collaboration.
 
 ```
-# Permissions (from sheets_sharing)
+# Permissions (from sheets_collaborate)
 share               - Share with user/group
 update_permission   - Update permission level
 remove_permission   - Remove access
@@ -388,7 +388,7 @@ transfer_ownership  - Transfer ownership
 set_link_sharing    - Set link sharing options
 get_share_link      - Get shareable link
 
-# Comments (from sheets_comments)
+# Comments (from sheets_collaborate)
 add_comment         - Add comment to cell
 update_comment      - Edit comment
 delete_comment      - Delete comment
@@ -404,12 +404,12 @@ add_reply           - Reply to comment
 ### 9. sheets_history (ENHANCED - Consolidates versions + history)
 **Actions:** 12 | **Category:** Collaboration
 
-Merges: `sheets_versions` + `sheets_history`
+Merges: `sheets_collaborate` + `sheets_history`
 
 **Rationale:** "What happened?" = one tool. Versions and operation history are both about the past.
 
 ```
-# Version Control (from sheets_versions)
+# Version Control (from sheets_collaborate)
 list_revisions      - List revision history
 get_revision        - Get specific revision
 restore_revision    - Restore to revision
@@ -431,7 +431,7 @@ revert_to           - Revert to specific operation
 ### 10. sheets_safety (NEW - Consolidates transaction + validation + conflict + impact)
 **Actions:** 12 | **Category:** Safety
 
-Merges: `sheets_transaction` + `sheets_validation` + `sheets_conflict` + `sheets_impact`
+Merges: `sheets_transaction` + `sheets_quality` + `sheets_quality` + `sheets_quality`
 
 **Rationale:** "Make sure this is safe" = one tool. All pre-flight and atomicity concerns.
 
@@ -534,7 +534,7 @@ User Intent                    → Tool
 ```
 
 ### 3. Fewer Tool Switches
-- **Before:** Format header = sheets_format → sheets_rules → sheets_dimensions
+- **Before:** Format header = sheets_format → sheets_format → sheets_dimensions
 - **After:** Format header = sheets_style (one tool)
 
 ### 4. Built-in Safety
@@ -574,7 +574,7 @@ All tools use consistent verb patterns:
 1. Should we keep backwards compatibility with old tool names via aliases?
 2. Should sheets_auth be merged into sheets_context?
 3. Should we add "meta" actions like `sheets_data.help` to each tool?
-4. What's the timeline for deprecating sheets_analysis?
+4. What's the timeline for deprecating sheets_analyze?
 
 ---
 

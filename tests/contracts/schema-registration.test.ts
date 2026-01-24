@@ -9,12 +9,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  TOOL_DEFINITIONS,
-} from '../../src/mcp/registration.js';
-import {
-  zodToJsonSchemaCompat,
-} from '../../src/utils/schema-compat.js';
+import { TOOL_DEFINITIONS } from '../../src/mcp/registration.js';
+import { zodToJsonSchemaCompat } from '../../src/utils/schema-compat.js';
 
 describe('Schema Registration Contract', () => {
   describe('All tools have valid JSON Schemas', () => {
@@ -77,16 +73,15 @@ describe('Schema Registration Contract', () => {
             const requestSchema = properties?.['request'] as Record<string, unknown> | undefined;
 
             if (requestSchema) {
-              const options = (requestSchema['oneOf'] || requestSchema['anyOf']) as Array<Record<string, unknown>> | undefined;
+              const options = (requestSchema['oneOf'] || requestSchema['anyOf']) as
+                | Array<Record<string, unknown>>
+                | undefined;
 
               if (options) {
                 const hasActionDiscriminator = options.some((option) => {
                   const props = option['properties'] as Record<string, unknown> | undefined;
                   const required = option['required'] as string[] | undefined;
-                  return (
-                    (props && 'action' in props) ||
-                    (required && required.includes('action'))
-                  );
+                  return (props && 'action' in props) || (required && required.includes('action'));
                 });
 
                 expect(hasActionDiscriminator).toBe(true);
@@ -130,8 +125,8 @@ describe('Schema Registration Contract', () => {
           if (
             jsonSchema['type'] === 'object' &&
             (!jsonSchema['properties'] ||
-             (typeof jsonSchema['properties'] === 'object' &&
-              Object.keys(jsonSchema['properties'] as object).length === 0)) &&
+              (typeof jsonSchema['properties'] === 'object' &&
+                Object.keys(jsonSchema['properties'] as object).length === 0)) &&
             !jsonSchema['oneOf'] &&
             !jsonSchema['anyOf']
           ) {

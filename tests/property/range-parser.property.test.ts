@@ -10,7 +10,11 @@ import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 
 // Import the range parsing utilities
-import { parseA1Notation, indexToColumnLetter, columnLetterToIndex } from '../../src/utils/google-sheets-helpers.js';
+import {
+  parseA1Notation,
+  indexToColumnLetter,
+  columnLetterToIndex,
+} from '../../src/utils/google-sheets-helpers.js';
 
 describe('Range Parser Property Tests', () => {
   describe('Column Letter Conversion', () => {
@@ -32,27 +36,21 @@ describe('Range Parser Property Tests', () => {
 
     it('columnLetterToIndex should handle single letters A-Z', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 0, max: 25 }),
-          (index) => {
-            const letter = String.fromCharCode(65 + index); // A-Z
-            expect(columnLetterToIndex(letter)).toBe(index);
-          }
-        ),
+        fc.property(fc.integer({ min: 0, max: 25 }), (index) => {
+          const letter = String.fromCharCode(65 + index); // A-Z
+          expect(columnLetterToIndex(letter)).toBe(index);
+        }),
         { numRuns: 26 }
       );
     });
 
     it('column conversions should be bijective', () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 0, max: 1000 }),
-          (colIndex) => {
-            const letter = indexToColumnLetter(colIndex);
-            const backToIndex = columnLetterToIndex(letter);
-            return backToIndex === colIndex;
-          }
-        ),
+        fc.property(fc.integer({ min: 0, max: 1000 }), (colIndex) => {
+          const letter = indexToColumnLetter(colIndex);
+          const backToIndex = columnLetterToIndex(letter);
+          return backToIndex === colIndex;
+        }),
         { numRuns: 200 }
       );
     });
@@ -135,7 +133,12 @@ describe('Range Parser Property Tests', () => {
     it('sheet name with special characters should be quoted', () => {
       fc.assert(
         fc.property(
-          fc.array(fc.constantFrom('a', 'b', 'c', ' ', '1', '2', '-', '_'), { minLength: 1, maxLength: 49 }).map(arr => arr.join('')),
+          fc
+            .array(fc.constantFrom('a', 'b', 'c', ' ', '1', '2', '-', '_'), {
+              minLength: 1,
+              maxLength: 49,
+            })
+            .map((arr) => arr.join('')),
           fc.integer({ min: 0, max: 25 }),
           fc.integer({ min: 1, max: 100 }),
           (sheetName, colIndex, rowNum) => {
@@ -168,7 +171,9 @@ describe('Range Parser Property Tests', () => {
     it('should handle whitespace-only input', () => {
       fc.assert(
         fc.property(
-          fc.array(fc.constantFrom(' ', '\t', '\n'), { minLength: 1, maxLength: 10 }).map(arr => arr.join('')),
+          fc
+            .array(fc.constantFrom(' ', '\t', '\n'), { minLength: 1, maxLength: 10 })
+            .map((arr) => arr.join('')),
           (whitespace) => {
             try {
               parseA1Notation(whitespace);

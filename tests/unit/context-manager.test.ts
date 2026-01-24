@@ -63,10 +63,7 @@ describe('ContextManager', () => {
     });
 
     it('should track request ID', () => {
-      contextManager.updateContext(
-        { spreadsheetId: 'sheet123' },
-        'req_123'
-      );
+      contextManager.updateContext({ spreadsheetId: 'sheet123' }, 'req_123');
 
       const context = contextManager.getContext();
 
@@ -92,7 +89,7 @@ describe('ContextManager', () => {
     });
 
     it('should infer missing sheetId', () => {
-      const params: TestParams = { action: 'update', spreadsheetId: 'sheet123' };
+      const params: TestParams = { action: 'update_sheet', spreadsheetId: 'sheet123' };
       const inferred = contextManager.inferParameters(params);
 
       expect(inferred.sheetId).toBe(0);

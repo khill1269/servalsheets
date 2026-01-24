@@ -282,7 +282,7 @@ describe('MCP Protocol tools/list', () => {
         id: 2,
         method: 'tools/call',
         params: {
-          name: 'sheets_spreadsheet',
+          name: 'sheets_core',
           arguments: {
             request: {
               action: 'get',
@@ -358,7 +358,7 @@ describe('MCP Protocol tools/list', () => {
         id: 2,
         method: 'tools/call',
         params: {
-          name: 'sheets_values',
+          name: 'sheets_data',
           arguments: {
             request: {
               action: 'read',
@@ -416,7 +416,7 @@ describe('MCP Protocol tools/list', () => {
       expect(taskResult.result?.isError).toBe(true);
       expect(taskResult.result?.structuredContent?.response?.success).toBe(false);
       expect(taskResult.result?.structuredContent?.response?.error?.message).toContain(
-        'Google API client not initialized'
+        'Not authenticated with Google'
       );
     } finally {
       rpc.cleanup();

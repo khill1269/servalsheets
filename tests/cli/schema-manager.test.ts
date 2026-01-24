@@ -104,9 +104,7 @@ describe('SchemaManagerCli', () => {
       // Reset to get fresh instance
       resetDiscoveryApiClient();
 
-      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Network error')
-      );
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
       const newCli = new SchemaManagerCli();
       const options: CliOptions = { api: 'sheets' };
@@ -206,9 +204,7 @@ describe('SchemaManagerCli', () => {
       const options: CliOptions = { api: 'sheets' };
       await cli.run('compare', options);
 
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Comparing schemas')
-      );
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Comparing schemas'));
     });
 
     it('should handle schema comparison', async () => {
@@ -227,9 +223,7 @@ describe('SchemaManagerCli', () => {
       await newCli.run('compare', { api: 'sheets' });
 
       // Should complete comparison (may find changes or not)
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Comparing schemas')
-      );
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Comparing schemas'));
     });
   });
 
@@ -262,9 +256,7 @@ describe('SchemaManagerCli', () => {
 
       await cli.run('migration-report', { api: 'sheets' });
 
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No changes detected')
-      );
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No changes detected'));
     });
   });
 

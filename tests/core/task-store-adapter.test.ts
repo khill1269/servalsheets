@@ -24,11 +24,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('createTask', () => {
     it('should create task with SDK interface', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'request-123',
-        { method: 'tools/call', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'request-123', {
+        method: 'tools/call',
+        params: {},
+      } as Request);
 
       expect(task.taskId).toBeDefined();
       expect(task.status).toBe('working');
@@ -37,37 +36,33 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should handle null ttl (use default)', async () => {
-      const task = await adapter.createTask(
-        { ttl: null },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: null }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       // Default TTL from InMemoryTaskStore is 1 hour (3600000ms)
       expect(task.ttl).toBe(3600000);
     });
 
     it('should handle undefined ttl (use default)', async () => {
-      const task = await adapter.createTask(
-        { ttl: undefined },
-        'req-2',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: undefined }, 'req-2', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       expect(task.ttl).toBe(3600000);
     });
 
     it('should create multiple tasks with unique IDs', async () => {
-      const task1 = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
-      const task2 = await adapter.createTask(
-        { ttl: 300000 },
-        'req-2',
-        { method: 'test', params: {} } as Request
-      );
+      const task1 = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
+      const task2 = await adapter.createTask({ ttl: 300000 }, 'req-2', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       expect(task1.taskId).not.toBe(task2.taskId);
     });
@@ -75,11 +70,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('getTask', () => {
     it('should retrieve task by ID', async () => {
-      const created = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const created = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const retrieved = await adapter.getTask(created.taskId);
 
@@ -94,11 +88,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should ignore sessionId parameter', async () => {
-      const created = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const created = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       // Should work with or without sessionId
       const retrieved1 = await adapter.getTask(created.taskId);
@@ -111,11 +104,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('storeTaskResult', () => {
     it('should store completed task result', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = {
         content: [{ type: 'text' as const, text: 'Success' }],
@@ -129,11 +121,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should store failed task result', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = {
         content: [{ type: 'text' as const, text: 'Error occurred' }],
@@ -149,11 +140,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('getTaskResult', () => {
     it('should retrieve task result', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = {
         content: [{ type: 'text' as const, text: 'Success' }],
@@ -161,7 +151,7 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'completed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const retrieved = (await adapter.getTaskResult(task.taskId)) as CallToolResult;
       const first = retrieved.content[0];
       if (!first || first.type !== 'text') {
         throw new Error('Expected text result');
@@ -171,11 +161,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should throw error for task without result', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       await expect(async () => {
         await adapter.getTaskResult(task.taskId);
@@ -191,11 +180,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('updateTaskStatus', () => {
     it('should update task status to input_required', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       await adapter.updateTaskStatus(task.taskId, 'input_required', 'Waiting for user input');
 
@@ -205,11 +193,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should update task status to cancelled', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       await adapter.updateTaskStatus(task.taskId, 'cancelled', 'User cancelled');
 
@@ -218,11 +205,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should update status without message', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       await adapter.updateTaskStatus(task.taskId, 'completed');
 
@@ -235,11 +221,10 @@ describe('TaskStoreAdapter', () => {
     it('should list all tasks when under page size', async () => {
       // Create 5 tasks
       for (let i = 0; i < 5; i++) {
-        await adapter.createTask(
-          { ttl: 300000 },
-          `req-${i}`,
-          { method: 'test', params: {} } as Request
-        );
+        await adapter.createTask({ ttl: 300000 }, `req-${i}`, {
+          method: 'test',
+          params: {},
+        } as Request);
       }
 
       const result = await adapter.listTasks();
@@ -251,11 +236,10 @@ describe('TaskStoreAdapter', () => {
     it('should paginate tasks over page size', async () => {
       // Create 60 tasks (exceeds PAGE_SIZE of 50)
       for (let i = 0; i < 60; i++) {
-        await adapter.createTask(
-          { ttl: 300000 },
-          `req-${i}`,
-          { method: 'test', params: {} } as Request
-        );
+        await adapter.createTask({ ttl: 300000 }, `req-${i}`, {
+          method: 'test',
+          params: {},
+        } as Request);
       }
 
       // First page
@@ -270,20 +254,18 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should return tasks in reverse chronological order (newest first)', async () => {
-      const task1 = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task1 = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       // Wait to ensure different timestamps (50ms should be sufficient)
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const task2 = await adapter.createTask(
-        { ttl: 300000 },
-        'req-2',
-        { method: 'test', params: {} } as Request
-      );
+      const task2 = await adapter.createTask({ ttl: 300000 }, 'req-2', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = await adapter.listTasks();
 
@@ -299,11 +281,10 @@ describe('TaskStoreAdapter', () => {
     it('should handle pagination with exact page size boundary', async () => {
       // Create exactly 50 tasks (PAGE_SIZE)
       for (let i = 0; i < 50; i++) {
-        await adapter.createTask(
-          { ttl: 300000 },
-          `req-${i}`,
-          { method: 'test', params: {} } as Request
-        );
+        await adapter.createTask({ ttl: 300000 }, `req-${i}`, {
+          method: 'test',
+          params: {},
+        } as Request);
       }
 
       const result = await adapter.listTasks();
@@ -313,11 +294,7 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should ignore sessionId parameter', async () => {
-      await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      await adapter.createTask({ ttl: 300000 }, 'req-1', { method: 'test', params: {} } as Request);
 
       const result1 = await adapter.listTasks();
       const result2 = await adapter.listTasks(undefined, 'session-123');
@@ -329,11 +306,10 @@ describe('TaskStoreAdapter', () => {
 
   describe('type compatibility', () => {
     it('should handle Result to CallToolResult conversion', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'test',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'test', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = {
         content: [{ type: 'text' as const, text: 'Success' }],
@@ -341,7 +317,7 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'completed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const retrieved = (await adapter.getTaskResult(task.taskId)) as CallToolResult;
 
       // Both Result and CallToolResult have same structure
       const first = retrieved.content[0];
@@ -353,11 +329,10 @@ describe('TaskStoreAdapter', () => {
     });
 
     it('should handle Result with isError=true', async () => {
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'test',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'test', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       const result = {
         content: [{ type: 'text' as const, text: 'Error occurred' }],
@@ -365,7 +340,7 @@ describe('TaskStoreAdapter', () => {
       };
 
       await adapter.storeTaskResult(task.taskId, 'failed', result);
-      const retrieved = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const retrieved = (await adapter.getTaskResult(task.taskId)) as CallToolResult;
 
       expect(retrieved.isError).toBe(true);
     });
@@ -403,11 +378,10 @@ describe('TaskStoreAdapter', () => {
   describe('integration scenarios', () => {
     it('should handle complete task lifecycle', async () => {
       // 1. Create task
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
       expect(task.status).toBe('working');
 
       // 2. Update status to input_required
@@ -430,7 +404,7 @@ describe('TaskStoreAdapter', () => {
       expect(retrieved?.status).toBe('completed');
 
       // 5. Retrieve result
-      const finalResult = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const finalResult = (await adapter.getTaskResult(task.taskId)) as CallToolResult;
       const first = finalResult.content[0];
       if (!first || first.type !== 'text') {
         throw new Error('Expected text result');
@@ -440,11 +414,10 @@ describe('TaskStoreAdapter', () => {
 
     it('should handle error scenario', async () => {
       // 1. Create task
-      const task = await adapter.createTask(
-        { ttl: 300000 },
-        'req-1',
-        { method: 'test', params: {} } as Request
-      );
+      const task = await adapter.createTask({ ttl: 300000 }, 'req-1', {
+        method: 'test',
+        params: {},
+      } as Request);
 
       // 2. Task fails
       const errorResult = {
@@ -457,7 +430,7 @@ describe('TaskStoreAdapter', () => {
       const retrieved = await adapter.getTask(task.taskId);
       expect(retrieved?.status).toBe('failed');
 
-      const result = await adapter.getTaskResult(task.taskId) as CallToolResult;
+      const result = (await adapter.getTaskResult(task.taskId)) as CallToolResult;
       expect(result.isError).toBe(true);
     });
   });

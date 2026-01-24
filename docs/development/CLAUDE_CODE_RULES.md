@@ -69,7 +69,7 @@ Fixed error handling in the values handler
 
 ✅ **Good:**
 ```
-Traced sheets_values read action:
+Traced sheets_data read action:
 1. cli.ts:75 - Parse args, load env
 2. server.ts:123 - Create McpServer, register tools
 3. registration/tool-handlers.ts:45 - Route to ValuesHandler
@@ -107,7 +107,7 @@ The handler calls the API and returns the result
 
 ✅ **Good:**
 ```
-Bug: sheets_values returns undefined for empty ranges
+Bug: sheets_data returns undefined for empty ranges
 
 Reproduction:
   1. npm test tests/handlers/values.test.ts:45

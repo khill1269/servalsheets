@@ -1,6 +1,6 @@
 /**
  * Comprehensive Google API Mock Factory
- * 
+ *
  * Provides realistic mocks for Google Sheets and Drive APIs
  * to use across all test suites.
  */
@@ -65,7 +65,7 @@ export function createMockSheetsApi(options: MockSheetsApiOptions = {}) {
               timeZone: 'America/Los_Angeles',
               autoRecalc: 'ON_CHANGE',
             },
-            sheets: spreadsheet.sheets.map(sheet => ({
+            sheets: spreadsheet.sheets.map((sheet) => ({
               properties: {
                 sheetId: sheet.sheetId,
                 title: sheet.title,
@@ -83,28 +83,32 @@ export function createMockSheetsApi(options: MockSheetsApiOptions = {}) {
         });
       }),
 
-      create: vi.fn().mockImplementation((params: { requestBody?: sheets_v4.Schema$Spreadsheet }) => {
-        const newId = `new-spreadsheet-${Date.now()}`;
-        return Promise.resolve({
-          data: {
-            spreadsheetId: newId,
-            spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${newId}`,
-            properties: {
-              title: params.requestBody?.properties?.title || 'Untitled Spreadsheet',
-              locale: 'en_US',
-              timeZone: 'America/Los_Angeles',
-            },
-            sheets: params.requestBody?.sheets || [{
+      create: vi
+        .fn()
+        .mockImplementation((params: { requestBody?: sheets_v4.Schema$Spreadsheet }) => {
+          const newId = `new-spreadsheet-${Date.now()}`;
+          return Promise.resolve({
+            data: {
+              spreadsheetId: newId,
+              spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${newId}`,
               properties: {
-                sheetId: 0,
-                title: 'Sheet1',
-                index: 0,
-                gridProperties: { rowCount: 1000, columnCount: 26 },
+                title: params.requestBody?.properties?.title || 'Untitled Spreadsheet',
+                locale: 'en_US',
+                timeZone: 'America/Los_Angeles',
               },
-            }],
-          },
-        });
-      }),
+              sheets: params.requestBody?.sheets || [
+                {
+                  properties: {
+                    sheetId: 0,
+                    title: 'Sheet1',
+                    index: 0,
+                    gridProperties: { rowCount: 1000, columnCount: 26 },
+                  },
+                },
+              ],
+            },
+          });
+        }),
 
       batchUpdate: vi.fn().mockResolvedValue({
         data: {
@@ -114,13 +118,18 @@ export function createMockSheetsApi(options: MockSheetsApiOptions = {}) {
       }),
 
       values: {
-        get: vi.fn().mockImplementation((params) => Promise.resolve({
-          data: {
-            range: params.range || 'Sheet1!A1:D10',
-            majorDimension: 'ROWS',
-            values: [['A1', 'B1'], ['A2', 'B2']],
-          },
-        })),
+        get: vi.fn().mockImplementation((params) =>
+          Promise.resolve({
+            data: {
+              range: params.range || 'Sheet1!A1:D10',
+              majorDimension: 'ROWS',
+              values: [
+                ['A1', 'B1'],
+                ['A2', 'B2'],
+              ],
+            },
+          })
+        ),
         update: vi.fn().mockResolvedValue({ data: { updatedCells: 40 } }),
         append: vi.fn().mockResolvedValue({ data: { updates: { updatedCells: 4 } } }),
         clear: vi.fn().mockResolvedValue({ data: { clearedRange: 'Sheet1!A1:D10' } }),

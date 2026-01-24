@@ -73,7 +73,7 @@ const SnapshotSchema = z.object({
   createdAt: z.string(),
   spreadsheetId: z.string(),
   copyId: z.string().optional(),
-  size: z.number().int().optional(),
+  size: z.coerce.number().int().optional(),
 });
 
 // ========== INPUT SCHEMA ==========
@@ -81,296 +81,303 @@ const SnapshotSchema = z.object({
 // The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
 // Workaround: Use a single object with all fields optional, validate with refine()
 
-export const SheetsCollaborateInputSchema = z
-  .object({
-    // Required action discriminator (28 actions)
-    action: z
-      .enum([
-        // Sharing actions (8) - prefixed with 'share_'
-        'share_add',
-        'share_update',
-        'share_remove',
-        'share_list',
-        'share_get',
-        'share_transfer_ownership',
-        'share_set_link',
-        'share_get_link',
-        // Comment actions (10) - prefixed with 'comment_'
-        'comment_add',
-        'comment_update',
-        'comment_delete',
-        'comment_list',
-        'comment_get',
-        'comment_resolve',
-        'comment_reopen',
-        'comment_add_reply',
-        'comment_update_reply',
-        'comment_delete_reply',
-        // Version actions (10) - prefixed with 'version_'
-        'version_list_revisions',
-        'version_get_revision',
-        'version_restore_revision',
-        'version_keep_revision',
-        'version_create_snapshot',
-        'version_list_snapshots',
-        'version_restore_snapshot',
-        'version_delete_snapshot',
-        'version_compare',
-        'version_export',
-      ])
-      .describe('The collaboration operation to perform (sharing, comments, or version control)'),
+export const SheetsCollaborateInputSchema = z.object({
+  request: z
+    .object({
+      // Required action discriminator (28 actions)
+      action: z
+        .enum([
+          // Sharing actions (8) - prefixed with 'share_'
+          'share_add',
+          'share_update',
+          'share_remove',
+          'share_list',
+          'share_get',
+          'share_transfer_ownership',
+          'share_set_link',
+          'share_get_link',
+          // Comment actions (10) - prefixed with 'comment_'
+          'comment_add',
+          'comment_update',
+          'comment_delete',
+          'comment_list',
+          'comment_get',
+          'comment_resolve',
+          'comment_reopen',
+          'comment_add_reply',
+          'comment_update_reply',
+          'comment_delete_reply',
+          // Version actions (10) - prefixed with 'version_'
+          'version_list_revisions',
+          'version_get_revision',
+          'version_restore_revision',
+          'version_keep_revision',
+          'version_create_snapshot',
+          'version_list_snapshots',
+          'version_restore_snapshot',
+          'version_delete_snapshot',
+          'version_compare',
+          'version_export',
+        ])
+        .describe('The collaboration operation to perform (sharing, comments, or version control)'),
 
-    // Common field - spreadsheetId (required for all actions)
-    spreadsheetId: SpreadsheetIdSchema.optional().describe(
-      'Spreadsheet ID from URL (required for all actions)'
-    ),
-
-    // ========== SHARING FIELDS ==========
-    // Fields for share_add action
-    emailAddress: z
-      .string()
-      .email()
-      .optional()
-      .describe('Email address of user to share with (required for: share_add with type=user)'),
-    domain: z
-      .string()
-      .optional()
-      .describe('Domain to share with (required for: share_add with type=domain)'),
-    type: PermissionTypeSchema.optional().describe(
-      'Permission type: user, group, domain, or anyone (required for: share_add)'
-    ),
-    role: PermissionRoleSchema.optional().describe(
-      'Permission role: owner, writer, commenter, or reader (required for: share_add, share_update; optional for: share_set_link)'
-    ),
-    sendNotification: z
-      .boolean()
-      .optional()
-      .default(true)
-      .describe('Send email notification to user (share_add only)'),
-    emailMessage: z
-      .string()
-      .optional()
-      .describe('Custom message in notification email (share_add only)'),
-    expirationTime: z
-      .string()
-      .optional()
-      .describe('ISO 8601 expiration time (share_add, share_update)'),
-
-    // Fields for share_update, share_remove, share_get actions
-    permissionId: z
-      .string()
-      .optional()
-      .describe(
-        'Permission ID to update/remove/get (required for: share_update, share_remove, share_get)'
+      // Common field - spreadsheetId (required for all actions)
+      spreadsheetId: SpreadsheetIdSchema.optional().describe(
+        'Spreadsheet ID from URL (required for all actions)'
       ),
 
-    // Fields for share_transfer_ownership action
-    newOwnerEmail: z
-      .string()
-      .email()
-      .optional()
-      .describe('Email of new owner (required for: share_transfer_ownership)'),
-
-    // Fields for share_set_link action
-    enabled: z
-      .boolean()
-      .optional()
-      .describe('Enable or disable link sharing (required for: share_set_link)'),
-
-    // ========== COMMENT FIELDS ==========
-    // Fields for comment_add, comment_update, comment_add_reply, comment_update_reply actions
-    content: z
-      .string()
-      .optional()
-      .describe(
-        'Comment or reply content (required for: comment_add, comment_update, comment_add_reply, comment_update_reply)'
+      // ========== SHARING FIELDS ==========
+      // Fields for share_add action
+      emailAddress: z
+        .string()
+        .email()
+        .optional()
+        .describe('Email address of user to share with (required for: share_add with type=user)'),
+      domain: z
+        .string()
+        .optional()
+        .describe('Domain to share with (required for: share_add with type=domain)'),
+      type: PermissionTypeSchema.optional().describe(
+        'Permission type: user, group, domain, or anyone (required for: share_add)'
       ),
-    anchor: z
-      .string()
-      .optional()
-      .describe('Cell or range reference where comment is anchored (comment_add only)'),
+      role: PermissionRoleSchema.optional().describe(
+        'Permission role: owner, writer, commenter, or reader (required for: share_add, share_update; optional for: share_set_link)'
+      ),
+      sendNotification: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe('Send email notification to user (share_add only)'),
+      emailMessage: z
+        .string()
+        .optional()
+        .describe('Custom message in notification email (share_add only)'),
+      expirationTime: z
+        .string()
+        .optional()
+        .describe('ISO 8601 expiration time (share_add, share_update)'),
 
-    // Fields for comment actions (update, delete, get, resolve, reopen, replies)
-    commentId: z
-      .string()
-      .optional()
-      .describe(
-        'Comment ID to operate on (required for: comment_update, comment_delete, comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, comment_delete_reply)'
+      // Fields for share_update, share_remove, share_get actions
+      permissionId: z
+        .string()
+        .optional()
+        .describe(
+          'Permission ID to update/remove/get (required for: share_update, share_remove, share_get)'
+        ),
+
+      // Fields for share_transfer_ownership action
+      newOwnerEmail: z
+        .string()
+        .email()
+        .optional()
+        .describe('Email of new owner (required for: share_transfer_ownership)'),
+
+      // Fields for share_set_link action
+      enabled: z
+        .boolean()
+        .optional()
+        .describe('Enable or disable link sharing (required for: share_set_link)'),
+
+      // ========== COMMENT FIELDS ==========
+      // Fields for comment_add, comment_update, comment_add_reply, comment_update_reply actions
+      content: z
+        .string()
+        .optional()
+        .describe(
+          'Comment or reply content (required for: comment_add, comment_update, comment_add_reply, comment_update_reply)'
+        ),
+      anchor: z
+        .string()
+        .optional()
+        .describe('Cell or range reference where comment is anchored (comment_add only)'),
+
+      // Fields for comment actions (update, delete, get, resolve, reopen, replies)
+      commentId: z
+        .string()
+        .optional()
+        .describe(
+          'Comment ID to operate on (required for: comment_update, comment_delete, comment_get, comment_resolve, comment_reopen, comment_add_reply, comment_update_reply, comment_delete_reply)'
+        ),
+
+      // Fields for comment_update_reply and comment_delete_reply actions
+      replyId: z
+        .string()
+        .optional()
+        .describe(
+          'Reply ID to operate on (required for: comment_update_reply, comment_delete_reply)'
+        ),
+
+      // Fields for comment_list action
+      includeDeleted: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe('Include deleted comments in list (comment_list only)'),
+      startIndex: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Starting index for pagination (comment_list only)'),
+      maxResults: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .default(100)
+        .describe('Maximum number of comments to return (comment_list only)'),
+
+      // ========== VERSION FIELDS ==========
+      // Fields for version_list_revisions action
+      pageSize: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .default(100)
+        .describe('Number of revisions to return per page (version_list_revisions only)'),
+      pageToken: z
+        .string()
+        .optional()
+        .describe('Token for pagination (version_list_revisions only)'),
+
+      // Fields for version_get_revision, version_restore_revision, version_keep_revision actions
+      revisionId: z
+        .string()
+        .optional()
+        .describe(
+          'Revision ID (required for: version_get_revision, version_restore_revision, version_keep_revision; optional for: version_compare, version_export)'
+        ),
+
+      // Fields for version_keep_revision action
+      keepForever: z
+        .boolean()
+        .optional()
+        .describe('Whether to keep revision forever (required for: version_keep_revision)'),
+
+      // Fields for version_create_snapshot action
+      name: z.string().optional().describe('Name for the snapshot (version_create_snapshot only)'),
+      description: z
+        .string()
+        .optional()
+        .describe('Description for the snapshot (version_create_snapshot only)'),
+      destinationFolderId: z
+        .string()
+        .optional()
+        .describe('Google Drive folder ID for snapshot (version_create_snapshot only)'),
+
+      // Fields for version_restore_snapshot, version_delete_snapshot actions
+      snapshotId: z
+        .string()
+        .optional()
+        .describe('Snapshot ID (required for: version_restore_snapshot, version_delete_snapshot)'),
+
+      // Fields for version_compare action
+      revisionId1: z
+        .string()
+        .optional()
+        .describe('First revision ID to compare (version_compare only)'),
+      revisionId2: z
+        .string()
+        .optional()
+        .describe('Second revision ID to compare (version_compare only)'),
+      sheetId: SheetIdSchema.optional().describe(
+        'Specific sheet to compare (version_compare only)'
       ),
 
-    // Fields for comment_update_reply and comment_delete_reply actions
-    replyId: z
-      .string()
-      .optional()
-      .describe(
-        'Reply ID to operate on (required for: comment_update_reply, comment_delete_reply)'
+      // Fields for version_export action
+      format: z
+        .enum(['xlsx', 'csv', 'pdf', 'ods'])
+        .optional()
+        .default('xlsx')
+        .describe('Export format (version_export only)'),
+
+      // Safety options for all mutation operations
+      safety: SafetyOptionsSchema.optional().describe(
+        'Safety options like dryRun (applies to all destructive operations)'
       ),
 
-    // Fields for comment_list action
-    includeDeleted: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe('Include deleted comments in list (comment_list only)'),
-    startIndex: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe('Starting index for pagination (comment_list only)'),
-    maxResults: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(100)
-      .describe('Maximum number of comments to return (comment_list only)'),
+      // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
+      verbosity: z
+        .enum(['minimal', 'standard', 'detailed'])
+        .optional()
+        .default('standard')
+        .describe(
+          'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+        ),
+    })
+    .refine(
+      (data) => {
+        // Validate required fields based on action
+        switch (data.action) {
+          // Sharing actions
+          case 'share_add':
+            return !!data.spreadsheetId && !!data.type && !!data.role;
+          case 'share_update':
+            return !!data.spreadsheetId && !!data.permissionId && !!data.role;
+          case 'share_remove':
+            return !!data.spreadsheetId && !!data.permissionId;
+          case 'share_list':
+            return !!data.spreadsheetId;
+          case 'share_get':
+            return !!data.spreadsheetId && !!data.permissionId;
+          case 'share_transfer_ownership':
+            return !!data.spreadsheetId && !!data.newOwnerEmail;
+          case 'share_set_link':
+            return !!data.spreadsheetId && data.enabled !== undefined;
+          case 'share_get_link':
+            return !!data.spreadsheetId;
 
-    // ========== VERSION FIELDS ==========
-    // Fields for version_list_revisions action
-    pageSize: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .default(100)
-      .describe('Number of revisions to return per page (version_list_revisions only)'),
-    pageToken: z.string().optional().describe('Token for pagination (version_list_revisions only)'),
+          // Comment actions
+          case 'comment_add':
+            return !!data.spreadsheetId && !!data.content;
+          case 'comment_update':
+            return !!data.spreadsheetId && !!data.commentId && !!data.content;
+          case 'comment_delete':
+          case 'comment_get':
+          case 'comment_resolve':
+          case 'comment_reopen':
+            return !!data.spreadsheetId && !!data.commentId;
+          case 'comment_list':
+            return !!data.spreadsheetId;
+          case 'comment_add_reply':
+            return !!data.spreadsheetId && !!data.commentId && !!data.content;
+          case 'comment_update_reply':
+            return !!data.spreadsheetId && !!data.commentId && !!data.replyId && !!data.content;
+          case 'comment_delete_reply':
+            return !!data.spreadsheetId && !!data.commentId && !!data.replyId;
 
-    // Fields for version_get_revision, version_restore_revision, version_keep_revision actions
-    revisionId: z
-      .string()
-      .optional()
-      .describe(
-        'Revision ID (required for: version_get_revision, version_restore_revision, version_keep_revision; optional for: version_compare, version_export)'
-      ),
+          // Version actions
+          case 'version_list_revisions':
+            return !!data.spreadsheetId;
+          case 'version_get_revision':
+            return !!data.spreadsheetId && !!data.revisionId;
+          case 'version_restore_revision':
+            return !!data.spreadsheetId && !!data.revisionId;
+          case 'version_keep_revision':
+            return !!data.spreadsheetId && !!data.revisionId && data.keepForever !== undefined;
+          case 'version_create_snapshot':
+            return !!data.spreadsheetId;
+          case 'version_list_snapshots':
+            return !!data.spreadsheetId;
+          case 'version_restore_snapshot':
+            return !!data.spreadsheetId && !!data.snapshotId;
+          case 'version_delete_snapshot':
+            return !!data.spreadsheetId && !!data.snapshotId;
+          case 'version_compare':
+            return !!data.spreadsheetId;
+          case 'version_export':
+            return !!data.spreadsheetId;
 
-    // Fields for version_keep_revision action
-    keepForever: z
-      .boolean()
-      .optional()
-      .describe('Whether to keep revision forever (required for: version_keep_revision)'),
-
-    // Fields for version_create_snapshot action
-    name: z.string().optional().describe('Name for the snapshot (version_create_snapshot only)'),
-    description: z
-      .string()
-      .optional()
-      .describe('Description for the snapshot (version_create_snapshot only)'),
-    destinationFolderId: z
-      .string()
-      .optional()
-      .describe('Google Drive folder ID for snapshot (version_create_snapshot only)'),
-
-    // Fields for version_restore_snapshot, version_delete_snapshot actions
-    snapshotId: z
-      .string()
-      .optional()
-      .describe('Snapshot ID (required for: version_restore_snapshot, version_delete_snapshot)'),
-
-    // Fields for version_compare action
-    revisionId1: z
-      .string()
-      .optional()
-      .describe('First revision ID to compare (version_compare only)'),
-    revisionId2: z
-      .string()
-      .optional()
-      .describe('Second revision ID to compare (version_compare only)'),
-    sheetId: SheetIdSchema.optional().describe('Specific sheet to compare (version_compare only)'),
-
-    // Fields for version_export action
-    format: z
-      .enum(['xlsx', 'csv', 'pdf', 'ods'])
-      .optional()
-      .default('xlsx')
-      .describe('Export format (version_export only)'),
-
-    // Safety options for all mutation operations
-    safety: SafetyOptionsSchema.optional().describe(
-      'Safety options like dryRun (applies to all destructive operations)'
-    ),
-
-    // ===== LLM OPTIMIZATION: VERBOSITY CONTROL =====
-    verbosity: z
-      .enum(['minimal', 'standard', 'detailed'])
-      .optional()
-      .default('standard')
-      .describe(
-        'Response detail level: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
-      ),
-  })
-  .refine(
-    (data) => {
-      // Validate required fields based on action
-      switch (data.action) {
-        // Sharing actions
-        case 'share_add':
-          return !!data.spreadsheetId && !!data.type && !!data.role;
-        case 'share_update':
-          return !!data.spreadsheetId && !!data.permissionId && !!data.role;
-        case 'share_remove':
-          return !!data.spreadsheetId && !!data.permissionId;
-        case 'share_list':
-          return !!data.spreadsheetId;
-        case 'share_get':
-          return !!data.spreadsheetId && !!data.permissionId;
-        case 'share_transfer_ownership':
-          return !!data.spreadsheetId && !!data.newOwnerEmail;
-        case 'share_set_link':
-          return !!data.spreadsheetId && data.enabled !== undefined;
-        case 'share_get_link':
-          return !!data.spreadsheetId;
-
-        // Comment actions
-        case 'comment_add':
-          return !!data.spreadsheetId && !!data.content;
-        case 'comment_update':
-          return !!data.spreadsheetId && !!data.commentId && !!data.content;
-        case 'comment_delete':
-        case 'comment_get':
-        case 'comment_resolve':
-        case 'comment_reopen':
-          return !!data.spreadsheetId && !!data.commentId;
-        case 'comment_list':
-          return !!data.spreadsheetId;
-        case 'comment_add_reply':
-          return !!data.spreadsheetId && !!data.commentId && !!data.content;
-        case 'comment_update_reply':
-          return !!data.spreadsheetId && !!data.commentId && !!data.replyId && !!data.content;
-        case 'comment_delete_reply':
-          return !!data.spreadsheetId && !!data.commentId && !!data.replyId;
-
-        // Version actions
-        case 'version_list_revisions':
-          return !!data.spreadsheetId;
-        case 'version_get_revision':
-          return !!data.spreadsheetId && !!data.revisionId;
-        case 'version_restore_revision':
-          return !!data.spreadsheetId && !!data.revisionId;
-        case 'version_keep_revision':
-          return !!data.spreadsheetId && !!data.revisionId && data.keepForever !== undefined;
-        case 'version_create_snapshot':
-          return !!data.spreadsheetId;
-        case 'version_list_snapshots':
-          return !!data.spreadsheetId;
-        case 'version_restore_snapshot':
-          return !!data.spreadsheetId && !!data.snapshotId;
-        case 'version_delete_snapshot':
-          return !!data.spreadsheetId && !!data.snapshotId;
-        case 'version_compare':
-          return !!data.spreadsheetId;
-        case 'version_export':
-          return !!data.spreadsheetId;
-
-        default:
-          return false;
+          default:
+            return false;
+        }
+      },
+      {
+        message: 'Missing required fields for the specified action',
       }
-    },
-    {
-      message: 'Missing required fields for the specified action',
-    }
-  );
+    ),
+});
 
 // ========== OUTPUT SCHEMA ==========
 
@@ -397,7 +404,7 @@ const CollaborateResponseSchema = z.discriminatedUnion('success', [
         sheetsAdded: z.array(z.string()).optional(),
         sheetsRemoved: z.array(z.string()).optional(),
         sheetsModified: z.array(z.string()).optional(),
-        cellChanges: z.number().int().optional(),
+        cellChanges: z.coerce.number().int().optional(),
       })
       .optional(),
     exportUrl: z.string().optional(),
@@ -432,102 +439,104 @@ export const SHEETS_COLLABORATE_ANNOTATIONS: ToolAnnotations = {
 export type SheetsCollaborateInput = z.infer<typeof SheetsCollaborateInputSchema>;
 export type SheetsCollaborateOutput = z.infer<typeof SheetsCollaborateOutputSchema>;
 export type CollaborateResponse = z.infer<typeof CollaborateResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type CollaborateRequest = SheetsCollaborateInput['request'];
 
 // ========== TYPE NARROWING HELPERS ==========
 // These provide type safety similar to discriminated union Extract<>
 
 // Sharing action types (8)
-export type CollaborateShareAddInput = SheetsCollaborateInput & {
+export type CollaborateShareAddInput = SheetsCollaborateInput['request'] & {
   action: 'share_add';
   spreadsheetId: string;
   type: string;
   role: string;
 };
-export type CollaborateShareUpdateInput = SheetsCollaborateInput & {
+export type CollaborateShareUpdateInput = SheetsCollaborateInput['request'] & {
   action: 'share_update';
   spreadsheetId: string;
   permissionId: string;
   role: string;
 };
-export type CollaborateShareRemoveInput = SheetsCollaborateInput & {
+export type CollaborateShareRemoveInput = SheetsCollaborateInput['request'] & {
   action: 'share_remove';
   spreadsheetId: string;
   permissionId: string;
 };
-export type CollaborateShareListInput = SheetsCollaborateInput & {
+export type CollaborateShareListInput = SheetsCollaborateInput['request'] & {
   action: 'share_list';
   spreadsheetId: string;
 };
-export type CollaborateShareGetInput = SheetsCollaborateInput & {
+export type CollaborateShareGetInput = SheetsCollaborateInput['request'] & {
   action: 'share_get';
   spreadsheetId: string;
   permissionId: string;
 };
-export type CollaborateShareTransferOwnershipInput = SheetsCollaborateInput & {
+export type CollaborateShareTransferOwnershipInput = SheetsCollaborateInput['request'] & {
   action: 'share_transfer_ownership';
   spreadsheetId: string;
   newOwnerEmail: string;
 };
-export type CollaborateShareSetLinkInput = SheetsCollaborateInput & {
+export type CollaborateShareSetLinkInput = SheetsCollaborateInput['request'] & {
   action: 'share_set_link';
   spreadsheetId: string;
   enabled: boolean;
 };
-export type CollaborateShareGetLinkInput = SheetsCollaborateInput & {
+export type CollaborateShareGetLinkInput = SheetsCollaborateInput['request'] & {
   action: 'share_get_link';
   spreadsheetId: string;
 };
 
 // Comment action types (10)
-export type CollaborateCommentAddInput = SheetsCollaborateInput & {
+export type CollaborateCommentAddInput = SheetsCollaborateInput['request'] & {
   action: 'comment_add';
   spreadsheetId: string;
   content: string;
 };
-export type CollaborateCommentUpdateInput = SheetsCollaborateInput & {
+export type CollaborateCommentUpdateInput = SheetsCollaborateInput['request'] & {
   action: 'comment_update';
   spreadsheetId: string;
   commentId: string;
   content: string;
 };
-export type CollaborateCommentDeleteInput = SheetsCollaborateInput & {
+export type CollaborateCommentDeleteInput = SheetsCollaborateInput['request'] & {
   action: 'comment_delete';
   spreadsheetId: string;
   commentId: string;
 };
-export type CollaborateCommentListInput = SheetsCollaborateInput & {
+export type CollaborateCommentListInput = SheetsCollaborateInput['request'] & {
   action: 'comment_list';
   spreadsheetId: string;
 };
-export type CollaborateCommentGetInput = SheetsCollaborateInput & {
+export type CollaborateCommentGetInput = SheetsCollaborateInput['request'] & {
   action: 'comment_get';
   spreadsheetId: string;
   commentId: string;
 };
-export type CollaborateCommentResolveInput = SheetsCollaborateInput & {
+export type CollaborateCommentResolveInput = SheetsCollaborateInput['request'] & {
   action: 'comment_resolve';
   spreadsheetId: string;
   commentId: string;
 };
-export type CollaborateCommentReopenInput = SheetsCollaborateInput & {
+export type CollaborateCommentReopenInput = SheetsCollaborateInput['request'] & {
   action: 'comment_reopen';
   spreadsheetId: string;
   commentId: string;
 };
-export type CollaborateCommentAddReplyInput = SheetsCollaborateInput & {
+export type CollaborateCommentAddReplyInput = SheetsCollaborateInput['request'] & {
   action: 'comment_add_reply';
   spreadsheetId: string;
   commentId: string;
   content: string;
 };
-export type CollaborateCommentUpdateReplyInput = SheetsCollaborateInput & {
+export type CollaborateCommentUpdateReplyInput = SheetsCollaborateInput['request'] & {
   action: 'comment_update_reply';
   spreadsheetId: string;
   commentId: string;
   replyId: string;
   content: string;
 };
-export type CollaborateCommentDeleteReplyInput = SheetsCollaborateInput & {
+export type CollaborateCommentDeleteReplyInput = SheetsCollaborateInput['request'] & {
   action: 'comment_delete_reply';
   spreadsheetId: string;
   commentId: string;
@@ -535,49 +544,49 @@ export type CollaborateCommentDeleteReplyInput = SheetsCollaborateInput & {
 };
 
 // Version action types (10)
-export type CollaborateVersionListRevisionsInput = SheetsCollaborateInput & {
+export type CollaborateVersionListRevisionsInput = SheetsCollaborateInput['request'] & {
   action: 'version_list_revisions';
   spreadsheetId: string;
 };
-export type CollaborateVersionGetRevisionInput = SheetsCollaborateInput & {
+export type CollaborateVersionGetRevisionInput = SheetsCollaborateInput['request'] & {
   action: 'version_get_revision';
   spreadsheetId: string;
   revisionId: string;
 };
-export type CollaborateVersionRestoreRevisionInput = SheetsCollaborateInput & {
+export type CollaborateVersionRestoreRevisionInput = SheetsCollaborateInput['request'] & {
   action: 'version_restore_revision';
   spreadsheetId: string;
   revisionId: string;
 };
-export type CollaborateVersionKeepRevisionInput = SheetsCollaborateInput & {
+export type CollaborateVersionKeepRevisionInput = SheetsCollaborateInput['request'] & {
   action: 'version_keep_revision';
   spreadsheetId: string;
   revisionId: string;
   keepForever: boolean;
 };
-export type CollaborateVersionCreateSnapshotInput = SheetsCollaborateInput & {
+export type CollaborateVersionCreateSnapshotInput = SheetsCollaborateInput['request'] & {
   action: 'version_create_snapshot';
   spreadsheetId: string;
 };
-export type CollaborateVersionListSnapshotsInput = SheetsCollaborateInput & {
+export type CollaborateVersionListSnapshotsInput = SheetsCollaborateInput['request'] & {
   action: 'version_list_snapshots';
   spreadsheetId: string;
 };
-export type CollaborateVersionRestoreSnapshotInput = SheetsCollaborateInput & {
+export type CollaborateVersionRestoreSnapshotInput = SheetsCollaborateInput['request'] & {
   action: 'version_restore_snapshot';
   spreadsheetId: string;
   snapshotId: string;
 };
-export type CollaborateVersionDeleteSnapshotInput = SheetsCollaborateInput & {
+export type CollaborateVersionDeleteSnapshotInput = SheetsCollaborateInput['request'] & {
   action: 'version_delete_snapshot';
   spreadsheetId: string;
   snapshotId: string;
 };
-export type CollaborateVersionCompareInput = SheetsCollaborateInput & {
+export type CollaborateVersionCompareInput = SheetsCollaborateInput['request'] & {
   action: 'version_compare';
   spreadsheetId: string;
 };
-export type CollaborateVersionExportInput = SheetsCollaborateInput & {
+export type CollaborateVersionExportInput = SheetsCollaborateInput['request'] & {
   action: 'version_export';
   spreadsheetId: string;
 };

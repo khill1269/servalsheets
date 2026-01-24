@@ -6,7 +6,7 @@
  */
 
 /**
- * Factory for sheets_values read input
+ * Factory for sheets_data read input
  *
  * Usage:
  * ```typescript
@@ -14,12 +14,14 @@
  * const result = await handler.handle(input);
  * ```
  */
-export function createValuesReadInput(overrides: {
-  spreadsheetId?: string;
-  range?: { a1: string } | { sheetName: string };
-  valueRenderOption?: string;
-  dateTimeRenderOption?: string;
-} = {}) {
+export function createValuesReadInput(
+  overrides: {
+    spreadsheetId?: string;
+    range?: { a1: string } | { sheetName: string };
+    valueRenderOption?: string;
+    dateTimeRenderOption?: string;
+  } = {}
+) {
   return {
     action: 'read' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
@@ -30,30 +32,37 @@ export function createValuesReadInput(overrides: {
 }
 
 /**
- * Factory for sheets_values write input
+ * Factory for sheets_data write input
  */
-export function createValuesWriteInput(overrides: {
-  spreadsheetId?: string;
-  range?: { a1: string };
-  values?: any[][];
-  valueInputOption?: string;
-} = {}) {
+export function createValuesWriteInput(
+  overrides: {
+    spreadsheetId?: string;
+    range?: { a1: string };
+    values?: any[][];
+    valueInputOption?: string;
+  } = {}
+) {
   return {
     action: 'write' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
     range: overrides.range || { a1: 'Sheet1!A1:B2' },
-    values: overrides.values || [['A', 'B'], ['1', '2']],
+    values: overrides.values || [
+      ['A', 'B'],
+      ['1', '2'],
+    ],
     valueInputOption: overrides.valueInputOption || 'USER_ENTERED',
   };
 }
 
 /**
- * Factory for sheets_spreadsheet get input
+ * Factory for sheets_core get input
  */
-export function createSpreadsheetGetInput(overrides: {
-  spreadsheetId?: string;
-  includeGridData?: boolean;
-} = {}) {
+export function createSpreadsheetGetInput(
+  overrides: {
+    spreadsheetId?: string;
+    includeGridData?: boolean;
+  } = {}
+) {
   return {
     action: 'get' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
@@ -62,34 +71,37 @@ export function createSpreadsheetGetInput(overrides: {
 }
 
 /**
- * Factory for sheets_sheet create input
+ * Factory for sheets_core add_sheet input
  */
-export function createSheetCreateInput(overrides: {
-  spreadsheetId?: string;
-  title?: string;
-  gridProperties?: {
+export function createSheetAddInput(
+  overrides: {
+    spreadsheetId?: string;
+    title?: string;
     rowCount?: number;
     columnCount?: number;
-  };
-} = {}) {
+  } = {}
+) {
   return {
-    action: 'create' as const,
+    action: 'add_sheet' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
     title: overrides.title || 'New Sheet',
-    gridProperties: overrides.gridProperties,
+    rowCount: overrides.rowCount,
+    columnCount: overrides.columnCount,
   };
 }
 
 /**
- * Factory for sheets_format apply input
+ * Factory for sheets_format set_format input
  */
-export function createFormatApplyInput(overrides: {
-  spreadsheetId?: string;
-  range?: { a1: string };
-  format?: any;
-} = {}) {
+export function createFormatSetInput(
+  overrides: {
+    spreadsheetId?: string;
+    range?: { a1: string };
+    format?: any;
+  } = {}
+) {
   return {
-    action: 'apply' as const,
+    action: 'set_format' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
     range: overrides.range || { a1: 'Sheet1!A1:B2' },
     format: overrides.format || {
@@ -99,18 +111,22 @@ export function createFormatApplyInput(overrides: {
 }
 
 /**
- * Factory for sheets_analyze analyze input
+ * Factory for sheets_analyze comprehensive input
  */
-export function createAnalyzeInput(overrides: {
-  spreadsheetId?: string;
-  range?: { a1: string };
-  analysisTypes?: string[];
-} = {}) {
+export function createAnalyzeComprehensiveInput(
+  overrides: {
+    spreadsheetId?: string;
+    range?: { a1: string };
+    includeFormulas?: boolean;
+    includeVisualizations?: boolean;
+  } = {}
+) {
   return {
-    action: 'analyze' as const,
+    action: 'comprehensive' as const,
     spreadsheetId: overrides.spreadsheetId || 'test-sheet-id',
     range: overrides.range,
-    analysisTypes: overrides.analysisTypes || ['summary'],
+    includeFormulas: overrides.includeFormulas,
+    includeVisualizations: overrides.includeVisualizations,
   };
 }
 
@@ -126,9 +142,11 @@ export function createAuthStatusInput() {
 /**
  * Factory for sheets_auth login input
  */
-export function createAuthLoginInput(overrides: {
-  scopes?: string[];
-} = {}) {
+export function createAuthLoginInput(
+  overrides: {
+    scopes?: string[];
+  } = {}
+) {
   return {
     action: 'login' as const,
     scopes: overrides.scopes,
@@ -138,13 +156,18 @@ export function createAuthLoginInput(overrides: {
 /**
  * Factory for mock Google Sheets API response
  */
-export function createMockSheetsResponse(overrides: {
-  values?: any[][];
-  sheets?: any[];
-} = {}) {
+export function createMockSheetsResponse(
+  overrides: {
+    values?: any[][];
+    sheets?: any[];
+  } = {}
+) {
   return {
     data: {
-      values: overrides.values || [['A', 'B'], ['1', '2']],
+      values: overrides.values || [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
       sheets: overrides.sheets || [
         {
           properties: {

@@ -93,9 +93,7 @@ describe('SessionContextManager', () => {
     });
 
     it('should require active spreadsheet or throw helpful error', () => {
-      expect(() => manager.requireActiveSpreadsheet()).toThrow(
-        'No active spreadsheet'
-      );
+      expect(() => manager.requireActiveSpreadsheet()).toThrow('No active spreadsheet');
 
       manager.setActiveSpreadsheet({
         spreadsheetId: '1ABC',

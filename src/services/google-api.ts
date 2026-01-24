@@ -15,11 +15,12 @@
  * const response = await sheets.spreadsheets.get({ spreadsheetId });
  */
 
-import { google, sheets_v4, drive_v3 } from 'googleapis';
+import { google, sheets_v4, drive_v3, bigquery_v2 } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { executeWithRetry, type RetryOptions } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { EncryptedFileTokenStore, type TokenStore, type StoredTokens } from './token-store.js';
+import { HybridTokenStore } from './keychain-store.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from './circuit-breaker-registry.js';
@@ -51,6 +52,8 @@ export interface GoogleApiClientOptions {
   tokenStorePath?: string;
   /** Encryption key (hex) for token store */
   tokenStoreKey?: string;
+  /** Use OS keychain for token storage (falls back to file if unavailable) */
+  useKeychain?: boolean;
   /** Custom token store implementation */
   tokenStore?: TokenStore;
 }
@@ -84,6 +87,40 @@ export const READONLY_SCOPES = [
 ];
 
 /**
+ * BigQuery scopes for Connected Sheets and direct BigQuery operations
+ * Required for: sheets_bigquery tool operations
+ */
+export const BIGQUERY_SCOPES = [
+  'https://www.googleapis.com/auth/cloud-platform.read-only', // Read BigQuery data
+  'https://www.googleapis.com/auth/cloud-platform', // Full BigQuery access (for exports)
+  'https://www.googleapis.com/auth/bigquery', // BigQuery API access
+];
+
+/**
+ * Apps Script scopes for script management and execution
+ * Required for: sheets_appsscript tool operations
+ */
+export const APPSSCRIPT_SCOPES = [
+  'https://www.googleapis.com/auth/script.projects', // Manage Apps Script projects
+  'https://www.googleapis.com/auth/script.deployments', // Manage deployments
+  'https://www.googleapis.com/auth/script.processes', // View script processes
+];
+
+/**
+ * Full scopes - all permissions for complete functionality
+ * Required for: templates (appDataFolder), sharing, BigQuery, Apps Script
+ */
+export const FULL_SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive', // Full drive access (sharing, templates)
+  'https://www.googleapis.com/auth/drive.appdata', // App data folder for templates
+  'https://www.googleapis.com/auth/bigquery', // BigQuery access
+  'https://www.googleapis.com/auth/script.projects', // Apps Script projects
+  'https://www.googleapis.com/auth/script.deployments', // Apps Script deployments
+  'https://www.googleapis.com/auth/script.processes', // Apps Script processes
+];
+
+/**
  * Create HTTP agents with connection pooling
  * Optimizes performance by reusing TCP connections
  */
@@ -113,6 +150,7 @@ export class GoogleApiClient {
   private auth: OAuth2Client | null = null;
   private _sheets: sheets_v4.Sheets | null = null;
   private _drive: drive_v3.Drive | null = null;
+  private _bigquery: bigquery_v2.Bigquery | null = null;
   private options: GoogleApiClientOptions;
   private _scopes: string[];
   private retryOptions?: RetryOptions;
@@ -135,12 +173,18 @@ export class GoogleApiClient {
         : options.accessToken
           ? 'access_token'
           : 'application_default';
-    // Determine scopes based on options
-    this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : DEFAULT_SCOPES);
+    // Determine scopes based on options - use FULL_SCOPES by default for complete functionality
+    this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : FULL_SCOPES);
     this.retryOptions = options.retryOptions;
     this.timeoutMs = options.timeoutMs;
     this.tokenStore = options.tokenStore;
-    if (!this.tokenStore && options.tokenStorePath && options.tokenStoreKey) {
+    // Token store will be initialized in initialize() if using keychain
+    if (
+      !this.tokenStore &&
+      !options.useKeychain &&
+      options.tokenStorePath &&
+      options.tokenStoreKey
+    ) {
       this.tokenStore = new EncryptedFileTokenStore(options.tokenStorePath, options.tokenStoreKey);
     }
 
@@ -172,6 +216,21 @@ export class GoogleApiClient {
    * Initialize authentication
    */
   async initialize(): Promise<void> {
+    // Initialize token store (async for keychain support)
+    if (
+      !this.tokenStore &&
+      this.options.useKeychain &&
+      this.options.tokenStorePath &&
+      this.options.tokenStoreKey
+    ) {
+      this.tokenStore = await HybridTokenStore.create(
+        this.options.tokenStorePath,
+        this.options.tokenStoreKey
+      );
+      const storageType = (this.tokenStore as HybridTokenStore).getStorageType?.();
+      logger.info(`Token storage initialized: ${storageType || 'hybrid'}`);
+    }
+
     const scopes = this._scopes;
 
     if (this.options.serviceAccountKeyPath) {
@@ -225,6 +284,11 @@ export class GoogleApiClient {
       auth: this.auth,
       http2: enableHTTP2,
     });
+    const bigqueryApi = google.bigquery({
+      version: 'v2',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
 
     logger.info('Google API clients initialized', {
       http2Enabled: enableHTTP2,
@@ -249,6 +313,11 @@ export class GoogleApiClient {
       circuit: this.circuit,
     });
     this._drive = wrapGoogleApi(driveApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
+    });
+    this._bigquery = wrapGoogleApi(bigqueryApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
@@ -519,6 +588,14 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get BigQuery API client
+   * Returns null if BigQuery is not configured (optional API)
+   */
+  get bigquery(): bigquery_v2.Bigquery | null {
+    return this._bigquery;
+  }
+
+  /**
    * Get OAuth2 client for token management
    */
   get oauth2(): OAuth2Client {
@@ -658,6 +735,7 @@ export class GoogleApiClient {
 
   /**
    * Update credentials
+   * IMPORTANT: Preserves existing refresh_token if not provided to enable auto-refresh
    */
   setCredentials(accessToken: string, refreshToken?: string): void {
     if (!this.auth || !(this.auth instanceof google.auth.OAuth2)) {
@@ -666,12 +744,24 @@ export class GoogleApiClient {
         hint: 'Provide OAuth client credentials',
       });
     }
+
+    // CRITICAL FIX: Preserve existing refresh_token if not provided
+    // This enables google-auth-library to auto-refresh expired access tokens
+    const existingCredentials = this.auth.credentials;
+    const effectiveRefreshToken = refreshToken ?? existingCredentials.refresh_token;
+
     const tokens: StoredTokens = this.sanitizeTokens({
       access_token: accessToken,
-      refresh_token: refreshToken,
+      refresh_token: effectiveRefreshToken,
     });
     this.auth.setCredentials(tokens);
     void this.safeSaveTokens(tokens);
+
+    logger.debug('Credentials updated', {
+      hasAccessToken: Boolean(accessToken),
+      hasRefreshToken: Boolean(effectiveRefreshToken),
+      preservedExistingRefresh: !refreshToken && Boolean(existingCredentials.refresh_token),
+    });
   }
 
   /**

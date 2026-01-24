@@ -159,8 +159,8 @@ export function registerConfirmationResources(server: McpServer): void {
           description: 'Clear cell contents',
         },
         {
-          tool: 'sheets_sheet',
-          action: 'delete',
+          tool: 'sheets_core',
+          action: 'delete_sheet',
           description: 'Delete entire sheet',
         },
         {
@@ -174,33 +174,33 @@ export function registerConfirmationResources(server: McpServer): void {
           description: 'Delete columns',
         },
         {
-          tool: 'sheets_rules',
-          action: 'remove_rule',
+          tool: 'sheets_format',
+          action: 'rule_delete_conditional_format',
           description: 'Remove validation/formatting rules',
         },
         {
           tool: 'sheets_visualize',
-          action: 'delete',
+          action: 'chart_delete',
           description: 'Delete chart',
         },
         {
-          tool: 'sheets_pivot',
-          action: 'delete',
+          tool: 'sheets_visualize',
+          action: 'pivot_delete',
           description: 'Delete pivot table',
         },
         {
           tool: 'sheets_advanced',
-          action: 'remove_protection',
+          action: 'delete_protected_range',
           description: 'Remove sheet/range protection',
         },
         {
-          tool: 'sheets_sharing',
-          action: 'revoke',
+          tool: 'sheets_collaborate',
+          action: 'share_remove',
           description: 'Revoke user access',
         },
         {
-          tool: 'sheets_comments',
-          action: 'delete',
+          tool: 'sheets_collaborate',
+          action: 'comment_delete',
           description: 'Delete comments',
         },
       ];

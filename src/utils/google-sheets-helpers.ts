@@ -182,6 +182,25 @@ export interface GridRangeInput {
 }
 
 /**
+ * Build internal GridRangeInput
+ */
+export function buildGridRangeInput(
+  sheetId: number,
+  startRowIndex?: number,
+  endRowIndex?: number,
+  startColumnIndex?: number,
+  endColumnIndex?: number
+): GridRangeInput {
+  return {
+    sheetId,
+    startRowIndex,
+    endRowIndex,
+    startColumnIndex,
+    endColumnIndex,
+  };
+}
+
+/**
  * Build Google Sheets GridRange
  */
 export function toGridRange(input: GridRangeInput): sheets_v4.Schema$GridRange {

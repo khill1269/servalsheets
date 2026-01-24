@@ -803,30 +803,30 @@ src/
 | Old Tool | New Tool | Notes |
 |----------|----------|-------|
 | sheets_auth | sheets_auth | Unchanged |
-| sheets_spreadsheet | sheets_data | Merged |
-| sheets_values | sheets_data | Merged |
-| sheets_cells | sheets_data | Merged |
+| sheets_core | sheets_data | Merged |
+| sheets_data | sheets_data | Merged |
+| sheets_data | sheets_data | Merged |
 | sheets_format | sheets_style | Merged |
-| sheets_rules | sheets_style | Merged |
-| sheets_sheet | sheets_structure | Merged |
+| sheets_format | sheets_style | Merged |
+| sheets_core | sheets_structure | Merged |
 | sheets_dimensions | sheets_structure | Merged |
 | sheets_advanced (partial) | sheets_structure | Named ranges, protection |
 | sheets_advanced (partial) | sheets_style | Banding |
-| sheets_charts | sheets_visualize | Merged |
-| sheets_pivot | sheets_visualize | Merged |
-| sheets_filter_sort | sheets_visualize | Merged |
-| sheets_analysis | sheets_analyze | Deprecated, merged |
+| sheets_visualize | sheets_visualize | Merged |
+| sheets_visualize | sheets_visualize | Merged |
+| sheets_dimensions | sheets_visualize | Merged |
+| sheets_analyze | sheets_analyze | Deprecated, merged |
 | sheets_analyze | sheets_analyze | Enhanced |
 | sheets_fix | sheets_automate | Merged |
 | sheets_composite | sheets_automate | Merged |
-| sheets_sharing | sheets_share | Enhanced |
-| sheets_comments | sheets_share | Merged |
-| sheets_versions | sheets_history | Merged |
+| sheets_collaborate | sheets_share | Enhanced |
+| sheets_collaborate | sheets_share | Merged |
+| sheets_collaborate | sheets_history | Merged |
 | sheets_history | sheets_history | Enhanced |
 | sheets_transaction | sheets_safety | Merged |
-| sheets_validation | sheets_safety | Merged |
-| sheets_conflict | sheets_safety | Merged |
-| sheets_impact | sheets_safety | Merged |
+| sheets_quality | sheets_safety | Merged |
+| sheets_quality | sheets_safety | Merged |
+| sheets_quality | sheets_safety | Merged |
 | sheets_confirm | sheets_context | Merged |
 | sheets_session | sheets_context | Merged |
 

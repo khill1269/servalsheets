@@ -237,9 +237,9 @@ describe('SheetsCoreHandler - Verbosity Feature', () => {
       };
 
       // Mock API error
-      mockSheetsApi.spreadsheets.get = vi.fn().mockRejectedValue(
-        new Error('Spreadsheet not found')
-      );
+      mockSheetsApi.spreadsheets.get = vi
+        .fn()
+        .mockRejectedValue(new Error('Spreadsheet not found'));
 
       const result = await handler.handle(input);
 

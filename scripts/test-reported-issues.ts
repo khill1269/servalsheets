@@ -3,7 +3,7 @@
  *
  * Focused testing on the specific issues reported by the user:
  * 1. sheets_auth status - Reports tokens present even when invalid
- * 2. sheets_values write/read - Range validation bug
+ * 2. sheets_data write/read - Range validation bug
  * 3. sheets_format apply_preset - Range validation bug
  */
 
@@ -24,11 +24,14 @@ const TEST_SPREADSHEET_ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
 
 function createJsonRpcClient(child: ChildProcess) {
   let buffer = '';
-  const pending = new Map<number, {
-    resolve: (value: any) => void;
-    reject: (error: Error) => void;
-    timeout: NodeJS.Timeout;
-  }>();
+  const pending = new Map<
+    number,
+    {
+      resolve: (value: any) => void;
+      reject: (error: Error) => void;
+      timeout: NodeJS.Timeout;
+    }
+  >();
 
   child.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString();
@@ -137,11 +140,11 @@ async function testAuthStatus(client: any): Promise<TestResult> {
 }
 
 async function testValuesWrite(client: any): Promise<TestResult> {
-  console.log('\n🔍 Test 2: sheets_values write with range validation\n');
+  console.log('\n🔍 Test 2: sheets_data write with range validation\n');
 
   try {
     const response = await client.send('tools/call', {
-      name: 'sheets_values',
+      name: 'sheets_data',
       arguments: {
         action: 'write',
         spreadsheetId: TEST_SPREADSHEET_ID,
@@ -162,26 +165,26 @@ async function testValuesWrite(client: any): Promise<TestResult> {
     // Check for range validation errors
     if (text.includes('Range validation') || text.includes('INVALID_RANGE')) {
       return {
-        test: 'sheets_values write',
+        test: 'sheets_data write',
         status: 'fail',
         message: 'Range validation error detected',
         error: text.substring(0, 500),
       };
     } else if (text.includes('not authenticated') || text.includes('OAuth')) {
       return {
-        test: 'sheets_values write',
+        test: 'sheets_data write',
         status: 'pass',
         message: 'Expected auth error (no credentials), no range validation bug',
       };
     } else if (text.includes('success') || text.includes('updated')) {
       return {
-        test: 'sheets_values write',
+        test: 'sheets_data write',
         status: 'pass',
         message: 'Write succeeded, no range validation error',
       };
     } else {
       return {
-        test: 'sheets_values write',
+        test: 'sheets_data write',
         status: 'fail',
         message: 'Unexpected response',
         error: text.substring(0, 500),
@@ -189,7 +192,7 @@ async function testValuesWrite(client: any): Promise<TestResult> {
     }
   } catch (err) {
     return {
-      test: 'sheets_values write',
+      test: 'sheets_data write',
       status: 'fail',
       message: 'Exception during test',
       error: (err as Error).message,
@@ -198,11 +201,11 @@ async function testValuesWrite(client: any): Promise<TestResult> {
 }
 
 async function testValuesRead(client: any): Promise<TestResult> {
-  console.log('\n🔍 Test 3: sheets_values read with range validation\n');
+  console.log('\n🔍 Test 3: sheets_data read with range validation\n');
 
   try {
     const response = await client.send('tools/call', {
-      name: 'sheets_values',
+      name: 'sheets_data',
       arguments: {
         action: 'read',
         spreadsheetId: TEST_SPREADSHEET_ID,
@@ -219,26 +222,26 @@ async function testValuesRead(client: any): Promise<TestResult> {
     // Check for range validation errors
     if (text.includes('Range validation') || text.includes('INVALID_RANGE')) {
       return {
-        test: 'sheets_values read',
+        test: 'sheets_data read',
         status: 'fail',
         message: 'Range validation error detected',
         error: text.substring(0, 500),
       };
     } else if (text.includes('not authenticated') || text.includes('OAuth')) {
       return {
-        test: 'sheets_values read',
+        test: 'sheets_data read',
         status: 'pass',
         message: 'Expected auth error (no credentials), no range validation bug',
       };
     } else if (text.includes('values') || text.includes('data')) {
       return {
-        test: 'sheets_values read',
+        test: 'sheets_data read',
         status: 'pass',
         message: 'Read succeeded, no range validation error',
       };
     } else {
       return {
-        test: 'sheets_values read',
+        test: 'sheets_data read',
         status: 'fail',
         message: 'Unexpected response',
         error: text.substring(0, 500),
@@ -246,7 +249,7 @@ async function testValuesRead(client: any): Promise<TestResult> {
     }
   } catch (err) {
     return {
-      test: 'sheets_values read',
+      test: 'sheets_data read',
       status: 'fail',
       message: 'Exception during test',
       error: (err as Error).message,
@@ -317,8 +320,8 @@ async function runTests() {
   console.log('='.repeat(80));
   console.log('Testing specific issues reported by user:');
   console.log('1. sheets_auth status - Token validity check');
-  console.log('2. sheets_values write - Range validation');
-  console.log('3. sheets_values read - Range validation');
+  console.log('2. sheets_data write - Range validation');
+  console.log('3. sheets_data read - Range validation');
   console.log('4. sheets_format apply_preset - Range validation');
   console.log('='.repeat(80));
 

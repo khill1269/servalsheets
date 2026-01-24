@@ -37,10 +37,10 @@ describe('ParallelExecutor', () => {
       const results = await executor.executeAll(tasks);
 
       expect(results).toHaveLength(3);
-      expect(results.every(r => r.success)).toBe(true);
-      expect(results.find(r => r.id === '1')?.result).toBe('result1');
-      expect(results.find(r => r.id === '2')?.result).toBe('result2');
-      expect(results.find(r => r.id === '3')?.result).toBe('result3');
+      expect(results.every((r) => r.success)).toBe(true);
+      expect(results.find((r) => r.id === '1')?.result).toBe('result1');
+      expect(results.find((r) => r.id === '2')?.result).toBe('result2');
+      expect(results.find((r) => r.id === '3')?.result).toBe('result3');
     });
 
     it('should respect concurrency limit', async () => {
@@ -52,7 +52,7 @@ describe('ParallelExecutor', () => {
         fn: async () => {
           concurrent++;
           maxConcurrent = Math.max(maxConcurrent, concurrent);
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
           concurrent--;
           return i;
         },
@@ -67,16 +67,21 @@ describe('ParallelExecutor', () => {
     it('should handle task failures', async () => {
       const tasks = [
         { id: '1', fn: async () => 'success' },
-        { id: '2', fn: async () => { throw new Error('Task failed'); } },
+        {
+          id: '2',
+          fn: async () => {
+            throw new Error('Task failed');
+          },
+        },
         { id: '3', fn: async () => 'success' },
       ];
 
       const results = await executor.executeAll(tasks);
 
       expect(results).toHaveLength(3);
-      expect(results.filter(r => r.success)).toHaveLength(2);
-      expect(results.filter(r => !r.success)).toHaveLength(1);
-      expect(results.find(r => r.id === '2')?.error?.message).toBe('Task failed');
+      expect(results.filter((r) => r.success)).toHaveLength(2);
+      expect(results.filter((r) => !r.success)).toHaveLength(1);
+      expect(results.find((r) => r.id === '2')?.error?.message).toBe('Task failed');
     });
 
     it('should retry failed tasks', async () => {
@@ -106,9 +111,30 @@ describe('ParallelExecutor', () => {
       const executionOrder: string[] = [];
 
       const tasks = [
-        { id: 'low', fn: async () => { executionOrder.push('low'); return 1; }, priority: 1 },
-        { id: 'high', fn: async () => { executionOrder.push('high'); return 3; }, priority: 3 },
-        { id: 'medium', fn: async () => { executionOrder.push('medium'); return 2; }, priority: 2 },
+        {
+          id: 'low',
+          fn: async () => {
+            executionOrder.push('low');
+            return 1;
+          },
+          priority: 1,
+        },
+        {
+          id: 'high',
+          fn: async () => {
+            executionOrder.push('high');
+            return 3;
+          },
+          priority: 3,
+        },
+        {
+          id: 'medium',
+          fn: async () => {
+            executionOrder.push('medium');
+            return 2;
+          },
+          priority: 2,
+        },
       ];
 
       await executor.executeAll(tasks);
@@ -125,7 +151,7 @@ describe('ParallelExecutor', () => {
       const tasks = Array.from({ length: 5 }, (_, i) => ({
         id: `task-${i}`,
         fn: async () => {
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
           return i;
         },
       }));
@@ -143,7 +169,7 @@ describe('ParallelExecutor', () => {
         {
           id: 'slow-task',
           fn: async () => {
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise((resolve) => setTimeout(resolve, 50));
             return 'done';
           },
         },
@@ -159,7 +185,12 @@ describe('ParallelExecutor', () => {
     it('should return only successful results', async () => {
       const tasks = [
         { id: '1', fn: async () => 'result1' },
-        { id: '2', fn: async () => { throw new Error('Failed'); } },
+        {
+          id: '2',
+          fn: async () => {
+            throw new Error('Failed');
+          },
+        },
         { id: '3', fn: async () => 'result3' },
       ];
 
@@ -185,7 +216,12 @@ describe('ParallelExecutor', () => {
     it('should throw when any task fails', async () => {
       const tasks = [
         { id: '1', fn: async () => 'result1' },
-        { id: '2', fn: async () => { throw new Error('Task failed'); } },
+        {
+          id: '2',
+          fn: async () => {
+            throw new Error('Task failed');
+          },
+        },
       ];
 
       await expect(executor.executeAllOrFail(tasks)).rejects.toThrow('1 task(s) failed');
@@ -196,7 +232,12 @@ describe('ParallelExecutor', () => {
     it('should track execution statistics', async () => {
       const tasks = [
         { id: '1', fn: async () => 'success' },
-        { id: '2', fn: async () => { throw new Error('Failed'); } },
+        {
+          id: '2',
+          fn: async () => {
+            throw new Error('Failed');
+          },
+        },
         { id: '3', fn: async () => 'success' },
       ];
 

@@ -1,0 +1,1 @@
+{"version":3,"file":"auth-paths.js","sourceRoot":"","sources":["../../src/utils/auth-paths.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,EAAE,OAAO,EAAE,MAAM,IAAI,CAAC;AAC7B,OAAO,EAAE,IAAI,EAAE,MAAM,MAAM,CAAC;AAE5B,MAAM,UAAU,wBAAwB;IACtC,OAAO,IAAI,CAAC,OAAO,EAAE,EAAE,eAAe,EAAE,kBAAkB,CAAC,CAAC;AAC9D,CAAC"}

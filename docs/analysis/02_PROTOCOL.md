@@ -56,7 +56,7 @@ package.json (SDK version)
 3. Tasks (SEP-1686) working?
 4. Elicitation (SEP-1036) in sheets_confirm?
 5. Sampling (SEP-1577) in sheets_analyze?
-6. Tool annotations on all 17 tools?
+6. Tool annotations on all 16 tools?
 
 ---
 

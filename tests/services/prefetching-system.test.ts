@@ -299,11 +299,7 @@ describe('PrefetchingSystem', () => {
     it('should calculate refresh priority based on access patterns', async () => {
       // Create cache entry with high access count
       const cacheKey = 'test-sheet-123&range="A1:B10"&type="values"';
-      cacheManager.set(
-        cacheKey,
-        { values: [['test']] },
-        { namespace: 'prefetch', ttl: 50000 }
-      );
+      cacheManager.set(cacheKey, { values: [['test']] }, { namespace: 'prefetch', ttl: 50000 });
 
       // Mark as frequently accessed
       prefetchingSystem.markPrefetchHit(cacheKey);
@@ -399,7 +395,7 @@ describe('PrefetchingSystem', () => {
       mockValuesGet.mockImplementation(async () => {
         concurrentCalls++;
         maxConcurrent = Math.max(maxConcurrent, concurrentCalls);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         concurrentCalls--;
         return { data: { values: [] } };
       });
@@ -494,11 +490,7 @@ describe('PrefetchingSystem', () => {
     it('should update last accessed timestamp on hits', () => {
       const cacheKey = 'test-sheet-123&range="A1:B10"&type="values"';
 
-      cacheManager.set(
-        cacheKey,
-        { values: [['test']] },
-        { namespace: 'prefetch' }
-      );
+      cacheManager.set(cacheKey, { values: [['test']] }, { namespace: 'prefetch' });
 
       const before = Date.now();
       prefetchingSystem.markPrefetchHit(cacheKey);
@@ -521,8 +513,8 @@ describe('PrefetchingSystem', () => {
       await vi.advanceTimersByTimeAsync(100);
 
       // Should include conditional formats, charts, named ranges, etc.
-      const comprehensiveCall = mockSpreadsheetsGet.mock.calls.find(
-        (call: any) => call[0].fields?.includes('conditionalFormats')
+      const comprehensiveCall = mockSpreadsheetsGet.mock.calls.find((call: any) =>
+        call[0].fields?.includes('conditionalFormats')
       );
 
       expect(comprehensiveCall).toBeDefined();
@@ -538,8 +530,8 @@ describe('PrefetchingSystem', () => {
 
       // The comprehensive metadata should be cached
       // Check that the API was called with comprehensive fields
-      const comprehensiveCall = mockSpreadsheetsGet.mock.calls.find(
-        (call: any) => call[0]?.fields?.includes('conditionalFormats')
+      const comprehensiveCall = mockSpreadsheetsGet.mock.calls.find((call: any) =>
+        call[0]?.fields?.includes('conditionalFormats')
       );
 
       expect(comprehensiveCall).toBeDefined();

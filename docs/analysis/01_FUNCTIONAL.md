@@ -48,7 +48,7 @@ src/utils/cache-manager.ts
 ```
 
 ### Questions
-1. How many actions does sheets_values support? (target: 9+)
+1. How many actions does sheets_data support? (target: 9+)
 2. Is automatic batching implemented?
 3. What's the cache TTL?
 4. Is there a transaction tool?

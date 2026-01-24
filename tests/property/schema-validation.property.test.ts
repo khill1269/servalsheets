@@ -118,10 +118,13 @@ describe('Schema Validation Property Tests', () => {
           fc.integer({ min: 1, max: 1000 }),
           (spreadsheetId, colIndex, rowNum) => {
             const colLetter = String.fromCharCode(65 + colIndex);
+            // Schema uses discriminated union wrapped in 'request' field
             const input = {
-              action: 'read' as const,
-              spreadsheetId,
-              range: { a1: `${colLetter}${rowNum}` },
+              request: {
+                action: 'read' as const,
+                spreadsheetId,
+                range: { a1: `${colLetter}${rowNum}` },
+              },
             };
 
             const result = SheetsDataInputSchema.safeParse(input);
@@ -134,8 +137,10 @@ describe('Schema Validation Property Tests', () => {
 
     it('should reject read action without spreadsheetId', () => {
       const input = {
-        action: 'read' as const,
-        range: { a1: 'A1:B10' },
+        request: {
+          action: 'read' as const,
+          range: { a1: 'A1:B10' },
+        },
       };
 
       const result = SheetsDataInputSchema.safeParse(input);
@@ -171,11 +176,14 @@ describe('Schema Validation Property Tests', () => {
           ),
           (spreadsheetId, colIndex, rowNum, values) => {
             const colLetter = String.fromCharCode(65 + colIndex);
+            // Schema uses discriminated union wrapped in 'request' field
             const input = {
-              action: 'write' as const,
-              spreadsheetId,
-              range: { a1: `${colLetter}${rowNum}` },
-              values,
+              request: {
+                action: 'write' as const,
+                spreadsheetId,
+                range: { a1: `${colLetter}${rowNum}` },
+                values,
+              },
             };
 
             const result = SheetsDataInputSchema.safeParse(input);
@@ -188,9 +196,11 @@ describe('Schema Validation Property Tests', () => {
 
     it('should reject write action without values', () => {
       const input = {
-        action: 'write' as const,
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1:B10' },
+        request: {
+          action: 'write' as const,
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1:B10' },
+        },
       };
 
       const result = SheetsDataInputSchema.safeParse(input);
@@ -202,14 +212,17 @@ describe('Schema Validation Property Tests', () => {
     it('should accept valid effect scope limits', () => {
       fc.assert(
         fc.property(fc.integer({ min: 1, max: 1000000 }), (maxCells) => {
+          // Schema uses discriminated union wrapped in 'request' field
           const input = {
-            action: 'write' as const,
-            spreadsheetId: 'test-id',
-            range: { a1: 'A1:B10' },
-            values: [['test']],
-            safety: {
-              effectScope: {
-                maxCellsAffected: maxCells,
+            request: {
+              action: 'write' as const,
+              spreadsheetId: 'test-id',
+              range: { a1: 'A1:B10' },
+              values: [['test']],
+              safety: {
+                effectScope: {
+                  maxCellsAffected: maxCells,
+                },
               },
             },
           };
@@ -223,12 +236,14 @@ describe('Schema Validation Property Tests', () => {
 
     it('should accept dryRun flag', () => {
       const input = {
-        action: 'write' as const,
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1:B10' },
-        values: [['test']],
-        safety: {
-          dryRun: true,
+        request: {
+          action: 'write' as const,
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1:B10' },
+          values: [['test']],
+          safety: {
+            dryRun: true,
+          },
         },
       };
 
@@ -242,10 +257,13 @@ describe('Schema Validation Property Tests', () => {
       const actions = ['read', 'write', 'append', 'clear'] as const;
 
       for (const action of actions) {
+        // Schema uses discriminated union wrapped in 'request' field
         const baseInput = {
-          action,
-          spreadsheetId: 'test-id',
-          range: { a1: 'A1:B10' },
+          request: {
+            action,
+            spreadsheetId: 'test-id',
+            range: { a1: 'A1:B10' },
+          },
         };
 
         // Write and append require values
@@ -254,8 +272,10 @@ describe('Schema Validation Property Tests', () => {
           expect(withoutValues.success).toBe(false);
 
           const withValues = SheetsDataInputSchema.safeParse({
-            ...baseInput,
-            values: [['test']],
+            request: {
+              ...baseInput.request,
+              values: [['test']],
+            },
           });
           expect(withValues.success).toBe(true);
         } else {

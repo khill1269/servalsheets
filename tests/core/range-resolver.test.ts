@@ -1,6 +1,6 @@
 /**
  * ServalSheets v4 - Range Resolver Tests
- * 
+ *
  * Tests for range resolution including sheet name escaping
  */
 
@@ -171,9 +171,9 @@ describe('RangeResolver', () => {
         },
       });
 
-      await expect(
-        resolver.resolve('test-id', { namedRange: 'NonExistent' })
-      ).rejects.toThrow(RangeResolutionError);
+      await expect(resolver.resolve('test-id', { namedRange: 'NonExistent' })).rejects.toThrow(
+        RangeResolutionError
+      );
 
       try {
         await resolver.resolve('test-id', { namedRange: 'NonExistent' });
@@ -228,11 +228,15 @@ describe('RangeResolver', () => {
       });
 
       await expect(
-        resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true } })
+        resolver.resolve('test-id', {
+          semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true },
+        })
       ).rejects.toThrow(RangeResolutionError);
 
       try {
-        await resolver.resolve('test-id', { semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true } });
+        await resolver.resolve('test-id', {
+          semantic: { sheet: 'Sheet1', column: 'Address', includeHeader: true },
+        });
       } catch (error) {
         expect((error as RangeResolutionError).code).toBe('RANGE_NOT_FOUND');
         expect((error as RangeResolutionError).details?.['available']).toContain('Name');
@@ -388,11 +392,9 @@ describe('RangeResolver', () => {
 
   describe('Error conversion', () => {
     it('should convert RangeResolutionError to ErrorDetail', () => {
-      const error = new RangeResolutionError(
-        'Test error',
-        'RANGE_NOT_FOUND',
-        { available: ['Col1', 'Col2'] }
-      );
+      const error = new RangeResolutionError('Test error', 'RANGE_NOT_FOUND', {
+        available: ['Col1', 'Col2'],
+      });
 
       const detail = error.toErrorDetail();
 

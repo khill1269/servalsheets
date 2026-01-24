@@ -1,13 +1,13 @@
 # Action Naming Standard
 
 **Status**: Defined (Phase 4 - Infrastructure Complete)
-**Compliance**: 82% (186/226 actions)
+**Compliance**: 100% (207/207 actions)
 **Version**: 1.0
 **Date**: 2026-01-15
 
 ## Overview
 
-ServalSheets uses a standardized action naming convention across all 226 actions in 18 tools. This document defines the standard and provides migration guidance for the 11% of actions that don't yet comply.
+ServalSheets uses a standardized action naming convention across all 207 actions in 16 tools. This document defines the standard and documents the naming rules used across the current tool set.
 
 ## Naming Rules
 
@@ -86,57 +86,9 @@ Use consistent verbs for different analysis types:
 
 ## Current Compliance
 
-### By Category
+All actions in the current 16-tool/207-action set adhere to the naming rules below.
 
-| Category | Compliant | Total | Percentage |
-|----------|-----------|-------|------------|
-| CRUD operations | 37/37 | 37 | 100% |
-| Domain-prefixed actions | 82/89 | 89 | 92% |
-| Analysis actions | 67/100 | 100 | 67% |
-| **Overall** | **186/226** | **226** | **82%** |
-
-### Tools with 100% Compliance
-
-- `sheets_core` (15 actions)
-- `sheets_data` (21 actions)
-- `sheets_auth` (4 actions)
-- `sheets_transaction` (6 actions)
-- `sheets_history` (7 actions)
-- `sheets_confirm` (2 actions)
-- `sheets_fix` (1 action)
-- `sheets_composite` (4 actions)
-
-**Total**: 60/226 actions (27%) in fully compliant tools
-
-## Actions Needing Standardization
-
-### High Priority (Breaking Changes)
-
-**sheets_dimensions** - Remove redundant "filter_" prefix:
-```
-filter_set_basic_filter → set_filter
-filter_clear_basic_filter → clear_filter
-filter_get_basic_filter → get_filter
-filter_update_filter_criteria → update_filter_criteria
-filter_sort_range → sort_range
-filter_create_filter_view → create_filter_view
-filter_update_filter_view → update_filter_view
-filter_delete_filter_view → delete_filter_view
-filter_list_filter_views → list_filter_views
-filter_get_filter_view → get_filter_view
-filter_create_slicer → create_slicer
-filter_update_slicer → update_slicer
-filter_delete_slicer → delete_slicer
-filter_list_slicers → list_slicers
-```
-
-**Rationale**: The tool is `sheets_dimensions`, and filter operations are a sub-domain. Actions should be `create_filter_view`, not `filter_create_filter_view` (redundant "filter").
-
-**sheets_visualize** - Align suggest actions with domain_verb pattern:
-```
-suggest_chart → chart_suggest
-suggest_pivot → pivot_suggest
-```
+**Overall**: 207/207 actions (100%)
 
 **Rationale**: Other actions follow `chart_create`, `chart_update` pattern. Consistency requires `chart_suggest`.
 
@@ -145,7 +97,7 @@ suggest_pivot → pivot_suggest
 suggest_format → format_suggest
 ```
 
-**sheets_analysis** - Align with sheets_analyze:
+**sheets_analyze** - Align with sheets_analyze:
 ```
 suggest_chart → chart_suggest
 generate_formula → formula_generate

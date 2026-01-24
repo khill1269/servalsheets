@@ -361,9 +361,7 @@ describe('OAuth Flow Integration Tests', () => {
     it('should reject token exchange without code_verifier when PKCE used', async () => {
       // First, initiate authorization with PKCE
       const codeVerifier = randomBytes(32).toString('base64url');
-      const codeChallenge = createHash('sha256')
-        .update(codeVerifier)
-        .digest('base64url');
+      const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
       const authResponse = await request(app)
         .get('/oauth/authorize')
@@ -432,12 +430,10 @@ describe('OAuth Flow Integration Tests', () => {
     });
 
     it('should require client authentication for revocation', async () => {
-      const response = await request(app)
-        .post('/oauth/revoke')
-        .send({
-          token: 'test-token-to-revoke',
-          // Missing client credentials
-        });
+      const response = await request(app).post('/oauth/revoke').send({
+        token: 'test-token-to-revoke',
+        // Missing client credentials
+      });
 
       // OAuth spec allows 200 for revocation even without auth (token hint)
       // Some implementations require auth, others don't
@@ -454,16 +450,14 @@ describe('OAuth Flow Integration Tests', () => {
       const validCodeChallenge = 'a'.repeat(43);
 
       for (const scope of validScopes) {
-        const response = await request(app)
-          .get('/oauth/authorize')
-          .query({
-            client_id: clientId,
-            redirect_uri: validRedirectUri,
-            response_type: 'code',
-            scope,
-            code_challenge: validCodeChallenge,
-            code_challenge_method: 'S256',
-          });
+        const response = await request(app).get('/oauth/authorize').query({
+          client_id: clientId,
+          redirect_uri: validRedirectUri,
+          response_type: 'code',
+          scope,
+          code_challenge: validCodeChallenge,
+          code_challenge_method: 'S256',
+        });
 
         // Should accept (redirect to Google or show consent)
         expect([200, 302]).toContain(response.status);
@@ -473,16 +467,14 @@ describe('OAuth Flow Integration Tests', () => {
     it('should handle multiple scopes', async () => {
       // Valid PKCE code_challenge must be base64url and 43-128 chars.
       const validCodeChallenge = 'a'.repeat(43);
-      const response = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: clientId,
-          redirect_uri: validRedirectUri,
-          response_type: 'code',
-          scope: 'sheets:read sheets:write',
-          code_challenge: validCodeChallenge,
-          code_challenge_method: 'S256',
-        });
+      const response = await request(app).get('/oauth/authorize').query({
+        client_id: clientId,
+        redirect_uri: validRedirectUri,
+        response_type: 'code',
+        scope: 'sheets:read sheets:write',
+        code_challenge: validCodeChallenge,
+        code_challenge_method: 'S256',
+      });
 
       // Should accept multiple scopes
       expect([200, 302]).toContain(response.status);

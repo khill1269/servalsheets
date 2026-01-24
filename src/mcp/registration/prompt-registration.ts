@@ -53,7 +53,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 24 powerful tools and 188 actions.
+I'm your Google Sheets assistant with 19 powerful tools and 260 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
@@ -96,8 +96,8 @@ Test spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 
 Please run these tests in order:
 1. sheets_auth action: "status" → Verify authentication
-2. sheets_spreadsheet action: "get", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Get metadata
-3. sheets_values action: "read", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", range: "Sheet1!A1:D10" → Read sample data
+2. sheets_core action: "get", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Get metadata
+3. sheets_data action: "read", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms", range: "Sheet1!A1:D10" → Read sample data
 4. sheets_analyze action: "analyze_structure", spreadsheetId: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" → Analyze structure
 
 If all tests pass, you're ready to use ServalSheets!
@@ -128,7 +128,7 @@ If auth fails, follow the authentication flow first.`,
 Spreadsheet: ${spreadsheetId}
 
 Steps:
-1. Read data: sheets_spreadsheet action "get"
+1. Read data: sheets_core action "get"
 2. Analyze quality: sheets_analyze action "analyze_quality"
 3. Get statistics: sheets_analyze action "analyze_data"
 4. Format headers: sheets_format (use dryRun first!)
@@ -159,11 +159,11 @@ Safety tips: Always read before modify, use dryRun for destructive ops.`,
               text: `🔬 Analyzing: ${args['spreadsheetId']}
 
 Run comprehensive analysis:
-1. Metadata: sheets_spreadsheet action "get"
+1. Metadata: sheets_core action "get"
 2. Data Quality: sheets_analyze action "analyze_quality"
-3. Structure: sheets_analyze action "structure_analysis"
+3. Structure: sheets_analyze action "analyze_structure"
 4. Formula Audit: sheets_analyze action "analyze_formulas"
-5. AI Insights: sheets_analyze action "analyze" (uses MCP Sampling)
+5. AI Insights: sheets_analyze action "analyze_data" (uses MCP Sampling)
 
 Provide: quality score, issues found, recommended fixes.`,
             },
@@ -284,7 +284,7 @@ Source: ${args['sourceSpreadsheetId']} (${args['sourceRange']})
 Target: ${args['targetSpreadsheetId']} (${args['targetRange'] || 'auto-detect'})
 
 Migration Workflow:
-1. Read source data: sheets_values action "read"
+1. Read source data: sheets_data action "read"
 2. Validate data: Check schema, detect issues
 3. Check target: Ensure compatibility
 4. Plan operation: Present migration plan
@@ -379,11 +379,11 @@ Import Steps:
    - Clean special characters
 
 2. Create target sheet:
-   - sheets_sheet action "add"
+   - sheets_core action "add_sheet"
    - Name appropriately
 
 3. Import data:
-   - Use sheets_values action "write" or "append"
+   - Use sheets_data action "write" or "append"
    - Handle large datasets (batch if > 10k rows)
 
 4. Post-import:
@@ -428,7 +428,7 @@ Adding ${collaborators.length} collaborator(s) as "${role}"
 
 Collaboration Setup:
 1. Share spreadsheet:
-   ${collaborators.map((email, i) => `   ${i + 1}. sheets_sharing action "share", email: "${email}", role: "${role}"`).join('\n')}
+   ${collaborators.map((email, i) => `   ${i + 1}. sheets_collaborate action "share_add", email: "${email}", role: "${role}"`).join('\n')}
 
 2. Setup protected ranges:
    - Lock critical formulas/headers
@@ -437,11 +437,11 @@ Collaboration Setup:
 
 3. Add version control:
    - Create initial snapshot
-   - sheets_versions action "create_snapshot"
+   - sheets_collaborate action "version_create_snapshot"
 
 4. Setup comments:
    - Add collaboration guidelines comment
-   - sheets_comments action "add"
+   - sheets_collaborate action "add"
 
 5. Configure notifications:
    - Enable edit notifications
@@ -479,7 +479,7 @@ Spreadsheet: ${args['spreadsheetId']}
 
 Diagnostic Workflow:
 1. Basic checks:
-   - sheets_spreadsheet "get": Verify access
+   - sheets_core "get": Verify access
    - Check sheet count, total cells
 
 2. Data quality:
@@ -528,7 +528,7 @@ Report:
       argsSchema: {
         errorCode: z.string().describe('The error code from the failed operation'),
         errorMessage: z.string().optional().describe('The full error message'),
-        toolName: z.string().optional().describe('The tool that failed (e.g., sheets_values)'),
+        toolName: z.string().optional().describe('The tool that failed (e.g., sheets_data)'),
         context: z.string().optional().describe('What you were trying to do'),
       },
     },
@@ -563,7 +563,7 @@ If still occurring after restart:
 Immediate Actions:
 1. Wait 60 seconds before retry
 2. Switch to batch operations (saves 80% quota):
-   sheets_values action="batch_read" ranges=["A1:B2","D1:E2"]
+   sheets_data action="batch_read" ranges=["A1:B2","D1:E2"]
    Instead of: Multiple individual "read" calls
 
 Prevention:
@@ -576,7 +576,7 @@ Recovery Time: 60 seconds per 100 requests`,
         RANGE_NOT_FOUND: `❌ RANGE_NOT_FOUND - Sheet or Range Doesn't Exist
 
 Diagnosis:
-1. List all sheets: sheets_spreadsheet action="get"
+1. List all sheets: sheets_core action="list_sheets"
 2. Check exact spelling (case-sensitive!)
 3. Verify format: "SheetName!A1:D10"
 
@@ -597,7 +597,7 @@ Recovery Steps:
 
 Access Check:
 • Verify spreadsheet is shared with your account
-• sheets_sharing action="list_permissions" to see current access
+• sheets_collaborate action="share_list" to see current access
 • Request owner to share if needed
 
 OAuth Scopes Needed:
@@ -659,8 +659,8 @@ Verify ID:
 • Check for typos
 
 Find Spreadsheets:
-1. List all: sheets_spreadsheet action="list"
-2. Create new: sheets_spreadsheet action="create" name="My Sheet"
+1. List all: sheets_core action="list"
+2. Create new: sheets_core action="create" title="My Sheet"
 
 Common Issues:
 • Spreadsheet deleted
@@ -686,7 +686,7 @@ General Recovery:
 Common Fixes:
 • Auth: sheets_auth action="login"
 • Quota: Wait 60s, use batch_read/batch_write
-• Range: Verify with sheets_spreadsheet action="get"
+• Range: Verify with sheets_core action="get"
 • Format: See tool description Quick Examples
 
 Still Stuck?
@@ -740,13 +740,13 @@ Common Performance Issues:
 1. **Large Range Reads** (>10K cells)
    • Problem: Reading entire sheets instead of specific ranges
    • Fix: Use precise ranges like "A1:D100" instead of "A:Z"
-   • Tool: sheets_values with exact range
+   • Tool: sheets_data with exact range
    • Improvement: 80-90% faster
 
 2. **Multiple Individual Operations**
    • Problem: 50 separate read calls instead of 1 batch
    • Fix: Use batch_read with multiple ranges
-   • Tool: sheets_values action="batch_read" ranges=["A1:B10","D1:E10"]
+   • Tool: sheets_data action="batch_read" ranges=["A1:B10","D1:E10"]
    • Improvement: Saves 80% API quota, 3-5x faster
 
 3. **Formula Recalculation**
@@ -762,13 +762,13 @@ Common Performance Issues:
 
 5. **Unoptimized Queries**
    • Problem: Reading full sheet to find one value
-   • Fix: Use sheets_values action="find" with criteria
+   • Fix: Use sheets_data action="find_replace" with criteria
    • Improvement: 95% faster than scanning
 
 Diagnostic Steps:
 
 1. Check range size:
-   • sheets_spreadsheet action="get" → See total rows/columns
+   • sheets_core action="get" → See total rows/columns
    • If >10K cells, reduce range
 
 2. Enable profiling:
@@ -786,11 +786,11 @@ Diagnostic Steps:
 
 Quick Fixes by Operation Type:
 
-• sheets_values read → Use batch_read, exact ranges
+• sheets_data read → Use batch_read, exact ranges
 • sheets_format → Batch in sheets_transaction
 • sheets_analyze → Limit to <10K cells
-• sheets_pivot → Reduce source range size
-• sheets_charts → Limit data points to <1000
+• sheets_visualize → Reduce source range size
+• sheets_visualize → Limit data points to <1000
 
 Apply fixes and retest!`,
             },
@@ -833,12 +833,12 @@ Common Data Quality Problems:
 
 1. **Empty Cells in Required Columns**
    • Detection: Check for null/empty values
-   • Fix: sheets_values action="find" find="" → Fill or remove rows
+   • Fix: sheets_data action="find_replace" find="" → Fill or remove rows
    • Prevention: Add validation rules
 
 2. **Duplicate Headers**
    • Detection: Count unique values in row 1
-   • Fix: sheets_sheet action="update" → Rename duplicates
+   • Fix: sheets_core action="update_sheet" → Rename duplicates
    • Prevention: Validate on import
 
 3. **Inconsistent Formats**
@@ -848,12 +848,12 @@ Common Data Quality Problems:
 
 4. **Invalid Values**
    • Detection: Negative ages, future dates, out-of-range numbers
-   • Fix: sheets_values action="replace" with valid values
-   • Prevention: sheets_rules action="add_validation"
+   • Fix: sheets_data action="find_replace" with valid values
+   • Prevention: sheets_format action="set_data_validation"
 
 5. **Extra Whitespace**
    • Detection: Leading/trailing spaces
-   • Fix: Use TRIM formula or sheets_advanced find_replace
+   • Fix: Use TRIM formula or sheets_data action="find_replace"
    • Prevention: Input validation
 
 Cleanup Workflow:
@@ -863,7 +863,7 @@ Cleanup Workflow:
 
 2. Fix empty cells:
    • Delete: sheets_dimensions action="delete_rows"
-   • Fill: sheets_values action="write" with default values
+   • Fill: sheets_data action="write" with default values
 
 3. Standardize formats:
    • Dates: sheets_format format="yyyy-mm-dd"
@@ -871,11 +871,11 @@ Cleanup Workflow:
    • Percentages: sheets_format format="0.00%"
 
 4. Remove duplicates:
-   • Find: sheets_values action="find"
+   • Find: sheets_data action="find_replace"
    • Mark or delete duplicates
 
 5. Add validation:
-   • sheets_rules action="add_validation" type="LIST"
+   • sheets_format action="set_data_validation" type="LIST"
    • Prevent future bad data
 
 6. Verify:
@@ -883,8 +883,8 @@ Cleanup Workflow:
    • Check quality score improved
 
 After cleanup, consider:
-• Create snapshot: sheets_versions action="create_snapshot"
-• Document changes: sheets_comments action="add"`,
+• Create snapshot: sheets_collaborate action="version_create_snapshot"
+• Document changes: sheets_collaborate action="comment_add"`,
             },
           },
         ],
@@ -963,7 +963,7 @@ Optimization Workflow:
    • Identify slowest formulas
 
 3. Replace VLOOKUP:
-   • Find all: sheets_advanced action="find_replace" find="VLOOKUP"
+   • Find all: sheets_data action="find_replace" find="VLOOKUP"
    • Replace manually with INDEX/MATCH pattern
 
 4. Simplify array formulas:
@@ -1034,10 +1034,10 @@ Use chunked imports with transactions`
 
 Step 1: Prepare Target Sheet
 1. Create or clear target sheet:
-   sheets_sheet action="add" title="Import_${new Date().toISOString().split('T')[0]}"
+   sheets_core action="add_sheet" title="Import_${new Date().toISOString().split('T')[0]}"
 
 2. Setup structure:
-   • Headers: sheets_values action="write" range="A1:Z1" values=[["Col1","Col2",...]]
+   • Headers: sheets_data action="write" range="A1:Z1" values=[["Col1","Col2",...]]
    • Format headers: sheets_format range="A1:Z1" bold=true backgroundColor="#4285F4"
    • Freeze: sheets_dimensions action="freeze_rows" count=1
 
@@ -1050,7 +1050,7 @@ Step 3: Import Data (Choose Strategy)
 
 **Strategy A: Small Dataset (<1000 rows)**
 • Single batch write:
-  sheets_values action="batch_write" ranges=["A2:Z1001"] values=[...]
+  sheets_data action="batch_write" ranges=["A2:Z1001"] values=[...]
 
 **Strategy B: Medium Dataset (1K-10K rows)**
 • Transaction with chunks:
@@ -1073,10 +1073,10 @@ Step 4: Post-Import Processing
 2. Apply formatting:
    • Currency columns: sheets_format format="$#,##0.00"
    • Date columns: sheets_format format="yyyy-mm-dd"
-   • Conditional formatting: sheets_rules for visual cues
+   • Conditional formatting: sheets_format for visual cues
 
 3. Add validation rules:
-   • Dropdowns: sheets_rules action="add_validation" type="LIST"
+   • Dropdowns: sheets_format action="set_data_validation" type="LIST"
    • Range validation: For numeric columns
 
 4. Create summary:
@@ -1089,12 +1089,12 @@ Step 5: Verification
    sheets_analyze action="analyze_data" range="A1:Z${dataSize || 10000}"
 
 2. Spot check:
-   • First 10 rows: sheets_values range="A2:Z11"
+   • First 10 rows: sheets_data range="A2:Z11"
    • Last 10 rows: Check end of data
    • Random sample: Middle rows
 
 3. Create checkpoint:
-   sheets_versions action="create_snapshot" description="After ${dataSource} import"
+   sheets_collaborate action="version_create_snapshot" description="After ${dataSource} import"
 
 Performance Tips:
 
@@ -1160,7 +1160,7 @@ Phase 1: DRY-RUN (Preview)
 Phase 2: IMPACT ANALYSIS
 ┌────────────────────────────────────┐
 │ 1. Check dependencies:            │
-│    sheets_impact action="analyze" │
+│    sheets_quality action="analyze_impact" │
 │                                    │
 │ 2. Find affected formulas         │
 │ 3. List dependent charts          │
@@ -1194,8 +1194,8 @@ Phase 4: SNAPSHOT (Undo Capability)
 │ Create restore point:             │
 │ {"safety":{"createSnapshot":true}}│
 │                                    │
-│ OR use sheets_versions:           │
-│ sheets_versions action="create_snapshot"│
+│ OR use sheets_collaborate:           │
+│ sheets_collaborate action="version_create_snapshot"│
 │ description="Before ${operationType}" │
 └────────────────────────────────────┘
 
@@ -1216,8 +1216,8 @@ Phase 6: VERIFY
 └────────────────────────────────────┘
 
 UNDO if needed:
-• sheets_history action="rollback"
-• sheets_versions action="restore" revisionId="..."
+• sheets_history action="undo"
+• sheets_collaborate action="version_restore_revision" revisionId="..."
 • sheets_transaction action="rollback" (if in transaction)
 
 Remember: DRY-RUN → IMPACT → CONFIRM → SNAPSHOT → EXECUTE → VERIFY`,
@@ -1267,7 +1267,7 @@ Step 2: QUEUE Operations
 │ sheets_transaction action="queue" │
 │ transactionId="tx_..."            │
 │ operation={                        │
-│   tool: "sheets_values",          │
+│   tool: "sheets_data",          │
 │   action: "write",                │
 │   params: {                       │
 │     range: "A2:Z1001",           │
@@ -1321,7 +1321,7 @@ Error Recovery:
 After Import:
 1. sheets_dimensions action="auto_resize" (columns)
 2. sheets_format (apply formatting)
-3. sheets_versions action="create_snapshot" (checkpoint)
+3. sheets_collaborate action="version_create_snapshot" (checkpoint)
 4. sheets_analyze action="analyze_quality" (verify)
 
 Transaction = Speed + Safety + Atomicity`,
@@ -1362,7 +1362,7 @@ Option A: Recent Operations (Last 100 ops)
 
 Option B: Version History (Google's snapshots)
 ┌────────────────────────────────────┐
-│ sheets_versions action="list_revisions"│
+│ sheets_collaborate action="version_list_revisions"│
 │ spreadsheetId="${args['spreadsheetId']}"   │
 │ limit=10                          │
 └────────────────────────────────────┘
@@ -1388,7 +1388,7 @@ Method 2: VERSION RESTORE (Full restore)
 ┌────────────────────────────────────┐
 │ Best for: Major undo, "go back"   │
 │                                    │
-│ sheets_versions action="restore"  │
+│ sheets_collaborate action="version_restore_revision"  │
 │ spreadsheetId="${args['spreadsheetId']}"   │
 │ revisionId="rev_abc123"           │
 │                                    │
@@ -1413,7 +1413,7 @@ Q: Is the change from the last few operations?
   ✅ Use sheets_history action="undo"
 
 Q: Do you need to go back >100 operations?
-  ✅ Use sheets_versions action="restore"
+  ✅ Use sheets_collaborate action="version_restore_revision"
 
 Q: Is a transaction still in progress?
   ✅ Use sheets_transaction action="rollback"
@@ -1421,13 +1421,13 @@ Q: Is a transaction still in progress?
 Q: Want to undo specific cells only?
   ✅ Manually write old values back:
      1. Get old values from history/version
-     2. sheets_values action="write" with old values
+     2. sheets_data action="write" with old values
 
 📋 Verification After Undo:
 
 1. Check the change was undone:
-   sheets_spreadsheet action="get"
-   sheets_values action="read" range="affected_range"
+   sheets_core action="get"
+   sheets_data action="read" range="affected_range"
 
 2. Verify no broken references:
    sheets_analyze action="analyze_formulas"
@@ -1483,7 +1483,7 @@ This guide tells you EXACTLY when to use sheets_confirm.
 🔴 ALWAYS CONFIRM (No exceptions):
 
 1. DELETING SHEETS
-   • Any sheets_sheet action="delete" call
+   • Any sheets_core action="delete_sheet" call
    • Say: "This will permanently delete the sheet and all its data."
 
 2. DELETING ROWS (>10)
@@ -1495,11 +1495,11 @@ This guide tells you EXACTLY when to use sheets_confirm.
    • Say: "Deleting {N} columns may affect formulas. Proceed?"
 
 4. CLEARING DATA (>100 cells)
-   • sheets_values action="clear" on large ranges
+   • sheets_data action="clear" on large ranges
    • Say: "This will erase {N} cells of data. Continue?"
 
 5. LARGE WRITES (>500 cells)
-   • sheets_values action="write" with >500 cells
+   • sheets_data action="write" with >500 cells
    • Say: "I'll update {N} cells. Create a backup first?"
 
 6. MULTI-STEP OPERATIONS (3+ steps)
@@ -1507,7 +1507,7 @@ This guide tells you EXACTLY when to use sheets_confirm.
    • Use sheets_confirm to show the plan
 
 7. SHARING/PERMISSIONS
-   • Any sheets_sharing call
+   • Any sheets_collaborate call
    • Say: "This will give {email} access to your data."
 
 8. ANYTHING USER DIDN'T EXPLICITLY REQUEST
@@ -1778,14 +1778,14 @@ ${hasTransformations ? `Transformations: ${args['transformations']}` : ''}
 📋 PHASE 1: DISCOVERY & PLANNING
 
 1. Analyze Source Structure:
-   sheets_spreadsheet action="get" → Get all sheets
+   sheets_core action="list_sheets" → Get all sheets
    For each sheet:
-     sheets_values action="read" range="{sheet}!A1:Z1" → Get headers
+     sheets_data action="read" range="{sheet}!A1:Z1" → Get headers
      sheets_analyze action="analyze_structure" → Understand data types
      sheets_analyze action="analyze_quality" → Check quality issues
 
 2. Analyze Target Structure:
-   sheets_spreadsheet action="get" spreadsheetId=target
+   sheets_core action="get" spreadsheetId=target
    Identify: Matching sheets, conflicts, missing sheets
 
 3. Build Migration Plan:
@@ -1806,13 +1806,13 @@ ${hasTransformations ? `Transformations: ${args['transformations']}` : ''}
    • Identify potential data loss scenarios
 
 2. Impact Analysis:
-   sheets_impact action="analyze" operation="migrate"
+   sheets_quality action="analyze_impact" operation="migrate"
    • Find dependent sheets/formulas
    • Identify broken references after migration
    • Calculate migration complexity
 
 3. Create Safety Net:
-   sheets_versions action="create_snapshot" spreadsheetId=target
+   sheets_collaborate action="version_create_snapshot" spreadsheetId=target
    description="Before ${migrationType} migration from ${args['sourceSpreadsheetId']}"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1829,9 +1829,9 @@ For each source sheet:
   Step 1: Prepare Target Sheet
   ┌────────────────────────────────────┐
   │ Create or clear target sheet:     │
-  │ sheets_sheet action="add"         │
+  │ sheets_core action="add_sheet"         │
   │   OR                              │
-  │ sheets_values action="clear"      │
+  │ sheets_data action="clear"      │
   └────────────────────────────────────┘
 
   Step 2: Migrate Data with Transaction
@@ -1873,7 +1873,7 @@ Step 1: Find Delta
 Step 2: Sync Changes
 ┌────────────────────────────────────┐
 │ For NEW rows:                      │
-│   sheets_values action="append"   │
+│   sheets_data action="append"   │
 │                                    │
 │ For MODIFIED rows:                │
 │   sheets_composite action="bulk_update"│
@@ -1899,10 +1899,10 @@ Step 1: Define Selection Criteria
 Step 2: Extract and Transform
 ┌────────────────────────────────────┐
 │ For each selection:               │
-│   sheets_values action="read"     │
+│   sheets_data action="read"     │
 │   Apply transformations           │
 │   Validate data                   │
-│   sheets_values action="write" target│
+│   sheets_data action="write" target│
 └────────────────────────────────────┘
 `
 }
@@ -1949,7 +1949,7 @@ Step 2: Extract and Transform
    }
 
 2. Create Verification Sheet:
-   sheets_sheet action="add" title="Migration_Verification"
+   sheets_core action="add_sheet" title="Migration_Verification"
    Add summary table with:
    • Sheet-by-sheet comparison
    • Row count deltas
@@ -1957,7 +1957,7 @@ Step 2: Extract and Transform
    • Issues found
 
 3. Final Snapshot:
-   sheets_versions action="create_snapshot"
+   sheets_collaborate action="version_create_snapshot"
    description="After ${migrationType} migration - SUCCESS"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1975,7 +1975,7 @@ Step 2: Extract and Transform
 
 ⚠️  ROLLBACK PROCEDURE (If Issues Found)
 
-1. sheets_versions action="restore" revisionId="pre-migration"
+1. sheets_collaborate action="version_restore_revision" revisionId="pre-migration"
 2. Review migration report for root cause
 3. Fix issues in migration logic
 4. Re-run migration with corrections
@@ -2030,7 +2030,7 @@ Focus: ${focusAreas.join(', ')}
 🔍 PHASE 1: BASELINE ASSESSMENT
 
 1. Spreadsheet Structure:
-   sheets_spreadsheet action="get"
+   sheets_core action="get"
 
    Analyze:
    • Total sheets: N
@@ -2132,13 +2132,13 @@ Optimization Recommendations:
 1️⃣  BATCHING (20-40% savings)
 ┌────────────────────────────────────────────────────┐
 │ ❌ DON'T: Multiple individual reads                │
-│    sheets_values action="read" range="A1:B10"     │
-│    sheets_values action="read" range="D1:E10"     │
-│    sheets_values action="read" range="G1:H10"     │
+│    sheets_data action="read" range="A1:B10"     │
+│    sheets_data action="read" range="D1:E10"     │
+│    sheets_data action="read" range="G1:H10"     │
 │    Result: 3 API calls                            │
 │                                                    │
 │ ✅ DO: Single batch read                          │
-│    sheets_values action="batch_read" ranges=[    │
+│    sheets_data action="batch_read" ranges=[    │
 │      "A1:B10", "D1:E10", "G1:H10"               │
 │    ]                                              │
 │    Result: 1 API call (66% savings!)             │
@@ -2162,7 +2162,7 @@ Optimization Recommendations:
 │ • Frequently-read ranges cached                  │
 │ • Cache auto-invalidates on writes               │
 │                                                    │
-│ Tip: Don't repeatedly call sheets_spreadsheet get│
+│ Tip: Don't repeatedly call sheets_core get│
 │      Results cached automatically                │
 └────────────────────────────────────────────────────┘
 
@@ -2177,7 +2177,7 @@ Common Issues & Fixes:
 
 1. Duplicate Headers:
    Problem: Multiple columns named "Date"
-   Fix: sheets_sheet action="update" → Rename to unique names
+   Fix: sheets_core action="update_sheet" → Rename to unique names
 
 2. Mixed Data Types in Columns:
    Problem: "Age" column has numbers and text
@@ -2196,7 +2196,7 @@ Common Issues & Fixes:
 📋 PHASE 5: GENERATE AUDIT REPORT
 
 Create Audit Report Sheet:
-sheets_sheet action="add" title="Performance_Audit_Report"
+sheets_core action="add_sheet" title="Performance_Audit_Report"
 
 Report Sections:
 
@@ -2304,7 +2304,7 @@ ${
 ❌ Current Approach (INEFFICIENT):
 \`\`\`
 For each of ${operationCount} ranges:
-  sheets_values action="read" range="..."
+  sheets_data action="read" range="..."
   Wait for response
   Process data
 \`\`\`
@@ -2317,7 +2317,7 @@ Cost Analysis:
 
 ✅ Optimized Approach (BATCH READ):
 \`\`\`
-sheets_values action="batch_read" ranges=[
+sheets_data action="batch_read" ranges=[
   "Sheet1!A1:B10",
   "Sheet1!D1:E10",
   ...${operationCount} ranges
@@ -2339,7 +2339,7 @@ Savings Analysis:
 ❌ Current Approach (INEFFICIENT):
 \`\`\`
 For each of ${operationCount} ranges:
-  sheets_values action="write"
+  sheets_data action="write"
     range="..."
     values=[...]
 \`\`\`
@@ -2348,7 +2348,7 @@ Cost: ${operationCount} API calls
 
 ✅ Option 1: Batch Write (Moderate Improvement)
 \`\`\`
-sheets_values action="batch_write" data=[
+sheets_data action="batch_write" data=[
   {range: "A1:B10", values: [...]},
   {range: "D1:E10", values: [...]},
   ...${operationCount} writes
@@ -2453,7 +2453,7 @@ Step 2: Queue All Operations
 sheets_transaction action="queue"
   transactionId="tx_..."
   operation={
-    tool: "sheets_values",
+    tool: "sheets_data",
     action: "read",
     params: {range: "A1:B10"}
   }
@@ -2462,7 +2462,7 @@ sheets_transaction action="queue"
 sheets_transaction action="queue"
   transactionId="tx_..."
   operation={
-    tool: "sheets_values",
+    tool: "sheets_data",
     action: "write",
     params: {range: "D1:E10", values: [...]}
   }
@@ -2511,7 +2511,7 @@ ${
    ranges = ["Sheet1!A1:B10", "Sheet1!D1:E10", ...]
 
 2. Single batch read call:
-   sheets_values action="batch_read"
+   sheets_data action="batch_read"
      spreadsheetId="${args['spreadsheetId']}"
      ranges=ranges
 
@@ -2556,7 +2556,7 @@ Result: 1 API call instead of ${operationCount}!
   "action": "queue",
   "transactionId": "tx_...",
   "operation": {
-    "tool": "sheets_values",
+    "tool": "sheets_data",
     "action": "write",
     "params": {
       "spreadsheetId": "${args['spreadsheetId']}",

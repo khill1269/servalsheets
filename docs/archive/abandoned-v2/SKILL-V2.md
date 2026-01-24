@@ -231,7 +231,7 @@ Available presets: `header`, `subheader`, `data`, `currency`, `percentage`, `dat
 ```json
 {
   "tool": "sheets_style",
-  "action": "add_validation",
+  "action": "set_data_validation",
   "spreadsheetId": "1ABC...",
   "range": "J2:J1000",
   "rule": {
@@ -246,7 +246,7 @@ Or from another range:
 ```json
 {
   "tool": "sheets_style",
-  "action": "add_validation",
+  "action": "set_data_validation",
   "spreadsheetId": "1ABC...",
   "range": "G2:G1000",
   "rule": {
@@ -309,29 +309,29 @@ If a transaction fails:
 
 | v1 Tool | v2 Tool |
 |---------|---------|
-| sheets_spreadsheet | sheets_data |
-| sheets_values | sheets_data |
-| sheets_cells | sheets_data |
+| sheets_core | sheets_data |
+| sheets_data | sheets_data |
+| sheets_data | sheets_data |
 | sheets_format | sheets_style |
-| sheets_rules | sheets_style |
-| sheets_sheet | sheets_structure |
+| sheets_format | sheets_style |
+| sheets_core | sheets_structure |
 | sheets_dimensions | sheets_structure |
 | sheets_advanced | sheets_structure |
-| sheets_charts | sheets_visualize |
-| sheets_pivot | sheets_visualize |
-| sheets_filter_sort | sheets_visualize |
-| sheets_analysis | sheets_analyze |
+| sheets_visualize | sheets_visualize |
+| sheets_visualize | sheets_visualize |
+| sheets_dimensions | sheets_visualize |
+| sheets_analyze | sheets_analyze |
 | sheets_analyze | sheets_analyze |
 | sheets_fix | sheets_automate |
 | sheets_composite | sheets_automate |
-| sheets_sharing | sheets_share |
-| sheets_comments | sheets_share |
-| sheets_versions | sheets_history |
+| sheets_collaborate | sheets_share |
+| sheets_collaborate | sheets_share |
+| sheets_collaborate | sheets_history |
 | sheets_history | sheets_history |
 | sheets_transaction | sheets_safety |
-| sheets_validation | sheets_safety |
-| sheets_conflict | sheets_safety |
-| sheets_impact | sheets_safety |
+| sheets_quality | sheets_safety |
+| sheets_quality | sheets_safety |
+| sheets_quality | sheets_safety |
 | sheets_confirm | sheets_context |
 | sheets_session | sheets_context |
 

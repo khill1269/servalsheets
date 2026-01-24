@@ -47,7 +47,7 @@ export function registerDecisionResources(server: McpServer): void {
     'servalsheets://decisions/tool-selection',
     {
       description:
-        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 18 tools with use case guidance and examples.',
+        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 16 tools with use case guidance and examples.',
       mimeType: 'application/json',
     },
     async (uri) => readDecisionResource(typeof uri === 'string' ? uri : uri.toString())
@@ -310,10 +310,10 @@ export async function readDecisionResource(uri: string): Promise<{
             'Data validation',
           ],
           examples: [
-            'format_cells',
+            'set_format',
             'set_number_format',
-            'add_conditional_format',
-            'set_validation',
+            'rule_add_conditional_format',
+            'set_data_validation',
           ],
         },
         dimensions: {
@@ -326,17 +326,17 @@ export async function readDecisionResource(uri: string): Promise<{
             'Freeze rows/columns',
             'Sorting and filtering',
           ],
-          examples: ['insert_rows', 'delete_columns', 'resize_row', 'freeze_rows', 'sort_range'],
+          examples: ['insert_rows', 'delete_columns', 'resize_rows', 'freeze_rows', 'sort_range'],
         },
-        formulas: {
+        advanced: {
           tool: 'sheets_advanced',
-          useCases: [
-            'Insert/update formulas',
-            'Named ranges',
-            'Protected ranges',
-            'Data validation with formulas',
+          useCases: ['Named ranges', 'Protected ranges', 'Tables', 'Developer metadata'],
+          examples: [
+            'named_range_add',
+            'protected_range_add',
+            'create_table',
+            'developer_metadata_add',
           ],
-          examples: ['formula_insert', 'formula_update', 'add_named_range', 'protected_range_add'],
         },
         visualization: {
           tool: 'sheets_visualize',
@@ -356,27 +356,37 @@ export async function readDecisionResource(uri: string): Promise<{
             'List revisions',
             'Restore previous versions',
           ],
-          examples: ['share_add', 'comment_add', 'version_list_revisions', 'version_restore'],
+          examples: [
+            'share_add',
+            'comment_add',
+            'version_list_revisions',
+            'version_restore_revision',
+          ],
         },
         analysis: {
           tool: 'sheets_analyze',
           useCases: [
             'Comprehensive data analysis',
             'Detect data quality issues',
-            'Suggest formulas',
-            'Generate summary statistics',
+            'Suggest visualizations',
+            'Generate formulas',
           ],
-          examples: ['comprehensive', 'detect_issues', 'suggest_formula', 'summary_statistics'],
+          examples: [
+            'comprehensive',
+            'analyze_quality',
+            'suggest_visualization',
+            'generate_formula',
+          ],
         },
         dataQuality: {
           tool: 'sheets_quality',
           useCases: [
-            'Detect missing values',
-            'Find duplicates',
-            'Validate data formats',
-            'Suggest data cleaning',
+            'Validate values against rules',
+            'Detect concurrent edit conflicts',
+            'Resolve conflicts with strategies',
+            'Analyze change impact before applying',
           ],
-          examples: ['detect_missing', 'detect_duplicates', 'validate_formats', 'suggest_cleaning'],
+          examples: ['validate', 'detect_conflicts', 'resolve_conflict', 'analyze_impact'],
         },
         transactions: {
           tool: 'sheets_transaction',
@@ -390,7 +400,7 @@ export async function readDecisionResource(uri: string): Promise<{
         history: {
           tool: 'sheets_history',
           useCases: ['Undo/redo operations', 'View operation history', 'Revert to previous state'],
-          examples: ['undo', 'redo', 'get_history', 'revert'],
+          examples: ['undo', 'redo', 'list', 'revert_to'],
         },
         compositeOperations: {
           tool: 'sheets_composite',
@@ -423,7 +433,7 @@ export async function readDecisionResource(uri: string): Promise<{
             'Request user confirmation for destructive operations',
             'Present operation summary',
           ],
-          examples: ['request_confirmation'],
+          examples: ['request'],
         },
       },
       decisionTree: {
@@ -442,23 +452,23 @@ export async function readDecisionResource(uri: string): Promise<{
               'Append to end': 'sheets_composite.smart_append',
               'Import CSV': 'sheets_composite.import_csv',
             },
-            'Format cells': 'sheets_format (format_cells, set_number_format, etc.)',
+            'Format cells': 'sheets_format (set_format, set_number_format, etc.)',
             'Create/modify structure': {
               question: 'What to modify?',
               'Spreadsheet/sheets': 'sheets_core (create, add_sheet, delete_sheet)',
               'Rows/columns': 'sheets_dimensions (insert_rows, delete_columns, resize)',
-              Formulas: 'sheets_advanced (formula_insert, formula_update)',
+              'Advanced structures': 'sheets_advanced (named_range_add, protected_range_add)',
             },
             'Analyze data': {
               question: 'What type of analysis?',
               'Comprehensive analysis': 'sheets_analyze.comprehensive',
-              'Data quality issues': 'sheets_quality (detect_missing, detect_duplicates)',
-              'Summary statistics': 'sheets_analyze.summary_statistics',
-              'Formula suggestions': 'sheets_analyze.suggest_formula',
+              'Data quality issues': 'sheets_analyze.analyze_quality',
+              'Summary statistics': 'sheets_analyze.analyze_data',
+              'Formula suggestions': 'sheets_analyze.generate_formula',
             },
             'Visualize data': 'sheets_visualize (chart_create, pivot_create)',
-            Collaborate: 'sheets_collaborate (share_add, comment_add, version_restore)',
-            'Undo/rollback': 'sheets_history (undo, redo, revert)',
+            Collaborate: 'sheets_collaborate (share_add, comment_add, version_restore_revision)',
+            'Undo/rollback': 'sheets_history (undo, redo, revert_to)',
           },
         },
       },

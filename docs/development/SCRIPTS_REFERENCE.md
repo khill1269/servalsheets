@@ -33,7 +33,7 @@
 3. Updates 5 generated files with correct counts
 
 **Input (Source of Truth):**
-- `src/schemas/advanced.ts` through `src/schemas/versions.ts`
+- `src/schemas/*.ts` (all current tool schemas)
 - Looks for:
   ```typescript
   action: z.enum(['action1', 'action2', ...])
@@ -42,7 +42,7 @@
   ```
 
 **Output (Generated - DO NOT edit manually):**
-- `package.json` - Updates description with `"17 tools, 226 actions"`
+- `package.json` - Updates description with `"16 tools, 207 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
@@ -50,9 +50,7 @@
 
 **Special Cases Handled:**
 - `fix.ts` - Single action tool (no enum)
-- `validation.ts` - Single action tool
-- `impact.ts` - Single action tool
-- `analyze.ts` - 4 actions (analyze, generate_formula, suggest_chart, get_stats)
+- `analyze.ts` - 11 actions (comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis)
 - `confirm.ts` - 2 actions (request, get_stats)
 
 **Usage:**
@@ -61,10 +59,10 @@
 npm run gen:metadata
 
 # Output:
-# 📊 Analyzing 26 schema files...
+# 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 17 tools, 226 actions
+# ✅ Total: 16 tools, 207 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -108,8 +106,8 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 226 actions, found 53)
-#   - src/schemas/index.ts (expected ACTION_COUNT = 226, found 53)
+#   - package.json (expected 207 actions, found 53)
+#   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```
 
@@ -255,7 +253,7 @@ npm run show:tools
 # │ Tool                │ Input Schema   │ Annotations  │
 # ├─────────────────────┼────────────────┼──────────────┤
 # │ sheets_auth         │ 4 actions      │ readOnly     │
-# │ sheets_spreadsheet  │ 8 actions      │ idempotent   │
+# │ sheets_core  │ 8 actions      │ idempotent   │
 # ...
 ```
 
@@ -283,7 +281,7 @@ npm run metrics
 #
 # Tool Calls:
 #   sheets_auth: 142 calls
-#   sheets_values: 523 calls
+#   sheets_data: 523 calls
 #   ...
 #
 # Performance:
@@ -388,8 +386,8 @@ tsx scripts/benchmark-handlers.ts
 
 # Output per tool:
 # sheets_auth:        45ms
-# sheets_values:      123ms
-# sheets_spreadsheet: 89ms
+# sheets_data:      123ms
+# sheets_core: 89ms
 # ...
 ```
 
@@ -438,24 +436,18 @@ bash scripts/diagnose-all.sh > diagnosis.txt
 
 ## 📦 Installation Scripts
 
-### `install-claude-desktop.sh`
+### `setup-oauth.sh`
 
-**Purpose:** Install and configure Claude Desktop with ServalSheets
+**Purpose:** Run OAuth auth flow and generate Claude Desktop config for local testing
 
 **What it does:**
-1. Installs Claude Desktop (if not present)
-2. Configures `claude_desktop_config.json`
-3. Adds ServalSheets to MCP servers list
-4. Restarts Claude Desktop
+1. Runs `dist/cli/auth-setup.js` (browser OAuth)
+2. Writes `claude_desktop_config.json` pointing to `dist/cli.js`
+3. Verifies tokens and config files
 
 **Usage:**
 ```bash
-bash scripts/install-claude-desktop.sh
-
-# Interactive prompts:
-# - Claude Desktop path
-# - Google credentials path
-# - ServalSheets config
+./setup-oauth.sh
 ```
 
 ---
@@ -490,7 +482,7 @@ npm run verify
 
 # 4. Only commit if verify passes
 git add .
-git commit -m "feat: add new action to sheets_values"
+git commit -m "feat: add new action to sheets_data"
 ```
 
 ---
@@ -504,7 +496,7 @@ git commit -m "feat: add new action to sheets_values"
 | **Diagnostics** | `show-tools-list-schemas.ts`, `show-metrics.ts`, `diagnose-all.sh` | Debugging and inspection |
 | **Benchmarks** | `benchmark-*.ts` | Performance measurement |
 | **Development** | `check-commit-size.sh`, `quick-test.sh` | Developer workflow aids |
-| **Integration** | `install-claude-desktop.sh`, `integrate-inference.sh` | Setup and configuration |
+| **Integration** | `setup-oauth.sh`, `setup-vscode.sh` | Setup and configuration |
 | **Export** | `export-openapi.ts` | Documentation generation |
 
 ---

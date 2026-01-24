@@ -5,8 +5,8 @@
  * Resets all singleton services to prevent test pollution.
  */
 
-import { beforeEach, afterEach } from "vitest";
-import { resetAllSingletons } from "./helpers/singleton-reset.js";
+import { beforeEach, afterEach } from 'vitest';
+import { resetAllSingletons } from './helpers/singleton-reset.js';
 
 // Reset all singletons before each test
 beforeEach(() => {

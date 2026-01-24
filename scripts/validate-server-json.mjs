@@ -10,19 +10,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const serverJsonPath = path.join(repoRoot, 'server.json');
 const packageJsonPath = path.join(repoRoot, 'package.json');
+const localSchemaPath = path.resolve(repoRoot, 'docs', 'reference', 'server.schema.json');
+const fallbackSchemaPath = path.resolve(
+  repoRoot,
+  '..',
+  '..',
+  'mcp-reference',
+  'registry',
+  'docs',
+  'reference',
+  'server-json',
+  'server.schema.json'
+);
 const schemaPath =
   process.env.MCP_SERVER_SCHEMA_PATH ||
-  path.resolve(
-    repoRoot,
-    '..',
-    '..',
-    'mcp-reference',
-    'registry',
-    'docs',
-    'reference',
-    'server-json',
-    'server.schema.json'
-  );
+  (fs.existsSync(localSchemaPath) ? localSchemaPath : fallbackSchemaPath);
 
 const TOOL_NAME_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 const errors = [];

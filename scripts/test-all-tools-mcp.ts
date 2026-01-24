@@ -19,7 +19,10 @@ let requestId = 1;
 
 function createJsonRpcClient(child: ChildProcess) {
   let buffer = '';
-  const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }>();
+  const pending = new Map<
+    number,
+    { resolve: (value: any) => void; reject: (error: Error) => void; timeout: NodeJS.Timeout }
+  >();
 
   child.stdout?.on('data', (chunk: Buffer) => {
     buffer += chunk.toString();
@@ -142,10 +145,12 @@ async function testAllTools() {
             const text = textContent.text;
 
             // Check for auth errors (expected)
-            if (text.includes('not authenticated') ||
-                text.includes('OAUTH_NOT_CONFIGURED') ||
-                text.includes('OAuth') ||
-                text.includes('login')) {
+            if (
+              text.includes('not authenticated') ||
+              text.includes('OAUTH_NOT_CONFIGURED') ||
+              text.includes('OAuth') ||
+              text.includes('login')
+            ) {
               results.push({
                 tool: toolName,
                 action: testCase.action,
@@ -192,7 +197,6 @@ async function testAllTools() {
 
     // Print results
     printResults();
-
   } finally {
     child.kill();
   }
@@ -204,61 +208,40 @@ function getTestCase(toolName: string): { action?: string; arguments: any } | nu
       action: 'status',
       arguments: { action: 'status' },
     },
-    sheets_spreadsheet: {
+    sheets_core: {
       action: 'list',
       arguments: { action: 'list', pageSize: 1 },
     },
-    sheets_sheet: {
-      action: 'list',
-      arguments: { action: 'list', spreadsheetId: 'test123' },
-    },
-    sheets_values: {
+    sheets_data: {
       action: 'read',
       arguments: { action: 'read', spreadsheetId: 'test123', range: 'A1:B2' },
     },
-    sheets_cells: {
-      action: 'get_note',
-      arguments: { action: 'get_note', spreadsheetId: 'test123', cell: 'A1' },
-    },
     sheets_format: {
       action: 'set_background',
-      arguments: { action: 'set_background', spreadsheetId: 'test123', range: 'A1', color: { red: 1, green: 0, blue: 0 } },
+      arguments: {
+        action: 'set_background',
+        spreadsheetId: 'test123',
+        range: 'A1',
+        color: { red: 1, green: 0, blue: 0 },
+      },
     },
     sheets_dimensions: {
       action: 'insert_rows',
-      arguments: { action: 'insert_rows', spreadsheetId: 'test123', startIndex: 0, endIndex: 1 },
+      arguments: {
+        action: 'insert_rows',
+        spreadsheetId: 'test123',
+        sheetId: 0,
+        startIndex: 0,
+        endIndex: 1,
+      },
     },
-    sheets_rules: {
-      action: 'list_conditional_formats',
-      arguments: { action: 'list_conditional_formats', spreadsheetId: 'test123' },
+    sheets_visualize: {
+      action: 'chart_list',
+      arguments: { action: 'chart_list', spreadsheetId: 'test123' },
     },
-    sheets_charts: {
-      action: 'list',
-      arguments: { action: 'list', spreadsheetId: 'test123' },
-    },
-    sheets_pivot: {
-      action: 'list',
-      arguments: { action: 'list', spreadsheetId: 'test123' },
-    },
-    sheets_filter_sort: {
-      action: 'get_basic_filter',
-      arguments: { action: 'get_basic_filter', spreadsheetId: 'test123' },
-    },
-    sheets_sharing: {
-      action: 'list_permissions',
-      arguments: { action: 'list_permissions', spreadsheetId: 'test123' },
-    },
-    sheets_comments: {
-      action: 'list',
-      arguments: { action: 'list', spreadsheetId: 'test123' },
-    },
-    sheets_versions: {
-      action: 'list_revisions',
-      arguments: { action: 'list_revisions', spreadsheetId: 'test123' },
-    },
-    sheets_analysis: {
-      action: 'summary',
-      arguments: { action: 'summary', spreadsheetId: 'test123', range: 'A1:B10' },
+    sheets_collaborate: {
+      action: 'share_list',
+      arguments: { action: 'share_list', spreadsheetId: 'test123' },
     },
     sheets_advanced: {
       action: 'list_named_ranges',
@@ -268,17 +251,9 @@ function getTestCase(toolName: string): { action?: string; arguments: any } | nu
       action: 'list',
       arguments: { action: 'list' },
     },
-    sheets_validation: {
+    sheets_quality: {
       action: 'validate',
-      arguments: { action: 'validate', data: [['test']], rules: [{ type: 'not_empty', column: 0 }] },
-    },
-    sheets_conflict: {
-      action: 'detect',
-      arguments: { action: 'detect', spreadsheetId: 'test123', range: 'A1', localVersion: 1 },
-    },
-    sheets_impact: {
-      action: 'analyze',
-      arguments: { action: 'analyze', spreadsheetId: 'test123', operation: { type: 'delete_rows', startIndex: 0, endIndex: 1 } },
+      arguments: { action: 'validate', value: 'test' },
     },
     sheets_history: {
       action: 'list',
@@ -289,15 +264,32 @@ function getTestCase(toolName: string): { action?: string; arguments: any } | nu
       arguments: { action: 'get_stats' },
     },
     sheets_analyze: {
-      action: 'get_stats',
-      arguments: { action: 'get_stats' },
+      action: 'comprehensive',
+      arguments: { action: 'comprehensive', spreadsheetId: 'test123' },
     },
     sheets_fix: {
-      arguments: { spreadsheetId: 'test123', issues: [], mode: 'preview' },
+      action: 'fix',
+      arguments: {
+        action: 'fix',
+        spreadsheetId: 'test123',
+        issues: [
+          {
+            type: 'NO_FROZEN_HEADERS',
+            severity: 'low',
+            description: 'Missing frozen header',
+          },
+        ],
+        mode: 'preview',
+      },
     },
     sheets_composite: {
       action: 'import_csv',
-      arguments: { action: 'import_csv', spreadsheetId: 'test123', csvContent: 'a,b\n1,2', sheetName: 'Test' },
+      arguments: {
+        action: 'import_csv',
+        spreadsheetId: 'test123',
+        csvData: 'a,b\\nc,d',
+        mode: 'replace',
+      },
     },
     sheets_session: {
       action: 'get_active',
@@ -313,9 +305,9 @@ function printResults() {
   console.log('📊 TEST RESULTS SUMMARY');
   console.log('='.repeat(80) + '\n');
 
-  const passed = results.filter(r => r.status === 'pass').length;
-  const failed = results.filter(r => r.status === 'fail').length;
-  const skipped = results.filter(r => r.status === 'skip').length;
+  const passed = results.filter((r) => r.status === 'pass').length;
+  const failed = results.filter((r) => r.status === 'fail').length;
+  const skipped = results.filter((r) => r.status === 'skip').length;
 
   console.log(`✅ Passed:  ${passed}`);
   console.log(`❌ Failed:  ${failed}`);
@@ -323,10 +315,10 @@ function printResults() {
   console.log(`📦 Total:   ${results.length}\n`);
 
   // Show failures
-  const failures = results.filter(r => r.status === 'fail');
+  const failures = results.filter((r) => r.status === 'fail');
   if (failures.length > 0) {
     console.log('❌ FAILURES:\n');
-    failures.forEach(f => {
+    failures.forEach((f) => {
       console.log(`  • ${f.tool}${f.action ? ` (${f.action})` : ''}`);
       console.log(`    ${f.message}\n`);
     });
@@ -349,7 +341,7 @@ function printResults() {
   }
 }
 
-testAllTools().catch(err => {
+testAllTools().catch((err) => {
   console.error('❌ Test suite failed:', err);
   process.exit(1);
 });

@@ -22,13 +22,6 @@ export {
   registerServalSheetsTools,
 } from './registration/tool-handlers.js';
 
-// Fast validators for optimized handler dispatch (80-90% faster)
-export {
-  createFastToolHandlerMap,
-  isFastValidatorsEnabled,
-  wrapWithValidationErrorHandling,
-} from './registration/fast-handler-map.js';
-
 export { registerServalSheetsResources } from './registration/resource-registration.js';
 
 export { registerServalSheetsPrompts } from './registration/prompt-registration.js';

@@ -103,7 +103,7 @@ async function testAction(
   validator: ResponseValidator,
   tool: string,
   action: string,
-  testData: any,
+  testData: any
 ): Promise<void> {
   const testId = `${tool}.${action}`;
   const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -168,15 +168,12 @@ async function testAction(
         tool,
         action,
         'auth-required',
-        'Authentication required (expected without credentials)',
+        'Authentication required (expected without credentials)'
       );
       db.authRequiredTest(testId, parsedResponse.response.error.message);
     } else if (!validationResult.valid || !protocolValidation.valid) {
       // Validation failed
-      const allErrors = [
-        ...validationResult.errors,
-        ...protocolValidation.errors,
-      ];
+      const allErrors = [...validationResult.errors, ...protocolValidation.errors];
       logger.warn(requestId, tool, action, 'validation-error', 'Response validation failed', {
         errors: allErrors,
         warnings: validationResult.warnings,
@@ -195,7 +192,7 @@ async function testAction(
       action,
       'exception',
       `Test failed after ${duration}ms: ${(error as Error).message}`,
-      error,
+      error
     );
     db.failTest(testId, error);
   }
@@ -248,6 +245,7 @@ async function runComprehensiveTests() {
       ...process.env,
       NODE_ENV: 'development', // Override production mode
       OAUTH_AUTO_OPEN_BROWSER: 'false',
+      OAUTH_USE_CALLBACK_SERVER: 'false', // Disable callback server in test mode
       LOG_LEVEL: 'warn',
     },
   });
@@ -266,7 +264,7 @@ async function runComprehensiveTests() {
         'mcp',
         'exit',
         'complete',
-        `Server exited: code=${code}, signal=${signal}`,
+        `Server exited: code=${code}, signal=${signal}`
       );
     }
   });
@@ -419,7 +417,14 @@ async function runComprehensiveTests() {
       process.exit(1);
     }
   } catch (error) {
-    logger.error('system', 'orchestrator', 'fatal', 'fatal-error', 'Test orchestrator failed', error);
+    logger.error(
+      'system',
+      'orchestrator',
+      'fatal',
+      'fatal-error',
+      'Test orchestrator failed',
+      error
+    );
     console.error('\n❌ Test orchestrator failed:', error);
     process.exit(1);
   } finally {

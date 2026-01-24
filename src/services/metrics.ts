@@ -20,7 +20,7 @@ import { logger } from '../utils/logger.js';
 // ==================== Types ====================
 
 export interface OperationMetrics {
-  /** Operation name (e.g., "sheets_values.write") */
+  /** Operation name (e.g., "sheets_data.write") */
   name: string;
   /** Total count */
   count: number;
@@ -114,7 +114,7 @@ export interface RecordOperationOptions {
 // Extended metrics types
 
 export interface RecordApiCallOptions {
-  /** Tool name (e.g., "sheets_values") */
+  /** Tool name (e.g., "sheets_data") */
   tool: string;
   /** Action name (e.g., "read", "write") */
   action: string;

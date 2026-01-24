@@ -1,7 +1,7 @@
 /**
  * Comprehensive MCP Tool Tester
  *
- * Tests all 26 tools with sample inputs and validates:
+ * Tests all 16 tools with sample inputs and validates:
  * - Tool registration
  * - Schema validation
  * - Handler execution
@@ -23,9 +23,10 @@ interface TestResult {
 const results: TestResult[] = [];
 
 async function testTool(toolName: string, request: CallToolRequest['params']): Promise<void> {
-  const actionName = typeof request.arguments === 'object' && request.arguments !== null
-    ? (request.arguments as Record<string, unknown>).action
-    : undefined;
+  const actionName =
+    typeof request.arguments === 'object' && request.arguments !== null
+      ? (request.arguments as Record<string, unknown>).action
+      : undefined;
 
   try {
     const server = await createServalSheetsServer({
@@ -34,7 +35,7 @@ async function testTool(toolName: string, request: CallToolRequest['params']): P
 
     // Get the tool
     const tools = await server.listTools();
-    const tool = tools.tools.find(t => t.name === toolName);
+    const tool = tools.tools.find((t) => t.name === toolName);
 
     if (!tool) {
       results.push({
@@ -73,10 +74,14 @@ async function testTool(toolName: string, request: CallToolRequest['params']): P
       }
 
       // Check if it's an error response
-      const textContent = result.content.find(c => c.type === 'text');
+      const textContent = result.content.find((c) => c.type === 'text');
       if (textContent && 'text' in textContent) {
         const text = textContent.text;
-        if (text.includes('Error:') || text.includes('not authenticated') || text.includes('OAUTH_NOT_CONFIGURED')) {
+        if (
+          text.includes('Error:') ||
+          text.includes('not authenticated') ||
+          text.includes('OAUTH_NOT_CONFIGURED')
+        ) {
           results.push({
             tool: toolName,
             action: actionName as string | undefined,
@@ -96,9 +101,11 @@ async function testTool(toolName: string, request: CallToolRequest['params']): P
     } catch (err) {
       // Handle expected errors
       const error = err as Error;
-      if (error.message.includes('not authenticated') ||
-          error.message.includes('OAUTH_NOT_CONFIGURED') ||
-          error.message.includes('Missing required parameter')) {
+      if (
+        error.message.includes('not authenticated') ||
+        error.message.includes('OAUTH_NOT_CONFIGURED') ||
+        error.message.includes('Missing required parameter')
+      ) {
         results.push({
           tool: toolName,
           action: actionName as string | undefined,
@@ -135,27 +142,18 @@ async function runTests() {
     arguments: { action: 'status' },
   });
 
-  // Test 2: sheets_spreadsheet
-  await testTool('sheets_spreadsheet', {
-    name: 'sheets_spreadsheet',
+  // Test 2: sheets_core
+  await testTool('sheets_core', {
+    name: 'sheets_core',
     arguments: {
       action: 'list',
       pageSize: 1,
     },
   });
 
-  // Test 3: sheets_sheet
-  await testTool('sheets_sheet', {
-    name: 'sheets_sheet',
-    arguments: {
-      action: 'list',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 4: sheets_values
-  await testTool('sheets_values', {
-    name: 'sheets_values',
+  // Test 3: sheets_data
+  await testTool('sheets_data', {
+    name: 'sheets_data',
     arguments: {
       action: 'read',
       spreadsheetId: 'test123',
@@ -163,17 +161,7 @@ async function runTests() {
     },
   });
 
-  // Test 5: sheets_cells
-  await testTool('sheets_cells', {
-    name: 'sheets_cells',
-    arguments: {
-      action: 'get_note',
-      spreadsheetId: 'test123',
-      cell: 'A1',
-    },
-  });
-
-  // Test 6: sheets_format
+  // Test 4: sheets_format
   await testTool('sheets_format', {
     name: 'sheets_format',
     arguments: {
@@ -184,91 +172,37 @@ async function runTests() {
     },
   });
 
-  // Test 7: sheets_dimensions
+  // Test 5: sheets_dimensions
   await testTool('sheets_dimensions', {
     name: 'sheets_dimensions',
     arguments: {
       action: 'insert_rows',
       spreadsheetId: 'test123',
+      sheetId: 0,
       startIndex: 0,
       endIndex: 1,
     },
   });
 
-  // Test 8: sheets_rules
-  await testTool('sheets_rules', {
-    name: 'sheets_rules',
+  // Test 6: sheets_visualize
+  await testTool('sheets_visualize', {
+    name: 'sheets_visualize',
     arguments: {
-      action: 'list_conditional_formats',
+      action: 'chart_list',
       spreadsheetId: 'test123',
     },
   });
 
-  // Test 9: sheets_charts
-  await testTool('sheets_charts', {
-    name: 'sheets_charts',
+  // Test 7: sheets_collaborate
+  await testTool('sheets_collaborate', {
+    name: 'sheets_collaborate',
     arguments: {
-      action: 'list',
+      action: 'share_list',
       spreadsheetId: 'test123',
     },
   });
 
-  // Test 10: sheets_pivot
-  await testTool('sheets_pivot', {
-    name: 'sheets_pivot',
-    arguments: {
-      action: 'list',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 11: sheets_filter_sort
-  await testTool('sheets_filter_sort', {
-    name: 'sheets_filter_sort',
-    arguments: {
-      action: 'get_basic_filter',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 12: sheets_sharing
-  await testTool('sheets_sharing', {
-    name: 'sheets_sharing',
-    arguments: {
-      action: 'list_permissions',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 13: sheets_comments
-  await testTool('sheets_comments', {
-    name: 'sheets_comments',
-    arguments: {
-      action: 'list',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 14: sheets_versions
-  await testTool('sheets_versions', {
-    name: 'sheets_versions',
-    arguments: {
-      action: 'list_revisions',
-      spreadsheetId: 'test123',
-    },
-  });
-
-  // Test 15: sheets_analysis
-  await testTool('sheets_analysis', {
-    name: 'sheets_analysis',
-    arguments: {
-      action: 'summary',
-      spreadsheetId: 'test123',
-      range: 'Sheet1!A1:B10',
-    },
-  });
-
-  // Test 16: sheets_advanced
+  // Test 8: sheets_advanced
   await testTool('sheets_advanced', {
     name: 'sheets_advanced',
     arguments: {
@@ -277,7 +211,7 @@ async function runTests() {
     },
   });
 
-  // Test 17: sheets_transaction
+  // Test 9: sheets_transaction
   await testTool('sheets_transaction', {
     name: 'sheets_transaction',
     arguments: {
@@ -285,42 +219,16 @@ async function runTests() {
     },
   });
 
-  // Test 18: sheets_validation
-  await testTool('sheets_validation', {
-    name: 'sheets_validation',
+  // Test 10: sheets_quality
+  await testTool('sheets_quality', {
+    name: 'sheets_quality',
     arguments: {
       action: 'validate',
-      data: [['test']],
-      rules: [{ type: 'not_empty', column: 0 }],
+      value: 'test',
     },
   });
 
-  // Test 19: sheets_conflict
-  await testTool('sheets_conflict', {
-    name: 'sheets_conflict',
-    arguments: {
-      action: 'detect',
-      spreadsheetId: 'test123',
-      range: 'A1:B2',
-      localVersion: 1,
-    },
-  });
-
-  // Test 20: sheets_impact
-  await testTool('sheets_impact', {
-    name: 'sheets_impact',
-    arguments: {
-      action: 'analyze',
-      spreadsheetId: 'test123',
-      operation: {
-        type: 'delete_rows',
-        startIndex: 0,
-        endIndex: 1,
-      },
-    },
-  });
-
-  // Test 21: sheets_history
+  // Test 11: sheets_history
   await testTool('sheets_history', {
     name: 'sheets_history',
     arguments: {
@@ -328,7 +236,7 @@ async function runTests() {
     },
   });
 
-  // Test 22: sheets_confirm
+  // Test 12: sheets_confirm
   await testTool('sheets_confirm', {
     name: 'sheets_confirm',
     arguments: {
@@ -336,36 +244,44 @@ async function runTests() {
     },
   });
 
-  // Test 23: sheets_analyze
+  // Test 13: sheets_analyze
   await testTool('sheets_analyze', {
     name: 'sheets_analyze',
     arguments: {
-      action: 'get_stats',
+      action: 'comprehensive',
+      spreadsheetId: 'test123',
     },
   });
 
-  // Test 24: sheets_fix
+  // Test 14: sheets_fix
   await testTool('sheets_fix', {
     name: 'sheets_fix',
     arguments: {
+      action: 'fix',
       spreadsheetId: 'test123',
-      issues: [],
+      issues: [
+        {
+          type: 'NO_FROZEN_HEADERS',
+          severity: 'low',
+          description: 'Missing frozen header',
+        },
+      ],
       mode: 'preview',
     },
   });
 
-  // Test 25: sheets_composite
+  // Test 15: sheets_composite
   await testTool('sheets_composite', {
     name: 'sheets_composite',
     arguments: {
       action: 'import_csv',
       spreadsheetId: 'test123',
-      csvContent: 'a,b\n1,2',
-      sheetName: 'Test',
+      csvData: 'a,b\\nc,d',
+      mode: 'replace',
     },
   });
 
-  // Test 26: sheets_session
+  // Test 16: sheets_session
   await testTool('sheets_session', {
     name: 'sheets_session',
     arguments: {
@@ -378,9 +294,9 @@ async function runTests() {
   console.log('📊 TEST RESULTS SUMMARY');
   console.log('='.repeat(80) + '\n');
 
-  const passed = results.filter(r => r.status === 'pass').length;
-  const failed = results.filter(r => r.status === 'fail').length;
-  const skipped = results.filter(r => r.status === 'skip').length;
+  const passed = results.filter((r) => r.status === 'pass').length;
+  const failed = results.filter((r) => r.status === 'fail').length;
+  const skipped = results.filter((r) => r.status === 'skip').length;
 
   console.log(`✅ Passed:  ${passed}`);
   console.log(`❌ Failed:  ${failed}`);
@@ -388,10 +304,10 @@ async function runTests() {
   console.log(`📦 Total:   ${results.length}\n`);
 
   // Show failures
-  const failures = results.filter(r => r.status === 'fail');
+  const failures = results.filter((r) => r.status === 'fail');
   if (failures.length > 0) {
     console.log('❌ FAILURES:\n');
-    failures.forEach(f => {
+    failures.forEach((f) => {
       console.log(`  • ${f.tool}${f.action ? ` (${f.action})` : ''}`);
       console.log(`    ${f.message}`);
       if (f.error) {
@@ -418,7 +334,7 @@ async function runTests() {
   }
 }
 
-runTests().catch(err => {
+runTests().catch((err) => {
   console.error('❌ Test suite failed:', err);
   process.exit(1);
 });

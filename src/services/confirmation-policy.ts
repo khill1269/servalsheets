@@ -98,42 +98,47 @@ export const CONFIRMATION_THRESHOLDS = {
  * Operations that are always destructive (data loss possible)
  */
 const DESTRUCTIVE_OPERATIONS = new Set([
-  'sheets_values:clear',
-  'sheets_sheet:delete',
+  'sheets_data:clear',
+  'sheets_data:batch_clear',
+  'sheets_data:cut_paste',
+  'sheets_core:delete_sheet',
   'sheets_dimensions:delete_rows',
   'sheets_dimensions:delete_columns',
-  'sheets_rules:remove_rule',
-  'sheets_charts:delete',
-  'sheets_pivot:delete',
-  'sheets_advanced:remove_protection',
-  'sheets_sharing:revoke',
-  'sheets_comments:delete',
+  'sheets_format:rule_delete_conditional_format',
+  'sheets_visualize:chart_delete',
+  'sheets_visualize:pivot_delete',
+  'sheets_advanced:delete_protected_range',
+  'sheets_collaborate:share_remove',
+  'sheets_collaborate:comment_delete',
 ]);
 
 /**
  * Operations that modify data (but can often be undone)
  */
 const MODIFYING_OPERATIONS = new Set([
-  'sheets_values:write',
-  'sheets_values:append',
-  'sheets_values:batch_write',
-  'sheets_values:replace',
-  'sheets_cells:merge',
-  'sheets_cells:unmerge',
-  'sheets_format:set_colors',
-  'sheets_format:set_font',
+  'sheets_data:write',
+  'sheets_data:append',
+  'sheets_data:batch_write',
+  'sheets_data:find_replace',
+  'sheets_data:merge_cells',
+  'sheets_data:unmerge_cells',
+  'sheets_format:set_background',
+  'sheets_format:set_text_format',
   'sheets_format:set_borders',
   'sheets_format:set_number_format',
-  'sheets_format:conditional_format',
+  'sheets_format:rule_add_conditional_format',
   'sheets_dimensions:insert_rows',
   'sheets_dimensions:insert_columns',
-  'sheets_dimensions:resize',
+  'sheets_dimensions:resize_rows',
+  'sheets_dimensions:resize_columns',
+  'sheets_dimensions:auto_resize',
   'sheets_dimensions:freeze_rows',
   'sheets_dimensions:freeze_columns',
-  'sheets_rules:add_conditional_format',
-  'sheets_rules:add_validation',
-  'sheets_filter_sort:set_filter',
-  'sheets_filter_sort:sort_range',
+  'sheets_format:add_conditional_format_rule',
+  'sheets_format:set_data_validation',
+  'sheets_data:set_validation',
+  'sheets_dimensions:set_basic_filter',
+  'sheets_dimensions:sort_range',
 ]);
 
 /**
@@ -141,25 +146,23 @@ const MODIFYING_OPERATIONS = new Set([
  */
 const READONLY_OPERATIONS = new Set([
   'sheets_auth:status',
-  'sheets_spreadsheet:get',
-  'sheets_spreadsheet:get_url',
-  'sheets_spreadsheet:batch_get',
-  'sheets_sheet:list',
-  'sheets_values:read',
-  'sheets_values:batch_read',
-  'sheets_values:find',
-  'sheets_cells:get_properties',
-  'sheets_analysis:data_quality',
-  'sheets_analysis:formula_audit',
-  'sheets_analysis:statistics',
-  'sheets_analysis:detect_patterns',
-  'sheets_validation:validate_operation',
-  'sheets_validation:check_conflicts',
-  'sheets_impact:analyze',
-  'sheets_impact:get_dependencies',
+  'sheets_core:get',
+  'sheets_core:get_url',
+  'sheets_core:batch_get',
+  'sheets_core:list_sheets',
+  'sheets_data:read',
+  'sheets_data:batch_read',
+  'sheets_data:find_replace',
+  'sheets_analyze:analyze_quality',
+  'sheets_analyze:analyze_formulas',
+  'sheets_analyze:analyze_data',
+  'sheets_analyze:detect_patterns',
+  'sheets_quality:validate',
+  'sheets_quality:detect_conflicts',
+  'sheets_quality:analyze_impact',
   'sheets_history:list',
   'sheets_history:get',
-  'sheets_versions:list_revisions',
+  'sheets_collaborate:version_list_revisions',
   'sheets_session:get_context',
   'sheets_session:get_active',
 ]);
@@ -222,7 +225,7 @@ export function analyzeOperation(params: {
 
   if (isDestructive) {
     // Destructive operations
-    if (action === 'delete' && tool === 'sheets_sheet') {
+    if (action === 'delete_sheet' && tool === 'sheets_core') {
       risk = {
         level: 'critical',
         reason: 'Deleting entire sheet - all data will be lost',

@@ -62,9 +62,7 @@ describe('FormatHandler', () => {
     // Mock sheet metadata for getSheetId
     mockApi.spreadsheets.get.mockResolvedValue({
       data: {
-        sheets: [
-          { properties: { sheetId: 0, title: 'Sheet1' } },
-        ],
+        sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
       },
     });
   });
@@ -146,7 +144,9 @@ describe('FormatHandler', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].repeatCell.fields).toBe('userEnteredFormat.backgroundColor');
+      expect(call.requestBody.requests[0].repeatCell.fields).toBe(
+        'userEnteredFormat.backgroundColor'
+      );
     });
   });
 
@@ -170,7 +170,9 @@ describe('FormatHandler', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.textFormat).toMatchObject({
+      expect(
+        call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.textFormat
+      ).toMatchObject({
         bold: true,
         italic: false,
         fontSize: 14,
@@ -196,7 +198,9 @@ describe('FormatHandler', () => {
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalled();
 
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat).toMatchObject({
+      expect(
+        call.requestBody.requests[0].repeatCell.cell.userEnteredFormat.numberFormat
+      ).toMatchObject({
         type: 'CURRENCY',
         pattern: '$#,##0.00',
       });
@@ -465,7 +469,9 @@ describe('FormatHandler', () => {
 
       expect(result.response.success).toBe(true);
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
-      expect(call.requestBody.requests[0].autoResizeDimensions.dimensions.dimension).toBe('COLUMNS');
+      expect(call.requestBody.requests[0].autoResizeDimensions.dimensions.dimension).toBe(
+        'COLUMNS'
+      );
     });
   });
 

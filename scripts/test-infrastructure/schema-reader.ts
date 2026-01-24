@@ -34,8 +34,8 @@ export function analyzeSchema(schema: z.ZodType): {
       const fieldSchema = value as z.ZodType;
 
       // Determine if optional
-      const isOptional = fieldSchema instanceof z.ZodOptional ||
-                         fieldSchema instanceof z.ZodDefault;
+      const isOptional =
+        fieldSchema instanceof z.ZodOptional || fieldSchema instanceof z.ZodDefault;
 
       if (isOptional) {
         optionalFields.push(key);
@@ -142,7 +142,10 @@ export function parseDiscriminatedUnion(schema: z.ZodType): Map<string, z.ZodTyp
 /**
  * Validate test data against schema
  */
-export function validateAgainstSchema(schema: z.ZodType, data: any): {
+export function validateAgainstSchema(
+  schema: z.ZodType,
+  data: any
+): {
   valid: boolean;
   errors?: z.ZodError;
 } {

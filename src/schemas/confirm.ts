@@ -38,8 +38,12 @@ const PlanStepSchema = z.object({
   tool: z
     .string()
     .min(1)
-    .regex(/^sheets_[a-z]+$/, 'Tool name must start with "sheets_"')
-    .describe('Tool to be called (e.g., "sheets_data", "sheets_format")'),
+    .transform((val) => {
+      // Auto-prefix with sheets_ if not present
+      const lower = val.toLowerCase();
+      return lower.startsWith('sheets_') ? lower : `sheets_${lower}`;
+    })
+    .describe('Tool to be called (e.g., "sheets_data", "sheets_format", or just "data", "format")'),
   action: z.string().min(1).describe('Action within the tool (e.g., "write", "format")'),
   risk: RiskLevelSchema.optional()
     .default('low')
@@ -157,15 +161,32 @@ const WizardCompleteActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
-export const SheetsConfirmInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    RequestActionSchema,
-    GetStatsActionSchema,
-    WizardStartActionSchema,
-    WizardStepActionSchema,
-    WizardCompleteActionSchema,
-  ]),
-});
+// Preprocess to accept both wrapped and unwrapped request formats
+// LLMs sometimes send: { action: "get_stats" } instead of { request: { action: "get_stats" } }
+const normalizeConfirmInput = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const obj = val as Record<string, unknown>;
+
+  // If 'action' is at top level and 'request' is missing, wrap it
+  if (obj['action'] && !obj['request']) {
+    return { request: obj };
+  }
+
+  return val;
+};
+
+export const SheetsConfirmInputSchema = z.preprocess(
+  normalizeConfirmInput,
+  z.object({
+    request: z.discriminatedUnion('action', [
+      RequestActionSchema,
+      GetStatsActionSchema,
+      WizardStartActionSchema,
+      WizardStepActionSchema,
+      WizardCompleteActionSchema,
+    ]),
+  })
+);
 
 /**
  * Confirmation result schema

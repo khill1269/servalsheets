@@ -40,7 +40,7 @@ export function registerPivotResources(
             // to infer pivots from unrelated metadata.
             return {
               note: 'Pivot table access requires specialized API calls',
-              recommendation: 'Use sheets_pivot tool for creating and managing pivot tables',
+              recommendation: 'Use sheets_visualize tool for creating and managing pivot tables',
               spreadsheetId,
             };
           }

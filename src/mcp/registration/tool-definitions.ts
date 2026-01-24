@@ -9,6 +9,7 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from 'zod';
 
+import { TOOL_MODE, ESSENTIAL_TOOLS, STANDARD_TOOLS } from '../../config/constants.js';
 import {
   SheetsAuthInputSchema,
   SheetsAuthOutputSchema,
@@ -61,6 +62,16 @@ import {
   SheetsSessionInputSchema,
   SheetsSessionOutputSchema,
   SHEETS_SESSION_ANNOTATIONS,
+  // Tier 7 Enterprise tools
+  SheetsTemplatesInputSchema,
+  SheetsTemplatesOutputSchema,
+  SHEETS_TEMPLATES_ANNOTATIONS,
+  SheetsBigQueryInputSchema,
+  SheetsBigQueryOutputSchema,
+  SHEETS_BIGQUERY_ANNOTATIONS,
+  SheetsAppsScriptInputSchema,
+  SheetsAppsScriptOutputSchema,
+  SHEETS_APPSSCRIPT_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
 } from '../../schemas/index.js';
@@ -225,4 +236,66 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     outputSchema: SheetsSessionOutputSchema,
     annotations: SHEETS_SESSION_ANNOTATIONS,
   },
+  // ============================================================================
+  // TIER 7 ENTERPRISE TOOLS
+  // ============================================================================
+  {
+    name: 'sheets_templates',
+    description: TOOL_DESCRIPTIONS['sheets_templates']!,
+    inputSchema: SheetsTemplatesInputSchema,
+    outputSchema: SheetsTemplatesOutputSchema,
+    annotations: SHEETS_TEMPLATES_ANNOTATIONS,
+  },
+  // ============================================================================
+  // TIER 7: BIGQUERY INTEGRATION
+  // ============================================================================
+  {
+    name: 'sheets_bigquery',
+    description: TOOL_DESCRIPTIONS['sheets_bigquery']!,
+    inputSchema: SheetsBigQueryInputSchema,
+    outputSchema: SheetsBigQueryOutputSchema,
+    annotations: SHEETS_BIGQUERY_ANNOTATIONS,
+  },
+  // ============================================================================
+  // TIER 7: APPS SCRIPT AUTOMATION
+  // ============================================================================
+  {
+    name: 'sheets_appsscript',
+    description: TOOL_DESCRIPTIONS['sheets_appsscript']!,
+    inputSchema: SheetsAppsScriptInputSchema,
+    outputSchema: SheetsAppsScriptOutputSchema,
+    annotations: SHEETS_APPSSCRIPT_ANNOTATIONS,
+  },
 ] as const;
+
+// ============================================================================
+// TOOL FILTERING BY MODE
+// ============================================================================
+
+/**
+ * Get the list of allowed tool names for the current mode
+ */
+function getAllowedToolNames(): readonly string[] {
+  switch (TOOL_MODE) {
+    case 'lite':
+      return ESSENTIAL_TOOLS;
+    case 'standard':
+      return STANDARD_TOOLS;
+    case 'full':
+    default:
+      return TOOL_DEFINITIONS.map((t) => t.name);
+  }
+}
+
+/**
+ * Filtered tool definitions based on SERVAL_TOOL_MODE
+ *
+ * Use this instead of TOOL_DEFINITIONS for registration.
+ * - 'full': All 19 tools (~527KB schema payload)
+ * - 'standard': 12 tools (~444KB)
+ * - 'lite': 8 tools (~199KB, recommended for Claude Desktop)
+ */
+export const ACTIVE_TOOL_DEFINITIONS: readonly ToolDefinition[] = (() => {
+  const allowedNames = getAllowedToolNames();
+  return TOOL_DEFINITIONS.filter((t) => allowedNames.includes(t.name));
+})();

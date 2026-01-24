@@ -269,7 +269,11 @@ const RuleAddConditionalFormatActionSchema = CommonFieldsSchema.extend({
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the conditional format rule'),
   rule: ConditionalFormatRuleSchema.describe(
-    'Conditional format rule (boolean condition or gradient)'
+    `Conditional format rule. Two types supported:
+1. BOOLEAN (type: "boolean"): Apply format when condition is met.
+   Example: { type: "boolean", condition: { type: "NUMBER_GREATER", values: ["100"] }, format: { backgroundColor: "green" } }
+2. GRADIENT (type: "gradient"): Color scale based on values.
+   Example: { type: "gradient", minpoint: { type: "MIN", color: "red" }, maxpoint: { type: "MAX", color: "green" } }`
   ),
   index: z
     .number()
@@ -311,10 +315,14 @@ const RuleListConditionalFormatsActionSchema = CommonFieldsSchema.extend({
 });
 
 const SetDataValidationActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_data_validation').describe('Add data validation to a range'),
+  action: z
+    .literal('set_data_validation')
+    .describe(
+      'Add data validation to a range. Example: { "action": "set_data_validation", "range": "A1:A10", "condition": { "type": "ONE_OF_LIST", "values": ["Yes", "No", "Maybe"] } }'
+    ),
   range: RangeInputSchema.describe('Range to apply validation to'),
   condition: ConditionSchema.describe(
-    'Validation condition (e.g., ONE_OF_LIST, NUMBER_BETWEEN, DATE_AFTER, etc.)'
+    'Validation condition. Required: type (condition type), values (array of strings). Types: ONE_OF_LIST (dropdown), NUMBER_BETWEEN/NUMBER_GREATER/NUMBER_LESS (numeric), TEXT_CONTAINS/TEXT_IS_EMAIL/TEXT_IS_URL (text), DATE_BEFORE/DATE_AFTER (date), BLANK/NOT_BLANK (empty check), CUSTOM_FORMULA. Example: { "type": "ONE_OF_LIST", "values": ["Yes", "No"] }'
   ),
   inputMessage: z
     .string()
@@ -350,22 +358,183 @@ const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the preset rule'),
   rulePreset: z
-    .enum([
-      'highlight_duplicates',
-      'highlight_blanks',
-      'highlight_errors',
-      'color_scale_green_red',
-      'color_scale_blue_red',
-      'data_bars',
-      'top_10_percent',
-      'bottom_10_percent',
-      'above_average',
-      'below_average',
-    ])
+    .preprocess(
+      (val) => {
+        if (typeof val === 'string') {
+          // Normalize common variations - support many LLM naming patterns
+          const normalized = val.toLowerCase().replace(/[\s-]/g, '_');
+          const aliases: Record<string, string> = {
+            // Duplicates
+            duplicates: 'highlight_duplicates',
+            duplicate: 'highlight_duplicates',
+            find_duplicates: 'highlight_duplicates',
+            show_duplicates: 'highlight_duplicates',
+            // Blanks
+            blanks: 'highlight_blanks',
+            blank: 'highlight_blanks',
+            empty: 'highlight_blanks',
+            empty_cells: 'highlight_blanks',
+            highlight_empty: 'highlight_blanks',
+            // Errors
+            errors: 'highlight_errors',
+            error: 'highlight_errors',
+            error_cells: 'highlight_errors',
+            show_errors: 'highlight_errors',
+            // Color scales
+            green_red: 'color_scale_green_red',
+            red_green: 'color_scale_green_red',
+            green_to_red: 'color_scale_green_red',
+            red_to_green: 'color_scale_green_red',
+            heat_map: 'color_scale_green_red',
+            heatmap: 'color_scale_green_red',
+            blue_red: 'color_scale_blue_red',
+            red_blue: 'color_scale_blue_red',
+            blue_to_red: 'color_scale_blue_red',
+            // Data bars
+            data_bar: 'data_bars',
+            databars: 'data_bars',
+            bar: 'data_bars',
+            bars: 'data_bars',
+            progress_bar: 'data_bars',
+            // Top/Bottom percentiles
+            top_10: 'top_10_percent',
+            top10: 'top_10_percent',
+            top_ten: 'top_10_percent',
+            top_values: 'top_10_percent',
+            highest: 'top_10_percent',
+            bottom_10: 'bottom_10_percent',
+            bottom10: 'bottom_10_percent',
+            bottom_ten: 'bottom_10_percent',
+            bottom_values: 'bottom_10_percent',
+            lowest: 'bottom_10_percent',
+            // Above/Below average
+            above_avg: 'above_average',
+            above_mean: 'above_average',
+            above: 'above_average',
+            greater_than_average: 'above_average',
+            positive: 'above_average',
+            positive_numbers: 'above_average',
+            highlight_positive: 'above_average',
+            below_avg: 'below_average',
+            below_mean: 'below_average',
+            below: 'below_average',
+            less_than_average: 'below_average',
+            negative: 'below_average',
+            negative_numbers: 'below_average',
+            highlight_negative: 'below_average',
+          };
+          return aliases[normalized] || normalized;
+        }
+        return val;
+      },
+      z.enum([
+        'highlight_duplicates',
+        'highlight_blanks',
+        'highlight_errors',
+        'color_scale_green_red',
+        'color_scale_blue_red',
+        'data_bars',
+        'top_10_percent',
+        'bottom_10_percent',
+        'above_average',
+        'below_average',
+      ])
+    )
     .describe(
-      'Preset rule type (highlight_duplicates, color scales, data bars, percentile-based, etc.)'
+      'Preset rule type. Accepts many aliases: duplicates, blanks, errors, green_red/heatmap, blue_red, data_bars/bars, top_10/highest, bottom_10/lowest, above_avg/positive, below_avg/negative'
     ),
 });
+
+// Preprocess to normalize common LLM input variations for format actions
+const normalizeFormatRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const obj = val as Record<string, unknown>;
+  const action = obj['action'] as string;
+
+  // Normalize flattened validation params for set_data_validation
+  // LLMs often send: { validationType: "ONE_OF_LIST", values: [...] }
+  // Schema expects: { condition: { type: "ONE_OF_LIST", values: [...] } }
+  if (action === 'set_data_validation' && !obj['condition']) {
+    const validationType = obj['validationType'] as string | undefined;
+    const values = obj['values'] as unknown[] | undefined;
+
+    if (validationType || values) {
+      const condition: Record<string, unknown> = {};
+      if (validationType) condition['type'] = validationType;
+      if (values) condition['values'] = values;
+
+      // Return new object with condition, removing flattened fields
+      const { validationType: _vt, values: _v, ...rest } = obj;
+      return { ...rest, condition };
+    }
+  }
+
+  // Handle rulePreset: "custom" - convert to rule_add_conditional_format with proper rule structure
+  // Claude often sends: { action: "add_conditional_format_rule", rulePreset: "custom", customFormula: "=...", backgroundColor: {...} }
+  // or: { action: "add_conditional_format_rule", rulePreset: "custom", customRule: { type, formula, format } }
+  // or: { action: "add_conditional_format_rule", rulePreset: "custom", condition: {...}, format: {...} }
+  if (action === 'add_conditional_format_rule' && obj['rulePreset'] === 'custom') {
+    const customFormula = obj['customFormula'] as string | undefined;
+    const customRule = obj['customRule'] as Record<string, unknown> | undefined;
+    const condition = obj['condition'] as Record<string, unknown> | undefined;
+    const format = obj['format'] as Record<string, unknown> | undefined;
+    const backgroundColor = obj['backgroundColor'] as Record<string, unknown> | undefined;
+
+    // Build the rule structure
+    let rule: Record<string, unknown> | undefined;
+
+    if (customFormula) {
+      // Pattern: { customFormula: "=...", backgroundColor: {...} }
+      rule = {
+        type: 'boolean',
+        condition: {
+          type: 'CUSTOM_FORMULA',
+          values: [{ userEnteredValue: customFormula }],
+        },
+        format: backgroundColor ? { backgroundColor } : format || {},
+      };
+    } else if (customRule) {
+      // Pattern: { customRule: { type: "CUSTOM_FORMULA", formula: "=...", format: {...} } }
+      const formula = customRule['formula'] as string | undefined;
+      const ruleFormat = customRule['format'] as Record<string, unknown> | undefined;
+      rule = {
+        type: 'boolean',
+        condition: {
+          type: customRule['type'] || 'CUSTOM_FORMULA',
+          values: formula ? [{ userEnteredValue: formula }] : [],
+        },
+        format: ruleFormat || {},
+      };
+    } else if (condition) {
+      // Pattern: { condition: { type: "NUMBER_GREATER", values: [...] }, format: {...} }
+      rule = {
+        type: 'boolean',
+        condition,
+        format: format || {},
+      };
+    }
+
+    if (rule) {
+      // Convert to rule_add_conditional_format action
+      const {
+        rulePreset: _rp,
+        customFormula: _cf,
+        customRule: _cr,
+        condition: _c,
+        format: _f,
+        backgroundColor: _bg,
+        ...rest
+      } = obj;
+      return {
+        ...rest,
+        action: 'rule_add_conditional_format',
+        rule,
+      };
+    }
+  }
+
+  return val;
+};
 
 /**
  * All format operation inputs (cell formatting and rules)
@@ -377,32 +546,35 @@ const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
 export const SheetsFormatInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Format actions (10)
-    SetFormatActionSchema,
-    SuggestFormatActionSchema,
-    SetBackgroundActionSchema,
-    SetTextFormatActionSchema,
-    SetNumberFormatActionSchema,
-    SetAlignmentActionSchema,
-    SetBordersActionSchema,
-    ClearFormatActionSchema,
-    ApplyPresetActionSchema,
-    AutoFitActionSchema,
-    // Sparkline actions (3)
-    SparklineAddActionSchema,
-    SparklineGetActionSchema,
-    SparklineClearActionSchema,
-    // Rules actions (8)
-    RuleAddConditionalFormatActionSchema,
-    RuleUpdateConditionalFormatActionSchema,
-    RuleDeleteConditionalFormatActionSchema,
-    RuleListConditionalFormatsActionSchema,
-    SetDataValidationActionSchema,
-    ClearDataValidationActionSchema,
-    ListDataValidationsActionSchema,
-    AddConditionalFormatRuleActionSchema,
-  ]),
+  request: z.preprocess(
+    normalizeFormatRequest,
+    z.discriminatedUnion('action', [
+      // Format actions (10)
+      SetFormatActionSchema,
+      SuggestFormatActionSchema,
+      SetBackgroundActionSchema,
+      SetTextFormatActionSchema,
+      SetNumberFormatActionSchema,
+      SetAlignmentActionSchema,
+      SetBordersActionSchema,
+      ClearFormatActionSchema,
+      ApplyPresetActionSchema,
+      AutoFitActionSchema,
+      // Sparkline actions (3)
+      SparklineAddActionSchema,
+      SparklineGetActionSchema,
+      SparklineClearActionSchema,
+      // Rules actions (8)
+      RuleAddConditionalFormatActionSchema,
+      RuleUpdateConditionalFormatActionSchema,
+      RuleDeleteConditionalFormatActionSchema,
+      RuleListConditionalFormatsActionSchema,
+      SetDataValidationActionSchema,
+      ClearDataValidationActionSchema,
+      ListDataValidationsActionSchema,
+      AddConditionalFormatRuleActionSchema,
+    ])
+  ),
 });
 
 const FormatResponseSchema = z.discriminatedUnion('success', [

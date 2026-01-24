@@ -61,7 +61,7 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.SPREADSHEET,
     description: 'Format cells',
   },
-  'sheets_core.spreadsheet_create': {
+  'sheets_core.create': {
     required: [
       'https://www.googleapis.com/auth/spreadsheets',
       'https://www.googleapis.com/auth/drive.file',
@@ -69,44 +69,44 @@ export const OPERATION_SCOPES: Record<
     category: ScopeCategory.DRIVE_FILE,
     description: 'Create new spreadsheet',
   },
-  'sheets_core.spreadsheet_get': {
+  'sheets_core.get': {
     required: ['https://www.googleapis.com/auth/spreadsheets'],
     category: ScopeCategory.SPREADSHEET,
     description: 'Get spreadsheet metadata',
   },
 
   // Elevated operations - require full drive access
-  'sheets_sharing.share': {
+  'sheets_collaborate.share_add': {
     required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Share spreadsheet with others',
   },
-  'sheets_sharing.list_permissions': {
+  'sheets_collaborate.share_list': {
     required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
     description: 'List sharing permissions',
   },
-  'sheets_sharing.transfer_ownership': {
+  'sheets_collaborate.share_transfer_ownership': {
     required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Transfer spreadsheet ownership',
   },
-  'sheets_sharing.set_link_sharing': {
+  'sheets_collaborate.share_set_link': {
     required: ['https://www.googleapis.com/auth/drive'],
     category: ScopeCategory.DRIVE_FULL,
     description: 'Configure link sharing',
   },
 
   // Read-only operations
-  'sheets_analysis.data_quality': {
+  'sheets_analyze.analyze_quality': {
     required: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     category: ScopeCategory.READONLY,
     description: 'Analyze data quality',
   },
-  'sheets_analysis.statistics': {
+  'sheets_analyze.analyze_data': {
     required: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     category: ScopeCategory.READONLY,
-    description: 'Calculate statistics',
+    description: 'Analyze data and compute statistics',
   },
 };
 

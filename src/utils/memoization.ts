@@ -31,11 +31,13 @@ class LRUCache<K, V> {
 
   get(key: K): V | undefined {
     const entry = this.cache.get(key);
+    // OK: Explicit empty - cache miss is expected behavior
     if (!entry) return undefined;
 
     // Check if expired
     if (Date.now() - entry.timestamp > this.ttl) {
       this.cache.delete(key);
+      // OK: Explicit empty - expired entries return undefined
       return undefined;
     }
 

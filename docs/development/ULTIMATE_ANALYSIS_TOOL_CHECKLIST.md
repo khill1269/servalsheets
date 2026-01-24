@@ -248,7 +248,7 @@
 #### 3.1 Tool Registration
 - [ ] **Update `src/mcp/registration/tool-definitions.ts`**
   ```typescript
-  // Remove sheets_analysis from toolDefinitions array (keep for 90 days)
+  // Remove sheets_analyze from toolDefinitions array (keep for 90 days)
   // Update sheets_analyze definition:
   {
     name: 'sheets_analyze',
@@ -495,7 +495,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```typescript
   describe('AnalysisHandler (DEPRECATED)', () => {
     it('includes deprecation warning in all responses', () => {
-      const result = await handler.handle({ action: 'data_quality', ... });
+      const result = await handler.handle({ action: 'analyze_quality', ... });
       expect(result.response._meta?.deprecated).toBe(true);
       expect(result.response._meta?.replacement).toBe('sheets_analyze');
     });
@@ -576,7 +576,7 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ```
 
 - [ ] **Update `docs/guides/ANALYSIS_GUIDE.md`**
-  - Migration guide from sheets_analysis to sheets_analyze
+  - Migration guide from sheets_analyze to sheets_analyze
   - When to use which action
   - Performance optimization tips
 
@@ -619,10 +619,10 @@ npm run test:coverage          # Coverage report (aim for >80%)
 #### 6.4 Migration Guide
 - [ ] **Create `docs/migration/ANALYSIS_TOOL_MIGRATION.md`**
   ```markdown
-  # Migrating from sheets_analysis to sheets_analyze
+  # Migrating from sheets_analyze to sheets_analyze
 
   ## Action Mapping
-  | Old (sheets_analysis) | New (sheets_analyze) | Notes |
+  | Old (sheets_analyze) | New (sheets_analyze) | Notes |
   |-----------------------|----------------------|-------|
   | data_quality | analyze_quality | Same functionality |
   | formula_audit | analyze_quality | Merged into quality checks |
@@ -631,10 +631,10 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ...
 
   ## Code Examples
-  ### Before (sheets_analysis)
+  ### Before (sheets_analyze)
   \```typescript
-  const result = await client.callTool('sheets_analysis', {
-    action: 'data_quality',
+  const result = await client.callTool('sheets_analyze', {
+    action: 'analyze_quality',
     spreadsheetId: '...'
   });
   \```
@@ -975,7 +975,7 @@ npm run ci                      # Complete CI check
 - [ ] TypeScript compilation: 0 errors
 - [ ] Test coverage: >80%
 - [ ] All tests passing
-- [ ] No deprecation warnings (except sheets_analysis)
+- [ ] No deprecation warnings (except sheets_analyze)
 - [ ] ESLint: 0 errors
 
 ### User Experience

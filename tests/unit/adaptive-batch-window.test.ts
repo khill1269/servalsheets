@@ -4,15 +4,15 @@
  * Verifies dynamic batch window sizing based on queue depth
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   AdaptiveBatchWindow,
   type AdaptiveBatchWindowConfig,
-} from "../../src/services/batching-system.js";
+} from '../../src/services/batching-system.js';
 
-describe("AdaptiveBatchWindow", () => {
-  describe("Constructor and Configuration", () => {
-    it("should use default configuration", () => {
+describe('AdaptiveBatchWindow', () => {
+  describe('Constructor and Configuration', () => {
+    it('should use default configuration', () => {
       const window = new AdaptiveBatchWindow();
       const config = window.getConfig();
 
@@ -25,7 +25,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(config.decreaseRate).toBe(0.8);
     });
 
-    it("should use custom configuration", () => {
+    it('should use custom configuration', () => {
       const customConfig: AdaptiveBatchWindowConfig = {
         minWindowMs: 10,
         maxWindowMs: 300,
@@ -48,13 +48,13 @@ describe("AdaptiveBatchWindow", () => {
       expect(config.decreaseRate).toBe(0.7);
     });
 
-    it("should start with initial window size", () => {
+    it('should start with initial window size', () => {
       const window = new AdaptiveBatchWindow({ initialWindowMs: 75 });
       expect(window.getCurrentWindow()).toBe(75);
     });
   });
 
-  describe("Window Adjustment - Low Traffic", () => {
+  describe('Window Adjustment - Low Traffic', () => {
     let window: AdaptiveBatchWindow;
 
     beforeEach(() => {
@@ -69,7 +69,7 @@ describe("AdaptiveBatchWindow", () => {
       });
     });
 
-    it("should increase window when queue is empty (0 operations)", () => {
+    it('should increase window when queue is empty (0 operations)', () => {
       const initial = window.getCurrentWindow();
       window.adjust(0);
       const after = window.getCurrentWindow();
@@ -78,7 +78,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(after).toBe(initial * 1.2);
     });
 
-    it("should increase window when operations < lowThreshold", () => {
+    it('should increase window when operations < lowThreshold', () => {
       const initial = window.getCurrentWindow();
       window.adjust(2); // Below threshold of 3
       const after = window.getCurrentWindow();
@@ -87,7 +87,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(after).toBe(initial * 1.2);
     });
 
-    it("should increase window gradually with repeated low traffic", () => {
+    it('should increase window gradually with repeated low traffic', () => {
       const windows: number[] = [window.getCurrentWindow()];
 
       for (let i = 0; i < 5; i++) {
@@ -101,7 +101,7 @@ describe("AdaptiveBatchWindow", () => {
       }
     });
 
-    it("should not exceed maximum window", () => {
+    it('should not exceed maximum window', () => {
       // Increase many times
       for (let i = 0; i < 20; i++) {
         window.adjust(0);
@@ -111,7 +111,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBe(200); // Should hit max
     });
 
-    it("should stop increasing at maxWindowMs exactly", () => {
+    it('should stop increasing at maxWindowMs exactly', () => {
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
         maxWindowMs: 100,
@@ -128,7 +128,7 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Window Adjustment - High Traffic", () => {
+  describe('Window Adjustment - High Traffic', () => {
     let window: AdaptiveBatchWindow;
 
     beforeEach(() => {
@@ -143,7 +143,7 @@ describe("AdaptiveBatchWindow", () => {
       });
     });
 
-    it("should decrease window when operations > highThreshold", () => {
+    it('should decrease window when operations > highThreshold', () => {
       const initial = window.getCurrentWindow();
       window.adjust(51); // Above threshold of 50
       const after = window.getCurrentWindow();
@@ -152,7 +152,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(after).toBe(initial * 0.8);
     });
 
-    it("should decrease window when queue is very full (100 operations)", () => {
+    it('should decrease window when queue is very full (100 operations)', () => {
       const initial = window.getCurrentWindow();
       window.adjust(100);
       const after = window.getCurrentWindow();
@@ -161,7 +161,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(after).toBe(initial * 0.8);
     });
 
-    it("should decrease window gradually with repeated high traffic", () => {
+    it('should decrease window gradually with repeated high traffic', () => {
       const windows: number[] = [window.getCurrentWindow()];
 
       for (let i = 0; i < 5; i++) {
@@ -175,7 +175,7 @@ describe("AdaptiveBatchWindow", () => {
       }
     });
 
-    it("should not go below minimum window", () => {
+    it('should not go below minimum window', () => {
       // Decrease many times
       for (let i = 0; i < 20; i++) {
         window.adjust(100);
@@ -185,7 +185,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBe(20); // Should hit min
     });
 
-    it("should stop decreasing at minWindowMs exactly", () => {
+    it('should stop decreasing at minWindowMs exactly', () => {
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
         maxWindowMs: 200,
@@ -202,7 +202,7 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Window Adjustment - Optimal Traffic", () => {
+  describe('Window Adjustment - Optimal Traffic', () => {
     let window: AdaptiveBatchWindow;
 
     beforeEach(() => {
@@ -215,19 +215,19 @@ describe("AdaptiveBatchWindow", () => {
       });
     });
 
-    it("should maintain window at lowThreshold (3 operations)", () => {
+    it('should maintain window at lowThreshold (3 operations)', () => {
       const initial = window.getCurrentWindow();
       window.adjust(3);
       expect(window.getCurrentWindow()).toBe(initial);
     });
 
-    it("should maintain window at highThreshold (50 operations)", () => {
+    it('should maintain window at highThreshold (50 operations)', () => {
       const initial = window.getCurrentWindow();
       window.adjust(50);
       expect(window.getCurrentWindow()).toBe(initial);
     });
 
-    it("should maintain window in optimal range", () => {
+    it('should maintain window in optimal range', () => {
       const initial = window.getCurrentWindow();
 
       window.adjust(10);
@@ -240,7 +240,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBe(initial);
     });
 
-    it("should stay stable with consistent optimal traffic", () => {
+    it('should stay stable with consistent optimal traffic', () => {
       const windows: number[] = [];
 
       for (let i = 0; i < 10; i++) {
@@ -254,13 +254,13 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Average Window Calculation", () => {
-    it("should return current window when no history", () => {
+  describe('Average Window Calculation', () => {
+    it('should return current window when no history', () => {
       const window = new AdaptiveBatchWindow({ initialWindowMs: 50 });
       expect(window.getAverageWindow()).toBe(50);
     });
 
-    it("should calculate average from window history", () => {
+    it('should calculate average from window history', () => {
       const window = new AdaptiveBatchWindow({ initialWindowMs: 50 });
 
       window.adjust(0); // Increase to 60
@@ -274,7 +274,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(Math.round(avg)).toBe(73);
     });
 
-    it("should track both increases and decreases", () => {
+    it('should track both increases and decreases', () => {
       const window = new AdaptiveBatchWindow({
         initialWindowMs: 50,
         lowThreshold: 3,
@@ -291,8 +291,8 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Reset Functionality", () => {
-    it("should reset window to minimum", () => {
+  describe('Reset Functionality', () => {
+    it('should reset window to minimum', () => {
       const window = new AdaptiveBatchWindow({
         minWindowMs: 30,
         initialWindowMs: 100,
@@ -304,7 +304,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBe(30);
     });
 
-    it("should clear window history", () => {
+    it('should clear window history', () => {
       const window = new AdaptiveBatchWindow({ initialWindowMs: 50 });
 
       window.adjust(0);
@@ -314,14 +314,12 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getAverageWindow()).toBeGreaterThan(50);
 
       window.reset();
-      expect(window.getAverageWindow()).toBe(
-        window.getConfig().minWindowMs,
-      );
+      expect(window.getAverageWindow()).toBe(window.getConfig().minWindowMs);
     });
   });
 
-  describe("Edge Cases", () => {
-    it("should handle zero operations correctly", () => {
+  describe('Edge Cases', () => {
+    it('should handle zero operations correctly', () => {
       const window = new AdaptiveBatchWindow();
       const initial = window.getCurrentWindow();
 
@@ -329,7 +327,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBeGreaterThan(initial);
     });
 
-    it("should handle very large operation counts", () => {
+    it('should handle very large operation counts', () => {
       const window = new AdaptiveBatchWindow();
       const initial = window.getCurrentWindow();
 
@@ -337,7 +335,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBeLessThan(initial);
     });
 
-    it("should handle boundary values precisely", () => {
+    it('should handle boundary values precisely', () => {
       const window = new AdaptiveBatchWindow({
         minWindowMs: 20,
         maxWindowMs: 200,
@@ -367,7 +365,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(window.getCurrentWindow()).toBeLessThan(beforeDecrease);
     });
 
-    it("should handle rapid traffic changes", () => {
+    it('should handle rapid traffic changes', () => {
       const window = new AdaptiveBatchWindow({
         initialWindowMs: 50,
         lowThreshold: 3,
@@ -386,8 +384,8 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Window History Management", () => {
-    it("should limit history to 1000 entries", () => {
+  describe('Window History Management', () => {
+    it('should limit history to 1000 entries', () => {
       const window = new AdaptiveBatchWindow({ initialWindowMs: 50 });
 
       // Add more than 1000 adjustments
@@ -401,8 +399,8 @@ describe("AdaptiveBatchWindow", () => {
     });
   });
 
-  describe("Real-World Scenarios", () => {
-    it("should adapt to startup burst pattern", () => {
+  describe('Real-World Scenarios', () => {
+    it('should adapt to startup burst pattern', () => {
       const window = new AdaptiveBatchWindow();
 
       // Startup: High traffic burst
@@ -422,7 +420,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(afterSettle).toBeGreaterThan(afterBurst);
     });
 
-    it("should adapt to idle periods", () => {
+    it('should adapt to idle periods', () => {
       const window = new AdaptiveBatchWindow();
 
       // Normal traffic
@@ -440,7 +438,7 @@ describe("AdaptiveBatchWindow", () => {
       expect(duringIdle).toBeGreaterThan(duringNormal);
     });
 
-    it("should handle gradual traffic increase", () => {
+    it('should handle gradual traffic increase', () => {
       const window = new AdaptiveBatchWindow();
 
       const windows: number[] = [window.getCurrentWindow()];

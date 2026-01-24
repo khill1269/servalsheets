@@ -17,7 +17,7 @@ import type {
   Conflict,
   ConflictResolution,
   ConflictResolutionResult,
-  ConflictDetectorConfig
+  ConflictDetectorConfig,
 } from '../../src/types/conflict.js';
 
 // Mock Google API client
@@ -73,7 +73,7 @@ describe('ConflictDetector', () => {
       );
 
       // Wait briefly to allow time progression
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Mock API to return different data (represents a concurrent edit by another user)
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -83,11 +83,7 @@ describe('ConflictDetector', () => {
       });
 
       // Act
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       expect(conflict).toBeDefined();
@@ -124,11 +120,7 @@ describe('ConflictDetector', () => {
       });
 
       // Act
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       expect(conflict).toBeNull();
@@ -140,10 +132,7 @@ describe('ConflictDetector', () => {
       const range = 'Sheet1!A1:B10';
 
       // Act
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range);
 
       // Assert
       expect(conflict).toBeNull();
@@ -165,7 +154,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Mock API to return different data with recent timestamp
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -175,11 +164,7 @@ describe('ConflictDetector', () => {
       });
 
       // Act
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       expect(conflict).toBeDefined();
@@ -205,7 +190,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -242,7 +227,7 @@ describe('ConflictDetector', () => {
 
       // Verify conflict removed from active list
       const activeConflicts = conflictDetector.getActiveConflicts();
-      expect(activeConflicts.find(c => c.id === testConflict.id)).toBeUndefined();
+      expect(activeConflicts.find((c) => c.id === testConflict.id)).toBeUndefined();
     });
 
     it('should resolve conflict with cancel strategy', async () => {
@@ -327,9 +312,10 @@ describe('ConflictDetector', () => {
       expect(result.finalVersion).toBeDefined();
 
       // Should choose the version with the most recent lastModified timestamp
-      const expectedWinner = testConflict.yourVersion.lastModified > testConflict.currentVersion.lastModified
-        ? testConflict.yourVersion
-        : testConflict.currentVersion;
+      const expectedWinner =
+        testConflict.yourVersion.lastModified > testConflict.currentVersion.lastModified
+          ? testConflict.yourVersion
+          : testConflict.currentVersion;
       expect(result.finalVersion).toEqual(expectedWinner);
     });
 
@@ -349,9 +335,10 @@ describe('ConflictDetector', () => {
       expect(result.finalVersion).toBeDefined();
 
       // Should choose the version with the earliest lastModified timestamp
-      const expectedWinner = testConflict.yourVersion.lastModified < testConflict.currentVersion.lastModified
-        ? testConflict.yourVersion
-        : testConflict.currentVersion;
+      const expectedWinner =
+        testConflict.yourVersion.lastModified < testConflict.currentVersion.lastModified
+          ? testConflict.yourVersion
+          : testConflict.currentVersion;
       expect(result.finalVersion).toEqual(expectedWinner);
     });
 
@@ -387,12 +374,7 @@ describe('ConflictDetector', () => {
       const data = [['value1', 'value2']];
 
       // Act
-      const version = await conflictDetector.trackVersion(
-        spreadsheetId,
-        range,
-        modifiedBy,
-        data
-      );
+      const version = await conflictDetector.trackVersion(spreadsheetId, range, modifiedBy, data);
 
       // Assert
       expect(version).toBeDefined();
@@ -415,19 +397,13 @@ describe('ConflictDetector', () => {
       const modifiedBy = 'user1@example.com';
 
       // Act
-      const version1 = await conflictDetector.trackVersion(
-        spreadsheetId,
-        range,
-        modifiedBy,
-        [['data1']]
-      );
+      const version1 = await conflictDetector.trackVersion(spreadsheetId, range, modifiedBy, [
+        ['data1'],
+      ]);
 
-      const version2 = await conflictDetector.trackVersion(
-        spreadsheetId,
-        range,
-        modifiedBy,
-        [['data2']]
-      );
+      const version2 = await conflictDetector.trackVersion(spreadsheetId, range, modifiedBy, [
+        ['data2'],
+      ]);
 
       // Assert
       expect(version1.version).toBe(1);
@@ -443,19 +419,13 @@ describe('ConflictDetector', () => {
       const modifiedBy = 'user1@example.com';
 
       // Act
-      const version1 = await conflictDetector.trackVersion(
-        spreadsheetId,
-        range1,
-        modifiedBy,
-        [['data1']]
-      );
+      const version1 = await conflictDetector.trackVersion(spreadsheetId, range1, modifiedBy, [
+        ['data1'],
+      ]);
 
-      const version2 = await conflictDetector.trackVersion(
-        spreadsheetId,
-        range2,
-        modifiedBy,
-        [['data2']]
-      );
+      const version2 = await conflictDetector.trackVersion(spreadsheetId, range2, modifiedBy, [
+        ['data2'],
+      ]);
 
       // Assert
       expect(version1.checksum).not.toBe(version2.checksum);
@@ -476,7 +446,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -507,7 +477,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -515,11 +485,7 @@ describe('ConflictDetector', () => {
         },
       });
 
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Act
       await conflictDetector.resolveConflict({
@@ -556,7 +522,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -619,7 +585,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -628,11 +594,7 @@ describe('ConflictDetector', () => {
       });
 
       // Act
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       const activeConflicts = conflictDetector.getActiveConflicts();
@@ -664,7 +626,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: {
@@ -672,11 +634,7 @@ describe('ConflictDetector', () => {
         },
       });
 
-      const conflict = await conflictDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await conflictDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Act
       const result = await conflictDetector.resolveConflict({
@@ -727,12 +685,7 @@ describe('ConflictDetector', () => {
       noClientDetector.clearCaches();
 
       // Track again to set up cache properly
-      await noClientDetector.trackVersion(
-        spreadsheetId,
-        range,
-        'user1@example.com',
-        [['data']]
-      );
+      await noClientDetector.trackVersion(spreadsheetId, range, 'user1@example.com', [['data']]);
 
       // Wait to ensure cache has expired (set to 1ms TTL via config)
       const shortTTLDetector = new ConflictDetector({
@@ -748,7 +701,7 @@ describe('ConflictDetector', () => {
         [['data']]
       );
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Act & Assert
       await expect(
@@ -772,7 +725,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing to ensure cache is different
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const apiError = new Error('API connection failed');
       mockGoogleClient.sheets.spreadsheets.values.get.mockRejectedValue(apiError);
@@ -800,7 +753,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Mock API - when called, return different data to trigger conflict detection
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
@@ -827,7 +780,7 @@ describe('ConflictDetector', () => {
       );
 
       // Simulate time passing
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       mockGoogleClient.sheets.spreadsheets.values.get.mockResolvedValue({
         data: { values: [['new']] },
@@ -863,11 +816,7 @@ describe('ConflictDetector', () => {
       );
 
       // Act
-      const conflict = await disabledDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await disabledDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       expect(conflict).toBeNull();
@@ -895,11 +844,7 @@ describe('ConflictDetector', () => {
       );
 
       // Act
-      const conflict = await noCheckDetector.detectConflict(
-        spreadsheetId,
-        range,
-        expectedVersion
-      );
+      const conflict = await noCheckDetector.detectConflict(spreadsheetId, range, expectedVersion);
 
       // Assert
       expect(conflict).toBeNull();

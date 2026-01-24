@@ -39,20 +39,29 @@ const hasField = (shape: Record<string, unknown> | undefined, field: string): bo
 describe('Schema Transformation', () => {
   describe('Schema Structure (Refactored)', () => {
     for (const tool of TOOL_DEFINITIONS) {
-      it(`${tool.name}: input schema should be action-based (discriminated union or flattened with enum)`, () => {
+      it(`${tool.name}: input schema should be action-based (discriminated union or wrapped request)`, () => {
         // Schemas can be:
-        // 1. Discriminated union (old approach, most tools still use this)
-        // 2. Flattened object with action enum (MCP SDK workaround for sheets_auth and sheets_spreadsheet)
+        // 1. Discriminated union at root (legacy)
+        // 2. Flattened object with action enum (MCP SDK workaround)
+        // 3. Object with request property containing discriminated union (new pattern)
+        // 4. Object with request property containing flattened action enum (new pattern variant)
         const isDiscUnion = isDiscriminatedUnion(tool.inputSchema);
 
-        // Check if it's a flattened schema with action enum
-        // ✅ FIXED: Using stable instanceof checks instead of brittle ._zod.constr.name
+        // Check if it's a flattened schema with action enum at root
         const shape = getZodShape(tool.inputSchema);
         const actionField = shape?.['action'] as any;
-        // Note: In Zod v4, both z.enum() and z.nativeEnum() use ZodEnum class
         const isFlattened = actionField && actionField instanceof z.ZodEnum;
 
-        expect(isDiscUnion || isFlattened).toBe(true);
+        // Check if it's the new wrapped pattern: { request: discriminatedUnion }
+        const requestField = shape?.['request'] as any;
+        const isWrappedDiscUnion = requestField && isDiscriminatedUnion(requestField);
+
+        // Check if it's wrapped with flattened enum inside: { request: { action: enum, ... } }
+        const requestShape = getZodShape(requestField);
+        const nestedActionField = requestShape?.['action'] as any;
+        const isWrappedFlattened = nestedActionField && nestedActionField instanceof z.ZodEnum;
+
+        expect(isDiscUnion || isFlattened || isWrappedDiscUnion || isWrappedFlattened).toBe(true);
       });
 
       it(`${tool.name}: output schema should be a Zod object with response union`, () => {
@@ -107,14 +116,16 @@ describe('Schema Transformation', () => {
           expect(jsonSchema).not.toHaveProperty('safeParseAsync');
         });
 
-        it('should represent discriminated union (anyOf, oneOf, array, or flattened with enum action)', () => {
+        it('should represent discriminated union (anyOf, oneOf, array, flattened, or wrapped request)', () => {
           jsonSchema = zodToJsonSchemaCompat(tool.inputSchema);
 
           // JSON Schema may be represented as:
           // 1. Object with anyOf property (old discriminated union)
           // 2. Object with oneOf property (old discriminated union)
           // 3. Array of schema objects (direct union branches)
-          // 4. Flattened object with enum action field (MCP SDK workaround for discriminated unions)
+          // 4. Flattened object with enum action field (MCP SDK workaround)
+          // 5. Object with properties.request containing discriminated union (new pattern)
+          // 6. Object with properties.request.properties.action.enum (wrapped flattened)
           const isArray = Array.isArray(jsonSchema) && jsonSchema.length > 0;
           const anyOf = jsonSchema['anyOf'];
           const hasAnyOf = Array.isArray(anyOf) && anyOf.length > 0;
@@ -127,7 +138,28 @@ describe('Schema Transformation', () => {
           const actionEnum = actionField?.['enum'];
           const isFlattenedWithEnum = Array.isArray(actionEnum) && actionEnum.length > 0;
 
-          expect(isArray || hasAnyOf || hasOneOf || isFlattenedWithEnum).toBe(true);
+          // Wrapped request pattern: object with properties.request containing anyOf/oneOf
+          const requestField = properties?.['request'] as Record<string, unknown> | undefined;
+          const requestAnyOf = requestField?.['anyOf'];
+          const requestOneOf = requestField?.['oneOf'];
+          const isWrappedRequest =
+            (Array.isArray(requestAnyOf) && requestAnyOf.length > 0) ||
+            (Array.isArray(requestOneOf) && requestOneOf.length > 0);
+
+          // Wrapped flattened pattern: object with properties.request.properties.action.enum
+          const requestProps = requestField?.['properties'] as Record<string, unknown> | undefined;
+          const nestedActionField = requestProps?.['action'] as Record<string, unknown> | undefined;
+          const nestedActionEnum = nestedActionField?.['enum'];
+          const isWrappedFlattened = Array.isArray(nestedActionEnum) && nestedActionEnum.length > 0;
+
+          expect(
+            isArray ||
+              hasAnyOf ||
+              hasOneOf ||
+              isFlattenedWithEnum ||
+              isWrappedRequest ||
+              isWrappedFlattened
+          ).toBe(true);
         });
 
         it('should pass verifyJsonSchema safety check', () => {

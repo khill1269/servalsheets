@@ -1,0 +1,140 @@
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
+import { completeSpreadsheetId } from '../mcp/completions.js';
+export function registerChartResources(server, googleClient) {
+    let count = 0;
+    // Resource 1: All charts in spreadsheet
+    const chartsTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/charts', {
+        list: undefined,
+        complete: {
+            spreadsheetId: async (value) => completeSpreadsheetId(value),
+        },
+    });
+    server.registerResource('Spreadsheet Charts', chartsTemplate, {
+        title: 'Charts in Spreadsheet',
+        description: 'All charts and visualizations in a spreadsheet with specifications and styling',
+        mimeType: 'application/json',
+    }, async (uri, variables) => {
+        const spreadsheetId = Array.isArray(variables['spreadsheetId'])
+            ? variables['spreadsheetId'][0]
+            : variables['spreadsheetId'];
+        if (!spreadsheetId || !googleClient) {
+            return { contents: [] };
+        }
+        try {
+            const data = await requestDeduplicator.deduplicate(createRequestKey('charts:list', { spreadsheetId }), async () => {
+                const response = await googleClient.spreadsheets.get({
+                    spreadsheetId,
+                    fields: 'sheets.charts',
+                });
+                const charts = [];
+                for (const sheet of response.data.sheets || []) {
+                    if (sheet.charts) {
+                        for (const chart of sheet.charts) {
+                            charts.push({
+                                chartId: chart.chartId,
+                                sheetId: sheet.properties?.sheetId,
+                                title: chart.spec?.title,
+                                chartType: chart.spec?.basicChart?.chartType || chart.spec?.pieChart
+                                    ? 'PIE_CHART'
+                                    : chart.spec?.bubbleChart
+                                        ? 'BUBBLE_CHART'
+                                        : 'UNKNOWN',
+                                position: chart.position,
+                            });
+                        }
+                    }
+                }
+                return charts;
+            });
+            return {
+                contents: [
+                    {
+                        uri: uri.href,
+                        mimeType: 'application/json',
+                        text: JSON.stringify({ charts: data, total: data.length }, null, 2),
+                    },
+                ],
+            };
+        }
+        catch (error) {
+            return {
+                contents: [
+                    {
+                        uri: uri.href,
+                        mimeType: 'application/json',
+                        text: JSON.stringify({
+                            error: error instanceof Error ? error.message : String(error),
+                        }, null, 2),
+                    },
+                ],
+            };
+        }
+    });
+    count++;
+    // Resource 2: Specific chart details
+    const chartTemplate = new ResourceTemplate('sheets:///{spreadsheetId}/charts/{chartId}', {
+        list: undefined,
+        complete: {
+            spreadsheetId: async (value) => completeSpreadsheetId(value),
+        },
+    });
+    server.registerResource('Chart Details', chartTemplate, {
+        title: 'Chart Specification',
+        description: 'Complete specification of a specific chart including data ranges and styling',
+        mimeType: 'application/json',
+    }, async (uri, variables) => {
+        const spreadsheetId = Array.isArray(variables['spreadsheetId'])
+            ? variables['spreadsheetId'][0]
+            : variables['spreadsheetId'];
+        const chartId = Array.isArray(variables['chartId'])
+            ? variables['chartId'][0]
+            : variables['chartId'];
+        if (!spreadsheetId || !chartId || !googleClient) {
+            return { contents: [] };
+        }
+        try {
+            const data = await requestDeduplicator.deduplicate(createRequestKey('chart:get', { spreadsheetId, chartId }), async () => {
+                const response = await googleClient.spreadsheets.get({
+                    spreadsheetId,
+                    fields: 'sheets.charts',
+                });
+                const chartIdNum = parseInt(chartId, 10);
+                for (const sheet of response.data.sheets || []) {
+                    for (const chart of sheet.charts || []) {
+                        if (chart.chartId === chartIdNum) {
+                            return chart;
+                        }
+                    }
+                }
+                throw new Error(`Chart ${chartId} not found`);
+            });
+            return {
+                contents: [
+                    {
+                        uri: uri.href,
+                        mimeType: 'application/json',
+                        text: JSON.stringify(data, null, 2),
+                    },
+                ],
+            };
+        }
+        catch (error) {
+            return {
+                contents: [
+                    {
+                        uri: uri.href,
+                        mimeType: 'application/json',
+                        text: JSON.stringify({
+                            error: error instanceof Error ? error.message : String(error),
+                        }, null, 2),
+                    },
+                ],
+            };
+        }
+    });
+    count++;
+    console.error(`[ServalSheets] Registered ${count} chart resources`);
+    return count;
+}
+//# sourceMappingURL=charts.js.map

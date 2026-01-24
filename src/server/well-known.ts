@@ -16,9 +16,22 @@
 
 import type { Request, Response } from 'express';
 import type { Icon } from '@modelcontextprotocol/sdk/types.js';
+import { createHash } from 'crypto';
 import { VERSION, SERVER_INFO, SERVER_ICONS } from '../version.js';
 import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { DEFAULT_SCOPES, ELEVATED_SCOPES, READONLY_SCOPES } from '../services/google-api.js';
+
+/**
+ * Compute ETag for JSON content
+ * Uses weak ETag (W/) per RFC 7232 since content is semantically equivalent
+ */
+function computeETag(content: unknown): string {
+  const hash = createHash('sha256')
+    .update(JSON.stringify(content))
+    .digest('base64url')
+    .substring(0, 16);
+  return `W/"${hash}"`;
+}
 
 /**
  * MCP Server Configuration
@@ -243,21 +256,43 @@ export function getOAuthProtectedResourceMetadata(
 /**
  * Express handler for /.well-known/mcp-configuration
  */
-export function mcpConfigurationHandler(_req: Request, res: Response): void {
+export function mcpConfigurationHandler(req: Request, res: Response): void {
+  const config = getMcpConfiguration();
+  const etag = computeETag(config);
+
+  // Check If-None-Match for conditional request
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end();
+    return;
+  }
+
   res.set('Content-Type', 'application/json');
   res.set('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+  res.set('ETag', etag);
+  res.set('Vary', 'Accept-Encoding');
   res.set('Access-Control-Allow-Origin', '*'); // Allow discovery from any origin
-  res.json(getMcpConfiguration());
+  res.json(config);
 }
 
 /**
  * Express handler for /.well-known/oauth-authorization-server
  */
-export function oauthAuthorizationServerHandler(_req: Request, res: Response): void {
+export function oauthAuthorizationServerHandler(req: Request, res: Response): void {
+  const metadata = getOAuthAuthorizationServerMetadata();
+  const etag = computeETag(metadata);
+
+  // Check If-None-Match for conditional request
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end();
+    return;
+  }
+
   res.set('Content-Type', 'application/json');
   res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+  res.set('ETag', etag);
+  res.set('Vary', 'Accept-Encoding');
   res.set('Access-Control-Allow-Origin', '*');
-  res.json(getOAuthAuthorizationServerMetadata());
+  res.json(metadata);
 }
 
 /**
@@ -269,10 +304,21 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
   const serverUrl = `${protocol}://${host}`;
 
+  const metadata = getOAuthProtectedResourceMetadata(serverUrl);
+  const etag = computeETag(metadata);
+
+  // Check If-None-Match for conditional request
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end();
+    return;
+  }
+
   res.set('Content-Type', 'application/json');
-  res.set('Cache-Control', 'public, max-age=86400');
+  res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+  res.set('ETag', etag);
+  res.set('Vary', 'Accept-Encoding, Host'); // Vary by host since content depends on it
   res.set('Access-Control-Allow-Origin', '*');
-  res.json(getOAuthProtectedResourceMetadata(serverUrl));
+  res.json(metadata);
 }
 
 /**

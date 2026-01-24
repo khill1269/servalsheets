@@ -12,6 +12,7 @@ import type {
   SheetsHistoryOutput,
   HistoryResponse,
 } from '../schemas/history.js';
+import { unwrapRequest } from './base.js';
 
 export interface HistoryHandlerOptions {
   snapshotService?: SnapshotService;
@@ -45,21 +46,21 @@ export class HistoryHandler {
   }
 
   async handle(input: SheetsHistoryInput): Promise<SheetsHistoryOutput> {
-    // Input is now the action directly (no input wrapper)
+    const req = unwrapRequest<SheetsHistoryInput['request']>(input);
     const historyService = getHistoryService();
 
     try {
       let response: HistoryResponse;
 
-      switch (input.action) {
+      switch (req.action) {
         case 'list': {
           let operations;
-          if (input.failuresOnly) {
-            operations = historyService.getFailures(input.count);
-          } else if (input.spreadsheetId) {
-            operations = historyService.getBySpreadsheet(input.spreadsheetId, input.count);
+          if (req.failuresOnly) {
+            operations = historyService.getFailures(req.count);
+          } else if (req.spreadsheetId) {
+            operations = historyService.getBySpreadsheet(req.spreadsheetId, req.count);
           } else {
-            operations = historyService.getRecent(input.count || 10);
+            operations = historyService.getRecent(req.count || 10);
           }
 
           response = {
@@ -82,14 +83,14 @@ export class HistoryHandler {
         }
 
         case 'get': {
-          const operation = historyService.getById(input.operationId!);
+          const operation = historyService.getById(req.operationId!);
 
           if (!operation) {
             response = {
               success: false,
               error: createNotFoundError({
                 resourceType: 'operation',
-                resourceId: input.operationId!,
+                resourceId: req.operationId!,
                 searchSuggestion: 'Use action "list" to see available operation IDs',
               }),
             };
@@ -138,7 +139,7 @@ export class HistoryHandler {
         }
 
         case 'undo': {
-          const operation = historyService.getLastUndoable(input.spreadsheetId!);
+          const operation = historyService.getLastUndoable(req.spreadsheetId!);
 
           if (!operation) {
             response = {
@@ -148,7 +149,7 @@ export class HistoryHandler {
                 resourceId: 'undoable operation',
                 searchSuggestion:
                   'No undoable operations exist for this spreadsheet. Check operation history with action "list"',
-                parentResourceId: input.spreadsheetId,
+                parentResourceId: req.spreadsheetId,
               }),
             };
             break;
@@ -184,7 +185,7 @@ export class HistoryHandler {
             const restoredId = await this.snapshotService.restore(operation.snapshotId);
 
             // Mark as undone in history
-            historyService.markAsUndone(operation.id, input.spreadsheetId!);
+            historyService.markAsUndone(operation.id, req.spreadsheetId!);
 
             response = {
               success: true,
@@ -212,7 +213,7 @@ export class HistoryHandler {
         }
 
         case 'redo': {
-          const operation = historyService.getLastRedoable(input.spreadsheetId!);
+          const operation = historyService.getLastRedoable(req.spreadsheetId!);
 
           if (!operation) {
             response = {
@@ -222,7 +223,7 @@ export class HistoryHandler {
                 resourceId: 'redoable operation',
                 searchSuggestion:
                   'No redoable operations exist. You can only redo operations that were previously undone.',
-                parentResourceId: input.spreadsheetId,
+                parentResourceId: req.spreadsheetId,
               }),
             };
             break;
@@ -254,14 +255,14 @@ export class HistoryHandler {
         }
 
         case 'revert_to': {
-          const operation = historyService.getById(input.operationId!);
+          const operation = historyService.getById(req.operationId!);
 
           if (!operation) {
             response = {
               success: false,
               error: createNotFoundError({
                 resourceType: 'operation',
-                resourceId: input.operationId!,
+                resourceId: req.operationId!,
                 searchSuggestion: 'Use action "list" to see available operation IDs',
               }),
             };
@@ -325,8 +326,8 @@ export class HistoryHandler {
         case 'clear': {
           let cleared: number;
 
-          if (input.spreadsheetId) {
-            cleared = historyService.clearForSpreadsheet(input.spreadsheetId);
+          if (req.spreadsheetId) {
+            cleared = historyService.clearForSpreadsheet(req.spreadsheetId);
           } else {
             historyService.clear();
             cleared = historyService.size();
@@ -336,8 +337,8 @@ export class HistoryHandler {
             success: true,
             action: 'clear',
             operationsCleared: cleared,
-            message: input.spreadsheetId
-              ? `Cleared ${cleared} operation(s) for spreadsheet ${input.spreadsheetId}`
+            message: req.spreadsheetId
+              ? `Cleared ${cleared} operation(s) for spreadsheet ${req.spreadsheetId}`
               : `Cleared all ${cleared} operation(s)`,
           };
           break;
@@ -347,14 +348,14 @@ export class HistoryHandler {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unknown action: ${(input as { action: string }).action}`,
+              message: `Unknown action: ${(req as { action: string }).action}`,
               retryable: false,
             },
           };
       }
 
       // Apply verbosity filtering (LLM optimization)
-      const verbosity = input.verbosity ?? 'standard';
+      const verbosity = req.verbosity ?? 'standard';
       const filteredResponse = this.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };

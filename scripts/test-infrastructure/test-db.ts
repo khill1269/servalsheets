@@ -196,8 +196,7 @@ export class TestDatabase {
       pass: this.testRun.testCases.filter((tc) => tc.status === 'pass').length,
       fail: this.testRun.testCases.filter((tc) => tc.status === 'fail').length,
       skip: this.testRun.testCases.filter((tc) => tc.status === 'skip').length,
-      auth_required: this.testRun.testCases.filter((tc) => tc.status === 'auth_required')
-        .length,
+      auth_required: this.testRun.testCases.filter((tc) => tc.status === 'auth_required').length,
     };
   }
 
@@ -207,8 +206,7 @@ export class TestDatabase {
   complete(): void {
     this.testRun.endTime = new Date().toISOString();
     this.testRun.duration =
-      new Date(this.testRun.endTime).getTime() -
-      new Date(this.testRun.startTime).getTime();
+      new Date(this.testRun.endTime).getTime() - new Date(this.testRun.startTime).getTime();
     this.save();
   }
 

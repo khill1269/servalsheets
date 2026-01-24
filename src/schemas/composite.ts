@@ -2,6 +2,7 @@
  * ServalSheets - Composite Operations Schema
  *
  * Schemas for high-level composite operations.
+ * 7 Actions: import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  *
  * MCP Protocol: 2025-11-25
  * Google Sheets API: v4
@@ -92,12 +93,12 @@ export const ImportCsvInputSchema = z.object({
 export const ImportCsvOutputSchema = z.object({
   success: z.literal(true),
   action: z.literal('import_csv'),
-  rowsImported: z.number().int().min(0),
-  columnsImported: z.number().int().min(0),
+  rowsImported: z.coerce.number().int().min(0),
+  columnsImported: z.coerce.number().int().min(0),
   range: z.string(),
   sheetId: SheetIdSchema,
   sheetName: SheetNameSchema,
-  rowsSkipped: z.number().int().min(0),
+  rowsSkipped: z.coerce.number().int().min(0),
   newSheetCreated: z.boolean(),
   mutation: MutationSummarySchema.optional(),
   _meta: ResponseMetaSchema.optional(),
@@ -144,7 +145,7 @@ export const SmartAppendInputSchema = z.object({
 export const SmartAppendOutputSchema = z.object({
   success: z.literal(true),
   action: z.literal('smart_append'),
-  rowsAppended: z.number().int().min(0),
+  rowsAppended: z.coerce.number().int().min(0),
   columnsMatched: z.array(z.string()),
   columnsCreated: z.array(z.string()),
   columnsSkipped: z.array(z.string()),
@@ -188,10 +189,10 @@ export const BulkUpdateInputSchema = z.object({
 export const BulkUpdateOutputSchema = z.object({
   success: z.literal(true),
   action: z.literal('bulk_update'),
-  rowsUpdated: z.number().int().min(0),
-  rowsCreated: z.number().int().min(0),
+  rowsUpdated: z.coerce.number().int().min(0),
+  rowsCreated: z.coerce.number().int().min(0),
   keysNotFound: z.array(z.string()),
-  cellsModified: z.number().int().min(0),
+  cellsModified: z.coerce.number().int().min(0),
   snapshotId: z.string().optional(),
   mutation: MutationSummarySchema.optional(),
   _meta: ResponseMetaSchema.optional(),
@@ -228,7 +229,7 @@ export const DeduplicateInputSchema = z.object({
 });
 
 export const DuplicatePreviewItemSchema = z.object({
-  rowNumber: z.number().int().min(1),
+  rowNumber: z.coerce.number().int().min(1),
   keyValues: z.record(z.string(), z.unknown()),
   keepStatus: z.enum(['keep', 'delete']),
 });
@@ -236,13 +237,256 @@ export const DuplicatePreviewItemSchema = z.object({
 export const DeduplicateOutputSchema = z.object({
   success: z.literal(true),
   action: z.literal('deduplicate'),
-  totalRows: z.number().int().min(0),
-  uniqueRows: z.number().int().min(0),
-  duplicatesFound: z.number().int().min(0),
-  rowsDeleted: z.number().int().min(0),
+  totalRows: z.coerce.number().int().min(0),
+  uniqueRows: z.coerce.number().int().min(0),
+  duplicatesFound: z.coerce.number().int().min(0),
+  rowsDeleted: z.coerce.number().int().min(0),
   duplicatePreview: z.array(DuplicatePreviewItemSchema).optional(),
   snapshotId: z.string().optional(),
   mutation: MutationSummarySchema.optional(),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
+// Export XLSX Action
+// ============================================================================
+
+export const ExportXlsxInputSchema = z.object({
+  action: z.literal('export_xlsx').describe('Export spreadsheet as XLSX (Excel) file'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const ExportXlsxOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('export_xlsx'),
+  fileContent: z.string().describe('Base64-encoded XLSX file content'),
+  mimeType: z
+    .literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    .describe('MIME type of exported file'),
+  filename: z.string().describe('Suggested filename for download'),
+  sizeBytes: z.coerce.number().int().describe('File size in bytes'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
+// Import XLSX Action
+// ============================================================================
+
+export const ImportXlsxInputSchema = z.object({
+  action: z.literal('import_xlsx').describe('Import XLSX (Excel) file as new spreadsheet'),
+  fileContent: z.string().describe('Base64-encoded XLSX file content'),
+  title: z.string().max(255).optional().describe('Title for the new spreadsheet'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+export const ImportXlsxOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('import_xlsx'),
+  spreadsheetId: SpreadsheetIdSchema.describe('ID of created spreadsheet'),
+  spreadsheetUrl: z.string().describe('URL to the new spreadsheet'),
+  sheetsImported: z.coerce.number().int().describe('Number of sheets imported'),
+  sheetNames: z.array(z.string()).describe('Names of imported sheets'),
+  mutation: MutationSummarySchema.optional(),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
+// Get Form Responses Action (via linked sheet)
+// ============================================================================
+
+export const GetFormResponsesInputSchema = z.object({
+  action: z
+    .literal('get_form_responses')
+    .describe('Read Google Form responses from a form-linked spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID linked to a Google Form'),
+  formResponsesSheet: z
+    .string()
+    .optional()
+    .default('Form Responses 1')
+    .describe('Sheet name containing form responses (default: "Form Responses 1")'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const GetFormResponsesOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('get_form_responses'),
+  responseCount: z.coerce.number().int().describe('Total number of form responses'),
+  columnHeaders: z.array(z.string()).describe('Form question headers'),
+  latestResponse: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('Most recent form response'),
+  oldestResponse: z.record(z.string(), z.unknown()).optional().describe('First form response'),
+  formLinked: z.boolean().describe('Whether the sheet appears to be form-linked'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
+// LLM-Optimized Workflow Actions (3 new - reduces multiple calls to 1)
+// ============================================================================
+
+/**
+ * Setup Sheet - Creates a sheet with headers, formatting, and validation in one call
+ * LLM Optimization: Saves 70-80% API calls vs manual setup
+ */
+export const SetupSheetInputSchema = z.object({
+  action: z.literal('setup_sheet').describe('Create and configure a new sheet in one operation'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
+  sheetName: z.string().max(255).describe('Name for the new sheet'),
+  headers: z.array(z.string()).min(1).max(100).describe('Column header names'),
+  columnWidths: z
+    .array(z.coerce.number().int().min(20).max(500))
+    .optional()
+    .describe('Column widths in pixels (same order as headers)'),
+  headerFormat: z
+    .object({
+      bold: z.boolean().optional().default(true),
+      backgroundColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional(),
+      textColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional(),
+    })
+    .optional()
+    .describe('Header row formatting'),
+  freezeHeaderRow: z.boolean().optional().default(true).describe('Freeze the header row'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const SetupSheetOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('setup_sheet'),
+  sheetId: SheetIdSchema,
+  sheetName: SheetNameSchema,
+  columnCount: z.coerce.number().int(),
+  apiCallsSaved: z.coerce.number().int().describe('Number of API calls saved vs manual setup'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * Import and Format - Import CSV and apply formatting in one operation
+ * LLM Optimization: Saves 60-70% API calls vs import + format separately
+ */
+export const ImportAndFormatInputSchema = z.object({
+  action: z
+    .literal('import_and_format')
+    .describe('Import CSV data and apply formatting in one operation'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
+  sheet: SheetReferenceSchema.optional().describe('Target sheet (creates new if not specified)'),
+  csvData: z.string().min(1).max(10485760).describe('CSV data as string (max 10MB)'),
+  delimiter: z.string().max(5).default(',').describe('Field delimiter'),
+  hasHeader: z.boolean().default(true).describe('First row is header'),
+  newSheetName: z.string().max(255).optional().describe('Name for new sheet'),
+  headerFormat: z
+    .object({
+      bold: z.boolean().optional().default(true),
+      backgroundColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional(),
+    })
+    .optional()
+    .describe('Header row formatting'),
+  freezeHeaderRow: z.boolean().optional().default(true).describe('Freeze the header row'),
+  autoResizeColumns: z.boolean().optional().default(true).describe('Auto-resize columns to fit'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+export const ImportAndFormatOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('import_and_format'),
+  rowsImported: z.coerce.number().int().min(0),
+  columnsImported: z.coerce.number().int().min(0),
+  sheetId: SheetIdSchema,
+  sheetName: SheetNameSchema,
+  range: z.string(),
+  apiCallsSaved: z.coerce.number().int().describe('Number of API calls saved vs manual process'),
+  mutation: MutationSummarySchema.optional(),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+/**
+ * Clone Structure - Copy sheet structure without data
+ * LLM Optimization: Saves 50-60% API calls vs manual copy + clear
+ */
+export const CloneStructureInputSchema = z.object({
+  action: z
+    .literal('clone_structure')
+    .describe('Clone sheet structure (headers, formats) without data'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID'),
+  sourceSheet: SheetReferenceSchema.describe('Source sheet to clone from'),
+  newSheetName: z.string().max(255).describe('Name for the cloned sheet'),
+  includeFormatting: z.boolean().optional().default(true).describe('Copy cell formatting'),
+  includeConditionalFormatting: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Copy conditional formatting rules'),
+  includeDataValidation: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Copy data validation rules'),
+  headerRowCount: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(1)
+    .describe('Number of header rows to preserve'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const CloneStructureOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('clone_structure'),
+  newSheetId: SheetIdSchema,
+  newSheetName: SheetNameSchema,
+  columnCount: z.coerce.number().int(),
+  headerRowsPreserved: z.coerce.number().int(),
+  formattingCopied: z.boolean(),
+  validationCopied: z.boolean(),
+  apiCallsSaved: z.coerce.number().int().describe('Number of API calls saved vs manual process'),
   _meta: ResponseMetaSchema.optional(),
 });
 
@@ -251,23 +495,35 @@ export const DeduplicateOutputSchema = z.object({
 // ============================================================================
 
 /**
- * All composite operation inputs
+ * All composite operation inputs (10 actions)
+ *
+ * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
+ * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
  * - Clearer error messages for LLMs
  * - Each action has only its required fields (no optional field pollution)
- * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const CompositeInputSchema = z.discriminatedUnion('action', [
-  ImportCsvInputSchema,
-  SmartAppendInputSchema,
-  BulkUpdateInputSchema,
-  DeduplicateInputSchema,
-]);
+export const CompositeInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Original composite actions (7)
+    ImportCsvInputSchema,
+    SmartAppendInputSchema,
+    BulkUpdateInputSchema,
+    DeduplicateInputSchema,
+    ExportXlsxInputSchema,
+    ImportXlsxInputSchema,
+    GetFormResponsesInputSchema,
+    // LLM-optimized workflow actions (3)
+    SetupSheetInputSchema,
+    ImportAndFormatInputSchema,
+    CloneStructureInputSchema,
+  ]),
+});
 
 /**
- * Success outputs
+ * Success outputs (10 actions)
  *
  * Using z.union() (not discriminated union) because output schemas
  * are only used for runtime validation, not for LLM guidance.
@@ -278,6 +534,13 @@ export const CompositeSuccessOutputSchema = z.union([
   SmartAppendOutputSchema,
   BulkUpdateOutputSchema,
   DeduplicateOutputSchema,
+  ExportXlsxOutputSchema,
+  ImportXlsxOutputSchema,
+  GetFormResponsesOutputSchema,
+  // LLM-optimized workflow outputs
+  SetupSheetOutputSchema,
+  ImportAndFormatOutputSchema,
+  CloneStructureOutputSchema,
 ]);
 
 /**
@@ -291,8 +554,17 @@ export const CompositeErrorOutputSchema = z.object({
 /**
  * Combined composite response
  */
-export const CompositeResponseSchema = z.union([
-  CompositeSuccessOutputSchema,
+export const CompositeResponseSchema = z.discriminatedUnion('success', [
+  ImportCsvOutputSchema,
+  SmartAppendOutputSchema,
+  BulkUpdateOutputSchema,
+  DeduplicateOutputSchema,
+  ExportXlsxOutputSchema,
+  ImportXlsxOutputSchema,
+  GetFormResponsesOutputSchema,
+  SetupSheetOutputSchema,
+  ImportAndFormatOutputSchema,
+  CloneStructureOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -322,35 +594,83 @@ export type BulkUpdateOutput = z.infer<typeof BulkUpdateOutputSchema>;
 export type DeduplicateInput = z.infer<typeof DeduplicateInputSchema>;
 export type DeduplicateOutput = z.infer<typeof DeduplicateOutputSchema>;
 
+export type ExportXlsxInput = z.infer<typeof ExportXlsxInputSchema>;
+export type ExportXlsxOutput = z.infer<typeof ExportXlsxOutputSchema>;
+
+export type ImportXlsxInput = z.infer<typeof ImportXlsxInputSchema>;
+export type ImportXlsxOutput = z.infer<typeof ImportXlsxOutputSchema>;
+
+export type GetFormResponsesInput = z.infer<typeof GetFormResponsesInputSchema>;
+export type GetFormResponsesOutput = z.infer<typeof GetFormResponsesOutputSchema>;
+
+// LLM-optimized workflow types
+export type SetupSheetInput = z.infer<typeof SetupSheetInputSchema>;
+export type SetupSheetOutput = z.infer<typeof SetupSheetOutputSchema>;
+export type ImportAndFormatInput = z.infer<typeof ImportAndFormatInputSchema>;
+export type ImportAndFormatOutput = z.infer<typeof ImportAndFormatOutputSchema>;
+export type CloneStructureInput = z.infer<typeof CloneStructureInputSchema>;
+export type CloneStructureOutput = z.infer<typeof CloneStructureOutputSchema>;
+
 export type CompositeInput = z.infer<typeof CompositeInputSchema>;
 export type CompositeSuccessOutput = z.infer<typeof CompositeSuccessOutputSchema>;
 export type CompositeOutput = z.infer<typeof CompositeOutputSchema>;
 
 // Type narrowing helpers for handler methods
 // These provide type safety similar to discriminated union Extract<>
-export type CompositeImportCsvInput = CompositeInput & {
+export type CompositeImportCsvInput = CompositeInput['request'] & {
   action: 'import_csv';
   spreadsheetId: string;
   csvData: string;
 };
-export type CompositeSmartAppendInput = CompositeInput & {
+export type CompositeSmartAppendInput = CompositeInput['request'] & {
   action: 'smart_append';
   spreadsheetId: string;
   sheet: SheetReference;
   data: Array<Record<string, unknown>>;
 };
-export type CompositeBulkUpdateInput = CompositeInput & {
+export type CompositeBulkUpdateInput = CompositeInput['request'] & {
   action: 'bulk_update';
   spreadsheetId: string;
   sheet: SheetReference;
   keyColumn: string;
   updates: Array<Record<string, unknown>>;
 };
-export type CompositeDeduplicateInput = CompositeInput & {
+export type CompositeDeduplicateInput = CompositeInput['request'] & {
   action: 'deduplicate';
   spreadsheetId: string;
   sheet: SheetReference;
   keyColumns: string[];
+};
+export type CompositeExportXlsxInput = CompositeInput['request'] & {
+  action: 'export_xlsx';
+  spreadsheetId: string;
+};
+export type CompositeImportXlsxInput = CompositeInput['request'] & {
+  action: 'import_xlsx';
+  fileContent: string;
+};
+export type CompositeGetFormResponsesInput = CompositeInput['request'] & {
+  action: 'get_form_responses';
+  spreadsheetId: string;
+};
+
+// LLM-optimized workflow type helpers
+export type CompositeSetupSheetInput = CompositeInput['request'] & {
+  action: 'setup_sheet';
+  spreadsheetId: string;
+  sheetName: string;
+  headers: string[];
+};
+export type CompositeImportAndFormatInput = CompositeInput['request'] & {
+  action: 'import_and_format';
+  spreadsheetId: string;
+  csvData: string;
+};
+export type CompositeCloneStructureInput = CompositeInput['request'] & {
+  action: 'clone_structure';
+  spreadsheetId: string;
+  sourceSheet: SheetReference;
+  newSheetName: string;
 };
 
 // ============================================================================

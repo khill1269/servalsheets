@@ -47,15 +47,8 @@ export function categorizeTests(): Map<string, TestCategory> {
   // Read-only tests (safe to parallelize)
   categories.set('read-only', {
     name: 'Read-Only Operations',
-    tools: [
-      'sheets_auth',
-      'sheets_spreadsheet',
-      'sheets_sheet',
-      'sheets_values',
-      'sheets_analysis',
-      'sheets_history',
-    ],
-    actions: ['status', 'get', 'list', 'read', 'find', 'stats'],
+    tools: ['sheets_auth', 'sheets_core', 'sheets_data', 'sheets_analyze', 'sheets_history'],
+    actions: ['status', 'get', 'list', 'read', 'find_replace', 'stats'],
     canRunInParallel: true,
     requiresAuth: false,
     isReadOnly: true,
@@ -64,13 +57,16 @@ export function categorizeTests(): Map<string, TestCategory> {
   // Write operations (sequential, requires auth)
   categories.set('write', {
     name: 'Write Operations',
-    tools: [
-      'sheets_values',
-      'sheets_cells',
-      'sheets_format',
-      'sheets_dimensions',
+    tools: ['sheets_data', 'sheets_format', 'sheets_dimensions'],
+    actions: [
+      'write',
+      'append',
+      'batch_write',
+      'clear',
+      'set_format',
+      'insert_rows',
+      'delete_rows',
     ],
-    actions: ['write', 'append', 'update', 'delete', 'clear', 'batch_write'],
     canRunInParallel: false,
     requiresAuth: true,
     isReadOnly: false,
@@ -79,8 +75,8 @@ export function categorizeTests(): Map<string, TestCategory> {
   // Admin operations (sequential, requires auth)
   categories.set('admin', {
     name: 'Administrative Operations',
-    tools: ['sheets_spreadsheet', 'sheets_sheet', 'sheets_sharing'],
-    actions: ['create', 'delete', 'copy', 'share', 'transfer_ownership'],
+    tools: ['sheets_core', 'sheets_collaborate'],
+    actions: ['create', 'delete_sheet', 'copy', 'share_add', 'share_transfer_ownership'],
     canRunInParallel: false,
     requiresAuth: true,
     isReadOnly: false,
@@ -89,8 +85,8 @@ export function categorizeTests(): Map<string, TestCategory> {
   // Analysis operations (can parallelize, may require auth)
   categories.set('analysis', {
     name: 'Analysis Operations',
-    tools: ['sheets_analysis', 'sheets_confirm', 'sheets_analyze', 'sheets_fix'],
-    actions: ['analyze', 'suggest', 'detect', 'fix', 'validate'],
+    tools: ['sheets_analyze', 'sheets_confirm', 'sheets_quality', 'sheets_fix'],
+    actions: ['comprehensive', 'get_stats', 'validate', 'fix'],
     canRunInParallel: true,
     requiresAuth: true,
     isReadOnly: true,
@@ -106,13 +102,7 @@ export function shouldRetry(error: any, attempt: number, maxRetries: number): bo
   if (attempt >= maxRetries) return false;
 
   // Retry on network/timeout errors
-  const retryableErrors = [
-    'Request timeout',
-    'ECONNRESET',
-    'ETIMEDOUT',
-    'ENOTFOUND',
-    'Rate limit',
-  ];
+  const retryableErrors = ['Request timeout', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'Rate limit'];
 
   const errorMessage = error?.message || String(error);
   return retryableErrors.some((err) => errorMessage.includes(err));
@@ -123,7 +113,7 @@ export function shouldRetry(error: any, attempt: number, maxRetries: number): bo
  */
 export function categorizePerformance(
   duration: number,
-  thresholds: OptimizationConfig['performanceThresholds'],
+  thresholds: OptimizationConfig['performanceThresholds']
 ): 'fast' | 'normal' | 'slow' | 'very-slow' {
   if (duration < 100) return 'fast';
   if (duration < thresholds.slow) return 'normal';
@@ -136,7 +126,7 @@ export function categorizePerformance(
  */
 export function calculateExecutionStrategy(
   tests: Array<{ tool: string; action: string }>,
-  config: OptimizationConfig,
+  config: OptimizationConfig
 ): {
   parallelBatches: Array<Array<{ tool: string; action: string }>>;
   sequentialTests: Array<{ tool: string; action: string }>;
@@ -180,7 +170,7 @@ export function calculateExecutionStrategy(
 function isReadOnlyTest(
   tool: string,
   action: string,
-  categories: Map<string, TestCategory>,
+  categories: Map<string, TestCategory>
 ): boolean {
   const readOnlyCategory = categories.get('read-only');
   if (!readOnlyCategory) return false;
@@ -207,10 +197,7 @@ export interface PerformanceReport {
   p99Duration: number;
   slowTests: Array<{ tool: string; action: string; duration: number }>;
   fastTests: Array<{ tool: string; action: string; duration: number }>;
-  performanceByCategory: Map<
-    string,
-    { count: number; avgDuration: number; category: string }
-  >;
+  performanceByCategory: Map<string, { count: number; avgDuration: number; category: string }>;
 }
 
 export function generatePerformanceReport(
@@ -220,7 +207,7 @@ export function generatePerformanceReport(
     duration: number;
     status: string;
   }>,
-  config: OptimizationConfig,
+  config: OptimizationConfig
 ): PerformanceReport {
   const durations = tests.map((t) => t.duration).filter((d) => d > 0);
   durations.sort((a, b) => a - b);

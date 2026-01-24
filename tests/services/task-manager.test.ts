@@ -346,9 +346,9 @@ describe('TaskManager', () => {
       const activeTasks = taskManager.listActiveTasks();
 
       expect(activeTasks).toHaveLength(2);
-      expect(activeTasks.map(t => t.taskId)).toContain('task-1');
-      expect(activeTasks.map(t => t.taskId)).toContain('task-2');
-      expect(activeTasks.map(t => t.taskId)).not.toContain('task-3');
+      expect(activeTasks.map((t) => t.taskId)).toContain('task-1');
+      expect(activeTasks.map((t) => t.taskId)).toContain('task-2');
+      expect(activeTasks.map((t) => t.taskId)).not.toContain('task-3');
     });
 
     it('should not include failed tasks in active list', () => {
@@ -387,9 +387,9 @@ describe('TaskManager', () => {
       const allTasks = taskManager.getAllTasks();
 
       expect(allTasks).toHaveLength(3);
-      expect(allTasks.map(t => t.taskId)).toContain('task-1');
-      expect(allTasks.map(t => t.taskId)).toContain('task-2');
-      expect(allTasks.map(t => t.taskId)).toContain('task-3');
+      expect(allTasks.map((t) => t.taskId)).toContain('task-1');
+      expect(allTasks.map((t) => t.taskId)).toContain('task-2');
+      expect(allTasks.map((t) => t.taskId)).toContain('task-3');
     });
   });
 

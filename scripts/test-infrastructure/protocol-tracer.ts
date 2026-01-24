@@ -56,12 +56,7 @@ export class ProtocolTracer {
   /**
    * Start tracing a request
    */
-  startTrace(
-    requestId: string,
-    tool: string,
-    action: string,
-    request: MCPMessage,
-  ): void {
+  startTrace(requestId: string, tool: string, action: string, request: MCPMessage): void {
     this.startTimes.set(requestId, Date.now());
 
     this.traces.set(requestId, {
@@ -163,7 +158,8 @@ export class ProtocolTracer {
     // Check response content for resource references
     if (response.result?.content) {
       const content = JSON.stringify(response.result.content);
-      const resourcePattern = /(?:history|cache|metrics|transaction|conflict|impact|validation|confirm|analyze|knowledge|chart|pivot|quality):\/\/\S+/g;
+      const resourcePattern =
+        /(?:history|cache|metrics|transaction|conflict|impact|validation|confirm|analyze|knowledge|chart|pivot|quality):\/\/\S+/g;
       const matches = content.match(resourcePattern);
       if (matches) {
         features.usedResources = true;

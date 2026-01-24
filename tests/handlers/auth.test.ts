@@ -16,7 +16,11 @@ vi.mock('googleapis', () => {
   class MockOAuth2Client {
     credentials: any = {};
 
-    generateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?client_id=test&redirect_uri=http://localhost:3000/callback&scope=https://www.googleapis.com/auth/spreadsheets&access_type=offline&response_type=code');
+    generateAuthUrl = vi
+      .fn()
+      .mockReturnValue(
+        'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&redirect_uri=http://localhost:3000/callback&scope=https://www.googleapis.com/auth/spreadsheets&access_type=offline&response_type=code'
+      );
 
     getToken = vi.fn().mockResolvedValue({
       tokens: {
@@ -71,21 +75,22 @@ vi.mock('../../src/services/token-store.js', () => {
 const createMockGoogleClient = (
   authType: 'oauth' | 'service_account' | 'application_default' = 'oauth',
   hasTokens = false
-): GoogleApiClient => ({
-  authType,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  getTokenStatus: vi.fn().mockReturnValue({
-    hasAccessToken: hasTokens,
-    hasRefreshToken: hasTokens,
-  }),
-  validateToken: vi.fn().mockResolvedValue({
-    valid: hasTokens, // Token is valid if it exists
-    error: hasTokens ? undefined : 'No token present',
-  }),
-  setCredentials: vi.fn(),
-  clearStoredTokens: vi.fn(),
-  revokeAccess: vi.fn(),
-} as any);
+): GoogleApiClient =>
+  ({
+    authType,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    getTokenStatus: vi.fn().mockReturnValue({
+      hasAccessToken: hasTokens,
+      hasRefreshToken: hasTokens,
+    }),
+    validateToken: vi.fn().mockResolvedValue({
+      valid: hasTokens, // Token is valid if it exists
+      error: hasTokens ? undefined : 'No token present',
+    }),
+    setCredentials: vi.fn(),
+    clearStoredTokens: vi.fn(),
+    revokeAccess: vi.fn(),
+  }) as any;
 
 describe('AuthHandler', () => {
   beforeEach(() => {

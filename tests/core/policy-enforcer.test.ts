@@ -1,6 +1,6 @@
 /**
  * ServalSheets v4 - Policy Enforcer Tests
- * 
+ *
  * Verifies policy enforcement for safety limits
  */
 
@@ -18,7 +18,7 @@ describe('PolicyEnforcer', () => {
 
     it('should have sensible defaults', () => {
       const config = enforcer.getConfig();
-      
+
       expect(config.maxCellsPerOperation).toBe(50000);
       expect(config.maxRowsPerDelete).toBe(10000);
       expect(config.maxColumnsPerDelete).toBe(100);
@@ -41,9 +41,9 @@ describe('PolicyEnforcer', () => {
 
     it('should allow updating configuration', () => {
       const enforcer = new PolicyEnforcer({ maxCellsPerOperation: 1000 });
-      
+
       enforcer.updateConfig({ maxCellsPerOperation: 2000 });
-      
+
       expect(enforcer.getConfig().maxCellsPerOperation).toBe(2000);
     });
   });
@@ -69,7 +69,7 @@ describe('PolicyEnforcer', () => {
           target: { spreadsheetId: 'test' },
           payload: {},
           metadata: {
-            sourceTool: 'sheets_values',
+            sourceTool: 'sheets_data',
             sourceAction: 'write',
             priority: 0,
             destructive: false,
@@ -77,8 +77,7 @@ describe('PolicyEnforcer', () => {
           },
         };
 
-        await expect(enforcer.validateIntents([intent]))
-          .rejects.toThrow(PolicyViolationError);
+        await expect(enforcer.validateIntents([intent])).rejects.toThrow(PolicyViolationError);
       });
 
       it('should include details in error', async () => {
@@ -87,7 +86,7 @@ describe('PolicyEnforcer', () => {
           target: { spreadsheetId: 'test' },
           payload: {},
           metadata: {
-            sourceTool: 'sheets_values',
+            sourceTool: 'sheets_data',
             sourceAction: 'write',
             priority: 0,
             destructive: false,
@@ -112,7 +111,7 @@ describe('PolicyEnforcer', () => {
           target: { spreadsheetId: 'test' },
           payload: {},
           metadata: {
-            sourceTool: 'sheets_values',
+            sourceTool: 'sheets_data',
             sourceAction: 'write',
             priority: 0,
             destructive: false,
@@ -142,8 +141,7 @@ describe('PolicyEnforcer', () => {
           },
         };
 
-        await expect(enforcer.validateIntents([intent]))
-          .rejects.toThrow(PolicyViolationError);
+        await expect(enforcer.validateIntents([intent])).rejects.toThrow(PolicyViolationError);
       });
 
       it('should allow row deletion within limit', async () => {
@@ -185,8 +183,7 @@ describe('PolicyEnforcer', () => {
           },
         };
 
-        await expect(enforcer.validateIntents([intent]))
-          .rejects.toThrow(PolicyViolationError);
+        await expect(enforcer.validateIntents([intent])).rejects.toThrow(PolicyViolationError);
       });
 
       it('should allow column deletion within limit', async () => {
@@ -212,36 +209,39 @@ describe('PolicyEnforcer', () => {
 
     describe('Batch limit', () => {
       it('should reject batches exceeding intent limit', async () => {
-        const intents: Intent[] = Array(100).fill(null).map(() => ({
-          type: 'SET_VALUES' as const,
-          target: { spreadsheetId: 'test' },
-          payload: {},
-          metadata: {
-            sourceTool: 'sheets_values',
-            sourceAction: 'write',
-            priority: 0,
-            destructive: false,
-            estimatedCells: 1,
-          },
-        }));
+        const intents: Intent[] = Array(100)
+          .fill(null)
+          .map(() => ({
+            type: 'SET_VALUES' as const,
+            target: { spreadsheetId: 'test' },
+            payload: {},
+            metadata: {
+              sourceTool: 'sheets_data',
+              sourceAction: 'write',
+              priority: 0,
+              destructive: false,
+              estimatedCells: 1,
+            },
+          }));
 
-        await expect(enforcer.validateIntents(intents))
-          .rejects.toThrow(PolicyViolationError);
+        await expect(enforcer.validateIntents(intents)).rejects.toThrow(PolicyViolationError);
       });
 
       it('should allow batches within limit', async () => {
-        const intents: Intent[] = Array(25).fill(null).map(() => ({
-          type: 'SET_VALUES' as const,
-          target: { spreadsheetId: 'test' },
-          payload: {},
-          metadata: {
-            sourceTool: 'sheets_values',
-            sourceAction: 'write',
-            priority: 0,
-            destructive: false,
-            estimatedCells: 1,
-          },
-        }));
+        const intents: Intent[] = Array(25)
+          .fill(null)
+          .map(() => ({
+            type: 'SET_VALUES' as const,
+            target: { spreadsheetId: 'test' },
+            payload: {},
+            metadata: {
+              sourceTool: 'sheets_data',
+              sourceAction: 'write',
+              priority: 0,
+              destructive: false,
+              estimatedCells: 1,
+            },
+          }));
 
         await expect(enforcer.validateIntents(intents)).resolves.not.toThrow();
       });
@@ -254,18 +254,27 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+            metadata: {
+              sourceTool: 'sheets_core',
+              sourceAction: 'delete_sheet',
+              priority: 0,
+              destructive: true,
+            },
           },
           {
             type: 'CLEAR_VALUES',
             target: { spreadsheetId: 'test' },
             payload: {},
-            metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
+            metadata: {
+              sourceTool: 'sheets_data',
+              sourceAction: 'clear',
+              priority: 0,
+              destructive: true,
+            },
           },
         ];
 
-        await expect(enforcer.validateIntents(intents))
-          .rejects.toThrow(PolicyViolationError);
+        await expect(enforcer.validateIntents(intents)).rejects.toThrow(PolicyViolationError);
       });
 
       it('should allow single destructive op', async () => {
@@ -274,7 +283,12 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+            metadata: {
+              sourceTool: 'sheets_core',
+              sourceAction: 'delete_sheet',
+              priority: 0,
+              destructive: true,
+            },
           },
         ];
 
@@ -292,13 +306,23 @@ describe('PolicyEnforcer', () => {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 1 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+            metadata: {
+              sourceTool: 'sheets_core',
+              sourceAction: 'delete_sheet',
+              priority: 0,
+              destructive: true,
+            },
           },
           {
             type: 'DELETE_SHEET',
             target: { spreadsheetId: 'test', sheetId: 2 },
             payload: {},
-            metadata: { sourceTool: 'sheets_sheet', sourceAction: 'delete', priority: 0, destructive: true },
+            metadata: {
+              sourceTool: 'sheets_core',
+              sourceAction: 'delete_sheet',
+              priority: 0,
+              destructive: true,
+            },
           },
         ];
 
@@ -317,11 +341,15 @@ describe('PolicyEnforcer', () => {
         type: 'CLEAR_VALUES',
         target: { spreadsheetId: 'test' }, // No range specified
         payload: {},
-        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
+        metadata: {
+          sourceTool: 'sheets_data',
+          sourceAction: 'clear',
+          priority: 0,
+          destructive: true,
+        },
       };
 
-      await expect(enforcer.validateIntents([intent]))
-        .rejects.toThrow(PolicyViolationError);
+      await expect(enforcer.validateIntents([intent])).rejects.toThrow(PolicyViolationError);
     });
 
     it('should allow destructive ops with range when required', async () => {
@@ -333,7 +361,12 @@ describe('PolicyEnforcer', () => {
         type: 'CLEAR_VALUES',
         target: { spreadsheetId: 'test', range: 'Sheet1!A1:B10' }, // Range specified
         payload: {},
-        metadata: { sourceTool: 'sheets_values', sourceAction: 'clear', priority: 0, destructive: true },
+        metadata: {
+          sourceTool: 'sheets_data',
+          sourceAction: 'clear',
+          priority: 0,
+          destructive: true,
+        },
       };
 
       await expect(enforcer.validateIntents([intent])).resolves.not.toThrow();
@@ -342,11 +375,9 @@ describe('PolicyEnforcer', () => {
 
   describe('PolicyViolationError', () => {
     it('should convert to ErrorDetail correctly', () => {
-      const error = new PolicyViolationError(
-        'Test error message',
-        'EFFECT_SCOPE_EXCEEDED',
-        { foo: 'bar' }
-      );
+      const error = new PolicyViolationError('Test error message', 'EFFECT_SCOPE_EXCEEDED', {
+        foo: 'bar',
+      });
 
       const detail = error.toErrorDetail();
 

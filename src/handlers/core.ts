@@ -5,18 +5,19 @@
  * - Spreadsheet operations (8): get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list
  * - Sheet/tab operations (7): add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet
  *
- * Consolidates sheets_spreadsheet + sheets_sheet handlers
+ * Consolidates legacy sheets_spreadsheet + sheets_sheet handlers
  * MCP Protocol: 2025-11-25
  */
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type {
   SheetsCoreInput,
   SheetsCoreOutput,
   SheetInfo,
   CoreResponse,
+  CoreRequest,
   CoreGetInput,
   CoreCreateInput,
   CoreCopyInput,
@@ -32,13 +33,15 @@ import type {
   CoreCopySheetToInput,
   CoreListSheetsInput,
   CoreGetSheetInput,
+  CoreBatchDeleteSheetsInput,
+  CoreBatchUpdateSheetsInput,
 } from '../schemas/index.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
 import { ScopeValidator } from '../security/incremental-scope.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
-import { createNotFoundError } from '../utils/error-factory.js';
+import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 
 export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -51,17 +54,21 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   }
 
   async handle(input: SheetsCoreInput): Promise<SheetsCoreOutput> {
-    // Require authentication before proceeding
+    // Extract the request from the wrapper
+    const rawReq = unwrapRequest<SheetsCoreInput['request']>(input);
     this.requireAuth();
 
     // Track spreadsheet ID for better error messages
-    const spreadsheetId =
-      'spreadsheetId' in input ? (input as { spreadsheetId?: string }).spreadsheetId : undefined;
+    const spreadsheetId = 'spreadsheetId' in rawReq ? rawReq.spreadsheetId : undefined;
     this.trackSpreadsheetId(spreadsheetId);
 
     try {
       // Infer missing parameters from context
-      const req = this.inferRequestParameters(input) as SheetsCoreInput;
+      const req = this.inferRequestParameters(rawReq) as CoreRequest;
+
+      // Set verbosity early to skip metadata generation for minimal mode (saves ~400-800 tokens)
+      const verbosity = req.verbosity ?? 'standard';
+      this.setVerbosity(verbosity);
 
       let response: CoreResponse;
       switch (req.action) {
@@ -114,6 +121,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           response = await this.handleGetSheet(req as CoreGetSheetInput);
           break;
 
+        // Batch operations (Issue #2 fix - efficient multi-sheet operations)
+        case 'batch_delete_sheets':
+          response = await this.handleBatchDeleteSheets(req as CoreBatchDeleteSheetsInput);
+          break;
+        case 'batch_update_sheets':
+          response = await this.handleBatchUpdateSheets(req as CoreBatchUpdateSheetsInput);
+          break;
+
         default:
           response = this.error({
             code: 'INVALID_PARAMS',
@@ -135,8 +150,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         });
       }
 
-      // Apply verbosity filtering (LLM optimization)
-      const verbosity = req.verbosity ?? 'standard';
+      // Apply verbosity filtering (LLM optimization) - verbosity already set earlier
       const filteredResponse = this.applyCoreVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
@@ -183,20 +197,22 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   }
 
   protected createIntents(input: SheetsCoreInput): Intent[] {
+    // Extract the request from the wrapper
+    const req = unwrapRequest<SheetsCoreInput['request']>(input);
     // Create intents for batch compiler
-    switch (input.action) {
+    switch (req.action) {
       // Spreadsheet intents
       case 'update_properties':
-        if (input.spreadsheetId) {
+        if (req.spreadsheetId) {
           return [
             {
               type: 'UPDATE_SHEET_PROPERTIES',
-              target: { spreadsheetId: input.spreadsheetId },
+              target: { spreadsheetId: req.spreadsheetId },
               payload: {
-                title: input.title,
-                locale: input.locale,
-                timeZone: input.timeZone,
-                autoRecalc: input.autoRecalc,
+                title: req.title,
+                locale: req.locale,
+                timeZone: req.timeZone,
+                autoRecalc: req.autoRecalc,
               },
               metadata: {
                 sourceTool: this.toolName,
@@ -214,8 +230,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         return [
           {
             type: 'ADD_SHEET',
-            target: { spreadsheetId: input.spreadsheetId! },
-            payload: { title: input.title },
+            target: { spreadsheetId: req.spreadsheetId! },
+            payload: { title: req.title },
             metadata: {
               sourceTool: this.toolName,
               sourceAction: 'add_sheet',
@@ -229,8 +245,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           {
             type: 'DELETE_SHEET',
             target: {
-              spreadsheetId: input.spreadsheetId!,
-              sheetId: input.sheetId!,
+              spreadsheetId: req.spreadsheetId!,
+              sheetId: req.sheetId!,
             },
             payload: {},
             metadata: {
@@ -246,10 +262,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           {
             type: 'DUPLICATE_SHEET',
             target: {
-              spreadsheetId: input.spreadsheetId!,
-              sheetId: input.sheetId!,
+              spreadsheetId: req.spreadsheetId!,
+              sheetId: req.sheetId!,
             },
-            payload: { newTitle: input.newTitle },
+            payload: { newTitle: req.newTitle },
             metadata: {
               sourceTool: this.toolName,
               sourceAction: 'duplicate_sheet',
@@ -263,10 +279,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           {
             type: 'UPDATE_SHEET_PROPERTIES',
             target: {
-              spreadsheetId: input.spreadsheetId!,
-              sheetId: input.sheetId!,
+              spreadsheetId: req.spreadsheetId!,
+              sheetId: req.sheetId!,
             },
-            payload: { title: input.title, hidden: input.hidden },
+            payload: { title: req.title, hidden: req.hidden },
             metadata: {
               sourceTool: this.toolName,
               sourceAction: 'update_sheet',
@@ -334,9 +350,20 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         : undefined,
     }));
 
+    // Validate response data
+    if (!data.spreadsheetId) {
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Sheets API returned incomplete data - missing spreadsheetId',
+        details: { inputSpreadsheetId: input.spreadsheetId },
+        retryable: true,
+        resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
+      });
+    }
+
     return this.success('get', {
       spreadsheet: {
-        spreadsheetId: data.spreadsheetId!,
+        spreadsheetId: data.spreadsheetId,
         title: data.properties?.title ?? '',
         url: data.spreadsheetUrl ?? undefined,
         locale: data.properties?.locale ?? undefined,
@@ -431,16 +458,27 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       hidden: s.properties?.hidden ?? false,
     }));
 
+    // Validate response data
+    if (!data.spreadsheetId) {
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Sheets API returned incomplete data after creating spreadsheet',
+        details: { title: input.title },
+        retryable: true,
+        resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
+      });
+    }
+
     return this.success('create', {
       spreadsheet: {
-        spreadsheetId: data.spreadsheetId!,
+        spreadsheetId: data.spreadsheetId,
         title: data.properties?.title ?? '',
         url: data.spreadsheetUrl ?? undefined,
         locale: data.properties?.locale ?? undefined,
         timeZone: data.properties?.timeZone ?? undefined,
         sheets,
       },
-      newSpreadsheetId: data.spreadsheetId!,
+      newSpreadsheetId: data.spreadsheetId,
     });
   }
 
@@ -478,25 +516,48 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       title = `Copy of ${current.data.properties?.title ?? 'Untitled'}`;
     }
 
+    // Build copy params - only include parents if destination folder is specified
+    // FIX: Use spread operator to conditionally include parents instead of null
+    // Google Drive API may not handle null parents correctly, causing hangs
     const copyParams: drive_v3.Params$Resource$Files$Copy = {
       fileId: input.spreadsheetId,
       requestBody: {
         name: title,
-        parents: input.destinationFolderId ? [input.destinationFolderId] : null,
+        ...(input.destinationFolderId ? { parents: [input.destinationFolderId] } : {}),
       },
     };
 
-    const response = await this.driveApi.files.copy(copyParams);
-    const newId = response.data.id!;
+    try {
+      const response = await this.driveApi.files.copy(copyParams);
 
-    return this.success('copy', {
-      spreadsheet: {
-        spreadsheetId: newId,
-        title: response.data.name ?? title,
-        url: `https://docs.google.com/spreadsheets/d/${newId}`,
-      },
-      newSpreadsheetId: newId,
-    });
+      if (!response.data.id) {
+        return this.error({
+          code: 'INTERNAL_ERROR',
+          message: 'Drive API returned no file ID after copy operation',
+          details: {
+            spreadsheetId: input.spreadsheetId,
+            copyParams,
+          },
+          retryable: true,
+          resolution:
+            'Retry the copy operation. If the issue persists, check Google Drive API status.',
+        });
+      }
+
+      const newId = response.data.id;
+
+      return this.success('copy', {
+        spreadsheet: {
+          spreadsheetId: newId,
+          title: response.data.name ?? title,
+          url: `https://docs.google.com/spreadsheets/d/${newId}`,
+        },
+        newSpreadsheetId: newId,
+      });
+    } catch (err) {
+      // Ensure errors from Drive API are properly caught and mapped
+      return this.mapError(err);
+    }
   }
 
   /**
@@ -552,9 +613,20 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       fields: 'spreadsheetId,properties,spreadsheetUrl',
     });
 
+    // Validate response data
+    if (!updated.data.spreadsheetId) {
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Sheets API returned incomplete data after update',
+        details: { spreadsheetId: input.spreadsheetId },
+        retryable: true,
+        resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
+      });
+    }
+
     return this.success('update_properties', {
       spreadsheet: {
-        spreadsheetId: updated.data.spreadsheetId!,
+        spreadsheetId: updated.data.spreadsheetId,
         title: updated.data.properties?.title ?? '',
         url: updated.data.spreadsheetUrl ?? undefined,
         locale: updated.data.properties?.locale ?? undefined,
@@ -611,8 +683,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             hidden: s.properties?.hidden ?? false,
           }));
 
+          // Use fallback to input ID if response missing spreadsheetId
           return {
-            spreadsheetId: data.spreadsheetId!,
+            spreadsheetId: data.spreadsheetId ?? id,
             title: data.properties?.title ?? '',
             url: data.spreadsheetUrl ?? undefined,
             locale: data.properties?.locale ?? undefined,
@@ -717,9 +790,20 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     const totalProtectedRanges =
       data.sheets?.reduce((sum, s) => sum + (s.protectedRanges?.length ?? 0), 0) ?? 0;
 
+    // Validate response data
+    if (!data.spreadsheetId) {
+      return this.error({
+        code: 'INTERNAL_ERROR',
+        message: 'Sheets API returned incomplete data - missing spreadsheetId',
+        details: { inputSpreadsheetId: input.spreadsheetId },
+        retryable: true,
+        resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
+      });
+    }
+
     return this.success('get_comprehensive', {
       comprehensiveMetadata: {
-        spreadsheetId: data.spreadsheetId!,
+        spreadsheetId: data.spreadsheetId,
         properties: data.properties as Record<string, unknown>,
         namedRanges: data.namedRanges as Array<Record<string, unknown>>,
         sheets: data.sheets?.map((s) => ({
@@ -777,30 +861,37 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       q += ` and ${input.query}`;
     }
 
-    const response = await this.driveApi.files.list({
-      q,
-      pageSize,
-      orderBy,
-      fields: 'files(id,name,createdTime,modifiedTime,webViewLink,owners,lastModifyingUser)',
-      spaces: 'drive',
-    });
+    try {
+      const response = await this.driveApi.files.list({
+        q,
+        pageSize,
+        orderBy,
+        fields: 'files(id,name,createdTime,modifiedTime,webViewLink,owners,lastModifyingUser)',
+        spaces: 'drive',
+      });
 
-    const spreadsheets = (response.data.files || []).map((file) => ({
-      spreadsheetId: file.id!,
-      title: file.name!,
-      url: file.webViewLink ?? undefined,
-      createdTime: file.createdTime ?? undefined,
-      modifiedTime: file.modifiedTime ?? undefined,
-      owners: file.owners?.map((o) => ({
-        email: o.emailAddress ?? undefined,
-        displayName: o.displayName ?? undefined,
-      })),
-      lastModifiedBy: file.lastModifyingUser?.emailAddress ?? undefined,
-    }));
+      const spreadsheets = (response.data.files || [])
+        .filter((file) => file.id && file.name) // Filter out incomplete data
+        .map((file) => ({
+          spreadsheetId: file.id as string,
+          title: file.name as string,
+          url: file.webViewLink ?? undefined,
+          createdTime: file.createdTime ?? undefined,
+          modifiedTime: file.modifiedTime ?? undefined,
+          owners: file.owners?.map((o) => ({
+            email: o.emailAddress ?? undefined,
+            displayName: o.displayName ?? undefined,
+          })),
+          lastModifiedBy: file.lastModifyingUser?.emailAddress ?? undefined,
+        }));
 
-    return this.success('list', {
-      spreadsheets,
-    });
+      return this.success('list', {
+        spreadsheets,
+      });
+    } catch (err) {
+      // Ensure errors from Drive API are properly caught and mapped
+      return this.mapError(err);
+    }
   }
 
   // ===================================================================
@@ -952,44 +1043,106 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
   /**
    * Update sheet/tab properties
+   *
+   * ENHANCED: Now supports both parameter styles:
+   * - Root-level: { title: "...", hidden: true }
+   * - Nested: { properties: { title: "...", hidden: true } }
+   *
+   * Also supports sheetName lookup as alternative to sheetId
    */
   private async handleUpdateSheet(input: CoreUpdateSheetInput): Promise<CoreResponse> {
+    // PARAMETER NORMALIZATION: Support both root-level and nested properties
+    // This fixes the issue where { properties: { title: "..." } } silently fails
+    const inputAny = input as Record<string, unknown>;
+    const nestedProps = inputAny['properties'] as Record<string, unknown> | undefined;
+
+    // Normalize: extract from nested properties if present (using bracket notation for index signature)
+    const title = input.title ?? (nestedProps?.['title'] as string | undefined);
+    const index = input.index ?? (nestedProps?.['index'] as number | undefined);
+    const hidden = input.hidden ?? (nestedProps?.['hidden'] as boolean | undefined);
+    const tabColor = input.tabColor ?? (nestedProps?.['tabColor'] as typeof input.tabColor);
+    const rightToLeft = input.rightToLeft ?? (nestedProps?.['rightToLeft'] as boolean | undefined);
+
+    // SHEETID RESOLUTION: Support sheetName lookup
+    let resolvedSheetId = input.sheetId;
+    const sheetName = inputAny['sheetName'] as string | undefined;
+
+    if (resolvedSheetId === undefined && sheetName) {
+      // Look up sheetId by name
+      const lookupResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      });
+
+      const matchingSheet = lookupResponse.data.sheets?.find(
+        (s) => s.properties?.title?.toLowerCase() === sheetName.toLowerCase()
+      );
+
+      if (!matchingSheet?.properties?.sheetId) {
+        return this.error(
+          createNotFoundError({
+            resourceType: 'sheet',
+            resourceId: `sheetName: "${sheetName}"`,
+            searchSuggestion: `Available sheets: ${lookupResponse.data.sheets?.map((s) => s.properties?.title).join(', ')}`,
+            parentResourceId: input.spreadsheetId,
+          })
+        );
+      }
+
+      resolvedSheetId = matchingSheet.properties.sheetId;
+    }
+
+    if (resolvedSheetId === undefined) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Either sheetId (number) or sheetName (string) is required',
+        retryable: false,
+      });
+    }
+
     // Build properties and fields mask
     const properties: sheets_v4.Schema$SheetProperties = {
-      sheetId: input.sheetId,
+      sheetId: resolvedSheetId,
     };
     const fields: string[] = [];
 
-    if (input.title !== undefined) {
-      properties.title = input.title;
+    if (title !== undefined) {
+      properties.title = title;
       fields.push('title');
     }
-    if (input.index !== undefined) {
-      properties.index = input.index;
+    if (index !== undefined) {
+      properties.index = index;
       fields.push('index');
     }
-    if (input.hidden !== undefined) {
-      properties.hidden = input.hidden;
+    if (hidden !== undefined) {
+      properties.hidden = hidden;
       fields.push('hidden');
     }
-    if (input.tabColor !== undefined) {
+    if (tabColor !== undefined) {
       properties.tabColor = {
-        red: input.tabColor.red,
-        green: input.tabColor.green,
-        blue: input.tabColor.blue,
-        alpha: input.tabColor.alpha,
+        red: tabColor.red,
+        green: tabColor.green,
+        blue: tabColor.blue,
+        alpha: tabColor.alpha,
       };
       fields.push('tabColor');
     }
-    if (input.rightToLeft !== undefined) {
-      properties.rightToLeft = input.rightToLeft;
+    if (rightToLeft !== undefined) {
+      properties.rightToLeft = rightToLeft;
       fields.push('rightToLeft');
     }
 
     if (fields.length === 0) {
       return this.error({
         code: 'INVALID_PARAMS',
-        message: 'No properties to update',
+        message:
+          'No properties to update. Provide at least one of: title, index, hidden, tabColor, rightToLeft',
+        details: {
+          receivedParams: Object.keys(inputAny).filter(
+            (k) => k !== 'action' && k !== 'spreadsheetId'
+          ),
+          hint: 'Properties can be at root level or nested in a "properties" object',
+        },
         retryable: false,
       });
     }
@@ -1014,12 +1167,12 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       fields: 'sheets.properties',
     });
 
-    const sheetData = updated.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    const sheetData = updated.data.sheets?.find((s) => s.properties?.sheetId === resolvedSheetId);
     if (!sheetData?.properties) {
       return this.error(
         createNotFoundError({
           resourceType: 'sheet',
-          resourceId: String(input.sheetId),
+          resourceId: String(resolvedSheetId),
           searchSuggestion: 'Sheet not found after update. Verify the sheet ID is correct.',
           parentResourceId: input.spreadsheetId,
         })
@@ -1090,6 +1243,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
   /**
    * Get info for a specific sheet/tab
+   * Supports lookup by sheetId (numeric) or sheetName (string)
    */
   private async handleGetSheet(input: CoreGetSheetInput): Promise<CoreResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
@@ -1097,13 +1251,33 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       fields: 'sheets.properties',
     });
 
-    const sheetData = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    // Find sheet by sheetId or sheetName
+    let sheetData: sheets_v4.Schema$Sheet | undefined;
+
+    if (input.sheetId !== undefined) {
+      // Lookup by numeric sheetId
+      sheetData = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    } else if (input.sheetName !== undefined) {
+      // Lookup by sheet name (case-insensitive)
+      const nameLower = input.sheetName.toLowerCase();
+      sheetData = response.data.sheets?.find(
+        (s) => s.properties?.title?.toLowerCase() === nameLower
+      );
+    }
+
     if (!sheetData?.properties) {
+      const resourceId =
+        input.sheetId !== undefined
+          ? `sheetId: ${input.sheetId}`
+          : `sheetName: "${input.sheetName}"`;
+      const available =
+        response.data.sheets?.map((s) => `${s.properties?.title} (id: ${s.properties?.sheetId})`) ??
+        [];
       return this.error(
         createNotFoundError({
           resourceType: 'sheet',
-          resourceId: String(input.sheetId),
-          searchSuggestion: 'Use sheets_core action "list_sheets" to see available sheet IDs',
+          resourceId,
+          searchSuggestion: `Available sheets: ${available.join(', ')}`,
           parentResourceId: input.spreadsheetId,
         })
       );
@@ -1155,5 +1329,140 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     } catch {
       return false;
     }
+  }
+
+  // ===================================================================
+  // BATCH OPERATIONS (Issue #2 fix - efficient multi-sheet operations)
+  // ===================================================================
+
+  /**
+   * Batch delete multiple sheets in a single API call
+   * More efficient than calling delete_sheet multiple times
+   */
+  private async handleBatchDeleteSheets(input: CoreBatchDeleteSheetsInput): Promise<CoreResponse> {
+    if (!input.sheetIds || input.sheetIds.length === 0) {
+      return this.error(
+        createValidationError({
+          field: 'sheetIds',
+          value: input.sheetIds ?? null,
+          expectedFormat: 'non-empty array of sheet IDs',
+          reason: 'Provide at least one sheetId to delete',
+        })
+      );
+    }
+
+    // Get current sheets to validate which exist
+    const spreadsheetResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties.sheetId',
+    });
+
+    const existingSheetIds = new Set(
+      spreadsheetResponse.data.sheets?.map((s) => s.properties?.sheetId) ?? []
+    );
+
+    // Filter to only sheets that exist
+    const sheetsToDelete = input.sheetIds.filter((id) => existingSheetIds.has(id));
+    const skippedSheetIds = input.sheetIds.filter((id) => !existingSheetIds.has(id));
+
+    if (sheetsToDelete.length === 0) {
+      return this.success('batch_delete_sheets', {
+        deletedCount: 0,
+        skippedSheetIds,
+        message: 'No sheets found to delete',
+      });
+    }
+
+    // Check we're not deleting all sheets (at least one must remain)
+    if (sheetsToDelete.length >= existingSheetIds.size) {
+      return this.error(
+        createValidationError({
+          field: 'sheetIds',
+          value: input.sheetIds,
+          expectedFormat: 'at least one sheet to remain',
+          reason: 'A spreadsheet must have at least one sheet. Remove one sheetId from the list.',
+        })
+      );
+    }
+
+    // Build batch delete requests
+    const requests: sheets_v4.Schema$Request[] = sheetsToDelete.map((sheetId) => ({
+      deleteSheet: { sheetId },
+    }));
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: { requests },
+    });
+
+    return this.success('batch_delete_sheets', {
+      deletedCount: sheetsToDelete.length,
+      skippedSheetIds: skippedSheetIds.length > 0 ? skippedSheetIds : undefined,
+      message: `Deleted ${sheetsToDelete.length} sheet(s)${skippedSheetIds.length > 0 ? `, skipped ${skippedSheetIds.length} non-existent` : ''}`,
+    });
+  }
+
+  /**
+   * Batch update multiple sheets' properties in a single API call
+   * More efficient than calling update_sheet multiple times
+   */
+  private async handleBatchUpdateSheets(input: CoreBatchUpdateSheetsInput): Promise<CoreResponse> {
+    if (!input.updates || input.updates.length === 0) {
+      return this.error(
+        createValidationError({
+          field: 'updates',
+          value: input.updates ?? null,
+          expectedFormat: 'non-empty array of sheet updates',
+          reason: 'Provide at least one update object with sheetId and properties to update',
+        })
+      );
+    }
+
+    // Build batch update requests
+    const requests: sheets_v4.Schema$Request[] = input.updates.map((update) => {
+      const fields: string[] = [];
+      const properties: sheets_v4.Schema$SheetProperties = {
+        sheetId: update.sheetId,
+      };
+
+      if (update.title !== undefined) {
+        properties.title = update.title;
+        fields.push('title');
+      }
+      if (update.index !== undefined) {
+        properties.index = update.index;
+        fields.push('index');
+      }
+      if (update.hidden !== undefined) {
+        properties.hidden = update.hidden;
+        fields.push('hidden');
+      }
+      if (update.tabColor !== undefined) {
+        properties.tabColor = {
+          red: update.tabColor.red,
+          green: update.tabColor.green,
+          blue: update.tabColor.blue,
+          alpha: update.tabColor.alpha ?? 1,
+        };
+        fields.push('tabColor');
+      }
+
+      return {
+        updateSheetProperties: {
+          properties,
+          fields: fields.join(','),
+        },
+      };
+    });
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: { requests },
+    });
+
+    return this.success('batch_update_sheets', {
+      updatedCount: input.updates.length,
+      message: `Updated ${input.updates.length} sheet(s)`,
+    });
   }
 }

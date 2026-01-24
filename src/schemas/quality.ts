@@ -46,7 +46,9 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
   rules: z
     .array(z.string())
     .optional()
-    .describe('Validation rule IDs to apply - all rules if omitted'),
+    .describe(
+      'Built-in rule IDs to apply (all if omitted). Available: builtin_string, builtin_number, builtin_boolean, builtin_date (type checks); builtin_positive, builtin_non_negative (range checks); builtin_email, builtin_url, builtin_phone (format checks); builtin_required, builtin_non_empty_string (presence checks). Example: ["builtin_email", "builtin_required"]'
+    ),
   context: z
     .record(z.string(), z.unknown())
     .optional()
@@ -84,35 +86,57 @@ const ResolveConflictActionSchema = CommonFieldsSchema.extend({
 const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('analyze_impact')
-    .describe('Pre-execution impact analysis with dependency tracking'),
+    .describe(
+      'Pre-execution impact analysis with dependency tracking. Example: { "action": "analyze_impact", "spreadsheetId": "abc123", "operation": { "tool": "sheets_data", "action": "clear", "params": { "range": "A1:Z100" } } }'
+    ),
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
   operation: z
     .object({
       type: z
         .string()
-        .min(1)
+        .optional()
         .describe(
           'Operation type (e.g., "values_write", "sheet_delete", "format_update", "dimension_change")'
         ),
-      tool: z
-        .string()
-        .min(1)
-        .regex(/^sheets_[a-z]+$/, 'Tool name must start with "sheets_" (e.g., "sheets_data")')
-        .describe('Tool name - must be a valid sheets_* tool'),
+      tool: z.string().optional().describe('Tool name (e.g., "sheets_data", "sheets_format")'),
       action: z
         .string()
-        .min(1)
+        .optional()
         .describe('Action name within the tool (e.g., "write", "clear", "format")'),
       params: z
         .record(z.string(), z.unknown())
+        .optional()
         .describe('Operation parameters that will be passed to the tool'),
+      description: z
+        .string()
+        .optional()
+        .describe('Natural language description of the operation (alternative to tool/action)'),
     })
-    .describe('Operation to analyze for impact before execution'),
+    .refine(
+      (op) => op.type || op.tool || op.action || op.description,
+      'At least one of type, tool, action, or description must be provided'
+    )
+    .describe(
+      'Operation to analyze. Provide tool+action+params for precise analysis, or description for natural language. Example: { "tool": "sheets_data", "action": "write", "params": { "range": "A1:B10", "values": [[1,2]] } }'
+    ),
 });
 
 // ============================================================================
 // Combined Input Schema
 // ============================================================================
+
+// Preprocess to normalize common LLM input variations
+const normalizeQualityRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const obj = val as Record<string, unknown>;
+
+  // Alias: 'resolution' → 'strategy' for resolve_conflict (LLM compatibility)
+  if (obj['action'] === 'resolve_conflict' && obj['resolution'] && !obj['strategy']) {
+    return { ...obj, strategy: obj['resolution'] };
+  }
+
+  return val;
+};
 
 /**
  * All quality assurance operation inputs
@@ -124,12 +148,15 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
 export const SheetsQualityInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    ValidateActionSchema,
-    DetectConflictsActionSchema,
-    ResolveConflictActionSchema,
-    AnalyzeImpactActionSchema,
-  ]),
+  request: z.preprocess(
+    normalizeQualityRequest,
+    z.discriminatedUnion('action', [
+      ValidateActionSchema,
+      DetectConflictsActionSchema,
+      ResolveConflictActionSchema,
+      AnalyzeImpactActionSchema,
+    ])
+  ),
 });
 
 const QualityResponseSchema = z.discriminatedUnion('success', [

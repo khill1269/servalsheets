@@ -14,14 +14,11 @@
  * Test Count: 18 comprehensive test cases
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ValidationEngine } from "../../src/services/validation-engine.js";
-import type {
-  ValidationRule,
-  ValidationContext,
-} from "../../src/types/validation.js";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ValidationEngine } from '../../src/services/validation-engine.js';
+import type { ValidationRule, ValidationContext } from '../../src/types/validation.js';
 
-describe("ValidationEngine", () => {
+describe('ValidationEngine', () => {
   let validationEngine: ValidationEngine;
 
   beforeEach(() => {
@@ -37,16 +34,16 @@ describe("ValidationEngine", () => {
     validationEngine.resetStats();
   });
 
-  describe("Built-in Type Validators", () => {
-    it("should validate string type correctly", async () => {
+  describe('Built-in Type Validators', () => {
+    it('should validate string type correctly', async () => {
       // Arrange
-      const validValue = "test string";
+      const validValue = 'test string';
       const invalidValue = 123;
 
       // Enable only string validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_string");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_string');
       });
 
       // Act
@@ -60,20 +57,20 @@ describe("ValidationEngine", () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain("string");
-      expect(invalidResult.errors[0].rule.type).toBe("data_type");
+      expect(invalidResult.errors[0].message).toContain('string');
+      expect(invalidResult.errors[0].rule.type).toBe('data_type');
     });
 
-    it("should validate number type correctly", async () => {
+    it('should validate number type correctly', async () => {
       // Arrange
       const validValue = 42;
-      const invalidValue = "not a number";
+      const invalidValue = 'not a number';
       const nanValue = NaN;
 
       // Enable only number validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_number");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_number');
       });
 
       // Act
@@ -90,18 +87,18 @@ describe("ValidationEngine", () => {
 
       expect(nanResult.valid).toBe(false);
       expect(nanResult.errors).toHaveLength(1);
-      expect(nanResult.errors[0].message).toContain("number");
+      expect(nanResult.errors[0].message).toContain('number');
     });
 
-    it("should validate boolean type correctly", async () => {
+    it('should validate boolean type correctly', async () => {
       // Arrange
       const validValue = true;
-      const invalidValue = "true";
+      const invalidValue = 'true';
 
       // Enable only boolean validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_boolean");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_boolean');
       });
 
       // Act
@@ -114,19 +111,19 @@ describe("ValidationEngine", () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain("boolean");
+      expect(invalidResult.errors[0].message).toContain('boolean');
     });
 
-    it("should validate date type correctly", async () => {
+    it('should validate date type correctly', async () => {
       // Arrange
-      const validDate = "2024-01-15";
-      const validISODate = "2024-01-15T10:30:00Z";
-      const invalidDate = "not a date";
+      const validDate = '2024-01-15';
+      const validISODate = '2024-01-15T10:30:00Z';
+      const invalidDate = 'not a date';
 
       // Enable only date validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_date");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_date');
       });
 
       // Act
@@ -143,30 +140,26 @@ describe("ValidationEngine", () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain("date");
+      expect(invalidResult.errors[0].message).toContain('date');
     });
   });
 
-  describe("Format Validators", () => {
-    it("should validate email format correctly", async () => {
+  describe('Format Validators', () => {
+    it('should validate email format correctly', async () => {
       // Arrange
-      const validEmails = [
-        "user@example.com",
-        "test.user@company.co.uk",
-        "admin+tag@domain.org",
-      ];
+      const validEmails = ['user@example.com', 'test.user@company.co.uk', 'admin+tag@domain.org'];
       const invalidEmails = [
-        "not an email",
-        "@example.com",
-        "user@",
-        "user @example.com",
-        "user@example",
+        'not an email',
+        '@example.com',
+        'user@',
+        'user @example.com',
+        'user@example',
       ];
 
       // Enable only email validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_email");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_email');
       });
 
       // Act & Assert - Valid emails
@@ -181,24 +174,24 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(email);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("email");
+        expect(result.errors[0].message).toContain('email');
       }
     });
 
-    it("should validate URL format correctly", async () => {
+    it('should validate URL format correctly', async () => {
       // Arrange
       const validURLs = [
-        "https://example.com",
-        "http://subdomain.example.com",
-        "https://example.com/path?query=value",
-        "ftp://files.example.com",
+        'https://example.com',
+        'http://subdomain.example.com',
+        'https://example.com/path?query=value',
+        'ftp://files.example.com',
       ];
-      const invalidURLs = ["not a url", "://missing-protocol"];
+      const invalidURLs = ['not a url', '://missing-protocol'];
 
       // Enable only URL validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_url");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_url');
       });
 
       // Act & Assert - Valid URLs
@@ -213,25 +206,25 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(url);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("URL");
+        expect(result.errors[0].message).toContain('URL');
       }
     });
 
-    it("should validate phone format correctly", async () => {
+    it('should validate phone format correctly', async () => {
       // Arrange
       const validPhones = [
-        "+1234567890",
-        "123-456-7890",
-        "(123) 456-7890",
-        "+1 (123) 456-7890",
-        "1234567890",
+        '+1234567890',
+        '123-456-7890',
+        '(123) 456-7890',
+        '+1 (123) 456-7890',
+        '1234567890',
       ];
-      const invalidPhones = ["123", "abc-def-ghij", "12345", ""];
+      const invalidPhones = ['123', 'abc-def-ghij', '12345', ''];
 
       // Enable only phone validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_phone");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_phone');
       });
 
       // Act & Assert - Valid phones
@@ -246,13 +239,13 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(phone);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("phone");
+        expect(result.errors[0].message).toContain('phone');
       }
     });
   });
 
-  describe("Range Validators", () => {
-    it("should validate positive numbers correctly", async () => {
+  describe('Range Validators', () => {
+    it('should validate positive numbers correctly', async () => {
       // Arrange
       const validValues = [1, 0.1, 100, 999.99];
       const invalidValues = [0, -1, -0.1, -100];
@@ -260,7 +253,7 @@ describe("ValidationEngine", () => {
       // Enable only positive validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_positive");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_positive');
       });
 
       // Act & Assert - Valid positive numbers
@@ -275,11 +268,11 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("positive");
+        expect(result.errors[0].message).toContain('positive');
       }
     });
 
-    it("should validate non-negative numbers correctly", async () => {
+    it('should validate non-negative numbers correctly', async () => {
       // Arrange
       const validValues = [0, 1, 0.1, 100, 999.99];
       const invalidValues = [-0.001, -1, -100];
@@ -287,10 +280,7 @@ describe("ValidationEngine", () => {
       // Enable only non-negative validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(
-          rule.id,
-          rule.id === "builtin_non_negative",
-        );
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_non_negative');
       });
 
       // Act & Assert - Valid non-negative numbers
@@ -305,21 +295,21 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("non-negative");
+        expect(result.errors[0].message).toContain('non-negative');
       }
     });
   });
 
-  describe("Required Field Validators", () => {
-    it("should validate required fields correctly", async () => {
+  describe('Required Field Validators', () => {
+    it('should validate required fields correctly', async () => {
       // Arrange
-      const validValues = ["text", 0, false, [], {}];
-      const invalidValues = [null, undefined, ""];
+      const validValues = ['text', 0, false, [], {}];
+      const invalidValues = [null, undefined, ''];
 
       // Enable only required validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_required");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_required');
       });
 
       // Act & Assert - Valid required fields
@@ -334,22 +324,19 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("required");
+        expect(result.errors[0].message).toContain('required');
       }
     });
 
-    it("should validate non-empty strings correctly", async () => {
+    it('should validate non-empty strings correctly', async () => {
       // Arrange
-      const validValues = ["text", "a", "  text  "];
-      const invalidValues = ["", "   ", "\t\n"];
+      const validValues = ['text', 'a', '  text  '];
+      const invalidValues = ['', '   ', '\t\n'];
 
       // Enable only non-empty string validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(
-          rule.id,
-          rule.id === "builtin_non_empty_string",
-        );
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_non_empty_string');
       });
 
       // Act & Assert - Valid non-empty strings
@@ -364,31 +351,31 @@ describe("ValidationEngine", () => {
         const result = await validationEngine.validate(value);
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
-        expect(result.errors[0].message).toContain("empty");
+        expect(result.errors[0].message).toContain('empty');
       }
     });
   });
 
-  describe("Custom Rules", () => {
-    it("should register and execute custom validation rule", async () => {
+  describe('Custom Rules', () => {
+    it('should register and execute custom validation rule', async () => {
       // Arrange
       const customRule: ValidationRule = {
-        id: "custom_even",
-        name: "Even Number",
-        type: "custom",
-        description: "Validates that number is even",
+        id: 'custom_even',
+        name: 'Even Number',
+        type: 'custom',
+        description: 'Validates that number is even',
         validator: (value) => {
-          if (typeof value !== "number") {
-            return { valid: false, message: "Value must be a number" };
+          if (typeof value !== 'number') {
+            return { valid: false, message: 'Value must be a number' };
           }
           const isEven = value % 2 === 0;
           return {
             valid: isEven,
-            message: isEven ? undefined : "Number must be even",
+            message: isEven ? undefined : 'Number must be even',
           };
         },
-        severity: "error",
-        errorMessage: "Value must be an even number",
+        severity: 'error',
+        errorMessage: 'Value must be an even number',
         enabled: true,
       };
 
@@ -400,7 +387,7 @@ describe("ValidationEngine", () => {
 
       // Register custom rule
       validationEngine.registerRule(customRule);
-      validationEngine.setRuleEnabled("custom_even", true);
+      validationEngine.setRuleEnabled('custom_even', true);
 
       // Act
       const validResult = await validationEngine.validate(4);
@@ -412,47 +399,46 @@ describe("ValidationEngine", () => {
 
       expect(invalidResult.valid).toBe(false);
       expect(invalidResult.errors).toHaveLength(1);
-      expect(invalidResult.errors[0].message).toContain("even");
+      expect(invalidResult.errors[0].message).toContain('even');
     });
 
-    it("should execute multiple custom rules in sequence", async () => {
+    it('should execute multiple custom rules in sequence', async () => {
       // Arrange
       const rule1: ValidationRule = {
-        id: "custom_min_length",
-        name: "Minimum Length",
-        type: "custom",
-        description: "Validates minimum string length",
+        id: 'custom_min_length',
+        name: 'Minimum Length',
+        type: 'custom',
+        description: 'Validates minimum string length',
         validator: (value) => {
-          if (typeof value !== "string") {
-            return { valid: false, message: "Must be a string" };
+          if (typeof value !== 'string') {
+            return { valid: false, message: 'Must be a string' };
           }
           return {
             valid: value.length >= 3,
-            message:
-              value.length >= 3 ? undefined : "Must be at least 3 characters",
+            message: value.length >= 3 ? undefined : 'Must be at least 3 characters',
           };
         },
-        severity: "error",
-        errorMessage: "String too short",
+        severity: 'error',
+        errorMessage: 'String too short',
         enabled: true,
       };
 
       const rule2: ValidationRule = {
-        id: "custom_starts_with_a",
-        name: "Starts with A",
-        type: "custom",
-        description: "Validates string starts with A",
+        id: 'custom_starts_with_a',
+        name: 'Starts with A',
+        type: 'custom',
+        description: 'Validates string starts with A',
         validator: (value) => {
-          if (typeof value !== "string") {
-            return { valid: false, message: "Must be a string" };
+          if (typeof value !== 'string') {
+            return { valid: false, message: 'Must be a string' };
           }
           return {
-            valid: value.startsWith("A"),
-            message: value.startsWith("A") ? undefined : "Must start with 'A'",
+            valid: value.startsWith('A'),
+            message: value.startsWith('A') ? undefined : "Must start with 'A'",
           };
         },
-        severity: "warning",
-        errorMessage: "Should start with A",
+        severity: 'warning',
+        errorMessage: 'Should start with A',
         enabled: true,
       };
 
@@ -467,9 +453,9 @@ describe("ValidationEngine", () => {
       validationEngine.registerRule(rule2);
 
       // Act
-      const allPassResult = await validationEngine.validate("Apple");
-      const oneFailResult = await validationEngine.validate("Banana");
-      const twoFailResult = await validationEngine.validate("Ap");
+      const allPassResult = await validationEngine.validate('Apple');
+      const oneFailResult = await validationEngine.validate('Banana');
+      const twoFailResult = await validationEngine.validate('Ap');
 
       // Assert
       expect(allPassResult.valid).toBe(true);
@@ -484,35 +470,34 @@ describe("ValidationEngine", () => {
       expect(twoFailResult.errors).toHaveLength(1);
       // Note: Warning may or may not be present depending on rule execution order
       // The important part is that we have at least the error
-      expect(twoFailResult.errors[0].message).toContain("3 characters");
+      expect(twoFailResult.errors[0].message).toContain('3 characters');
     });
 
-    it("should support custom rules with validation context", async () => {
+    it('should support custom rules with validation context', async () => {
       // Arrange
       const contextAwareRule: ValidationRule = {
-        id: "custom_context_aware",
-        name: "Context Aware",
-        type: "custom",
-        description: "Validates based on context",
+        id: 'custom_context_aware',
+        name: 'Context Aware',
+        type: 'custom',
+        description: 'Validates based on context',
         validator: (value, context) => {
           if (context?.metadata?.strictMode) {
             return {
-              valid: typeof value === "string" && value.length > 10,
+              valid: typeof value === 'string' && value.length > 10,
               message:
-                typeof value === "string" && value.length > 10
+                typeof value === 'string' && value.length > 10
                   ? undefined
-                  : "Strict mode: must be string longer than 10 characters",
+                  : 'Strict mode: must be string longer than 10 characters',
             };
           } else {
             return {
-              valid: typeof value === "string",
-              message:
-                typeof value === "string" ? undefined : "Must be a string",
+              valid: typeof value === 'string',
+              message: typeof value === 'string' ? undefined : 'Must be a string',
             };
           }
         },
-        severity: "error",
-        errorMessage: "Validation failed",
+        severity: 'error',
+        errorMessage: 'Validation failed',
         enabled: true,
       };
 
@@ -534,22 +519,19 @@ describe("ValidationEngine", () => {
       freshEngine.registerRule(contextAwareRule);
 
       const normalContext: ValidationContext = {
-        spreadsheetId: "test-sheet",
+        spreadsheetId: 'test-sheet',
         metadata: { strictMode: false },
       };
 
       const strictContext: ValidationContext = {
-        spreadsheetId: "test-sheet",
+        spreadsheetId: 'test-sheet',
         metadata: { strictMode: true },
       };
 
       // Act
-      const normalResult = await freshEngine.validate("short", normalContext);
-      const strictResult = await freshEngine.validate("short", strictContext);
-      const strictValidResult = await freshEngine.validate(
-        "this is a long string",
-        strictContext,
-      );
+      const normalResult = await freshEngine.validate('short', normalContext);
+      const strictResult = await freshEngine.validate('short', strictContext);
+      const strictValidResult = await freshEngine.validate('this is a long string', strictContext);
 
       // Assert
       expect(normalResult.valid).toBe(true);
@@ -558,22 +540,22 @@ describe("ValidationEngine", () => {
       expect(strictResult.valid).toBe(false);
       expect(strictResult.totalChecks).toBeGreaterThan(0);
       expect(strictResult.errors).toHaveLength(1);
-      expect(strictResult.errors[0].message).toContain("Strict mode");
+      expect(strictResult.errors[0].message).toContain('Strict mode');
 
       expect(strictValidResult.valid).toBe(true);
       expect(strictValidResult.totalChecks).toBeGreaterThan(0);
     });
   });
 
-  describe("Performance and Caching", () => {
-    it("should cache validation results for improved performance", async () => {
+  describe('Performance and Caching', () => {
+    it('should cache validation results for improved performance', async () => {
       // Arrange
-      const value = "test@example.com";
+      const value = 'test@example.com';
 
       // Enable only email validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_email");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_email');
       });
 
       // Act - First validation (not cached)
@@ -598,7 +580,7 @@ describe("ValidationEngine", () => {
       expect(result2.duration).toBeLessThanOrEqual(result1.duration);
     });
 
-    it("should support early exit on first error when configured", async () => {
+    it('should support early exit on first error when configured', async () => {
       // Arrange
       const engineWithEarlyExit = new ValidationEngine({
         enabled: true,
@@ -608,35 +590,35 @@ describe("ValidationEngine", () => {
 
       // Register multiple failing rules
       const rule1: ValidationRule = {
-        id: "fail_1",
-        name: "Fail 1",
-        type: "custom",
-        description: "Always fails",
-        validator: () => ({ valid: false, message: "Rule 1 failed" }),
-        severity: "error",
-        errorMessage: "Error 1",
+        id: 'fail_1',
+        name: 'Fail 1',
+        type: 'custom',
+        description: 'Always fails',
+        validator: () => ({ valid: false, message: 'Rule 1 failed' }),
+        severity: 'error',
+        errorMessage: 'Error 1',
         enabled: true,
       };
 
       const rule2: ValidationRule = {
-        id: "fail_2",
-        name: "Fail 2",
-        type: "custom",
-        description: "Always fails",
-        validator: () => ({ valid: false, message: "Rule 2 failed" }),
-        severity: "error",
-        errorMessage: "Error 2",
+        id: 'fail_2',
+        name: 'Fail 2',
+        type: 'custom',
+        description: 'Always fails',
+        validator: () => ({ valid: false, message: 'Rule 2 failed' }),
+        severity: 'error',
+        errorMessage: 'Error 2',
         enabled: true,
       };
 
       const rule3: ValidationRule = {
-        id: "fail_3",
-        name: "Fail 3",
-        type: "custom",
-        description: "Always fails",
-        validator: () => ({ valid: false, message: "Rule 3 failed" }),
-        severity: "error",
-        errorMessage: "Error 3",
+        id: 'fail_3',
+        name: 'Fail 3',
+        type: 'custom',
+        description: 'Always fails',
+        validator: () => ({ valid: false, message: 'Rule 3 failed' }),
+        severity: 'error',
+        errorMessage: 'Error 3',
         enabled: true,
       };
 
@@ -652,30 +634,30 @@ describe("ValidationEngine", () => {
       engineWithEarlyExit.registerRule(rule3);
 
       // Act
-      const result = await engineWithEarlyExit.validate("test");
+      const result = await engineWithEarlyExit.validate('test');
 
       // Assert
       expect(result.valid).toBe(false);
       // Should stop at first error, not collect all errors
       expect(result.errors.length).toBeLessThan(3);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toContain("Rule 1 failed");
+      expect(result.errors[0].message).toContain('Rule 1 failed');
     });
   });
 
-  describe("Error Handling and Statistics", () => {
-    it("should handle validator exceptions gracefully", async () => {
+  describe('Error Handling and Statistics', () => {
+    it('should handle validator exceptions gracefully', async () => {
       // Arrange
       const throwingRule: ValidationRule = {
-        id: "throwing_rule",
-        name: "Throwing Rule",
-        type: "custom",
-        description: "Throws an exception",
+        id: 'throwing_rule',
+        name: 'Throwing Rule',
+        type: 'custom',
+        description: 'Throws an exception',
         validator: () => {
-          throw new Error("Validator exploded!");
+          throw new Error('Validator exploded!');
         },
-        severity: "error",
-        errorMessage: "Validation error",
+        severity: 'error',
+        errorMessage: 'Validation error',
         enabled: true,
       };
 
@@ -689,7 +671,7 @@ describe("ValidationEngine", () => {
       validationEngine.registerRule(throwingRule);
 
       // Act - Should not throw, should handle gracefully
-      const result = await validationEngine.validate("test");
+      const result = await validationEngine.validate('test');
 
       // Assert
       expect(result).toBeDefined();
@@ -697,19 +679,19 @@ describe("ValidationEngine", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("should collect comprehensive statistics", async () => {
+    it('should collect comprehensive statistics', async () => {
       // Arrange
       const values = [
-        "valid@email.com", // Pass
-        "invalid email", // Fail
-        "another@valid.com", // Pass
-        "bad", // Fail
+        'valid@email.com', // Pass
+        'invalid email', // Fail
+        'another@valid.com', // Pass
+        'bad', // Fail
       ];
 
       // Enable only email validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_email");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_email');
       });
 
       // Act
@@ -729,7 +711,7 @@ describe("ValidationEngine", () => {
       expect(stats.errorsBySeverity.error).toBe(2);
     });
 
-    it("should respect max errors configuration", async () => {
+    it('should respect max errors configuration', async () => {
       // Arrange
       const engineWithMaxErrors = new ValidationEngine({
         enabled: true,
@@ -741,10 +723,10 @@ describe("ValidationEngine", () => {
         const rule: ValidationRule = {
           id: `fail_${i}`,
           name: `Fail ${i}`,
-          type: "custom",
-          description: "Always fails",
+          type: 'custom',
+          description: 'Always fails',
           validator: () => ({ valid: false, message: `Rule ${i} failed` }),
-          severity: "error",
+          severity: 'error',
           errorMessage: `Error ${i}`,
           enabled: true,
         };
@@ -761,7 +743,7 @@ describe("ValidationEngine", () => {
       }
 
       // Act
-      const result = await engineWithMaxErrors.validate("test");
+      const result = await engineWithMaxErrors.validate('test');
 
       // Assert
       expect(result.valid).toBe(false);
@@ -769,20 +751,15 @@ describe("ValidationEngine", () => {
     });
   });
 
-  describe("Batch Validation", () => {
-    it("should validate multiple values in batch", async () => {
+  describe('Batch Validation', () => {
+    it('should validate multiple values in batch', async () => {
       // Arrange
-      const values = [
-        "user1@example.com",
-        "invalid",
-        "user2@example.com",
-        "also invalid",
-      ];
+      const values = ['user1@example.com', 'invalid', 'user2@example.com', 'also invalid'];
 
       // Enable only email validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_email");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_email');
       });
 
       // Act
@@ -805,10 +782,10 @@ describe("ValidationEngine", () => {
     });
   });
 
-  describe("Rule Management", () => {
-    it("should enable and disable rules dynamically", async () => {
+  describe('Rule Management', () => {
+    it('should enable and disable rules dynamically', async () => {
       // Arrange
-      const value = "test@example.com";
+      const value = 'test@example.com';
 
       // Disable all rules
       const rules = validationEngine.getRules();
@@ -820,7 +797,7 @@ describe("ValidationEngine", () => {
       const result1 = await validationEngine.validate(value);
 
       // Enable email validator
-      validationEngine.setRuleEnabled("builtin_email", true);
+      validationEngine.setRuleEnabled('builtin_email', true);
 
       // Act - With email validator enabled
       const result2 = await validationEngine.validate(value);
@@ -833,7 +810,7 @@ describe("ValidationEngine", () => {
       expect(result2.valid).toBe(true);
     });
 
-    it("should list all registered rules", async () => {
+    it('should list all registered rules', async () => {
       // Arrange & Act
       const rules = validationEngine.getRules();
 
@@ -842,36 +819,36 @@ describe("ValidationEngine", () => {
 
       // Check that all expected builtin rules are present
       const ruleIds = rules.map((rule) => rule.id);
-      expect(ruleIds).toContain("builtin_string");
-      expect(ruleIds).toContain("builtin_number");
-      expect(ruleIds).toContain("builtin_boolean");
-      expect(ruleIds).toContain("builtin_date");
-      expect(ruleIds).toContain("builtin_email");
-      expect(ruleIds).toContain("builtin_url");
-      expect(ruleIds).toContain("builtin_phone");
-      expect(ruleIds).toContain("builtin_positive");
-      expect(ruleIds).toContain("builtin_non_negative");
-      expect(ruleIds).toContain("builtin_required");
-      expect(ruleIds).toContain("builtin_non_empty_string");
+      expect(ruleIds).toContain('builtin_string');
+      expect(ruleIds).toContain('builtin_number');
+      expect(ruleIds).toContain('builtin_boolean');
+      expect(ruleIds).toContain('builtin_date');
+      expect(ruleIds).toContain('builtin_email');
+      expect(ruleIds).toContain('builtin_url');
+      expect(ruleIds).toContain('builtin_phone');
+      expect(ruleIds).toContain('builtin_positive');
+      expect(ruleIds).toContain('builtin_non_negative');
+      expect(ruleIds).toContain('builtin_required');
+      expect(ruleIds).toContain('builtin_non_empty_string');
 
       // All rules should have required properties
       rules.forEach((rule) => {
         expect(rule.id).toBeDefined();
         expect(rule.name).toBeDefined();
         expect(rule.type).toBeDefined();
-        expect(rule.validator).toBeTypeOf("function");
+        expect(rule.validator).toBeTypeOf('function');
         expect(rule.severity).toBeDefined();
       });
     });
   });
 
-  describe("Engine Configuration", () => {
-    it("should respect disabled engine configuration", async () => {
+  describe('Engine Configuration', () => {
+    it('should respect disabled engine configuration', async () => {
       // Arrange
       const disabledEngine = new ValidationEngine({ enabled: false });
 
       // Act
-      const result = await disabledEngine.validate("any value");
+      const result = await disabledEngine.validate('any value');
 
       // Assert
       expect(result.valid).toBe(true);
@@ -879,14 +856,14 @@ describe("ValidationEngine", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("should clear cache and reset statistics", async () => {
+    it('should clear cache and reset statistics', async () => {
       // Arrange
-      const value = "test@example.com";
+      const value = 'test@example.com';
 
       // Enable only email validator
       const rules = validationEngine.getRules();
       rules.forEach((rule) => {
-        validationEngine.setRuleEnabled(rule.id, rule.id === "builtin_email");
+        validationEngine.setRuleEnabled(rule.id, rule.id === 'builtin_email');
       });
 
       // Act - Validate to populate stats and cache

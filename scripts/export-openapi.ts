@@ -24,7 +24,7 @@ const projectRoot = path.join(__dirname, '..');
 
 // Build if dist doesn't exist
 try {
-  await fs.access(path.join(projectRoot, 'dist', 'schemas', 'values.js'));
+  await fs.access(path.join(projectRoot, 'dist', 'schemas', 'index.js'));
 } catch {
   console.log('Building project before export...');
   execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
@@ -32,13 +32,31 @@ try {
 
 // Define tool information manually (MCP schemas don't export a single unified object)
 const toolDefinitions = [
-  { name: 'sheets_values', description: 'Read, write, append, clear cell values and perform find/replace operations' },
-  { name: 'sheets_spreadsheet', description: 'Get spreadsheet metadata, manage spreadsheet properties and permissions' },
-  { name: 'sheets_format', description: 'Apply cell formatting, borders, number formats, and conditional formatting' },
-  { name: 'sheets_sheet', description: 'Manage sheets: create, delete, duplicate, copy, hide, protect' },
-  { name: 'sheets_analyze', description: 'AI-powered analysis of spreadsheet data, formulas, and structure' },
-  { name: 'sheets_confirm', description: 'Confirm and execute pending operations with safety checks' },
-  { name: 'sheets_history', description: 'Access operation history, audit trails, and undo/redo capabilities' },
+  { name: 'sheets_auth', description: 'OAuth and credential management' },
+  { name: 'sheets_core', description: 'Spreadsheet metadata and sheet/tab operations' },
+  {
+    name: 'sheets_data',
+    description: 'Read/write values, notes, hyperlinks, validation, merge/cut/copy',
+  },
+  {
+    name: 'sheets_format',
+    description: 'Cell formatting, conditional formatting, data validation',
+  },
+  { name: 'sheets_dimensions', description: 'Row/column sizing, filtering, and sorting' },
+  { name: 'sheets_visualize', description: 'Charts and pivot tables' },
+  { name: 'sheets_collaborate', description: 'Sharing, comments, revisions, and snapshots' },
+  {
+    name: 'sheets_advanced',
+    description: 'Named ranges, protected ranges, metadata, banding, tables',
+  },
+  { name: 'sheets_transaction', description: 'Transactional batching with rollback support' },
+  { name: 'sheets_quality', description: 'Validation, conflict detection, and impact analysis' },
+  { name: 'sheets_history', description: 'Operation history and undo/redo' },
+  { name: 'sheets_confirm', description: 'Plan confirmation via elicitation' },
+  { name: 'sheets_analyze', description: 'AI analysis and insights' },
+  { name: 'sheets_fix', description: 'Automated issue fixing' },
+  { name: 'sheets_composite', description: 'High-level composite operations' },
+  { name: 'sheets_session', description: 'Session context management' },
 ];
 
 interface ToolDefinition {
@@ -75,7 +93,7 @@ function toolToOpenAPIPath(tool: ToolDefinition): Record<string, unknown> {
     post: {
       summary: tool.description,
       operationId: tool.name,
-      tags: [tool.name.split('_')[0]], // e.g., "sheets" from "sheets_values"
+      tags: [tool.name.split('_')[0]], // e.g., "sheets" from "sheets_data"
       requestBody: {
         required: true,
         content: {
@@ -275,7 +293,7 @@ MCP resources for monitoring:
   };
 
   // Add generic success response schema
-  spec.components.schemas["SuccessResponse"] = {
+  spec.components.schemas['SuccessResponse'] = {
     type: 'object',
     properties: {
       response: {
@@ -322,11 +340,10 @@ MCP resources for monitoring:
  */
 async function main() {
   const args = process.argv.slice(2);
-  const outputArg = args.find(arg => arg.startsWith('--output='));
-  const formatArg = args.find(arg => arg.startsWith('--format='));
+  const outputArg = args.find((arg) => arg.startsWith('--output='));
+  const formatArg = args.find((arg) => arg.startsWith('--format='));
 
-  const outputPath =
-    outputArg?.split('=')[1] || path.join(__dirname, '../docs/openapi.json');
+  const outputPath = outputArg?.split('=')[1] || path.join(__dirname, '../docs/openapi.json');
 
   const format = formatArg?.split('=')[1] || 'json';
 

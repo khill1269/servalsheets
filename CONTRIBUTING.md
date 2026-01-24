@@ -40,7 +40,7 @@ By participating in this project, you agree to:
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/anthropics/servalsheets.git
+git clone https://github.com/khill1269/servalsheets.git
 cd servalsheets
 npm install
 ```
@@ -131,7 +131,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 feat(handlers): add pivot table support
 
-Implements sheets_pivot_table tool with operations:
+Implements sheets_visualize_table tool with operations:
 - create_pivot_table
 - update_pivot_table
 - delete_pivot_table
@@ -520,8 +520,8 @@ npm run test:coverage
 
 ## Questions?
 
-- **Bug reports:** [GitHub Issues](https://github.com/anthropics/servalsheets/issues)
-- **Feature requests:** [GitHub Discussions](https://github.com/anthropics/servalsheets/discussions)
+- **Bug reports:** [GitHub Issues](https://github.com/khill1269/servalsheets/issues)
+- **Feature requests:** [GitHub Discussions](https://github.com/khill1269/servalsheets/discussions)
 - **Security issues:** See [SECURITY.md](SECURITY.md)
 - **Documentation:** [README.md](README.md), [docs/](docs/)
 

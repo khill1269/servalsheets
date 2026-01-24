@@ -10,10 +10,19 @@
 
 // Load environment variables from .env file (silently to avoid MCP JSON parsing errors)
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Get the directory where the CLI is located (works for both src and dist)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Go up one level from dist/ or src/ to find .env in project root
+const projectRoot = join(__dirname, '..');
 
 // Suppress dotenv's informational banner to prevent Claude Desktop JSON parsing errors
 // The banner "[dotenv@17.2.3] injecting env..." breaks STDIO transport JSON parsing
-dotenv.config({ quiet: true });
+// Load from project root so it works regardless of CWD
+dotenv.config({ quiet: true, path: join(projectRoot, '.env') });
 
 import { type ServalSheetsServerOptions } from './server.js';
 import { logger } from './utils/logger.js';

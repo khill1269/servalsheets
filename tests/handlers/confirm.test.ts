@@ -72,7 +72,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Read current sales data',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
               estimatedApiCalls: 1,
@@ -82,7 +82,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 2,
               description: 'Update sales totals',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'update_values',
               risk: 'medium',
               estimatedApiCalls: 1,
@@ -141,7 +141,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Clear existing data',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'clear_values',
               risk: 'high',
               estimatedApiCalls: 1,
@@ -183,7 +183,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Delete old sheets',
-              tool: 'sheets_sheet',
+              tool: 'sheets_core',
               action: 'delete_sheet',
               risk: 'critical',
               estimatedApiCalls: 5,
@@ -193,7 +193,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 2,
               description: 'Create new structure',
-              tool: 'sheets_sheet',
+              tool: 'sheets_core',
               action: 'add_sheet',
               risk: 'low',
               estimatedApiCalls: 3,
@@ -203,8 +203,8 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 3,
               description: 'Migrate data',
-              tool: 'sheets_values',
-              action: 'batch_update',
+              tool: 'sheets_data',
+              action: 'batch_write',
               risk: 'high',
               estimatedApiCalls: 10,
               isDestructive: true,
@@ -248,7 +248,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Clear all sheets',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'clear_values',
               risk: 'critical',
               estimatedApiCalls: 5,
@@ -289,7 +289,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Risky step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'update_values',
               risk: 'high',
             },
@@ -325,7 +325,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Test step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -355,7 +355,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Test step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -388,7 +388,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Test step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -425,7 +425,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Test step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -457,7 +457,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Test step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -516,7 +516,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step 1',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -539,7 +539,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step 1',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -592,7 +592,7 @@ describe('ConfirmHandler', () => {
               {
                 stepNumber: 1,
                 description: 'Step',
-                tool: 'sheets_values',
+                tool: 'sheets_data',
                 action: 'get_values',
                 risk: 'low',
               },
@@ -615,7 +615,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -637,7 +637,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },
@@ -680,7 +680,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step 1',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
               estimatedApiCalls: 1,
@@ -718,7 +718,7 @@ describe('ConfirmHandler', () => {
             {
               stepNumber: 1,
               description: 'Step',
-              tool: 'sheets_values',
+              tool: 'sheets_data',
               action: 'get_values',
               risk: 'low',
             },

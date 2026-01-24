@@ -52,10 +52,10 @@ export function createPermissionError(params: {
   } = params;
 
   const resolutionSteps = [
-    `1. Check current permission level: Use 'sheets_sharing' tool with action 'list_permissions' to verify access`,
+    `1. Check current permission level: Use 'sheets_collaborate' tool with action 'share_list' to verify access`,
     `2. Request ${requiredPermission} access from the ${resourceType} owner`,
     `3. Alternative: Use read-only operations (sheets_data with action 'read')`,
-    `4. If you're the owner: Use 'sheets_sharing' tool with action 'share' to give yourself ${requiredPermission} access`,
+    `4. If you're the owner: Use 'sheets_collaborate' tool with action 'share_add' to give yourself ${requiredPermission} access`,
   ];
 
   return {
@@ -140,7 +140,7 @@ export function createNotFoundError(params: {
 
   if (resourceType === 'sheet') {
     resolutionSteps.push(
-      `2. List all sheets in the spreadsheet: Use 'sheets_sheet' tool with action 'list'`,
+      `2. List all sheets in the spreadsheet: Use 'sheets_core' tool with action 'list_sheets'`,
       `3. Check if the sheet name has changed`,
       `4. Verify the sheet hasn't been deleted`
     );
@@ -176,10 +176,10 @@ export function createNotFoundError(params: {
 
   const suggestedTools: string[] = [];
   if (resourceType === 'sheet' || resourceType === 'range') {
-    suggestedTools.push('sheets_spreadsheet', 'sheets_sheet');
+    suggestedTools.push('sheets_core');
   } else if (resourceType === 'spreadsheet') {
     // Note: There is no file search tool - users need to know their spreadsheet IDs
-    suggestedTools.push('sheets_spreadsheet');
+    suggestedTools.push('sheets_core');
   } else if (resourceType === 'operation' || resourceType === 'snapshot') {
     suggestedTools.push('sheets_history');
   }
@@ -416,7 +416,7 @@ export function parseGoogleApiError(error: {
           retryable: false,
           resolution: 'Verify sheet name/ID and that sheet exists',
           resolutionSteps: [
-            '1. List all sheets with sheets_sheet list action',
+            '1. List all sheets with sheets_core action="list_sheets"',
             '2. Check sheet name spelling',
             '3. Verify sheet was not deleted',
           ],
@@ -733,7 +733,7 @@ export function detectErrorPattern(errors: ErrorDetail[]): ErrorPattern | null {
       pattern: 'permission',
       frequency: permissionErrors,
       suggestedAction:
-        'Verify user has required permissions. Use sheets_sharing tool to check access levels.',
+        'Verify user has required permissions. Use sheets_collaborate tool to check access levels.',
       affectedOperations: Array.from(operationSet),
       firstSeen,
       lastSeen,
@@ -767,4 +767,110 @@ export function detectErrorPattern(errors: ErrorDetail[]): ErrorPattern | null {
 
   // No clear pattern detected
   return null;
+}
+
+/**
+ * Format Zod validation errors with helpful information about valid values
+ *
+ * This function transforms cryptic Zod error messages into actionable guidance
+ * that helps users understand what values are acceptable.
+ *
+ * @param errors - Array of Zod error issues
+ * @returns Formatted error message with valid options
+ */
+export function formatZodErrors(
+  errors: Array<{
+    code: string;
+    path: (string | number)[];
+    message: string;
+    expected?: string;
+    received?: string;
+    options?: unknown[];
+  }>
+): string {
+  return errors
+    .map((err) => {
+      const pathStr = err.path.join('.');
+
+      // For enum/union errors, include valid options
+      if (err.code === 'invalid_enum_value' && err.options) {
+        const options = err.options as string[];
+        const preview = options.slice(0, 10);
+        const optionsList = preview.join(', ');
+        const more = options.length > 10 ? ` (${options.length - 10} more...)` : '';
+        return `Invalid value at '${pathStr}'. Valid options: ${optionsList}${more}`;
+      }
+
+      // For discriminated union errors, explain the action/type mismatch
+      if (err.code === 'invalid_union' || err.code === 'invalid_union_discriminator') {
+        return `Invalid discriminator at '${pathStr}'. Check that '${pathStr}' matches one of the valid action/type values for this tool.`;
+      }
+
+      // For type mismatch errors, be specific
+      if (err.code === 'invalid_type') {
+        return `Expected ${err.expected || 'correct type'} at '${pathStr}', received ${err.received || 'incorrect type'}`;
+      }
+
+      // For missing required fields
+      if (err.code === 'invalid_type' && err.received === 'undefined') {
+        return `Missing required field '${pathStr}'`;
+      }
+
+      // Default: include path for context
+      return `${err.message} (at '${pathStr}')`;
+    })
+    .join('; ');
+}
+
+/**
+ * Create an error detail from Zod validation errors
+ *
+ * @param errors - Zod error issues array
+ * @param toolName - Optional tool name for context
+ * @returns Structured ErrorDetail with resolution steps
+ */
+export function createZodValidationError(
+  errors: Array<{
+    code: string;
+    path: (string | number)[];
+    message: string;
+    expected?: string;
+    received?: string;
+    options?: unknown[];
+  }>,
+  toolName?: string
+): ErrorDetail {
+  const formattedMessage = formatZodErrors(errors);
+
+  const resolutionSteps = [
+    '1. Check the error message for the specific field that failed validation',
+    '2. Verify the field value matches the expected type and format',
+  ];
+
+  // Add specific guidance for common error types
+  const hasEnumError = errors.some(
+    (e) => e.code === 'invalid_enum_value' || e.code === 'invalid_union_discriminator'
+  );
+  const hasTypeError = errors.some((e) => e.code === 'invalid_type');
+
+  if (hasEnumError) {
+    resolutionSteps.push('3. For enum fields, use one of the valid options listed in the error');
+  }
+  if (hasTypeError) {
+    resolutionSteps.push(
+      '3. For type errors, ensure the value is the correct data type (string, number, object, etc.)'
+    );
+  }
+
+  return {
+    code: 'VALIDATION_ERROR',
+    message: formattedMessage,
+    retryable: false,
+    resolution: toolName
+      ? `Fix the validation error and retry the ${toolName} tool call`
+      : 'Fix the validation error and retry',
+    resolutionSteps,
+    category: 'client',
+    severity: 'medium',
+  };
 }

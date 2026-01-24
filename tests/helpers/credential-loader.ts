@@ -145,12 +145,7 @@ export function validateCredentials(creds: TestCredentials): boolean {
     return false;
   }
 
-  const requiredFields = [
-    'type',
-    'project_id',
-    'private_key',
-    'client_email',
-  ];
+  const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
 
   for (const field of requiredFields) {
     if (!creds.serviceAccount[field as keyof typeof creds.serviceAccount]) {
@@ -175,7 +170,9 @@ export async function checkCredentialsOrSkip(): Promise<TestCredentials> {
 
   if (!credentials) {
     console.log(getMissingCredentialsMessage());
-    throw new Error('Integration test credentials not configured. See message above for setup instructions.');
+    throw new Error(
+      'Integration test credentials not configured. See message above for setup instructions.'
+    );
   }
 
   if (!validateCredentials(credentials)) {

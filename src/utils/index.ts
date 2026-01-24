@@ -43,7 +43,10 @@ export * from './payload-validator.js';
 export * from './request-context.js';
 export * from './request-deduplication.js';
 export * from './response-enhancer.js';
+export * from './response-compactor.js';
 export * from './session-limiter.js';
+export * from './keepalive.js';
+export * from './checkpoint.js';
 
 // Schema & Compatibility
 export * from './schema-compat.js';

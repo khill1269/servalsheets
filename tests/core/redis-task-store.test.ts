@@ -120,7 +120,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const task = await store.createTask({ ttl: 100 }); // 100ms
 
       // Wait for Redis to expire the key
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const retrieved = await store.getTask(task.taskId);
       expect(retrieved).toBeNull();
@@ -148,9 +148,9 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     });
 
     it('should throw for non-existent task', async () => {
-      await expect(
-        store.updateTaskStatus('task_nonexistent', 'completed')
-      ).rejects.toThrow('Task not found');
+      await expect(store.updateTaskStatus('task_nonexistent', 'completed')).rejects.toThrow(
+        'Task not found'
+      );
     });
 
     it('should update lastUpdatedAt timestamp', async () => {
@@ -158,7 +158,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const originalTimestamp = task.lastUpdatedAt;
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       await store.updateTaskStatus(task.taskId, 'working', 'In progress...');
 
@@ -170,7 +170,13 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
     it('should allow status transition to all valid states', async () => {
       const task = await store.createTask();
 
-      const states: TaskStatus[] = ['working', 'completed', 'failed', 'cancelled', 'input_required'];
+      const states: TaskStatus[] = [
+        'working',
+        'completed',
+        'failed',
+        'cancelled',
+        'input_required',
+      ];
 
       for (const status of states) {
         await store.updateTaskStatus(task.taskId, status);
@@ -274,9 +280,9 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
 
     it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       const task2 = await store.createTask();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       const task3 = await store.createTask();
 
       const tasks = await store.getAllTasks();
@@ -297,7 +303,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const tasks = await store.getAllTasks();
       expect(tasks).toHaveLength(1);
@@ -387,7 +393,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       await store.createTask({ ttl: 60000 }); // long-lived
 
       // Wait for short tasks to expire
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const cleaned = await store.cleanupExpiredTasks();
 
@@ -415,7 +421,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const tasks = await Promise.all(promises);
 
       expect(tasks).toHaveLength(20);
-      expect(new Set(tasks.map(t => t.taskId)).size).toBe(20); // All unique
+      expect(new Set(tasks.map((t) => t.taskId)).size).toBe(20); // All unique
     });
 
     it('should handle status message with special characters', async () => {
@@ -433,7 +439,7 @@ describe.skipIf(!redisAvailable)('RedisTaskStore', () => {
       const result = {
         content: [
           { type: 'text' as const, text: 'Result with "quotes" and \n newlines' },
-          { type: 'text' as const, text: JSON.stringify({ nested: { data: true } }) }
+          { type: 'text' as const, text: JSON.stringify({ nested: { data: true } }) },
         ],
         isError: false,
       };

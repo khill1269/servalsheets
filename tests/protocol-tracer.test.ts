@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ProtocolTracer, getProtocolTracer, resetProtocolTracer } from '../../src/utils/protocol-tracer.js';
+import {
+  ProtocolTracer,
+  getProtocolTracer,
+  resetProtocolTracer,
+} from '../../src/utils/protocol-tracer.js';
 import type { ErrorDetail } from '../../src/utils/error-factory.js';
 
 describe('ProtocolTracer', () => {
@@ -15,7 +19,7 @@ describe('ProtocolTracer', () => {
 
   describe('startTrace', () => {
     it('should create a new trace', () => {
-      const traceId = tracer.startTrace('corr-123', 'sheets_values/read', {
+      const traceId = tracer.startTrace('corr-123', 'sheets_data/read', {
         spreadsheetId: 'abc123',
         range: 'Sheet1!A1:B10',
       });
@@ -24,26 +28,36 @@ describe('ProtocolTracer', () => {
       const trace = tracer.getTrace(traceId);
       expect(trace).toBeDefined();
       expect(trace?.correlationId).toBe('corr-123');
-      expect(trace?.method).toBe('sheets_values/read');
+      expect(trace?.method).toBe('sheets_data/read');
       expect(trace?.protocol).toBe('mcp');
     });
 
     it('should support custom protocol type', () => {
-      const traceId = tracer.startTrace('corr-123', 'spreadsheets.values.get', { foo: 'bar' }, {
-        protocol: 'google-api',
-      });
+      const traceId = tracer.startTrace(
+        'corr-123',
+        'spreadsheets.values.get',
+        { foo: 'bar' },
+        {
+          protocol: 'google-api',
+        }
+      );
 
       const trace = tracer.getTrace(traceId);
       expect(trace?.protocol).toBe('google-api');
     });
 
     it('should support custom metadata', () => {
-      const traceId = tracer.startTrace('corr-123', 'test', {}, {
-        metadata: { toolName: 'sheets_values', action: 'read', spreadsheetId: 'abc123' },
-      });
+      const traceId = tracer.startTrace(
+        'corr-123',
+        'test',
+        {},
+        {
+          metadata: { toolName: 'sheets_data', action: 'read', spreadsheetId: 'abc123' },
+        }
+      );
 
       const trace = tracer.getTrace(traceId);
-      expect(trace?.metadata.toolName).toBe('sheets_values');
+      expect(trace?.metadata.toolName).toBe('sheets_data');
       expect(trace?.metadata.action).toBe('read');
       expect(trace?.metadata.spreadsheetId).toBe('abc123');
     });
@@ -89,9 +103,14 @@ describe('ProtocolTracer', () => {
     });
 
     it('should merge metadata on completion', () => {
-      const traceId = tracer.startTrace('corr-123', 'test', {}, {
-        metadata: { toolName: 'sheets_values' },
-      });
+      const traceId = tracer.startTrace(
+        'corr-123',
+        'test',
+        {},
+        {
+          metadata: { toolName: 'sheets_data' },
+        }
+      );
 
       tracer.completeTrace(traceId, {
         response: { success: true },
@@ -99,7 +118,7 @@ describe('ProtocolTracer', () => {
       });
 
       const trace = tracer.getTrace(traceId);
-      expect(trace?.metadata.toolName).toBe('sheets_values');
+      expect(trace?.metadata.toolName).toBe('sheets_data');
       expect(trace?.metadata.httpStatus).toBe(200);
       expect(trace?.metadata.retryCount).toBe(0);
     });
@@ -157,7 +176,12 @@ describe('ProtocolTracer', () => {
       const trace1 = tracer.startTrace('corr-1', 'operation1', { input: 'test1' });
       tracer.completeTrace(trace1, { response: { output: 'result1' } });
 
-      const trace2 = tracer.startTrace('corr-2', 'operation2', { input: 'test2' }, { protocol: 'google-api' });
+      const trace2 = tracer.startTrace(
+        'corr-2',
+        'operation2',
+        { input: 'test2' },
+        { protocol: 'google-api' }
+      );
       tracer.completeTrace(trace2, {
         response: { output: 'result2' },
         metadata: { httpStatus: 200 },

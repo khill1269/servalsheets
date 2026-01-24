@@ -1,22 +1,29 @@
 /**
  * ServalSheets - Format Handler
  *
- * Handles sheets_format tool (formatting operations and rules)
+ * Handles sheets_format tool (formatting operations, sparklines, and rules)
  * MCP Protocol: 2025-11-25
  *
- * 18 Actions:
+ * 21 Actions:
  * Format (10): set_format, suggest_format, set_background, set_text_format, set_number_format,
  *              set_alignment, set_borders, clear_format, apply_preset, auto_fit
+ * Sparklines (3): sparkline_add, sparkline_get, sparkline_clear
  * Rules (8): rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format,
  *            rule_list_conditional_formats, rule_add_data_validation, rule_clear_data_validation,
  *            rule_list_data_validations, rule_add_preset_rule
  */
 
 import type { sheets_v4 } from 'googleapis';
-import { BaseHandler, type HandlerContext } from './base.js';
+import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
-import type { SheetsFormatInput, SheetsFormatOutput, FormatResponse } from '../schemas/index.js';
+import type {
+  SheetsFormatInput,
+  SheetsFormatOutput,
+  FormatResponse,
+  FormatRequest,
+} from '../schemas/index.js';
 import {
+  buildGridRangeInput,
   parseA1Notation,
   toGridRange,
   estimateCellCount,
@@ -68,41 +75,46 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   }
 
   /**
-   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   * Handle format operations with verbosity-aware metadata generation
    */
   async handle(input: SheetsFormatInput): Promise<SheetsFormatOutput> {
-    // Input is now the action directly (no request wrapper)
+    // Extract the request from the wrapper
+    const req = unwrapRequest<SheetsFormatInput['request']>(input);
 
     // Require authentication before proceeding
     this.requireAuth();
 
     // Phase 1, Task 1.4: Infer missing parameters from context
-    const inferredRequest = this.inferRequestParameters(input) as SheetsFormatInput;
+    const inferredReq = this.inferRequestParameters(req) as FormatRequest;
+
+    // Set verbosity early to skip metadata generation for minimal mode (saves ~400-800 tokens)
+    const verbosity = inferredReq.verbosity ?? 'standard';
+    this.setVerbosity(verbosity);
 
     try {
-      const response = await this.executeAction(inferredRequest);
+      const response = await this.executeAction(inferredReq);
 
       // Track context on success
       if (response.success) {
         this.trackContextFromRequest({
-          spreadsheetId: inferredRequest.spreadsheetId,
+          spreadsheetId: inferredReq.spreadsheetId,
           sheetId:
-            'sheetId' in inferredRequest
-              ? typeof inferredRequest.sheetId === 'number'
-                ? inferredRequest.sheetId
+            'sheetId' in inferredReq
+              ? typeof inferredReq.sheetId === 'number'
+                ? inferredReq.sheetId
                 : undefined
               : undefined,
           range:
-            'range' in inferredRequest
-              ? typeof inferredRequest.range === 'string'
-                ? inferredRequest.range
+            'range' in inferredReq
+              ? typeof inferredReq.range === 'string'
+                ? inferredReq.range
                 : undefined
               : undefined,
         });
       }
 
       // Apply verbosity filtering (LLM optimization)
-      const verbosity = inferredRequest.verbosity ?? 'standard';
+      const verbosity = inferredReq.verbosity ?? 'standard';
       const filteredResponse = super.applyVerbosityFilter(response, verbosity);
 
       return { response: filteredResponse };
@@ -112,27 +124,27 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   }
 
   protected createIntents(input: SheetsFormatInput): Intent[] {
-    // Input is now the action directly (no request wrapper)
+    const req = unwrapRequest<SheetsFormatInput['request']>(input);
     const destructiveActions = [
       'clear_format',
       'rule_update_conditional_format',
       'rule_delete_conditional_format',
-      'rule_clear_data_validation',
+      'clear_data_validation',
     ];
 
-    const isRuleAction = input.action.startsWith('rule_');
+    const isRuleAction = req.action.startsWith('rule_');
 
-    if ('spreadsheetId' in input) {
+    if ('spreadsheetId' in req) {
       return [
         {
           type: isRuleAction ? 'UPDATE_CONDITIONAL_FORMAT' : 'UPDATE_CELLS',
-          target: { spreadsheetId: input.spreadsheetId },
+          target: { spreadsheetId: req.spreadsheetId },
           payload: {},
           metadata: {
             sourceTool: this.toolName,
-            sourceAction: input.action,
+            sourceAction: req.action,
             priority: 1,
-            destructive: destructiveActions.includes(input.action),
+            destructive: destructiveActions.includes(req.action),
           },
         },
       ];
@@ -143,75 +155,81 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   /**
    * Execute action and return response (extracted for task/non-task paths)
    */
-  private async executeAction(request: SheetsFormatInput): Promise<FormatResponse> {
+  private async executeAction(request: FormatRequest): Promise<FormatResponse> {
     switch (request.action) {
       case 'set_format':
-        return await this.handleSetFormat(request as SheetsFormatInput & { action: 'set_format' });
+        return await this.handleSetFormat(request as FormatRequest & { action: 'set_format' });
       case 'suggest_format':
         return await this.handleSuggestFormat(
-          request as SheetsFormatInput & { action: 'suggest_format' }
+          request as FormatRequest & { action: 'suggest_format' }
         );
       case 'set_background':
         return await this.handleSetBackground(
-          request as SheetsFormatInput & { action: 'set_background' }
+          request as FormatRequest & { action: 'set_background' }
         );
       case 'set_text_format':
         return await this.handleSetTextFormat(
-          request as SheetsFormatInput & { action: 'set_text_format' }
+          request as FormatRequest & { action: 'set_text_format' }
         );
       case 'set_number_format':
         return await this.handleSetNumberFormat(
-          request as SheetsFormatInput & { action: 'set_number_format' }
+          request as FormatRequest & { action: 'set_number_format' }
         );
       case 'set_alignment':
         return await this.handleSetAlignment(
-          request as SheetsFormatInput & { action: 'set_alignment' }
+          request as FormatRequest & { action: 'set_alignment' }
         );
       case 'set_borders':
-        return await this.handleSetBorders(
-          request as SheetsFormatInput & { action: 'set_borders' }
-        );
+        return await this.handleSetBorders(request as FormatRequest & { action: 'set_borders' });
       case 'clear_format':
-        return await this.handleClearFormat(
-          request as SheetsFormatInput & { action: 'clear_format' }
-        );
+        return await this.handleClearFormat(request as FormatRequest & { action: 'clear_format' });
       case 'apply_preset':
-        return await this.handleApplyPreset(
-          request as SheetsFormatInput & { action: 'apply_preset' }
-        );
+        return await this.handleApplyPreset(request as FormatRequest & { action: 'apply_preset' });
       case 'auto_fit':
-        return await this.handleAutoFit(request as SheetsFormatInput & { action: 'auto_fit' });
+        return await this.handleAutoFit(request as FormatRequest & { action: 'auto_fit' });
       case 'rule_add_conditional_format':
         return await this.handleRuleAddConditionalFormat(
-          request as SheetsFormatInput & { action: 'rule_add_conditional_format' }
+          request as FormatRequest & { action: 'rule_add_conditional_format' }
         );
       case 'rule_update_conditional_format':
         return await this.handleRuleUpdateConditionalFormat(
-          request as SheetsFormatInput & { action: 'rule_update_conditional_format' }
+          request as FormatRequest & { action: 'rule_update_conditional_format' }
         );
       case 'rule_delete_conditional_format':
         return await this.handleRuleDeleteConditionalFormat(
-          request as SheetsFormatInput & { action: 'rule_delete_conditional_format' }
+          request as FormatRequest & { action: 'rule_delete_conditional_format' }
         );
       case 'rule_list_conditional_formats':
         return await this.handleRuleListConditionalFormats(
-          request as SheetsFormatInput & { action: 'rule_list_conditional_formats' }
+          request as FormatRequest & { action: 'rule_list_conditional_formats' }
         );
-      case 'rule_add_data_validation':
-        return await this.handleRuleAddDataValidation(
-          request as SheetsFormatInput & { action: 'rule_add_data_validation' }
+      case 'set_data_validation':
+        return await this.handleSetDataValidation(
+          request as FormatRequest & { action: 'set_data_validation' }
         );
-      case 'rule_clear_data_validation':
-        return await this.handleRuleClearDataValidation(
-          request as SheetsFormatInput & { action: 'rule_clear_data_validation' }
+      case 'clear_data_validation':
+        return await this.handleClearDataValidation(
+          request as FormatRequest & { action: 'clear_data_validation' }
         );
-      case 'rule_list_data_validations':
-        return await this.handleRuleListDataValidations(
-          request as SheetsFormatInput & { action: 'rule_list_data_validations' }
+      case 'list_data_validations':
+        return await this.handleListDataValidations(
+          request as FormatRequest & { action: 'list_data_validations' }
         );
-      case 'rule_add_preset_rule':
-        return await this.handleRuleAddPresetRule(
-          request as SheetsFormatInput & { action: 'rule_add_preset_rule' }
+      case 'add_conditional_format_rule':
+        return await this.handleAddConditionalFormatRule(
+          request as FormatRequest & { action: 'add_conditional_format_rule' }
+        );
+      case 'sparkline_add':
+        return await this.handleSparklineAdd(
+          request as FormatRequest & { action: 'sparkline_add' }
+        );
+      case 'sparkline_get':
+        return await this.handleSparklineGet(
+          request as FormatRequest & { action: 'sparkline_get' }
+        );
+      case 'sparkline_clear':
+        return await this.handleSparklineClear(
+          request as FormatRequest & { action: 'sparkline_clear' }
         );
       default:
         return this.error({
@@ -227,7 +245,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   // ============================================================
 
   private async handleSetFormat(
-    input: SheetsFormatInput & { action: 'set_format' }
+    input: FormatRequest & { action: 'set_format' }
   ): Promise<FormatResponse> {
     if (input.safety?.dryRun) {
       return this.success('set_format', { cellsFormatted: 0 }, undefined, true);
@@ -291,7 +309,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   }
 
   private async handleSuggestFormat(
-    input: SheetsFormatInput & { action: 'suggest_format' }
+    input: FormatRequest & { action: 'suggest_format' }
   ): Promise<FormatResponse> {
     // Check if server exists and client supports sampling
     const samplingSupport = this.context.server
@@ -461,7 +479,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSetBackground(
-    input: SheetsFormatInput & { action: 'set_background' }
+    input: FormatRequest & { action: 'set_background' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -492,7 +510,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSetTextFormat(
-    input: SheetsFormatInput & { action: 'set_text_format' }
+    input: FormatRequest & { action: 'set_text_format' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -523,7 +541,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSetNumberFormat(
-    input: SheetsFormatInput & { action: 'set_number_format' }
+    input: FormatRequest & { action: 'set_number_format' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -554,7 +572,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSetAlignment(
-    input: SheetsFormatInput & { action: 'set_alignment' }
+    input: FormatRequest & { action: 'set_alignment' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -605,7 +623,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleSetBorders(
-    input: SheetsFormatInput & { action: 'set_borders' }
+    input: FormatRequest & { action: 'set_borders' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -634,7 +652,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleClearFormat(
-    input: SheetsFormatInput & { action: 'clear_format' }
+    input: FormatRequest & { action: 'clear_format' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -704,7 +722,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleApplyPreset(
-    input: SheetsFormatInput & { action: 'apply_preset' }
+    input: FormatRequest & { action: 'apply_preset' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -860,7 +878,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleAutoFit(
-    input: SheetsFormatInput & { action: 'auto_fit' }
+    input: FormatRequest & { action: 'auto_fit' }
   ): Promise<FormatResponse> {
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
@@ -906,7 +924,7 @@ Always return valid JSON in the exact format requested.`,
   // ============================================================
 
   private async handleRuleAddConditionalFormat(
-    input: SheetsFormatInput & { action: 'rule_add_conditional_format' }
+    input: FormatRequest & { action: 'rule_add_conditional_format' }
   ): Promise<FormatResponse> {
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
@@ -1014,7 +1032,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleRuleUpdateConditionalFormat(
-    input: SheetsFormatInput & { action: 'rule_update_conditional_format' }
+    input: FormatRequest & { action: 'rule_update_conditional_format' }
   ): Promise<FormatResponse> {
     if (input.safety?.dryRun) {
       return this.success(
@@ -1028,7 +1046,7 @@ Always return valid JSON in the exact format requested.`,
     // Get current rule to modify
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.conditionalFormats',
+      fields: 'sheets.conditionalFormats,sheets.properties.sheetId',
     });
 
     const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
@@ -1101,7 +1119,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleRuleDeleteConditionalFormat(
-    input: SheetsFormatInput & { action: 'rule_delete_conditional_format' }
+    input: FormatRequest & { action: 'rule_delete_conditional_format' }
   ): Promise<FormatResponse> {
     if (input.safety?.dryRun) {
       return this.success('rule_delete_conditional_format', {}, undefined, true);
@@ -1138,7 +1156,7 @@ Always return valid JSON in the exact format requested.`,
   }
 
   private async handleRuleListConditionalFormats(
-    input: SheetsFormatInput & { action: 'rule_list_conditional_formats' }
+    input: FormatRequest & { action: 'rule_list_conditional_formats' }
   ): Promise<FormatResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -1149,13 +1167,15 @@ Always return valid JSON in the exact format requested.`,
     const allRules = (sheet?.conditionalFormats ?? []).map((rule, index) => ({
       index,
       type: rule.booleanRule ? ('boolean' as const) : ('gradient' as const),
-      ranges: (rule.ranges ?? []).map((r) => ({
-        sheetId: r.sheetId ?? 0,
-        startRowIndex: r.startRowIndex ?? undefined,
-        endRowIndex: r.endRowIndex ?? undefined,
-        startColumnIndex: r.startColumnIndex ?? undefined,
-        endColumnIndex: r.endColumnIndex ?? undefined,
-      })),
+      ranges: (rule.ranges ?? []).map((r) =>
+        buildGridRangeInput(
+          r.sheetId ?? 0,
+          r.startRowIndex ?? undefined,
+          r.endRowIndex ?? undefined,
+          r.startColumnIndex ?? undefined,
+          r.endColumnIndex ?? undefined
+        )
+      ),
     }));
 
     // Pagination to prevent >1MB responses
@@ -1169,7 +1189,7 @@ Always return valid JSON in the exact format requested.`,
       totalCount,
       truncated,
       ...(truncated && {
-        suggestion: `Found ${totalCount} rules. Showing first ${limit}. Use sheets_spreadsheet to get full rule data if needed.`,
+        suggestion: `Found ${totalCount} rules. Showing first ${limit}. Use sheets_core action "get" to retrieve full rule data if needed.`,
       }),
     });
   }
@@ -1178,8 +1198,8 @@ Always return valid JSON in the exact format requested.`,
   // Rules Actions (Data Validation)
   // ============================================================
 
-  private async handleRuleAddDataValidation(
-    input: SheetsFormatInput & { action: 'rule_add_data_validation' }
+  private async handleSetDataValidation(
+    input: FormatRequest & { action: 'set_data_validation' }
   ): Promise<FormatResponse> {
     const gridRange = await this.resolveRangeInput(input.spreadsheetId, input.range!);
 
@@ -1212,14 +1232,14 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('rule_add_data_validation', {});
+    return this.success('set_data_validation', {});
   }
 
-  private async handleRuleClearDataValidation(
-    input: SheetsFormatInput & { action: 'rule_clear_data_validation' }
+  private async handleClearDataValidation(
+    input: FormatRequest & { action: 'clear_data_validation' }
   ): Promise<FormatResponse> {
     if (input.safety?.dryRun) {
-      return this.success('rule_clear_data_validation', {}, undefined, true);
+      return this.success('clear_data_validation', {}, undefined, true);
     }
 
     const gridRange = await this.resolveRangeInput(input.spreadsheetId, input.range!);
@@ -1249,13 +1269,13 @@ Always return valid JSON in the exact format requested.`,
       },
     });
 
-    return this.success('rule_clear_data_validation', {
+    return this.success('clear_data_validation', {
       snapshotId: snapshot?.snapshotId,
     });
   }
 
-  private async handleRuleListDataValidations(
-    input: SheetsFormatInput & { action: 'rule_list_data_validations' }
+  private async handleListDataValidations(
+    input: FormatRequest & { action: 'list_data_validations' }
   ): Promise<FormatResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
@@ -1283,13 +1303,7 @@ Always return valid JSON in the exact format requested.`,
           if (cell.dataValidation?.condition) {
             const condType = cell.dataValidation.condition.type as ConditionType;
             allValidations.push({
-              range: {
-                sheetId: input.sheetId!,
-                startRowIndex: rowIdx,
-                endRowIndex: rowIdx + 1,
-                startColumnIndex: colIdx,
-                endColumnIndex: colIdx + 1,
-              },
+              range: buildGridRangeInput(input.sheetId!, rowIdx, rowIdx + 1, colIdx, colIdx + 1),
               condition: {
                 type: condType,
                 values: cell.dataValidation.condition.values?.map((v) => v.userEnteredValue ?? ''),
@@ -1306,7 +1320,7 @@ Always return valid JSON in the exact format requested.`,
     const validations = allValidations.slice(0, limit);
     const truncated = totalCount > limit;
 
-    return this.success('rule_list_data_validations', {
+    return this.success('list_data_validations', {
       validations,
       totalCount,
       truncated,
@@ -1320,8 +1334,8 @@ Always return valid JSON in the exact format requested.`,
   // Rules Actions (Preset Rules)
   // ============================================================
 
-  private async handleRuleAddPresetRule(
-    input: SheetsFormatInput & { action: 'rule_add_preset_rule' }
+  private async handleAddConditionalFormatRule(
+    input: FormatRequest & { action: 'add_conditional_format_rule' }
   ): Promise<FormatResponse> {
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
@@ -1529,7 +1543,118 @@ Always return valid JSON in the exact format requested.`,
       requestBody: { requests: [request] },
     });
 
-    return this.success('rule_add_preset_rule', { ruleIndex: 0 });
+    return this.success('add_conditional_format_rule', { ruleIndex: 0 });
+  }
+
+  // ============================================================
+  // Sparkline Actions
+  // ============================================================
+
+  private async handleSparklineAdd(
+    input: FormatRequest & { action: 'sparkline_add' }
+  ): Promise<FormatResponse> {
+    // Resolve the data range to A1 notation
+    const dataRangeA1 = await this.resolveRange(input.spreadsheetId, input.dataRange);
+
+    // Build SPARKLINE formula with options
+    const options: string[] = [];
+    const config = input.config;
+
+    // Chart type (default is LINE, so only add if different)
+    if (config?.type && config.type !== 'LINE') {
+      options.push(`"charttype", "${config.type.toLowerCase()}"`);
+    }
+
+    // Colors (convert RGB 0-1 to hex)
+    if (config?.color) options.push(`"color", "${this.rgbToHex(config.color)}"`);
+    if (config?.negativeColor) options.push(`"negcolor", "${this.rgbToHex(config.negativeColor)}"`);
+    if (config?.firstColor) options.push(`"firstcolor", "${this.rgbToHex(config.firstColor)}"`);
+    if (config?.lastColor) options.push(`"lastcolor", "${this.rgbToHex(config.lastColor)}"`);
+    if (config?.highColor) options.push(`"highcolor", "${this.rgbToHex(config.highColor)}"`);
+    if (config?.lowColor) options.push(`"lowcolor", "${this.rgbToHex(config.lowColor)}"`);
+
+    // Axis settings
+    if (config?.showAxis && config.axisColor) {
+      options.push(`"axis", true`);
+      options.push(`"axiscolor", "${this.rgbToHex(config.axisColor)}"`);
+    } else if (config?.showAxis) {
+      options.push(`"axis", true`);
+    }
+
+    // Other options
+    if (config?.lineWidth !== undefined && config.lineWidth !== 1) {
+      options.push(`"linewidth", ${config.lineWidth}`);
+    }
+    if (config?.minValue !== undefined) options.push(`"ymin", ${config.minValue}`);
+    if (config?.maxValue !== undefined) options.push(`"ymax", ${config.maxValue}`);
+    if (config?.rtl) options.push(`"rtl", true`);
+
+    // Build the formula
+    const optionsStr = options.length > 0 ? `, {${options.join('; ')}}` : '';
+    const formula = `=SPARKLINE(${dataRangeA1}${optionsStr})`;
+
+    if (input.safety?.dryRun) {
+      return this.success('sparkline_add', { cell: input.targetCell, formula }, undefined, true);
+    }
+
+    // Write formula to target cell
+    await this.sheetsApi.spreadsheets.values.update({
+      spreadsheetId: input.spreadsheetId,
+      range: input.targetCell,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[formula]] },
+    });
+
+    return this.success('sparkline_add', { cell: input.targetCell, formula });
+  }
+
+  private async handleSparklineGet(
+    input: FormatRequest & { action: 'sparkline_get' }
+  ): Promise<FormatResponse> {
+    // Read the cell with FORMULA render option to get the actual formula
+    const response = await this.sheetsApi.spreadsheets.values.get({
+      spreadsheetId: input.spreadsheetId,
+      range: input.cell,
+      valueRenderOption: 'FORMULA',
+    });
+
+    const formula = response.data.values?.[0]?.[0];
+
+    if (!formula || !String(formula).toUpperCase().startsWith('=SPARKLINE(')) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `No sparkline found in cell ${input.cell}`,
+        retryable: false,
+      });
+    }
+
+    return this.success('sparkline_get', { cell: input.cell, formula: String(formula) });
+  }
+
+  private async handleSparklineClear(
+    input: FormatRequest & { action: 'sparkline_clear' }
+  ): Promise<FormatResponse> {
+    if (input.safety?.dryRun) {
+      return this.success('sparkline_clear', { cell: input.cell }, undefined, true);
+    }
+
+    // Clear the cell content
+    await this.sheetsApi.spreadsheets.values.clear({
+      spreadsheetId: input.spreadsheetId,
+      range: input.cell,
+    });
+
+    return this.success('sparkline_clear', { cell: input.cell });
+  }
+
+  /**
+   * Convert RGB color (0-1 scale) to hex string
+   */
+  private rgbToHex(color: { red?: number; green?: number; blue?: number }): string {
+    const r = Math.round((color.red ?? 0) * 255);
+    const g = Math.round((color.green ?? 0) * 255);
+    const b = Math.round((color.blue ?? 0) * 255);
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   }
 
   // ============================================================
@@ -1540,13 +1665,13 @@ Always return valid JSON in the exact format requested.`,
     const parsed = parseA1Notation(a1);
     const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
 
-    return {
+    return buildGridRangeInput(
       sheetId,
-      startRowIndex: parsed.startRow,
-      endRowIndex: parsed.endRow,
-      startColumnIndex: parsed.startCol,
-      endColumnIndex: parsed.endCol,
-    };
+      parsed.startRow,
+      parsed.endRow,
+      parsed.startCol,
+      parsed.endCol
+    );
   }
 
   private async resolveGridRange(
@@ -1556,13 +1681,13 @@ Always return valid JSON in the exact format requested.`,
   ): Promise<GridRangeInput> {
     if ('a1' in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
-      return {
+      return buildGridRangeInput(
         sheetId,
-        startRowIndex: parsed.startRow,
-        endRowIndex: parsed.endRow,
-        startColumnIndex: parsed.startCol,
-        endColumnIndex: parsed.endCol,
-      };
+        parsed.startRow,
+        parsed.endRow,
+        parsed.startCol,
+        parsed.endCol
+      );
     }
 
     if ('grid' in range && range.grid) {
@@ -1573,13 +1698,13 @@ Always return valid JSON in the exact format requested.`,
         startColumnIndex?: number;
         endColumnIndex?: number;
       };
-      return {
-        sheetId: grid.sheetId ?? sheetId,
-        startRowIndex: grid.startRowIndex,
-        endRowIndex: grid.endRowIndex,
-        startColumnIndex: grid.startColumnIndex,
-        endColumnIndex: grid.endColumnIndex,
-      };
+      return buildGridRangeInput(
+        grid.sheetId ?? sheetId,
+        grid.startRowIndex,
+        grid.endRowIndex,
+        grid.startColumnIndex,
+        grid.endColumnIndex
+      );
     }
 
     // For named ranges, resolve via API
@@ -1591,13 +1716,13 @@ Always return valid JSON in the exact format requested.`,
 
       const namedRange = response.data.namedRanges?.find((nr) => nr.name === range.namedRange);
       if (namedRange?.range) {
-        return {
-          sheetId: namedRange.range.sheetId ?? sheetId,
-          startRowIndex: namedRange.range.startRowIndex ?? 0,
-          endRowIndex: namedRange.range.endRowIndex ?? 1000,
-          startColumnIndex: namedRange.range.startColumnIndex ?? 0,
-          endColumnIndex: namedRange.range.endColumnIndex ?? 26,
-        };
+        return buildGridRangeInput(
+          namedRange.range.sheetId ?? sheetId,
+          namedRange.range.startRowIndex ?? 0,
+          namedRange.range.endRowIndex ?? 1000,
+          namedRange.range.startColumnIndex ?? 0,
+          namedRange.range.endColumnIndex ?? 26
+        );
       }
     }
 
@@ -1616,13 +1741,13 @@ Always return valid JSON in the exact format requested.`,
     if ('a1' in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
       const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
-      return {
+      return buildGridRangeInput(
         sheetId,
-        startRowIndex: parsed.startRow,
-        endRowIndex: parsed.endRow,
-        startColumnIndex: parsed.startCol,
-        endColumnIndex: parsed.endCol,
-      };
+        parsed.startRow,
+        parsed.endRow,
+        parsed.startCol,
+        parsed.endCol
+      );
     }
 
     if ('grid' in range && range.grid) {
@@ -1633,13 +1758,13 @@ Always return valid JSON in the exact format requested.`,
         startColumnIndex?: number;
         endColumnIndex?: number;
       };
-      return {
-        sheetId: grid.sheetId,
-        startRowIndex: grid.startRowIndex,
-        endRowIndex: grid.endRowIndex,
-        startColumnIndex: grid.startColumnIndex,
-        endColumnIndex: grid.endColumnIndex,
-      };
+      return buildGridRangeInput(
+        grid.sheetId,
+        grid.startRowIndex,
+        grid.endRowIndex,
+        grid.startColumnIndex,
+        grid.endColumnIndex
+      );
     }
 
     // For named ranges, resolve via API
@@ -1651,13 +1776,13 @@ Always return valid JSON in the exact format requested.`,
 
       const namedRange = response.data.namedRanges?.find((nr) => nr.name === range.namedRange);
       if (namedRange?.range) {
-        return {
-          sheetId: namedRange.range.sheetId ?? 0,
-          startRowIndex: namedRange.range.startRowIndex ?? 0,
-          endRowIndex: namedRange.range.endRowIndex ?? 1000,
-          startColumnIndex: namedRange.range.startColumnIndex ?? 0,
-          endColumnIndex: namedRange.range.endColumnIndex ?? 26,
-        };
+        return buildGridRangeInput(
+          namedRange.range.sheetId ?? 0,
+          namedRange.range.startRowIndex ?? 0,
+          namedRange.range.endRowIndex ?? 1000,
+          namedRange.range.startColumnIndex ?? 0,
+          namedRange.range.endColumnIndex ?? 26
+        );
       }
     }
 

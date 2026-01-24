@@ -12,41 +12,43 @@ import type { OperationHistory, OperationHistoryStats } from '../../src/types/hi
 import { SheetsHistoryOutputSchema } from '../../src/schemas/history.js';
 
 // Mock HistoryService
-const createMockHistoryService = (): HistoryService => ({
-  record: vi.fn(),
-  getById: vi.fn(),
-  getAll: vi.fn(),
-  getRecent: vi.fn(),
-  getFailures: vi.fn(),
-  getBySpreadsheet: vi.fn(),
-  getStats: vi.fn(),
-  clear: vi.fn(),
-  size: vi.fn(),
-  isFull: vi.fn(),
-  getLastUndoable: vi.fn(),
-  getLastRedoable: vi.fn(),
-  markAsUndone: vi.fn(),
-  markAsRedone: vi.fn(),
-  clearForSpreadsheet: vi.fn(),
-  getUndoStackSize: vi.fn(),
-  getRedoStackSize: vi.fn(),
-} as any);
+const createMockHistoryService = (): HistoryService =>
+  ({
+    record: vi.fn(),
+    getById: vi.fn(),
+    getAll: vi.fn(),
+    getRecent: vi.fn(),
+    getFailures: vi.fn(),
+    getBySpreadsheet: vi.fn(),
+    getStats: vi.fn(),
+    clear: vi.fn(),
+    size: vi.fn(),
+    isFull: vi.fn(),
+    getLastUndoable: vi.fn(),
+    getLastRedoable: vi.fn(),
+    markAsUndone: vi.fn(),
+    markAsRedone: vi.fn(),
+    clearForSpreadsheet: vi.fn(),
+    getUndoStackSize: vi.fn(),
+    getRedoStackSize: vi.fn(),
+  }) as any;
 
 // Mock SnapshotService
-const createMockSnapshotService = (): SnapshotService => ({
-  create: vi.fn(),
-  restore: vi.fn(),
-  get: vi.fn(),
-  delete: vi.fn(),
-  list: vi.fn(),
-  clear: vi.fn(),
-} as any);
+const createMockSnapshotService = (): SnapshotService =>
+  ({
+    create: vi.fn(),
+    restore: vi.fn(),
+    get: vi.fn(),
+    delete: vi.fn(),
+    list: vi.fn(),
+    clear: vi.fn(),
+  }) as any;
 
 // Helper to create mock operations
 const createMockOperation = (overrides?: Partial<OperationHistory>): OperationHistory => ({
   id: 'op-123',
   timestamp: '2025-01-09T10:00:00Z',
-  tool: 'sheets_values',
+  tool: 'sheets_data',
   action: 'write',
   params: { spreadsheetId: 'test-sheet', range: 'A1' },
   result: 'success',
@@ -83,7 +85,8 @@ describe('HistoryHandler', () => {
     vi.clearAllMocks();
 
     // Import to get the mock
-    const { getHistoryService, setHistoryService } = await import('../../src/services/history-service.js');
+    const { getHistoryService, setHistoryService } =
+      await import('../../src/services/history-service.js');
 
     // Create fresh mocks
     mockHistoryService = createMockHistoryService();
@@ -99,7 +102,7 @@ describe('HistoryHandler', () => {
   describe('list action', () => {
     it('should list recent operations with default count', async () => {
       const mockOperations = [
-        createMockOperation({ id: 'op-1', tool: 'sheets_values', action: 'write' }),
+        createMockOperation({ id: 'op-1', tool: 'sheets_data', action: 'write' }),
         createMockOperation({ id: 'op-2', tool: 'sheets_format', action: 'set_background' }),
       ];
 
@@ -302,7 +305,7 @@ describe('HistoryHandler', () => {
         successRate: 0.85,
         averageDuration: 275.5,
         totalCellsAffected: 5000,
-        mostCommonTool: 'sheets_values',
+        mostCommonTool: 'sheets_data',
         mostCommonAction: 'write',
         oldestOperation: '2025-01-08T10:00:00Z',
         newestOperation: '2025-01-09T10:00:00Z',
@@ -361,7 +364,7 @@ describe('HistoryHandler', () => {
     it('should undo last operation for spreadsheet', async () => {
       const mockOperation = createMockOperation({
         id: 'op-to-undo',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         spreadsheetId: 'sheet-123',
         snapshotId: 'snap-before-write',
@@ -382,9 +385,9 @@ describe('HistoryHandler', () => {
         expect(result.response.restoredSpreadsheetId).toBe('sheet-123');
         expect(result.response.operationRestored).toBeDefined();
         expect(result.response.operationRestored!.id).toBe('op-to-undo');
-        expect(result.response.operationRestored!.tool).toBe('sheets_values');
+        expect(result.response.operationRestored!.tool).toBe('sheets_data');
         expect(result.response.operationRestored!.action).toBe('write');
-        expect(result.response.message).toContain('Undid sheets_values.write operation');
+        expect(result.response.message).toContain('Undid sheets_data.write operation');
       }
 
       expect(mockHistoryService.getLastUndoable).toHaveBeenCalledWith('sheet-123');
@@ -464,9 +467,7 @@ describe('HistoryHandler', () => {
       });
 
       mockHistoryService.getLastUndoable = vi.fn().mockReturnValue(mockOperation);
-      mockSnapshotService.restore = vi.fn().mockRejectedValue(
-        new Error('Snapshot corrupted')
-      );
+      mockSnapshotService.restore = vi.fn().mockRejectedValue(new Error('Snapshot corrupted'));
 
       const result = await handler.handle({
         action: 'undo',
@@ -498,7 +499,9 @@ describe('HistoryHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
-        expect(result.response.error.message).toContain('Redo functionality is not yet implemented');
+        expect(result.response.error.message).toContain(
+          'Redo functionality is not yet implemented'
+        );
         expect(result.response.error.retryable).toBe(false);
         expect(result.response.error.details).toBeDefined();
       }
@@ -547,7 +550,9 @@ describe('HistoryHandler', () => {
         expect(result.response.restoredSpreadsheetId).toBe('sheet-restored');
         expect(result.response.operationRestored).toBeDefined();
         expect(result.response.operationRestored!.id).toBe('op-revert-target');
-        expect(result.response.message).toContain('Reverted to state before sheets_format.set_background');
+        expect(result.response.message).toContain(
+          'Reverted to state before sheets_format.set_background'
+        );
       }
 
       expect(mockHistoryService.getById).toHaveBeenCalledWith('op-revert-target');
@@ -620,9 +625,7 @@ describe('HistoryHandler', () => {
       });
 
       mockHistoryService.getById = vi.fn().mockReturnValue(mockOperation);
-      mockSnapshotService.restore = vi.fn().mockRejectedValue(
-        new Error('Snapshot not found')
-      );
+      mockSnapshotService.restore = vi.fn().mockRejectedValue(new Error('Snapshot not found'));
 
       const result = await handler.handle({
         action: 'revert_to',

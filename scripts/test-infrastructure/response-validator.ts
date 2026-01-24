@@ -114,27 +114,27 @@ export class ResponseValidator {
     action: string,
     data: any,
     errors: string[],
-    warnings: string[],
+    warnings: string[]
   ): void {
     const response = data?.response;
     if (!response) return;
 
-    // sheets_values read should return data
-    if (tool === 'sheets_values' && action === 'read' && response.success) {
+    // sheets_data read should return data
+    if (tool === 'sheets_data' && action === 'read' && response.success) {
       if (!response.values && !response.data) {
         warnings.push('Read operation missing values/data field');
       }
     }
 
-    // sheets_values write should return updated range
-    if (tool === 'sheets_values' && action === 'write' && response.success) {
+    // sheets_data write should return updated range
+    if (tool === 'sheets_data' && action === 'write' && response.success) {
       if (!response.updatedRange && !response.range) {
         warnings.push('Write operation missing updatedRange field');
       }
     }
 
-    // sheets_spreadsheet create should return spreadsheetId
-    if (tool === 'sheets_spreadsheet' && action === 'create' && response.success) {
+    // sheets_core create should return spreadsheetId
+    if (tool === 'sheets_core' && action === 'create' && response.success) {
       if (!response.spreadsheetId) {
         errors.push('Create operation missing spreadsheetId');
       }

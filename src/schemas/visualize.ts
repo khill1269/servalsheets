@@ -109,8 +109,30 @@ const ChartSeriesSchema = z.object({
   dataLabel: DataLabelSchema.optional().describe('Configure data labels for this series'),
 });
 
+/**
+ * Chart-specific range schema that accepts:
+ * 1. Standard RangeInput (structured object with a1, namedRange, semantic, or grid)
+ * 2. Direct string including comma-separated ranges for multi-series charts
+ *
+ * This is more permissive than A1NotationSchema to support chart requirements
+ * where multiple non-contiguous ranges are needed (e.g., "Sheet1!A1:A10,Sheet1!D1:D10")
+ */
+const ChartRangeSchema = z.union([
+  RangeInputSchema,
+  z
+    .string()
+    .min(1)
+    .max(500)
+    .transform((val) => ({ a1: val }))
+    .describe(
+      'A1 notation range(s). For multiple ranges, use comma-separated: "Sheet1!A1:A10,Sheet1!D1:D10"'
+    ),
+]);
+
 const ChartDataSchema = z.object({
-  sourceRange: RangeInputSchema,
+  sourceRange: ChartRangeSchema.describe(
+    'Chart data source. Accepts A1 notation, comma-separated ranges for multi-series, or structured input {a1: "..."}.'
+  ),
   series: z
     .array(ChartSeriesSchema)
     .optional()
@@ -241,7 +263,11 @@ const CommonFieldsSchema = z.object({
 // ===== CHART ACTION SCHEMAS (9 actions) =====
 
 const ChartCreateActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('chart_create').describe('Create a new chart'),
+  action: z
+    .literal('chart_create')
+    .describe(
+      'Create a new chart. Minimal example: { "action": "chart_create", "spreadsheetId": "abc123", "sheetId": 0, "chartType": "LINE", "data": { "sourceRange": "Sheet1!A1:B10" }, "position": { "anchorCell": "Sheet1!E2" } }'
+    ),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
   chartType: ChartTypeSchema.describe(

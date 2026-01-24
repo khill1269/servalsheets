@@ -37,10 +37,7 @@ describe('AdvancedHandler', () => {
   beforeEach(() => {
     mockSheetsApi = createMockSheetsApi();
     mockContext = createMockContext();
-    handler = new AdvancedHandler(
-      mockContext,
-      mockSheetsApi as unknown as sheets_v4.Sheets
-    );
+    handler = new AdvancedHandler(mockContext, mockSheetsApi as unknown as sheets_v4.Sheets);
 
     mockSheetsApi.spreadsheets.get.mockResolvedValue({
       data: { sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }], namedRanges: [] },
@@ -50,14 +47,22 @@ describe('AdvancedHandler', () => {
 
   it('adds a named range', async () => {
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
-      data: { replies: [{ addNamedRange: { namedRange: { namedRangeId: 'nr1', name: 'Range1', range: { sheetId: 0 } } } }] },
+      data: {
+        replies: [
+          {
+            addNamedRange: {
+              namedRange: { namedRangeId: 'nr1', name: 'Range1', range: { sheetId: 0 } },
+            },
+          },
+        ],
+      },
     });
 
     const result = await handler.handle({
-        action: 'add_named_range',
-        spreadsheetId: 'sheet-id',
-        name: 'Range1',
-        range: { a1: 'Sheet1!A1:B2' },
+      action: 'add_named_range',
+      spreadsheetId: 'sheet-id',
+      name: 'Range1',
+      range: { a1: 'Sheet1!A1:B2' },
     });
 
     const parsed = SheetsAdvancedOutputSchema.safeParse(result);
@@ -78,14 +83,22 @@ describe('AdvancedHandler', () => {
 
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({
       data: {
-        replies: [{
-          addTable: {
-            table: {
-              tableId: 'table-1',
-              range: { sheetId: 0, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 2 },
+        replies: [
+          {
+            addTable: {
+              table: {
+                tableId: 'table-1',
+                range: {
+                  sheetId: 0,
+                  startRowIndex: 0,
+                  endRowIndex: 3,
+                  startColumnIndex: 0,
+                  endColumnIndex: 2,
+                },
+              },
             },
           },
-        }],
+        ],
       },
     });
 

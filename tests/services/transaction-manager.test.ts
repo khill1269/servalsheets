@@ -56,9 +56,7 @@ describe('TransactionManager', () => {
           batchUpdate: vi.fn().mockResolvedValue({
             data: {
               spreadsheetId: 'test-sheet-123',
-              replies: [
-                { updateCells: {} },
-              ],
+              replies: [{ updateCells: {} }],
             },
           }),
         },
@@ -145,7 +143,7 @@ describe('TransactionManager', () => {
       // Act - Queue first operation
       const opId1 = await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1:A10', values: [[1], [2], [3]] },
       });
@@ -179,7 +177,7 @@ describe('TransactionManager', () => {
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -223,7 +221,7 @@ describe('TransactionManager', () => {
       // Queue operation
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -253,8 +251,8 @@ describe('TransactionManager', () => {
       // Act
       const opId1 = await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'NewSheet' },
       });
 
@@ -263,7 +261,7 @@ describe('TransactionManager', () => {
 
       const opId2 = await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'NewSheet!A1', values: [[1]] },
         dependsOn: [opId1],
@@ -285,7 +283,7 @@ describe('TransactionManager', () => {
         transaction.status = 'pending'; // Reset to allow queuing
         await transactionManager.queue(txnId, {
           type: 'values_write',
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'write',
           params: { range: `A${i}`, values: [[i]] },
         });
@@ -296,7 +294,7 @@ describe('TransactionManager', () => {
       await expect(
         transactionManager.queue(txnId, {
           type: 'values_write',
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'write',
           params: { range: 'A101', values: [[101]] },
         })
@@ -308,7 +306,7 @@ describe('TransactionManager', () => {
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -323,7 +321,7 @@ describe('TransactionManager', () => {
       const txnId2 = await transactionManager.begin('test-sheet-456');
       await transactionManager.queue(txnId2, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -335,7 +333,7 @@ describe('TransactionManager', () => {
       await expect(
         transactionManager.queue(txnId2, {
           type: 'values_write',
-          tool: 'sheets_values',
+          tool: 'sheets_data',
           action: 'write',
           params: { range: 'A2', values: [[2]] },
         })
@@ -350,23 +348,23 @@ describe('TransactionManager', () => {
       // Act
       const opId1 = await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'Sheet1' },
       });
 
       transaction.status = 'pending';
       const opId2 = await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'Sheet2' },
       });
 
       transaction.status = 'pending';
       const opId3 = await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'Sheet2!A1', values: [[1]] },
         dependsOn: [opId1, opId2],
@@ -387,14 +385,14 @@ describe('TransactionManager', () => {
       // Queue 5 operations
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
       transaction.status = 'pending';
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A2', values: [[2]] },
       });
@@ -408,15 +406,15 @@ describe('TransactionManager', () => {
       transaction.status = 'pending';
       await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'NewSheet' },
       });
       transaction.status = 'pending';
       await transactionManager.queue(txnId, {
         type: 'sheet_delete',
-        tool: 'sheets_sheet',
-        action: 'delete',
+        tool: 'sheets_core',
+        action: 'delete_sheet',
         params: { sheetId: 999 },
       });
 
@@ -463,7 +461,7 @@ describe('TransactionManager', () => {
           transaction.status = 'pending';
           await transactionManager.queue(txnId, {
             type: 'values_write',
-            tool: 'sheets_values',
+            tool: 'sheets_data',
             action: 'write',
             params: { range: `A${i + 1}`, values: [[i + 1]] },
           });
@@ -492,14 +490,14 @@ describe('TransactionManager', () => {
 
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
       transaction.status = 'pending';
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A2', values: [[2]] },
       });
@@ -530,7 +528,7 @@ describe('TransactionManager', () => {
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -542,7 +540,9 @@ describe('TransactionManager', () => {
       expect(result.success).toBe(false);
       expect(result.transactionId).toBe(txnId);
       expect(result.error).toBeDefined();
-      expect(result.error!.message).toContain('Automatic in-place snapshot restoration is not supported');
+      expect(result.error!.message).toContain(
+        'Automatic in-place snapshot restoration is not supported'
+      );
     });
 
     it('should reject rollback when no snapshot exists', async () => {
@@ -556,7 +556,7 @@ describe('TransactionManager', () => {
       const txnId = await managerWithoutSnapshot.begin('test-sheet-123');
       await managerWithoutSnapshot.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -575,7 +575,7 @@ describe('TransactionManager', () => {
 
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -633,16 +633,16 @@ describe('TransactionManager', () => {
 
       const opId1 = await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'Sheet1' },
       });
 
       transaction.status = 'pending';
       const opId2 = await transactionManager.queue(txnId, {
         type: 'sheet_create',
-        tool: 'sheets_sheet',
-        action: 'create',
+        tool: 'sheets_core',
+        action: 'add_sheet',
         params: { title: 'Sheet2' },
         dependsOn: [opId1],
       });
@@ -684,14 +684,12 @@ describe('TransactionManager', () => {
 
     it('should handle snapshot creation failure gracefully', async () => {
       // Arrange
-      mockGoogleClient.sheets.spreadsheets.get.mockRejectedValue(
-        new Error('Permission denied')
-      );
+      mockGoogleClient.sheets.spreadsheets.get.mockRejectedValue(new Error('Permission denied'));
 
       // Act & Assert
-      await expect(
-        transactionManager.begin('test-sheet-no-access')
-      ).rejects.toThrow('Permission denied');
+      await expect(transactionManager.begin('test-sheet-no-access')).rejects.toThrow(
+        'Permission denied'
+      );
 
       // Verify stats weren't corrupted
       const stats = transactionManager.getStats();
@@ -709,7 +707,7 @@ describe('TransactionManager', () => {
       const txnId1 = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId1, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -722,13 +720,11 @@ describe('TransactionManager', () => {
       const txnId2 = await transactionManager.begin('test-sheet-456');
       await transactionManager.queue(txnId2, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
-      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockRejectedValue(
-        new Error('API error')
-      );
+      mockGoogleClient.sheets.spreadsheets.batchUpdate.mockRejectedValue(new Error('API error'));
       await transactionManager.commit(txnId2);
 
       // Assert
@@ -771,7 +767,7 @@ describe('TransactionManager', () => {
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -815,8 +811,8 @@ describe('TransactionManager', () => {
 
       // Assert
       expect(activeTransactions.length).toBe(2);
-      expect(activeTransactions.map(t => t.id)).toContain(txnId1);
-      expect(activeTransactions.map(t => t.id)).toContain(txnId2);
+      expect(activeTransactions.map((t) => t.id)).toContain(txnId1);
+      expect(activeTransactions.map((t) => t.id)).toContain(txnId2);
     });
 
     it('should cancel transaction', async () => {
@@ -824,7 +820,7 @@ describe('TransactionManager', () => {
       const txnId = await transactionManager.begin('test-sheet-123');
       await transactionManager.queue(txnId, {
         type: 'values_write',
-        tool: 'sheets_values',
+        tool: 'sheets_data',
         action: 'write',
         params: { range: 'A1', values: [[1]] },
       });
@@ -839,9 +835,7 @@ describe('TransactionManager', () => {
 
     it('should throw error for non-existent transaction', () => {
       // Act & Assert
-      expect(() => transactionManager.getTransaction('non-existent-id')).toThrow(
-        'not found'
-      );
+      expect(() => transactionManager.getTransaction('non-existent-id')).toThrow('not found');
     });
   });
 

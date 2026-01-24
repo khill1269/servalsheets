@@ -2,7 +2,7 @@
  * ServalSheets - Fix Tool Schema
  *
  * Automated issue resolution based on analysis results.
- * Takes issues from sheets_analysis and applies fixes.
+ * Takes issues from sheets_analyze and applies fixes.
  */
 
 import { z } from 'zod';
@@ -106,19 +106,31 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
 
 export type SheetsFixResponse = z.infer<typeof SheetsFixResponseSchema>;
 
+// Verbosity level for response filtering
+const VerbositySchema = z
+  .enum(['minimal', 'standard', 'detailed'])
+  .optional()
+  .default('standard')
+  .describe(
+    'Response verbosity: minimal (essential info only, ~40% less tokens), standard (balanced), detailed (full metadata)'
+  );
+
 // INPUT SCHEMA: Discriminated union (1 action)
 const FixActionSchema = z.object({
   action: z.literal('fix').describe('Apply automated fixes to identified issues'),
   spreadsheetId: z.string().describe('Spreadsheet ID to fix'),
-  issues: z.array(IssueToFixSchema).describe('Issues to fix (from sheets_analysis)'),
+  issues: z.array(IssueToFixSchema).describe('Issues to fix (from sheets_analyze)'),
   mode: FixModeSchema.optional().describe(
     'preview = show what would be fixed, apply = actually fix'
   ),
   filters: FixFiltersSchema.optional().describe('Filter issues to fix'),
   safety: FixSafetySchema.optional().describe('Safety options'),
+  verbosity: VerbositySchema,
 });
 
-export const SheetsFixInputSchema = z.discriminatedUnion('action', [FixActionSchema]);
+export const SheetsFixInputSchema = z.object({
+  request: z.discriminatedUnion('action', [FixActionSchema]),
+});
 
 export const SheetsFixOutputSchema = z.object({
   response: SheetsFixResponseSchema,
@@ -126,10 +138,12 @@ export const SheetsFixOutputSchema = z.object({
 
 export type SheetsFixInput = z.infer<typeof SheetsFixInputSchema>;
 export type SheetsFixOutput = z.infer<typeof SheetsFixOutputSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type FixRequest = SheetsFixInput['request'];
 
 // Type narrowing helper for handler methods
 // This provides type safety similar to discriminated union Extract<>
-export type FixInput = SheetsFixInput & {
+export type FixInput = SheetsFixInput['request'] & {
   action: 'fix';
   spreadsheetId: string;
   issues: IssueToFix[];

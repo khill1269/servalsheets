@@ -13,6 +13,8 @@
  * @module handlers/optimization
  */
 
+import { ValidationError } from '../core/errors.js';
+
 // ============================================================================
 // ACTION DISPATCH OPTIMIZATION
 // ============================================================================
@@ -29,7 +31,7 @@ export function createActionDispatcher<TInput extends { action: string }, TOutpu
   return async (input: TInput): Promise<TOutput> => {
     const handler = dispatchMap.get(input.action);
     if (!handler) {
-      throw new Error(`Unknown action: ${input.action}`);
+      throw new ValidationError(`Unknown action: ${input.action}`, 'action');
     }
     return handler(input);
   };

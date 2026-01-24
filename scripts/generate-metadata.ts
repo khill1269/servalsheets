@@ -48,7 +48,10 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'explain_analysis',
     ],
   },
-  confirm: { count: 2, actions: ['request', 'get_stats'] },
+  confirm: {
+    count: 5,
+    actions: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
+  },
 };
 
 // ============================================================================
@@ -247,7 +250,7 @@ const schemaFiles = readdirSync(join(ROOT, 'src/schemas')).filter(
     f !== 'fast-validators.ts' &&
     f !== 'action-metadata.ts' && // Not a tool, just metadata definitions
     f !== 'formulas.ts' && // Merged into sheets_advanced (Wave 5)
-    f !== 'analysis.ts' // DEPRECATED: sheets_analysis replaced by sheets_analyze (Phase 1)
+    f !== 'analysis.ts' // DEPRECATED: sheets_analyze replaced by sheets_analyze (Phase 1)
 );
 
 console.log(`\n📊 Analyzing ${schemaFiles.length} schema files...\n`);
@@ -417,11 +420,14 @@ const serverJson = {
     toolCount: TOOL_COUNT,
     actionCount: ACTION_COUNT,
     categories: [
-      'Core Operations (8 tools): spreadsheet, sheet, values, cells, format, dimensions, rules, charts',
-      'Advanced Features (5 tools): pivot, filter_sort, sharing, comments, versions',
-      'Analytics (2 tools): analysis, advanced',
-      'Enterprise (5 tools): transaction, validation, conflict, impact, history',
-      'MCP-Native (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)',
+      'Core Operations (5 tools): auth, core, data, format, dimensions',
+      'Visualizations (1 tool): visualize',
+      'Collaboration (1 tool): collaborate',
+      'Advanced Features (1 tool): advanced',
+      'Workflow & Safety (3 tools): transaction, quality, history',
+      'MCP-Native Intelligence (3 tools): confirm (Elicitation), analyze (Sampling), fix (Automated)',
+      'Productivity (2 tools): composite, session',
+      'Enterprise (3 tools): templates, bigquery, appsscript',
     ],
   },
   author: {

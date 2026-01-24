@@ -2,7 +2,7 @@
  * Tool: sheets_core (Consolidated)
  * Core spreadsheet and sheet/tab operations
  *
- * Consolidates sheets_spreadsheet (8 actions) + sheets_sheet (7 actions) = 15 actions
+ * Consolidates legacy sheets_spreadsheet (8 actions) + sheets_sheet (7 actions) = 15 actions
  * MCP Protocol: 2025-11-25
  */
 
@@ -177,7 +177,12 @@ const AddSheetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('add_sheet').describe('Add a new sheet/tab to a spreadsheet'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   title: z.string().min(1).max(255).describe('Sheet/tab title'),
-  index: z.number().int().min(0).optional().describe('Position to insert (0 = first, omit = last)'),
+  index: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Position to insert (0 = first, omit = last)'),
   rowCount: z
     .number()
     .int()
@@ -226,7 +231,7 @@ const UpdateSheetActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
   title: z.string().min(1).max(255).optional().describe('New sheet title'),
-  index: z.number().int().min(0).optional().describe('New position (0 = first)'),
+  index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
   tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
   hidden: z.boolean().optional().describe('Hide/show the sheet'),
   rightToLeft: z
@@ -251,7 +256,55 @@ const ListSheetsActionSchema = CommonFieldsSchema.extend({
 const GetSheetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_sheet').describe('Get metadata for a specific sheet/tab'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  sheetId: SheetIdSchema.describe('Numeric sheet ID to retrieve'),
+  sheetId: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Numeric sheet ID to retrieve (use this OR sheetName)'),
+  sheetName: z.string().optional().describe('Sheet name/title to retrieve (use this OR sheetId)'),
+});
+
+// ============================================================================
+// Batch Sheet Operations (ENHANCED - Issue #2 fix)
+// ============================================================================
+
+const BatchDeleteSheetsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('batch_delete_sheets')
+    .describe('Delete multiple sheets in one API call (efficient)'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetIds: z
+    .array(SheetIdSchema)
+    .min(1)
+    .max(100)
+    .describe('Array of numeric sheet IDs to delete (1-100)'),
+  allowMissing: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("If true, skip sheets that don't exist instead of erroring"),
+  safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
+});
+
+const BatchUpdateSheetsActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('batch_update_sheets')
+    .describe('Update multiple sheet properties in one API call'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  updates: z
+    .array(
+      z.object({
+        sheetId: SheetIdSchema.describe('Numeric sheet ID to update'),
+        title: z.string().min(1).max(255).optional().describe('New sheet title'),
+        index: z.coerce.number().int().min(0).optional().describe('New position (0 = first)'),
+        tabColor: ColorSchema.optional().describe('Tab color (RGB)'),
+        hidden: z.boolean().optional().describe('Hide/show the sheet'),
+      })
+    )
+    .min(1)
+    .max(100)
+    .describe('Array of sheet updates (1-100)'),
 });
 
 // ============================================================================
@@ -267,25 +320,30 @@ const GetSheetActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsCoreInputSchema = z.discriminatedUnion('action', [
-  // Spreadsheet actions (8)
-  GetActionSchema,
-  CreateActionSchema,
-  CopyActionSchema,
-  UpdatePropertiesActionSchema,
-  GetUrlActionSchema,
-  BatchGetActionSchema,
-  GetComprehensiveActionSchema,
-  ListActionSchema,
-  // Sheet/tab actions (7)
-  AddSheetActionSchema,
-  DeleteSheetActionSchema,
-  DuplicateSheetActionSchema,
-  UpdateSheetActionSchema,
-  CopySheetToActionSchema,
-  ListSheetsActionSchema,
-  GetSheetActionSchema,
-]);
+export const SheetsCoreInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Spreadsheet actions (8)
+    GetActionSchema,
+    CreateActionSchema,
+    CopyActionSchema,
+    UpdatePropertiesActionSchema,
+    GetUrlActionSchema,
+    BatchGetActionSchema,
+    GetComprehensiveActionSchema,
+    ListActionSchema,
+    // Sheet/tab actions (7)
+    AddSheetActionSchema,
+    DeleteSheetActionSchema,
+    DuplicateSheetActionSchema,
+    UpdateSheetActionSchema,
+    CopySheetToActionSchema,
+    ListSheetsActionSchema,
+    GetSheetActionSchema,
+    // Batch operations (Issue #2 fix - efficient multi-sheet operations)
+    BatchDeleteSheetsActionSchema,
+    BatchUpdateSheetsActionSchema,
+  ]),
+});
 
 const CoreResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -299,12 +357,20 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
     // Sheet responses
     sheet: SheetInfoSchema.optional(),
     sheets: z.array(SheetInfoSchema).optional(),
-    copiedSheetId: z.number().int().optional(),
+    copiedSheetId: z.coerce.number().int().optional(),
     /** True if delete was called but sheet was already missing (with allowMissing=true) */
     alreadyDeleted: z.boolean().optional(),
+    // Batch operation responses
+    /** Number of sheets deleted in batch operation */
+    deletedCount: z.coerce.number().int().optional(),
+    /** Sheet IDs that were skipped (didn't exist with allowMissing=true) */
+    skippedSheetIds: z.array(z.coerce.number().int()).optional(),
+    /** Number of sheets updated in batch operation */
+    updatedCount: z.coerce.number().int().optional(),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
     // Comprehensive metadata (get_comprehensive action)
     comprehensiveMetadata: z
       .object({
@@ -327,13 +393,13 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
           .optional(),
         stats: z
           .object({
-            sheetsCount: z.number().int(),
-            namedRangesCount: z.number().int(),
-            totalCharts: z.number().int(),
-            totalConditionalFormats: z.number().int(),
-            totalProtectedRanges: z.number().int(),
+            sheetsCount: z.coerce.number().int(),
+            namedRangesCount: z.coerce.number().int(),
+            totalCharts: z.coerce.number().int(),
+            totalConditionalFormats: z.coerce.number().int(),
+            totalProtectedRanges: z.coerce.number().int(),
             cacheHit: z.boolean(),
-            fetchTime: z.number().int(),
+            fetchTime: z.coerce.number().int(),
           })
           .optional(),
       })
@@ -370,73 +436,94 @@ export const SHEETS_CORE_ANNOTATIONS: ToolAnnotations = {
 export type SheetsCoreInput = z.infer<typeof SheetsCoreInputSchema>;
 export type SheetsCoreOutput = z.infer<typeof SheetsCoreOutputSchema>;
 export type CoreResponse = z.infer<typeof CoreResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type CoreRequest = SheetsCoreInput['request'];
 
 // Type narrowing helpers for handler methods (15 action types)
 // Spreadsheet actions
-export type CoreGetInput = SheetsCoreInput & {
+export type CoreGetInput = SheetsCoreInput['request'] & {
   action: 'get';
   spreadsheetId: string;
 };
-export type CoreCreateInput = SheetsCoreInput & {
+export type CoreCreateInput = SheetsCoreInput['request'] & {
   action: 'create';
   title: string;
 };
-export type CoreCopyInput = SheetsCoreInput & {
+export type CoreCopyInput = SheetsCoreInput['request'] & {
   action: 'copy';
   spreadsheetId: string;
 };
-export type CoreUpdatePropertiesInput = SheetsCoreInput & {
+export type CoreUpdatePropertiesInput = SheetsCoreInput['request'] & {
   action: 'update_properties';
   spreadsheetId: string;
 };
-export type CoreGetUrlInput = SheetsCoreInput & {
+export type CoreGetUrlInput = SheetsCoreInput['request'] & {
   action: 'get_url';
   spreadsheetId: string;
   sheetId?: number;
 };
-export type CoreBatchGetInput = SheetsCoreInput & {
+export type CoreBatchGetInput = SheetsCoreInput['request'] & {
   action: 'batch_get';
   spreadsheetIds: string[];
 };
-export type CoreGetComprehensiveInput = SheetsCoreInput & {
+export type CoreGetComprehensiveInput = SheetsCoreInput['request'] & {
   action: 'get_comprehensive';
   spreadsheetId: string;
 };
-export type CoreListInput = SheetsCoreInput & { action: 'list' };
+export type CoreListInput = SheetsCoreInput['request'] & { action: 'list' };
 
 // Sheet/tab actions
-export type CoreAddSheetInput = SheetsCoreInput & {
+export type CoreAddSheetInput = SheetsCoreInput['request'] & {
   action: 'add_sheet';
   spreadsheetId: string;
   title: string;
 };
-export type CoreDeleteSheetInput = SheetsCoreInput & {
+export type CoreDeleteSheetInput = SheetsCoreInput['request'] & {
   action: 'delete_sheet';
   spreadsheetId: string;
   sheetId: number;
 };
-export type CoreDuplicateSheetInput = SheetsCoreInput & {
+export type CoreDuplicateSheetInput = SheetsCoreInput['request'] & {
   action: 'duplicate_sheet';
   spreadsheetId: string;
   sheetId: number;
 };
-export type CoreUpdateSheetInput = SheetsCoreInput & {
+export type CoreUpdateSheetInput = SheetsCoreInput['request'] & {
   action: 'update_sheet';
   spreadsheetId: string;
   sheetId: number;
 };
-export type CoreCopySheetToInput = SheetsCoreInput & {
+export type CoreCopySheetToInput = SheetsCoreInput['request'] & {
   action: 'copy_sheet_to';
   spreadsheetId: string;
   sheetId: number;
   destinationSpreadsheetId: string;
 };
-export type CoreListSheetsInput = SheetsCoreInput & {
+export type CoreListSheetsInput = SheetsCoreInput['request'] & {
   action: 'list_sheets';
   spreadsheetId: string;
 };
-export type CoreGetSheetInput = SheetsCoreInput & {
+export type CoreGetSheetInput = SheetsCoreInput['request'] & {
   action: 'get_sheet';
   spreadsheetId: string;
-  sheetId: number;
+  sheetId?: number;
+  sheetName?: string;
+};
+
+// Batch operations (Issue #2 fix)
+export type CoreBatchDeleteSheetsInput = SheetsCoreInput['request'] & {
+  action: 'batch_delete_sheets';
+  spreadsheetId: string;
+  sheetIds: number[];
+};
+export type CoreBatchUpdateSheetsInput = SheetsCoreInput['request'] & {
+  action: 'batch_update_sheets';
+  spreadsheetId: string;
+  updates: Array<{
+    sheetId: number;
+    title?: string;
+    index?: number;
+    tabColor?: { red: number; green: number; blue: number; alpha?: number };
+    hidden?: boolean;
+  }>;
 };

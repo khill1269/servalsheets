@@ -222,7 +222,12 @@ describe('AnalyzeHandler', () => {
 
     it('should handle parse error in LLM response', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
-        data: { values: [['A', 'B'], ['1', '2']] },
+        data: {
+          values: [
+            ['A', 'B'],
+            ['1', '2'],
+          ],
+        },
       });
 
       // Mock invalid sampling response
@@ -243,7 +248,12 @@ describe('AnalyzeHandler', () => {
 
     it('should support different analysis types', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
-        data: { values: [['A', 'B'], ['1', '2']] },
+        data: {
+          values: [
+            ['A', 'B'],
+            ['1', '2'],
+          ],
+        },
       });
 
       mockContext.server!.createMessage = vi.fn().mockResolvedValue({
@@ -253,8 +263,18 @@ describe('AnalyzeHandler', () => {
           text: JSON.stringify({
             summary: 'Test',
             analyses: [
-              { type: 'patterns', confidence: 'medium', findings: ['Pattern found'], details: 'Detail' },
-              { type: 'anomalies', confidence: 'low', findings: ['No anomalies'], details: 'Clean' },
+              {
+                type: 'patterns',
+                confidence: 'medium',
+                findings: ['Pattern found'],
+                details: 'Detail',
+              },
+              {
+                type: 'anomalies',
+                confidence: 'low',
+                findings: ['No anomalies'],
+                details: 'Clean',
+              },
             ],
             overallQualityScore: 90,
             topInsights: ['Insight 1'],
@@ -276,7 +296,10 @@ describe('AnalyzeHandler', () => {
     it('should generate formula from description', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
         data: {
-          values: [['Product', 'Price', 'Quantity'], ['Apple', '1.50', '10']],
+          values: [
+            ['Product', 'Price', 'Quantity'],
+            ['Apple', '1.50', '10'],
+          ],
         },
       });
 
@@ -422,9 +445,7 @@ describe('AnalyzeHandler', () => {
 
   describe('error handling', () => {
     it('should handle API errors gracefully', async () => {
-      mockApi.spreadsheets.values.get.mockRejectedValue(
-        new Error('API Error: 404 Not Found')
-      );
+      mockApi.spreadsheets.values.get.mockRejectedValue(new Error('API Error: 404 Not Found'));
 
       const result = await handler.handle({
         action: 'analyze_data',
@@ -441,9 +462,9 @@ describe('AnalyzeHandler', () => {
         data: { values: [['A', 'B']] },
       });
 
-      mockContext.server!.createMessage = vi.fn().mockRejectedValue(
-        new Error('Sampling service unavailable')
-      );
+      mockContext.server!.createMessage = vi
+        .fn()
+        .mockRejectedValue(new Error('Sampling service unavailable'));
 
       const result = await handler.handle({
         action: 'analyze_data',
@@ -476,7 +497,7 @@ describe('AnalyzeHandler', () => {
           text: JSON.stringify({
             summary: 'Test analysis',
             analyses: [
-              { type: 'summary', confidence: 'high', findings: ['Test'], details: 'Details' }
+              { type: 'summary', confidence: 'high', findings: ['Test'], details: 'Details' },
             ],
             overallQualityScore: 85,
             topInsights: ['Insight 1'],
@@ -495,7 +516,10 @@ describe('AnalyzeHandler', () => {
 
       // Check if LLM path was used or fast path
       if (!mockApi.spreadsheets.values.get.mock.calls.length) {
-        console.log('A1 test: values.get not called, checking createMessage calls:', mockContext.server!.createMessage.mock.calls.length);
+        console.log(
+          'A1 test: values.get not called, checking createMessage calls:',
+          mockContext.server!.createMessage.mock.calls.length
+        );
         console.log('Response summary:', result.response.summary);
       }
 
@@ -522,7 +546,12 @@ describe('AnalyzeHandler', () => {
           text: JSON.stringify({
             summary: 'Default range analysis',
             analyses: [
-              { type: 'summary', confidence: 'medium', findings: ['Basic data'], details: 'Simple dataset' }
+              {
+                type: 'summary',
+                confidence: 'medium',
+                findings: ['Basic data'],
+                details: 'Simple dataset',
+              },
             ],
             overallQualityScore: 75,
             topInsights: ['Insight'],

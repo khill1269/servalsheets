@@ -174,6 +174,26 @@ export class SheetResolver {
       );
     }
 
+    // FIX: Handle NaN sheetId (Issue #7 - sheetName lookup NaN error)
+    // This can happen when sheetId is passed as a string and coerced to NaN
+    if (reference.sheetId !== undefined && Number.isNaN(reference.sheetId)) {
+      logger.warn('Received NaN sheetId, falling back to sheetName lookup', {
+        spreadsheetId,
+        sheetName: reference.sheetName,
+      });
+      // Clear invalid sheetId and try sheetName if available
+      if (reference.sheetName !== undefined) {
+        reference = { sheetName: reference.sheetName };
+      } else {
+        throw new SheetResolutionError(
+          'Invalid sheetId (NaN) and no sheetName provided',
+          'INVALID_SHEET_ID',
+          { receivedValue: 'NaN' },
+          []
+        );
+      }
+    }
+
     // Get all sheets (cached)
     const sheets = await this.getSheets(spreadsheetId);
 
@@ -193,10 +213,15 @@ export class SheetResolver {
           confidence: 1.0,
         };
       }
+      const availableInfo = sheets.slice(0, 5).map((s) => `${s.title} (id: ${s.sheetId})`);
       throw new SheetResolutionError(
-        `Sheet with ID ${reference.sheetId} not found`,
+        `Sheet with ID ${reference.sheetId} not found. Available: ${availableInfo.join(', ')}${sheets.length > 5 ? ` (+${sheets.length - 5} more)` : ''}. Use sheets_core action:"list_sheets" to get valid IDs.`,
         'SHEET_NOT_FOUND',
-        { sheetId: reference.sheetId },
+        {
+          sheetId: reference.sheetId,
+          hint: 'Sheet IDs are numeric and change when sheets are deleted/recreated.',
+          suggestedAction: 'sheets_core action:"list_sheets"',
+        },
         sheets.map((s) => s.title)
       );
     }
@@ -672,9 +697,13 @@ export class SheetResolver {
     endColumn?: string;
     endRow?: number;
   } {
+    // Handle comma-separated ranges: extract just the first range
+    // E.g., "'🍾 Inventory'!C2:C10,F2:F10" -> "'🍾 Inventory'!C2:C10"
+    const firstRange = this.extractFirstRange(notation);
+
     // Handle sheet-qualified references like 'Sheet1'!A1:B2
     let sheetName: string | undefined;
-    let rangeStr = notation;
+    let rangeStr = firstRange;
 
     if (notation.includes('!')) {
       const parts = notation.split('!');
@@ -749,6 +778,99 @@ export class SheetResolver {
         startRow: match[2] ? parseInt(match[2], 10) : undefined,
       };
     }
+  }
+
+  /**
+   * Parse multiple A1 notation ranges separated by commas
+   * Handles formats like: "Sheet1!A1:A10,Sheet1!B1:B10" or "A1:A10,B1:B10"
+   * @param notation - Comma-separated A1 notation ranges
+   * @returns Array of parsed range components
+   */
+  parseMultipleRanges(notation: string): Array<{
+    sheetName?: string;
+    startColumn?: string;
+    startRow?: number;
+    endColumn?: string;
+    endRow?: number;
+  }> {
+    // If no comma, just parse as single range
+    if (!notation.includes(',')) {
+      return [this.parseA1Notation(notation)];
+    }
+
+    // Split by comma, handling cases where comma might be inside sheet names
+    // Smart split: only split on commas not inside quotes
+    const ranges: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (const char of notation) {
+      if (char === "'" && !inQuotes) {
+        inQuotes = true;
+        current += char;
+      } else if (char === "'" && inQuotes) {
+        inQuotes = false;
+        current += char;
+      } else if (char === ',' && !inQuotes) {
+        if (current.trim()) {
+          ranges.push(current.trim());
+        }
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) {
+      ranges.push(current.trim());
+    }
+
+    return ranges.map((range) => this.parseA1Notation(range));
+  }
+
+  /**
+   * Check if a notation contains multiple ranges (comma-separated)
+   */
+  isMultipleRanges(notation: string): boolean {
+    // Check for comma outside of quoted sheet names
+    let inQuotes = false;
+    for (const char of notation) {
+      if (char === "'") inQuotes = !inQuotes;
+      if (char === ',' && !inQuotes) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Extract just the first range from comma-separated ranges
+   * Quote-aware splitting to handle sheet names like "'🍾 Inventory'"
+   */
+  private extractFirstRange(notation: string): string {
+    // Quick check: if no comma, return as-is
+    if (!notation.includes(',')) {
+      return notation;
+    }
+
+    // Quote-aware extraction of first range
+    let current = '';
+    let inQuotes = false;
+
+    for (const char of notation) {
+      if (char === "'" && !inQuotes) {
+        inQuotes = true;
+        current += char;
+      } else if (char === "'" && inQuotes) {
+        inQuotes = false;
+        current += char;
+      } else if (char === ',' && !inQuotes) {
+        // Found comma outside quotes - we have the first range
+        return current.trim() || notation;
+      } else {
+        current += char;
+      }
+    }
+
+    // No comma found outside quotes - return the whole thing
+    return notation;
   }
 
   /**

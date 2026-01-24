@@ -42,13 +42,47 @@ const createMockSheetsApi = () => ({
             charts: [
               {
                 chartId: 123,
-                position: { overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 0 } } },
+                position: {
+                  overlayPosition: { anchorCell: { sheetId: 0, rowIndex: 0, columnIndex: 0 } },
+                },
                 spec: {
                   title: 'Sales Chart',
                   basicChart: {
                     chartType: 'LINE',
-                    domains: [{ domain: { sourceRange: { sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 0, endColumnIndex: 1 }] } } }],
-                    series: [{ series: { sourceRange: { sources: [{ sheetId: 0, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 1, endColumnIndex: 2 }] } } }],
+                    domains: [
+                      {
+                        domain: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId: 0,
+                                startRowIndex: 0,
+                                endRowIndex: 10,
+                                startColumnIndex: 0,
+                                endColumnIndex: 1,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    series: [
+                      {
+                        series: {
+                          sourceRange: {
+                            sources: [
+                              {
+                                sheetId: 0,
+                                startRowIndex: 0,
+                                endRowIndex: 10,
+                                startColumnIndex: 1,
+                                endColumnIndex: 2,
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
                   },
                 },
               },
@@ -101,6 +135,7 @@ const createMockContext = (): HandlerContext => ({
         },
       ],
     }),
+    getClientCapabilities: vi.fn().mockReturnValue({ sampling: {} }),
   } as any,
 });
 

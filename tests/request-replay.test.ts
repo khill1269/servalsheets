@@ -39,7 +39,7 @@ describe('RequestReplaySystem', () => {
       };
 
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123', range: 'A1:B10' },
         originalError: error,
@@ -49,14 +49,14 @@ describe('RequestReplaySystem', () => {
 
       const captured = replaySystem.getRequest(requestId);
       expect(captured).toBeDefined();
-      expect(captured?.toolName).toBe('sheets_values');
+      expect(captured?.toolName).toBe('sheets_data');
       expect(captured?.action).toBe('read');
       expect(captured?.originalError).toEqual(error);
     });
 
     it('should capture successful request when captureSuccess is enabled', () => {
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123' },
         originalResponse: { data: [[1, 2, 3]] },
@@ -74,7 +74,7 @@ describe('RequestReplaySystem', () => {
       });
 
       const requestId = noSuccessSystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123' },
         originalResponse: { data: [[1, 2, 3]] },
@@ -87,7 +87,7 @@ describe('RequestReplaySystem', () => {
       const disabledSystem = new RequestReplaySystem({ enabled: false });
 
       const requestId = disabledSystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalError: {
@@ -104,7 +104,7 @@ describe('RequestReplaySystem', () => {
 
     it('should include metadata when provided', () => {
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'write',
         input: { data: [[1, 2]] },
         metadata: {
@@ -131,7 +131,7 @@ describe('RequestReplaySystem', () => {
 
     it('should persist to storage file', () => {
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalError: {
@@ -145,7 +145,7 @@ describe('RequestReplaySystem', () => {
 
       expect(existsSync(testStorageFile)).toBe(true);
       const content = readFileSync(testStorageFile, 'utf-8');
-      expect(content).toContain('sheets_values');
+      expect(content).toContain('sheets_data');
       expect(content).toContain('read');
     });
 
@@ -159,7 +159,7 @@ describe('RequestReplaySystem', () => {
       // Add 10 requests
       for (let i = 0; i < 10; i++) {
         smallSystem.captureRequest({
-          toolName: 'sheets_values',
+          toolName: 'sheets_data',
           action: 'read',
           input: { index: i },
           originalResponse: { data: [] },
@@ -175,7 +175,7 @@ describe('RequestReplaySystem', () => {
     it('should return only failed requests', () => {
       // Add successful request
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalResponse: { data: [] },
@@ -184,7 +184,7 @@ describe('RequestReplaySystem', () => {
       // Add failed requests
       for (let i = 0; i < 3; i++) {
         replaySystem.captureRequest({
-          toolName: 'sheets_values',
+          toolName: 'sheets_data',
           action: 'write',
           input: { index: i },
           originalError: {
@@ -205,7 +205,7 @@ describe('RequestReplaySystem', () => {
     it('should respect limit parameter', () => {
       for (let i = 0; i < 5; i++) {
         replaySystem.captureRequest({
-          toolName: 'sheets_values',
+          toolName: 'sheets_data',
           action: 'write',
           input: { index: i },
           originalError: {
@@ -226,29 +226,29 @@ describe('RequestReplaySystem', () => {
   describe('getRequestsByTool', () => {
     it('should filter requests by tool name', () => {
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalResponse: {},
       });
 
       replaySystem.captureRequest({
-        toolName: 'sheets_sheet',
-        action: 'add',
+        toolName: 'sheets_core',
+        action: 'add_sheet',
         input: {},
         originalResponse: {},
       });
 
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'write',
         input: {},
         originalResponse: {},
       });
 
-      const valuesRequests = replaySystem.getRequestsByTool('sheets_values');
+      const valuesRequests = replaySystem.getRequestsByTool('sheets_data');
       expect(valuesRequests).toHaveLength(2);
-      expect(valuesRequests.every((req) => req.toolName === 'sheets_values')).toBe(true);
+      expect(valuesRequests.every((req) => req.toolName === 'sheets_data')).toBe(true);
     });
   });
 
@@ -258,7 +258,7 @@ describe('RequestReplaySystem', () => {
       replaySystem.setReplayHandler(mockHandler);
 
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123', range: 'A1:B10' },
         originalError: {
@@ -274,7 +274,7 @@ describe('RequestReplaySystem', () => {
 
       expect(result.success).toBe(true);
       expect(result.response).toEqual({ success: true, data: [] });
-      expect(mockHandler).toHaveBeenCalledWith('sheets_values', 'read', {
+      expect(mockHandler).toHaveBeenCalledWith('sheets_data', 'read', {
         spreadsheetId: 'abc123',
         range: 'A1:B10',
       });
@@ -285,7 +285,7 @@ describe('RequestReplaySystem', () => {
       replaySystem.setReplayHandler(mockHandler);
 
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'old123' },
         originalError: {
@@ -304,7 +304,7 @@ describe('RequestReplaySystem', () => {
         }),
       });
 
-      expect(mockHandler).toHaveBeenCalledWith('sheets_values', 'read', {
+      expect(mockHandler).toHaveBeenCalledWith('sheets_data', 'read', {
         spreadsheetId: 'new456',
       });
     });
@@ -314,7 +314,7 @@ describe('RequestReplaySystem', () => {
       replaySystem.setReplayHandler(mockHandler);
 
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalError: {
@@ -340,7 +340,7 @@ describe('RequestReplaySystem', () => {
 
     it('should throw when replay handler not set', async () => {
       const requestId = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalError: {
@@ -352,9 +352,7 @@ describe('RequestReplaySystem', () => {
         },
       });
 
-      await expect(replaySystem.replayRequest(requestId)).rejects.toThrow(
-        'Replay handler not set'
-      );
+      await expect(replaySystem.replayRequest(requestId)).rejects.toThrow('Replay handler not set');
     });
   });
 
@@ -371,7 +369,7 @@ describe('RequestReplaySystem', () => {
       const ids = [];
       for (let i = 0; i < 3; i++) {
         const id = replaySystem.captureRequest({
-          toolName: 'sheets_values',
+          toolName: 'sheets_data',
           action: 'read',
           input: { index: i },
           originalError: {
@@ -405,7 +403,7 @@ describe('RequestReplaySystem', () => {
       const ids = [];
       for (let i = 0; i < 3; i++) {
         const id = replaySystem.captureRequest({
-          toolName: 'sheets_values',
+          toolName: 'sheets_data',
           action: 'read',
           input: { index: i },
           originalError: {
@@ -431,7 +429,7 @@ describe('RequestReplaySystem', () => {
   describe('exportReplayScript', () => {
     it('should generate test script from requests', () => {
       const id1 = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123', range: 'A1:B10' },
         originalError: {
@@ -444,8 +442,8 @@ describe('RequestReplaySystem', () => {
       });
 
       const id2 = replaySystem.captureRequest({
-        toolName: 'sheets_sheet',
-        action: 'add',
+        toolName: 'sheets_core',
+        action: 'add_sheet',
         input: { title: 'New Sheet' },
         originalResponse: { success: true },
       });
@@ -453,15 +451,15 @@ describe('RequestReplaySystem', () => {
       const script = replaySystem.exportReplayScript([id1, id2]);
 
       expect(script).toContain("import { describe, it, expect } from 'vitest'");
-      expect(script).toContain('sheets_values');
-      expect(script).toContain('sheets_sheet');
+      expect(script).toContain('sheets_data');
+      expect(script).toContain('sheets_core');
       expect(script).toContain('handleToolCall');
       expect(script).toContain('"spreadsheetId": "abc123"');
     });
 
     it('should include error comments for failed requests', () => {
       const id = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalError: {
@@ -488,7 +486,7 @@ describe('RequestReplaySystem', () => {
   describe('exportCurlCommands', () => {
     it('should generate curl commands for replay', () => {
       const id = replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: { spreadsheetId: 'abc123', range: 'A1:B10' },
         originalError: {
@@ -503,7 +501,7 @@ describe('RequestReplaySystem', () => {
       const commands = replaySystem.exportCurlCommands([id]);
 
       expect(commands).toContain('#!/bin/bash');
-      expect(commands).toContain('sheets_values');
+      expect(commands).toContain('sheets_data');
       expect(commands).toContain('read');
       expect(commands).toContain('tools/call');
       expect(commands).toContain('node dist/server.js');
@@ -513,7 +511,7 @@ describe('RequestReplaySystem', () => {
   describe('getStats', () => {
     it('should return statistics', () => {
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalResponse: {},
@@ -521,7 +519,7 @@ describe('RequestReplaySystem', () => {
       });
 
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'write',
         input: {},
         originalError: {
@@ -535,8 +533,8 @@ describe('RequestReplaySystem', () => {
       });
 
       replaySystem.captureRequest({
-        toolName: 'sheets_sheet',
-        action: 'add',
+        toolName: 'sheets_core',
+        action: 'add_sheet',
         input: {},
         originalError: {
           code: 'PERMISSION_DENIED',
@@ -553,8 +551,8 @@ describe('RequestReplaySystem', () => {
       expect(stats.total).toBe(3);
       expect(stats.failed).toBe(2);
       expect(stats.succeeded).toBe(1);
-      expect(stats.byTool['sheets_values']).toBe(2);
-      expect(stats.byTool['sheets_sheet']).toBe(1);
+      expect(stats.byTool['sheets_data']).toBe(2);
+      expect(stats.byTool['sheets_core']).toBe(1);
       expect(stats.avgDuration).toBe(150);
     });
   });
@@ -562,7 +560,7 @@ describe('RequestReplaySystem', () => {
   describe('clear', () => {
     it('should clear all requests', () => {
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalResponse: {},
@@ -580,7 +578,7 @@ describe('RequestReplaySystem', () => {
 
       // Add request at time 0
       replaySystem.captureRequest({
-        toolName: 'sheets_values',
+        toolName: 'sheets_data',
         action: 'read',
         input: {},
         originalResponse: {},
@@ -591,8 +589,8 @@ describe('RequestReplaySystem', () => {
 
       // Add another request
       replaySystem.captureRequest({
-        toolName: 'sheets_sheet',
-        action: 'add',
+        toolName: 'sheets_core',
+        action: 'add_sheet',
         input: {},
         originalResponse: {},
       });
@@ -602,7 +600,7 @@ describe('RequestReplaySystem', () => {
 
       expect(cleared).toBe(1);
       expect(replaySystem.getAllRequests()).toHaveLength(1);
-      expect(replaySystem.getAllRequests()[0]?.toolName).toBe('sheets_sheet');
+      expect(replaySystem.getAllRequests()[0]?.toolName).toBe('sheets_core');
 
       vi.useRealTimers();
     });

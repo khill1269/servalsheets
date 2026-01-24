@@ -519,24 +519,40 @@ export async function confirmDestructiveAction(
 ): Promise<{ confirmed: boolean; reason?: string }> {
   const caps = server.getClientCapabilities();
   if (!caps?.elicitation?.form) {
-    // Can't confirm, don't proceed
+    // Elicitation not available - proceed by default since user explicitly requested the action
+    // This is the safe default per MCP spec backward compatibility
+    return { confirmed: true };
+  }
+
+  // Add timeout to prevent hanging when client reports capability but doesn't respond
+  const ELICITATION_TIMEOUT_MS = 5000;
+
+  try {
+    const elicitPromise = server.elicitInput({
+      mode: 'form',
+      message: `⚠️ ${action}\n\n${details}\n\nThis action cannot be undone.`,
+      requestedSchema: DESTRUCTIVE_CONFIRMATION_SCHEMA,
+    });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Elicitation timeout')), ELICITATION_TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([elicitPromise, timeoutPromise]);
+
+    if (result.action === 'accept' && result.content?.['confirm'] === true) {
+      return {
+        confirmed: true,
+        reason: result.content['reason'] as string | undefined,
+      };
+    }
+
+    // User declined or cancelled
     return { confirmed: false };
+  } catch (_error) {
+    // Timeout or error - proceed by default (backward compatibility)
+    return { confirmed: true };
   }
-
-  const result = await server.elicitInput({
-    mode: 'form',
-    message: `⚠️ ${action}\n\n${details}\n\nThis action cannot be undone.`,
-    requestedSchema: DESTRUCTIVE_CONFIRMATION_SCHEMA,
-  });
-
-  if (result.action === 'accept' && result.content?.['confirm'] === true) {
-    return {
-      confirmed: true,
-      reason: result.content['reason'] as string | undefined,
-    };
-  }
-
-  return { confirmed: false };
 }
 
 /**

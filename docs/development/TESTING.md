@@ -681,7 +681,7 @@ describe('MCP Protocol Integration', () => {
     });
 
     it('should return isError for invalid input', async () => {
-      const result = await client.callTool('sheets_values', {
+      const result = await client.callTool('sheets_data', {
         action: 'read',
         // Missing spreadsheetId
       });
@@ -1017,7 +1017,7 @@ describe('E2E: Read-Write Flow', () => {
     client = await McpTestClient.create();
     
     // Create test spreadsheet
-    const result = await client.callTool('sheets_spreadsheet', {
+    const result = await client.callTool('sheets_core', {
       action: 'create',
       title: `E2E-Test-${Date.now()}`,
     });
@@ -1027,7 +1027,7 @@ describe('E2E: Read-Write Flow', () => {
   afterAll(async () => {
     // Cleanup
     if (testSpreadsheetId) {
-      await client.callTool('sheets_spreadsheet', {
+      await client.callTool('sheets_core', {
         action: 'delete',
         spreadsheetId: testSpreadsheetId,
         permanent: true,
@@ -1038,7 +1038,7 @@ describe('E2E: Read-Write Flow', () => {
 
   it('should complete full read-write-format cycle', async () => {
     // 1. Write data
-    const writeResult = await client.callTool('sheets_values', {
+    const writeResult = await client.callTool('sheets_data', {
       action: 'write',
       spreadsheetId: testSpreadsheetId,
       range: { a1: 'Sheet1!A1' },
@@ -1051,7 +1051,7 @@ describe('E2E: Read-Write Flow', () => {
     expect(writeResult.isError).toBeFalsy();
 
     // 2. Read back
-    const readResult = await client.callTool('sheets_values', {
+    const readResult = await client.callTool('sheets_data', {
       action: 'read',
       spreadsheetId: testSpreadsheetId,
       range: { a1: 'Sheet1!A1:D3' },
@@ -1072,7 +1072,7 @@ describe('E2E: Read-Write Flow', () => {
     expect(formatResult.isError).toBeFalsy();
 
     // 4. Create chart
-    const chartResult = await client.callTool('sheets_charts', {
+    const chartResult = await client.callTool('sheets_visualize', {
       action: 'create',
       spreadsheetId: testSpreadsheetId,
       chartType: 'COLUMN',
@@ -1082,7 +1082,7 @@ describe('E2E: Read-Write Flow', () => {
     expect(chartResult.structuredContent.data.chartId).toBeDefined();
 
     // 5. Scout/analyze
-    const analysisResult = await client.callTool('sheets_analysis', {
+    const analysisResult = await client.callTool('sheets_analyze', {
       action: 'scout',
       spreadsheetId: testSpreadsheetId,
     });

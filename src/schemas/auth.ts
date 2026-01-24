@@ -7,9 +7,19 @@ import { z } from 'zod';
 import { URL_REGEX } from '../config/google-limits.js';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
+// Verbosity level for response filtering
+const VerbositySchema = z
+  .enum(['minimal', 'standard', 'detailed'])
+  .optional()
+  .default('standard')
+  .describe(
+    'Response verbosity: minimal (essential info only), standard (balanced), detailed (full metadata)'
+  );
+
 // INPUT SCHEMA: Discriminated union (4 actions)
 const StatusActionSchema = z.object({
   action: z.literal('status').describe('Check current authentication status'),
+  verbosity: VerbositySchema,
 });
 
 const LoginActionSchema = z.object({
@@ -20,23 +30,28 @@ const LoginActionSchema = z.object({
     .max(50, 'Cannot request more than 50 scopes')
     .optional()
     .describe('Additional OAuth scopes to request (max 50)'),
+  verbosity: VerbositySchema,
 });
 
 const CallbackActionSchema = z.object({
   action: z.literal('callback').describe('Handle OAuth callback with authorization code'),
   code: z.string().min(1).describe('Authorization code from Google'),
+  verbosity: VerbositySchema,
 });
 
 const LogoutActionSchema = z.object({
   action: z.literal('logout').describe('Revoke authentication and clear tokens'),
+  verbosity: VerbositySchema,
 });
 
-export const SheetsAuthInputSchema = z.discriminatedUnion('action', [
-  StatusActionSchema,
-  LoginActionSchema,
-  CallbackActionSchema,
-  LogoutActionSchema,
-]);
+export const SheetsAuthInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    StatusActionSchema,
+    LoginActionSchema,
+    CallbackActionSchema,
+    LogoutActionSchema,
+  ]),
+});
 
 const AuthResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -82,10 +97,10 @@ export type SheetsAuthOutput = z.infer<typeof SheetsAuthOutputSchema>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 
 // Type narrowing helpers for handler methods
-export type AuthStatusInput = SheetsAuthInput & { action: 'status' };
-export type AuthLoginInput = SheetsAuthInput & { action: 'login' };
-export type AuthCallbackInput = SheetsAuthInput & {
+export type AuthStatusInput = SheetsAuthInput['request'] & { action: 'status' };
+export type AuthLoginInput = SheetsAuthInput['request'] & { action: 'login' };
+export type AuthCallbackInput = SheetsAuthInput['request'] & {
   action: 'callback';
   code: string;
 };
-export type AuthLogoutInput = SheetsAuthInput & { action: 'logout' };
+export type AuthLogoutInput = SheetsAuthInput['request'] & { action: 'logout' };

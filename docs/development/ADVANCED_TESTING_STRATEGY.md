@@ -31,8 +31,8 @@ npm run start:stdio
 7. ✅ Total latency at each step
 
 **Test cases**:
-- [ ] Simple read operation (sheets_values get)
-- [ ] Complex write with batching (sheets_cells update_batch)
+- [ ] Simple read operation (sheets_data get)
+- [ ] Complex write with batching (sheets_data update_batch)
 - [ ] Long-running task with cancellation
 - [ ] Error scenario (invalid spreadsheet ID)
 - [ ] Rate limit hit scenario
@@ -86,7 +86,7 @@ cat > tests/extreme/edge-cases.test.ts << 'TEST'
 describe('Edge Cases', () => {
   test('handles empty spreadsheet gracefully', async () => {
     // Create spreadsheet with 0 rows
-    const result = await sheets_values.get({
+    const result = await sheets_data.get({
       spreadsheetId: emptySheetId,
       range: 'A1:Z1000'
     });
@@ -95,7 +95,7 @@ describe('Edge Cases', () => {
 
   test('handles massive range without crashing', async () => {
     // Request 1M cells
-    const result = await sheets_values.get({
+    const result = await sheets_data.get({
       spreadsheetId: testSheetId,
       range: 'A1:ZZZ100000'
     });
@@ -118,7 +118,7 @@ TEST
 // Simulate 100 concurrent requests
 async function concurrencyTest() {
   const requests = Array(100).fill(null).map((_, i) => 
-    callTool('sheets_values', {
+    callTool('sheets_data', {
       action: 'get',
       spreadsheetId: testId,
       range: `A${i}:Z${i}`
@@ -154,7 +154,7 @@ describe('Chaos: Network', () => {
       .reply(200, {});
     
     // Should timeout and retry
-    await expect(callTool('sheets_values', {...}))
+    await expect(callTool('sheets_data', {...}))
       .rejects.toThrow('timeout');
   });
 
@@ -172,7 +172,7 @@ describe('Chaos: Network', () => {
       .reply(200, validResponse);
     
     // Should retry and eventually succeed
-    const result = await callTool('sheets_values', {...});
+    const result = await callTool('sheets_data', {...});
     expect(attempts).toBe(3);
     expect(result.success).toBe(true);
   });
@@ -218,7 +218,7 @@ test('rejects requests without credentials', async () => {
   const server = createServer({ 
     googleClient: null // No credentials 
   });
-  await expect(callTool('sheets_values', {...}))
+  await expect(callTool('sheets_data', {...}))
     .rejects.toThrow('Authentication required');
 });
 
@@ -227,21 +227,21 @@ test('respects scope limitations', async () => {
   // Create client with read-only scope
   const limitedClient = createClientWithScope(['drive.readonly']);
   // Attempt write operation
-  await expect(sheets_values.update({...}))
+  await expect(sheets_data.update({...}))
     .rejects.toThrow('Insufficient permissions');
 });
 
 // 3. Injection attacks
 test('sanitizes SQL-like inputs in ranges', async () => {
   const maliciousRange = "A1'; DROP TABLE users; --";
-  await expect(sheets_values.get({ range: maliciousRange }))
+  await expect(sheets_data.get({ range: maliciousRange }))
     .rejects.toThrow('Invalid range');
 });
 
 // 4. Path traversal
 test('prevents path traversal in spreadsheet IDs', async () => {
   const maliciousId = "../../etc/passwd";
-  await expect(sheets_values.get({ spreadsheetId: maliciousId }))
+  await expect(sheets_data.get({ spreadsheetId: maliciousId }))
     .rejects.toThrow('Invalid spreadsheet ID');
 });
 
@@ -249,7 +249,7 @@ test('prevents path traversal in spreadsheet IDs', async () => {
 test('limits concurrent task creation', async () => {
   // Attempt to create 10,000 tasks
   const tasks = Array(10000).fill(null).map(() => 
-    createTask('sheets_analysis', {...})
+    createTask('sheets_analyze', {...})
   );
   
   // Should rate limit after threshold
@@ -315,7 +315,7 @@ scenarios:
           json:
             method: "tools/call"
             params:
-              name: "sheets_values"
+              name: "sheets_data"
               arguments:
                 action: "get"
                 spreadsheetId: "{{ spreadsheetId }}"
@@ -328,7 +328,7 @@ scenarios:
           json:
             method: "tools/call"
             params:
-              name: "sheets_values"
+              name: "sheets_data"
               arguments:
                 action: "update"
                 spreadsheetId: "{{ spreadsheetId }}"
@@ -392,7 +392,7 @@ async function stressTest() {
 2. Add ServalSheets config
 3. Restart Claude Desktop
 4. Ask Claude: "What spreadsheet tools do you have?"
-5. Verify: Lists all 23 tools
+5. Verify: Lists all 16 tools
 6. Ask Claude: "Show me my spreadsheets"
 7. Verify: Authentication prompt or spreadsheet list
 
@@ -400,12 +400,12 @@ async function stressTest() {
 User: "Create a sales dashboard"
 Expected flow:
 1. Claude asks for spreadsheet ID or offers to create new
-2. Creates spreadsheet with sheets_spreadsheet
+2. Creates spreadsheet with sheets_core
 3. Adds sheets (Data, Dashboard)
 4. Requests confirmation via sheets_confirm
 5. User approves
-6. Populates data via sheets_values
-7. Creates charts via sheets_charts
+6. Populates data via sheets_data
+7. Creates charts via sheets_visualize
 8. Formats cells via sheets_format
 9. Shows preview
 
@@ -502,7 +502,7 @@ describe('API Quota Handling', () => {
         }
       });
     
-    const result = await sheets_values.get({...});
+    const result = await sheets_data.get({...});
     
     // Should return helpful error
     expect(result.success).toBe(false);
@@ -524,7 +524,7 @@ describe('API Quota Handling', () => {
       .get(/.*/)
       .reply(200, validResponse);
     
-    await sheets_values.get({...});
+    await sheets_data.get({...});
     
     // Verify backoff intervals increase exponentially
     const intervals = timestamps.slice(1).map((t, i) => 
@@ -543,7 +543,7 @@ describe('API Quota Handling', () => {
       });
     
     const startTime = Date.now();
-    await sheets_values.get({...});
+    await sheets_data.get({...});
     const elapsed = (Date.now() - startTime) / 1000;
     
     // Should wait at least retryAfter seconds
@@ -656,7 +656,7 @@ test('logs are properly structured', () => {
   const logCapture = captureStderr();
   
   // Trigger various operations
-  callTool('sheets_values', {...});
+  callTool('sheets_data', {...});
   
   const logs = logCapture.getLogs();
   
@@ -766,8 +766,8 @@ test('gracefully shuts down', async () => {
   const server = await createServer({...});
   
   // Start some operations
-  const task1 = callTool('sheets_analysis', {...});
-  const task2 = callTool('sheets_values', {...});
+  const task1 = callTool('sheets_analyze', {...});
+  const task2 = callTool('sheets_data', {...});
   
   // Send SIGTERM
   process.kill(server.pid, 'SIGTERM');
@@ -906,4 +906,3 @@ This advanced testing strategy ensures ServalSheets is:
 3. Schedule regular chaos tests
 4. Set up monitoring/alerting
 5. Document findings and iterate
-

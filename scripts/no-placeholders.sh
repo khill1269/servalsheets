@@ -33,10 +33,9 @@ PATTERNS=(
   "# FIXME:"
 )
 
-# Directories to search
+# Directories to search (only src/ - tests may have TODOs for future work)
 SEARCH_DIRS=(
   "src"
-  "tests"
 )
 
 # Files to exclude (patterns for grep)

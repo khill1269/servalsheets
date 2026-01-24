@@ -15,7 +15,7 @@ import type { ChildProcess } from 'child_process';
 import { TestLogger } from './test-infrastructure/logger.js';
 import { TestDatabase } from './test-infrastructure/test-db.js';
 import { ProgressTracker } from './test-infrastructure/progress.js';
-import { TOOL_ACTIONS } from '../src/schemas/index.js';
+import { TOOL_ACTIONS, TOOL_COUNT, ACTION_COUNT } from '../src/schemas/index.js';
 import { writeFileSync } from 'fs';
 
 // Test spreadsheet ID (public Google Sheets example)
@@ -101,7 +101,7 @@ function getTestArgs(tool: string, action: string): any {
       logout: { action: 'logout' },
       callback: { action: 'callback', code: 'test-code' },
     },
-    sheets_spreadsheet: {
+    sheets_core: {
       list: { action: 'list', pageSize: 5 },
       get: { action: 'get', spreadsheetId: TEST_SPREADSHEET_ID },
       create: { action: 'create', title: 'Test Spreadsheet (Will Fail - No Auth)' },
@@ -117,43 +117,44 @@ function getTestArgs(tool: string, action: string): any {
         action: 'get_comprehensive',
         spreadsheetId: TEST_SPREADSHEET_ID,
       },
-    },
-    sheets_sheet: {
-      list: { action: 'list', spreadsheetId: TEST_SPREADSHEET_ID },
-      get: {
-        action: 'get',
-        spreadsheetId: TEST_SPREADSHEET_ID,
-        sheetName: 'Sheet1',
-      },
-      add: {
-        action: 'add',
+      add_sheet: {
+        action: 'add_sheet',
         spreadsheetId: TEST_SPREADSHEET_ID,
         title: 'New Sheet',
       },
-      delete: {
-        action: 'delete',
+      delete_sheet: {
+        action: 'delete_sheet',
         spreadsheetId: TEST_SPREADSHEET_ID,
         sheetId: 999,
       },
-      duplicate: {
-        action: 'duplicate',
+      duplicate_sheet: {
+        action: 'duplicate_sheet',
         spreadsheetId: TEST_SPREADSHEET_ID,
-        sourceSheetId: 0,
+        sheetId: 0,
       },
-      update: {
-        action: 'update',
+      update_sheet: {
+        action: 'update_sheet',
         spreadsheetId: TEST_SPREADSHEET_ID,
         sheetId: 0,
         title: 'Updated Sheet',
       },
-      copy_to: {
-        action: 'copy_to',
+      copy_sheet_to: {
+        action: 'copy_sheet_to',
         spreadsheetId: TEST_SPREADSHEET_ID,
         sheetId: 0,
         destinationSpreadsheetId: TEST_SPREADSHEET_ID,
       },
+      list_sheets: {
+        action: 'list_sheets',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+      },
+      get_sheet: {
+        action: 'get_sheet',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        sheetId: 0,
+      },
     },
-    sheets_values: {
+    sheets_data: {
       read: {
         action: 'read',
         spreadsheetId: TEST_SPREADSHEET_ID,
@@ -197,17 +198,11 @@ function getTestArgs(tool: string, action: string): any {
         spreadsheetId: TEST_SPREADSHEET_ID,
         ranges: ['Sheet1!Z100', 'Sheet1!Z101'],
       },
-      find: {
-        action: 'find',
+      find_replace: {
+        action: 'find_replace',
         spreadsheetId: TEST_SPREADSHEET_ID,
-        query: 'test',
-        range: 'Sheet1!A1:D10',
-      },
-      replace: {
-        action: 'replace',
-        spreadsheetId: TEST_SPREADSHEET_ID,
-        find: 'old',
-        replace: 'new',
+        find: 'test',
+        replacement: 'new',
         range: 'Sheet1!A1:D10',
       },
     },
@@ -224,9 +219,65 @@ function getTestArgs(tool: string, action: string): any {
         range: 'Sheet1!A1',
         color: { red: 1, green: 0, blue: 0 },
       },
-      // Add more format actions...
     },
-    // Add more tools...
+    sheets_dimensions: {
+      insert_rows: {
+        action: 'insert_rows',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        sheetId: 0,
+        startIndex: 0,
+        endIndex: 1,
+      },
+    },
+    sheets_visualize: {
+      chart_list: { action: 'chart_list', spreadsheetId: TEST_SPREADSHEET_ID },
+    },
+    sheets_collaborate: {
+      share_list: { action: 'share_list', spreadsheetId: TEST_SPREADSHEET_ID },
+    },
+    sheets_advanced: {
+      list_named_ranges: { action: 'list_named_ranges', spreadsheetId: TEST_SPREADSHEET_ID },
+    },
+    sheets_transaction: {
+      list: { action: 'list' },
+      begin: { action: 'begin', spreadsheetId: TEST_SPREADSHEET_ID },
+    },
+    sheets_quality: {
+      validate: { action: 'validate', value: 'test' },
+    },
+    sheets_history: {
+      list: { action: 'list', limit: 10 },
+    },
+    sheets_confirm: {
+      get_stats: { action: 'get_stats' },
+    },
+    sheets_analyze: {
+      comprehensive: { action: 'comprehensive', spreadsheetId: TEST_SPREADSHEET_ID },
+    },
+    sheets_fix: {
+      fix: {
+        action: 'fix',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        issues: [
+          {
+            type: 'NO_FROZEN_HEADERS',
+            severity: 'low',
+            description: 'Missing frozen header',
+          },
+        ],
+        mode: 'preview',
+      },
+    },
+    sheets_composite: {
+      import_csv: {
+        action: 'import_csv',
+        spreadsheetId: TEST_SPREADSHEET_ID,
+        csvData: 'Name,Value\\nA,1',
+      },
+    },
+    sheets_session: {
+      get_active: { action: 'get_active' },
+    },
   };
 
   return baseArgs[tool]?.[action] || { action };
@@ -240,7 +291,7 @@ async function testAction(
   logger: TestLogger,
   db: TestDatabase,
   tool: string,
-  action: string,
+  action: string
 ): Promise<void> {
   const testId = `${tool}.${action}`;
   const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -281,7 +332,7 @@ async function testAction(
         tool,
         action,
         'validation',
-        'Invalid response structure: missing content',
+        'Invalid response structure: missing content'
       );
       db.failTest(testId, new Error('Invalid response structure'));
       return;
@@ -296,7 +347,7 @@ async function testAction(
         tool,
         action,
         'validation',
-        'Invalid response structure: no text content',
+        'Invalid response structure: no text content'
       );
       db.failTest(testId, new Error('No text content in response'));
       return;
@@ -317,7 +368,7 @@ async function testAction(
         tool,
         action,
         'auth-required',
-        'Authentication required (expected without credentials)',
+        'Authentication required (expected without credentials)'
       );
       db.authRequiredTest(testId, 'Authentication required');
       return;
@@ -350,7 +401,7 @@ async function testAction(
       action,
       'exception',
       `Test failed after ${duration}ms: ${(error as Error).message}`,
-      error,
+      error
     );
     db.failTest(testId, error);
   }
@@ -361,8 +412,8 @@ async function testAction(
  */
 async function runAllTests() {
   console.log('🚀 ServalSheets Comprehensive Test Suite\n');
-  console.log('Testing all 26 tools with 208 actions');
-  console.log('=' .repeat(80) + '\n');
+  console.log(`Testing all ${TOOL_COUNT} tools with ${ACTION_COUNT} actions`);
+  console.log('='.repeat(80) + '\n');
 
   // Initialize infrastructure
   const logger = new TestLogger('./test-logs');
@@ -407,7 +458,13 @@ async function runAllTests() {
 
   child.on('exit', (code, signal) => {
     console.log(`MCP server exited with code ${code}, signal ${signal}`);
-    logger.info('system', 'mcp', 'exit', 'complete', `Server exited: code=${code}, signal=${signal}`);
+    logger.info(
+      'system',
+      'mcp',
+      'exit',
+      'complete',
+      `Server exited: code=${code}, signal=${signal}`
+    );
   });
 
   const client = createJsonRpcClient(child);
@@ -416,7 +473,7 @@ async function runAllTests() {
     // Initialize MCP server
     logger.info('system', 'mcp', 'init', 'initialize', 'Initializing MCP server');
     await client.send('initialize', {
-      protocolVersion: '2024-11-05',
+      protocolVersion: '2025-11-25',
       capabilities: {},
       clientInfo: {
         name: 'test-orchestrator',
@@ -478,7 +535,7 @@ async function runAllTests() {
     // Show failures
     const failures = db.getTestCasesByStatus('fail');
     if (failures.length > 0) {
-      console.log('=' .repeat(80));
+      console.log('='.repeat(80));
       console.log(`❌ FAILURES (${failures.length})`);
       console.log('='.repeat(80) + '\n');
 
@@ -502,7 +559,14 @@ async function runAllTests() {
       process.exit(1);
     }
   } catch (error) {
-    logger.error('system', 'orchestrator', 'fatal', 'fatal-error', 'Test orchestrator failed', error);
+    logger.error(
+      'system',
+      'orchestrator',
+      'fatal',
+      'fatal-error',
+      'Test orchestrator failed',
+      error
+    );
     console.error('\n❌ Test orchestrator failed:', error);
     process.exit(1);
   } finally {
@@ -605,7 +669,7 @@ function generateHtmlReport(db: TestDatabase, logger: TestLogger): void {
             <td>${tc.duration ? tc.duration + 'ms' : '-'}</td>
             <td>${tc.error?.message?.substring(0, 100) || 'OK'}</td>
           </tr>
-        `,
+        `
           )
           .join('')}
       </tbody>

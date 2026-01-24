@@ -116,13 +116,11 @@ describe('SnapshotService', () => {
       });
 
       // Act & Assert
-      await expect(
-        snapshotService.create('test-sheet')
-      ).rejects.toThrow(ServiceError);
+      await expect(snapshotService.create('test-sheet')).rejects.toThrow(ServiceError);
 
-      await expect(
-        snapshotService.create('test-sheet')
-      ).rejects.toThrow('Failed to create snapshot: Google API did not return a file ID');
+      await expect(snapshotService.create('test-sheet')).rejects.toThrow(
+        'Failed to create snapshot: Google API did not return a file ID'
+      );
     });
 
     it('should propagate Drive API errors through circuit breaker', async () => {
@@ -131,9 +129,7 @@ describe('SnapshotService', () => {
       mockDriveApi.files.copy = vi.fn().mockRejectedValue(driveError);
 
       // Act & Assert
-      await expect(
-        snapshotService.create('test-sheet')
-      ).rejects.toThrow('Drive quota exceeded');
+      await expect(snapshotService.create('test-sheet')).rejects.toThrow('Drive quota exceeded');
     });
   });
 
@@ -141,7 +137,8 @@ describe('SnapshotService', () => {
     it('should store and list multiple snapshots for same spreadsheet', async () => {
       // Arrange
       const spreadsheetId = 'test-sheet-123';
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-1' } })
         .mockResolvedValueOnce({ data: { id: 'copy-2' } });
 
@@ -198,7 +195,8 @@ describe('SnapshotService', () => {
     it('should restore snapshot successfully', async () => {
       // Arrange - create snapshot first
       const spreadsheetId = 'test-sheet-123';
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-original' } })
         .mockResolvedValueOnce({ data: { id: 'copy-restored' } });
 
@@ -220,19 +218,16 @@ describe('SnapshotService', () => {
 
     it('should throw NotFoundError when restoring non-existent snapshot', async () => {
       // Act & Assert
-      await expect(
-        snapshotService.restore('non-existent-id')
-      ).rejects.toThrow(NotFoundError);
+      await expect(snapshotService.restore('non-existent-id')).rejects.toThrow(NotFoundError);
 
-      await expect(
-        snapshotService.restore('non-existent-id')
-      ).rejects.toThrow('Snapshot not found: non-existent-id');
+      await expect(snapshotService.restore('non-existent-id')).rejects.toThrow(
+        'Snapshot not found: non-existent-id'
+      );
     });
 
     it('should throw ServiceError when restore fails to return file ID', async () => {
       // Arrange
-      mockDriveApi.files.copy = vi.fn()
-        .mockResolvedValueOnce({ data: { id: 'copy-original' } });
+      mockDriveApi.files.copy = vi.fn().mockResolvedValueOnce({ data: { id: 'copy-original' } });
 
       const snapshotId = await snapshotService.create('test-sheet');
 
@@ -240,27 +235,24 @@ describe('SnapshotService', () => {
       mockDriveApi.files.copy = vi.fn().mockResolvedValue({ data: {} }); // No id
 
       // Act & Assert
-      await expect(
-        snapshotService.restore(snapshotId)
-      ).rejects.toThrow(ServiceError);
+      await expect(snapshotService.restore(snapshotId)).rejects.toThrow(ServiceError);
 
-      await expect(
-        snapshotService.restore(snapshotId)
-      ).rejects.toThrow('Failed to restore snapshot: Google API did not return a file ID');
+      await expect(snapshotService.restore(snapshotId)).rejects.toThrow(
+        'Failed to restore snapshot: Google API did not return a file ID'
+      );
     });
 
     it('should propagate Drive API errors during restoration', async () => {
       // Arrange
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-original' } })
         .mockRejectedValueOnce(new Error('Permission denied'));
 
       const snapshotId = await snapshotService.create('test-sheet');
 
       // Act & Assert
-      await expect(
-        snapshotService.restore(snapshotId)
-      ).rejects.toThrow('Permission denied');
+      await expect(snapshotService.restore(snapshotId)).rejects.toThrow('Permission denied');
     });
   });
 
@@ -275,7 +267,8 @@ describe('SnapshotService', () => {
         maxSnapshots: 3,
       });
 
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-1' } })
         .mockResolvedValueOnce({ data: { id: 'copy-2' } })
         .mockResolvedValueOnce({ data: { id: 'copy-3' } })
@@ -294,8 +287,8 @@ describe('SnapshotService', () => {
       expect(snapshots).toHaveLength(3);
 
       // The oldest snapshot (snap1) should be removed from memory
-      expect(snapshots.map(s => s.id)).not.toContain(snap1);
-      expect(snapshots.map(s => s.id)).toEqual([snap2, snap3, snap4]);
+      expect(snapshots.map((s) => s.id)).not.toContain(snap1);
+      expect(snapshots.map((s) => s.id)).toEqual([snap2, snap3, snap4]);
 
       // Note: The delete call may not happen if the snapshot was already removed
       // from the array before delete() searches for it. This is expected behavior
@@ -326,31 +319,26 @@ describe('SnapshotService', () => {
 
     it('should throw NotFoundError when deleting non-existent snapshot', async () => {
       // Act & Assert
-      await expect(
-        snapshotService.delete('non-existent-id')
-      ).rejects.toThrow(NotFoundError);
+      await expect(snapshotService.delete('non-existent-id')).rejects.toThrow(NotFoundError);
     });
 
     it('should ignore delete errors during auto-pruning', async () => {
       // Arrange
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-1' } })
         .mockResolvedValueOnce({ data: { id: 'copy-2' } })
         .mockResolvedValueOnce({ data: { id: 'copy-3' } })
         .mockResolvedValueOnce({ data: { id: 'copy-4' } });
 
       // Mock delete to fail
-      mockDriveApi.files.delete = vi.fn().mockRejectedValue(
-        new Error('File already deleted')
-      );
+      mockDriveApi.files.delete = vi.fn().mockRejectedValue(new Error('File already deleted'));
 
       // Act - should not throw even though delete fails
       await snapshotService.create('test-sheet', 'Snap 1');
       await snapshotService.create('test-sheet', 'Snap 2');
       await snapshotService.create('test-sheet', 'Snap 3');
-      await expect(
-        snapshotService.create('test-sheet', 'Snap 4')
-      ).resolves.toBeDefined();
+      await expect(snapshotService.create('test-sheet', 'Snap 4')).resolves.toBeDefined();
 
       // Assert - still only keeps 3 snapshots in memory
       const snapshots = snapshotService.list('test-sheet');
@@ -386,7 +374,8 @@ describe('SnapshotService', () => {
   describe('Cache Management', () => {
     it('should clear all cached snapshots', async () => {
       // Arrange
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-1' } })
         .mockResolvedValueOnce({ data: { id: 'copy-2' } });
 
@@ -430,16 +419,14 @@ describe('SnapshotService', () => {
 
       // Act - trigger failures (circuit breaker threshold is 5)
       for (let i = 0; i < 5; i++) {
-        await expect(
-          snapshotService.create('test-sheet')
-        ).rejects.toThrow('Service temporarily unavailable');
+        await expect(snapshotService.create('test-sheet')).rejects.toThrow(
+          'Service temporarily unavailable'
+        );
       }
 
       // Assert - circuit should be open now
       // Next call should fail immediately (circuit breaker behavior)
-      await expect(
-        snapshotService.create('test-sheet')
-      ).rejects.toThrow();
+      await expect(snapshotService.create('test-sheet')).rejects.toThrow();
     });
 
     it('should apply circuit breaker to delete operations', async () => {
@@ -454,23 +441,20 @@ describe('SnapshotService', () => {
       mockDriveApi.files.delete = vi.fn().mockRejectedValue(deleteError);
 
       // Act & Assert
-      await expect(
-        snapshotService.delete(snapshotId)
-      ).rejects.toThrow('Network timeout');
+      await expect(snapshotService.delete(snapshotId)).rejects.toThrow('Network timeout');
     });
 
     it('should apply circuit breaker to restore operations', async () => {
       // Arrange
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-original' } })
         .mockRejectedValueOnce(new Error('Restore failed'));
 
       const snapshotId = await snapshotService.create('test-sheet');
 
       // Act & Assert
-      await expect(
-        snapshotService.restore(snapshotId)
-      ).rejects.toThrow('Restore failed');
+      await expect(snapshotService.restore(snapshotId)).rejects.toThrow('Restore failed');
     });
   });
 
@@ -507,24 +491,25 @@ describe('SnapshotService', () => {
     it('should maintain snapshot order chronologically', async () => {
       // Arrange
       const spreadsheetId = 'order-test-sheet';
-      mockDriveApi.files.copy = vi.fn()
+      mockDriveApi.files.copy = vi
+        .fn()
         .mockResolvedValueOnce({ data: { id: 'copy-1' } })
         .mockResolvedValueOnce({ data: { id: 'copy-2' } })
         .mockResolvedValueOnce({ data: { id: 'copy-3' } });
 
       // Act
       const snap1 = await snapshotService.create(spreadsheetId, 'First');
-      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+      await new Promise((resolve) => setTimeout(resolve, 10)); // Small delay
       const snap2 = await snapshotService.create(spreadsheetId, 'Second');
-      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+      await new Promise((resolve) => setTimeout(resolve, 10)); // Small delay
       const snap3 = await snapshotService.create(spreadsheetId, 'Third');
 
       // Assert
       const snapshots = snapshotService.list(spreadsheetId);
-      expect(snapshots.map(s => s.id)).toEqual([snap1, snap2, snap3]);
+      expect(snapshots.map((s) => s.id)).toEqual([snap1, snap2, snap3]);
 
       // Verify timestamps are in order
-      const timestamps = snapshots.map(s => new Date(s.createdAt).getTime());
+      const timestamps = snapshots.map((s) => new Date(s.createdAt).getTime());
       expect(timestamps[0]).toBeLessThanOrEqual(timestamps[1]);
       expect(timestamps[1]).toBeLessThanOrEqual(timestamps[2]);
     });

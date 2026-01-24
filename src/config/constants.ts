@@ -201,6 +201,100 @@ export const DEFAULT_PAGE_SIZE = 5;
 export const MAX_PAGE_SIZE = 50;
 
 // ============================================================================
+// Tool Mode Configuration
+// ============================================================================
+
+/**
+ * Tool registration mode
+ *
+ * Controls which tools are registered to manage schema payload size.
+ * Large schema payloads (500KB+) can overwhelm some MCP clients.
+ *
+ * Modes:
+ * - 'full': All 19 tools (default, ~527KB schema payload)
+ * - 'standard': 12 tools - removes MCP-native + Tier 7 (~444KB)
+ * - 'lite': 8 essential tools (~199KB, recommended for Claude Desktop)
+ *
+ * Set via SERVAL_TOOL_MODE environment variable.
+ *
+ * For full mode without size issues, also set SERVAL_SCHEMA_REFS=true
+ * to enable $ref optimization (reduces to ~209KB). Note: some clients
+ * may not handle $refs correctly - test thoroughly.
+ *
+ * Configuration examples for Claude Desktop:
+ *
+ * Option 1 - Lite mode (safest, 199KB):
+ *   "SERVAL_TOOL_MODE": "lite"
+ *
+ * Option 2 - Full mode with $ref optimization (209KB):
+ *   "SERVAL_TOOL_MODE": "full",
+ *   "SERVAL_SCHEMA_REFS": "true"
+ *
+ * Option 3 - Standard mode (444KB, may still cause issues):
+ *   "SERVAL_TOOL_MODE": "standard"
+ */
+export type ToolMode = 'full' | 'standard' | 'lite';
+
+export const TOOL_MODE: ToolMode = (() => {
+  const mode = process.env['SERVAL_TOOL_MODE']?.toLowerCase();
+  if (mode === 'lite' || mode === 'standard' || mode === 'full') {
+    return mode;
+  }
+  return 'full';
+})();
+
+/**
+ * Deferred schema loading mode
+ *
+ * When enabled, tools are registered with minimal "passthrough" schemas
+ * instead of full schemas. Full schemas are exposed via MCP resources
+ * (schema://tools/{toolName}) for on-demand loading.
+ *
+ * Benefits:
+ * - Reduces initial tools/list payload from ~231KB to ~5KB
+ * - All 19 tools available immediately
+ * - Claude fetches full schema only when needed via resources
+ * - Optimal for Claude Desktop and other token-conscious clients
+ *
+ * Trade-offs:
+ * - Claude must read schema resource before calling complex tools
+ * - Server instructions guide this behavior
+ *
+ * Set via SERVAL_DEFER_SCHEMAS=true environment variable.
+ *
+ * Recommended Claude Desktop configuration:
+ *   "SERVAL_DEFER_SCHEMAS": "true"
+ */
+export const DEFER_SCHEMAS = process.env['SERVAL_DEFER_SCHEMAS'] === 'true';
+
+/**
+ * Essential tools (lite mode) - core spreadsheet operations
+ * Reduces schema payload by 62% (527KB → 199KB)
+ */
+export const ESSENTIAL_TOOLS = [
+  'sheets_auth',
+  'sheets_core',
+  'sheets_data',
+  'sheets_format',
+  'sheets_history',
+  'sheets_transaction',
+  'sheets_quality',
+  'sheets_session',
+] as const;
+
+/**
+ * Standard tools - adds visualization, collaboration, dimensions, advanced
+ * Removes MCP-native tools (confirm, analyze, fix) and Tier 7 enterprise tools
+ */
+export const STANDARD_TOOLS = [
+  ...ESSENTIAL_TOOLS,
+  'sheets_dimensions',
+  'sheets_visualize',
+  'sheets_collaborate',
+  'sheets_advanced',
+] as const;
+
+// ============================================================================
 // Utility Functions
 // ============================================================================
 

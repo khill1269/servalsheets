@@ -194,7 +194,7 @@ mv ~/.config/google/servalsheets-prod-new.json ~/.config/google/servalsheets-pro
 
 ```bash
 # List all spreadsheets service account can access
-# Use sheets_spreadsheet tool with action: "list"
+# Use sheets_core tool with action: "list"
 # Or Google Drive API: files.list with query: 'me in owners'
 ```
 
@@ -633,8 +633,8 @@ To delete all data for a specific user:
 
 3. **Remove from Google Sheets:**
    ```javascript
-   // Use sheets_sharing to remove user permissions
-   await sheets_sharing({
+   // Use sheets_collaborate to remove user permissions
+   await sheets_collaborate({
      action: 'remove_permission',
      spreadsheetId: 'your-sheet-id',
      email: 'user@example.com'

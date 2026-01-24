@@ -75,7 +75,7 @@ describe('InMemoryTaskStore', () => {
       const task = await store.createTask({ ttl: 1 });
 
       // Wait for expiration
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const retrieved = await store.getTask(task.taskId);
       expect(retrieved).toBeNull();
@@ -103,9 +103,9 @@ describe('InMemoryTaskStore', () => {
     });
 
     it('should throw for non-existent task', async () => {
-      await expect(
-        store.updateTaskStatus('task_nonexistent', 'completed')
-      ).rejects.toThrow('Task not found');
+      await expect(store.updateTaskStatus('task_nonexistent', 'completed')).rejects.toThrow(
+        'Task not found'
+      );
     });
 
     it('should update lastUpdatedAt timestamp', async () => {
@@ -113,7 +113,7 @@ describe('InMemoryTaskStore', () => {
       const originalTimestamp = task.lastUpdatedAt;
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       await store.updateTaskStatus(task.taskId, 'working', 'In progress...');
 
@@ -125,7 +125,13 @@ describe('InMemoryTaskStore', () => {
     it('should allow status transition to all valid states', async () => {
       const task = await store.createTask();
 
-      const states: TaskStatus[] = ['working', 'completed', 'failed', 'cancelled', 'input_required'];
+      const states: TaskStatus[] = [
+        'working',
+        'completed',
+        'failed',
+        'cancelled',
+        'input_required',
+      ];
 
       for (const status of states) {
         await store.updateTaskStatus(task.taskId, status);
@@ -224,9 +230,9 @@ describe('InMemoryTaskStore', () => {
 
     it('should sort tasks by creation time (newest first)', async () => {
       const task1 = await store.createTask();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       const task2 = await store.createTask();
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       const task3 = await store.createTask();
 
       const tasks = await store.getAllTasks();
@@ -247,7 +253,7 @@ describe('InMemoryTaskStore', () => {
       await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const tasks = await store.getAllTasks();
       expect(tasks).toHaveLength(1);
@@ -281,7 +287,7 @@ describe('InMemoryTaskStore', () => {
       const longTask = await store.createTask({ ttl: 60000 });
 
       // Wait for short task to expire
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const cleaned = await store.cleanupExpiredTasks();
 
@@ -300,7 +306,7 @@ describe('InMemoryTaskStore', () => {
       await store.createTask({ ttl: 1 });
       await store.createTask({ ttl: 1 });
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       const cleaned = await store.cleanupExpiredTasks();
       expect(cleaned).toBe(3);
@@ -313,7 +319,7 @@ describe('InMemoryTaskStore', () => {
         isError: false,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       await store.cleanupExpiredTasks();
 
       const result = await store.getTaskResult(task.taskId);
@@ -357,7 +363,7 @@ describe('InMemoryTaskStore', () => {
       await store.updateTaskStatus(task.taskId, 'completed');
 
       // Wait significantly longer than TTL to ensure task has definitely expired
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const stats = await store.getTaskStats();
       expect(stats.completed).toBe(0);
@@ -373,7 +379,7 @@ describe('InMemoryTaskStore', () => {
       await fastStore.createTask({ ttl: 1 });
 
       // Wait for cleanup cycle
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       const tasks = await fastStore.getAllTasks();
       expect(tasks).toHaveLength(0);
@@ -388,7 +394,7 @@ describe('InMemoryTaskStore', () => {
       fastStore.dispose();
 
       // Cleanup should not run after dispose
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Task count should be 0 because dispose clears all
       const tasks = await fastStore.getAllTasks();
@@ -422,7 +428,7 @@ describe('InMemoryTaskStore', () => {
       const tasks = await Promise.all(promises);
 
       expect(tasks).toHaveLength(100);
-      expect(new Set(tasks.map(t => t.taskId)).size).toBe(100); // All unique
+      expect(new Set(tasks.map((t) => t.taskId)).size).toBe(100); // All unique
     });
 
     it('should handle very short TTL', async () => {
@@ -430,7 +436,7 @@ describe('InMemoryTaskStore', () => {
       expect(task).toBeDefined();
 
       // Wait for task to expire
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Should be expired now
       const retrieved = await store.getTask(task.taskId);

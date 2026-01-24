@@ -21,6 +21,27 @@ import { CircuitBreaker } from './utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from './version.js';
 
+// ============================================================================
+// SECURITY CONSTANTS
+// ============================================================================
+
+/**
+ * PKCE (Proof Key for Code Exchange) is REQUIRED for all authorization flows.
+ * This is enforced at runtime - all requests must include code_challenge.
+ * OAuth 2.1 security best practice.
+ */
+export const PKCE_REQUIRED = true;
+
+/**
+ * Only S256 code challenge method is supported.
+ * Plain method is insecure and explicitly rejected.
+ */
+export const CODE_CHALLENGE_METHOD = 'S256';
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
 export interface OAuthConfig {
   issuer: string;
   clientId: string;
@@ -387,6 +408,7 @@ export class OAuthProvider {
         token_endpoint: `${this.config.issuer}/oauth/token`,
         revocation_endpoint: `${this.config.issuer}/oauth/revoke`,
         introspection_endpoint: `${this.config.issuer}/oauth/introspect`,
+        registration_endpoint: `${this.config.issuer}/oauth/register`, // RFC 7591 DCR
         response_types_supported: ['code'],
         grant_types_supported: ['authorization_code', 'refresh_token'],
         code_challenge_methods_supported: ['S256'],
@@ -717,6 +739,137 @@ export class OAuthProvider {
 
       // All secrets failed
       res.json({ active: false });
+    });
+
+    // Dynamic Client Registration (RFC 7591)
+    // Allows clients to register themselves dynamically
+    router.post('/oauth/register', express.json(), async (req, res) => {
+      try {
+        const {
+          redirect_uris,
+          client_name,
+          grant_types,
+          response_types,
+          scope,
+          token_endpoint_auth_method,
+        } = req.body as {
+          redirect_uris?: string[];
+          client_name?: string;
+          grant_types?: string[];
+          response_types?: string[];
+          scope?: string;
+          token_endpoint_auth_method?: string;
+        };
+
+        // Validate required fields
+        if (!redirect_uris || redirect_uris.length === 0) {
+          res.status(400).json({
+            error: 'invalid_client_metadata',
+            error_description: 'redirect_uris is required',
+          });
+          return;
+        }
+
+        // Validate redirect URIs
+        for (const uri of redirect_uris) {
+          try {
+            const parsedUri = new URL(uri);
+            // Only allow https in production (except localhost for dev)
+            if (
+              process.env['NODE_ENV'] === 'production' &&
+              parsedUri.protocol !== 'https:' &&
+              !parsedUri.hostname.match(/^(localhost|127\.0\.0\.1)$/)
+            ) {
+              res.status(400).json({
+                error: 'invalid_redirect_uri',
+                error_description: 'redirect_uris must use https in production',
+              });
+              return;
+            }
+          } catch {
+            res.status(400).json({
+              error: 'invalid_redirect_uri',
+              error_description: `Invalid URI: ${uri}`,
+            });
+            return;
+          }
+        }
+
+        // Validate grant types (only authorization_code supported)
+        const requestedGrantTypes = grant_types || ['authorization_code'];
+        if (!requestedGrantTypes.includes('authorization_code')) {
+          res.status(400).json({
+            error: 'invalid_client_metadata',
+            error_description: 'Only authorization_code grant type is supported',
+          });
+          return;
+        }
+
+        // Validate scopes
+        const requestedScopes = scope?.split(' ') || ['sheets:read'];
+        for (const s of requestedScopes) {
+          if (!SUPPORTED_SCOPES.includes(s as SupportedScope)) {
+            res.status(400).json({
+              error: 'invalid_client_metadata',
+              error_description: `Unsupported scope: ${s}`,
+            });
+            return;
+          }
+        }
+
+        // Generate client credentials
+        const clientId = `dcr_${randomUUID().replace(/-/g, '')}`;
+        const clientSecret = randomBytes(32).toString('base64url');
+        const clientIdIssuedAt = Math.floor(Date.now() / 1000);
+
+        // Store client registration (expires in 1 year)
+        const clientData = {
+          client_id: clientId,
+          client_secret: clientSecret,
+          client_name: client_name || `Dynamic Client ${clientId.substring(0, 8)}`,
+          redirect_uris,
+          grant_types: requestedGrantTypes,
+          response_types: response_types || ['code'],
+          scope: requestedScopes.join(' '),
+          token_endpoint_auth_method: token_endpoint_auth_method || 'client_secret_basic',
+          client_id_issued_at: clientIdIssuedAt,
+          created_at: new Date().toISOString(),
+        };
+
+        // Store in session store with 1 year TTL
+        await this.sessionStore.set(
+          `dcr:${clientId}`,
+          clientData,
+          365 * 24 * 60 * 60 * 1000 // 1 year
+        );
+
+        logger.info('Dynamic client registered', {
+          clientId,
+          clientName: clientData.client_name,
+          redirectUris: redirect_uris,
+        });
+
+        // Return client credentials (RFC 7591 response)
+        res.status(201).json({
+          client_id: clientId,
+          client_secret: clientSecret,
+          client_name: clientData.client_name,
+          redirect_uris,
+          grant_types: requestedGrantTypes,
+          response_types: clientData.response_types,
+          scope: clientData.scope,
+          token_endpoint_auth_method: clientData.token_endpoint_auth_method,
+          client_id_issued_at: clientIdIssuedAt,
+        });
+      } catch (error) {
+        logger.error('DCR registration failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({
+          error: 'server_error',
+          error_description: 'Registration failed',
+        });
+      }
     });
 
     return router;

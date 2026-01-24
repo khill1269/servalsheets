@@ -5,8 +5,8 @@
  * under various traffic patterns.
  */
 
-import { sheets_v4 } from "googleapis";
-import { BatchingSystem, type BatchingStats } from "../src/services/batching-system.js";
+import { sheets_v4 } from 'googleapis';
+import { BatchingSystem, type BatchingStats } from '../src/services/batching-system.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = (): sheets_v4.Sheets => {
@@ -27,7 +27,7 @@ const createMockSheetsApi = (): sheets_v4.Sheets => {
             {
               properties: {
                 sheetId: 0,
-                title: "Sheet1",
+                title: 'Sheet1',
               },
             },
           ],
@@ -55,19 +55,16 @@ const trafficPatterns = {
   /**
    * Steady low traffic - 1 operation every 100ms
    */
-  steadyLow: async (
-    system: BatchingSystem,
-    duration: number,
-  ): Promise<void> => {
+  steadyLow: async (system: BatchingSystem, duration: number): Promise<void> => {
     const count = duration / 100;
     for (let i = 0; i < count; i++) {
       void system.execute({
         id: `op-${i}`,
-        type: "values:update",
-        spreadsheetId: "test-sheet",
+        type: 'values:update',
+        spreadsheetId: 'test-sheet',
         params: {
           range: `Sheet1!A${i + 1}`,
-          values: [["test"]],
+          values: [['test']],
         },
       });
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -77,20 +74,17 @@ const trafficPatterns = {
   /**
    * Steady high traffic - 10 operations every 50ms
    */
-  steadyHigh: async (
-    system: BatchingSystem,
-    duration: number,
-  ): Promise<void> => {
+  steadyHigh: async (system: BatchingSystem, duration: number): Promise<void> => {
     const count = duration / 50;
     for (let i = 0; i < count; i++) {
       for (let j = 0; j < 10; j++) {
         void system.execute({
           id: `op-${i}-${j}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i * 10 + j + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
       }
@@ -108,11 +102,11 @@ const trafficPatterns = {
       for (let j = 0; j < 30; j++) {
         void system.execute({
           id: `op-${i}-${j}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i * 30 + j + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
       }
@@ -135,11 +129,11 @@ const trafficPatterns = {
       for (let i = 0; i < opsPerStep; i++) {
         void system.execute({
           id: `op-${step}-${i}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${step * 100 + i + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
       }
@@ -160,11 +154,11 @@ const trafficPatterns = {
       for (let j = 0; j < ops; j++) {
         void system.execute({
           id: `op-${i}-${j}`,
-          type: "values:update",
-          spreadsheetId: "test-sheet",
+          type: 'values:update',
+          spreadsheetId: 'test-sheet',
           params: {
             range: `Sheet1!A${i * 20 + j + 1}`,
-            values: [["test"]],
+            values: [['test']],
           },
         });
       }
@@ -179,12 +173,12 @@ const trafficPatterns = {
 async function runScenario(
   scenario: string,
   pattern: (system: BatchingSystem, duration: number) => Promise<void>,
-  duration: number,
+  duration: number
 ): Promise<BenchmarkResult> {
   console.log(`\nRunning scenario: ${scenario}`);
 
   // Test with fixed window
-  console.log("  Testing fixed window...");
+  console.log('  Testing fixed window...');
   const sheetsApi1 = createMockSheetsApi();
   const fixedSystem = new BatchingSystem(sheetsApi1, {
     adaptiveWindow: false,
@@ -198,7 +192,7 @@ async function runScenario(
   fixedSystem.destroy();
 
   // Test with adaptive window
-  console.log("  Testing adaptive window...");
+  console.log('  Testing adaptive window...');
   const sheetsApi2 = createMockSheetsApi();
   const adaptiveSystem = new BatchingSystem(sheetsApi2, {
     adaptiveWindow: true,
@@ -220,21 +214,15 @@ async function runScenario(
   // Calculate improvements
   const batchSizeIncrease =
     fixedStats.avgBatchSize > 0
-      ? ((adaptiveStats.avgBatchSize - fixedStats.avgBatchSize) /
-          fixedStats.avgBatchSize) *
-        100
+      ? ((adaptiveStats.avgBatchSize - fixedStats.avgBatchSize) / fixedStats.avgBatchSize) * 100
       : 0;
 
   const apiCallReduction =
     fixedStats.totalApiCalls > 0
-      ? ((fixedStats.totalApiCalls - adaptiveStats.totalApiCalls) /
-          fixedStats.totalApiCalls) *
-        100
+      ? ((fixedStats.totalApiCalls - adaptiveStats.totalApiCalls) / fixedStats.totalApiCalls) * 100
       : 0;
 
-  const avgWindowChange = adaptiveStats.avgWindowMs
-    ? adaptiveStats.avgWindowMs - 50
-    : undefined;
+  const avgWindowChange = adaptiveStats.avgWindowMs ? adaptiveStats.avgWindowMs - 50 : undefined;
 
   return {
     scenario,
@@ -258,97 +246,87 @@ function formatStats(stats: BatchingStats): string {
     `Total API Calls: ${stats.totalApiCalls}`,
     `Avg Batch Size: ${stats.avgBatchSize.toFixed(2)}`,
     `API Call Reduction: ${stats.reductionPercentage.toFixed(1)}%`,
-    stats.currentWindowMs
-      ? `Current Window: ${stats.currentWindowMs}ms`
-      : null,
+    stats.currentWindowMs ? `Current Window: ${stats.currentWindowMs}ms` : null,
     stats.avgWindowMs ? `Avg Window: ${stats.avgWindowMs}ms` : null,
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(', ');
 }
 
 /**
  * Main benchmark execution
  */
 async function main() {
-  console.log("=".repeat(70));
-  console.log("Adaptive vs Fixed Batch Window Benchmark");
-  console.log("=".repeat(70));
+  console.log('='.repeat(70));
+  console.log('Adaptive vs Fixed Batch Window Benchmark');
+  console.log('='.repeat(70));
 
   const results: BenchmarkResult[] = [];
 
   // Run all scenarios
-  results.push(
-    await runScenario("Steady Low Traffic", trafficPatterns.steadyLow, 2000),
-  );
-  results.push(
-    await runScenario("Steady High Traffic", trafficPatterns.steadyHigh, 2000),
-  );
-  results.push(await runScenario("Bursty Traffic", trafficPatterns.bursty, 3000));
-  results.push(await runScenario("Ramp Up", trafficPatterns.rampUp, 2000));
-  results.push(await runScenario("Variable Traffic", trafficPatterns.variable, 2000));
+  results.push(await runScenario('Steady Low Traffic', trafficPatterns.steadyLow, 2000));
+  results.push(await runScenario('Steady High Traffic', trafficPatterns.steadyHigh, 2000));
+  results.push(await runScenario('Bursty Traffic', trafficPatterns.bursty, 3000));
+  results.push(await runScenario('Ramp Up', trafficPatterns.rampUp, 2000));
+  results.push(await runScenario('Variable Traffic', trafficPatterns.variable, 2000));
 
   // Print results
-  console.log("\n" + "=".repeat(70));
-  console.log("RESULTS SUMMARY");
-  console.log("=".repeat(70));
+  console.log('\n' + '='.repeat(70));
+  console.log('RESULTS SUMMARY');
+  console.log('='.repeat(70));
 
   for (const result of results) {
     console.log(`\n${result.scenario}`);
-    console.log("-".repeat(70));
-    console.log("Fixed Window:");
-    console.log("  " + formatStats(result.fixed));
-    console.log("Adaptive Window:");
-    console.log("  " + formatStats(result.adaptive));
-    console.log("Improvement:");
+    console.log('-'.repeat(70));
+    console.log('Fixed Window:');
+    console.log('  ' + formatStats(result.fixed));
+    console.log('Adaptive Window:');
+    console.log('  ' + formatStats(result.adaptive));
+    console.log('Improvement:');
     console.log(
-      `  Batch Size: ${result.improvement.batchSizeIncrease >= 0 ? "+" : ""}${result.improvement.batchSizeIncrease.toFixed(1)}%`,
+      `  Batch Size: ${result.improvement.batchSizeIncrease >= 0 ? '+' : ''}${result.improvement.batchSizeIncrease.toFixed(1)}%`
     );
     console.log(
-      `  API Calls: ${result.improvement.apiCallReduction >= 0 ? "-" : "+"}${Math.abs(result.improvement.apiCallReduction).toFixed(1)}%`,
+      `  API Calls: ${result.improvement.apiCallReduction >= 0 ? '-' : '+'}${Math.abs(result.improvement.apiCallReduction).toFixed(1)}%`
     );
     if (result.improvement.avgWindowChange !== undefined) {
       console.log(
-        `  Window Size: ${result.improvement.avgWindowChange >= 0 ? "+" : ""}${result.improvement.avgWindowChange.toFixed(0)}ms`,
+        `  Window Size: ${result.improvement.avgWindowChange >= 0 ? '+' : ''}${result.improvement.avgWindowChange.toFixed(0)}ms`
       );
     }
   }
 
   // Overall statistics
-  console.log("\n" + "=".repeat(70));
-  console.log("OVERALL PERFORMANCE");
-  console.log("=".repeat(70));
+  console.log('\n' + '='.repeat(70));
+  console.log('OVERALL PERFORMANCE');
+  console.log('='.repeat(70));
 
   const avgBatchSizeImprovement =
-    results.reduce((sum, r) => sum + r.improvement.batchSizeIncrease, 0) /
-    results.length;
+    results.reduce((sum, r) => sum + r.improvement.batchSizeIncrease, 0) / results.length;
   const avgApiCallReduction =
-    results.reduce((sum, r) => sum + r.improvement.apiCallReduction, 0) /
-    results.length;
+    results.reduce((sum, r) => sum + r.improvement.apiCallReduction, 0) / results.length;
 
   console.log(
-    `Average Batch Size Improvement: ${avgBatchSizeImprovement >= 0 ? "+" : ""}${avgBatchSizeImprovement.toFixed(1)}%`,
+    `Average Batch Size Improvement: ${avgBatchSizeImprovement >= 0 ? '+' : ''}${avgBatchSizeImprovement.toFixed(1)}%`
   );
   console.log(
-    `Average API Call Reduction: ${avgApiCallReduction >= 0 ? "-" : "+"}${Math.abs(avgApiCallReduction).toFixed(1)}%`,
+    `Average API Call Reduction: ${avgApiCallReduction >= 0 ? '-' : '+'}${Math.abs(avgApiCallReduction).toFixed(1)}%`
   );
 
   // Determine winner
   const adaptiveWins = results.filter(
-    (r) => r.improvement.batchSizeIncrease > 0 || r.improvement.apiCallReduction > 0,
+    (r) => r.improvement.batchSizeIncrease > 0 || r.improvement.apiCallReduction > 0
   ).length;
 
   console.log(`\nAdaptive window wins in ${adaptiveWins}/${results.length} scenarios`);
 
   if (adaptiveWins > results.length / 2) {
-    console.log(
-      "\n✓ ADAPTIVE WINDOW RECOMMENDED: Better performance in most scenarios",
-    );
+    console.log('\n✓ ADAPTIVE WINDOW RECOMMENDED: Better performance in most scenarios');
   } else {
-    console.log("\n⚠ FIXED WINDOW ACCEPTABLE: Similar performance overall");
+    console.log('\n⚠ FIXED WINDOW ACCEPTABLE: Similar performance overall');
   }
 
-  console.log("\n" + "=".repeat(70));
+  console.log('\n' + '='.repeat(70));
 }
 
 // Run benchmark

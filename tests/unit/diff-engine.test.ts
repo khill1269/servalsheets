@@ -191,7 +191,10 @@ describe('DiffEngine', () => {
           columnCount: 26,
           checksum: 'abc123',
           sampleData: {
-            firstRows: [['A1', 'B1'], ['A2', 'B2']],
+            firstRows: [
+              ['A1', 'B1'],
+              ['A2', 'B2'],
+            ],
             lastRows: [],
           },
         },
@@ -205,7 +208,10 @@ describe('DiffEngine', () => {
           columnCount: 26,
           checksum: 'def456',
           sampleData: {
-            firstRows: [['A1_CHANGED', 'B1'], ['A2', 'B2']],
+            firstRows: [
+              ['A1_CHANGED', 'B1'],
+              ['A2', 'B2'],
+            ],
             lastRows: [],
           },
         },
@@ -484,14 +490,11 @@ describe('DiffEngine', () => {
 });
 
 // Helper function to create mock state
-function createMockState(
-  spreadsheetId: string,
-  sheets: Partial<SheetState>[]
-): SpreadsheetState {
+function createMockState(spreadsheetId: string, sheets: Partial<SheetState>[]): SpreadsheetState {
   return {
     timestamp: new Date().toISOString(),
     spreadsheetId,
-    sheets: sheets.map(s => ({
+    sheets: sheets.map((s) => ({
       sheetId: s.sheetId ?? 0,
       title: s.title ?? 'Sheet1',
       rowCount: s.rowCount ?? 0,

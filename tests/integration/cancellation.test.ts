@@ -86,7 +86,7 @@ describe('Cancellation and Timeout Behavior', () => {
     it('should handle operation timeout gracefully', async () => {
       // Simulate a very slow operation
       const slowOperation = async (): Promise<void> => {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 seconds
       };
 
       // Set a shorter timeout
@@ -97,9 +97,9 @@ describe('Cancellation and Timeout Behavior', () => {
       });
 
       // Race the operation against timeout
-      await expect(
-        Promise.race([slowOperation(), timeoutPromise])
-      ).rejects.toThrow('Operation timeout');
+      await expect(Promise.race([slowOperation(), timeoutPromise])).rejects.toThrow(
+        'Operation timeout'
+      );
     });
 
     it('should demonstrate client-side timeout pattern', async () => {
@@ -117,7 +117,7 @@ describe('Cancellation and Timeout Behavior', () => {
       };
 
       const fastOperation = async (): Promise<string> => {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
         return 'completed';
       };
 
@@ -126,14 +126,12 @@ describe('Cancellation and Timeout Behavior', () => {
       expect(result).toBe('completed');
 
       const slowOperation = async (): Promise<string> => {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         return 'completed';
       };
 
       // Should timeout
-      await expect(
-        executeWithTimeout(slowOperation, 100)
-      ).rejects.toThrow('Timeout');
+      await expect(executeWithTimeout(slowOperation, 100)).rejects.toThrow('Timeout');
     });
   });
 
@@ -255,7 +253,12 @@ describe('Cancellation and Timeout Behavior', () => {
           }),
           values: {
             get: vi.fn().mockResolvedValue({
-              data: { values: [['A', 'B'], ['1', '2']] },
+              data: {
+                values: [
+                  ['A', 'B'],
+                  ['1', '2'],
+                ],
+              },
             }),
           },
         },
@@ -339,7 +342,7 @@ describe('Cancellation and Timeout Behavior', () => {
       };
 
       // All key components exist
-      Object.values(implementations).forEach(component => {
+      Object.values(implementations).forEach((component) => {
         expect(component).toBeDefined();
       });
     });

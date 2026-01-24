@@ -75,7 +75,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
   "timestamp": "2025-01-03T10:15:30.123Z",
   "level": "info",
   "message": "Operation completed",
-  "operation": "sheets_spreadsheet:read",
+  "operation": "sheets_core:read",
   "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
   "range": "Sheet1!A1:D10",
   "duration": 156,
@@ -89,7 +89,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 
 ```
 2025-01-03T10:15:30.123Z [INFO] Operation completed
-  operation: sheets_spreadsheet:read
+  operation: sheets_core:read
   spreadsheetId: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
   range: Sheet1!A1:D10
   duration: 156ms
@@ -105,7 +105,7 @@ export interface OperationLog {
   timestamp: string;          // ISO 8601
   level: LogLevel;           // debug, info, warn, error
   message: string;           // Human-readable message
-  operation: string;         // Tool:action (e.g., sheets_spreadsheet:read)
+  operation: string;         // Tool:action (e.g., sheets_core:read)
   spreadsheetId?: string;    // Spreadsheet ID
   range?: string;            // Cell range
   duration: number;          // Milliseconds
@@ -132,7 +132,7 @@ export interface ErrorDetails {
   "timestamp": "2025-01-03T10:15:30.123Z",
   "level": "info",
   "message": "Read operation completed",
-  "operation": "sheets_spreadsheet:read",
+  "operation": "sheets_core:read",
   "spreadsheetId": "xxx",
   "range": "Sheet1!A1:D10",
   "duration": 156,
@@ -149,7 +149,7 @@ export interface ErrorDetails {
   "timestamp": "2025-01-03T10:15:35.456Z",
   "level": "error",
   "message": "Write operation failed",
-  "operation": "sheets_spreadsheet:write",
+  "operation": "sheets_core:write",
   "spreadsheetId": "xxx",
   "range": "Sheet1!A1:A10",
   "duration": 245,
@@ -639,7 +639,7 @@ export async function traceOperation<T>(
 }
 
 // Usage
-const result = await traceOperation('sheets_spreadsheet:read', async () => {
+const result = await traceOperation('sheets_core:read', async () => {
   return await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:D10' });
 });
 ```
@@ -667,7 +667,7 @@ tracer.init({
 import newrelic from 'newrelic';
 
 // Custom transaction
-newrelic.startWebTransaction('sheets_spreadsheet:read', async () => {
+newrelic.startWebTransaction('sheets_core:read', async () => {
   const result = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:D10' });
 
   // Record custom attributes

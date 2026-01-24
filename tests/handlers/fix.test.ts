@@ -68,9 +68,7 @@ describe('FixHandler', () => {
     it('should generate fix operations in preview mode', async () => {
       mockApi.spreadsheets.get.mockResolvedValue({
         data: {
-          sheets: [
-            { properties: { sheetId: 0, title: 'Sheet1' } },
-          ],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
@@ -95,9 +93,7 @@ describe('FixHandler', () => {
     it('should respect dryRun safety option', async () => {
       mockApi.spreadsheets.get.mockResolvedValue({
         data: {
-          sheets: [
-            { properties: { sheetId: 0, title: 'Sheet1' } },
-          ],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
@@ -227,17 +223,17 @@ describe('FixHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(result.response.operations.length).toBeGreaterThan(0);
-      expect(result.response.operations.every(op =>
-        issues.find(i => i.type === op.issueType && i.severity === 'high')
-      )).toBe(true);
+      expect(
+        result.response.operations.every((op) =>
+          issues.find((i) => i.type === op.issueType && i.severity === 'high')
+        )
+      ).toBe(true);
     });
 
     it('should filter by issue type', async () => {
       mockApi.spreadsheets.get.mockResolvedValue({
         data: {
-          sheets: [
-            { properties: { sheetId: 0, title: 'Sheet1' } },
-          ],
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
         },
       });
 
@@ -250,9 +246,9 @@ describe('FixHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      expect(result.response.operations.every(op =>
-        op.issueType === 'NO_FROZEN_HEADERS'
-      )).toBe(true);
+      expect(result.response.operations.every((op) => op.issueType === 'NO_FROZEN_HEADERS')).toBe(
+        true
+      );
     });
 
     it('should filter by sheet name', async () => {
@@ -283,17 +279,19 @@ describe('FixHandler', () => {
     });
 
     it('should limit number of fixes', async () => {
-      const manyIssues: IssueToFix[] = Array(10).fill(null).map((_, i) => ({
-        type: 'NO_FROZEN_HEADERS' as const,
-        severity: 'low' as const,
-        sheet: `Sheet${i}`,
-        description: `Issue ${i}`,
-      }));
+      const manyIssues: IssueToFix[] = Array(10)
+        .fill(null)
+        .map((_, i) => ({
+          type: 'NO_FROZEN_HEADERS' as const,
+          severity: 'low' as const,
+          sheet: `Sheet${i}`,
+          description: `Issue ${i}`,
+        }));
 
       mockApi.spreadsheets.get.mockResolvedValue({
         data: {
           sheets: manyIssues.map((_, i) => ({
-            properties: { sheetId: i, title: `Sheet${i}` }
+            properties: { sheetId: i, title: `Sheet${i}` },
           })),
         },
       });
@@ -335,11 +333,13 @@ describe('FixHandler', () => {
       });
 
       expect(result.response.success).toBe(true);
-      const ops = result.response.operations.filter(op => op.issueType === 'MULTIPLE_TODAY');
+      const ops = result.response.operations.filter((op) => op.issueType === 'MULTIPLE_TODAY');
       expect(ops.length).toBeGreaterThan(0);
 
       // MULTIPLE_TODAY operations use sheets_data and sheets_advanced
-      expect(ops.some(op => op.tool === 'sheets_data' || op.tool === 'sheets_advanced')).toBe(true);
+      expect(ops.some((op) => op.tool === 'sheets_data' || op.tool === 'sheets_advanced')).toBe(
+        true
+      );
     });
 
     it('should generate NO_FROZEN_HEADERS fix operations', async () => {
@@ -352,12 +352,14 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [{ type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'Sheet1', description: 'Test' }],
+        issues: [
+          { type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'Sheet1', description: 'Test' },
+        ],
         mode: 'preview',
       });
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find(op => op.issueType === 'NO_FROZEN_HEADERS');
+      const op = result.response.operations.find((op) => op.issueType === 'NO_FROZEN_HEADERS');
       expect(op).toBeDefined();
       expect(op!.tool).toBe('sheets_dimensions');
       expect(op!.action).toBe('freeze_rows');
@@ -373,12 +375,14 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [{ type: 'NO_FROZEN_COLUMNS', severity: 'low', sheet: 'Sheet1', description: 'Test' }],
+        issues: [
+          { type: 'NO_FROZEN_COLUMNS', severity: 'low', sheet: 'Sheet1', description: 'Test' },
+        ],
         mode: 'preview',
       });
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find(op => op.issueType === 'NO_FROZEN_COLUMNS');
+      const op = result.response.operations.find((op) => op.issueType === 'NO_FROZEN_COLUMNS');
       expect(op).toBeDefined();
       expect(op!.action).toBe('freeze_columns');
     });
@@ -393,12 +397,14 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [{ type: 'NO_PROTECTION', severity: 'medium', sheet: 'Sheet1', description: 'Test' }],
+        issues: [
+          { type: 'NO_PROTECTION', severity: 'medium', sheet: 'Sheet1', description: 'Test' },
+        ],
         mode: 'preview',
       });
 
       expect(result.response.success).toBe(true);
-      const op = result.response.operations.find(op => op.issueType === 'NO_PROTECTION');
+      const op = result.response.operations.find((op) => op.issueType === 'NO_PROTECTION');
       expect(op).toBeDefined();
       expect(op!.tool).toBe('sheets_advanced');
       expect(op!.action).toBe('add_protected_range');
@@ -414,7 +420,9 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [{ type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'NonExistent', description: 'Test' }],
+        issues: [
+          { type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'NonExistent', description: 'Test' },
+        ],
         mode: 'preview',
       });
 
@@ -436,7 +444,9 @@ describe('FixHandler', () => {
       const result = await handler.handle({
         action: 'fix',
         spreadsheetId: 'test-id',
-        issues: [{ type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'Sheet1', description: 'Test' }],
+        issues: [
+          { type: 'NO_FROZEN_HEADERS', severity: 'low', sheet: 'Sheet1', description: 'Test' },
+        ],
         mode: 'apply',
         safety: { createSnapshot: false },
       });
