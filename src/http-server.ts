@@ -414,6 +414,26 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Parse JSON
   app.use(express.json({ limit: '10mb' }));
 
+  // MCP Protocol Version Header (MCP 2025-11-25 Compliance)
+  // Specification: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports.md
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Set MCP protocol version on all responses
+    res.setHeader('MCP-Protocol-Version', '2025-11-25');
+
+    // Check client protocol version (optional but recommended)
+    const clientVersion = req.headers['mcp-protocol-version'];
+    if (clientVersion && clientVersion !== '2025-11-25') {
+      logger.warn('Client using different MCP protocol version', {
+        clientVersion,
+        serverVersion: '2025-11-25',
+        path: req.path,
+        method: req.method,
+      });
+    }
+
+    next();
+  });
+
   // OAuth provider (optional)
   let oauth: OAuthProvider | null = null;
   if (options.enableOAuth && options.oauthConfig) {
