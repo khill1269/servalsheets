@@ -11,7 +11,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
-import { randomUUID, randomBytes } from 'crypto';
+import { randomUUID, randomBytes, createHash } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -852,13 +852,59 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     return `~${combinedSavings.toFixed(1)}%`;
   }
 
-  // Store active sessions
+  // Session security context for preventing hijacking (MCP 2025-11-25 Security)
+  interface SessionSecurityContext {
+    ipAddress: string;
+    userAgent: string;
+    tokenHash: string; // First 16 chars of token hash for validation
+  }
+
+  /**
+   * Create security context for session binding
+   */
+  function createSecurityContext(req: Request, token: string): SessionSecurityContext {
+    const ipAddress = (
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+      req.ip ||
+      'unknown'
+    ).trim();
+    const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+    const tokenHash = createHash('sha256').update(token).digest('hex').substring(0, 16);
+
+    return { ipAddress, userAgent, tokenHash };
+  }
+
+  /**
+   * Verify security context matches for reconnection
+   */
+  function verifySecurityContext(
+    stored: SessionSecurityContext,
+    current: SessionSecurityContext
+  ): { valid: boolean; reason?: string } {
+    if (stored.tokenHash !== current.tokenHash) {
+      return { valid: false, reason: 'Token mismatch' };
+    }
+    if (stored.userAgent !== current.userAgent) {
+      return { valid: false, reason: 'User-agent mismatch' };
+    }
+    if (stored.ipAddress !== current.ipAddress) {
+      // IP mismatch is a warning but not blocking (mobile networks can change IPs)
+      logger.warn('Session IP address changed', {
+        stored: stored.ipAddress,
+        current: current.ipAddress,
+      });
+    }
+    return { valid: true };
+  }
+
+  // Store active sessions with security binding
   const sessions = new Map<
     string,
     {
       transport: SSEServerTransport | StreamableHTTPServerTransport;
       mcpServer: McpServer;
       taskStore: TaskStoreAdapter;
+      securityContext: SessionSecurityContext; // Security binding to prevent hijacking
     }
   >();
 
@@ -892,7 +938,32 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
     // Try to reconnect to existing session if requested
     if (requestedSessionId && sessions.has(requestedSessionId)) {
-      const _existingSession = sessions.get(requestedSessionId)!;
+      const existingSession = sessions.get(requestedSessionId)!;
+
+      // Verify security context to prevent session hijacking
+      const currentSecurityContext = createSecurityContext(req, googleToken || '');
+      const securityCheck = verifySecurityContext(
+        existingSession.securityContext,
+        currentSecurityContext
+      );
+
+      if (!securityCheck.valid) {
+        logger.warn('Session reconnection rejected - security context mismatch', {
+          sessionId: requestedSessionId,
+          reason: securityCheck.reason,
+          userId,
+        });
+
+        res.status(403).json({
+          error: {
+            code: 'SESSION_SECURITY_VIOLATION',
+            message: `Session reconnection rejected: ${securityCheck.reason}`,
+            retryable: false,
+          },
+        });
+        return;
+      }
+
       logger.info('SSE session reconnection', {
         sessionId: requestedSessionId,
         userId,
@@ -944,10 +1015,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       // Register session in limiter
       sessionLimiter.registerSession(sessionId, userId);
 
+      // Create security context for session binding
+      const securityContext = createSecurityContext(req, googleToken || '');
+
       // Create and connect MCP server with task store
       const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
       await mcpServer.connect(transport);
-      sessions.set(sessionId, { transport, mcpServer, taskStore });
+      sessions.set(sessionId, { transport, mcpServer, taskStore, securityContext });
 
       // Cleanup on disconnect
       req.on('close', () => {
@@ -1077,13 +1151,45 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           // Register session in limiter
           sessionLimiter.registerSession(sessionId, userId);
 
+          // Create security context for session binding
+          const securityContext = createSecurityContext(req, googleToken || '');
+
           const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
-          sessions.set(sessionId, { transport: newTransport, mcpServer, taskStore });
+          sessions.set(sessionId, {
+            transport: newTransport,
+            mcpServer,
+            taskStore,
+            securityContext,
+          });
 
           // Connect with transport - use type assertion for SDK compatibility
           await mcpServer.connect(
             newTransport as unknown as Parameters<typeof mcpServer.connect>[0]
           );
+        } else if (session) {
+          // Reconnecting to existing session - verify security context
+          const currentSecurityContext = createSecurityContext(req, googleToken || '');
+          const securityCheck = verifySecurityContext(
+            session.securityContext,
+            currentSecurityContext
+          );
+
+          if (!securityCheck.valid) {
+            logger.warn('StreamableHTTP session rejected - security context mismatch', {
+              sessionId,
+              reason: securityCheck.reason,
+              userId,
+            });
+
+            res.status(403).json({
+              error: {
+                code: 'SESSION_SECURITY_VIOLATION',
+                message: `Session reconnection rejected: ${securityCheck.reason}`,
+                retryable: false,
+              },
+            });
+            return;
+          }
         }
 
         // Handle the request
