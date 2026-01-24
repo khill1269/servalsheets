@@ -35,8 +35,14 @@ export const ColorSchema = z
     blue: z.number().min(0).max(1).optional().default(0),
     alpha: z.number().min(0).max(1).optional().default(1),
   })
+  .transform((color) => ({
+    red: Math.round(color.red * 10000) / 10000,
+    green: Math.round(color.green * 10000) / 10000,
+    blue: Math.round(color.blue * 10000) / 10000,
+    alpha: Math.round(color.alpha * 10000) / 10000,
+  }))
   .describe(
-    'RGB color in 0-1 scale (e.g., {red:1,green:0,blue:0} for red, {red:0.26,green:0.52,blue:0.96} for Google blue #4285F4)'
+    'RGB color in 0-1 scale (e.g., {red:1,green:0,blue:0} for red, {red:0.26,green:0.52,blue:0.96} for Google blue #4285F4). Values rounded to 4 decimal places.'
   );
 
 /** Cell value types */
@@ -93,36 +99,53 @@ export const SheetNameSchema = z
 // ============================================================================
 
 export const ValueRenderOptionSchema = z
-  .enum(['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'])
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'])
+  )
   .default('FORMATTED_VALUE')
   .describe(
-    'How to render cell values: FORMATTED_VALUE (default, displays "$1,234.56"), UNFORMATTED_VALUE (raw number 1234.56), FORMULA (shows "=SUM(A1:A10)")'
+    'How to render cell values: FORMATTED_VALUE (default, displays "$1,234.56"), UNFORMATTED_VALUE (raw number 1234.56), FORMULA (shows "=SUM(A1:A10)"). Case-insensitive.'
   );
 
 export const ValueInputOptionSchema = z
-  .enum(['RAW', 'USER_ENTERED'])
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['RAW', 'USER_ENTERED'])
+  )
   .default('USER_ENTERED')
   .describe(
-    'How to interpret input: USER_ENTERED (default, parses formulas/dates like typing in UI), RAW (stores exactly as provided, "=SUM" becomes literal text)'
+    'How to interpret input: USER_ENTERED (default, parses formulas/dates like typing in UI), RAW (stores exactly as provided, "=SUM" becomes literal text). Case-insensitive.'
   );
 
 export const InsertDataOptionSchema = z
-  .enum(['OVERWRITE', 'INSERT_ROWS'])
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['OVERWRITE', 'INSERT_ROWS'])
+  )
   .default('INSERT_ROWS')
   .describe(
-    'How to handle existing data when appending: INSERT_ROWS (default, adds new rows after last row with data), OVERWRITE (replaces existing data in the range)'
+    'How to handle existing data when appending: INSERT_ROWS (default, adds new rows after last row with data), OVERWRITE (replaces existing data in the range). Case-insensitive.'
   );
 
 export const MajorDimensionSchema = z
-  .enum(['ROWS', 'COLUMNS'])
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['ROWS', 'COLUMNS'])
+  )
   .default('ROWS')
   .describe(
-    'Data organization: ROWS (default, data[0]=first row), COLUMNS (data[0]=first column, useful for column-oriented data)'
+    'Data organization: ROWS (default, data[0]=first row), COLUMNS (data[0]=first column, useful for column-oriented data). Case-insensitive.'
   );
 
 export const DimensionSchema = z
-  .enum(['ROWS', 'COLUMNS'])
-  .describe('Dimension type: ROWS (horizontal bands) or COLUMNS (vertical bands)');
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['ROWS', 'COLUMNS'])
+  )
+  .describe(
+    'Dimension type: ROWS (horizontal bands) or COLUMNS (vertical bands). Case-insensitive.'
+  );
 
 export const HorizontalAlignSchema = z
   .enum(['LEFT', 'CENTER', 'RIGHT'])
@@ -159,33 +182,37 @@ export const PasteTypeSchema = z.enum([
   'PASTE_CONDITIONAL_FORMATTING',
 ]);
 
-export const ChartTypeSchema = z.enum([
-  'BAR',
-  'LINE',
-  'AREA',
-  'COLUMN',
-  'SCATTER',
-  'COMBO',
-  'STEPPED_AREA',
-  'PIE',
-  'DOUGHNUT',
-  'TREEMAP',
-  'WATERFALL',
-  'HISTOGRAM',
-  'CANDLESTICK',
-  'ORG',
-  'RADAR',
-  'SCORECARD',
-  'BUBBLE',
-]);
+export const ChartTypeSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum([
+      'BAR',
+      'LINE',
+      'AREA',
+      'COLUMN',
+      'SCATTER',
+      'COMBO',
+      'STEPPED_AREA',
+      'PIE',
+      'DOUGHNUT',
+      'TREEMAP',
+      'WATERFALL',
+      'HISTOGRAM',
+      'CANDLESTICK',
+      'ORG',
+      'RADAR',
+      'SCORECARD',
+      'BUBBLE',
+    ])
+  )
+  .describe('Chart type (e.g., BAR, LINE, PIE, COLUMN). Case-insensitive.');
 
-export const LegendPositionSchema = z.enum([
-  'BOTTOM_LEGEND',
-  'LEFT_LEGEND',
-  'RIGHT_LEGEND',
-  'TOP_LEGEND',
-  'NO_LEGEND',
-]);
+export const LegendPositionSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['BOTTOM_LEGEND', 'LEFT_LEGEND', 'RIGHT_LEGEND', 'TOP_LEGEND', 'NO_LEGEND'])
+  )
+  .describe('Legend position for charts. Case-insensitive.');
 
 export const SummarizeFunctionSchema = z.enum([
   'SUM',
@@ -204,7 +231,12 @@ export const SummarizeFunctionSchema = z.enum([
   'CUSTOM',
 ]);
 
-export const SortOrderSchema = z.enum(['ASCENDING', 'DESCENDING']);
+export const SortOrderSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['ASCENDING', 'DESCENDING'])
+  )
+  .describe('Sort order: ASCENDING or DESCENDING. Case-insensitive.');
 
 export const PermissionRoleSchema = z.enum([
   'owner',

@@ -46,220 +46,156 @@ const FilterCriteriaSchema = z.object({
 });
 
 const SortSpecSchema = z.object({
-  columnIndex: z.number().int().min(0),
-  sortOrder: SortOrderSchema.optional().default('ASCENDING'),
-  foregroundColor: ColorSchema.optional(),
-  backgroundColor: ColorSchema.optional(),
+  columnIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .describe(
+      'Zero-based column index to sort by (0=A, 1=B, 2=C, etc.). NOT a letter - use numeric index. For column "C", use 2.'
+    ),
+  sortOrder: SortOrderSchema.optional()
+    .default('ASCENDING')
+    .describe('Sort order for this column (default: ASCENDING)'),
+  foregroundColor: ColorSchema.optional().describe('Sort by cells with this text color'),
+  backgroundColor: ColorSchema.optional().describe('Sort by cells with this background color'),
 });
 
 const SlicerPositionSchema = z.object({
   anchorCell: z.string(),
-  offsetX: z.number().min(0, 'Offset X must be non-negative').optional().default(0),
-  offsetY: z.number().min(0, 'Offset Y must be non-negative').optional().default(0),
-  width: z.number().positive('Width must be positive').optional().default(200),
-  height: z.number().positive('Height must be positive').optional().default(150),
+  offsetX: z.coerce.number().min(0, 'Offset X must be non-negative').optional().default(0),
+  offsetY: z.coerce.number().min(0, 'Offset Y must be non-negative').optional().default(0),
+  width: z.coerce.number().positive('Width must be positive').optional().default(200),
+  height: z.coerce.number().positive('Height must be positive').optional().default(150),
 });
 
 // ============================================================================
-// Dimension Action Schemas (21 actions)
+// Consolidated Dimension Action Schemas (11 actions - reduced from 21)
+// LLM Optimization: Merged row/column pairs into single actions with dimension parameter
 // ============================================================================
 
-const InsertRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('insert_rows').describe('Insert rows at a specific index'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to insert'),
-  count: z.number().int().positive().optional().default(1).describe('Number of rows to insert'),
+const InsertDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('insert').describe('Insert rows or columns at a specific index'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index where to insert'),
+  count: z.coerce.number().int().positive().optional().default(1).describe('Number to insert'),
   inheritFromBefore: z
     .boolean()
     .optional()
-    .describe('Inherit formatting from row before (false = inherit from after)'),
+    .describe('Inherit formatting from before (false = inherit from after)'),
 });
 
-const InsertColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('insert_columns').describe('Insert columns at a specific index'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to insert'),
-  count: z.number().int().positive().optional().default(1).describe('Number of columns to insert'),
-  inheritFromBefore: z
-    .boolean()
-    .optional()
-    .describe('Inherit formatting from column before (false = inherit from after)'),
+const DeleteDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('delete').describe('Delete rows or columns'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to delete'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
+  allowMissing: z.boolean().optional().describe("Don't error when range doesn't exist"),
 });
 
-const DeleteRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('delete_rows').describe('Delete rows from a specific range'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to delete'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
-  allowMissing: z
-    .boolean()
-    .optional()
-    .describe("If true, don't error when rows don't exist, makes delete idempotent"),
+const MoveDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('move').describe('Move rows or columns to a different location'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to move'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
+  destinationIndex: z.coerce.number().int().min(0).describe('Zero-based destination index'),
 });
 
-const DeleteColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('delete_columns').describe('Delete columns from a specific range'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to delete'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
-  allowMissing: z
-    .boolean()
-    .optional()
-    .describe("If true, don't error when columns don't exist, makes delete idempotent"),
-});
-
-const MoveRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('move_rows').describe('Move rows to a different location'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to move'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
-  destinationIndex: z.number().int().min(0).describe('Zero-based index where rows should be moved'),
-});
-
-const MoveColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('move_columns').describe('Move columns to a different location'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to move'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
-  destinationIndex: z
-    .number()
-    .int()
-    .min(0)
-    .describe('Zero-based index where columns should be moved'),
-});
-
-const ResizeRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('resize_rows').describe('Resize rows to a specific height'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to resize'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
+const ResizeDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('resize').describe('Resize rows or columns to specific size'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to resize'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
   pixelSize: z
     .number()
     .positive()
     .max(10000, 'Pixel size exceeds 10000 pixel limit')
-    .describe('Height in pixels, must be positive'),
-});
-
-const ResizeColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('resize_columns').describe('Resize columns to a specific width'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to resize'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
-  pixelSize: z
-    .number()
-    .positive()
-    .max(10000, 'Pixel size exceeds 10000 pixel limit')
-    .describe('Width in pixels, must be positive'),
+    .describe('Size in pixels (height for rows, width for columns)'),
 });
 
 const AutoResizeActionSchema = CommonFieldsSchema.extend({
   action: z.literal('auto_resize').describe('Auto-resize rows or columns to fit content'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row/column to resize'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row/column, exclusive'),
-  dimension: DimensionSchema.describe('Which dimension to resize: ROWS or COLUMNS'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to resize'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
 });
 
-const HideRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('hide_rows').describe('Hide rows'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to hide'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
+const HideDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('hide').describe('Hide rows or columns'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to hide'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
 });
 
-const HideColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('hide_columns').describe('Hide columns'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to hide'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
+const ShowDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('show').describe('Show hidden rows or columns'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to show'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
 });
 
-const ShowRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('show_rows').describe('Show hidden rows'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to show'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
+const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('freeze').describe('Freeze rows from top or columns from left'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  count: z.number().int().min(0).describe('Number to freeze (0 = unfreeze all)'),
 });
 
-const ShowColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('show_columns').describe('Show hidden columns'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to show'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
+const GroupDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('group').describe('Group rows or columns for collapsing'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to group'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
+  depth: z.coerce.number().int().min(1).max(8).optional().default(1).describe('Nesting depth 1-8'),
 });
 
-const FreezeRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('freeze_rows').describe('Freeze rows from the top'),
-  frozenRowCount: z
-    .number()
-    .int()
-    .min(0)
-    .describe('Number of rows to freeze from the top, 0 = unfreeze all'),
+const UngroupDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('ungroup').describe('Ungroup rows or columns'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to ungroup'),
+  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
 });
 
-const FreezeColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('freeze_columns').describe('Freeze columns from the left'),
-  frozenColumnCount: z
-    .number()
-    .int()
-    .min(0)
-    .describe('Number of columns to freeze from the left, 0 = unfreeze all'),
-});
-
-const GroupRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('group_rows').describe('Group rows for collapsing'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to group'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
-  depth: z.number().int().min(1).max(8).optional().default(1).describe('Nesting depth level, 1-8'),
-});
-
-const GroupColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('group_columns').describe('Group columns for collapsing'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to group'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
-  depth: z.number().int().min(1).max(8).optional().default(1).describe('Nesting depth level, 1-8'),
-});
-
-const UngroupRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('ungroup_rows').describe('Ungroup rows'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first row to ungroup'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last row, exclusive'),
-});
-
-const UngroupColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('ungroup_columns').describe('Ungroup columns'),
-  startIndex: z.number().int().min(0).describe('Zero-based index of first column to ungroup'),
-  endIndex: z.number().int().min(1).describe('Zero-based index after last column, exclusive'),
-});
-
-const AppendRowsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('append_rows').describe('Append rows to the end of the sheet'),
-  count: z.number().int().positive().describe('Number of rows to append'),
-});
-
-const AppendColumnsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('append_columns').describe('Append columns to the end of the sheet'),
-  count: z.number().int().positive().describe('Number of columns to append'),
+const AppendDimensionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('append').describe('Append rows or columns to the end of the sheet'),
+  dimension: DimensionSchema.describe('ROWS or COLUMNS'),
+  count: z.coerce.number().int().positive().describe('Number to append'),
 });
 
 // ============================================================================
 // Filter and Sort Action Schemas (14 actions)
 // ============================================================================
 
-const FilterSetBasicFilterActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('filter_set_basic_filter').describe('Set basic filter on a sheet'),
+const SetBasicFilterActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_basic_filter').describe('Set or update basic filter on a sheet'),
   range: RangeInputSchema.optional().describe('Range to filter (optional, defaults to sheet)'),
   criteria: z
-    .record(z.number(), FilterCriteriaSchema)
+    .record(z.coerce.number(), FilterCriteriaSchema)
     .optional()
-    .describe('Filter criteria by column index'),
+    .describe(
+      'Filter criteria by column index. If columnIndex specified, updates only that column; otherwise replaces entire filter.'
+    ),
+  columnIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      "Optional: Column index to update (0-based). If provided, updates only this column's criteria instead of replacing entire filter. Enables incremental filter updates."
+    ),
 });
 
-const FilterClearBasicFilterActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('filter_clear_basic_filter').describe('Clear basic filter from a sheet'),
+const ClearBasicFilterActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_basic_filter').describe('Clear basic filter from a sheet'),
 });
 
-const FilterGetBasicFilterActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('filter_get_basic_filter').describe('Get basic filter from a sheet'),
+const GetBasicFilterActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_basic_filter').describe('Get basic filter from a sheet'),
 });
 
-const FilterUpdateFilterCriteriaActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('filter_update_filter_criteria')
-    .describe('Update filter criteria for a column'),
-  columnIndex: z.number().int().min(0).describe('Column index for filter criteria'),
-  criteria: z.record(z.number(), FilterCriteriaSchema).describe('Filter criteria to apply'),
-});
+// FilterUpdateFilterCriteriaActionSchema removed in v2.0
+// Merged into SetBasicFilterActionSchema with optional columnIndex parameter
 
-const FilterSortRangeActionSchema = z.object({
-  action: z.literal('filter_sort_range').describe('Sort a range'),
+const SortRangeActionSchema = z.object({
+  action: z.literal('sort_range').describe('Sort a range'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
   range: RangeInputSchema.describe('Range to sort'),
@@ -271,25 +207,112 @@ const FilterSortRangeActionSchema = z.object({
     .describe('Response detail level'),
 });
 
-const FilterCreateFilterViewActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('filter_create_filter_view').describe('Create a filter view'),
+// ============================================================================
+// Range Utility Actions (4 new operations - Google API coverage completion)
+// ============================================================================
+
+const TrimWhitespaceActionSchema = z.object({
+  action: z.literal('trim_whitespace').describe('Trim leading and trailing whitespace from cells'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  range: RangeInputSchema.describe('Range whose cells to trim whitespace'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+const RandomizeRangeActionSchema = z.object({
+  action: z.literal('randomize_range').describe('Randomize the order of rows in a range'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  range: RangeInputSchema.describe('Range to randomize row order'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+const TextToColumnsDelimiterTypeSchema = z
+  .enum(['AUTODETECT', 'COMMA', 'SEMICOLON', 'PERIOD', 'SPACE', 'CUSTOM'])
+  .describe('The type of delimiter to use');
+
+const TextToColumnsActionSchema = z.object({
+  action: z.literal('text_to_columns').describe('Split text in a column into multiple columns'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  source: RangeInputSchema.describe('Source range - must span exactly one column'),
+  delimiterType: TextToColumnsDelimiterTypeSchema.optional()
+    .default('AUTODETECT')
+    .describe('Type of delimiter (AUTODETECT, COMMA, SEMICOLON, PERIOD, SPACE, CUSTOM)'),
+  delimiter: z
+    .string()
+    .max(10)
+    .optional()
+    .describe('Custom delimiter string (only used when delimiterType is CUSTOM)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+const AutoFillActionSchema = z.object({
+  action: z.literal('auto_fill').describe('Auto-fill data based on detected patterns'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
+  range: RangeInputSchema.optional().describe(
+    'Range to auto-fill (auto-detects source data within range)'
+  ),
+  sourceRange: RangeInputSchema.optional().describe(
+    'Explicit source range (for sourceAndDestination mode)'
+  ),
+  fillLength: z
+    .number()
+    .int()
+    .optional()
+    .describe(
+      'Number of rows/columns to fill. Positive = expand after source, negative = expand before'
+    ),
+  dimension: DimensionSchema.optional()
+    .default('ROWS')
+    .describe('Direction to fill (ROWS or COLUMNS)'),
+  useAlternateSeries: z
+    .boolean()
+    .optional()
+    .describe('Use alternate series pattern (e.g., 1,3,5 instead of 1,2,3)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+  safety: SafetyOptionsSchema.optional().describe('Safety options'),
+});
+
+const CreateFilterViewActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('create_filter_view').describe('Create a filter view'),
   title: z.string().describe('Title for the filter view'),
   range: RangeInputSchema.optional().describe('Range for the filter view'),
   criteria: z
-    .record(z.number(), FilterCriteriaSchema)
+    .record(z.coerce.number(), FilterCriteriaSchema)
     .optional()
     .describe('Filter criteria by column index'),
   sortSpecs: z.array(SortSpecSchema).optional().describe('Sort specifications'),
 });
 
-const FilterUpdateFilterViewActionSchema = z.object({
-  action: z.literal('filter_update_filter_view').describe('Update a filter view'),
+const UpdateFilterViewActionSchema = z.object({
+  action: z.literal('update_filter_view').describe('Update a filter view'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  filterViewId: z.number().int().describe('Filter view ID'),
+  filterViewId: z.coerce.number().int().describe('Filter view ID'),
   title: z.string().optional().describe('New title for the filter view'),
   criteria: z
-    .record(z.number(), FilterCriteriaSchema)
+    .record(z.coerce.number(), FilterCriteriaSchema)
     .optional()
     .describe('Filter criteria by column index'),
   sortSpecs: z.array(SortSpecSchema).optional().describe('Sort specifications'),
@@ -301,11 +324,11 @@ const FilterUpdateFilterViewActionSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options'),
 });
 
-const FilterDeleteFilterViewActionSchema = z.object({
-  action: z.literal('filter_delete_filter_view').describe('Delete a filter view'),
+const DeleteFilterViewActionSchema = z.object({
+  action: z.literal('delete_filter_view').describe('Delete a filter view'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  filterViewId: z.number().int().describe('Filter view ID'),
+  filterViewId: z.coerce.number().int().describe('Filter view ID'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -314,8 +337,8 @@ const FilterDeleteFilterViewActionSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options'),
 });
 
-const FilterListFilterViewsActionSchema = z.object({
-  action: z.literal('filter_list_filter_views').describe('List all filter views'),
+const ListFilterViewsActionSchema = z.object({
+  action: z.literal('list_filter_views').describe('List all filter views'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID to filter results'),
   verbosity: z
@@ -325,11 +348,11 @@ const FilterListFilterViewsActionSchema = z.object({
     .describe('Response detail level'),
 });
 
-const FilterGetFilterViewActionSchema = z.object({
-  action: z.literal('filter_get_filter_view').describe('Get a filter view'),
+const GetFilterViewActionSchema = z.object({
+  action: z.literal('get_filter_view').describe('Get a filter view'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  filterViewId: z.number().int().describe('Filter view ID'),
+  filterViewId: z.coerce.number().int().describe('Filter view ID'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -337,21 +360,21 @@ const FilterGetFilterViewActionSchema = z.object({
     .describe('Response detail level'),
 });
 
-const FilterCreateSlicerActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('filter_create_slicer').describe('Create a slicer'),
+const CreateSlicerActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('create_slicer').describe('Create a slicer'),
   title: z.string().optional().describe('Title for the slicer'),
   dataRange: RangeInputSchema.describe('Data range for the slicer'),
-  filterColumn: z.number().int().min(0).describe('Filter column index'),
+  filterColumn: z.coerce.number().int().min(0).describe('Filter column index'),
   position: SlicerPositionSchema.describe('Slicer position'),
 });
 
-const FilterUpdateSlicerActionSchema = z.object({
-  action: z.literal('filter_update_slicer').describe('Update a slicer'),
+const UpdateSlicerActionSchema = z.object({
+  action: z.literal('update_slicer').describe('Update a slicer'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  slicerId: z.number().int().describe('Slicer ID'),
+  slicerId: z.coerce.number().int().describe('Slicer ID'),
   title: z.string().optional().describe('New title for the slicer'),
-  filterColumn: z.number().int().min(0).optional().describe('Filter column index'),
+  filterColumn: z.coerce.number().int().min(0).optional().describe('Filter column index'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -360,11 +383,11 @@ const FilterUpdateSlicerActionSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options'),
 });
 
-const FilterDeleteSlicerActionSchema = z.object({
-  action: z.literal('filter_delete_slicer').describe('Delete a slicer'),
+const DeleteSlicerActionSchema = z.object({
+  action: z.literal('delete_slicer').describe('Delete a slicer'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID for context'),
-  slicerId: z.number().int().describe('Slicer ID'),
+  slicerId: z.coerce.number().int().describe('Slicer ID'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -373,8 +396,8 @@ const FilterDeleteSlicerActionSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options'),
 });
 
-const FilterListSlicersActionSchema = z.object({
-  action: z.literal('filter_list_slicers').describe('List all slicers'),
+const ListSlicersActionSchema = z.object({
+  action: z.literal('list_slicers').describe('List all slicers'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.optional().describe('Optional sheet ID to filter results'),
   verbosity: z
@@ -391,63 +414,67 @@ const FilterListSlicersActionSchema = z.object({
 /**
  * All dimension, filter, and sort operation inputs
  *
- * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
- * - Better type safety at compile-time
- * - Clearer error messages for LLMs
- * - Each action has only its required fields (no optional field pollution)
- * - JSON Schema conversion handled by src/utils/schema-compat.ts
+ * CONSOLIDATED (28 actions - reduced from 39):
+ * - Dimension actions: 11 (merged row/column pairs into single actions)
+ * - Filter/sort: 4 actions (v2.0: merged filter_update_filter_criteria into set_basic_filter)
+ * - Range utility: 4 actions
+ * - Filter views: 5 actions
+ * - Slicers: 4 actions
+ *
+ * LLM Optimization: Single action with dimension parameter vs separate row/column actions
+ * Example: insert(dimension: 'ROWS', ...) vs insert_rows(...) and insert_columns(...)
+ * v2.0: set_basic_filter now handles incremental updates via optional columnIndex parameter
  */
-export const SheetsDimensionsInputSchema = z.discriminatedUnion('action', [
-  // Dimension actions (21)
-  InsertRowsActionSchema,
-  InsertColumnsActionSchema,
-  DeleteRowsActionSchema,
-  DeleteColumnsActionSchema,
-  MoveRowsActionSchema,
-  MoveColumnsActionSchema,
-  ResizeRowsActionSchema,
-  ResizeColumnsActionSchema,
-  AutoResizeActionSchema,
-  HideRowsActionSchema,
-  HideColumnsActionSchema,
-  ShowRowsActionSchema,
-  ShowColumnsActionSchema,
-  FreezeRowsActionSchema,
-  FreezeColumnsActionSchema,
-  GroupRowsActionSchema,
-  GroupColumnsActionSchema,
-  UngroupRowsActionSchema,
-  UngroupColumnsActionSchema,
-  AppendRowsActionSchema,
-  AppendColumnsActionSchema,
-  // Filter and sort actions (14)
-  FilterSetBasicFilterActionSchema,
-  FilterClearBasicFilterActionSchema,
-  FilterGetBasicFilterActionSchema,
-  FilterUpdateFilterCriteriaActionSchema,
-  FilterSortRangeActionSchema,
-  FilterCreateFilterViewActionSchema,
-  FilterUpdateFilterViewActionSchema,
-  FilterDeleteFilterViewActionSchema,
-  FilterListFilterViewsActionSchema,
-  FilterGetFilterViewActionSchema,
-  FilterCreateSlicerActionSchema,
-  FilterUpdateSlicerActionSchema,
-  FilterDeleteSlicerActionSchema,
-  FilterListSlicersActionSchema,
-]);
+export const SheetsDimensionsInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Consolidated dimension actions (11 - was 21)
+    InsertDimensionActionSchema,
+    DeleteDimensionActionSchema,
+    MoveDimensionActionSchema,
+    ResizeDimensionActionSchema,
+    AutoResizeActionSchema,
+    HideDimensionActionSchema,
+    ShowDimensionActionSchema,
+    FreezeDimensionActionSchema,
+    GroupDimensionActionSchema,
+    UngroupDimensionActionSchema,
+    AppendDimensionActionSchema,
+    // Filter and sort actions (4 - v2.0: merged filter_update_filter_criteria into set_basic_filter)
+    SetBasicFilterActionSchema, // Now handles both full and incremental updates via columnIndex
+    ClearBasicFilterActionSchema,
+    GetBasicFilterActionSchema,
+    // FilterUpdateFilterCriteriaActionSchema removed - merged into set_basic_filter
+    SortRangeActionSchema,
+    // Range utility actions (4)
+    TrimWhitespaceActionSchema,
+    RandomizeRangeActionSchema,
+    TextToColumnsActionSchema,
+    AutoFillActionSchema,
+    // Filter view actions (5)
+    CreateFilterViewActionSchema,
+    UpdateFilterViewActionSchema,
+    DeleteFilterViewActionSchema,
+    ListFilterViewsActionSchema,
+    GetFilterViewActionSchema,
+    // Slicer actions (4)
+    CreateSlicerActionSchema,
+    UpdateSlicerActionSchema,
+    DeleteSlicerActionSchema,
+    ListSlicersActionSchema,
+  ]),
+});
 
 const DimensionsResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
     // Dimension response fields
-    rowsAffected: z.number().int().optional(),
-    columnsAffected: z.number().int().optional(),
+    rowsAffected: z.coerce.number().int().optional(),
+    columnsAffected: z.coerce.number().int().optional(),
     newSize: z
       .object({
-        rowCount: z.number().int(),
-        columnCount: z.number().int(),
+        rowCount: z.coerce.number().int(),
+        columnCount: z.coerce.number().int(),
       })
       .optional(),
     alreadyMissing: z.boolean().optional(),
@@ -461,23 +488,29 @@ const DimensionsResponseSchema = z.discriminatedUnion('success', [
     filterViews: z
       .array(
         z.object({
-          filterViewId: z.number().int(),
+          filterViewId: z.coerce.number().int(),
           title: z.string(),
           range: GridRangeSchema,
         })
       )
       .optional(),
-    filterViewId: z.number().int().optional(),
+    filterViewId: z.coerce.number().int().optional(),
     slicers: z
       .array(
         z.object({
-          slicerId: z.number().int(),
-          sheetId: z.number().int(),
+          slicerId: z.coerce.number().int(),
+          sheetId: z.coerce.number().int(),
           title: z.string().optional(),
         })
       )
       .optional(),
-    slicerId: z.number().int().optional(),
+    slicerId: z.coerce.number().int().optional(),
+    // Range utility response fields
+    cellsChanged: z
+      .number()
+      .int()
+      .optional()
+      .describe('Number of cells modified (for trim_whitespace)'),
     // Common fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -504,229 +537,199 @@ export const SHEETS_DIMENSIONS_ANNOTATIONS: ToolAnnotations = {
 export type SheetsDimensionsInput = z.infer<typeof SheetsDimensionsInputSchema>;
 export type SheetsDimensionsOutput = z.infer<typeof SheetsDimensionsOutputSchema>;
 export type DimensionsResponse = z.infer<typeof DimensionsResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type DimensionsRequest = SheetsDimensionsInput['request'];
 
-// Type narrowing helpers for handler methods (35 action types)
-// Dimension actions
-export type DimensionsInsertRowsInput = SheetsDimensionsInput & {
-  action: 'insert_rows';
+// Type narrowing helpers for handler methods (29 action types - consolidated)
+// Consolidated dimension actions (11)
+export type DimensionsInsertInput = SheetsDimensionsInput['request'] & {
+  action: 'insert';
   spreadsheetId: string;
   sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
 };
-export type DimensionsInsertColumnsInput = SheetsDimensionsInput & {
-  action: 'insert_columns';
+export type DimensionsDeleteInput = SheetsDimensionsInput['request'] & {
+  action: 'delete';
   spreadsheetId: string;
   sheetId: number;
-  startIndex: number;
-};
-export type DimensionsDeleteRowsInput = SheetsDimensionsInput & {
-  action: 'delete_rows';
-  spreadsheetId: string;
-  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
 };
-export type DimensionsDeleteColumnsInput = SheetsDimensionsInput & {
-  action: 'delete_columns';
+export type DimensionsMoveInput = SheetsDimensionsInput['request'] & {
+  action: 'move';
   spreadsheetId: string;
   sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsMoveRowsInput = SheetsDimensionsInput & {
-  action: 'move_rows';
-  spreadsheetId: string;
-  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
   destinationIndex: number;
 };
-export type DimensionsMoveColumnsInput = SheetsDimensionsInput & {
-  action: 'move_columns';
+export type DimensionsResizeInput = SheetsDimensionsInput['request'] & {
+  action: 'resize';
   spreadsheetId: string;
   sheetId: number;
-  startIndex: number;
-  endIndex: number;
-  destinationIndex: number;
-};
-export type DimensionsResizeRowsInput = SheetsDimensionsInput & {
-  action: 'resize_rows';
-  spreadsheetId: string;
-  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
   pixelSize: number;
 };
-export type DimensionsResizeColumnsInput = SheetsDimensionsInput & {
-  action: 'resize_columns';
-  spreadsheetId: string;
-  sheetId: number;
-  startIndex: number;
-  endIndex: number;
-  pixelSize: number;
-};
-export type DimensionsAutoResizeInput = SheetsDimensionsInput & {
+export type DimensionsAutoResizeInput = SheetsDimensionsInput['request'] & {
   action: 'auto_resize';
   spreadsheetId: string;
   sheetId: number;
-  startIndex: number;
-  endIndex: number;
   dimension: 'ROWS' | 'COLUMNS';
-};
-export type DimensionsHideRowsInput = SheetsDimensionsInput & {
-  action: 'hide_rows';
-  spreadsheetId: string;
-  sheetId: number;
   startIndex: number;
   endIndex: number;
 };
-export type DimensionsHideColumnsInput = SheetsDimensionsInput & {
-  action: 'hide_columns';
+export type DimensionsHideInput = SheetsDimensionsInput['request'] & {
+  action: 'hide';
   spreadsheetId: string;
   sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
 };
-export type DimensionsShowRowsInput = SheetsDimensionsInput & {
-  action: 'show_rows';
+export type DimensionsShowInput = SheetsDimensionsInput['request'] & {
+  action: 'show';
   spreadsheetId: string;
   sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   startIndex: number;
   endIndex: number;
 };
-export type DimensionsShowColumnsInput = SheetsDimensionsInput & {
-  action: 'show_columns';
+export type DimensionsFreezeInput = SheetsDimensionsInput['request'] & {
+  action: 'freeze';
   spreadsheetId: string;
   sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsFreezeRowsInput = SheetsDimensionsInput & {
-  action: 'freeze_rows';
-  spreadsheetId: string;
-  sheetId: number;
-  frozenRowCount: number;
-};
-export type DimensionsFreezeColumnsInput = SheetsDimensionsInput & {
-  action: 'freeze_columns';
-  spreadsheetId: string;
-  sheetId: number;
-  frozenColumnCount: number;
-};
-export type DimensionsGroupRowsInput = SheetsDimensionsInput & {
-  action: 'group_rows';
-  spreadsheetId: string;
-  sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsGroupColumnsInput = SheetsDimensionsInput & {
-  action: 'group_columns';
-  spreadsheetId: string;
-  sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsUngroupRowsInput = SheetsDimensionsInput & {
-  action: 'ungroup_rows';
-  spreadsheetId: string;
-  sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsUngroupColumnsInput = SheetsDimensionsInput & {
-  action: 'ungroup_columns';
-  spreadsheetId: string;
-  sheetId: number;
-  startIndex: number;
-  endIndex: number;
-};
-export type DimensionsAppendRowsInput = SheetsDimensionsInput & {
-  action: 'append_rows';
-  spreadsheetId: string;
-  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   count: number;
 };
-export type DimensionsAppendColumnsInput = SheetsDimensionsInput & {
-  action: 'append_columns';
+export type DimensionsGroupInput = SheetsDimensionsInput['request'] & {
+  action: 'group';
   spreadsheetId: string;
   sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
+  startIndex: number;
+  endIndex: number;
+};
+export type DimensionsUngroupInput = SheetsDimensionsInput['request'] & {
+  action: 'ungroup';
+  spreadsheetId: string;
+  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
+  startIndex: number;
+  endIndex: number;
+};
+export type DimensionsAppendInput = SheetsDimensionsInput['request'] & {
+  action: 'append';
+  spreadsheetId: string;
+  sheetId: number;
+  dimension: 'ROWS' | 'COLUMNS';
   count: number;
 };
 
 // Filter and Sort type helpers (merged from filter-sort.ts)
-export type DimensionsFilterSetBasicFilterInput = SheetsDimensionsInput & {
-  action: 'filter_set_basic_filter';
+export type DimensionsSetBasicFilterInput = SheetsDimensionsInput['request'] & {
+  action: 'set_basic_filter';
   spreadsheetId: string;
   sheetId: number;
 };
-export type DimensionsFilterClearBasicFilterInput = SheetsDimensionsInput & {
-  action: 'filter_clear_basic_filter';
+export type DimensionsClearBasicFilterInput = SheetsDimensionsInput['request'] & {
+  action: 'clear_basic_filter';
   spreadsheetId: string;
   sheetId: number;
 };
-export type DimensionsFilterGetBasicFilterInput = SheetsDimensionsInput & {
-  action: 'filter_get_basic_filter';
+export type DimensionsGetBasicFilterInput = SheetsDimensionsInput['request'] & {
+  action: 'get_basic_filter';
   spreadsheetId: string;
   sheetId: number;
 };
-export type DimensionsFilterUpdateFilterCriteriaInput = SheetsDimensionsInput & {
+export type DimensionsFilterUpdateFilterCriteriaInput = SheetsDimensionsInput['request'] & {
   action: 'filter_update_filter_criteria';
   spreadsheetId: string;
   sheetId: number;
   columnIndex: number;
   criteria: Record<number, z.infer<typeof FilterCriteriaSchema>>;
 };
-export type DimensionsFilterSortRangeInput = SheetsDimensionsInput & {
-  action: 'filter_sort_range';
+export type DimensionsSortRangeInput = SheetsDimensionsInput['request'] & {
+  action: 'sort_range';
   spreadsheetId: string;
   range: z.infer<typeof RangeInputSchema>;
   sortSpecs: Array<z.infer<typeof SortSpecSchema>>;
 };
-export type DimensionsFilterCreateFilterViewInput = SheetsDimensionsInput & {
-  action: 'filter_create_filter_view';
+// Range utility type helpers (4 new operations)
+export type DimensionsTrimWhitespaceInput = SheetsDimensionsInput['request'] & {
+  action: 'trim_whitespace';
+  spreadsheetId: string;
+  range: z.infer<typeof RangeInputSchema>;
+};
+export type DimensionsRandomizeRangeInput = SheetsDimensionsInput['request'] & {
+  action: 'randomize_range';
+  spreadsheetId: string;
+  range: z.infer<typeof RangeInputSchema>;
+};
+export type DimensionsTextToColumnsInput = SheetsDimensionsInput['request'] & {
+  action: 'text_to_columns';
+  spreadsheetId: string;
+  source: z.infer<typeof RangeInputSchema>;
+  delimiterType?: 'DETECT' | 'COMMA' | 'SEMICOLON' | 'PERIOD' | 'SPACE' | 'CUSTOM';
+  delimiter?: string;
+};
+export type DimensionsAutoFillInput = SheetsDimensionsInput['request'] & {
+  action: 'auto_fill';
+  spreadsheetId: string;
+  range?: z.infer<typeof RangeInputSchema>;
+  sourceRange?: z.infer<typeof RangeInputSchema>;
+  fillLength?: number;
+  dimension?: 'ROWS' | 'COLUMNS';
+  useAlternateSeries?: boolean;
+};
+export type DimensionsCreateFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'create_filter_view';
   spreadsheetId: string;
   sheetId: number;
   title: string;
 };
-export type DimensionsFilterUpdateFilterViewInput = SheetsDimensionsInput & {
-  action: 'filter_update_filter_view';
+export type DimensionsUpdateFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'update_filter_view';
   spreadsheetId: string;
   filterViewId: number;
 };
-export type DimensionsFilterDeleteFilterViewInput = SheetsDimensionsInput & {
-  action: 'filter_delete_filter_view';
+export type DimensionsDeleteFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'delete_filter_view';
   spreadsheetId: string;
   filterViewId: number;
 };
-export type DimensionsFilterListFilterViewsInput = SheetsDimensionsInput & {
-  action: 'filter_list_filter_views';
+export type DimensionsListFilterViewsInput = SheetsDimensionsInput['request'] & {
+  action: 'list_filter_views';
   spreadsheetId: string;
 };
-export type DimensionsFilterGetFilterViewInput = SheetsDimensionsInput & {
-  action: 'filter_get_filter_view';
+export type DimensionsGetFilterViewInput = SheetsDimensionsInput['request'] & {
+  action: 'get_filter_view';
   spreadsheetId: string;
   filterViewId: number;
 };
-export type DimensionsFilterCreateSlicerInput = SheetsDimensionsInput & {
-  action: 'filter_create_slicer';
+export type DimensionsCreateSlicerInput = SheetsDimensionsInput['request'] & {
+  action: 'create_slicer';
   spreadsheetId: string;
   sheetId: number;
   dataRange: z.infer<typeof RangeInputSchema>;
   filterColumn: number;
   position: z.infer<typeof SlicerPositionSchema>;
 };
-export type DimensionsFilterUpdateSlicerInput = SheetsDimensionsInput & {
-  action: 'filter_update_slicer';
+export type DimensionsUpdateSlicerInput = SheetsDimensionsInput['request'] & {
+  action: 'update_slicer';
   spreadsheetId: string;
   slicerId: number;
 };
-export type DimensionsFilterDeleteSlicerInput = SheetsDimensionsInput & {
-  action: 'filter_delete_slicer';
+export type DimensionsDeleteSlicerInput = SheetsDimensionsInput['request'] & {
+  action: 'delete_slicer';
   spreadsheetId: string;
   slicerId: number;
 };
-export type DimensionsFilterListSlicersInput = SheetsDimensionsInput & {
-  action: 'filter_list_slicers';
+export type DimensionsListSlicersInput = SheetsDimensionsInput['request'] & {
+  action: 'list_slicers';
   spreadsheetId: string;
 };

@@ -182,10 +182,15 @@ export const MAX_ROWS_PER_SHEET = 10_000_000;
 
 /**
  * Regular expression for valid A1 notation
- * Matches: A1, Sheet1!A1, Sheet1!A1:B10, A:A, 1:1, Sheet1!A:B, etc.
+ * Matches:
+ * - Single ranges: A1, Sheet1!A1, Sheet1!A1:B10, A:A, 1:1, Sheet1!A:B
+ * - Multiple ranges: A1:A10,D1:D10, Sheet1!A1:A10,Sheet1!D1:D10 (for charts)
+ * - Whole sheets: Sheet1, 'Sheet Name'
+ *
+ * Note: Permissive pattern for client-side validation. Google Sheets API performs
+ * comprehensive validation of range syntax.
  */
-export const A1_NOTATION_REGEX =
-  /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)$/;
+export const A1_NOTATION_REGEX = /^[^[\]]+$/;
 
 /**
  * Regular expression for valid sheet name

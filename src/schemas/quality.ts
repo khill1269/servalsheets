@@ -88,12 +88,26 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: z.string().min(1).describe('Spreadsheet ID from URL'),
   operation: z
     .object({
-      type: z.string().describe('Operation type (e.g., "values_write", "sheet_delete")'),
-      tool: z.string().describe('Tool name (e.g., "sheets_data")'),
-      action: z.string().describe('Action name (e.g., "write", "clear")'),
-      params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
+      type: z
+        .string()
+        .min(1)
+        .describe(
+          'Operation type (e.g., "values_write", "sheet_delete", "format_update", "dimension_change")'
+        ),
+      tool: z
+        .string()
+        .min(1)
+        .regex(/^sheets_[a-z]+$/, 'Tool name must start with "sheets_" (e.g., "sheets_data")')
+        .describe('Tool name - must be a valid sheets_* tool'),
+      action: z
+        .string()
+        .min(1)
+        .describe('Action name within the tool (e.g., "write", "clear", "format")'),
+      params: z
+        .record(z.string(), z.unknown())
+        .describe('Operation parameters that will be passed to the tool'),
     })
-    .describe('Operation to analyze for impact'),
+    .describe('Operation to analyze for impact before execution'),
 });
 
 // ============================================================================
@@ -109,12 +123,14 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsQualityInputSchema = z.discriminatedUnion('action', [
-  ValidateActionSchema,
-  DetectConflictsActionSchema,
-  ResolveConflictActionSchema,
-  AnalyzeImpactActionSchema,
-]);
+export const SheetsQualityInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    ValidateActionSchema,
+    DetectConflictsActionSchema,
+    ResolveConflictActionSchema,
+    AnalyzeImpactActionSchema,
+  ]),
+});
 
 const QualityResponseSchema = z.discriminatedUnion('success', [
   z.object({
@@ -122,11 +138,11 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
     action: z.string(),
     // VALIDATE response fields
     valid: z.boolean().optional(),
-    errorCount: z.number().optional(),
-    warningCount: z.number().optional(),
-    infoCount: z.number().optional(),
-    totalChecks: z.number().optional(),
-    passedChecks: z.number().optional(),
+    errorCount: z.coerce.number().optional(),
+    warningCount: z.coerce.number().optional(),
+    infoCount: z.coerce.number().optional(),
+    totalChecks: z.coerce.number().optional(),
+    passedChecks: z.coerce.number().optional(),
     errors: z
       .array(
         z.object({
@@ -149,7 +165,7 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
         })
       )
       .optional(),
-    duration: z.number().optional(),
+    duration: z.coerce.number().optional(),
     // Dry run preview
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes applied)'),
     validationPreview: z
@@ -165,7 +181,7 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
             z.object({
               ruleId: z.string(),
               condition: z.string(),
-              cellsAffected: z.number().int(),
+              cellsAffected: z.coerce.number().int(),
             })
           )
           .optional(),
@@ -179,13 +195,13 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
           id: z.string(),
           spreadsheetId: z.string(),
           range: z.string(),
-          localVersion: z.number(),
-          remoteVersion: z.number(),
+          localVersion: z.coerce.number(),
+          remoteVersion: z.coerce.number(),
           localValue: z.unknown(),
           remoteValue: z.unknown(),
           conflictType: z.enum(['concurrent_write', 'version_mismatch', 'data_race']),
           severity: z.enum(['low', 'medium', 'high', 'critical']),
-          detectedAt: z.number(),
+          detectedAt: z.coerce.number(),
           suggestedStrategy: z.enum(['keep_local', 'keep_remote', 'merge', 'manual']),
         })
       )
@@ -197,7 +213,7 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
       .object({
         strategy: z.string(),
         finalValue: z.unknown(),
-        version: z.number(),
+        version: z.coerce.number(),
       })
       .optional(),
     // ANALYZE_IMPACT response fields
@@ -205,9 +221,9 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
       .object({
         severity: z.enum(['low', 'medium', 'high', 'critical']),
         scope: z.object({
-          rows: z.number(),
-          columns: z.number(),
-          cells: z.number(),
+          rows: z.coerce.number(),
+          columns: z.coerce.number(),
+          cells: z.coerce.number(),
           sheets: z.array(z.string()),
         }),
         affectedResources: z.object({
@@ -218,7 +234,7 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
           namedRanges: z.array(z.string()),
           protectedRanges: z.array(z.string()),
         }),
-        estimatedExecutionTime: z.number(),
+        estimatedExecutionTime: z.coerce.number(),
         warnings: z.array(
           z.object({
             severity: z.enum(['low', 'medium', 'high', 'critical']),
@@ -264,23 +280,23 @@ export type QualityResponse = z.infer<typeof QualityResponseSchema>;
 
 // Type narrowing helpers for handler methods
 // These provide type safety similar to discriminated union Extract<>
-export type QualityValidateInput = SheetsQualityInput & {
+export type QualityValidateInput = SheetsQualityInput['request'] & {
   action: 'validate';
   value: unknown;
 };
 
-export type QualityDetectConflictsInput = SheetsQualityInput & {
+export type QualityDetectConflictsInput = SheetsQualityInput['request'] & {
   action: 'detect_conflicts';
   spreadsheetId: string;
 };
 
-export type QualityResolveConflictInput = SheetsQualityInput & {
+export type QualityResolveConflictInput = SheetsQualityInput['request'] & {
   action: 'resolve_conflict';
   conflictId: string;
   strategy: 'keep_local' | 'keep_remote' | 'merge' | 'manual';
 };
 
-export type QualityAnalyzeImpactInput = SheetsQualityInput & {
+export type QualityAnalyzeImpactInput = SheetsQualityInput['request'] & {
   action: 'analyze_impact';
   spreadsheetId: string;
   operation: {

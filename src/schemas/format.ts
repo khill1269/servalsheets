@@ -1,6 +1,7 @@
 /**
  * Tool 5: sheets_format
- * Cell formatting operations (includes conditional formatting and data validation)
+ * Cell formatting operations (includes conditional formatting, data validation, and sparklines)
+ * Format (10) + Sparklines (3) + Rules (8) = 21 actions
  */
 
 import { z } from 'zod';
@@ -63,7 +64,44 @@ const ConditionalFormatRuleSchema = z.discriminatedUnion('type', [
 ]);
 
 // ============================================================================
-// INPUT SCHEMA (18 actions)
+// SPARKLINE SCHEMAS (3 new actions)
+// ============================================================================
+
+// Sparkline chart type
+const SparklineTypeSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['LINE', 'BAR', 'COLUMN'])
+  )
+  .describe('Sparkline chart type (case-insensitive)');
+
+// Sparkline configuration options
+const SparklineConfigSchema = z
+  .object({
+    type: SparklineTypeSchema.default('LINE').describe('Sparkline chart type (LINE, BAR, COLUMN)'),
+    color: ColorSchema.optional().describe('Line/bar color'),
+    negativeColor: ColorSchema.optional().describe('Color for negative values'),
+    axisColor: ColorSchema.optional().describe('Horizontal axis line color'),
+    firstColor: ColorSchema.optional().describe('First data point highlight color'),
+    lastColor: ColorSchema.optional().describe('Last data point highlight color'),
+    highColor: ColorSchema.optional().describe('Highest value highlight color'),
+    lowColor: ColorSchema.optional().describe('Lowest value highlight color'),
+    lineWidth: z.coerce
+      .number()
+      .min(0.5)
+      .max(4)
+      .optional()
+      .default(1)
+      .describe('Line width in pixels (LINE type only, 0.5-4)'),
+    minValue: z.coerce.number().optional().describe('Custom minimum Y-axis value'),
+    maxValue: z.coerce.number().optional().describe('Custom maximum Y-axis value'),
+    showAxis: z.boolean().optional().default(false).describe('Show horizontal axis line'),
+    rtl: z.boolean().optional().default(false).describe('Right-to-left rendering direction'),
+  })
+  .describe('Sparkline visualization configuration');
+
+// ============================================================================
+// INPUT SCHEMA (21 actions)
 // ============================================================================
 
 const CommonFieldsSchema = z.object({
@@ -155,27 +193,71 @@ const ApplyPresetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('apply_preset').describe('Apply a preset format style'),
   range: RangeInputSchema.describe('Range to apply preset to'),
   preset: z
-    .enum([
-      'header_row',
-      'alternating_rows',
-      'total_row',
-      'currency',
-      'percentage',
-      'date',
-      'highlight_positive',
-      'highlight_negative',
-    ])
-    .describe('Preset name (header_row, alternating_rows, currency, percentage, etc.)'),
+    .preprocess(
+      (val) => (typeof val === 'string' ? val.toLowerCase() : val),
+      z.enum([
+        'header_row',
+        'alternating_rows',
+        'total_row',
+        'currency',
+        'percentage',
+        'date',
+        'highlight_positive',
+        'highlight_negative',
+      ])
+    )
+    .describe(
+      'Preset name: header_row, alternating_rows, currency, percentage, etc. Case-insensitive.'
+    ),
 });
 
 const AutoFitActionSchema = CommonFieldsSchema.extend({
   action: z.literal('auto_fit').describe('Auto-fit column width or row height to content'),
   range: RangeInputSchema.describe('Range to auto-fit'),
   dimension: z
-    .enum(['ROWS', 'COLUMNS', 'BOTH'])
+    .preprocess(
+      (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+      z.enum(['ROWS', 'COLUMNS', 'BOTH'])
+    )
     .optional()
     .default('COLUMNS')
-    .describe('Dimension to auto-fit (default: COLUMNS)'),
+    .describe(
+      'Dimension to auto-fit: ROWS, COLUMNS, or BOTH (default: COLUMNS). Case-insensitive.'
+    ),
+});
+
+// ===== SPARKLINE ACTION SCHEMAS (3 actions) =====
+
+const SparklineAddActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('sparkline_add')
+    .describe('Add a sparkline visualization to a cell using the SPARKLINE formula'),
+  targetCell: z
+    .string()
+    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, single cell only)')
+    .describe('Target cell for sparkline (A1 notation, single cell only)'),
+  dataRange: RangeInputSchema.describe(
+    'Data range for sparkline (should be 1D - single row or column)'
+  ),
+  config: SparklineConfigSchema.optional().describe('Sparkline configuration options'),
+});
+
+const SparklineGetActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('sparkline_get')
+    .describe('Get sparkline formula and configuration from a cell'),
+  cell: z
+    .string()
+    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format)')
+    .describe('Cell to get sparkline from (A1 notation)'),
+});
+
+const SparklineClearActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('sparkline_clear').describe('Remove sparkline from a cell'),
+  cell: z
+    .string()
+    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format)')
+    .describe('Cell to clear sparkline from (A1 notation)'),
 });
 
 // ===== RULES ACTION SCHEMAS (8 actions) =====
@@ -202,7 +284,7 @@ const RuleUpdateConditionalFormatActionSchema = CommonFieldsSchema.extend({
     .literal('rule_update_conditional_format')
     .describe('Update a conditional formatting rule'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID containing the rule'),
-  ruleIndex: z.number().int().min(0).describe('Zero-based index of the rule to update'),
+  ruleIndex: z.coerce.number().int().min(0).describe('Zero-based index of the rule to update'),
   range: RangeInputSchema.optional().describe('New range for the rule'),
   rule: ConditionalFormatRuleSchema.optional().describe('New rule definition'),
   newIndex: z
@@ -218,7 +300,7 @@ const RuleDeleteConditionalFormatActionSchema = CommonFieldsSchema.extend({
     .literal('rule_delete_conditional_format')
     .describe('Delete a conditional formatting rule'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID containing the rule'),
-  ruleIndex: z.number().int().min(0).describe('Zero-based index of the rule to delete'),
+  ruleIndex: z.coerce.number().int().min(0).describe('Zero-based index of the rule to delete'),
 });
 
 const RuleListConditionalFormatsActionSchema = CommonFieldsSchema.extend({
@@ -228,8 +310,8 @@ const RuleListConditionalFormatsActionSchema = CommonFieldsSchema.extend({
   sheetId: SheetIdSchema.describe('Numeric sheet ID to list rules from'),
 });
 
-const RuleAddDataValidationActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('rule_add_data_validation').describe('Add data validation to a range'),
+const SetDataValidationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_data_validation').describe('Add data validation to a range'),
   range: RangeInputSchema.describe('Range to apply validation to'),
   condition: ConditionSchema.describe(
     'Validation condition (e.g., ONE_OF_LIST, NUMBER_BETWEEN, DATE_AFTER, etc.)'
@@ -251,18 +333,20 @@ const RuleAddDataValidationActionSchema = CommonFieldsSchema.extend({
     .describe('Show dropdown for list validations (default: true)'),
 });
 
-const RuleClearDataValidationActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('rule_clear_data_validation').describe('Clear data validation from a range'),
+const ClearDataValidationActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_data_validation').describe('Clear data validation from a range'),
   range: RangeInputSchema.describe('Range to clear validation from'),
 });
 
-const RuleListDataValidationsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('rule_list_data_validations').describe('List all data validations on a sheet'),
+const ListDataValidationsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('list_data_validations').describe('List all data validations on a sheet'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to list validations from'),
 });
 
-const RuleAddPresetRuleActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('rule_add_preset_rule').describe('Add a preset conditional formatting rule'),
+const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('add_conditional_format_rule')
+    .describe('Add a preset conditional formatting rule'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the preset rule'),
   rulePreset: z
@@ -292,41 +376,47 @@ const RuleAddPresetRuleActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsFormatInputSchema = z.discriminatedUnion('action', [
-  // Format actions (10)
-  SetFormatActionSchema,
-  SuggestFormatActionSchema,
-  SetBackgroundActionSchema,
-  SetTextFormatActionSchema,
-  SetNumberFormatActionSchema,
-  SetAlignmentActionSchema,
-  SetBordersActionSchema,
-  ClearFormatActionSchema,
-  ApplyPresetActionSchema,
-  AutoFitActionSchema,
-  // Rules actions (8)
-  RuleAddConditionalFormatActionSchema,
-  RuleUpdateConditionalFormatActionSchema,
-  RuleDeleteConditionalFormatActionSchema,
-  RuleListConditionalFormatsActionSchema,
-  RuleAddDataValidationActionSchema,
-  RuleClearDataValidationActionSchema,
-  RuleListDataValidationsActionSchema,
-  RuleAddPresetRuleActionSchema,
-]);
+export const SheetsFormatInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Format actions (10)
+    SetFormatActionSchema,
+    SuggestFormatActionSchema,
+    SetBackgroundActionSchema,
+    SetTextFormatActionSchema,
+    SetNumberFormatActionSchema,
+    SetAlignmentActionSchema,
+    SetBordersActionSchema,
+    ClearFormatActionSchema,
+    ApplyPresetActionSchema,
+    AutoFitActionSchema,
+    // Sparkline actions (3)
+    SparklineAddActionSchema,
+    SparklineGetActionSchema,
+    SparklineClearActionSchema,
+    // Rules actions (8)
+    RuleAddConditionalFormatActionSchema,
+    RuleUpdateConditionalFormatActionSchema,
+    RuleDeleteConditionalFormatActionSchema,
+    RuleListConditionalFormatsActionSchema,
+    SetDataValidationActionSchema,
+    ClearDataValidationActionSchema,
+    ListDataValidationsActionSchema,
+    AddConditionalFormatRuleActionSchema,
+  ]),
+});
 
 const FormatResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     action: z.string(),
     // Format response fields
-    cellsFormatted: z.number().int().optional(),
+    cellsFormatted: z.coerce.number().int().optional(),
     suggestions: z
       .array(
         z.object({
           title: z.string(),
           explanation: z.string(),
-          confidence: z.number().min(0).max(100),
+          confidence: z.coerce.number().min(0).max(100),
           reasoning: z.string(),
           formatOptions: z.object({
             backgroundColor: ColorSchema.optional(),
@@ -339,12 +429,15 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
       )
       .optional()
       .describe('Format suggestions (for suggest_format action)'),
+    // Sparkline response fields
+    cell: z.string().optional().describe('Target cell for sparkline operation'),
+    formula: z.string().optional().describe('SPARKLINE formula (for sparkline_get/sparkline_add)'),
     // Rules response fields
-    ruleIndex: z.number().int().optional().describe('Index of added/updated rule'),
+    ruleIndex: z.coerce.number().int().optional().describe('Index of added/updated rule'),
     rules: z
       .array(
         z.object({
-          index: z.number().int(),
+          index: z.coerce.number().int(),
           ranges: z.array(GridRangeSchema),
           type: z.string(),
         })
@@ -363,7 +456,7 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     rulePreview: z
       .object({
         affectedRanges: z.array(GridRangeSchema).describe('Ranges that would be affected'),
-        affectedCells: z.number().int().describe('Total number of cells affected'),
+        affectedCells: z.coerce.number().int().describe('Total number of cells affected'),
         existingRules: z
           .number()
           .int()
@@ -373,7 +466,7 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
           .array(
             z.object({
               range: GridRangeSchema,
-              existingRuleIndex: z.number().int(),
+              existingRuleIndex: z.coerce.number().int(),
               conflictType: z.enum(['overlap', 'priority', 'condition_conflict']),
             })
           )
@@ -385,6 +478,7 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     // Common response fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
@@ -408,6 +502,8 @@ export const SHEETS_FORMAT_ANNOTATIONS: ToolAnnotations = {
 export type SheetsFormatInput = z.infer<typeof SheetsFormatInputSchema>;
 export type SheetsFormatOutput = z.infer<typeof SheetsFormatOutputSchema>;
 export type FormatResponse = z.infer<typeof FormatResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type FormatRequest = SheetsFormatInput['request'];
 
 // Note: Type narrowing helpers are not needed with discriminated unions.
 // TypeScript automatically narrows types in switch statements based on the action field.

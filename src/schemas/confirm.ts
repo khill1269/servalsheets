@@ -14,6 +14,17 @@ import { z } from 'zod';
 import { ErrorDetailSchema, ResponseMetaSchema, type ToolAnnotations } from './shared.js';
 
 /**
+ * Verbosity level for response filtering
+ */
+const VerbositySchema = z
+  .enum(['minimal', 'standard', 'detailed'])
+  .optional()
+  .default('standard')
+  .describe(
+    'Response verbosity: minimal (essential info only), standard (balanced), detailed (full metadata)'
+  );
+
+/**
  * Risk level schema
  */
 const RiskLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
@@ -22,14 +33,33 @@ const RiskLevelSchema = z.enum(['low', 'medium', 'high', 'critical']);
  * Plan step schema
  */
 const PlanStepSchema = z.object({
-  stepNumber: z.number().int().positive().describe('Step number (1-based)'),
-  description: z.string().describe('Human-readable description'),
-  tool: z.string().describe('Tool to be called'),
-  action: z.string().describe('Action within the tool'),
-  risk: RiskLevelSchema.describe('Risk level of this step'),
-  estimatedApiCalls: z.number().int().positive().optional().describe('Estimated API calls'),
-  isDestructive: z.boolean().optional().describe('Whether this step modifies/deletes data'),
-  canUndo: z.boolean().optional().describe('Whether this step can be undone'),
+  stepNumber: z.coerce.number().int().positive().describe('Step number (1-based)'),
+  description: z.string().min(1).describe('Human-readable description of what this step does'),
+  tool: z
+    .string()
+    .min(1)
+    .regex(/^sheets_[a-z]+$/, 'Tool name must start with "sheets_"')
+    .describe('Tool to be called (e.g., "sheets_data", "sheets_format")'),
+  action: z.string().min(1).describe('Action within the tool (e.g., "write", "format")'),
+  risk: RiskLevelSchema.optional()
+    .default('low')
+    .describe('Risk level of this step (default: low)'),
+  estimatedApiCalls: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Estimated Google Sheets API calls (optional)'),
+  isDestructive: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Whether this step modifies/deletes data (default: false)'),
+  canUndo: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Whether this step can be undone (default: false)'),
 });
 
 /**
@@ -58,16 +88,84 @@ const RequestActionSchema = z.object({
     .literal('request')
     .describe('Request user confirmation for a multi-step operation plan'),
   plan: OperationPlanSchema.describe('The plan to confirm with the user'),
+  verbosity: VerbositySchema,
 });
 
 const GetStatsActionSchema = z.object({
   action: z.literal('get_stats').describe('Get statistics about confirmation requests'),
+  verbosity: VerbositySchema,
 });
 
-export const SheetsConfirmInputSchema = z.discriminatedUnion('action', [
-  RequestActionSchema,
-  GetStatsActionSchema,
-]);
+/**
+ * Wizard step definition for multi-step flows
+ */
+const WizardStepDefSchema = z.object({
+  stepId: z.string().describe('Unique step identifier'),
+  title: z.string().describe('Step title'),
+  description: z.string().describe('Step description'),
+  fields: z
+    .array(
+      z.object({
+        name: z.string().describe('Field name'),
+        label: z.string().describe('Field label'),
+        type: z.enum(['text', 'number', 'boolean', 'select', 'multiselect']).describe('Field type'),
+        required: z.boolean().default(true),
+        options: z.array(z.string()).optional().describe('Options for select/multiselect'),
+        default: z.unknown().optional().describe('Default value'),
+        validation: z.string().optional().describe('Validation regex pattern'),
+      })
+    )
+    .describe('Fields to collect in this step'),
+  dependsOn: z.string().optional().describe('Step ID this step depends on'),
+});
+
+/**
+ * Wizard start action - initiates a multi-step wizard flow
+ */
+const WizardStartActionSchema = z.object({
+  action: z.literal('wizard_start').describe('Start a multi-step wizard flow'),
+  wizardId: z.string().optional().describe('Optional wizard ID (generated if not provided)'),
+  title: z.string().describe('Wizard title'),
+  description: z.string().describe('Wizard description'),
+  steps: z.array(WizardStepDefSchema).min(1).max(10).describe('Wizard steps (max 10)'),
+  context: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe('Context data available to all steps'),
+  verbosity: VerbositySchema,
+});
+
+/**
+ * Wizard step action - handle a specific step in the wizard
+ */
+const WizardStepActionSchema = z.object({
+  action: z.literal('wizard_step').describe('Process a wizard step'),
+  wizardId: z.string().describe('Wizard ID'),
+  stepId: z.string().describe('Current step ID'),
+  values: z.record(z.string(), z.unknown()).describe('Field values for this step'),
+  direction: z.enum(['next', 'back', 'skip']).default('next').describe('Navigation direction'),
+  verbosity: VerbositySchema,
+});
+
+/**
+ * Wizard complete action - finalize and execute the wizard
+ */
+const WizardCompleteActionSchema = z.object({
+  action: z.literal('wizard_complete').describe('Complete the wizard and execute'),
+  wizardId: z.string().describe('Wizard ID'),
+  executeImmediately: z.boolean().default(true).describe('Execute immediately after confirmation'),
+  verbosity: VerbositySchema,
+});
+
+export const SheetsConfirmInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    RequestActionSchema,
+    GetStatsActionSchema,
+    WizardStartActionSchema,
+    WizardStepActionSchema,
+    WizardCompleteActionSchema,
+  ]),
+});
 
 /**
  * Confirmation result schema
@@ -76,19 +174,33 @@ const ConfirmationResultSchema = z.object({
   approved: z.boolean().describe('Whether the user approved the plan'),
   action: z.enum(['accept', 'decline', 'cancel']).describe('User action'),
   modifications: z.string().optional().describe('User modifications to the plan'),
-  timestamp: z.number().describe('Timestamp of confirmation'),
+  timestamp: z.coerce.number().describe('Timestamp of confirmation'),
 });
 
 /**
  * Stats schema
  */
 const ConfirmStatsSchema = z.object({
-  totalConfirmations: z.number(),
-  approved: z.number(),
-  declined: z.number(),
-  cancelled: z.number(),
-  approvalRate: z.number(),
-  avgResponseTime: z.number(),
+  totalConfirmations: z.coerce.number(),
+  approved: z.coerce.number(),
+  declined: z.coerce.number(),
+  cancelled: z.coerce.number(),
+  approvalRate: z.coerce.number(),
+  avgResponseTime: z.coerce.number(),
+});
+
+/**
+ * Wizard state schema
+ */
+const WizardStateSchema = z.object({
+  wizardId: z.string(),
+  title: z.string(),
+  currentStepIndex: z.number(),
+  totalSteps: z.number(),
+  currentStepId: z.string(),
+  completedSteps: z.array(z.string()),
+  collectedValues: z.record(z.string(), z.unknown()),
+  isComplete: z.boolean(),
 });
 
 /**
@@ -103,6 +215,9 @@ const ConfirmResponseSchema = z.discriminatedUnion('success', [
     confirmation: ConfirmationResultSchema.optional(),
     // For get_stats action
     stats: ConfirmStatsSchema.optional(),
+    // For wizard actions
+    wizard: WizardStateSchema.optional(),
+    nextStep: WizardStepDefSchema.optional(),
     message: z.string().optional(),
     _meta: ResponseMetaSchema.optional(),
   }),
@@ -134,10 +249,28 @@ export type ConfirmResponse = z.infer<typeof ConfirmResponseSchema>;
 export type PlanStep = z.infer<typeof PlanStepSchema>;
 export type OperationPlan = z.infer<typeof OperationPlanSchema>;
 export type RiskLevel = z.infer<typeof RiskLevelSchema>;
+export type WizardStepDef = z.infer<typeof WizardStepDefSchema>;
+export type WizardState = z.infer<typeof WizardStateSchema>;
 
 // Type narrowing helpers for handler methods
-export type ConfirmRequestInput = SheetsConfirmInput & {
+export type ConfirmRequestInput = SheetsConfirmInput['request'] & {
   action: 'request';
   plan: OperationPlan;
 };
-export type ConfirmGetStatsInput = SheetsConfirmInput & { action: 'get_stats' };
+export type ConfirmGetStatsInput = SheetsConfirmInput['request'] & { action: 'get_stats' };
+export type ConfirmWizardStartInput = SheetsConfirmInput['request'] & {
+  action: 'wizard_start';
+  title: string;
+  description: string;
+  steps: WizardStepDef[];
+};
+export type ConfirmWizardStepInput = SheetsConfirmInput['request'] & {
+  action: 'wizard_step';
+  wizardId: string;
+  stepId: string;
+  values: Record<string, unknown>;
+};
+export type ConfirmWizardCompleteInput = SheetsConfirmInput['request'] & {
+  action: 'wizard_complete';
+  wizardId: string;
+};

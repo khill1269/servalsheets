@@ -1,7 +1,7 @@
 /**
  * Tool: sheets_visualize
  * Consolidated chart and pivot table visualization operations
- * Merges sheets_charts (10 actions) and sheets_pivot (7 actions) into 17 actions
+ * Charts (11 actions) + Pivot tables (7 actions) = 18 actions
  */
 
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import {
   LegendPositionSchema,
   ChartPositionSchema,
   ColorSchema,
+  TextFormatSchema,
   SummarizeFunctionSchema,
   SortOrderSchema,
   ErrorDetailSchema,
@@ -28,17 +29,93 @@ import {
 // CHART SCHEMAS (from charts.ts)
 // ============================================================================
 
+// Trendline type enum - supported by LINE, AREA, SCATTER, STEPPED_AREA, COLUMN charts
+const TrendlineTypeSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['LINEAR', 'EXPONENTIAL', 'POLYNOMIAL', 'POWER', 'LOGARITHMIC', 'MOVING_AVERAGE'])
+  )
+  .describe('Trendline type (case-insensitive)');
+
+// Trendline configuration for chart series
+const TrendlineSchema = z
+  .object({
+    type: TrendlineTypeSchema.describe('Trendline type'),
+    polynomialDegree: z.coerce
+      .number()
+      .int()
+      .min(2)
+      .max(6)
+      .optional()
+      .describe('Degree for POLYNOMIAL type (2-6, required when type=POLYNOMIAL)'),
+    label: z.string().max(255).optional().describe('Custom label for trendline'),
+    showEquation: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Display regression equation on chart'),
+    showRSquared: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Display R-squared value on chart'),
+    color: ColorSchema.optional().describe('Trendline color (defaults to series color)'),
+  })
+  .describe('Trendline configuration for visualizing data trends');
+
+// Data label placement options
+const DataLabelPlacementSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum([
+      'CENTER',
+      'LEFT',
+      'RIGHT',
+      'ABOVE',
+      'BELOW',
+      'INSIDE_END',
+      'INSIDE_BASE',
+      'OUTSIDE_END',
+    ])
+  )
+  .describe('Data label placement (case-insensitive)');
+
+// Data label type - what to display
+const DataLabelTypeSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+    z.enum(['NONE', 'DATA', 'CUSTOM'])
+  )
+  .describe('Data label type (case-insensitive)');
+
+// Data label configuration for chart series
+const DataLabelSchema = z
+  .object({
+    type: DataLabelTypeSchema.default('DATA').describe(
+      'What to label: DATA (values), CUSTOM (from range), NONE'
+    ),
+    placement: DataLabelPlacementSchema.optional().describe(
+      'Label position relative to data point'
+    ),
+    textFormat: TextFormatSchema.optional().describe('Text formatting for labels'),
+  })
+  .describe('Data label configuration for displaying values on chart points');
+
+// Chart series with optional trendline and data labels
+const ChartSeriesSchema = z.object({
+  column: z.coerce.number().int().min(0).describe('Column index (0-based) for series data'),
+  color: ColorSchema.optional().describe('Series color'),
+  trendline: TrendlineSchema.optional().describe('Add trendline to this series'),
+  dataLabel: DataLabelSchema.optional().describe('Configure data labels for this series'),
+});
+
 const ChartDataSchema = z.object({
   sourceRange: RangeInputSchema,
   series: z
-    .array(
-      z.object({
-        column: z.number().int().min(0),
-        color: ColorSchema.optional(),
-      })
-    )
-    .optional(),
-  categories: z.number().int().min(0).optional(),
+    .array(ChartSeriesSchema)
+    .optional()
+    .describe('Data series with optional trendlines and data labels'),
+  categories: z.coerce.number().int().min(0).optional(),
   aggregateType: z
     .enum([
       'AVERAGE',
@@ -63,7 +140,7 @@ const ChartOptionsSchema = z.object({
   legendPosition: LegendPositionSchema.optional(),
   backgroundColor: ColorSchema.optional(),
   is3D: z.boolean().optional(),
-  pieHole: z.number().min(0).max(1).optional(),
+  pieHole: z.coerce.number().min(0).max(1).optional(),
   stacked: z.boolean().optional(),
   lineSmooth: z.boolean().optional(),
   axisTitle: z
@@ -79,7 +156,7 @@ const ChartOptionsSchema = z.object({
 // ============================================================================
 
 const PivotGroupSchema = z.object({
-  sourceColumnOffset: z.number().int().min(0),
+  sourceColumnOffset: z.coerce.number().int().min(0),
   sortOrder: SortOrderSchema.optional(),
   showTotals: z.boolean().optional().default(true),
   groupRule: z
@@ -115,9 +192,9 @@ const PivotGroupSchema = z.object({
         .optional(),
       histogramRule: z
         .object({
-          interval: z.number().positive(),
-          start: z.number().optional(),
-          end: z.number().optional(),
+          interval: z.coerce.number().positive(),
+          start: z.coerce.number().optional(),
+          end: z.coerce.number().optional(),
         })
         .optional(),
     })
@@ -125,7 +202,7 @@ const PivotGroupSchema = z.object({
 });
 
 const PivotValueSchema = z.object({
-  sourceColumnOffset: z.number().int().min(0),
+  sourceColumnOffset: z.coerce.number().int().min(0),
   summarizeFunction: SummarizeFunctionSchema,
   name: z.string().optional(),
   calculatedDisplayType: z
@@ -134,7 +211,7 @@ const PivotValueSchema = z.object({
 });
 
 const PivotFilterSchema = z.object({
-  sourceColumnOffset: z.number().int().min(0),
+  sourceColumnOffset: z.coerce.number().int().min(0),
   filterCriteria: z.object({
     visibleValues: z.array(z.string()).optional(),
     condition: z
@@ -147,7 +224,7 @@ const PivotFilterSchema = z.object({
 });
 
 // ============================================================================
-// CONSOLIDATED INPUT SCHEMA (17 actions)
+// CONSOLIDATED INPUT SCHEMA (16 actions)
 // ============================================================================
 
 const CommonFieldsSchema = z.object({
@@ -161,15 +238,21 @@ const CommonFieldsSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
 });
 
-// ===== CHART ACTION SCHEMAS (10 actions) =====
+// ===== CHART ACTION SCHEMAS (9 actions) =====
 
 const ChartCreateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_create').describe('Create a new chart'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where chart will be placed'),
-  chartType: ChartTypeSchema.describe('Chart type (LINE, BAR, COLUMN, PIE, SCATTER, etc.)'),
-  data: ChartDataSchema.describe('Chart data source (range, series, categories)'),
-  position: ChartPositionSchema.describe('Chart position and size on the sheet'),
+  chartType: ChartTypeSchema.describe(
+    'Chart type. BAR=horizontal bars, COLUMN=vertical bars. PIE, LINE, SCATTER, AREA, COMBO also available.'
+  ),
+  data: ChartDataSchema.describe(
+    'Chart data source. NOTE: BAR charts only support BOTTOM_AXIS (horizontal bars). Use COLUMN for vertical bars.'
+  ),
+  position: ChartPositionSchema.describe(
+    'Chart position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+  ),
   options: ChartOptionsSchema.optional().describe(
     'Chart options (title, subtitle, legend, colors, 3D, stacking, etc.)'
   ),
@@ -192,7 +275,7 @@ const SuggestChartActionSchema = CommonFieldsSchema.extend({
 const ChartUpdateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_update').describe('Update an existing chart'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to update'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to update'),
   chartType: ChartTypeSchema.optional().describe('New chart type'),
   data: ChartDataSchema.optional().describe('New chart data source'),
   position: ChartPositionSchema.optional().describe('New chart position'),
@@ -202,7 +285,7 @@ const ChartUpdateActionSchema = CommonFieldsSchema.extend({
 const ChartDeleteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_delete').describe('Delete a chart'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to delete'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to delete'),
 });
 
 const ChartListActionSchema = CommonFieldsSchema.extend({
@@ -214,38 +297,58 @@ const ChartListActionSchema = CommonFieldsSchema.extend({
 const ChartGetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_get').describe('Get details of a specific chart'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to retrieve'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to retrieve'),
 });
 
 const ChartMoveActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_move').describe('Move a chart to a new position'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to move'),
-  position: ChartPositionSchema.describe('New chart position'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to move'),
+  position: ChartPositionSchema.describe(
+    'New position. anchorCell MUST include sheet name: "Sheet1!E2" not just "E2"'
+  ),
 });
 
 const ChartResizeActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_resize').describe('Resize a chart'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to resize'),
-  width: z.number().positive().describe('Width in pixels (must be positive)'),
-  height: z.number().positive().describe('Height in pixels (must be positive)'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to resize'),
+  width: z.coerce.number().positive().describe('Width in pixels (must be positive)'),
+  height: z.coerce.number().positive().describe('Height in pixels (must be positive)'),
 });
 
 const ChartUpdateDataRangeActionSchema = CommonFieldsSchema.extend({
   action: z.literal('chart_update_data_range').describe("Update a chart's data range"),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to update'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to update'),
   data: ChartDataSchema.describe('New chart data source'),
 });
 
-const ChartExportActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('chart_export').describe('Export a chart as image'),
+const ChartAddTrendlineActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('chart_add_trendline')
+    .describe('Add a trendline to an existing chart series (LINE, AREA, SCATTER, COLUMN charts)'),
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  chartId: z.number().int().describe('Numeric chart ID to export'),
-  format: z.enum(['PNG', 'PDF']).optional().default('PNG').describe('Export format (default: PNG)'),
-  width: z.number().positive().optional().describe('Export width in pixels'),
-  height: z.number().positive().optional().describe('Export height in pixels'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to modify'),
+  seriesIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe('Series index to add trendline to (0-based, default: 0)'),
+  trendline: TrendlineSchema.describe('Trendline configuration'),
+});
+
+const ChartRemoveTrendlineActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('chart_remove_trendline').describe('Remove a trendline from a chart series'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  chartId: z.coerce.number().int().describe('Numeric chart ID to modify'),
+  seriesIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe('Series index to remove trendline from (0-based, default: 0)'),
 });
 
 // ===== PIVOT ACTION SCHEMAS (7 actions) =====
@@ -327,27 +430,30 @@ const PivotRefreshActionSchema = CommonFieldsSchema.extend({
  * - Each action has only its required fields (no optional field pollution)
  * - JSON Schema conversion handled by src/utils/schema-compat.ts
  */
-export const SheetsVisualizeInputSchema = z.discriminatedUnion('action', [
-  // Chart actions (10)
-  ChartCreateActionSchema,
-  SuggestChartActionSchema,
-  ChartUpdateActionSchema,
-  ChartDeleteActionSchema,
-  ChartListActionSchema,
-  ChartGetActionSchema,
-  ChartMoveActionSchema,
-  ChartResizeActionSchema,
-  ChartUpdateDataRangeActionSchema,
-  ChartExportActionSchema,
-  // Pivot actions (7)
-  PivotCreateActionSchema,
-  SuggestPivotActionSchema,
-  PivotUpdateActionSchema,
-  PivotDeleteActionSchema,
-  PivotListActionSchema,
-  PivotGetActionSchema,
-  PivotRefreshActionSchema,
-]);
+export const SheetsVisualizeInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    // Chart actions (11)
+    ChartCreateActionSchema,
+    SuggestChartActionSchema,
+    ChartUpdateActionSchema,
+    ChartDeleteActionSchema,
+    ChartListActionSchema,
+    ChartGetActionSchema,
+    ChartMoveActionSchema,
+    ChartResizeActionSchema,
+    ChartUpdateDataRangeActionSchema,
+    ChartAddTrendlineActionSchema,
+    ChartRemoveTrendlineActionSchema,
+    // Pivot actions (7)
+    PivotCreateActionSchema,
+    SuggestPivotActionSchema,
+    PivotUpdateActionSchema,
+    PivotDeleteActionSchema,
+    PivotListActionSchema,
+    PivotGetActionSchema,
+    PivotRefreshActionSchema,
+  ]),
+});
 
 // ============================================================================
 // CONSOLIDATED OUTPUT SCHEMA
@@ -359,40 +465,35 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
     action: z.string(),
 
     // Chart-specific response fields
-    chartId: z.number().int().optional().describe('Chart ID (for chart actions)'),
+    chartId: z.coerce.number().int().optional().describe('Chart ID (for chart actions)'),
     charts: z
       .array(
         z.object({
-          chartId: z.number().int(),
+          chartId: z.coerce.number().int(),
           chartType: z.string(),
-          sheetId: z.number().int(),
+          sheetId: z.coerce.number().int(),
           title: z.string().optional(),
           position: ChartPositionSchema,
         })
       )
       .optional()
       .describe('List of charts (for chart_list action)'),
-    exportUrl: z.string().optional().describe('Export URL (for chart_export action)'),
-    exportData: z
-      .string()
-      .optional()
-      .describe('Base64-encoded export data (for chart_export action)'),
 
     // Pivot-specific response fields
     pivotTable: z
       .object({
-        sheetId: z.number().int(),
+        sheetId: z.coerce.number().int(),
         sourceRange: GridRangeSchema,
-        rowGroups: z.number().int(),
-        columnGroups: z.number().int(),
-        values: z.number().int(),
+        rowGroups: z.coerce.number().int(),
+        columnGroups: z.coerce.number().int(),
+        values: z.coerce.number().int(),
       })
       .optional()
       .describe('Pivot table details (for pivot actions)'),
     pivotTables: z
       .array(
         z.object({
-          sheetId: z.number().int(),
+          sheetId: z.coerce.number().int(),
           title: z.string(),
         })
       )
@@ -408,31 +509,31 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
             chartType: ChartTypeSchema,
             title: z.string(),
             explanation: z.string(),
-            confidence: z.number().min(0).max(100),
+            confidence: z.coerce.number().min(0).max(100),
             reasoning: z.string(),
             dataMapping: z.object({
-              seriesColumns: z.array(z.number().int()).optional(),
-              categoryColumn: z.number().int().optional(),
+              seriesColumns: z.array(z.coerce.number().int()).optional(),
+              categoryColumn: z.coerce.number().int().optional(),
             }),
           }),
           // Pivot suggestions
           z.object({
             title: z.string(),
             explanation: z.string(),
-            confidence: z.number().min(0).max(100),
+            confidence: z.coerce.number().min(0).max(100),
             reasoning: z.string(),
             configuration: z.object({
               rowGroupColumns: z
-                .array(z.number().int())
+                .array(z.coerce.number().int())
                 .describe('Column indices to group by rows'),
               columnGroupColumns: z
-                .array(z.number().int())
+                .array(z.coerce.number().int())
                 .optional()
                 .describe('Column indices to group by columns'),
               valueColumns: z
                 .array(
                   z.object({
-                    columnIndex: z.number().int(),
+                    columnIndex: z.coerce.number().int(),
                     function: SummarizeFunctionSchema,
                   })
                 )
@@ -447,6 +548,7 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
     // Common response fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({
@@ -478,13 +580,15 @@ export const SHEETS_VISUALIZE_ANNOTATIONS: ToolAnnotations = {
 export type SheetsVisualizeInput = z.infer<typeof SheetsVisualizeInputSchema>;
 export type SheetsVisualizeOutput = z.infer<typeof SheetsVisualizeOutputSchema>;
 export type VisualizeResponse = z.infer<typeof VisualizeResponseSchema>;
+/** The unwrapped request type (the discriminated union of actions) */
+export type VisualizeRequest = SheetsVisualizeInput['request'];
 
 // ============================================================================
-// TYPE NARROWING HELPERS (17 action types)
+// TYPE NARROWING HELPERS (18 action types)
 // ============================================================================
 
-// Chart action types (10)
-export type ChartCreateInput = SheetsVisualizeInput & {
+// Chart action types (11)
+export type ChartCreateInput = SheetsVisualizeInput['request'] & {
   action: 'chart_create';
   spreadsheetId: string;
   sheetId: number;
@@ -493,43 +597,43 @@ export type ChartCreateInput = SheetsVisualizeInput & {
   position: z.infer<typeof ChartPositionSchema>;
 };
 
-export type SuggestChartInput = SheetsVisualizeInput & {
+export type SuggestChartInput = SheetsVisualizeInput['request'] & {
   action: 'suggest_chart';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type ChartUpdateInput = SheetsVisualizeInput & {
+export type ChartUpdateInput = SheetsVisualizeInput['request'] & {
   action: 'chart_update';
   spreadsheetId: string;
   chartId: number;
 };
 
-export type ChartDeleteInput = SheetsVisualizeInput & {
+export type ChartDeleteInput = SheetsVisualizeInput['request'] & {
   action: 'chart_delete';
   spreadsheetId: string;
   chartId: number;
 };
 
-export type ChartListInput = SheetsVisualizeInput & {
+export type ChartListInput = SheetsVisualizeInput['request'] & {
   action: 'chart_list';
   spreadsheetId: string;
 };
 
-export type ChartGetInput = SheetsVisualizeInput & {
+export type ChartGetInput = SheetsVisualizeInput['request'] & {
   action: 'chart_get';
   spreadsheetId: string;
   chartId: number;
 };
 
-export type ChartMoveInput = SheetsVisualizeInput & {
+export type ChartMoveInput = SheetsVisualizeInput['request'] & {
   action: 'chart_move';
   spreadsheetId: string;
   chartId: number;
   position: z.infer<typeof ChartPositionSchema>;
 };
 
-export type ChartResizeInput = SheetsVisualizeInput & {
+export type ChartResizeInput = SheetsVisualizeInput['request'] & {
   action: 'chart_resize';
   spreadsheetId: string;
   chartId: number;
@@ -537,57 +641,66 @@ export type ChartResizeInput = SheetsVisualizeInput & {
   height: number;
 };
 
-export type ChartUpdateDataRangeInput = SheetsVisualizeInput & {
+export type ChartUpdateDataRangeInput = SheetsVisualizeInput['request'] & {
   action: 'chart_update_data_range';
   spreadsheetId: string;
   chartId: number;
   data: z.infer<typeof ChartDataSchema>;
 };
 
-export type ChartExportInput = SheetsVisualizeInput & {
-  action: 'chart_export';
+export type ChartAddTrendlineInput = SheetsVisualizeInput['request'] & {
+  action: 'chart_add_trendline';
   spreadsheetId: string;
   chartId: number;
+  seriesIndex: number;
+  trendline: z.infer<typeof TrendlineSchema>;
+};
+
+export type ChartRemoveTrendlineInput = SheetsVisualizeInput['request'] & {
+  action: 'chart_remove_trendline';
+  spreadsheetId: string;
+  chartId: number;
+  seriesIndex: number;
 };
 
 // Pivot action types (7)
-export type PivotCreateInput = SheetsVisualizeInput & {
+export type PivotCreateInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_create';
   spreadsheetId: string;
   sourceRange: RangeInput;
   values: z.infer<typeof PivotValueSchema>[];
 };
 
-export type SuggestPivotInput = SheetsVisualizeInput & {
+export type SuggestPivotInput = SheetsVisualizeInput['request'] & {
   action: 'suggest_pivot';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type PivotUpdateInput = SheetsVisualizeInput & {
+export type PivotUpdateInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_update';
   spreadsheetId: string;
   sheetId: number;
 };
 
-export type PivotDeleteInput = SheetsVisualizeInput & {
+export type PivotDeleteInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_delete';
   spreadsheetId: string;
   sheetId: number;
 };
 
-export type PivotListInput = SheetsVisualizeInput & {
+export type PivotListInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_list';
   spreadsheetId: string;
 };
 
-export type PivotGetInput = SheetsVisualizeInput & {
+export type PivotGetInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_get';
   spreadsheetId: string;
   sheetId: number;
 };
 
-export type PivotRefreshInput = SheetsVisualizeInput & {
+export type PivotRefreshInput = SheetsVisualizeInput['request'] & {
   action: 'pivot_refresh';
   spreadsheetId: string;
   sheetId: number;
