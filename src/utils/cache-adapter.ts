@@ -1,23 +1,35 @@
 /**
  * ServalSheets - Cache Adapter
  *
- * Backward compatibility adapter that wraps cache-manager with a HotCache-compatible API.
- * This allows gradual migration from hot-cache.ts to cache-manager.ts.
+ * Backward compatibility adapter that wraps cache-manager with a simplified API.
+ * Provides namespace-based caching with TTL support.
  *
  * Usage:
  * ```typescript
- * // Instead of:
- * import { getHotCache } from './hot-cache.js';
- * const cache = getHotCache();
- *
- * // Use:
  * import { getCacheAdapter } from './cache-adapter.js';
  * const cache = getCacheAdapter('namespace');
+ * cache.set('key', value, 300000); // TTL in ms
+ * const result = cache.get('key');
  * ```
  */
 
 import { cacheManager } from './cache-manager.js';
-import type { HotCacheStats } from './hot-cache.js';
+
+/**
+ * Cache statistics (compatible with former HotCache interface)
+ */
+export interface HotCacheStats {
+  hotTierSize: number;
+  warmTierSize: number;
+  hotHits: number;
+  warmHits: number;
+  misses: number;
+  hitRate: number;
+  promotions: number;
+  demotions: number;
+  evictions: number;
+  totalMemoryBytes: number;
+}
 
 /**
  * Minimal cache interface required by analysis modules

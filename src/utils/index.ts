@@ -11,6 +11,7 @@ export * from './oauth-config.js';
 
 // Caching
 export * from './cache-manager.js';
+export * from './cache-adapter.js';
 
 // Circuit Breaker & Resilience
 export * from './circuit-breaker.js';
@@ -46,7 +47,3 @@ export * from './schema-compat.js';
 
 // URL Utilities
 export * from './url.js';
-
-// Performance Optimizations
-export * from './hot-cache.js';
-// Fast validators are exported from schemas/fast-validators.js
