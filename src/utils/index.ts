@@ -24,6 +24,8 @@ export * from './error-messages.js';
 
 // Google Sheets Helpers
 export * from './google-sheets-helpers.js';
+export * from './etag-helpers.js';
+export * from './field-masks.js';
 
 // HTTP/2 Detection
 export * from './http2-detector.js';
@@ -35,6 +37,7 @@ export * from './tracing.js';
 // Monitoring & Efficiency
 export * from './batch-efficiency.js';
 export * from './payload-monitor.js';
+export * from './payload-validator.js';
 
 // Request Handling
 export * from './request-context.js';

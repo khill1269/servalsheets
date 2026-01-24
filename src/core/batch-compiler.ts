@@ -28,6 +28,7 @@ import type { RateLimiter } from './rate-limiter.js';
 import type { DiffEngine, SpreadsheetState } from './diff-engine.js';
 import type { PolicyEnforcer } from './policy-enforcer.js';
 import type { SnapshotService } from '../services/snapshot.js';
+import { validateBatchUpdatePayload } from '../utils/payload-validator.js';
 import type { SafetyOptions, DiffResult, ErrorDetail } from '../schemas/shared.js';
 import { monitorPayload, type PayloadMetrics } from '../utils/payload-monitor.js';
 import { ResponseParser, type ParsedResponseMetadata } from './response-parser.js';
@@ -275,11 +276,12 @@ export class BatchCompiler {
 
     // 7. Validate payload size BEFORE execution
     const requestPayload = { requests: batch.requests };
-    const payloadSize = JSON.stringify(requestPayload).length;
-    const MAX_PAYLOAD_SIZE = 9_000_000; // 9MB (leave 1MB buffer for Google's 10MB limit)
-    const WARNING_THRESHOLD = 7_000_000; // 7MB warning threshold
+    const payloadValidation = validateBatchUpdatePayload(batch.requests, {
+      spreadsheetId: batch.spreadsheetId,
+      operationType: 'batchUpdate',
+    });
 
-    if (payloadSize > MAX_PAYLOAD_SIZE) {
+    if (!payloadValidation.withinLimits) {
       return {
         ...baseResult,
         success: false,
@@ -287,26 +289,19 @@ export class BatchCompiler {
         snapshotId, // Return snapshot ID if already created
         error: {
           code: 'PAYLOAD_TOO_LARGE',
-          message: `Request payload (${(payloadSize / 1_000_000).toFixed(2)}MB) exceeds Google's 9MB limit`,
+          message: payloadValidation.message,
           retryable: false,
-          suggestedFix: 'Split operation into smaller batches or reduce data size',
+          suggestedFix:
+            payloadValidation.suggestions?.join('; ') || 'Split operation into smaller batches',
           details: {
-            payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
+            payloadSizeMB: payloadValidation.sizeMB,
             limitMB: 9,
             requestCount: batch.requests.length,
+            estimatedSplitCount: payloadValidation.estimatedSplitCount,
+            breakdown: payloadValidation.breakdown,
           },
         },
       };
-    }
-
-    // Log warning if approaching limit
-    if (payloadSize > WARNING_THRESHOLD) {
-      logger.warn('Payload size approaching limit', {
-        spreadsheetId: batch.spreadsheetId,
-        payloadSizeMB: (payloadSize / 1_000_000).toFixed(2),
-        limitMB: 9,
-        requestCount: batch.requests.length,
-      });
     }
 
     // 8. Execute the batch
