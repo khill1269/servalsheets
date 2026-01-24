@@ -72,6 +72,13 @@ import {
   SheetsAppsScriptInputSchema,
   SheetsAppsScriptOutputSchema,
   SHEETS_APPSSCRIPT_ANNOTATIONS,
+  // Phase 3 tools
+  SheetsWebhookInputSchema,
+  SheetsWebhookOutputSchema,
+  SHEETS_WEBHOOK_ANNOTATIONS,
+  SheetsDependenciesInputSchema,
+  SheetsDependenciesOutputSchema,
+  SHEETS_DEPENDENCIES_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
 } from '../../schemas/index.js';
@@ -265,6 +272,23 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsAppsScriptInputSchema,
     outputSchema: SheetsAppsScriptOutputSchema,
     annotations: SHEETS_APPSSCRIPT_ANNOTATIONS,
+  },
+  // ============================================================================
+  // PHASE 3: WEBHOOKS & DEPENDENCIES
+  // ============================================================================
+  {
+    name: 'sheets_webhook',
+    description: TOOL_DESCRIPTIONS['sheets_webhook']!,
+    inputSchema: SheetsWebhookInputSchema,
+    outputSchema: SheetsWebhookOutputSchema,
+    annotations: SHEETS_WEBHOOK_ANNOTATIONS,
+  },
+  {
+    name: 'sheets_dependencies',
+    description: TOOL_DESCRIPTIONS['sheets_dependencies']!,
+    inputSchema: SheetsDependenciesInputSchema,
+    outputSchema: SheetsDependenciesOutputSchema,
+    annotations: SHEETS_DEPENDENCIES_ANNOTATIONS,
   },
 ] as const;
 

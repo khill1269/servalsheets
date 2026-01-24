@@ -208,6 +208,17 @@ export const SheetsWebhookOutputSchema = z.union([
   }),
 ]);
 
+/**
+ * Tool annotations for sheets_webhook
+ */
+export const SHEETS_WEBHOOK_ANNOTATIONS = {
+  title: 'Webhook Management',
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+};
+
 // Type exports
 export type WebhookActions = z.infer<typeof WebhookActionsSchema>;
 export type WebhookEventType = z.infer<typeof WebhookEventTypeSchema>;

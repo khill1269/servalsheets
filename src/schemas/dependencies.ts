@@ -188,6 +188,17 @@ export const SheetsDependenciesOutputSchema = z.union([
   }),
 ]);
 
+/**
+ * Tool annotations for sheets_dependencies
+ */
+export const SHEETS_DEPENDENCIES_ANNOTATIONS = {
+  title: 'Formula Dependencies',
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
 // Type exports
 export type DependencyActions = z.infer<typeof DependencyActionsSchema>;
 export type SheetsDependenciesInput = z.infer<typeof SheetsDependenciesInputSchema>;

@@ -707,6 +707,28 @@ Returns: metadata + data sample + quality issues + patterns + chart recommendati
 - 🔴 deploy: Creates PUBLIC endpoints - review access settings carefully
 
 **TIP:** Use devMode:true in run action to test latest saved code (owner only) before deploying.`,
+
+  sheets_webhook: `Manage Google Sheets webhook notifications for real-time change detection.
+
+Key capabilities:
+• Register webhooks for spreadsheet changes (cell updates, formatting, structure)
+• Configure event filtering (specific event types or all changes)
+• Manage webhook lifecycle (register, unregister, list, test)
+• Monitor delivery statistics and reliability metrics
+• HMAC signature verification for secure webhooks
+
+Actions: register, unregister, list, get, test, get_stats`,
+
+  sheets_dependencies: `Analyze formula dependencies and calculate change impact across spreadsheet.
+
+Key capabilities:
+• Build dependency graphs from spreadsheet formulas
+• Identify cells affected by changes (direct and indirect dependents)
+• Detect circular dependency issues in formulas
+• Calculate recalculation costs and complexity
+• Export dependency visualizations (DOT format for Graphviz)
+
+Actions: build, analyze_impact, detect_cycles, get_dependencies, get_dependents, get_stats, export_dot`,
 };
 
 // Type export for other modules
