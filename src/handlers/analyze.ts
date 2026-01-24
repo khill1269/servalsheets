@@ -10,7 +10,8 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
-import type { HandlerContext } from './base.js';
+import { unwrapRequest, type HandlerContext } from './base.js';
+import { DataError, ServiceError } from '../core/errors.js';
 import { logger } from '../utils/logger.js';
 import {
   getSamplingAnalysisService,
@@ -20,6 +21,11 @@ import {
   parseAnalysisResponse,
   type AnalysisType,
 } from '../services/sampling-analysis.js';
+import {
+  createMessageWithFallback,
+  isLLMFallbackAvailable,
+  type LLMMessage,
+} from '../services/llm-fallback.js';
 import type {
   SheetsAnalyzeInput,
   SheetsAnalyzeOutput,
@@ -27,7 +33,7 @@ import type {
   ComprehensiveInput,
 } from '../schemas/analyze.js';
 import { getCapabilitiesWithCache } from '../services/capability-cache.js';
-import { getHotCache } from '../utils/hot-cache.js';
+import { getCacheAdapter } from '../utils/cache-adapter.js';
 import { TieredRetrieval } from '../analysis/tiered-retrieval.js';
 import { AnalysisRouter } from '../analysis/router.js';
 import {
@@ -36,6 +42,14 @@ import {
 } from '../analysis/comprehensive.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
 import { createNotFoundError } from '../utils/error-factory.js';
+import { buildA1Notation } from '../utils/google-sheets-helpers.js';
+import { Scout, type ScoutResult } from '../analysis/scout.js';
+import { Planner, type AnalysisPlan } from '../analysis/planner.js';
+import {
+  ActionGenerator,
+  type GenerateActionsResult,
+  type AnalysisFinding,
+} from '../analysis/action-generator.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -80,6 +94,30 @@ export class AnalyzeHandler {
   }
 
   /**
+   * Apply verbosity filtering to optimize token usage (LLM optimization)
+   */
+  private applyVerbosityFilter(
+    response: AnalyzeResponse,
+    verbosity: 'minimal' | 'standard' | 'detailed'
+  ): AnalyzeResponse {
+    if (!response.success || verbosity === 'standard') {
+      return response;
+    }
+
+    if (verbosity === 'minimal') {
+      // For minimal verbosity, strip _meta field and detailed analyses
+      const { _meta, ...rest } = response as Record<string, unknown>;
+      // Also truncate topInsights if present
+      if ('topInsights' in rest && Array.isArray(rest['topInsights'])) {
+        rest['topInsights'] = (rest['topInsights'] as string[]).slice(0, 3);
+      }
+      return rest as AnalyzeResponse;
+    }
+
+    return response;
+  }
+
+  /**
    * Resolve range to A1 notation
    */
   private resolveRange(range?: {
@@ -97,6 +135,54 @@ export class AnalyzeHandler {
     return undefined;
   }
 
+  private getSheetNameFromRange(range?: string): string | undefined {
+    if (!range) return undefined;
+    const match = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
+    return match?.[1] ?? match?.[2];
+  }
+
+  private async resolveSheetId(spreadsheetId: string, sheetName?: string): Promise<number> {
+    if (!sheetName) return 0;
+    const response = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets.properties',
+    });
+    const match = response.data.sheets?.find((sheet) => sheet.properties?.title === sheetName);
+    return match?.properties?.sheetId ?? 0;
+  }
+
+  /**
+   * Map action name to step type for plan schema
+   */
+  private mapActionToStepType(
+    action: string
+  ): 'quality' | 'formulas' | 'patterns' | 'performance' | 'structure' | 'visualizations' {
+    const mapping: Record<
+      string,
+      'quality' | 'formulas' | 'patterns' | 'performance' | 'structure' | 'visualizations'
+    > = {
+      analyze_quality: 'quality',
+      analyze_formulas: 'formulas',
+      detect_patterns: 'patterns',
+      analyze_performance: 'performance',
+      analyze_structure: 'structure',
+      suggest_visualization: 'visualizations',
+      comprehensive: 'quality',
+      analyze_data: 'patterns',
+    };
+    return mapping[action] ?? 'quality';
+  }
+
+  /**
+   * Map priority number to schema priority
+   */
+  private mapPriorityToSchema(priority: number): 'critical' | 'high' | 'medium' | 'low' {
+    if (priority <= 1) return 'critical';
+    if (priority <= 3) return 'high';
+    if (priority <= 6) return 'medium';
+    return 'low';
+  }
+
   /**
    * Read data from spreadsheet
    */
@@ -110,16 +196,22 @@ export class AnalyzeHandler {
   }
 
   /**
-   * Check if client supports MCP Sampling capability
-   * @returns null if sampling is available, error response if not
+   * Check if client supports MCP Sampling capability or LLM fallback is available
+   * @returns null if sampling or fallback is available, error response if not
    */
   private async checkSamplingCapability(): Promise<AnalyzeResponse | null> {
+    // Check for LLM fallback first (works without MCP server)
+    if (isLLMFallbackAvailable()) {
+      return null; // LLM fallback available
+    }
+
     if (!this.context.server) {
       return {
         success: false,
         error: {
           code: 'SAMPLING_UNAVAILABLE',
-          message: 'MCP Server instance not available. Cannot perform sampling.',
+          message:
+            'MCP Server instance not available and no LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
           retryable: false,
         },
       };
@@ -134,29 +226,63 @@ export class AnalyzeHandler {
         error: {
           code: 'SAMPLING_UNAVAILABLE',
           message:
-            'MCP Sampling capability not available. The client must support sampling (SEP-1577).',
+            'MCP Sampling not supported by client and no LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
           retryable: false,
         },
       };
     }
 
-    return null; // Sampling is available
+    return null; // MCP Sampling is available
+  }
+
+  /**
+   * Create AI message using MCP sampling or LLM fallback
+   * Accepts sampling request format and converts to LLM fallback format if needed
+   */
+  private async createAIMessage(samplingRequest: {
+    messages: Array<{
+      role: 'user' | 'assistant';
+      content: { type: 'text'; text: string } | string;
+    }>;
+    systemPrompt?: string;
+    maxTokens?: number;
+  }): Promise<string> {
+    // Convert sampling messages to LLM messages
+    const llmMessages: LLMMessage[] = samplingRequest.messages.map((m) => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : m.content.text,
+    }));
+
+    const result = await createMessageWithFallback(
+      this.context.server as Parameters<typeof createMessageWithFallback>[0],
+      {
+        systemPrompt: samplingRequest.systemPrompt,
+        messages: llmMessages,
+        maxTokens: samplingRequest.maxTokens,
+      }
+    );
+    return result.content;
   }
 
   /**
    * Handle analysis requests
    */
   async handle(input: SheetsAnalyzeInput): Promise<SheetsAnalyzeOutput> {
-    // Input is now the action directly (no request wrapper)
+    const req = unwrapRequest<SheetsAnalyzeInput['request']>(
+      input
+    ) as SheetsAnalyzeInput['request'] & {
+      verbosity?: 'minimal' | 'standard' | 'detailed';
+    };
+    const verbosity = req.verbosity ?? 'standard';
     const analysisService = getSamplingAnalysisService();
 
     try {
       let response: AnalyzeResponse;
 
-      switch (input.action) {
+      switch (req.action) {
         case 'analyze_data': {
           // Type assertion: refine() ensures spreadsheetId is present for 'analyze_data' action
-          const analyzeInput = input as typeof input & {
+          const analyzeInput = req as typeof req & {
             spreadsheetId: string;
           };
 
@@ -165,7 +291,7 @@ export class AnalyzeHandler {
           // PHASE 1 P0: Intelligent Routing with Tiered Retrieval
           // Create tiered retrieval instance
           const tieredRetrieval = new TieredRetrieval({
-            cache: getHotCache(),
+            cache: getCacheAdapter('analysis'),
             sheetsApi: this.sheetsApi,
             defaultSampleSize: 100,
             maxSampleSize: 500,
@@ -179,7 +305,7 @@ export class AnalyzeHandler {
             hasSampling: !!this.context.server,
             hasTasks: true, // P1: Task support now enabled (taskSupport: "optional")
           });
-          const decision = router.route(analyzeInput, metadata);
+          const decision = router.route({ request: analyzeInput } as SheetsAnalyzeInput, metadata);
 
           logger.info('Analysis routing decision', {
             spreadsheetId: analyzeInput.spreadsheetId,
@@ -268,7 +394,7 @@ export class AnalyzeHandler {
               }
 
               // Server is guaranteed to be available after sampling check
-              const server = this.context.server!;
+              const _server = this.context.server!;
 
               // Use tiered retrieval - sample for medium datasets, full for explicit requests
               const sheetId = 'sheetId' in analyzeInput ? analyzeInput.sheetId : undefined;
@@ -332,17 +458,11 @@ export class AnalyzeHandler {
                 maxTokens: analyzeInput.maxTokens,
               });
 
-              // Call LLM via MCP Sampling
-              const samplingResult = await server.createMessage(samplingRequest);
+              // Call LLM via MCP Sampling or LLM fallback
+              const contentText = await this.createAIMessage(samplingRequest);
               const duration = Date.now() - startTime;
 
-              // Parse the response (extract text from content)
-              const contentText =
-                typeof samplingResult.content === 'string'
-                  ? samplingResult.content
-                  : samplingResult.content.type === 'text'
-                    ? samplingResult.content.text
-                    : '';
+              // Parse the response
               const parsed = parseAnalysisResponse(contentText);
 
               if (!parsed.success || !parsed.result) {
@@ -471,7 +591,7 @@ export class AnalyzeHandler {
 
         case 'generate_formula': {
           // Type assertion: refine() ensures spreadsheetId and description are present
-          const formulaInput = input as typeof input & {
+          const formulaInput = req as typeof req & {
             spreadsheetId: string;
             description: string;
           };
@@ -483,7 +603,7 @@ export class AnalyzeHandler {
             break;
           }
 
-          const server2 = this.context.server!;
+          const _server2 = this.context.server!;
           const startTime = Date.now();
 
           // Read context data if range provided
@@ -513,21 +633,18 @@ export class AnalyzeHandler {
             sheetName: formulaSheetName,
           });
 
-          // Call LLM via MCP Sampling
-          const samplingResult = await server2.createMessage(samplingRequest);
+          // Call LLM via MCP Sampling or LLM fallback
+          const contentText = await this.createAIMessage(samplingRequest);
           const duration = Date.now() - startTime;
-
-          // Parse the response (extract text from content)
-          const contentText =
-            typeof samplingResult.content === 'string'
-              ? samplingResult.content
-              : samplingResult.content.type === 'text'
-                ? samplingResult.content.text
-                : '';
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No JSON in response');
+            if (!jsonMatch)
+              throw new DataError(
+                'No JSON in response - model returned invalid format',
+                'DATA_ERROR',
+                false
+              );
             const parsed = JSON.parse(jsonMatch[0]);
 
             response = {
@@ -563,7 +680,7 @@ export class AnalyzeHandler {
 
         case 'suggest_visualization': {
           // Type assertion: refine() ensures spreadsheetId and range are present
-          const chartInput = input as typeof input & {
+          const chartInput = req as typeof req & {
             spreadsheetId: string;
             range: { a1: string } | { sheetName: string; range?: string };
           };
@@ -575,11 +692,14 @@ export class AnalyzeHandler {
             break;
           }
 
-          const server3 = this.context.server!;
+          const _server3 = this.context.server!;
           const startTime = Date.now();
 
           // Read the data
           const rangeStr = this.resolveRange(chartInput.range);
+          const sheetName = this.getSheetNameFromRange(rangeStr);
+          const sheetId = await this.resolveSheetId(chartInput.spreadsheetId, sheetName);
+          const anchorCell = sheetName ? buildA1Notation(sheetName, 0, 0) : 'A1';
           const data = await this.readData(chartInput.spreadsheetId, rangeStr);
 
           if (data.length === 0) {
@@ -600,21 +720,18 @@ export class AnalyzeHandler {
             preferredTypes: chartInput.preferredTypes,
           });
 
-          // Call LLM via MCP Sampling
-          const samplingResult = await server3.createMessage(samplingRequest);
+          // Call LLM via MCP Sampling or LLM fallback
+          const contentText = await this.createAIMessage(samplingRequest);
           const duration = Date.now() - startTime;
-
-          // Parse the response (extract text from content)
-          const contentText =
-            typeof samplingResult.content === 'string'
-              ? samplingResult.content
-              : samplingResult.content.type === 'text'
-                ? samplingResult.content.text
-                : '';
 
           try {
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No JSON in response');
+            if (!jsonMatch)
+              throw new DataError(
+                'No JSON in response - model returned invalid format',
+                'DATA_ERROR',
+                false
+              );
             const parsed = JSON.parse(jsonMatch[0]);
 
             // Build chart recommendations with executable params
@@ -622,18 +739,28 @@ export class AnalyzeHandler {
               (r: Record<string, unknown>) => {
                 const config = r['configuration'] as Record<string, unknown> | undefined;
 
-                // Build executable params for sheets_charts:create
+                // Build executable params for sheets_visualize:chart_create
                 const executionParams = {
-                  tool: 'sheets_charts' as const,
-                  action: 'create' as const,
+                  tool: 'sheets_visualize' as const,
+                  action: 'chart_create' as const,
                   params: {
                     spreadsheetId: chartInput.spreadsheetId,
+                    sheetId,
                     chartType: String(r['chartType'] || 'LINE'),
-                    dataRange: rangeStr,
-                    title: String(config?.['title'] || `${r['chartType']} Chart`),
-                    xAxisTitle: String(config?.['categories'] || ''),
-                    yAxisTitle: 'Values',
-                    legendPosition: 'BOTTOM_LEGEND',
+                    data: {
+                      sourceRange: { a1: rangeStr ?? 'A:ZZ' },
+                    },
+                    position: {
+                      anchorCell,
+                    },
+                    options: {
+                      title: String(config?.['title'] || `${r['chartType']} Chart`),
+                      legendPosition: 'BOTTOM_LEGEND',
+                      axisTitle: {
+                        horizontal: String(config?.['categories'] || ''),
+                        vertical: 'Values',
+                      },
+                    },
                   },
                 };
 
@@ -650,7 +777,7 @@ export class AnalyzeHandler {
 
             response = {
               success: true,
-              action: 'suggest_chart',
+              action: 'suggest_visualization',
               chartRecommendations,
               dataAssessment: parsed.dataAssessment,
               duration,
@@ -659,7 +786,7 @@ export class AnalyzeHandler {
           } catch (error) {
             logger.error('Failed to parse chart recommendation response', {
               component: 'analyze-handler',
-              action: 'suggest_chart',
+              action: 'suggest_visualization',
               error: error instanceof Error ? error.message : String(error),
             });
             response = {
@@ -676,7 +803,7 @@ export class AnalyzeHandler {
 
         case 'detect_patterns': {
           // Type assertion: refine() ensures spreadsheetId and range are present
-          const patternInput = input as typeof input & {
+          const patternInput = req as typeof req & {
             spreadsheetId: string;
             range:
               | { a1: string }
@@ -779,7 +906,7 @@ export class AnalyzeHandler {
 
         case 'analyze_structure': {
           // Type assertion: refine() ensures spreadsheetId is present
-          const structureInput = input as typeof input & {
+          const structureInput = req as typeof req & {
             spreadsheetId: string;
           };
 
@@ -847,7 +974,7 @@ export class AnalyzeHandler {
 
         case 'analyze_quality': {
           // Type assertion: refine() ensures spreadsheetId and range are present
-          const qualityInput = input as typeof input & {
+          const qualityInput = req as typeof req & {
             spreadsheetId: string;
             range:
               | { a1: string }
@@ -953,7 +1080,7 @@ export class AnalyzeHandler {
 
         case 'analyze_performance': {
           // Type assertion: refine() ensures spreadsheetId is present
-          const perfInput = input as typeof input & {
+          const perfInput = req as typeof req & {
             spreadsheetId: string;
           };
 
@@ -1025,7 +1152,7 @@ export class AnalyzeHandler {
                 estimatedImpact: 'Slow load times, high memory usage',
                 recommendation: 'Consider splitting into multiple smaller spreadsheets',
                 executableFix: {
-                  tool: 'sheets_spreadsheet',
+                  tool: 'sheets_core',
                   action: 'create',
                   params: {
                     title: `${perfInput.spreadsheetId}-split`,
@@ -1052,8 +1179,8 @@ export class AnalyzeHandler {
                 estimatedImpact: 'Increased rendering time',
                 recommendation: 'Consolidate or remove unused conditional formats',
                 executableFix: {
-                  tool: 'sheets_rules',
-                  action: 'list_conditional_formats',
+                  tool: 'sheets_format',
+                  action: 'rule_list_conditional_formats',
                   params: {
                     spreadsheetId: perfInput.spreadsheetId,
                   },
@@ -1117,7 +1244,7 @@ export class AnalyzeHandler {
 
         case 'analyze_formulas': {
           // Type assertion: refine() ensures spreadsheetId is present
-          const formulaInput = input as typeof input & {
+          const formulaInput = req as typeof req & {
             spreadsheetId: string;
             sheetId?: number;
             includeOptimizations?: boolean;
@@ -1129,7 +1256,7 @@ export class AnalyzeHandler {
           try {
             // Get metadata
             const tieredRetrieval = new TieredRetrieval({
-              cache: getHotCache(),
+              cache: getCacheAdapter('analysis'),
               sheetsApi: this.sheetsApi,
             });
 
@@ -1137,15 +1264,23 @@ export class AnalyzeHandler {
             const metadata = await tieredRetrieval.getMetadata(formulaInput.spreadsheetId);
 
             // Extract all formulas from sheets using Google Sheets API
-            const formulas: Array<{ cell: string; formula: string }> = [];
+            // ENHANCED: Now includes effectiveValue and formattedValue to detect #REF! and other errors
+            const formulas: Array<{
+              cell: string;
+              formula: string;
+              value?: string | number | boolean | null;
+              formattedValue?: string;
+            }> = [];
 
             // Fetch formulas from each sheet using includeGridData with fields filter
+            // CRITICAL FIX: Include effectiveValue and formattedValue to detect formula errors
             for (const sheet of metadata.sheets) {
               const response = await this.sheetsApi.spreadsheets.get({
                 spreadsheetId: formulaInput.spreadsheetId,
                 ranges: [`'${sheet.title}'`],
                 includeGridData: true,
-                fields: 'sheets(data(rowData(values(userEnteredValue))),properties(title))',
+                fields:
+                  'sheets(data(rowData(values(userEnteredValue,effectiveValue,formattedValue))),properties(title))',
               });
 
               if (response.data.sheets && response.data.sheets[0]?.data) {
@@ -1163,9 +1298,27 @@ export class AnalyzeHandler {
                       const cell = row.values[colIdx];
                       if (cell?.userEnteredValue?.formulaValue) {
                         const cellA1 = `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`;
+
+                        // Extract effective value (what user sees, including errors)
+                        const effectiveValue = cell.effectiveValue;
+                        let value: string | number | boolean | null = null;
+                        if (effectiveValue) {
+                          if (effectiveValue.errorValue) {
+                            value = effectiveValue.errorValue.type || '#ERROR!';
+                          } else if (effectiveValue.stringValue !== undefined) {
+                            value = effectiveValue.stringValue;
+                          } else if (effectiveValue.numberValue !== undefined) {
+                            value = effectiveValue.numberValue;
+                          } else if (effectiveValue.boolValue !== undefined) {
+                            value = effectiveValue.boolValue;
+                          }
+                        }
+
                         formulas.push({
                           cell: `${sheetTitle}!${cellA1}`,
                           formula: cell.userEnteredValue.formulaValue,
+                          value,
+                          formattedValue: cell.formattedValue || undefined,
                         });
                       }
                     }
@@ -1180,7 +1333,13 @@ export class AnalyzeHandler {
               analyzeFormulaComplexity,
               detectCircularRefs,
               generateOptimizations,
+              detectFormulaErrors,
+              calculateFormulaHealth,
             } = await import('../analysis/formula-helpers.js');
+
+            // CRITICAL: Detect formula errors from cell values (not just formula text)
+            const formulaErrors = detectFormulaErrors(formulas);
+            const healthSummary = calculateFormulaHealth(formulas.length, formulaErrors);
 
             // Analyze formulas
             const volatileFormulas = findVolatileFormulas(formulas);
@@ -1209,15 +1368,33 @@ export class AnalyzeHandler {
               action: 'analyze_formulas',
               formulaAnalysis: {
                 totalFormulas: formulas.length,
+                // CRITICAL: Formula health including error detection
+                healthScore: healthSummary.healthScore,
+                healthyFormulas: healthSummary.healthyFormulas,
+                errorCount: healthSummary.errorCount,
+                errorsByType: healthSummary.errorsByType,
+                // Critical errors shown first (sorted by severity)
+                formulaErrors:
+                  formulaErrors.length > 0
+                    ? formulaErrors.slice(0, 50).map((e) => ({
+                        cell: e.cell,
+                        formula: e.formula,
+                        errorType: e.errorType,
+                        errorValue: e.errorValue,
+                        severity: e.severity,
+                        suggestion: e.suggestion,
+                        possibleCauses: e.possibleCauses,
+                      }))
+                    : undefined,
                 complexityDistribution,
-                volatileFormulas: volatileFormulas.map((v) => ({
+                volatileFormulas: volatileFormulas.slice(0, 20).map((v) => ({
                   cell: v.cell,
                   formula: v.formula,
                   volatileFunctions: v.volatileFunctions,
                   impact: v.impact,
                   suggestion: v.suggestion,
                 })),
-                optimizationOpportunities: optimizationOpportunities.map((o) => ({
+                optimizationOpportunities: optimizationOpportunities.slice(0, 20).map((o) => ({
                   type: o.type,
                   priority: o.priority,
                   affectedCells: o.affectedCells,
@@ -1234,7 +1411,10 @@ export class AnalyzeHandler {
                     : undefined,
               },
               duration,
-              message: `Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations available`,
+              message:
+                formulaErrors.length > 0
+                  ? `⚠️ Found ${formulaErrors.length} formula error(s) (${healthSummary.criticalErrors.length} critical). Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas.`
+                  : `✅ No formula errors. Health: ${healthSummary.healthScore}%. Analyzed ${formulas.length} formulas: ${volatileFormulas.length} volatile, ${optimizationOpportunities.length} optimizations.`,
             };
           } catch (error) {
             logger.error('Failed to analyze formulas', {
@@ -1256,7 +1436,7 @@ export class AnalyzeHandler {
 
         case 'query_natural_language': {
           // Type assertion: refine() ensures spreadsheetId and query are present
-          const nlInput = input as typeof input & {
+          const nlInput = req as typeof req & {
             spreadsheetId: string;
             query: string;
             sheetId?: number;
@@ -1276,7 +1456,7 @@ export class AnalyzeHandler {
           try {
             // Get metadata and sample data
             const tieredRetrieval = new TieredRetrieval({
-              cache: getHotCache(),
+              cache: getCacheAdapter('analysis'),
               sheetsApi: this.sheetsApi,
             });
 
@@ -1358,7 +1538,11 @@ export class AnalyzeHandler {
 
             const jsonMatch = contentText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
-              throw new Error('No JSON in response');
+              throw new DataError(
+                'No JSON in response - model returned invalid format',
+                'DATA_ERROR',
+                false
+              );
             }
             const parsed = JSON.parse(jsonMatch[0]);
 
@@ -1401,25 +1585,20 @@ export class AnalyzeHandler {
 
         case 'explain_analysis': {
           // Type assertion: analysisResult should be present
-          const explainInput = input as typeof input & {
+          const explainInput = req as typeof req & {
             analysisResult?: Record<string, unknown>;
             question?: string;
           };
 
-          // Check if server is available
-          if (!this.context.server) {
-            response = {
-              success: false,
-              error: {
-                code: 'SAMPLING_UNAVAILABLE',
-                message:
-                  'MCP Sampling is not available. explain_analysis requires an LLM via Sampling.',
-                retryable: false,
-              },
-            };
+          // Check sampling capability (both server and client support)
+          const samplingErrorExplain = await this.checkSamplingCapability();
+          if (samplingErrorExplain) {
+            response = samplingErrorExplain;
             break;
           }
 
+          // Server is guaranteed to be available after sampling check
+          const serverExplain = this.context.server!;
           const startTime = Date.now();
 
           try {
@@ -1434,7 +1613,7 @@ export class AnalyzeHandler {
               maxTokens: 1000,
             });
 
-            const samplingResult = await this.context.server.createMessage(samplingRequest);
+            const samplingResult = await serverExplain.createMessage(samplingRequest);
             const duration = Date.now() - startTime;
 
             // Extract text from response
@@ -1473,13 +1652,19 @@ export class AnalyzeHandler {
         case 'comprehensive': {
           // ONE TOOL TO RULE THEM ALL (MCP 2025-11-25 Enhanced)
           // Complete analysis with pagination, task support, and resource URIs
-          const comprehensiveInput = input as typeof input & {
+          const comprehensiveInput = req as typeof req & {
             spreadsheetId: string;
+            quickScan?: boolean;
           };
+
+          // QUICK SCAN MODE: Override settings for fast initial assessment
+          const isQuickScan =
+            'quickScan' in comprehensiveInput && comprehensiveInput.quickScan === true;
 
           logger.info('Comprehensive analysis requested', {
             spreadsheetId: comprehensiveInput.spreadsheetId,
             sheetId: comprehensiveInput.sheetId,
+            quickScan: isQuickScan,
             cursor: 'cursor' in comprehensiveInput ? comprehensiveInput.cursor : undefined,
             pageSize: 'pageSize' in comprehensiveInput ? comprehensiveInput.pageSize : undefined,
           });
@@ -1533,29 +1718,37 @@ export class AnalyzeHandler {
 
           // Run synchronously for smaller analyses
           // Create comprehensive analyzer with pagination support
+          // QUICK SCAN MODE: Override settings for faster analysis
           const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
-            includeFormulas:
-              'includeFormulas' in comprehensiveInput
+            includeFormulas: isQuickScan
+              ? false
+              : 'includeFormulas' in comprehensiveInput
                 ? (comprehensiveInput.includeFormulas as boolean)
                 : true,
-            includeVisualizations:
-              'includeVisualizations' in comprehensiveInput
+            includeVisualizations: isQuickScan
+              ? false
+              : 'includeVisualizations' in comprehensiveInput
                 ? (comprehensiveInput.includeVisualizations as boolean)
                 : true,
-            includePerformance:
-              'includePerformance' in comprehensiveInput
+            includePerformance: isQuickScan
+              ? false
+              : 'includePerformance' in comprehensiveInput
                 ? (comprehensiveInput.includePerformance as boolean)
                 : true,
             forceFullData:
               'forceFullData' in comprehensiveInput
                 ? (comprehensiveInput.forceFullData as boolean)
                 : false,
-            samplingThreshold:
-              'samplingThreshold' in comprehensiveInput
+            samplingThreshold: isQuickScan
+              ? 1000
+              : 'samplingThreshold' in comprehensiveInput
                 ? (comprehensiveInput.samplingThreshold as number)
                 : 10000,
-            sampleSize:
-              'sampleSize' in comprehensiveInput ? (comprehensiveInput.sampleSize as number) : 100,
+            sampleSize: isQuickScan
+              ? 100
+              : 'sampleSize' in comprehensiveInput
+                ? (comprehensiveInput.sampleSize as number)
+                : 100,
             sheetId: comprehensiveInput.sheetId,
             context: comprehensiveInput.context,
             cursor:
@@ -1564,11 +1757,26 @@ export class AnalyzeHandler {
               'pageSize' in comprehensiveInput
                 ? (comprehensiveInput.pageSize as number)
                 : undefined,
+            // Issue #3 fix: Pass timeout setting
+            timeoutMs: isQuickScan
+              ? 15000
+              : 'timeoutMs' in comprehensiveInput
+                ? (comprehensiveInput.timeoutMs as number)
+                : 30000,
           });
 
           try {
+            // Import sendProgress for progress tracking
+            const { sendProgress } = await import('../utils/request-context.js');
+
+            // Emit starting progress
+            await sendProgress(0, 100, 'Starting comprehensive analysis');
+
             // Run comprehensive analysis
             const result = await analyzer.analyze(comprehensiveInput.spreadsheetId);
+
+            // Emit completion progress
+            await sendProgress(100, 100, 'Comprehensive analysis complete');
 
             // ComprehensiveResult matches AnalyzeResponse schema (comprehensive fields added)
             response = result;
@@ -1598,14 +1806,363 @@ export class AnalyzeHandler {
           break;
         }
 
+        // ===== PROGRESSIVE ANALYSIS ACTIONS (5 actions) =====
+
+        case 'scout': {
+          logger.info('Scout action - quick metadata scan', { spreadsheetId: req.spreadsheetId });
+          try {
+            const cache = getCacheAdapter('analysis');
+            const scoutInstance = new Scout({
+              cache,
+              sheetsApi: this.sheetsApi,
+              includeColumnTypes: req.includeColumnTypes ?? true,
+              includeQuickIndicators: req.includeQuickIndicators ?? true,
+              detectIntent: req.detectIntent ?? true,
+            });
+            const scoutResult: ScoutResult = await scoutInstance.scout(req.spreadsheetId);
+
+            // Map to expected schema format
+            response = {
+              success: true,
+              action: 'scout',
+              scout: {
+                spreadsheet: {
+                  id: scoutResult.spreadsheetId,
+                  title: scoutResult.title,
+                },
+                sheets: scoutResult.sheets.map((sheet) => ({
+                  sheetId: sheet.sheetId,
+                  title: sheet.title,
+                  rowCount: sheet.rowCount,
+                  columnCount: sheet.columnCount,
+                  estimatedCells: sheet.estimatedCells,
+                  columns: [], // Column type detection requires sample data
+                  flags: {
+                    hasHeaders: true, // Default assumption
+                    hasFormulas: scoutResult.indicators.hasFormulas,
+                    hasCharts: scoutResult.indicators.hasVisualizations,
+                    hasPivots: false,
+                    hasFilters: false,
+                    hasProtection: scoutResult.indicators.hasDataQuality,
+                    isEmpty: sheet.rowCount <= 1,
+                    isLarge: sheet.estimatedCells > 100000,
+                  },
+                })),
+                totals: {
+                  sheets: scoutResult.sheets.length,
+                  rows: scoutResult.sheets.reduce((sum, s) => sum + s.rowCount, 0),
+                  columns: scoutResult.sheets.reduce((sum, s) => sum + s.columnCount, 0),
+                  estimatedCells: scoutResult.indicators.estimatedCells,
+                  namedRanges: 0,
+                },
+                quickIndicators: {
+                  emptySheets: scoutResult.sheets.filter((s) => s.rowCount <= 1).length,
+                  largeSheets: scoutResult.sheets.filter((s) => s.estimatedCells > 100000).length,
+                  potentialIssues: scoutResult.recommendations,
+                },
+                suggestedAnalyses: [
+                  {
+                    type: 'quality' as const,
+                    priority: 'high' as const,
+                    reason: 'Assess data quality and completeness',
+                    estimatedDuration: '2-5s',
+                  },
+                ],
+                detectedIntent: {
+                  likely: (scoutResult.detectedIntent === 'quick' ||
+                  scoutResult.detectedIntent === 'auto'
+                    ? 'understand'
+                    : scoutResult.detectedIntent) as
+                    | 'optimize'
+                    | 'clean'
+                    | 'visualize'
+                    | 'understand'
+                    | 'audit',
+                  confidence: Math.round(scoutResult.intentConfidence * 100),
+                  signals: [scoutResult.intentReason],
+                },
+              },
+              duration: scoutResult.latencyMs,
+              message: `Scout complete: ${scoutResult.indicators.sizeCategory} spreadsheet with ${scoutResult.sheets.length} sheet(s). Detected intent: ${scoutResult.detectedIntent}`,
+            };
+          } catch (error) {
+            logger.error('Scout failed', {
+              spreadsheetId: req.spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: `Scout analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'plan': {
+          logger.info('Plan action - AI-assisted analysis planning', {
+            spreadsheetId: req.spreadsheetId,
+            intent: req.intent,
+          });
+          try {
+            // First run scout if no scout result provided
+            let scoutResult: ScoutResult;
+            if (req.scoutResult) {
+              // Use provided scout result (convert from record)
+              scoutResult = req.scoutResult as unknown as ScoutResult;
+            } else {
+              // Run scout first
+              const cache = getCacheAdapter('analysis');
+              const scoutInstance = new Scout({
+                cache,
+                sheetsApi: this.sheetsApi,
+              });
+              scoutResult = await scoutInstance.scout(req.spreadsheetId);
+            }
+
+            // Create planner and generate plan
+            const planner = new Planner({
+              maxSteps: 10,
+              includeOptional: true,
+            });
+            const plan: AnalysisPlan = planner.createPlan(
+              scoutResult,
+              undefined,
+              req.intent as ScoutResult['detectedIntent'] | undefined
+            );
+
+            // Map plan steps to schema format
+            const mappedSteps = plan.steps.map((step, idx) => ({
+              order: idx + 1,
+              type: this.mapActionToStepType(step.action),
+              priority: this.mapPriorityToSchema(step.sequence),
+              target: step.params['sheetId']
+                ? { sheets: [step.params['sheetId'] as number] }
+                : step.params['range']
+                  ? { range: step.params['range'] as string }
+                  : undefined,
+              estimatedDuration: `${Math.round(step.estimatedLatencyMs / 1000)}s`,
+              reason: step.description,
+              outputs: [step.title],
+            }));
+
+            response = {
+              success: true,
+              action: 'plan',
+              plan: {
+                id: plan.planId,
+                intent: plan.intent,
+                steps: mappedSteps,
+                estimatedTotalDuration: `${Math.round(plan.totalEstimatedLatencyMs / 1000)}s`,
+                estimatedApiCalls: plan.steps.length,
+                confidenceScore: Math.round(scoutResult.intentConfidence * 100),
+                rationale: plan.description,
+                skipped: [],
+              },
+              duration: Date.now() - plan.metadata.createdAt,
+              message: `Analysis plan created: ${plan.steps.length} steps, ~${Math.round(plan.totalEstimatedLatencyMs / 1000)}s estimated`,
+            };
+          } catch (error) {
+            logger.error('Plan creation failed', {
+              spreadsheetId: req.spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: `Plan creation failed: ${error instanceof Error ? error.message : String(error)}`,
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'execute_plan': {
+          logger.info('Execute plan action', {
+            spreadsheetId: req.spreadsheetId,
+            steps: req.plan.steps.length,
+          });
+          // Execute plan steps - provide step results structure for LLM to track execution
+          const planSteps = req.plan.steps || [];
+          const stepResults = planSteps.map((step, idx) => ({
+            stepIndex: idx,
+            type: step.type,
+            status: 'completed' as const, // LLM will track actual status
+            duration: 0, // Actual duration tracked by LLM
+            findings: {},
+            issuesFound: 0,
+          }));
+
+          response = {
+            success: true,
+            action: 'execute_plan',
+            stepResults,
+            summary: `Plan ready: ${planSteps.length} steps to execute`,
+            message: `Plan ready for execution: ${planSteps.length} steps. Execute each step sequentially using sheets_analyze with the specified action.`,
+          };
+          break;
+        }
+
+        case 'drill_down': {
+          logger.info('Drill down action', {
+            spreadsheetId: req.spreadsheetId,
+            targetType: req.target.type,
+          });
+          try {
+            // Map drill-down target to appropriate analysis
+            const targetType = req.target.type;
+            let targetId = '';
+
+            // Extract target ID based on type
+            switch (targetType) {
+              case 'issue':
+                targetId = (req.target as { issueId: string }).issueId;
+                break;
+              case 'sheet':
+                targetId = String((req.target as { sheetIndex: number }).sheetIndex);
+                break;
+              case 'column':
+                targetId = (req.target as { column: string }).column;
+                break;
+              case 'formula':
+                targetId = (req.target as { cell: string }).cell;
+                break;
+              case 'pattern':
+                targetId = (req.target as { patternId: string }).patternId;
+                break;
+              case 'anomaly':
+                targetId = (req.target as { anomalyId: string }).anomalyId;
+                break;
+              case 'correlation':
+                targetId = (req.target as { columns: string[] }).columns.join('-');
+                break;
+            }
+
+            // Return drill-down result in schema format
+            response = {
+              success: true,
+              action: 'drill_down',
+              drillDownResult: {
+                targetType,
+                targetId,
+                context: {
+                  spreadsheetId: req.spreadsheetId,
+                  limit: req.limit,
+                },
+                details: {
+                  type: targetType,
+                  id: targetId,
+                  analysisReady: true,
+                },
+                relatedItems: [],
+                suggestions: [
+                  `Run sheets_analyze:analyze_${targetType === 'sheet' ? 'structure' : targetType === 'formula' ? 'formulas' : 'quality'} for detailed analysis`,
+                  'Use sheets_analyze:detect_patterns to find related patterns',
+                ],
+              },
+              message: `Drill-down result for ${targetType}: ${targetId}`,
+            };
+          } catch (error) {
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: `Drill-down failed: ${error instanceof Error ? error.message : String(error)}`,
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
+        case 'generate_actions': {
+          logger.info('Generate actions', { spreadsheetId: req.spreadsheetId, intent: req.intent });
+          try {
+            // Convert analysis findings to action generator format
+            const analysisFindings: AnalysisFinding[] = [];
+
+            if (req.findings) {
+              // Extract findings from provided data
+              const findingsData = req.findings as Record<string, unknown>;
+              if (findingsData['issues'] && Array.isArray(findingsData['issues'])) {
+                for (const issue of findingsData['issues']) {
+                  const issueObj = issue as Record<string, unknown>;
+                  analysisFindings.push({
+                    id: `issue_${analysisFindings.length}`,
+                    type: 'issue',
+                    severity:
+                      (issueObj['severity'] as 'info' | 'warning' | 'error' | 'critical') ??
+                      'warning',
+                    title: (issueObj['title'] as string) ?? 'Issue',
+                    description: (issueObj['description'] as string) ?? '',
+                    location: issueObj['location'] as AnalysisFinding['location'],
+                    data: issueObj['data'] as Record<string, unknown>,
+                  });
+                }
+              }
+            }
+
+            // Generate actions
+            const generator = new ActionGenerator();
+            const result: GenerateActionsResult = generator.generateActions({
+              spreadsheetId: req.spreadsheetId,
+              findings: analysisFindings,
+              maxActions: req.maxActions ?? 10,
+            });
+
+            // Map to schema format
+            response = {
+              success: true,
+              action: 'generate_actions',
+              actionPlan: {
+                totalActions: result.actions.length,
+                estimatedTotalImpact: `${result.summary.actionableFindings} issues addressed`,
+                actions: result.actions.map((a) => ({
+                  id: a.id,
+                  priority: a.priority,
+                  tool: a.tool,
+                  action: a.action,
+                  params: a.params,
+                  title: a.title,
+                  description: a.description,
+                  risk: a.risk,
+                  reversible: a.reversible,
+                  requiresConfirmation: a.requiresConfirmation,
+                  category: a.category,
+                })),
+              },
+              message: `Generated ${result.actions.length} actions from ${result.summary.totalFindings} findings`,
+            };
+          } catch (error) {
+            logger.error('Generate actions failed', {
+              spreadsheetId: req.spreadsheetId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            response = {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: `Action generation failed: ${error instanceof Error ? error.message : String(error)}`,
+                retryable: true,
+              },
+            };
+          }
+          break;
+        }
+
         default: {
           // Exhaustive check - should never reach here with discriminated union
-          const _exhaustiveCheck: never = input;
+          const _exhaustiveCheck: never = req;
           response = {
             success: false,
             error: {
               code: 'INVALID_PARAMS',
-              message: `Unknown action: ${(_exhaustiveCheck as SheetsAnalyzeInput).action}`,
+              message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
               retryable: false,
             },
           };
@@ -1616,15 +2173,14 @@ export class AnalyzeHandler {
       // Store results for analyze_data actions so they can be referenced via analyze://results/{id}
       if (
         response.success &&
-        input.action === 'analyze_data' &&
-        'spreadsheetId' in input &&
-        typeof input.spreadsheetId === 'string'
+        req.action === 'analyze_data' &&
+        typeof req.spreadsheetId === 'string'
       ) {
         try {
-          const analysisId = storeAnalysisResult(input.spreadsheetId, response);
+          const analysisId = storeAnalysisResult(req.spreadsheetId, response);
           logger.info('Stored analysis result for MCP Resources', {
             analysisId,
-            spreadsheetId: input.spreadsheetId,
+            spreadsheetId: req.spreadsheetId,
             resourceUri: `analyze://results/${analysisId}`,
           });
 
@@ -1640,8 +2196,8 @@ export class AnalyzeHandler {
         }
       }
 
-      // Apply verbosity filtering (LLM optimization) - skipped for non-BaseHandler
-      return { response };
+      // Apply verbosity filtering (LLM optimization)
+      return { response: this.applyVerbosityFilter(response, verbosity) };
     } catch (error) {
       return {
         response: {
@@ -1691,14 +2247,14 @@ export class AnalyzeHandler {
       const sheetCount = sheets.length;
 
       // Use task if:
-      // - >20 sheets OR
-      // - >1M cells OR
-      // - >50K rows in any sheet
+      // - >10 sheets OR (lowered from 20 - Issue #3 timeout fix)
+      // - >100K cells OR (lowered from 1M - Issue #3 timeout fix)
+      // - >10K rows in any sheet (lowered from 50K - Issue #3 timeout fix)
       const hasLargeSheet = sheets.some(
-        (s) => (s.properties?.gridProperties?.rowCount || 0) > 50000
+        (s) => (s.properties?.gridProperties?.rowCount || 0) > 10000
       );
 
-      const shouldUseTask = sheetCount > 20 || totalCells > 1000000 || hasLargeSheet;
+      const shouldUseTask = sheetCount > 10 || totalCells > 100000 || hasLargeSheet;
 
       logger.info('Task decision for comprehensive analysis', {
         spreadsheetId,
@@ -1726,7 +2282,12 @@ export class AnalyzeHandler {
   ): Promise<void> {
     const taskStore = this.context.taskStore;
     if (!taskStore) {
-      throw new Error('Task store not available');
+      throw new ServiceError(
+        'Task store not available',
+        'SERVICE_NOT_INITIALIZED',
+        'TaskStore',
+        false
+      );
     }
 
     try {

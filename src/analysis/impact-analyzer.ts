@@ -21,6 +21,7 @@ import type { sheets_v4 } from 'googleapis';
 import { DependencyGraph, type CircularDependency } from './dependency-graph.js';
 import { parseFormula, normalizeReference } from './formula-parser.js';
 import { logger } from '../utils/logger.js';
+import { sendProgress } from '../utils/request-context.js';
 
 /**
  * Cell with formula info
@@ -121,9 +122,23 @@ export class ImpactAnalyzer {
       }
 
       // Fetch formulas from all sheets
-      for (const sheetName of sheetNames) {
+      const totalSheets = sheetNames.length;
+      for (let i = 0; i < sheetNames.length; i++) {
+        const sheetName = sheetNames[i];
+        if (!sheetName) continue; // Skip if sheet name is undefined
+
+        // Emit progress notification
+        await sendProgress(
+          i,
+          totalSheets,
+          `Processing sheet ${i + 1}/${totalSheets}: ${sheetName}`
+        );
+
         await this.buildFromSheet(sheetsApi, spreadsheetId, sheetName);
       }
+
+      // Emit completion progress
+      await sendProgress(totalSheets, totalSheets, 'Dependency graph built successfully');
 
       logger.info('Dependency graph built successfully', {
         spreadsheetId,

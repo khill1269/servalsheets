@@ -410,6 +410,16 @@ export class BatchCompiler {
         summary: responseMetadata.summary,
       });
 
+      // Progress: completion
+      this.onProgress?.({
+        phase: 'capturing_diff',
+        current: 4,
+        total: 4,
+        message: 'Batch execution completed',
+        spreadsheetId: batch.spreadsheetId,
+      });
+      await sendProgress(4, 4, 'Batch execution completed');
+
       return {
         ...baseResult,
         success: true,
