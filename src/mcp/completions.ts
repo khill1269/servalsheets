@@ -249,6 +249,10 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'set_pending',
     'get_pending',
     'clear_pending',
+    'save_checkpoint',
+    'load_checkpoint',
+    'list_checkpoints',
+    'delete_checkpoint',
     'reset',
   ],
   sheets_templates: [
@@ -411,6 +415,10 @@ class SpreadsheetCache {
   }
 
   getCompletions(partial: string): string[] {
+    // Defensive: handle undefined/null partial
+    if (!partial || typeof partial !== 'string') {
+      return [];
+    }
     const lower = partial.toLowerCase();
     return Array.from(this.recentIds.entries())
       .filter(
@@ -432,6 +440,10 @@ const DEFAULT_RANGES = ['Sheet1!A1:Z100', 'Sheet1!A1:Z1000', 'A1:Z100'];
  * Complete action names for a tool
  */
 export function completeAction(toolName: string, partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const actions = TOOL_ACTIONS[toolName] ?? [];
   const lower = partial.toLowerCase();
   return actions.filter((a) => a.toLowerCase().startsWith(lower)).slice(0, 20);
@@ -441,6 +453,10 @@ export function completeAction(toolName: string, partial: string): string[] {
  * Complete spreadsheet IDs from cache
  */
 export function completeSpreadsheetId(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const cached = spreadsheetCache.getCompletions(partial);
   const lower = partial.toLowerCase();
   const defaults = DEFAULT_SPREADSHEET_IDS.filter((id) => id.toLowerCase().includes(lower));
@@ -452,6 +468,10 @@ export function completeSpreadsheetId(partial: string): string[] {
  * Complete A1-style ranges
  */
 export function completeRange(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return DEFAULT_RANGES.filter((range) => range.toLowerCase().startsWith(lower)).slice(0, 20);
 }
@@ -485,6 +505,10 @@ export function recordSpreadsheetId(input: unknown): void {
  * Complete chart types
  */
 export function completeChartType(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return CHART_TYPES.filter((t) => t.toLowerCase().startsWith(lower)).slice(0, 20);
 }
@@ -493,6 +517,10 @@ export function completeChartType(partial: string): string[] {
  * Complete number format types
  */
 export function completeNumberFormatType(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return NUMBER_FORMAT_TYPES.filter((t) => t.toLowerCase().startsWith(lower)).slice(0, 20);
 }
@@ -501,6 +529,10 @@ export function completeNumberFormatType(partial: string): string[] {
  * Complete condition types
  */
 export function completeConditionType(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return CONDITION_TYPES.filter((t) => t.toLowerCase().startsWith(lower)).slice(0, 20);
 }
@@ -509,6 +541,10 @@ export function completeConditionType(partial: string): string[] {
  * Complete format presets
  */
 export function completeFormatPreset(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return FORMAT_PRESETS.filter((p) => p.toLowerCase().startsWith(lower)).slice(0, 20);
 }
@@ -517,6 +553,10 @@ export function completeFormatPreset(partial: string): string[] {
  * Complete permission roles
  */
 export function completePermissionRole(partial: string): string[] {
+  // Defensive: handle undefined/null partial
+  if (!partial || typeof partial !== 'string') {
+    return [];
+  }
   const lower = partial.toLowerCase();
   return PERMISSION_ROLES.filter((r) => r.toLowerCase().startsWith(lower)).slice(0, 20);
 }

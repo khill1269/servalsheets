@@ -77,14 +77,15 @@ export const SheetIdSchema = z.coerce
   );
 
 /** A1 Notation */
-export const A1NotationSchema = z
-  .string()
-  .min(1)
-  .max(A1_NOTATION_MAX_LENGTH)
-  .regex(A1_NOTATION_REGEX, 'Invalid A1 notation format')
-  .describe(
-    'A1 notation range: "A1" (single cell), "A1:C10" (range), "A:B" (full columns), "1:5" (full rows), "Sheet1!A1:C10" (with sheet name), "\'Sheet Name\'!A1" (quoted sheet name with spaces)'
-  );
+export const A1NotationSchema = z.preprocess((val) => {
+  // Defensive: Ensure value is a string before regex validation
+  // Prevents "a1.match is not a function" runtime errors
+  if (typeof val !== 'string') {
+    // Return invalid value to trigger proper Zod validation error
+    return val;
+  }
+  return val;
+}, z.string().min(1).max(A1_NOTATION_MAX_LENGTH).regex(A1_NOTATION_REGEX, 'Invalid A1 notation format').describe('A1 notation range: "A1" (single cell), "A1:C10" (range), "A:B" (full columns), "1:5" (full rows), "Sheet1!A1:C10" (with sheet name), "\'Sheet Name\'!A1" (quoted sheet name with spaces)'));
 
 /** Sheet name */
 export const SheetNameSchema = z
