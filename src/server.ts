@@ -102,6 +102,7 @@ import {
 } from './server/index.js';
 import { parseWithCache } from './utils/schema-cache.js';
 import { startKeepalive } from './utils/keepalive.js';
+import { cleanupAllResources } from './utils/resource-cleanup.js';
 
 /**
  * Extract action from args, checking up to 3 levels deep for nested request objects
@@ -948,6 +949,20 @@ export class ServalSheetsServer {
     // Stop health monitoring
     await this.healthMonitor.stop();
     baseLogger.info('Health monitoring stopped');
+
+    // Phase 1: Clean up all registered resources (timers, connections, etc.)
+    const cleanupResult = await cleanupAllResources();
+    baseLogger.info('Resource cleanup complete', {
+      total: cleanupResult.total,
+      successful: cleanupResult.successful,
+      failed: cleanupResult.failed,
+    });
+
+    if (cleanupResult.failed > 0) {
+      baseLogger.warn('Some resources failed to clean up', {
+        errors: cleanupResult.errors,
+      });
+    }
 
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();

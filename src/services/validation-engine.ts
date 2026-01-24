@@ -32,6 +32,7 @@ import {
   RangeValidation as _RangeValidation,
   FormatValidation as _FormatValidation,
 } from '../types/validation.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 /**
  * Validation Engine - Comprehensive data validation
@@ -42,6 +43,8 @@ export class ValidationEngine {
   private stats: ValidationEngineStats;
   private rules: Map<string, ValidationRule>;
   private validationCache: Map<string, { result: ValidationResult; timestamp: number }>;
+  // Phase 1: Timer cleanup
+  private cacheCleanupInterval?: NodeJS.Timeout;
 
   constructor(config: ValidationEngineConfig = {}) {
     this.googleClient = config.googleClient;
@@ -116,7 +119,16 @@ export class ValidationEngine {
     let totalChecks = 0;
     let passedChecks = 0;
 
-    for (const rule of this.rules.values()) {
+    // Filter rules if specific rule IDs are provided in context
+    const rulesFilter = context?.rules as string[] | undefined;
+    const rulesToRun =
+      rulesFilter && rulesFilter.length > 0
+        ? [...this.rules.values()].filter(
+            (r) => rulesFilter.includes(r.id) || rulesFilter.includes(r.name)
+          )
+        : [...this.rules.values()];
+
+    for (const rule of rulesToRun) {
       if (!rule.enabled) continue;
 
       totalChecks++;
@@ -524,7 +536,7 @@ export class ValidationEngine {
    * Start cache cleanup
    */
   private startCacheCleanup(): void {
-    setInterval(() => {
+    this.cacheCleanupInterval = setInterval(() => {
       const now = Date.now();
       const expired: string[] = [];
 
@@ -540,6 +552,17 @@ export class ValidationEngine {
 
       this.log(`Cleaned up ${expired.length} expired validation cache entries`);
     }, 60000); // Every minute
+
+    // Phase 1: Register cleanup to prevent memory leak
+    registerCleanup(
+      'ValidationEngine',
+      () => {
+        if (this.cacheCleanupInterval) {
+          clearInterval(this.cacheCleanupInterval);
+        }
+      },
+      'cache-cleanup-interval'
+    );
   }
 
   /**

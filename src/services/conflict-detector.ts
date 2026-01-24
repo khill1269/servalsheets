@@ -36,6 +36,7 @@ import {
   ConflictDetectorStats,
   MergeResult,
 } from '../types/conflict.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 /**
  * Conflict Detector - Detects and resolves multi-user conflicts
@@ -48,6 +49,9 @@ export class ConflictDetector {
   private locks: Map<string, OptimisticLock>;
   private editSessions: Map<string, EditSession>;
   private activeConflicts: Map<string, Conflict>;
+  // Phase 1: Timer cleanup
+  private cacheCleanupInterval?: NodeJS.Timeout;
+  private lockCleanupInterval?: NodeJS.Timeout;
 
   constructor(config: ConflictDetectorConfig = {}) {
     this.googleClient = config.googleClient;
@@ -636,7 +640,7 @@ export class ConflictDetector {
    * Start background cache cleanup
    */
   private startCacheCleanup(): void {
-    setInterval(() => {
+    this.cacheCleanupInterval = setInterval(() => {
       const now = Date.now();
       const expired: string[] = [];
 
@@ -663,13 +667,24 @@ export class ConflictDetector {
         }
       }
     }, 60000); // Every minute
+
+    // Phase 1: Register cleanup to prevent memory leak
+    registerCleanup(
+      'ConflictDetector',
+      () => {
+        if (this.cacheCleanupInterval) {
+          clearInterval(this.cacheCleanupInterval);
+        }
+      },
+      'cache-cleanup-interval'
+    );
   }
 
   /**
    * Start background lock cleanup
    */
   private startLockCleanup(): void {
-    setInterval(() => {
+    this.lockCleanupInterval = setInterval(() => {
       const now = Date.now();
       const expired: string[] = [];
 
@@ -684,6 +699,17 @@ export class ConflictDetector {
         this.log(`Cleaned up expired lock: ${key}`);
       }
     }, 30000); // Every 30 seconds
+
+    // Phase 1: Register cleanup to prevent memory leak
+    registerCleanup(
+      'ConflictDetector',
+      () => {
+        if (this.lockCleanupInterval) {
+          clearInterval(this.lockCleanupInterval);
+        }
+      },
+      'lock-cleanup-interval'
+    );
   }
 
   /**

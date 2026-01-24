@@ -19,6 +19,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import type { sheets_v4 } from 'googleapis';
+import { buildGridRangeInput, toGridRange } from '../utils/google-sheets-helpers.js';
 import {
   Transaction,
   TransactionStatus as _TransactionStatus,
@@ -35,6 +36,7 @@ import {
   TransactionEvent,
   TransactionListener,
 } from '../types/transaction.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 /**
  * Transaction Manager - Handles multi-operation transactions with atomicity
@@ -47,6 +49,8 @@ export class TransactionManager {
   private snapshots: Map<string, TransactionSnapshot>;
   private listeners: TransactionListener[];
   private operationIdCounter: number;
+  // Phase 1: Timer cleanup
+  private snapshotCleanupInterval?: NodeJS.Timeout;
 
   constructor(config: TransactionConfig = {}) {
     this.googleClient = config.googleClient;
@@ -158,8 +162,12 @@ export class TransactionManager {
   ): Promise<string> {
     const transaction = this.getTransaction(transactionId);
 
-    if (transaction.status !== 'pending') {
-      throw new Error(`Transaction ${transactionId} is not in pending state`);
+    // FIX: Allow both 'pending' and 'queued' states (Issue #4)
+    // After first queue(), status changes to 'queued', so we need to accept both
+    if (transaction.status !== 'pending' && transaction.status !== 'queued') {
+      throw new Error(
+        `Transaction ${transactionId} is not in pending/queued state (current: ${transaction.status})`
+      );
     }
 
     if (transaction.operations.length >= this.config.maxOperationsPerTransaction) {
@@ -457,10 +465,10 @@ export class TransactionManager {
    * Automatic in-place restoration is intentionally deferred because:
    * 1. It risks data corruption if the spreadsheet was modified externally
    * 2. Comparing and merging states is complex and error-prone
-   * 3. Manual recovery via sheets_versions.restore_snapshot is safer
+   * 3. Manual recovery via sheets_collaborate.version_restore_snapshot is safer
    *
    * Recovery options available to users:
-   * - Use sheets_versions action="restore_snapshot" to create a recovery file
+   * - Use sheets_collaborate action="version_restore_snapshot" to create a recovery file
    * - Use sheets_history to review and manually undo operations
    * - Implement compensating transactions for automated recovery
    *
@@ -472,12 +480,12 @@ export class TransactionManager {
    */
   private async restoreSnapshot(snapshot: TransactionSnapshot): Promise<void> {
     this.log(
-      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_versions to restore.`
+      `Snapshot ${snapshot.id} available for manual recovery. Use sheets_collaborate to restore.`
     );
 
     throw new Error(
       'Automatic in-place snapshot restoration is not supported. ' +
-        "Use sheets_versions action='restore_snapshot' to create a recovery file, " +
+        "Use sheets_collaborate action='version_restore_snapshot' to create a recovery file, " +
         'or use sheets_history to review and manually undo operations.'
     );
   }
@@ -526,13 +534,36 @@ export class TransactionManager {
     this.log(`Merging ${operations.length} operations into batch request`);
 
     const requests: BatchRequestEntry[] = [];
+    const unconvertedOps: string[] = [];
 
     for (const op of operations) {
       // Convert operation to batch request entry
       const entry = this.operationToBatchEntry(op);
       if (entry) {
         requests.push(entry);
+      } else {
+        // Track operations that couldn't be converted
+        unconvertedOps.push(`${op.tool}:${op.action} (id: ${op.id})`);
       }
+    }
+
+    // Warn if some operations couldn't be converted
+    if (unconvertedOps.length > 0) {
+      this.log(
+        `WARNING: ${unconvertedOps.length} operation(s) could not be converted to batch requests: ${unconvertedOps.join(', ')}. ` +
+          `These operations will be skipped. Supported operations: sheets_data (write, clear, merge/unmerge), ` +
+          `sheets_format (set_format, set_background, etc.), sheets_core (add/delete/update_sheet), ` +
+          `sheets_dimensions (insert/delete rows/columns, freeze), sheets_advanced (named/protected ranges).`
+      );
+    }
+
+    // Throw if no operations could be converted
+    if (requests.length === 0 && operations.length > 0) {
+      throw new Error(
+        `None of the ${operations.length} queued operation(s) could be converted to batch requests. ` +
+          `Unconverted operations: ${unconvertedOps.join(', ')}. ` +
+          `Please use supported operations or execute them individually outside of transactions.`
+      );
     }
 
     return {
@@ -546,8 +577,8 @@ export class TransactionManager {
    * Convert operation to batch request entry
    *
    * Converts queued operations into Google Sheets API batchUpdate request entries.
-   * Currently supports: values_write, format_apply, sheet_create, sheet_delete.
-   * Returns null for unsupported operation types.
+   * Supports: values_write, format_apply, sheet_create, sheet_delete, and 'custom' operations.
+   * Custom operations are mapped based on their tool/action parameters.
    */
   private operationToBatchEntry(op: QueuedOperation): BatchRequestEntry | null {
     switch (op.type) {
@@ -583,9 +614,307 @@ export class TransactionManager {
           },
         };
 
+      case 'custom':
+        // Convert custom operations based on tool/action
+        return this.convertCustomOperation(op);
+
       default:
+        this.log(`Unknown operation type: ${op.type}, skipping`);
         return null;
     }
+  }
+
+  /**
+   * Convert custom operations to batch request entries based on tool/action
+   *
+   * Maps ServalSheets tool actions to Google Sheets API batchUpdate requests.
+   * This enables transaction batching for operations queued via the generic queue() method.
+   */
+  private convertCustomOperation(op: QueuedOperation): BatchRequestEntry | null {
+    const { tool, action, params } = op;
+    const toolAction = `${tool}:${action}`;
+
+    this.log(`Converting custom operation: ${toolAction}`);
+
+    switch (toolAction) {
+      // sheets_data operations
+      case 'sheets_data:write':
+      case 'sheets_data:batch_write':
+        return this.buildUpdateCellsRequest(params, 'userEnteredValue');
+
+      case 'sheets_data:clear':
+      case 'sheets_data:batch_clear':
+        return this.buildUpdateCellsRequest(params, 'userEnteredValue', true);
+
+      case 'sheets_data:merge_cells':
+        return {
+          mergeCells: {
+            range: this.parseRangeToGridRange(
+              params['range'] as string,
+              params['sheetId'] as number
+            ),
+            mergeType: (params['mergeType'] as string) || 'MERGE_ALL',
+          },
+        };
+
+      case 'sheets_data:unmerge_cells':
+        return {
+          unmergeCells: {
+            range: this.parseRangeToGridRange(
+              params['range'] as string,
+              params['sheetId'] as number
+            ),
+          },
+        };
+
+      // sheets_format operations
+      case 'sheets_format:set_format':
+      case 'sheets_format:set_background':
+      case 'sheets_format:set_text_format':
+      case 'sheets_format:set_number_format':
+      case 'sheets_format:set_alignment':
+      case 'sheets_format:set_borders':
+        return this.buildUpdateCellsRequest(params, 'userEnteredFormat');
+
+      case 'sheets_format:clear_format':
+        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', true);
+
+      // sheets_core operations
+      case 'sheets_core:add_sheet':
+        return {
+          addSheet: {
+            properties: {
+              title: params['title'] as string,
+              index: params['index'] as number | undefined,
+              sheetId: params['sheetId'] as number | undefined,
+              gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+            },
+          },
+        };
+
+      case 'sheets_core:delete_sheet':
+        return {
+          deleteSheet: {
+            sheetId: params['sheetId'] as number,
+          },
+        };
+
+      case 'sheets_core:update_sheet':
+        return {
+          updateSheetProperties: {
+            properties: {
+              sheetId: params['sheetId'] as number,
+              title: params['title'] as string | undefined,
+              index: params['index'] as number | undefined,
+              hidden: params['hidden'] as boolean | undefined,
+              gridProperties: params['gridProperties'] as Record<string, unknown> | undefined,
+            },
+            fields: this.buildFieldMask(params),
+          },
+        };
+
+      // sheets_dimensions operations
+      case 'sheets_dimensions:insert_rows':
+        return {
+          insertRange: {
+            range: toGridRange(
+              buildGridRangeInput(
+                params['sheetId'] as number,
+                params['startIndex'] as number,
+                (params['startIndex'] as number) + ((params['count'] as number) || 1)
+              )
+            ),
+            shiftDimension: 'ROWS',
+          },
+        };
+
+      case 'sheets_dimensions:insert_columns':
+        return {
+          insertRange: {
+            range: toGridRange(
+              buildGridRangeInput(
+                params['sheetId'] as number,
+                undefined,
+                undefined,
+                params['startIndex'] as number,
+                (params['startIndex'] as number) + ((params['count'] as number) || 1)
+              )
+            ),
+            shiftDimension: 'COLUMNS',
+          },
+        };
+
+      case 'sheets_dimensions:delete_rows':
+        return {
+          deleteRange: {
+            range: toGridRange(
+              buildGridRangeInput(
+                params['sheetId'] as number,
+                params['startIndex'] as number,
+                params['endIndex'] as number
+              )
+            ),
+            shiftDimension: 'ROWS',
+          },
+        };
+
+      case 'sheets_dimensions:delete_columns':
+        return {
+          deleteRange: {
+            range: toGridRange(
+              buildGridRangeInput(
+                params['sheetId'] as number,
+                undefined,
+                undefined,
+                params['startIndex'] as number,
+                params['endIndex'] as number
+              )
+            ),
+            shiftDimension: 'COLUMNS',
+          },
+        };
+
+      case 'sheets_dimensions:freeze_rows':
+      case 'sheets_dimensions:freeze_columns':
+        return {
+          updateSheetProperties: {
+            properties: {
+              sheetId: params['sheetId'] as number,
+              gridProperties: {
+                frozenRowCount: params['frozenRowCount'] as number | undefined,
+                frozenColumnCount: params['frozenColumnCount'] as number | undefined,
+              },
+            },
+            fields:
+              action === 'freeze_rows'
+                ? 'gridProperties.frozenRowCount'
+                : 'gridProperties.frozenColumnCount',
+          },
+        };
+
+      // sheets_advanced operations
+      case 'sheets_advanced:add_named_range':
+        return {
+          addNamedRange: {
+            namedRange: {
+              name: params['name'] as string,
+              range: this.parseRangeToGridRange(
+                params['range'] as string,
+                params['sheetId'] as number
+              ),
+            },
+          },
+        };
+
+      case 'sheets_advanced:delete_named_range':
+        return {
+          deleteNamedRange: {
+            namedRangeId: params['namedRangeId'] as string,
+          },
+        };
+
+      case 'sheets_advanced:add_protected_range':
+        return {
+          addProtectedRange: {
+            protectedRange: {
+              range: this.parseRangeToGridRange(
+                params['range'] as string,
+                params['sheetId'] as number
+              ),
+              description: params['description'] as string | undefined,
+              warningOnly: params['warningOnly'] as boolean | undefined,
+              editors: params['editors'] as Record<string, unknown> | undefined,
+            },
+          },
+        };
+
+      case 'sheets_advanced:delete_protected_range':
+        return {
+          deleteProtectedRange: {
+            protectedRangeId: params['protectedRangeId'] as number,
+          },
+        };
+
+      default:
+        // Operation not supported for batching - log warning
+        this.log(
+          `Custom operation ${toolAction} cannot be batched. Consider using direct API call.`
+        );
+        return null;
+    }
+  }
+
+  /**
+   * Build updateCells request for data/format operations
+   */
+  private buildUpdateCellsRequest(
+    params: Record<string, unknown>,
+    fields: string,
+    clear: boolean = false
+  ): BatchRequestEntry {
+    const range = params['range'] as string;
+    const sheetId = params['sheetId'] as number | undefined;
+
+    return {
+      updateCells: {
+        range: this.parseRangeToGridRange(range, sheetId),
+        rows: clear ? [] : undefined,
+        fields,
+      },
+    };
+  }
+
+  /**
+   * Parse A1 notation range to GridRange object
+   */
+  private parseRangeToGridRange(
+    range: string | undefined,
+    defaultSheetId: number = 0
+  ): sheets_v4.Schema$GridRange {
+    if (!range) {
+      return toGridRange(buildGridRangeInput(defaultSheetId));
+    }
+
+    // Simple parser for A1 notation (e.g., "Sheet1!A1:B10" or "A1:B10")
+    const sheetMatch = range.match(/^(?:'([^']+)'!|([^!]+)!)/);
+    const sheetName = sheetMatch?.[1] || sheetMatch?.[2];
+    const rangeOnly = sheetName ? range.split('!')[1] : range;
+
+    // Parse cell range (e.g., "A1:B10" or "A1")
+    const rangeMatch = rangeOnly?.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/);
+    if (!rangeMatch) {
+      return toGridRange(buildGridRangeInput(defaultSheetId));
+    }
+
+    const startCol = this.columnToIndex(rangeMatch[1]!);
+    const startRow = parseInt(rangeMatch[2]!, 10) - 1;
+    const endCol = rangeMatch[3] ? this.columnToIndex(rangeMatch[3]) + 1 : startCol + 1;
+    const endRow = rangeMatch[4] ? parseInt(rangeMatch[4], 10) : startRow + 1;
+
+    return toGridRange(buildGridRangeInput(defaultSheetId, startRow, endRow, startCol, endCol));
+  }
+
+  /**
+   * Convert column letter to 0-based index (A=0, B=1, ..., Z=25, AA=26, etc.)
+   */
+  private columnToIndex(col: string): number {
+    let index = 0;
+    for (let i = 0; i < col.length; i++) {
+      index = index * 26 + (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+    }
+    return index - 1;
+  }
+
+  /**
+   * Build field mask from params for updateSheetProperties
+   */
+  private buildFieldMask(params: Record<string, unknown>): string {
+    const fields: string[] = [];
+    if (params['title'] !== undefined) fields.push('title');
+    if (params['index'] !== undefined) fields.push('index');
+    if (params['hidden'] !== undefined) fields.push('hidden');
+    if (params['gridProperties'] !== undefined) fields.push('gridProperties');
+    return fields.join(',') || 'title';
   }
 
   /**
@@ -674,7 +1003,7 @@ export class TransactionManager {
    * Start background snapshot cleanup
    */
   private startSnapshotCleanup(): void {
-    setInterval(() => {
+    this.snapshotCleanupInterval = setInterval(() => {
       const now = Date.now();
       const expired: string[] = [];
 
@@ -689,6 +1018,17 @@ export class TransactionManager {
         this.log(`Cleaned up expired snapshot: ${id}`);
       }
     }, 60000); // Every minute
+
+    // Phase 1: Register cleanup to prevent memory leak
+    registerCleanup(
+      'TransactionManager',
+      () => {
+        if (this.snapshotCleanupInterval) {
+          clearInterval(this.snapshotCleanupInterval);
+        }
+      },
+      'snapshot-cleanup-interval'
+    );
   }
 
   /**
