@@ -6,6 +6,7 @@
  */
 
 import type { Intent } from '../core/intent.js';
+import { ServiceError } from '../core/errors.js';
 import type { BatchCompiler, ExecutionResult } from '../core/batch-compiler.js';
 import type { RangeResolver } from '../core/range-resolver.js';
 import type {
@@ -21,6 +22,7 @@ import {
   createRateLimitError,
   createNotFoundError,
   createValidationError,
+  createZodValidationError,
   parseGoogleApiError,
 } from '../utils/error-factory.js';
 import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
@@ -39,7 +41,7 @@ import {
   type SafetyWarning,
   type SnapshotResult,
 } from '../utils/safety-helpers.js';
-import { createEnhancedError } from '../utils/enhanced-errors.js';
+import { createEnhancedError, enhanceError } from '../utils/enhanced-errors.js';
 import { memoize } from '../utils/memoization.js';
 
 export interface HandlerContext {
@@ -65,6 +67,22 @@ export interface HandlerContext {
   };
   abortSignal?: AbortSignal;
   requestId?: string;
+}
+
+/**
+ * Unwrap legacy direct inputs to the request envelope.
+ */
+export function unwrapRequest<TRequest extends Record<string, unknown>>(
+  input: { request?: TRequest } | TRequest
+): TRequest {
+  if (input && typeof input === 'object' && 'request' in input) {
+    const container = input as { request?: TRequest };
+    if (container.request && typeof container.request === 'object') {
+      return container.request;
+    }
+  }
+
+  return input as TRequest;
 }
 
 /**
@@ -128,10 +146,19 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected context: HandlerContext;
   protected toolName: string;
   protected currentSpreadsheetId?: string; // Track current request for better error messages
+  protected currentVerbosity: 'minimal' | 'standard' | 'detailed' = 'standard'; // LLM optimization: skip metadata for minimal
 
   constructor(toolName: string, context: HandlerContext) {
     this.toolName = toolName;
     this.context = context;
+  }
+
+  /**
+   * Set verbosity level for current request (call before building response)
+   * When minimal, metadata generation is skipped to save ~400-800 tokens
+   */
+  protected setVerbosity(verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'): void {
+    this.currentVerbosity = verbosity;
   }
 
   /**
@@ -227,19 +254,23 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
 
     // Auto-generate metadata if not provided
+    // Skip metadata generation for minimal verbosity (LLM optimization - saves ~400-800 tokens)
     // Handlers can still override by passing explicit meta
-    if (meta !== undefined) {
-      result._meta = meta;
-    } else {
-      // Generate metadata with context from the result
-      const cellsAffected = this.extractCellsAffected(data);
-      result._meta = this.generateMeta(action, data, data, { cellsAffected });
+    if (this.currentVerbosity !== 'minimal') {
+      if (meta !== undefined) {
+        result._meta = meta;
+      } else {
+        // Generate metadata with context from the result
+        const cellsAffected = this.extractCellsAffected(data);
+        result._meta = this.generateMeta(action, data, data, { cellsAffected });
+      }
     }
+    // Note: No _meta field added when verbosity is minimal - this is intentional
 
-    // DEBUG: Log response structure for sheets_sharing to diagnose validation issue
-    if (this.toolName === 'sheets_sharing') {
+    // DEBUG: Log response structure for sheets_collaborate to diagnose validation issue
+    if (this.toolName === 'sheets_collaborate') {
       const logger = getRequestLogger();
-      logger.info('[DEBUG] sheets_sharing response', {
+      logger.info('[DEBUG] sheets_collaborate response', {
         toolName: this.toolName,
         action,
         successField: result.success,
@@ -359,20 +390,97 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected mapError(err: unknown): HandlerError {
     const logger = getRequestLogger();
     if (err instanceof Error) {
-      // Check if it's already a structured error (from RangeResolver, PolicyEnforcer, etc.)
       const errAny = err as unknown as Record<string, unknown>;
+
+      const enrichDetail = (detail: ErrorDetail): ErrorDetail => {
+        if (detail.resolution || detail.resolutionSteps) {
+          return detail;
+        }
+
+        const enhanced = enhanceError(detail.code, detail.message, detail.details);
+        return {
+          ...detail,
+          resolution: detail.resolution ?? enhanced.resolution,
+          resolutionSteps: detail.resolutionSteps ?? enhanced.resolutionSteps,
+          retryable: detail.retryable ?? enhanced.retryable,
+        };
+      };
+
+      if (typeof errAny['toErrorDetail'] === 'function') {
+        const detail = (err as unknown as { toErrorDetail: () => ErrorDetail }).toErrorDetail();
+        return this.error(enrichDetail(detail));
+      }
+
+      // Check if it's already a structured error (from RangeResolver, PolicyEnforcer, etc.)
       if ('code' in err && typeof errAny['code'] === 'string') {
         const structured = err as Error & {
           code: string;
           details?: Record<string, unknown>;
           retryable?: boolean;
+          retryAfterMs?: number;
+          resolution?: string;
+          resolutionSteps?: string[];
+          category?: ErrorDetail['category'];
+          severity?: ErrorDetail['severity'];
+          retryStrategy?: ErrorDetail['retryStrategy'];
+          suggestedTools?: string[];
+          suggestedFix?: string;
+          alternatives?: ErrorDetail['alternatives'];
         };
-        return this.error({
+        const detail: ErrorDetail = {
           code: structured.code as ErrorDetail['code'],
           message: structured.message,
           details: structured.details,
           retryable: structured.retryable ?? false,
-        });
+        };
+
+        if (typeof structured.retryAfterMs === 'number') {
+          detail.retryAfterMs = structured.retryAfterMs;
+        }
+        if (typeof structured.resolution === 'string') {
+          detail.resolution = structured.resolution;
+        }
+        if (structured.resolutionSteps) {
+          detail.resolutionSteps = structured.resolutionSteps;
+        }
+        if (structured.category) {
+          detail.category = structured.category;
+        }
+        if (structured.severity) {
+          detail.severity = structured.severity;
+        }
+        if (structured.retryStrategy) {
+          detail.retryStrategy = structured.retryStrategy;
+        }
+        if (structured.suggestedTools) {
+          detail.suggestedTools = structured.suggestedTools;
+        }
+        if (structured.suggestedFix) {
+          detail.suggestedFix = structured.suggestedFix;
+        }
+        if (structured.alternatives) {
+          detail.alternatives = structured.alternatives;
+        }
+
+        return this.error(enrichDetail(detail));
+      }
+
+      // Check if it's a Zod validation error (has `issues` array)
+      if (
+        'issues' in err &&
+        Array.isArray(errAny['issues']) &&
+        (errAny['issues'] as unknown[]).length > 0
+      ) {
+        const issues = errAny['issues'] as Array<{
+          code: string;
+          path: (string | number)[];
+          message: string;
+          expected?: string;
+          received?: string;
+          options?: unknown[];
+        }>;
+        const zodDetail = createZodValidationError(issues, this.toolName);
+        return this.error(enrichDetail(zodDetail));
       }
 
       // Map Google API errors
@@ -591,6 +699,100 @@ export abstract class BaseHandler<TInput, TOutput> {
   }
 
   /**
+   * Auto-confirm destructive operation before execution (Phase 1.3)
+   *
+   * Automatically requests user confirmation for destructive operations via MCP Elicitation.
+   * Handlers should call this BEFORE executing any delete/clear/destructive operation.
+   *
+   * @param operation - Operation description (e.g., "Delete sheet", "Clear data")
+   * @param details - Impact details (e.g., "This will permanently remove 1000 rows")
+   * @param context - Safety context with operation metadata
+   * @param options - Optional configuration
+   * @returns True if user confirmed or no confirmation needed, false if user cancelled
+   *
+   * @example
+   * ```typescript
+   * const canProceed = await this.confirmOperation(
+   *   `Delete sheet "${sheetName}"`,
+   *   `This will permanently remove the sheet and all its data (${rowCount} rows).`,
+   *   {
+   *     isDestructive: true,
+   *     operationType: 'delete_sheet',
+   *     affectedRows: rowCount,
+   *     spreadsheetId: req.spreadsheetId,
+   *   }
+   * );
+   *
+   * if (!canProceed) {
+   *   return this.error({
+   *     code: 'OPERATION_CANCELLED',
+   *     message: 'Operation cancelled by user',
+   *     retryable: false,
+   *   });
+   * }
+   * ```
+   */
+  protected async confirmOperation(
+    operation: string,
+    details: string,
+    context: SafetyContext,
+    options?: { skipIfElicitationUnavailable?: boolean }
+  ): Promise<boolean> {
+    const logger = getRequestLogger();
+
+    // Check if confirmation is required based on safety rules
+    if (!this.shouldRequireConfirmation(context)) {
+      logger.debug('Operation does not require confirmation', {
+        operation,
+        isDestructive: context.isDestructive,
+        affectedCells: context.affectedCells,
+        affectedRows: context.affectedRows,
+      });
+      return true; // Safe to proceed
+    }
+
+    // Check if elicitation server is available
+    if (!this.context.server) {
+      logger.warn('Elicitation not available for destructive operation', {
+        operation,
+        skipIfUnavailable: options?.skipIfElicitationUnavailable,
+      });
+
+      // If skipIfElicitationUnavailable is true, proceed without confirmation
+      // (backward compatibility for clients that don't support elicitation)
+      if (options?.skipIfElicitationUnavailable) {
+        return true;
+      }
+
+      // Otherwise, block the operation for safety
+      return false;
+    }
+
+    // Import confirmDestructiveAction dynamically to avoid circular dependencies
+    const { confirmDestructiveAction } = await import('../mcp/elicitation.js');
+
+    try {
+      const confirmation = await confirmDestructiveAction(this.context.server, operation, details);
+
+      logger.info('User confirmation received', {
+        operation,
+        confirmed: confirmation.confirmed,
+        reason: confirmation.reason,
+      });
+
+      return confirmation.confirmed;
+    } catch (error) {
+      logger.error('Confirmation request failed', {
+        operation,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // On error, err on the side of safety (block the operation)
+      return false;
+    }
+  }
+
+  /**
    * Generate safety warnings for operation
    */
   protected getSafetyWarnings(
@@ -728,11 +930,29 @@ export abstract class BaseHandler<TInput, TOutput> {
         delete filtered._meta;
       }
 
-      // Limit large arrays to first 5 items (can be overridden in specific handlers)
+      // Remove optional verbose fields that aren't essential for LLM decision-making
+      const verboseFields = [
+        'suggestions',
+        'nextSteps',
+        'documentation',
+        'warnings',
+        'relatedTools',
+      ];
+      for (const field of verboseFields) {
+        if (field in filtered) {
+          delete (filtered as Record<string, unknown>)[field];
+        }
+      }
+
+      // Limit large arrays more aggressively (3 items for minimal, with truncation indicator)
+      // Preserve: 'values' (essential data), 'headers' (column names), 'sheets' (tab list)
+      const preservedArrays = ['values', 'headers', 'sheets', 'rows', 'columns'];
       for (const [key, value] of Object.entries(filtered)) {
-        if (Array.isArray(value) && value.length > 5 && key !== 'values') {
-          // Preserve 'values' arrays as they're essential data
-          (filtered as Record<string, unknown>)[key] = value.slice(0, 5);
+        if (Array.isArray(value) && value.length > 3 && !preservedArrays.includes(key)) {
+          const truncatedCount = value.length - 3;
+          (filtered as Record<string, unknown>)[key] = value.slice(0, 3);
+          // Add truncation indicator
+          (filtered as Record<string, unknown>)[`${key}Truncated`] = truncatedCount;
         }
       }
 
@@ -769,7 +989,12 @@ export abstract class BaseHandler<TInput, TOutput> {
     // Fetch if not cached
     if (!metadata) {
       if (!sheetsApi) {
-        throw new Error('sheetsApi required when metadata not cached');
+        throw new ServiceError(
+          'sheetsApi required when metadata not cached',
+          'SERVICE_NOT_INITIALIZED',
+          'SheetsAPI',
+          false
+        );
       }
       const response = await sheetsApi.spreadsheets.get({
         spreadsheetId,
@@ -791,11 +1016,21 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     const match = sheets.find((s) => s.properties?.title === sheetName);
     if (!match) {
+      const availableSheets = sheets
+        .map((s) => s.properties?.title)
+        .filter(Boolean)
+        .slice(0, 5);
       const RangeResolutionError = (await import('../core/range-resolver.js')).RangeResolutionError;
       throw new RangeResolutionError(
-        `Sheet "${sheetName}" not found`,
+        `Sheet "${sheetName}" not found. Available sheets: ${availableSheets.join(', ')}${sheets.length > 5 ? ` (+${sheets.length - 5} more)` : ''}. Use sheets_core action:"list_sheets" to see all sheets.`,
         'SHEET_NOT_FOUND',
-        { sheetName, spreadsheetId },
+        {
+          sheetName,
+          spreadsheetId,
+          availableSheets,
+          hint: 'Sheet names are case-sensitive. Check spelling and use exact name.',
+          suggestedAction: 'sheets_core action:"list_sheets"',
+        },
         false
       );
     }

@@ -394,12 +394,13 @@ export const ErrorCodeSchema = z.enum([
   'NAMED_RANGE_ERROR',
   'DEVELOPER_METADATA_ERROR',
   'DIMENSION_ERROR',
-  // Operation Errors (6 codes)
+  // Operation Errors (7 codes)
   'BATCH_UPDATE_ERROR',
   'TRANSACTION_ERROR',
   'ABORTED',
   'DEADLINE_EXCEEDED',
   'CANCELLED',
+  'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
   'DATA_LOSS',
   // Network & Service Errors (5 codes)
   'UNAVAILABLE',
