@@ -1,12 +1,17 @@
 /**
- * ParallelExecutor
+ * ParallelExecutor - Phase 1: Unified Concurrency Control
  *
  * @purpose Manages concurrent API requests with configurable concurrency (default: 5), automatic retry, and progress tracking
  * @category Performance
  * @usage Use for bulk operations requiring multiple API calls; executes in parallel up to limit, retries failures with backoff, aggregates errors
- * @dependencies logger, retry utility
+ * @dependencies logger, retry utility, ConcurrencyCoordinator (Phase 1)
  * @stateful Yes - maintains active request queue, concurrency counter, progress state, error aggregation
  * @singleton No - instantiate per bulk operation with specific concurrency needs
+ *
+ * Phase 1 Enhancement:
+ * - Integrates with ConcurrencyCoordinator for global API limit enforcement
+ * - Each task.fn() execution acquires a global permit before running
+ * - Prevents quota exhaustion when combined with PrefetchingSystem + BatchingSystem
  *
  * @example
  * const executor = new ParallelExecutor({ concurrency: 5, retryAttempts: 3 });
@@ -16,6 +21,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
 export interface ParallelExecutorOptions {
   /** Maximum concurrent requests (default: 20) */
@@ -150,6 +156,9 @@ export class ParallelExecutor {
       }
     };
 
+    // Get global concurrency coordinator (Phase 1)
+    const coordinator = getConcurrencyCoordinator();
+
     // Execute task with retry logic
     const executeTask = async (task: ParallelTask<T>): Promise<void> => {
       const startTime = Date.now();
@@ -158,7 +167,8 @@ export class ParallelExecutor {
 
       while (retries <= this.maxRetries) {
         try {
-          const result = await task.fn();
+          // Phase 1: Acquire global permit before execution
+          const result = await coordinator.execute('ParallelExecutor', () => task.fn());
           const duration = Date.now() - startTime;
 
           results.push({

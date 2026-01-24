@@ -1,12 +1,16 @@
 /**
- * PrefetchingSystem
+ * PrefetchingSystem - Phase 1: Unified Concurrency Control
  *
  * @purpose Intelligently prefetches data based on access patterns (adjacent ranges, predicted next access) to reduce latency by 30-50%
  * @category Performance
  * @usage Use with high cache hit rate scenarios; prefetches adjacent ranges, refreshes before cache expiry, priority queue (max 2 concurrent)
- * @dependencies sheets_v4, AccessPatternTracker, cache-manager, logger, p-queue
+ * @dependencies sheets_v4, AccessPatternTracker, cache-manager, logger, p-queue, ConcurrencyCoordinator (Phase 1)
  * @stateful Yes - maintains prefetch queue, background refresh timers, access pattern tracker, metrics (hits, misses, prefetch efficiency)
  * @singleton Yes - one instance per process to coordinate prefetching and prevent duplicate requests
+ *
+ * Phase 1 Enhancement:
+ * - Integrates with ConcurrencyCoordinator for global API limit enforcement
+ * - All API calls acquire global permits to prevent quota exhaustion
  *
  * @example
  * const prefetch = new PrefetchingSystem(sheetsClient, { enabled: true, concurrency: 2, refreshBeforeExpiry: 60000 });
@@ -19,6 +23,7 @@ import { getAccessPatternTracker, type PredictedAccess } from './access-pattern-
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { logger } from '../utils/logger.js';
 import PQueue from 'p-queue';
+import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
 export interface PrefetchOptions {
   /** Enable/disable prefetching (default: true) */
@@ -260,6 +265,7 @@ export class PrefetchingSystem {
    */
   private async executePrefetch(task: PrefetchTask): Promise<void> {
     const cacheKey = this.getPrefetchCacheKey(task);
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
 
     logger.debug('Executing prefetch', {
       spreadsheetId: task.spreadsheetId,
@@ -270,12 +276,14 @@ export class PrefetchingSystem {
     });
 
     if (task.range) {
-      // Prefetch specific range
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: task.spreadsheetId,
-        range: task.range,
-        valueRenderOption: 'UNFORMATTED_VALUE',
-      });
+      // Phase 1: Acquire global permit before prefetch API call
+      const response = await coordinator.execute('PrefetchingSystem', async () =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: task.spreadsheetId,
+          range: task.range,
+          valueRenderOption: 'UNFORMATTED_VALUE',
+        })
+      );
 
       // Cache the result
       cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });
@@ -296,11 +304,14 @@ export class PrefetchingSystem {
         'sheets(properties,conditionalFormats,protectedRanges,charts,filterViews,basicFilter,merges)',
       ].join(',');
 
-      const response = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: task.spreadsheetId,
-        includeGridData: false,
-        fields,
-      });
+      // Phase 1: Acquire global permit before API call
+      const response = await coordinator.execute('PrefetchingSystem', async () =>
+        this.sheetsApi.spreadsheets.get({
+          spreadsheetId: task.spreadsheetId,
+          includeGridData: false,
+          fields,
+        })
+      );
 
       // Cache with the comprehensive key (shared with BaseHandler.fetchComprehensiveMetadata)
       const comprehensiveCacheKey = createCacheKey('spreadsheet:comprehensive', {
@@ -326,10 +337,13 @@ export class PrefetchingSystem {
       });
     } else {
       // Prefetch basic spreadsheet metadata (fallback)
-      const response = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: task.spreadsheetId,
-        includeGridData: false,
-      });
+      // Phase 1: Acquire global permit before API call
+      const response = await coordinator.execute('PrefetchingSystem', async () =>
+        this.sheetsApi.spreadsheets.get({
+          spreadsheetId: task.spreadsheetId,
+          includeGridData: false,
+        })
+      );
 
       // Cache the result
       cacheManager.set(cacheKey, response.data, { namespace: 'prefetch' });

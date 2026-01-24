@@ -1,12 +1,16 @@
 /**
- * BatchingSystem
+ * BatchingSystem - Phase 1: Unified Concurrency Control
  *
  * @purpose Collects operations within 50-100ms time windows and merges them into single API calls for 20-40% API reduction
  * @category Performance
  * @usage Use for high-volume operations where multiple writes/updates occur rapidly; automatically batches batchUpdate requests
- * @dependencies logger, googleapis (sheets_v4)
+ * @dependencies logger, googleapis (sheets_v4), ConcurrencyCoordinator (Phase 1)
  * @stateful Yes - maintains pending operation queues, active timers, metrics (batches processed, operations merged, API calls saved)
  * @singleton Yes - one instance per process to coordinate batching across all requests
+ *
+ * Phase 1 Enhancement:
+ * - Integrates with ConcurrencyCoordinator for global API limit enforcement
+ * - All batchUpdate/batchClear operations acquire global permits
  *
  * @example
  * const batching = new BatchingSystem({ windowMs: 75, maxBatchSize: 100 });
@@ -18,6 +22,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 
 /**
  * Supported operation types that can be batched
@@ -461,6 +466,7 @@ export class BatchingSystem {
    */
   private async executeBatchValuesUpdate(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
 
     // Use values.batchUpdate
     const data = operations.map((op) => ({
@@ -468,13 +474,16 @@ export class BatchingSystem {
       values: op.params.values,
     }));
 
-    const response = await this.sheetsApi.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        data,
-        valueInputOption: operations[0]!.params.valueInputOption || 'USER_ENTERED',
-      },
-    });
+    // Phase 1: Acquire global permit before batch API call
+    const response = await coordinator.execute('BatchingSystem', async () =>
+      this.sheetsApi.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          data,
+          valueInputOption: operations[0]!.params.valueInputOption || 'USER_ENTERED',
+        },
+      })
+    );
 
     // Resolve individual promises
     operations.forEach((op, index) => {
@@ -491,12 +500,15 @@ export class BatchingSystem {
    */
   private async executeBatchValuesAppend(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
 
-    // Get spreadsheet metadata to resolve ranges to sheet IDs
-    const spreadsheetMetadata = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId,
-      fields: 'sheets(properties(sheetId,title))',
-    });
+    // Phase 1: Acquire global permit for metadata fetch
+    const spreadsheetMetadata = await coordinator.execute('BatchingSystem', async () =>
+      this.sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title))',
+      })
+    );
 
     const sheetIdMap = new Map<string, number>();
     spreadsheetMetadata.data.sheets?.forEach((sheet) => {
@@ -518,8 +530,21 @@ export class BatchingSystem {
 
     for (const op of operations) {
       // Parse range to extract sheet name
-      const rangeMatch = op.params.range.match(/^([^!]+)/);
-      const sheetName = rangeMatch ? rangeMatch[1] : op.params.range;
+      // Handle both quoted ('Sheet Name'!A1) and unquoted (Sheet1!A1) formats
+      const quotedMatch = op.params.range.match(/^'((?:[^']|'')+)'(?:!|$)/);
+      const unquotedMatch = op.params.range.match(/^([^!']+)(?:!|$)/);
+
+      let sheetName: string;
+      if (quotedMatch) {
+        // Unescape doubled quotes in sheet name
+        sheetName = quotedMatch[1].replace(/''/g, "'");
+      } else if (unquotedMatch) {
+        sheetName = unquotedMatch[1];
+      } else {
+        // If no sheet separator, treat entire range as sheet name
+        sheetName = op.params.range;
+      }
+
       const sheetId = sheetIdMap.get(sheetName);
 
       if (sheetId === undefined) {
@@ -575,13 +600,16 @@ export class BatchingSystem {
     // Execute single batchUpdate with all append operations
     // Note: appendCells in batchUpdate doesn't return UpdateValuesResponse format,
     // so we construct compatible responses for API consistency with callers
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests,
-        includeSpreadsheetInResponse: false,
-      },
-    });
+    // Phase 1: Acquire global permit for batch append
+    await coordinator.execute('BatchingSystem', async () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests,
+          includeSpreadsheetInResponse: false,
+        },
+      })
+    );
 
     // Resolve each operation's promise with constructed append response
     operationRangeMap.forEach(({ operation }) => {
@@ -612,16 +640,20 @@ export class BatchingSystem {
    */
   private async executeBatchValuesClear(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
 
     // Use values.batchClear
     const ranges = operations.map((op) => op.params.range);
 
-    const response = await this.sheetsApi.spreadsheets.values.batchClear({
-      spreadsheetId,
-      requestBody: {
-        ranges,
-      },
-    });
+    // Phase 1: Acquire global permit for batch clear
+    const response = await coordinator.execute('BatchingSystem', async () =>
+      this.sheetsApi.spreadsheets.values.batchClear({
+        spreadsheetId,
+        requestBody: {
+          ranges,
+        },
+      })
+    );
 
     // Resolve all with the same response
     operations.forEach((op) => {
@@ -634,16 +666,20 @@ export class BatchingSystem {
    */
   private async executeBatchBatchUpdate(operations: BatchableOperation[]): Promise<void> {
     const spreadsheetId = operations[0]!.spreadsheetId;
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
 
     // Merge all requests
     const requests = operations.flatMap((op) => op.params.requests || [op.params.request]);
 
-    const response = await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests,
-      },
-    });
+    // Phase 1: Acquire global permit before batch update
+    const response = await coordinator.execute('BatchingSystem', async () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests,
+        },
+      })
+    );
 
     // Resolve all operations with the full response
     // Note: Individual operation results are in responses array
@@ -659,42 +695,56 @@ export class BatchingSystem {
   private async executeImmediate<T>(
     operation: Omit<BatchableOperation<T>, 'resolve' | 'reject' | 'queuedAt'>
   ): Promise<T> {
+    const coordinator = getConcurrencyCoordinator(); // Phase 1
+
     switch (operation.type) {
       case 'values:update':
-        return (await this.sheetsApi.spreadsheets.values.update({
-          spreadsheetId: operation.spreadsheetId,
-          range: operation.params.range,
-          valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
-          requestBody: {
-            values: operation.params.values,
-          },
-        })) as T;
+        // Phase 1: Acquire global permit for immediate update
+        return (await coordinator.execute('BatchingSystem', async () =>
+          this.sheetsApi.spreadsheets.values.update({
+            spreadsheetId: operation.spreadsheetId,
+            range: operation.params.range,
+            valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
+            requestBody: {
+              values: operation.params.values,
+            },
+          })
+        )) as T;
 
       case 'values:append':
-        return (await this.sheetsApi.spreadsheets.values.append({
-          spreadsheetId: operation.spreadsheetId,
-          range: operation.params.range,
-          valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
-          requestBody: {
-            values: operation.params.values,
-          },
-        })) as T;
+        // Phase 1: Acquire global permit for immediate append
+        return (await coordinator.execute('BatchingSystem', async () =>
+          this.sheetsApi.spreadsheets.values.append({
+            spreadsheetId: operation.spreadsheetId,
+            range: operation.params.range,
+            valueInputOption: operation.params.valueInputOption || 'USER_ENTERED',
+            requestBody: {
+              values: operation.params.values,
+            },
+          })
+        )) as T;
 
       case 'values:clear':
-        return (await this.sheetsApi.spreadsheets.values.clear({
-          spreadsheetId: operation.spreadsheetId,
-          range: operation.params.range,
-        })) as T;
+        // Phase 1: Acquire global permit for immediate clear
+        return (await coordinator.execute('BatchingSystem', async () =>
+          this.sheetsApi.spreadsheets.values.clear({
+            spreadsheetId: operation.spreadsheetId,
+            range: operation.params.range,
+          })
+        )) as T;
 
       case 'format:update':
       case 'cells:update':
       case 'sheet:update':
-        return (await this.sheetsApi.spreadsheets.batchUpdate({
-          spreadsheetId: operation.spreadsheetId,
-          requestBody: {
-            requests: operation.params.requests || [operation.params.request],
-          },
-        })) as T;
+        // Phase 1: Acquire global permit for immediate batchUpdate
+        return (await coordinator.execute('BatchingSystem', async () =>
+          this.sheetsApi.spreadsheets.batchUpdate({
+            spreadsheetId: operation.spreadsheetId,
+            requestBody: {
+              requests: operation.params.requests || [operation.params.request],
+            },
+          })
+        )) as T;
 
       default:
         throw new Error(`Unsupported operation type: ${operation.type}`);
