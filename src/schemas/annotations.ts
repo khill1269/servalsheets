@@ -148,6 +148,20 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: false, // run is not idempotent
     openWorldHint: true, // Apps Script API
   },
+  sheets_webhook: {
+    title: 'Webhooks',
+    readOnlyHint: false, // Can register/unregister webhooks
+    destructiveHint: true, // unregister is destructive
+    idempotentHint: false, // register creates new resources
+    openWorldHint: true, // Google Sheets Watch API
+  },
+  sheets_dependencies: {
+    title: 'Formula Dependencies',
+    readOnlyHint: true, // Analysis only
+    destructiveHint: false, // No data modification
+    idempotentHint: true, // Same input = same output
+    openWorldHint: false, // Local graph analysis
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -180,6 +194,9 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_templates: 8, // list, get, create, apply, update, delete, preview, import_builtin
   sheets_bigquery: 12, // connect, disconnect, list_connections, get_connection, query, preview, refresh, list_datasets, list_tables, get_table_schema, export_to_bigquery, import_from_bigquery
   sheets_appsscript: 14, // create, get, get_content, update_content, create_version, list_versions, get_version, deploy, list_deployments, get_deployment, undeploy, run, list_processes, get_metrics
+  // Phase 3: Webhooks and Formula Dependencies
+  sheets_webhook: 6, // register, unregister, list, get, test, get_stats
+  sheets_dependencies: 7, // build, analyze_impact, detect_cycles, get_dependencies, get_dependents, get_stats, export_dot
 };
 
 /**

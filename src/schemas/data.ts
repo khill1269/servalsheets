@@ -1,7 +1,9 @@
 /**
  * Tool: sheets_data
- * Consolidated data operations: cell values, notes, validation, hyperlinks, and clipboard operations
- * Merges: values.ts (9 actions) + cells.ts (12 actions) = 21 actions
+ * Consolidated data operations: cell values, notes, hyperlinks, and clipboard operations
+ * Merges: values.ts (8 actions) + cells.ts (10 actions) = 18 actions
+ * v2.0: Merged find + replace → find_replace
+ * v2.0: Validation actions moved to sheets_format (set_validation, clear_validation)
  */
 
 import { z } from 'zod';
@@ -34,7 +36,7 @@ import {
 // CELL-SPECIFIC SCHEMAS (from cells.ts)
 // ============================================================================
 
-const DataValidationSchema = z.object({
+export const DataValidationSchema = z.object({
   condition: ConditionSchema,
   inputMessage: z
     .string()
@@ -45,7 +47,7 @@ const DataValidationSchema = z.object({
 });
 
 // ============================================================================
-// CONSOLIDATED INPUT SCHEMA (21 actions)
+// CONSOLIDATED INPUT SCHEMA (20 actions)
 // ============================================================================
 
 // Common fields used across multiple actions
@@ -62,7 +64,7 @@ const CommonFieldsSchema = z.object({
 });
 
 // ============================================================================
-// VALUE ACTION SCHEMAS (9 actions)
+// VALUE ACTION SCHEMAS (8 actions)
 // ============================================================================
 
 const ReadActionSchema = CommonFieldsSchema.extend({
@@ -141,7 +143,7 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
     .describe('How values should be rendered'),
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
-  pageSize: z.number().int().positive().max(10000).optional().describe('Rows per page'),
+  pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),
 });
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
@@ -173,10 +175,16 @@ const BatchClearActionSchema = CommonFieldsSchema.extend({
   previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
 });
 
-const FindActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('find'),
-  query: z.string().describe('Search query (text or pattern to find)'),
-  range: RangeInputSchema.optional().describe('Optional range to limit search'),
+const FindReplaceActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('find_replace'),
+  find: z.string().describe('Text or pattern to find'),
+  replacement: z
+    .string()
+    .optional()
+    .describe(
+      'Text to replace with (optional - if omitted, performs find-only without replacement)'
+    ),
+  range: RangeInputSchema.optional().describe('Optional range to limit search/replacement'),
   matchCase: z
     .boolean()
     .optional()
@@ -187,28 +195,33 @@ const FindActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(false)
     .describe('Match entire cell content (default: false)'),
+  searchByRegex: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Use regular expression for find pattern (default: false)'),
   includeFormulas: z
     .boolean()
     .optional()
     .default(false)
     .describe('Search formula text in addition to values'),
+  allSheets: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Search all sheets (default: false - current sheet only)'),
+  previewMode: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Preview changes without applying (only relevant when replacement is provided)'),
   limit: z
     .number()
     .int()
     .positive()
     .optional()
     .default(100)
-    .describe('Maximum number of matches to return'),
-});
-
-const ReplaceActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('replace'),
-  find: z.string().describe('Text to find'),
-  replacement: z.string().describe('Text to replace with'),
-  range: RangeInputSchema.optional().describe('Optional range to limit replacement'),
-  matchCase: z.boolean().optional().default(false).describe('Case-sensitive search'),
-  matchEntireCell: z.boolean().optional().default(false).describe('Match entire cell content'),
-  previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
+    .describe('Maximum number of matches to return (find-only mode) or replace (replace mode)'),
 });
 
 // ============================================================================
@@ -217,7 +230,11 @@ const ReplaceActionSchema = CommonFieldsSchema.extend({
 
 const AddNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('add_note'),
-  cell: z.string().describe("Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2')"),
+  cell: z
+    .string()
+    .describe(
+      "Cell reference in A1 notation (e.g., 'A1' or 'Sheet1!B2'). Also accepts 'range' as alias."
+    ),
   note: z
     .string()
     .min(1, 'Note cannot be empty')
@@ -230,26 +247,16 @@ const AddNoteActionSchema = CommonFieldsSchema.extend({
 
 const GetNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('get_note'),
-  cell: z.string().describe('Cell reference in A1 notation'),
+  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
 });
 
 const ClearNoteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear_note'),
-  cell: z.string().describe('Cell reference in A1 notation'),
+  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
 });
 
-const SetValidationActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_validation'),
-  range: RangeInputSchema.describe('Range to apply data validation'),
-  validation: DataValidationSchema.describe(
-    'Data validation rules (condition, input message, strict mode, dropdown)'
-  ),
-});
-
-const ClearValidationActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('clear_validation'),
-  range: RangeInputSchema.describe('Range to clear data validation from'),
-});
+// Data validation actions removed in v2.0 - moved to sheets_format
+// Use sheets_format.set_data_validation and sheets_format.clear_data_validation instead
 
 const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_hyperlink'),
@@ -277,8 +284,8 @@ const ClearHyperlinkActionSchema = CommonFieldsSchema.extend({
   cell: z.string().describe('Cell reference in A1 notation'),
 });
 
-const MergeActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('merge'),
+const MergeCellsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('merge_cells'),
   range: RangeInputSchema.describe('Range to merge'),
   mergeType: z
     .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
@@ -287,8 +294,8 @@ const MergeActionSchema = CommonFieldsSchema.extend({
     .describe('Type of merge: MERGE_ALL (single cell), MERGE_COLUMNS, MERGE_ROWS'),
 });
 
-const UnmergeActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('unmerge'),
+const UnmergeCellsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('unmerge_cells'),
   range: RangeInputSchema.describe('Range to unmerge'),
 });
 
@@ -297,8 +304,8 @@ const GetMergesActionSchema = CommonFieldsSchema.extend({
   sheetId: SheetIdSchema.describe('Numeric sheet ID to query for merged cells'),
 });
 
-const CutActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('cut'),
+const CutPasteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('cut_paste'),
   source: RangeInputSchema.describe('Source range to cut from'),
   destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
   pasteType: z
@@ -308,8 +315,8 @@ const CutActionSchema = CommonFieldsSchema.extend({
     .describe('What to paste: NORMAL (all), VALUES, FORMAT, NO_BORDERS, FORMULA'),
 });
 
-const CopyActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('copy'),
+const CopyPasteActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('copy_paste'),
   source: RangeInputSchema.describe('Source range to copy from'),
   destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
   pasteType: z
@@ -320,34 +327,73 @@ const CopyActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
-// DISCRIMINATED UNION (21 actions)
+// DISCRIMINATED UNION (18 actions)
+// v2.0: find + replace merged into find_replace
+// v2.0: validation actions moved to sheets_format (set_validation, clear_validation)
 // ============================================================================
 
-export const SheetsDataInputSchema = z.discriminatedUnion('action', [
-  // Value actions (9)
-  ReadActionSchema,
-  WriteActionSchema,
-  AppendActionSchema,
-  ClearActionSchema,
-  BatchReadActionSchema,
-  BatchWriteActionSchema,
-  BatchClearActionSchema,
-  FindActionSchema,
-  ReplaceActionSchema,
-  // Cell actions (12)
-  AddNoteActionSchema,
-  GetNoteActionSchema,
-  ClearNoteActionSchema,
-  SetValidationActionSchema,
-  ClearValidationActionSchema,
-  SetHyperlinkActionSchema,
-  ClearHyperlinkActionSchema,
-  MergeActionSchema,
-  UnmergeActionSchema,
-  GetMergesActionSchema,
-  CutActionSchema,
-  CopyActionSchema,
-]);
+// Deprecated action mappings with helpful migration messages
+const DEPRECATED_ACTIONS: Record<string, string> = {
+  set_validation:
+    "Action 'set_validation' was moved to sheets_format tool in v2.0. Use sheets_format with action 'set_data_validation' instead. Example: { tool: 'sheets_format', action: 'set_data_validation', range: '...', condition: { type: 'ONE_OF_LIST', values: ['A', 'B', 'C'] } }",
+  clear_validation:
+    "Action 'clear_validation' was moved to sheets_format tool in v2.0. Use sheets_format with action 'clear_data_validation' instead. Example: { tool: 'sheets_format', action: 'clear_data_validation', range: '...' }",
+};
+
+// Preprocess to normalize common LLM input variations
+const normalizeDataRequest = (val: unknown): unknown => {
+  if (typeof val !== 'object' || val === null) return val;
+  const obj = val as Record<string, unknown>;
+  const action = obj['action'] as string;
+
+  // Check for deprecated actions and throw helpful error
+  if (action && DEPRECATED_ACTIONS[action]) {
+    throw new Error(DEPRECATED_ACTIONS[action]);
+  }
+
+  // Alias: 'range' → 'cell' for note actions (LLM compatibility)
+  const noteActions = ['add_note', 'get_note', 'clear_note'];
+  if (noteActions.includes(action) && obj['range'] && !obj['cell']) {
+    return { ...obj, cell: obj['range'] };
+  }
+
+  return val;
+};
+
+export const SheetsDataInputSchema = z.object({
+  request: z.preprocess(
+    normalizeDataRequest,
+    z.discriminatedUnion('action', [
+      // Value actions (8)
+      ReadActionSchema,
+      WriteActionSchema,
+      AppendActionSchema,
+      ClearActionSchema,
+      BatchReadActionSchema,
+      BatchWriteActionSchema,
+      BatchClearActionSchema,
+      FindReplaceActionSchema,
+      // v2.0: merged find + replace
+      // Cell actions (10) - was 12, validation moved to sheets_format
+      AddNoteActionSchema,
+      GetNoteActionSchema,
+      ClearNoteActionSchema,
+      // SetValidationActionSchema - REMOVED: moved to sheets_format
+      // ClearValidationActionSchema - REMOVED: moved to sheets_format
+      SetHyperlinkActionSchema,
+      ClearHyperlinkActionSchema,
+      MergeCellsActionSchema,
+      // v2.0: renamed from merge
+      UnmergeCellsActionSchema,
+      // v2.0: renamed from unmerge
+      GetMergesActionSchema,
+      CutPasteActionSchema,
+      // v2.0: renamed from cut
+      CopyPasteActionSchema,
+      // v2.0: renamed from copy,
+    ])
+  ),
+});
 
 // ============================================================================
 // CONSOLIDATED OUTPUT SCHEMA
@@ -370,7 +416,7 @@ const DataResponseSchema = z.discriminatedUnion('success', [
     // Pagination (MCP 2025-11-25)
     nextCursor: z.string().optional().describe('Cursor for next page (null = no more data)'),
     hasMore: z.boolean().optional().describe('True if more data available'),
-    totalRows: z.number().int().optional().describe('Total rows available (if known)'),
+    totalRows: z.coerce.number().int().optional().describe('Total rows available (if known)'),
 
     // Batch read
     valueRanges: z
@@ -384,9 +430,9 @@ const DataResponseSchema = z.discriminatedUnion('success', [
       .describe('Array of range-value pairs (for batch_read action)'),
 
     // Write results
-    updatedCells: z.number().int().optional().describe('Number of cells updated'),
-    updatedRows: z.number().int().optional().describe('Number of rows updated'),
-    updatedColumns: z.number().int().optional().describe('Number of columns updated'),
+    updatedCells: z.coerce.number().int().optional().describe('Number of cells updated'),
+    updatedRows: z.coerce.number().int().optional().describe('Number of rows updated'),
+    updatedColumns: z.coerce.number().int().optional().describe('Number of columns updated'),
     updatedRange: z.string().optional().describe('A1 notation range that was updated'),
 
     // Find results
@@ -395,23 +441,23 @@ const DataResponseSchema = z.discriminatedUnion('success', [
         z.object({
           cell: z.string(),
           value: z.string(),
-          row: z.number().int(),
-          column: z.number().int(),
+          row: z.coerce.number().int(),
+          column: z.coerce.number().int(),
         })
       )
       .optional()
       .describe('Array of matching cells (for find action)'),
 
     // Replace results
-    replacementsCount: z.number().int().optional().describe('Number of replacements made'),
+    replacementsCount: z.coerce.number().int().optional().describe('Number of replacements made'),
     replacementPreview: z
       .array(
         z.object({
           cell: z.string().describe('Cell address (e.g., A1)'),
           oldValue: z.string().describe('Current value'),
           newValue: z.string().describe('Value after replacement'),
-          row: z.number().int(),
-          column: z.number().int(),
+          row: z.coerce.number().int(),
+          column: z.coerce.number().int(),
         })
       )
       .optional()
@@ -423,13 +469,17 @@ const DataResponseSchema = z.discriminatedUnion('success', [
         z.object({
           cell: z.string().describe('Cell address (e.g., A1)'),
           currentValue: z.string().describe('Value that will be cleared'),
-          row: z.number().int(),
-          column: z.number().int(),
+          row: z.coerce.number().int(),
+          column: z.coerce.number().int(),
         })
       )
       .optional()
       .describe('Preview of cells to be cleared (when previewMode=true for clear/batch_clear)'),
-    clearedCells: z.number().int().optional().describe('Number of cells cleared'),
+    clearedCells: z.coerce.number().int().optional().describe('Number of cells cleared'),
+    clearedRanges: z
+      .array(z.string())
+      .optional()
+      .describe('A1 ranges cleared (for batch_clear action)'),
 
     // Large data
     truncated: z.boolean().optional().describe('True if response was truncated due to size'),
@@ -446,10 +496,10 @@ const DataResponseSchema = z.discriminatedUnion('success', [
     merges: z
       .array(
         z.object({
-          startRow: z.number().int(),
-          endRow: z.number().int(),
-          startColumn: z.number().int(),
-          endColumn: z.number().int(),
+          startRow: z.coerce.number().int(),
+          endRow: z.coerce.number().int(),
+          startColumn: z.coerce.number().int(),
+          endColumn: z.coerce.number().int(),
         })
       )
       .optional()
@@ -462,6 +512,7 @@ const DataResponseSchema = z.discriminatedUnion('success', [
     // Safety
     dryRun: z.boolean().optional().describe('True if this was a dry run (no changes made)'),
     mutation: MutationSummarySchema.optional().describe('Summary of mutation for tracking'),
+    snapshotId: z.string().optional().describe('Snapshot ID for rollback (if created)'),
 
     // Response metadata (suggestions, cost estimates, related tools)
     _meta: ResponseMetaSchema.optional().describe('Metadata about the response'),
@@ -497,43 +548,43 @@ export type SheetsDataOutput = z.infer<typeof SheetsDataOutputSchema>;
 export type DataResponse = z.infer<typeof DataResponseSchema>;
 
 // ============================================================================
-// TYPE NARROWING HELPERS (21 action types)
+// TYPE NARROWING HELPERS (20 action types)
 // ============================================================================
 
 // Value action types (9)
-export type DataReadInput = SheetsDataInput & {
+export type DataReadInput = SheetsDataInput['request'] & {
   action: 'read';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type DataWriteInput = SheetsDataInput & {
+export type DataWriteInput = SheetsDataInput['request'] & {
   action: 'write';
   spreadsheetId: string;
   range: RangeInput;
   values: unknown[][];
 };
 
-export type DataAppendInput = SheetsDataInput & {
+export type DataAppendInput = SheetsDataInput['request'] & {
   action: 'append';
   spreadsheetId: string;
   range: RangeInput;
   values: unknown[][];
 };
 
-export type DataClearInput = SheetsDataInput & {
+export type DataClearInput = SheetsDataInput['request'] & {
   action: 'clear';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type DataBatchReadInput = SheetsDataInput & {
+export type DataBatchReadInput = SheetsDataInput['request'] & {
   action: 'batch_read';
   spreadsheetId: string;
   ranges: RangeInput[];
 };
 
-export type DataBatchWriteInput = SheetsDataInput & {
+export type DataBatchWriteInput = SheetsDataInput['request'] & {
   action: 'batch_write';
   spreadsheetId: string;
   data: Array<{
@@ -542,98 +593,81 @@ export type DataBatchWriteInput = SheetsDataInput & {
   }>;
 };
 
-export type DataBatchClearInput = SheetsDataInput & {
+export type DataBatchClearInput = SheetsDataInput['request'] & {
   action: 'batch_clear';
   spreadsheetId: string;
   ranges: RangeInput[];
 };
 
-export type DataFindInput = SheetsDataInput & {
-  action: 'find';
-  spreadsheetId: string;
-  query: string;
-};
-
-export type DataReplaceInput = SheetsDataInput & {
-  action: 'replace';
+export type DataFindReplaceInput = SheetsDataInput['request'] & {
+  action: 'find_replace';
   spreadsheetId: string;
   find: string;
-  replacement: string;
 };
 
 // Cell action types (12)
-export type DataAddNoteInput = SheetsDataInput & {
+export type DataAddNoteInput = SheetsDataInput['request'] & {
   action: 'add_note';
   spreadsheetId: string;
   cell: string;
   note: string;
 };
 
-export type DataGetNoteInput = SheetsDataInput & {
+export type DataGetNoteInput = SheetsDataInput['request'] & {
   action: 'get_note';
   spreadsheetId: string;
   cell: string;
 };
 
-export type DataClearNoteInput = SheetsDataInput & {
+export type DataClearNoteInput = SheetsDataInput['request'] & {
   action: 'clear_note';
   spreadsheetId: string;
   cell: string;
 };
 
-export type DataSetValidationInput = SheetsDataInput & {
-  action: 'set_validation';
-  spreadsheetId: string;
-  range: RangeInput;
-  validation: z.infer<typeof DataValidationSchema>;
-};
+// Note: DataSetValidationInput and DataClearValidationInput removed in v2.0
+// Validation actions are now in sheets_format (set_data_validation, clear_data_validation)
 
-export type DataClearValidationInput = SheetsDataInput & {
-  action: 'clear_validation';
-  spreadsheetId: string;
-  range: RangeInput;
-};
-
-export type DataSetHyperlinkInput = SheetsDataInput & {
+export type DataSetHyperlinkInput = SheetsDataInput['request'] & {
   action: 'set_hyperlink';
   spreadsheetId: string;
   cell: string;
   url: string;
 };
 
-export type DataClearHyperlinkInput = SheetsDataInput & {
+export type DataClearHyperlinkInput = SheetsDataInput['request'] & {
   action: 'clear_hyperlink';
   spreadsheetId: string;
   cell: string;
 };
 
-export type DataMergeInput = SheetsDataInput & {
-  action: 'merge';
+export type DataMergeCellsInput = SheetsDataInput['request'] & {
+  action: 'merge_cells';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type DataUnmergeInput = SheetsDataInput & {
-  action: 'unmerge';
+export type DataUnmergeCellsInput = SheetsDataInput['request'] & {
+  action: 'unmerge_cells';
   spreadsheetId: string;
   range: RangeInput;
 };
 
-export type DataGetMergesInput = SheetsDataInput & {
+export type DataGetMergesInput = SheetsDataInput['request'] & {
   action: 'get_merges';
   spreadsheetId: string;
   sheetId: number;
 };
 
-export type DataCutInput = SheetsDataInput & {
-  action: 'cut';
+export type DataCutPasteInput = SheetsDataInput['request'] & {
+  action: 'cut_paste';
   spreadsheetId: string;
   source: RangeInput;
   destination: string;
 };
 
-export type DataCopyInput = SheetsDataInput & {
-  action: 'copy';
+export type DataCopyPasteInput = SheetsDataInput['request'] & {
+  action: 'copy_paste';
   spreadsheetId: string;
   source: RangeInput;
   destination: string;

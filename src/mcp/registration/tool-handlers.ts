@@ -21,6 +21,7 @@ import {
   runWithRequestContext,
   getRequestLogger,
 } from '../../utils/request-context.js';
+import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { recordSpreadsheetId } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
@@ -135,7 +136,7 @@ export function createToolHandlerMap(
       handlers.appsscript.handle(
         parseWithCache(SheetsAppsScriptInputSchema, args, 'SheetsAppsScriptInput')
       ),
-    sheets_webhooks: (args) =>
+    sheets_webhook: (args) =>
       handlers.webhooks.handle(
         parseWithCache(SheetsWebhookInputSchema, args, 'SheetsWebhookInput')
       ),
@@ -197,6 +198,11 @@ export function buildToolResponse(result: unknown): CallToolResult {
         },
       },
     };
+  }
+
+  // Apply response compaction if enabled (reduces context window pressure)
+  if (isCompactModeEnabled()) {
+    structuredContent = compactResponse(structuredContent);
   }
 
   const response = structuredContent['response'];

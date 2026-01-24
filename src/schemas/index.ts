@@ -457,13 +457,42 @@ export const TOOL_REGISTRY = {
       'get_metrics',
     ],
   },
+  sheets_webhook: {
+    name: 'sheets_webhook',
+    title: 'Webhooks',
+    description:
+      'Webhook notifications for spreadsheet changes: register webhooks with Google Sheets Watch API | list/get webhook details | unregister webhooks | send test deliveries | get webhook statistics and delivery metrics.',
+    schema: 'SheetsWebhookInputSchema',
+    output: 'SheetsWebhookOutputSchema',
+    annotations: 'SHEETS_WEBHOOK_ANNOTATIONS',
+    actions: ['register', 'unregister', 'list', 'get', 'test', 'get_stats'],
+  },
+  sheets_dependencies: {
+    name: 'sheets_dependencies',
+    title: 'Formula Dependencies',
+    description:
+      'Formula dependency analysis: build dependency graph from formulas | analyze impact of cell changes | detect circular dependencies | get dependencies/dependents for cells | export graph as DOT format | get dependency statistics.',
+    schema: 'SheetsDependenciesInputSchema',
+    output: 'SheetsDependenciesOutputSchema',
+    annotations: 'SHEETS_DEPENDENCIES_ANNOTATIONS',
+    actions: [
+      'build',
+      'analyze_impact',
+      'detect_cycles',
+      'get_dependencies',
+      'get_dependents',
+      'get_stats',
+      'export_dot',
+    ],
+  },
 } as const;
 
-// Tool count (19 tools)
-export const TOOL_COUNT = 19;
+// Tool count (21 tools)
+export const TOOL_COUNT = 21;
 
-// Action count (258 actions across 19 tools)
+// Action count (271 actions across 21 tools)
 // Last updated: 2026-01-24
+// Phase 3: Added sheets_webhook (6 actions) and sheets_dependencies (7 actions)
 // v2.0: Removed 2 validation actions from sheets_data (moved to sheets_format)
 // Breakdown:
 //   sheets_auth: 4, sheets_core: 17, sheets_data: 18, sheets_format: 21,
@@ -471,5 +500,6 @@ export const TOOL_COUNT = 19;
 //   sheets_advanced: 23, sheets_transaction: 6, sheets_quality: 4,
 //   sheets_history: 7, sheets_confirm: 5, sheets_analyze: 11, sheets_fix: 1,
 //   sheets_composite: 7, sheets_session: 13, sheets_templates: 8,
-//   sheets_bigquery: 14, sheets_appsscript: 14
-export const ACTION_COUNT = 258;
+//   sheets_bigquery: 14, sheets_appsscript: 14, sheets_webhook: 6,
+//   sheets_dependencies: 7
+export const ACTION_COUNT = 271;
