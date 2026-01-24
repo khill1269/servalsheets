@@ -159,7 +159,7 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
 export const ACTION_COUNTS: Record<string, number> = {
   sheets_auth: 4,
   sheets_core: 15, // Consolidated: spreadsheet (8) + sheet (7)
-  sheets_data: 20, // Wave 4: Consolidated values (9) + cells (11)
+  sheets_data: 18, // v2.0: Was 20, reduced by 2 (validation moved to sheets_format)
   sheets_format: 18, // Wave 2: Added 8 rule actions (conditional format + data validation) + 1 suggest_format
   sheets_dimensions: 39, // Wave 2: Added filter/sort + range utilities + views + slicers
   sheets_visualize: 16, // Consolidated: charts (9) + pivot (7)

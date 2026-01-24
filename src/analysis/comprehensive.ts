@@ -62,6 +62,8 @@ export interface ComprehensiveConfig {
   cursor?: string;
   /** Page size for pagination (default: 5 sheets) */
   pageSize?: number;
+  /** Timeout in milliseconds */
+  timeoutMs?: number;
 }
 
 /**
@@ -309,6 +311,7 @@ export class ComprehensiveAnalyzer {
       context: config.context ?? '',
       cursor: config.cursor ?? '',
       pageSize: Math.min(config.pageSize ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE),
+      timeoutMs: config.timeoutMs ?? 30000,
     };
   }
 

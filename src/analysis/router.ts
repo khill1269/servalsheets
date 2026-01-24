@@ -90,7 +90,7 @@ export class AnalysisRouter {
     }
 
     // Route based on action type
-    switch (request.action) {
+    switch (request.request.action) {
       case 'analyze_data':
         return this.routeAnalyzeData(request, cellCount);
 
@@ -429,11 +429,4 @@ export class AnalysisRouter {
     // Larger datasets require more context, increasing duration
     return Math.min(15, 3 + cellCount / 5000);
   }
-}
-
-/**
- * Create router with capabilities from handler context
- */
-export function createRouter(capabilities: RouterCapabilities): AnalysisRouter {
-  return new AnalysisRouter(capabilities);
 }

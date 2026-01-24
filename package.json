@@ -1,7 +1,7 @@
 {
   "name": "servalsheets",
   "version": "1.4.0",
-  "description": "Production-grade Google Sheets MCP server - 19 tools, 241 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
+  "description": "Production-grade Google Sheets MCP server - 19 tools, 250 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -68,7 +68,8 @@
     "test:benchmarks": "vitest run tests/benchmarks",
     "benchmarks:track": "vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
     "benchmarks:run": "RUN_BENCHMARKS=true vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
-    "test:fast": "npm run test:unit && npm run test:handlers",
+    "test:fast": "vitest run tests/unit tests/schemas tests/utils tests/core tests/handlers --exclude='**/*.snapshot.test.ts' --exclude='**/analyze.test.ts' --pool=threads",
+    "test:llm": "vitest run tests/handlers/analyze.test.ts",
     "test:all": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
@@ -99,6 +100,7 @@
     "clean": "rm -rf dist .tsbuildinfo .tsbuildinfo.build",
     "prepack": "npm run gen:metadata && npm run build && npm run validate:server-json",
     "prepare": "husky",
+    "build:bundle": "bash scripts/build-bundle.sh",
     "docker:build": "docker build -f deployment/docker/Dockerfile -t servalsheets .",
     "docker:run": "docker run -p 3000:3000 --env-file .env servalsheets",
     "docs": "typedoc",
@@ -161,6 +163,7 @@
     "zod": "4.3.5"
   },
   "optionalDependencies": {
+    "keytar": "^7.9.0",
     "redis": "^5.10.0"
   },
   "devDependencies": {

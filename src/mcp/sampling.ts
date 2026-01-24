@@ -591,20 +591,22 @@ export const AGENTIC_TOOLS: Tool[] = [
     },
   },
   {
-    name: 'add_validation',
-    description: 'Add data validation to a range',
+    name: 'set_data_validation',
+    description: 'Set data validation on a range',
     inputSchema: {
       type: 'object',
       properties: {
-        range: { type: 'string', description: 'Range to validate' },
-        validationType: {
-          type: 'string',
-          enum: ['list', 'number', 'date', 'text_length', 'custom'],
-          description: 'Type of validation',
+        range: { type: 'string', description: 'Range to validate (A1 notation)' },
+        condition: {
+          type: 'object',
+          description:
+            'Validation condition (e.g., ONE_OF_LIST, NUMBER_BETWEEN, DATE_AFTER, CUSTOM_FORMULA)',
         },
-        criteria: { type: 'string', description: 'Validation criteria' },
+        inputMessage: { type: 'string', description: 'Help text shown on cell selection' },
+        strict: { type: 'boolean', description: 'Reject invalid input (default true)' },
+        showDropdown: { type: 'boolean', description: 'Show dropdown for list validations' },
       },
-      required: ['range', 'validationType', 'criteria'],
+      required: ['range', 'condition'],
     },
   },
   {
@@ -652,6 +654,294 @@ Be careful with destructive operations. Always explain your reasoning.`,
     tools,
     toolChoice: { mode: 'auto' },
     maxTokens: 2000,
+  };
+}
+
+// ============================================================================
+// Streaming Support (SEP-1577 Optimization)
+// ============================================================================
+
+/**
+ * Progress callback for streaming operations
+ */
+export type StreamingProgressCallback = (event: {
+  phase: 'preparing' | 'sending' | 'receiving' | 'processing' | 'complete';
+  progress?: number;
+  total?: number;
+  partialResult?: string;
+  message?: string;
+}) => void;
+
+/**
+ * Options for streaming sampling operations
+ */
+export interface StreamingSamplingOptions extends AnalyzeDataOptions {
+  /** Callback for progress updates */
+  onProgress?: StreamingProgressCallback;
+  /** Chunk size for processing large datasets */
+  chunkSize?: number;
+  /** Maximum concurrent chunks */
+  maxConcurrency?: number;
+}
+
+/**
+ * Chunked result for large dataset analysis
+ */
+export interface ChunkedAnalysisResult {
+  /** Results for each chunk */
+  chunks: Array<{
+    chunkIndex: number;
+    startRow: number;
+    endRow: number;
+    analysis: string;
+  }>;
+  /** Aggregated summary across all chunks */
+  summary: string;
+  /** Total rows analyzed */
+  totalRows: number;
+  /** Processing time in ms */
+  processingTime: number;
+}
+
+/**
+ * Analyze large datasets in chunks with streaming progress
+ *
+ * For datasets larger than the chunk size, this function:
+ * 1. Splits data into manageable chunks
+ * 2. Analyzes each chunk with progress reporting
+ * 3. Aggregates results into a summary
+ *
+ * @example
+ * ```typescript
+ * const result = await analyzeDataStreaming(server, {
+ *   data: largeDataset, // 10,000 rows
+ *   question: 'What are the sales trends?'
+ * }, {
+ *   chunkSize: 500,
+ *   onProgress: (event) => logger.debug(`${event.phase}: ${event.progress}/${event.total}`)
+ * });
+ * ```
+ */
+export async function analyzeDataStreaming(
+  server: SamplingServer,
+  params: {
+    data: unknown[][];
+    question: string;
+    context?: string;
+  },
+  options: StreamingSamplingOptions = {}
+): Promise<ChunkedAnalysisResult> {
+  assertSamplingSupport(server.getClientCapabilities());
+
+  const {
+    chunkSize = 500,
+    onProgress,
+    systemPrompt = SAMPLING_PROMPTS.dataAnalysis,
+    maxTokens = 1000,
+    modelPreferences,
+  } = options;
+
+  const startTime = Date.now();
+  const headers = params.data[0] as unknown[];
+  const dataRows = params.data.slice(1);
+  const totalRows = dataRows.length;
+
+  // If data is small enough, use regular analysis
+  if (totalRows <= chunkSize) {
+    onProgress?.({ phase: 'preparing', message: 'Dataset small enough for single analysis' });
+
+    const result = await analyzeData(server, params, {
+      systemPrompt,
+      maxTokens,
+      modelPreferences,
+    });
+
+    return {
+      chunks: [
+        {
+          chunkIndex: 0,
+          startRow: 1,
+          endRow: totalRows,
+          analysis: result,
+        },
+      ],
+      summary: result,
+      totalRows,
+      processingTime: Date.now() - startTime,
+    };
+  }
+
+  // Split into chunks
+  const chunks: unknown[][][] = [];
+  for (let i = 0; i < dataRows.length; i += chunkSize) {
+    chunks.push([headers, ...dataRows.slice(i, Math.min(i + chunkSize, dataRows.length))]);
+  }
+
+  onProgress?.({
+    phase: 'preparing',
+    progress: 0,
+    total: chunks.length,
+    message: `Splitting ${totalRows} rows into ${chunks.length} chunks`,
+  });
+
+  // Analyze each chunk
+  const chunkResults: ChunkedAnalysisResult['chunks'] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i]!;
+    const startRow = i * chunkSize + 1;
+    const endRow = Math.min((i + 1) * chunkSize, totalRows);
+
+    onProgress?.({
+      phase: 'processing',
+      progress: i,
+      total: chunks.length,
+      message: `Analyzing rows ${startRow}-${endRow}`,
+    });
+
+    const chunkQuestion = `${params.question}\n\n(This is chunk ${i + 1} of ${chunks.length}, rows ${startRow}-${endRow})`;
+
+    const analysis = await analyzeData(
+      server,
+      {
+        data: chunk,
+        question: chunkQuestion,
+        context: params.context,
+      },
+      { systemPrompt, maxTokens, modelPreferences }
+    );
+
+    chunkResults.push({
+      chunkIndex: i,
+      startRow,
+      endRow,
+      analysis,
+    });
+
+    onProgress?.({
+      phase: 'processing',
+      progress: i + 1,
+      total: chunks.length,
+      partialResult: analysis,
+      message: `Completed chunk ${i + 1} of ${chunks.length}`,
+    });
+  }
+
+  // Generate summary from all chunks
+  onProgress?.({
+    phase: 'processing',
+    message: 'Generating summary from all chunks',
+  });
+
+  const summaryPrompt = `Based on these ${chunks.length} partial analyses of a ${totalRows}-row dataset, provide a unified summary:
+
+${chunkResults.map((r) => `--- Rows ${r.startRow}-${r.endRow} ---\n${r.analysis}`).join('\n\n')}
+
+Original question: ${params.question}
+
+Provide a cohesive summary that synthesizes insights from all chunks.`;
+
+  const summary = await server.createMessage({
+    messages: [createUserMessage(summaryPrompt)],
+    systemPrompt:
+      'Synthesize multiple partial analyses into a cohesive summary. Identify patterns that span across chunks. Be concise but comprehensive.',
+    maxTokens: maxTokens * 2, // More tokens for summary
+    ...(modelPreferences && { modelPreferences }),
+  });
+
+  onProgress?.({
+    phase: 'complete',
+    progress: chunks.length,
+    total: chunks.length,
+    message: 'Analysis complete',
+  });
+
+  return {
+    chunks: chunkResults,
+    summary: extractTextFromResult(summary),
+    totalRows,
+    processingTime: Date.now() - startTime,
+  };
+}
+
+/**
+ * Stream tool results incrementally for agentic operations
+ *
+ * This function allows processing tool results as they arrive,
+ * rather than waiting for the complete response.
+ */
+export async function* streamAgenticOperation(
+  server: SamplingServer,
+  task: string,
+  context: string,
+  toolHandler: (
+    toolName: string,
+    args: Record<string, unknown>
+  ) => Promise<{ result: unknown; continue: boolean }>
+): AsyncGenerator<
+  {
+    type: 'tool_call' | 'tool_result' | 'text' | 'complete';
+    data: unknown;
+  },
+  AgenticResult,
+  undefined
+> {
+  assertSamplingToolsSupport(server.getClientCapabilities());
+
+  const actions: AgenticResult['actions'] = [];
+  let continueLoop = true;
+  let iterationCount = 0;
+  const maxIterations = 10;
+
+  const params = createAgenticRequest(task, context);
+
+  while (continueLoop && iterationCount < maxIterations) {
+    iterationCount++;
+
+    const result = await server.createMessage(params);
+
+    // Process content
+    const content = Array.isArray(result.content) ? result.content : [result.content];
+
+    for (const block of content) {
+      if (block.type === 'text') {
+        yield { type: 'text', data: block.text };
+      } else if (block.type === 'tool_use') {
+        yield {
+          type: 'tool_call',
+          data: { name: block.name, arguments: block.input },
+        };
+
+        // Execute tool
+        const toolResult = await toolHandler(block.name, block.input as Record<string, unknown>);
+
+        yield { type: 'tool_result', data: toolResult.result };
+
+        actions.push({
+          type: block.name,
+          target: JSON.stringify(block.input),
+          details: JSON.stringify(toolResult.result),
+        });
+
+        if (!toolResult.continue) {
+          continueLoop = false;
+        }
+      }
+    }
+
+    // Check stop reason
+    if (result.stopReason === 'end_turn' || result.stopReason === 'stop_sequence') {
+      continueLoop = false;
+    }
+  }
+
+  yield { type: 'complete', data: { actionsCount: actions.length } };
+
+  return {
+    actionsCount: actions.length,
+    description: `Completed ${actions.length} actions in ${iterationCount} iterations`,
+    actions,
+    success: true,
   };
 }
 

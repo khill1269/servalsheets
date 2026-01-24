@@ -422,10 +422,3 @@ export class TieredRetrieval {
     return letter;
   }
 }
-
-/**
- * Create tiered retrieval instance
- */
-export function createTieredRetrieval(config: TieredRetrievalConfig): TieredRetrieval {
-  return new TieredRetrieval(config);
-}

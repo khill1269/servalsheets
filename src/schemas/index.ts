@@ -42,9 +42,6 @@ export * from './templates.js'; // Enterprise templates (Tier 7)
 export * from './bigquery.js'; // BigQuery Connected Sheets (Tier 7)
 export * from './appsscript.js'; // Apps Script automation (Tier 7)
 
-// Performance optimizations
-export * from './fast-validators.js'; // Pre-compiled validators (80-90% faster)
-
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';
 
@@ -90,13 +87,15 @@ export const TOOL_REGISTRY = {
       'copy_sheet_to',
       'list_sheets',
       'get_sheet',
+      'batch_delete_sheets',
+      'batch_update_sheets',
     ],
   },
   sheets_data: {
     name: 'sheets_data',
     title: 'Cell Data',
     description:
-      'Working with cell data: Read/write cell values | Append new rows | Batch updates across multiple ranges | Find and replace text | Add/edit/remove cell notes | Set data validation rules | Add/remove hyperlinks | Merge/unmerge cells | Cut/copy cell content',
+      'Working with cell data: Read/write cell values | Append new rows | Batch updates | Find/replace text | Notes | Hyperlinks | Merge/Copy/Paste (Data validation moved to sheets_format in v2.0)',
     schema: 'SheetsDataInputSchema',
     output: 'SheetsDataOutputSchema',
     annotations: 'SHEETS_DATA_ANNOTATIONS',
@@ -112,8 +111,8 @@ export const TOOL_REGISTRY = {
       'add_note',
       'get_note',
       'clear_note',
-      'set_validation',
-      'clear_validation',
+      // 'set_validation', // REMOVED in v2.0 - moved to sheets_format
+      // 'clear_validation', // REMOVED in v2.0 - moved to sheets_format
       'set_hyperlink',
       'clear_hyperlink',
       'merge_cells',
@@ -464,9 +463,17 @@ export const TOOL_REGISTRY = {
   },
 } as const;
 
-// Tool count (19 tools: 16 core + 3 Tier 7 enterprise)
+// Tool count (19 tools)
 export const TOOL_COUNT = 19;
 
-// Action count (241 actions: 207 core + 8 templates + 12 bigquery + 14 appsscript)
-// Computed in annotations.ts from ACTION_COUNTS map
-export const ACTION_COUNT = 241;
+// Action count (258 actions across 19 tools)
+// Last updated: 2026-01-24
+// v2.0: Removed 2 validation actions from sheets_data (moved to sheets_format)
+// Breakdown:
+//   sheets_auth: 4, sheets_core: 17, sheets_data: 18, sheets_format: 21,
+//   sheets_dimensions: 39, sheets_visualize: 18, sheets_collaborate: 28,
+//   sheets_advanced: 23, sheets_transaction: 6, sheets_quality: 4,
+//   sheets_history: 7, sheets_confirm: 5, sheets_analyze: 11, sheets_fix: 1,
+//   sheets_composite: 7, sheets_session: 13, sheets_templates: 8,
+//   sheets_bigquery: 14, sheets_appsscript: 14
+export const ACTION_COUNT = 258;
