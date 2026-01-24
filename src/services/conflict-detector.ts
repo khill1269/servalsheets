@@ -37,6 +37,7 @@ import {
   MergeResult,
 } from '../types/conflict.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { BoundedCache } from '../utils/bounded-cache.js';
 
 /**
  * Conflict Detector - Detects and resolves multi-user conflicts
@@ -45,11 +46,12 @@ export class ConflictDetector {
   private config: Required<Omit<ConflictDetectorConfig, 'googleClient'>>;
   private googleClient?: ConflictDetectorConfig['googleClient'];
   private stats: ConflictDetectorStats;
-  private versionCache: Map<string, VersionCacheEntry>;
-  private locks: Map<string, OptimisticLock>;
-  private editSessions: Map<string, EditSession>;
-  private activeConflicts: Map<string, Conflict>;
-  // Phase 1: Timer cleanup
+  // Phase 1.4: Bounded caches (prevent unbounded memory growth)
+  private versionCache: BoundedCache<string, VersionCacheEntry>;
+  private locks: BoundedCache<string, OptimisticLock>;
+  private editSessions: BoundedCache<string, EditSession>;
+  private activeConflicts: BoundedCache<string, Conflict>;
+  // Phase 1.2: Timer cleanup
   private cacheCleanupInterval?: NodeJS.Timeout;
   private lockCleanupInterval?: NodeJS.Timeout;
 
@@ -88,10 +90,54 @@ export class ConflictDetector {
       versionsTracked: 0,
     };
 
-    this.versionCache = new Map();
-    this.locks = new Map();
-    this.editSessions = new Map();
-    this.activeConflicts = new Map();
+    // Phase 1.4: Initialize bounded caches
+    this.versionCache = new BoundedCache<string, VersionCacheEntry>({
+      maxSize: this.config.maxVersionsToCache,
+      ttl: this.config.versionCacheTtl,
+      onEviction: (key, value) => {
+        const entry = value as VersionCacheEntry | undefined;
+        logger.debug('Version cache entry evicted', {
+          key,
+          version: entry?.version?.version,
+        });
+      },
+    });
+
+    this.locks = new BoundedCache<string, OptimisticLock>({
+      maxSize: 5000, // Support up to 5000 concurrent locks
+      ttl: 5 * 60 * 1000, // 5 minute lock TTL
+      onEviction: (key, value) => {
+        const lock = value as OptimisticLock | undefined;
+        logger.debug('Lock expired', {
+          lockId: lock?.id,
+          range: key,
+        });
+      },
+    });
+
+    this.editSessions = new BoundedCache<string, EditSession>({
+      maxSize: 10000, // Support up to 10K active edit sessions
+      ttl: 60 * 60 * 1000, // 1 hour session TTL
+      onEviction: (sessionId, value) => {
+        const session = value as EditSession | undefined;
+        logger.debug('Edit session expired', {
+          sessionId,
+          user: session?.user,
+        });
+      },
+    });
+
+    this.activeConflicts = new BoundedCache<string, Conflict>({
+      maxSize: 1000, // Track up to 1000 active conflicts
+      ttl: 24 * 60 * 60 * 1000, // 24 hour conflict TTL
+      onEviction: (conflictId, value) => {
+        const conflict = value as Conflict | undefined;
+        logger.debug('Conflict entry evicted', {
+          conflictId,
+          severity: conflict?.severity,
+        });
+      },
+    });
 
     // Start background cleanup
     this.startCacheCleanup();
@@ -638,37 +684,19 @@ export class ConflictDetector {
 
   /**
    * Start background cache cleanup
+   *
+   * Phase 1.4: TTL and max size are now handled by BoundedCache automatically.
+   * This interval is kept for potential future custom cleanup logic.
    */
   private startCacheCleanup(): void {
     this.cacheCleanupInterval = setInterval(() => {
-      const now = Date.now();
-      const expired: string[] = [];
-
-      for (const [key, entry] of this.versionCache.entries()) {
-        if (now - entry.cachedAt > entry.ttl) {
-          expired.push(key);
-        }
-      }
-
-      for (const key of expired) {
-        this.versionCache.delete(key);
-        this.log(`Cleaned up expired version cache: ${key}`);
-      }
-
-      // Enforce max cache size
-      if (this.versionCache.size > this.config.maxVersionsToCache) {
-        // Remove oldest entries
-        const entries = Array.from(this.versionCache.entries()).sort(
-          (a, b) => a[1].cachedAt - b[1].cachedAt
-        );
-        const toRemove = entries.slice(0, this.versionCache.size - this.config.maxVersionsToCache);
-        for (const [key] of toRemove) {
-          this.versionCache.delete(key);
-        }
-      }
+      // Phase 1.4: TTL expiration now handled by BoundedCache
+      // Phase 1.4: LRU eviction now handled by BoundedCache
+      // Custom cleanup logic can be added here if needed
+      this.log('Cache cleanup check (BoundedCache handles TTL/LRU automatically)');
     }, 60000); // Every minute
 
-    // Phase 1: Register cleanup to prevent memory leak
+    // Phase 1.2: Register cleanup to prevent memory leak
     registerCleanup(
       'ConflictDetector',
       () => {

@@ -21,6 +21,12 @@ import type {
   OperationHistoryFilter,
 } from '../types/history.js';
 import { logger } from '../utils/logger.js';
+import { BoundedCache } from '../utils/bounded-cache.js';
+
+/** Wrapper for operation ID arrays (required for BoundedCache object constraint) */
+interface OperationStack {
+  operationIds: string[];
+}
 
 export interface HistoryServiceOptions {
   /** Maximum number of operations to keep (default: 100) */
@@ -44,13 +50,30 @@ export class HistoryService {
   private maxSize: number;
   private verboseLogging: boolean;
 
-  // Undo/Redo stacks per spreadsheet
-  private undoStacks: Map<string, string[]> = new Map(); // spreadsheetId -> [operationIds]
-  private redoStacks: Map<string, string[]> = new Map(); // spreadsheetId -> [operationIds]
+  // Phase 1.4: Bounded caches for undo/redo stacks per spreadsheet
+  private undoStacks: BoundedCache<string, OperationStack>; // spreadsheetId -> {operationIds}
+  private redoStacks: BoundedCache<string, OperationStack>; // spreadsheetId -> {operationIds}
 
   constructor(options: HistoryServiceOptions = {}) {
     this.maxSize = options.maxSize ?? 100;
     this.verboseLogging = options.verboseLogging ?? false;
+
+    // Phase 1.4: Initialize bounded caches for undo/redo stacks
+    this.undoStacks = new BoundedCache<string, OperationStack>({
+      maxSize: 1000, // Support up to 1000 active spreadsheets
+      ttl: 24 * 60 * 60 * 1000, // 24 hour TTL (clean up abandoned spreadsheets)
+      onEviction: (spreadsheetId) => {
+        logger.debug('Undo stack evicted', { spreadsheetId });
+      },
+    });
+
+    this.redoStacks = new BoundedCache<string, OperationStack>({
+      maxSize: 1000,
+      ttl: 24 * 60 * 60 * 1000,
+      onEviction: (spreadsheetId) => {
+        logger.debug('Redo stack evicted', { spreadsheetId });
+      },
+    });
 
     logger.info('History service initialized', {
       maxSize: this.maxSize,
@@ -70,12 +93,12 @@ export class HistoryService {
 
     // Add to undo stack if it has a snapshot (only successful write operations)
     if (operation.result === 'success' && operation.snapshotId && operation.spreadsheetId) {
-      const stack = this.undoStacks.get(operation.spreadsheetId) || [];
-      stack.push(operation.id);
+      const stack = this.undoStacks.get(operation.spreadsheetId) || { operationIds: [] };
+      stack.operationIds.push(operation.id);
       this.undoStacks.set(operation.spreadsheetId, stack);
 
       // Clear redo stack when new operation is performed
-      this.redoStacks.set(operation.spreadsheetId, []);
+      this.redoStacks.set(operation.spreadsheetId, { operationIds: [] });
     }
 
     // Maintain circular buffer
@@ -238,6 +261,8 @@ export class HistoryService {
   clear(): void {
     this.operations = [];
     this.operationsMap.clear();
+    this.undoStacks.clear();
+    this.redoStacks.clear();
 
     logger.info('Operation history cleared');
   }
@@ -261,13 +286,13 @@ export class HistoryService {
    */
   getLastUndoable(spreadsheetId: string): OperationHistory | undefined {
     const stack = this.undoStacks.get(spreadsheetId);
-    if (!stack || stack.length === 0) {
+    if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no undoable operations available
       return undefined;
     }
 
-    const operationId = stack[stack.length - 1];
-    return this.operationsMap.get(operationId!);
+    const operationId = stack.operationIds.at(-1);
+    return operationId ? this.operationsMap.get(operationId) : undefined;
   }
 
   /**
@@ -275,30 +300,30 @@ export class HistoryService {
    */
   getLastRedoable(spreadsheetId: string): OperationHistory | undefined {
     const stack = this.redoStacks.get(spreadsheetId);
-    if (!stack || stack.length === 0) {
+    if (!stack || stack.operationIds.length === 0) {
       // OK: Explicit empty - typed as optional, no redoable operations available
       return undefined;
     }
 
-    const operationId = stack[stack.length - 1];
-    return this.operationsMap.get(operationId!);
+    const operationId = stack.operationIds.at(-1);
+    return operationId ? this.operationsMap.get(operationId) : undefined;
   }
 
   /**
    * Mark operation as undone (moves from undo stack to redo stack)
    */
   markAsUndone(operationId: string, spreadsheetId: string): void {
-    const undoStack = this.undoStacks.get(spreadsheetId) || [];
-    const redoStack = this.redoStacks.get(spreadsheetId) || [];
+    const undoStack = this.undoStacks.get(spreadsheetId) || { operationIds: [] };
+    const redoStack = this.redoStacks.get(spreadsheetId) || { operationIds: [] };
 
     // Remove from undo stack
-    const index = undoStack.indexOf(operationId);
+    const index = undoStack.operationIds.indexOf(operationId);
     if (index !== -1) {
-      undoStack.splice(index, 1);
+      undoStack.operationIds.splice(index, 1);
       this.undoStacks.set(spreadsheetId, undoStack);
 
       // Add to redo stack
-      redoStack.push(operationId);
+      redoStack.operationIds.push(operationId);
       this.redoStacks.set(spreadsheetId, redoStack);
     }
   }
@@ -307,17 +332,17 @@ export class HistoryService {
    * Mark operation as redone (moves from redo stack to undo stack)
    */
   markAsRedone(operationId: string, spreadsheetId: string): void {
-    const undoStack = this.undoStacks.get(spreadsheetId) || [];
-    const redoStack = this.redoStacks.get(spreadsheetId) || [];
+    const undoStack = this.undoStacks.get(spreadsheetId) || { operationIds: [] };
+    const redoStack = this.redoStacks.get(spreadsheetId) || { operationIds: [] };
 
     // Remove from redo stack
-    const index = redoStack.indexOf(operationId);
+    const index = redoStack.operationIds.indexOf(operationId);
     if (index !== -1) {
-      redoStack.splice(index, 1);
+      redoStack.operationIds.splice(index, 1);
       this.redoStacks.set(spreadsheetId, redoStack);
 
       // Add to undo stack
-      undoStack.push(operationId);
+      undoStack.operationIds.push(operationId);
       this.undoStacks.set(spreadsheetId, undoStack);
     }
   }
@@ -338,8 +363,12 @@ export class HistoryService {
     });
 
     // Clear undo/redo stacks
-    this.undoStacks.delete(spreadsheetId);
-    this.redoStacks.delete(spreadsheetId);
+    if (this.undoStacks.has(spreadsheetId)) {
+      this.undoStacks.delete(spreadsheetId);
+    }
+    if (this.redoStacks.has(spreadsheetId)) {
+      this.redoStacks.delete(spreadsheetId);
+    }
 
     logger.info(`Cleared ${removed} operations for spreadsheet ${spreadsheetId}`);
     return removed;
@@ -349,14 +378,14 @@ export class HistoryService {
    * Get undo stack size for a spreadsheet
    */
   getUndoStackSize(spreadsheetId: string): number {
-    return this.undoStacks.get(spreadsheetId)?.length || 0;
+    return this.undoStacks.get(spreadsheetId)?.operationIds.length || 0;
   }
 
   /**
    * Get redo stack size for a spreadsheet
    */
   getRedoStackSize(spreadsheetId: string): number {
-    return this.redoStacks.get(spreadsheetId)?.length || 0;
+    return this.redoStacks.get(spreadsheetId)?.operationIds.length || 0;
   }
 
   /**
@@ -364,7 +393,7 @@ export class HistoryService {
    * Returns array of operation IDs that can be undone
    */
   getUndoStack(spreadsheetId: string): string[] {
-    return this.undoStacks.get(spreadsheetId) || [];
+    return this.undoStacks.get(spreadsheetId)?.operationIds || [];
   }
 
   /**
@@ -372,7 +401,7 @@ export class HistoryService {
    * Returns array of operation IDs that can be redone
    */
   getRedoStack(spreadsheetId: string): string[] {
-    return this.redoStacks.get(spreadsheetId) || [];
+    return this.redoStacks.get(spreadsheetId)?.operationIds || [];
   }
 
   // ==================== Extended History Features ====================

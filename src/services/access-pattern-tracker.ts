@@ -15,6 +15,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { BoundedCache } from '../utils/bounded-cache.js';
 
 export interface AccessRecord {
   timestamp: number;
@@ -61,7 +62,7 @@ export interface AccessPatternTrackerOptions {
  */
 export class AccessPatternTracker {
   private history: AccessRecord[] = [];
-  private patterns: Map<string, AccessPattern> = new Map();
+  private patterns: BoundedCache<string, AccessPattern>;
   private maxHistory: number;
   private patternWindow: number;
   private minPatternFrequency: number;
@@ -77,6 +78,20 @@ export class AccessPatternTracker {
     this.maxHistory = options.maxHistory ?? 1000;
     this.patternWindow = options.patternWindow ?? 300000; // 5 minutes
     this.minPatternFrequency = options.minPatternFrequency ?? 2;
+
+    // Phase 1.4: Bounded cache for patterns (prevents unbounded memory growth)
+    this.patterns = new BoundedCache<string, AccessPattern>({
+      maxSize: 10000, // Limit to 10K patterns (protects against pathological cases)
+      ttl: this.patternWindow * 2, // Keep patterns for 2x pattern window
+      onEviction: (key, value) => {
+        const pattern = value as AccessPattern | undefined;
+        logger.debug('Pattern evicted from cache', {
+          patternId: key,
+          frequency: pattern?.frequency,
+          confidence: pattern?.confidence,
+        });
+      },
+    });
   }
 
   /**
@@ -385,7 +400,7 @@ export class AccessPatternTracker {
     return {
       ...this.stats,
       historySize: this.history.length,
-      patternsKnown: this.patterns.size,
+      patternsKnown: this.patterns.size(),
       avgPredictionsPerAccess:
         this.stats.totalAccesses > 0
           ? this.stats.predictionsGenerated / this.stats.totalAccesses
