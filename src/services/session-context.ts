@@ -1,18 +1,55 @@
 /**
- * SessionContextManager
+ * SessionContextManager (Business Layer)
  *
- * @purpose Enables natural language interactions by resolving references like "the spreadsheet", "undo that", "my CRM"
+ * Enables natural language interactions by resolving references like "the spreadsheet", "undo that", "my CRM".
+ *
+ * ## Context Hierarchy
+ *
+ * ServalSheets uses a 3-layer context system:
+ *
+ * ```
+ * 1. RequestContext (Protocol Layer)
+ *    ↓ contains
+ * 2. SessionContext (Business Layer) ← YOU ARE HERE
+ *    ↓ contains
+ * 3. ContextManager (Inference Layer)
+ * ```
+ *
+ * ## SessionContext - Business Layer
+ *
+ * **Purpose**: Domain-specific conversation state and spreadsheet tracking
+ * **Lifetime**: Client connection/conversation session (minutes to hours)
+ * **Scope**: One instance per MCP client connection
+ *
+ * **Contains**:
+ * - Active spreadsheet context (ID, title, sheet names)
+ * - Recent spreadsheets (max 10, for "open my Budget")
+ * - Operation history (max 100, for "undo that")
+ * - User preferences (timezone, locale, naming patterns)
+ * - Pending operations (for multi-step workflows)
+ *
+ * **When to use**:
+ * - Resolving conversational references ("the spreadsheet", "my CRM")
+ * - Supporting undo/redo operations
+ * - Tracking what the user is currently working on
+ * - Maintaining conversation history for context
+ *
+ * **Different from**:
+ * - {@link RequestContext} - MCP protocol metadata (requestId, tracing)
+ * - {@link ContextManager} - Parameter inference cache (last used IDs)
+ *
  * @category Core
- * @usage Essential for conversational AI - tracks active spreadsheet, operation history, user preferences, pending operations
  * @dependencies logger
- * @stateful Yes - maintains active spreadsheet context, recent spreadsheets (max 10), operation history (max 100), user preferences
- * @singleton No - one instance per conversation/session to maintain isolated context
+ * @stateful Yes - maintains conversation state
+ * @singleton No - one per session
  *
  * @example
  * const manager = new SessionContextManager();
  * manager.setActiveSpreadsheet({ spreadsheetId: '1ABC', title: 'Budget' });
  * const found = manager.findSpreadsheetByReference('the budget'); // resolves to '1ABC'
  * manager.recordOperation({ tool: 'sheets_data', action: 'write', description: 'Updated Q1 data' });
+ *
+ * @see docs/architecture/CONTEXT_LAYERS.md for full hierarchy
  */
 
 import { logger } from '../utils/logger.js';

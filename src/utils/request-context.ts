@@ -1,7 +1,44 @@
 /**
- * ServalSheets - Request Context
+ * ServalSheets - Request Context (Protocol Layer)
  *
  * Async-local storage for per-request metadata (requestId, logger, deadlines, progress notifications).
+ *
+ * ## Context Hierarchy
+ *
+ * ServalSheets uses a 3-layer context system:
+ *
+ * ```
+ * 1. RequestContext (Protocol Layer) ← YOU ARE HERE
+ *    ↓ contains
+ * 2. SessionContext (Business Layer)
+ *    ↓ contains
+ * 3. ContextManager (Inference Layer)
+ * ```
+ *
+ * ## RequestContext - Protocol Layer
+ *
+ * **Purpose**: MCP protocol-specific request tracking
+ * **Lifetime**: Single tool call (1-30 seconds)
+ * **Scope**: Thread-local via AsyncLocalStorage
+ *
+ * **Contains**:
+ * - Request ID (UUID for tracing)
+ * - Logger instance (with request context)
+ * - Timeout/deadline tracking
+ * - MCP progress notification channel
+ * - W3C distributed tracing IDs
+ *
+ * **When to use**:
+ * - Accessing current request ID for logging
+ * - Sending MCP progress notifications
+ * - Enforcing request timeouts
+ * - Distributed tracing across services
+ *
+ * **Related**:
+ * - {@link SessionContext} (src/services/session-context.ts) - Business domain context
+ * - {@link ContextManager} (src/services/context-manager.ts) - Parameter inference
+ *
+ * @see docs/architecture/CONTEXT_LAYERS.md for full hierarchy
  */
 
 import { AsyncLocalStorage } from 'async_hooks';

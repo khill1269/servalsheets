@@ -1,12 +1,52 @@
 /**
- * ContextManager
+ * ContextManager (Inference Layer)
  *
- * @purpose Tracks recently used parameters (spreadsheetId, sheetId, range) and auto-infers when missing, reducing required params by ~30%
+ * Tracks recently used parameters (spreadsheetId, sheetId, range) and auto-infers when missing, reducing required params by ~30%.
+ *
+ * ## Context Hierarchy
+ *
+ * ServalSheets uses a 3-layer context system:
+ *
+ * ```
+ * 1. RequestContext (Protocol Layer)
+ *    ↓ contains
+ * 2. SessionContext (Business Layer)
+ *    ↓ contains
+ * 3. ContextManager (Inference Layer) ← YOU ARE HERE
+ * ```
+ *
+ * ## ContextManager - Inference Layer
+ *
+ * **Purpose**: Parameter inference for MCP Elicitation (SEP-1036)
+ * **Lifetime**: Active elicitation request (seconds to minutes)
+ * **Scope**: One instance per elicitation flow
+ *
+ * **Contains**:
+ * - Last used spreadsheetId (for "use same spreadsheet")
+ * - Last used sheetId/sheetName (for "next sheet")
+ * - Last used range (for "adjacent range")
+ * - Parameter history (last 10 values)
+ * - Inference timestamps (for TTL expiry)
+ *
+ * **When to use**:
+ * - Auto-filling missing parameters in tool calls
+ * - Suggesting next values in MCP Elicitation forms
+ * - Reducing user input friction ("use same spreadsheet")
+ * - Parameter validation hints ("last used: Budget.xlsx")
+ *
+ * **Different from**:
+ * - {@link RequestContext} - MCP protocol metadata (not business logic)
+ * - {@link SessionContext} - Conversation state (not just last-used values)
+ *
+ * **Integration with MCP Elicitation**:
+ * - Provides `parameterDescriptions` with inferred values
+ * - Powers autocomplete suggestions
+ * - Enables "smart defaults" in forms
+ *
  * @category Core
- * @usage Use to enable conversational interactions like "read the next sheet" without repeating spreadsheetId; tracks last 10 values per param
  * @dependencies logger
- * @stateful Yes - maintains LRU cache of recent parameters (spreadsheetId, sheetId, range, last N values)
- * @singleton No - one instance per session to maintain conversation-specific context
+ * @stateful Yes - maintains LRU cache of recent parameters
+ * @singleton No - one per session
  *
  * @example
  * const ctx = new ContextManager({ maxHistorySize: 10 });
@@ -14,6 +54,8 @@
  * const inferred = ctx.inferSpreadsheet(); // Returns '1ABC' for next call
  * ctx.recordRange('Sheet1!A1:Z10');
  * const nextRange = ctx.suggestNextRange(); // Suggests 'Sheet1!A11:Z20' (adjacent)
+ *
+ * @see docs/architecture/CONTEXT_LAYERS.md for full hierarchy
  */
 
 import { logger } from '../utils/logger.js';
