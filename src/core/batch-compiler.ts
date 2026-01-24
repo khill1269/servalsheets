@@ -722,9 +722,195 @@ export class BatchCompiler {
   private mergeCompatibleRequests(
     requests: sheets_v4.Schema$Request[]
   ): sheets_v4.Schema$Request[] {
-    // For now, return as-is
-    // Future: merge multiple updateCells for same range, etc.
-    return requests;
+    if (requests.length <= 1) {
+      return requests;
+    }
+
+    const merged: sheets_v4.Schema$Request[] = [];
+    const processed = new Set<number>();
+
+    for (let i = 0; i < requests.length; i++) {
+      if (processed.has(i)) continue;
+
+      const request = requests[i]!;
+      const requestType = Object.keys(request)[0];
+
+      // Try to merge updateCells requests
+      if (requestType === 'updateCells' && request.updateCells) {
+        const mergeResult = this.mergeUpdateCells(requests, i, processed);
+        if (mergeResult) {
+          merged.push(mergeResult);
+          continue;
+        }
+      }
+
+      // Try to merge repeatCell requests
+      if (requestType === 'repeatCell' && request.repeatCell) {
+        const mergeResult = this.mergeRepeatCell(requests, i, processed);
+        if (mergeResult) {
+          merged.push(mergeResult);
+          continue;
+        }
+      }
+
+      // No merge possible, add original request
+      merged.push(request);
+      processed.add(i);
+    }
+
+    const originalCount = requests.length;
+    const mergedCount = merged.length;
+    if (mergedCount < originalCount) {
+      logger.debug('Merged compatible requests', {
+        originalCount,
+        mergedCount,
+        reduction: ((1 - mergedCount / originalCount) * 100).toFixed(1) + '%',
+      });
+    }
+
+    return merged;
+  }
+
+  /**
+   * Merge multiple updateCells requests for adjacent/overlapping ranges
+   */
+  private mergeUpdateCells(
+    requests: sheets_v4.Schema$Request[],
+    startIndex: number,
+    processed: Set<number>
+  ): sheets_v4.Schema$Request | null {
+    const startReq = requests[startIndex]!.updateCells!;
+    if (!startReq.range || !startReq.rows) {
+      processed.add(startIndex);
+      return null;
+    }
+
+    const sheetId = startReq.range.sheetId;
+    const fields = startReq.fields;
+    const candidates: Array<{ index: number; request: sheets_v4.Schema$UpdateCellsRequest }> = [
+      { index: startIndex, request: startReq },
+    ];
+
+    // Find adjacent updateCells for same sheet and fields
+    for (let j = startIndex + 1; j < requests.length; j++) {
+      if (processed.has(j)) continue;
+
+      const req = requests[j]!;
+      if (!req.updateCells?.range || !req.updateCells.rows) continue;
+
+      // Must be same sheet, same fields
+      if (req.updateCells.range.sheetId === sheetId && req.updateCells.fields === fields) {
+        // Check if ranges are adjacent (consecutive rows)
+        const lastCandidate = candidates.at(-1)!;
+        const lastEndRow =
+          (lastCandidate.request.range?.startRowIndex ?? 0) +
+          (lastCandidate.request.rows?.length ?? 0);
+        const currentStartRow = req.updateCells.range.startRowIndex ?? 0;
+
+        if (currentStartRow === lastEndRow) {
+          candidates.push({ index: j, request: req.updateCells });
+        }
+      }
+    }
+
+    // Only merge if we found at least 2 compatible requests
+    if (candidates.length < 2) {
+      processed.add(startIndex);
+      return null;
+    }
+
+    // Mark all merged requests as processed
+    candidates.forEach((c) => processed.add(c.index));
+
+    // Combine all rows
+    const allRows = candidates.flatMap((c) => c.request.rows || []);
+
+    return {
+      updateCells: {
+        range: {
+          sheetId,
+          startRowIndex: startReq.range.startRowIndex,
+          endRowIndex: (startReq.range.startRowIndex ?? 0) + allRows.length,
+          startColumnIndex: startReq.range.startColumnIndex,
+          endColumnIndex: startReq.range.endColumnIndex,
+        },
+        rows: allRows,
+        fields: startReq.fields,
+      },
+    };
+  }
+
+  /**
+   * Merge multiple repeatCell requests for same format
+   */
+  private mergeRepeatCell(
+    requests: sheets_v4.Schema$Request[],
+    startIndex: number,
+    processed: Set<number>
+  ): sheets_v4.Schema$Request | null {
+    const startReq = requests[startIndex]!.repeatCell!;
+    if (!startReq.range || !startReq.cell) {
+      processed.add(startIndex);
+      return null;
+    }
+
+    const sheetId = startReq.range.sheetId;
+    const fields = startReq.fields;
+    const cellJSON = JSON.stringify(startReq.cell);
+    const candidates: Array<{ index: number; request: sheets_v4.Schema$RepeatCellRequest }> = [
+      { index: startIndex, request: startReq },
+    ];
+
+    // Find repeatCell requests with same cell format
+    for (let j = startIndex + 1; j < requests.length; j++) {
+      if (processed.has(j)) continue;
+
+      const req = requests[j]!;
+      if (!req.repeatCell?.range || !req.repeatCell.cell) continue;
+
+      // Must be same sheet, same fields, same cell format
+      if (
+        req.repeatCell.range.sheetId === sheetId &&
+        req.repeatCell.fields === fields &&
+        JSON.stringify(req.repeatCell.cell) === cellJSON
+      ) {
+        // Check if ranges are adjacent
+        const lastCandidate = candidates.at(-1)!;
+        const lastEndRow = lastCandidate.request.range?.endRowIndex ?? 0;
+        const currentStartRow = req.repeatCell.range.startRowIndex ?? 0;
+
+        if (currentStartRow === lastEndRow) {
+          candidates.push({ index: j, request: req.repeatCell });
+        }
+      }
+    }
+
+    // Only merge if we found at least 2 compatible requests
+    if (candidates.length < 2) {
+      processed.add(startIndex);
+      return null;
+    }
+
+    // Mark all merged requests as processed
+    candidates.forEach((c) => processed.add(c.index));
+
+    // Calculate combined range
+    const firstRange = candidates[0]!.request.range!;
+    const lastRange = candidates.at(-1)!.request.range!;
+
+    return {
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: firstRange.startRowIndex,
+          endRowIndex: lastRange.endRowIndex,
+          startColumnIndex: firstRange.startColumnIndex,
+          endColumnIndex: firstRange.endColumnIndex,
+        },
+        cell: startReq.cell,
+        fields: startReq.fields,
+      },
+    };
   }
 
   private chunkRequests<T>(array: T[], size: number): T[][] {
