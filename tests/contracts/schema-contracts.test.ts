@@ -32,6 +32,8 @@ import {
   SheetsTemplatesInputSchema,
   SheetsBigQueryInputSchema,
   SheetsAppsScriptInputSchema,
+  SheetsWebhookInputSchema,
+  SheetsDependenciesInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
@@ -53,7 +55,13 @@ const VALID_INPUTS: Record<string, unknown> = {
     },
   },
   sheets_dimensions: {
-    request: { action: 'insert', dimension: 'ROWS', spreadsheetId: 'test123', sheetId: 0, startIndex: 5 },
+    request: {
+      action: 'insert',
+      dimension: 'ROWS',
+      spreadsheetId: 'test123',
+      sheetId: 0,
+      startIndex: 5,
+    },
   },
   sheets_visualize: {
     request: {
@@ -132,9 +140,18 @@ const VALID_INPUTS: Record<string, unknown> = {
   sheets_templates: { request: { action: 'list', includeBuiltin: false } },
   sheets_bigquery: { request: { action: 'list_datasets', projectId: 'my-gcp-project' } },
   sheets_appsscript: { request: { action: 'list_versions', scriptId: 'test-script-id' } },
+  sheets_webhook: {
+    request: {
+      action: 'register',
+      spreadsheetId: 'test123',
+      webhookUrl: 'https://example.com/webhook',
+      eventTypes: ['sheet.update'],
+    },
+  },
+  sheets_dependencies: { request: { action: 'build', spreadsheetId: 'test123' } },
 };
 
-// All tool input schemas (19 tools - includes Tier 7 sheets_templates, sheets_bigquery, sheets_appsscript)
+// All tool input schemas (21 tools - includes Tier 7 enterprise tools)
 const TOOL_SCHEMAS = [
   { name: 'sheets_auth', schema: SheetsAuthInputSchema },
   { name: 'sheets_core', schema: SheetsCoreInputSchema },
@@ -155,17 +172,19 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_templates', schema: SheetsTemplatesInputSchema },
   { name: 'sheets_bigquery', schema: SheetsBigQueryInputSchema },
   { name: 'sheets_appsscript', schema: SheetsAppsScriptInputSchema },
+  { name: 'sheets_webhook', schema: SheetsWebhookInputSchema },
+  { name: 'sheets_dependencies', schema: SheetsDependenciesInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 19 tools (includes Tier 7 enterprise tools)', () => {
-      expect(TOOL_COUNT).toBe(19);
-      expect(TOOL_SCHEMAS).toHaveLength(19);
+    it('should have exactly 21 tools (includes Tier 7 enterprise tools)', () => {
+      expect(TOOL_COUNT).toBe(21);
+      expect(TOOL_SCHEMAS).toHaveLength(21);
     });
 
-    it('should have 251 total actions across all tools', () => {
-      expect(ACTION_COUNT).toBe(251);
+    it('should have 271 total actions across all tools', () => {
+      expect(ACTION_COUNT).toBe(271);
     });
 
     it('should not have duplicate tool names', () => {
@@ -332,26 +351,36 @@ describe('Schema Contracts', () => {
     it('all schemas use discriminated unions (verify discriminator field in request)', () => {
       // All schemas now use { request: z.discriminatedUnion(...) } pattern
       // or { request: z.object({ action: z.enum([...]), ... }) } pattern
+      // or { request: z.preprocess(..., z.discriminatedUnion(...)) } pattern (type='pipe')
 
       for (const tool of TOOL_SCHEMAS) {
         // Get the schema definition
         const zodDef = (tool.schema as unknown as { _def: { type?: string; shape?: unknown } })
           ._def;
         expect(zodDef).toBeDefined();
-        expect(zodDef.type).toBe('object'); // Outer object wrapper
+        // Outer type can be 'object' or 'pipe' (for schemas using z.preprocess at top level)
+        expect(['object', 'pipe'].includes(zodDef.type ?? '')).toBe(true);
 
-        // Get the request field from shape
-        const shape =
-          typeof zodDef.shape === 'function' ? (zodDef.shape as () => unknown)() : zodDef.shape;
+        // For pipe types (z.preprocess), we need to traverse the inner schema
+        let shape = zodDef.shape;
+        if (zodDef.type === 'pipe') {
+          // Get the inner schema from the pipe (z.preprocess wraps in ZodPipeline)
+          const innerDef = (zodDef as unknown as { out?: { _def?: { shape?: unknown } } })?.out
+            ?._def;
+          shape = innerDef?.shape;
+        }
+
+        shape = typeof shape === 'function' ? (shape as () => unknown)() : shape;
         const requestField = (shape as Record<string, unknown>)?.['request'];
         expect(requestField).toBeDefined();
 
         // Request field should be either discriminated union or object with action enum
+        // Some schemas use z.preprocess() which creates a 'pipe' type
         const requestDef = (requestField as { _def?: { type?: string; discriminator?: string } })
           ?._def;
         expect(requestDef).toBeDefined();
-        // Either discriminated union (type='union' with discriminator) or object with action
-        expect(['union', 'object'].includes(requestDef?.type ?? '')).toBe(true);
+        // Either discriminated union (type='union'), object with action, or pipe (z.preprocess)
+        expect(['union', 'object', 'pipe'].includes(requestDef?.type ?? '')).toBe(true);
       }
     });
 
@@ -536,9 +565,29 @@ describe('Schema Contracts', () => {
       // Test a representative sample of dimension actions (consolidated actions use dimension param)
       const dimensionActions = [
         { action: 'insert', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5 },
-        { action: 'insert', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3 },
-        { action: 'delete', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'delete', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
+        {
+          action: 'insert',
+          dimension: 'COLUMNS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 3,
+        },
+        {
+          action: 'delete',
+          dimension: 'ROWS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 5,
+          endIndex: 10,
+        },
+        {
+          action: 'delete',
+          dimension: 'COLUMNS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 3,
+          endIndex: 5,
+        },
         {
           action: 'resize',
           dimension: 'ROWS',
@@ -565,13 +614,48 @@ describe('Schema Contracts', () => {
           endIndex: 10,
           dimension: 'ROWS',
         },
-        { action: 'hide', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'hide', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
-        { action: 'show', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
-        { action: 'show', dimension: 'COLUMNS', spreadsheetId: 'test', sheetId: 0, startIndex: 3, endIndex: 5 },
+        {
+          action: 'hide',
+          dimension: 'ROWS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 5,
+          endIndex: 10,
+        },
+        {
+          action: 'hide',
+          dimension: 'COLUMNS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 3,
+          endIndex: 5,
+        },
+        {
+          action: 'show',
+          dimension: 'ROWS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 5,
+          endIndex: 10,
+        },
+        {
+          action: 'show',
+          dimension: 'COLUMNS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 3,
+          endIndex: 5,
+        },
         { action: 'append', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, count: 5 },
         { action: 'freeze', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, count: 2 },
-        { action: 'group', dimension: 'ROWS', spreadsheetId: 'test', sheetId: 0, startIndex: 5, endIndex: 10 },
+        {
+          action: 'group',
+          dimension: 'ROWS',
+          spreadsheetId: 'test',
+          sheetId: 0,
+          startIndex: 5,
+          endIndex: 10,
+        },
         {
           action: 'set_basic_filter',
           spreadsheetId: 'test',

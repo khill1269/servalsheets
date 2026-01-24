@@ -86,9 +86,9 @@ export const DependencyExportDotInputSchema = z.object({
 });
 
 /**
- * Dependencies input (discriminated union)
+ * Dependencies request (discriminated union)
  */
-export const SheetsDependenciesInputSchema = z.discriminatedUnion('action', [
+const DependencyRequestSchema = z.discriminatedUnion('action', [
   DependencyBuildInputSchema,
   DependencyAnalyzeImpactInputSchema,
   DependencyDetectCyclesInputSchema,
@@ -97,6 +97,16 @@ export const SheetsDependenciesInputSchema = z.discriminatedUnion('action', [
   DependencyGetStatsInputSchema,
   DependencyExportDotInputSchema,
 ]);
+
+/**
+ * Dependencies input (wrapped for MCP compatibility)
+ *
+ * Uses the standard { request: ... } pattern that other tools use.
+ * This ensures the schema matches the MCP SDK's expected input format.
+ */
+export const SheetsDependenciesInputSchema = z.object({
+  request: DependencyRequestSchema,
+});
 
 /**
  * Circular dependency

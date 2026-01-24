@@ -31,38 +31,39 @@ export class WebhookHandler {
    * Handle sheets_webhook tool calls
    */
   async handle(input: SheetsWebhookInput): Promise<SheetsWebhookOutput> {
+    const req = input.request;
     try {
-      switch (input.action) {
+      switch (req.action) {
         case 'register':
-          return await this.handleRegister(input);
+          return await this.handleRegister(req);
 
         case 'unregister':
-          return await this.handleUnregister(input);
+          return await this.handleUnregister(req);
 
         case 'list':
-          return await this.handleList(input);
+          return await this.handleList(req);
 
         case 'get':
-          return await this.handleGet(input);
+          return await this.handleGet(req);
 
         case 'test':
-          return await this.handleTest(input);
+          return await this.handleTest(req);
 
         case 'get_stats':
-          return await this.handleGetStats(input);
+          return await this.handleGetStats(req);
 
         default:
           return {
             success: false,
             error: {
               code: 'INVALID_ACTION',
-              message: `Unknown action: ${(input as { action: string }).action}`,
+              message: `Unknown action: ${(req as { action: string }).action}`,
             },
           };
       }
     } catch (error) {
       logger.error('Webhook handler error', {
-        action: input.action,
+        action: req.action,
         error,
       });
 
@@ -81,7 +82,7 @@ export class WebhookHandler {
    * Register webhook
    */
   private async handleRegister(
-    input: Extract<SheetsWebhookInput, { action: 'register' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'register' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();
@@ -107,7 +108,7 @@ export class WebhookHandler {
    * Unregister webhook
    */
   private async handleUnregister(
-    input: Extract<SheetsWebhookInput, { action: 'unregister' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'unregister' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();
@@ -133,7 +134,7 @@ export class WebhookHandler {
    * List webhooks
    */
   private async handleList(
-    input: Extract<SheetsWebhookInput, { action: 'list' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'list' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();
@@ -159,7 +160,7 @@ export class WebhookHandler {
    * Get webhook details
    */
   private async handleGet(
-    input: Extract<SheetsWebhookInput, { action: 'get' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'get' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();
@@ -195,7 +196,7 @@ export class WebhookHandler {
    * Send test webhook delivery
    */
   private async handleTest(
-    input: Extract<SheetsWebhookInput, { action: 'test' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'test' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();
@@ -259,7 +260,7 @@ export class WebhookHandler {
    * Get webhook statistics
    */
   private async handleGetStats(
-    input: Extract<SheetsWebhookInput, { action: 'get_stats' }>
+    input: Extract<SheetsWebhookInput['request'], { action: 'get_stats' }>
   ): Promise<SheetsWebhookOutput> {
     try {
       const manager = getWebhookManager();

@@ -52,14 +52,16 @@ export interface KeepaliveHandle {
  * }
  */
 export function startKeepalive(options: KeepaliveOptions = {}): KeepaliveHandle {
+  // OPTIMIZATION: Reduced from 15s to 10s for more aggressive timeout prevention
   const intervalMs =
-    parseInt(process.env['PROGRESS_NOTIFICATION_INTERVAL_MS'] ?? '15000', 10) ||
+    parseInt(process.env['PROGRESS_NOTIFICATION_INTERVAL_MS'] ?? '10000', 10) ||
     options.intervalMs ||
-    15000;
+    10000;
 
   const operationName = options.operationName ?? 'operation';
   const debug = options.debug ?? process.env['DEBUG_KEEPALIVE'] === 'true';
-  const enableNotifications = process.env['ENABLE_PROGRESS_NOTIFICATIONS'] === 'true';
+  // CRITICAL: Enable by default to prevent Claude Desktop timeouts (disabled only if explicitly set to 'false')
+  const enableNotifications = process.env['ENABLE_PROGRESS_NOTIFICATIONS'] !== 'false';
 
   const requestContext = getRequestContext();
   if (!requestContext) {

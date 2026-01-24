@@ -194,7 +194,31 @@ const ApplyPresetActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Range to apply preset to'),
   preset: z
     .preprocess(
-      (val) => (typeof val === 'string' ? val.toLowerCase() : val),
+      (val) => {
+        if (typeof val !== 'string') return val;
+        const lower = val.toLowerCase();
+        // Normalize common aliases
+        const aliases: Record<string, string> = {
+          header: 'header_row',
+          headers: 'header_row',
+          header_style: 'header_row',
+          alternating: 'alternating_rows',
+          zebra: 'alternating_rows',
+          zebra_stripes: 'alternating_rows',
+          total: 'total_row',
+          totals: 'total_row',
+          footer: 'total_row',
+          money: 'currency',
+          dollars: 'currency',
+          percent: 'percentage',
+          pct: 'percentage',
+          positive: 'highlight_positive',
+          green: 'highlight_positive',
+          negative: 'highlight_negative',
+          red: 'highlight_negative',
+        };
+        return aliases[lower] ?? lower;
+      },
       z.enum([
         'header_row',
         'alternating_rows',
@@ -207,7 +231,7 @@ const ApplyPresetActionSchema = CommonFieldsSchema.extend({
       ])
     )
     .describe(
-      'Preset name: header_row, alternating_rows, currency, percentage, etc. Case-insensitive.'
+      'Preset name: header_row (also: header, headers), alternating_rows (also: zebra, alternating), currency, percentage, date, highlight_positive, highlight_negative. Case-insensitive with common aliases supported.'
     ),
 });
 
@@ -390,12 +414,21 @@ const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
             blue_red: 'color_scale_blue_red',
             red_blue: 'color_scale_blue_red',
             blue_to_red: 'color_scale_blue_red',
-            // Data bars
+            // Data bars (any color variation maps to data_bars)
             data_bar: 'data_bars',
             databars: 'data_bars',
             bar: 'data_bars',
             bars: 'data_bars',
             progress_bar: 'data_bars',
+            data_bar_blue: 'data_bars',
+            data_bar_green: 'data_bars',
+            data_bar_red: 'data_bars',
+            data_bars_blue: 'data_bars',
+            data_bars_green: 'data_bars',
+            data_bars_red: 'data_bars',
+            blue_bars: 'data_bars',
+            green_bars: 'data_bars',
+            red_bars: 'data_bars',
             // Top/Bottom percentiles
             top_10: 'top_10_percent',
             top10: 'top_10_percent',
@@ -454,18 +487,45 @@ const normalizeFormatRequest = (val: unknown): unknown => {
   // Normalize flattened validation params for set_data_validation
   // LLMs often send: { validationType: "ONE_OF_LIST", values: [...] }
   // Schema expects: { condition: { type: "ONE_OF_LIST", values: [...] } }
-  if (action === 'set_data_validation' && !obj['condition']) {
+  if (action === 'set_data_validation') {
+    let condition = obj['condition'] as Record<string, unknown> | undefined;
+
+    // Handle rule: { condition: {...} } wrapper pattern (Google API format)
+    // LLMs sometimes copy the Google API structure: { rule: { condition: {...} } }
+    const rule = obj['rule'] as Record<string, unknown> | undefined;
+    if (!condition && rule?.['condition']) {
+      condition = rule['condition'] as Record<string, unknown>;
+    }
+
+    // Normalize values array: convert [{ userEnteredValue: "..." }] to ["..."]
+    if (condition?.['values'] && Array.isArray(condition['values'])) {
+      const values = condition['values'] as unknown[];
+      const normalizedValues = values.map((v) => {
+        if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
+          return (v as { userEnteredValue: string }).userEnteredValue;
+        }
+        return v;
+      });
+      condition = { ...condition, values: normalizedValues };
+    }
+
+    if (condition) {
+      const { rule: _r, ...rest } = obj;
+      return { ...rest, condition };
+    }
+
+    // Also handle flattened format: { validationType: "ONE_OF_LIST", values: [...] }
     const validationType = obj['validationType'] as string | undefined;
     const values = obj['values'] as unknown[] | undefined;
 
     if (validationType || values) {
-      const condition: Record<string, unknown> = {};
-      if (validationType) condition['type'] = validationType;
-      if (values) condition['values'] = values;
+      const newCondition: Record<string, unknown> = {};
+      if (validationType) newCondition['type'] = validationType;
+      if (values) newCondition['values'] = values;
 
       // Return new object with condition, removing flattened fields
       const { validationType: _vt, values: _v, ...rest } = obj;
-      return { ...rest, condition };
+      return { ...rest, condition: newCondition };
     }
   }
 

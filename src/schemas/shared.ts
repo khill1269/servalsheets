@@ -515,12 +515,23 @@ export const ConditionSchema = z.object({
     .preprocess((val) => {
       // Undefined/null - return undefined
       if (val === undefined || val === null) return undefined;
+
+      // Helper to extract string value from various formats
+      const extractValue = (v: unknown): string => {
+        if (v === null || v === undefined) return '';
+        // Handle Google Sheets API format: { userEnteredValue: "..." }
+        if (typeof v === 'object' && v !== null && 'userEnteredValue' in v) {
+          return String((v as { userEnteredValue: unknown }).userEnteredValue ?? '');
+        }
+        return String(v);
+      };
+
       // Already an array - convert elements to strings
       if (Array.isArray(val)) {
-        return val.map((v) => (v === null || v === undefined ? '' : String(v)));
+        return val.map(extractValue);
       }
       // Single value - wrap in array
-      return [String(val)];
+      return [extractValue(val)];
     }, z.array(z.string()).optional())
     .describe('Condition values (single value or array, automatically converted to strings)'),
 });

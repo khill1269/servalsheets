@@ -40,41 +40,42 @@ export class DependenciesHandler {
    * Handle sheets_dependencies tool calls
    */
   async handle(input: SheetsDependenciesInput): Promise<SheetsDependenciesOutput> {
+    const req = input.request;
     try {
-      switch (input.action) {
+      switch (req.action) {
         case 'build':
-          return await this.handleBuild(input);
+          return await this.handleBuild(req);
 
         case 'analyze_impact':
-          return await this.handleAnalyzeImpact(input);
+          return await this.handleAnalyzeImpact(req);
 
         case 'detect_cycles':
-          return await this.handleDetectCycles(input);
+          return await this.handleDetectCycles(req);
 
         case 'get_dependencies':
-          return await this.handleGetDependencies(input);
+          return await this.handleGetDependencies(req);
 
         case 'get_dependents':
-          return await this.handleGetDependents(input);
+          return await this.handleGetDependents(req);
 
         case 'get_stats':
-          return await this.handleGetStats(input);
+          return await this.handleGetStats(req);
 
         case 'export_dot':
-          return await this.handleExportDot(input);
+          return await this.handleExportDot(req);
 
         default:
           return {
             success: false,
             error: {
               code: 'INVALID_ACTION',
-              message: `Unknown action: ${(input as { action: string }).action}`,
+              message: `Unknown action: ${(req as { action: string }).action}`,
             },
           };
       }
     } catch (error) {
       logger.error('Dependencies handler error', {
-        action: input.action,
+        action: req.action,
         error,
       });
 
@@ -93,7 +94,7 @@ export class DependenciesHandler {
    * Build dependency graph
    */
   private async handleBuild(
-    input: Extract<SheetsDependenciesInput, { action: 'build' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'build' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId, sheetNames } = input;
@@ -138,7 +139,7 @@ export class DependenciesHandler {
    * Analyze impact of changing a cell
    */
   private async handleAnalyzeImpact(
-    input: Extract<SheetsDependenciesInput, { action: 'analyze_impact' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'analyze_impact' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId, cell } = input;
@@ -173,7 +174,7 @@ export class DependenciesHandler {
    * Detect circular dependencies
    */
   private async handleDetectCycles(
-    input: Extract<SheetsDependenciesInput, { action: 'detect_cycles' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'detect_cycles' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId } = input;
@@ -208,7 +209,7 @@ export class DependenciesHandler {
    * Get dependencies for a cell
    */
   private async handleGetDependencies(
-    input: Extract<SheetsDependenciesInput, { action: 'get_dependencies' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'get_dependencies' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId, cell } = input;
@@ -243,7 +244,7 @@ export class DependenciesHandler {
    * Get dependents for a cell
    */
   private async handleGetDependents(
-    input: Extract<SheetsDependenciesInput, { action: 'get_dependents' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'get_dependents' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId, cell } = input;
@@ -278,7 +279,7 @@ export class DependenciesHandler {
    * Get dependency statistics
    */
   private async handleGetStats(
-    input: Extract<SheetsDependenciesInput, { action: 'get_stats' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'get_stats' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId } = input;
@@ -313,7 +314,7 @@ export class DependenciesHandler {
    * Export graph as DOT format
    */
   private async handleExportDot(
-    input: Extract<SheetsDependenciesInput, { action: 'export_dot' }>
+    input: Extract<SheetsDependenciesInput['request'], { action: 'export_dot' }>
   ): Promise<SheetsDependenciesOutput> {
     try {
       const { spreadsheetId } = input;

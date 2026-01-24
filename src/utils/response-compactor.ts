@@ -35,19 +35,23 @@ const STRIPPED_FIELDS = [
 
 /**
  * Maximum size for inline arrays before truncation
+ * OPTIMIZATION: Reduced from 500 to 100 for faster responses
  */
-const MAX_INLINE_ITEMS = parseInt(process.env['MAX_INLINE_CELLS'] || '500', 10);
+const MAX_INLINE_ITEMS = parseInt(process.env['MAX_INLINE_CELLS'] || '100', 10);
 
 /**
  * Maximum string length before truncation
+ * OPTIMIZATION: Reduced from 500 to 200 for smaller payloads
  */
-const MAX_STRING_LENGTH = 500;
+const MAX_STRING_LENGTH = 200;
 
 /**
  * Whether compact mode is enabled
+ * CRITICAL: Enabled by default to prevent context window bloat in Claude Desktop
+ * (disabled only if explicitly set to 'false')
  */
 export function isCompactModeEnabled(): boolean {
-  return process.env['COMPACT_RESPONSES'] === 'true';
+  return process.env['COMPACT_RESPONSES'] !== 'false';
 }
 
 /**

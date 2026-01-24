@@ -393,11 +393,20 @@ const PivotCreateActionSchema = CommonFieldsSchema.extend({
     'Sheet ID for pivot table destination (omit = new sheet)'
   ),
   destinationCell: z
-    .string()
-    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference format (expected: A1, AA1, AAA1)')
+    .preprocess(
+      (val) => {
+        if (typeof val !== 'string') return val;
+        // Strip sheet name prefix if present: "'Sheet Name'!A1" -> "A1" or "Sheet1!A1" -> "A1"
+        const match = val.match(/^(?:'[^']+'!|[^!]+!)?([A-Z]{1,3}\d+)$/i);
+        return match ? match[1]!.toUpperCase() : val;
+      },
+      z.string().regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference format (expected: A1, AA1, AAA1)')
+    )
     .optional()
     .default('A1')
-    .describe('Top-left cell for pivot table (default: A1)'),
+    .describe(
+      'Top-left cell for pivot table (default: A1). Sheet prefix will be stripped if provided.'
+    ),
 });
 
 const SuggestPivotActionSchema = CommonFieldsSchema.extend({

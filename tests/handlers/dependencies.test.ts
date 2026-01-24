@@ -56,8 +56,10 @@ describe('DependenciesHandler', () => {
   describe('Build Action', () => {
     it('should build dependency graph from spreadsheet', async () => {
       const result = await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -70,9 +72,11 @@ describe('DependenciesHandler', () => {
 
     it('should filter by sheet names if provided', async () => {
       const result = await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
-        sheetNames: ['Sheet1'],
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+          sheetNames: ['Sheet1'],
+        },
       });
 
       expect(result.success).toBe(true);
@@ -92,8 +96,10 @@ describe('DependenciesHandler', () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('API error'));
 
       const result = await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(false);
@@ -103,14 +109,18 @@ describe('DependenciesHandler', () => {
     it('should cache analyzer for subsequent calls', async () => {
       // First build
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Second build should reuse cache
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Should be called twice (once for each build)
@@ -122,15 +132,19 @@ describe('DependenciesHandler', () => {
     it('should analyze impact of cell change', async () => {
       // Build graph first
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Analyze impact
       const result = await handler.handle({
-        action: 'analyze_impact',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!A1',
+        request: {
+          action: 'analyze_impact',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!A1',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -143,9 +157,11 @@ describe('DependenciesHandler', () => {
 
     it('should build graph if not cached', async () => {
       const result = await handler.handle({
-        action: 'analyze_impact',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!C1',
+        request: {
+          action: 'analyze_impact',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!C1',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -154,14 +170,18 @@ describe('DependenciesHandler', () => {
 
     it('should handle invalid cell addresses', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'analyze_impact',
-        spreadsheetId: '1ABC',
-        cell: 'InvalidCell',
+        request: {
+          action: 'analyze_impact',
+          spreadsheetId: '1ABC',
+          cell: 'InvalidCell',
+        },
       });
 
       // Should handle gracefully
@@ -170,14 +190,18 @@ describe('DependenciesHandler', () => {
 
     it('should include dependency chain', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'analyze_impact',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!A1',
+        request: {
+          action: 'analyze_impact',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!A1',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -211,13 +235,17 @@ describe('DependenciesHandler', () => {
       });
 
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'detect_cycles',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'detect_cycles',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -226,13 +254,17 @@ describe('DependenciesHandler', () => {
 
     it('should return empty array if no cycles', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'detect_cycles',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'detect_cycles',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -245,14 +277,18 @@ describe('DependenciesHandler', () => {
   describe('Get Dependencies Action', () => {
     it('should get cells that a cell depends on', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'get_dependencies',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!C1',
+        request: {
+          action: 'get_dependencies',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!C1',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -264,14 +300,18 @@ describe('DependenciesHandler', () => {
 
     it('should return empty array for cells without dependencies', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'get_dependencies',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!A1', // A1 is a constant value
+        request: {
+          action: 'get_dependencies',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!A1', // A1 is a constant value
+        },
       });
 
       expect(result.success).toBe(true);
@@ -281,14 +321,18 @@ describe('DependenciesHandler', () => {
   describe('Get Dependents Action', () => {
     it('should get cells that depend on a cell', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'get_dependents',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!A1',
+        request: {
+          action: 'get_dependents',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!A1',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -300,14 +344,18 @@ describe('DependenciesHandler', () => {
 
     it('should return empty array for leaf cells', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'get_dependents',
-        spreadsheetId: '1ABC',
-        cell: 'Sheet1!C2', // C2 is a leaf node
+        request: {
+          action: 'get_dependents',
+          spreadsheetId: '1ABC',
+          cell: 'Sheet1!C2', // C2 is a leaf node
+        },
       });
 
       expect(result.success).toBe(true);
@@ -317,13 +365,17 @@ describe('DependenciesHandler', () => {
   describe('Get Stats Action', () => {
     it('should return dependency graph statistics', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'get_stats',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'get_stats',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -336,8 +388,10 @@ describe('DependenciesHandler', () => {
 
     it('should build graph if not cached', async () => {
       const result = await handler.handle({
-        action: 'get_stats',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'get_stats',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -348,13 +402,17 @@ describe('DependenciesHandler', () => {
   describe('Export DOT Action', () => {
     it('should export graph in DOT format', async () => {
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       const result = await handler.handle({
-        action: 'export_dot',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'export_dot',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(true);
@@ -369,8 +427,10 @@ describe('DependenciesHandler', () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('API error'));
 
       const result = await handler.handle({
-        action: 'export_dot',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'export_dot',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(false);
@@ -380,9 +440,11 @@ describe('DependenciesHandler', () => {
   describe('Error Handling', () => {
     it('should handle unknown action', async () => {
       const result = await handler.handle({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        action: 'unknown_action' as any,
-        spreadsheetId: '1ABC',
+        request: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          action: 'unknown_action' as any,
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(false);
@@ -393,8 +455,10 @@ describe('DependenciesHandler', () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('Internal server error'));
 
       const result = await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       expect(result.success).toBe(false);
@@ -406,8 +470,10 @@ describe('DependenciesHandler', () => {
     it('should cache analyzers per spreadsheet', async () => {
       // Build for spreadsheet 1
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Build for spreadsheet 2
@@ -430,8 +496,10 @@ describe('DependenciesHandler', () => {
         },
       });
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '2DEF',
+        request: {
+          action: 'build',
+          spreadsheetId: '2DEF',
+        },
       });
 
       // Both should be cached independently
@@ -441,14 +509,18 @@ describe('DependenciesHandler', () => {
     it('should rebuild graph when requested', async () => {
       // Initial build
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Rebuild
       await handler.handle({
-        action: 'build',
-        spreadsheetId: '1ABC',
+        request: {
+          action: 'build',
+          spreadsheetId: '1ABC',
+        },
       });
 
       // Should fetch twice (rebuild clears cache)

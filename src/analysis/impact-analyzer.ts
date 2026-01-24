@@ -209,7 +209,7 @@ export class ImpactAnalyzer {
 
       logger.debug('Sheet dependencies built', {
         sheetName,
-        formulaCount: rows.flat().filter((v) => v && v.startsWith('=')).length,
+        formulaCount: rows.flat().filter((v) => typeof v === 'string' && v.startsWith('=')).length,
       });
     } catch (error) {
       logger.error('Failed to build dependencies for sheet', {

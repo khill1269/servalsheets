@@ -99,9 +99,9 @@ export const WebhookStatsInputSchema = z.object({
 });
 
 /**
- * Webhook input (discriminated union)
+ * Webhook request (discriminated union)
  */
-export const SheetsWebhookInputSchema = z.discriminatedUnion('action', [
+const WebhookRequestSchema = z.discriminatedUnion('action', [
   WebhookRegisterInputSchema,
   WebhookUnregisterInputSchema,
   WebhookListInputSchema,
@@ -109,6 +109,16 @@ export const SheetsWebhookInputSchema = z.discriminatedUnion('action', [
   WebhookTestInputSchema,
   WebhookStatsInputSchema,
 ]);
+
+/**
+ * Webhook input (wrapped for MCP compatibility)
+ *
+ * Uses the standard { request: ... } pattern that other tools use.
+ * This ensures the schema matches the MCP SDK's expected input format.
+ */
+export const SheetsWebhookInputSchema = z.object({
+  request: WebhookRequestSchema,
+});
 
 /**
  * Webhook registration response
