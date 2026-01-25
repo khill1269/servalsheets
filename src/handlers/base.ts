@@ -26,6 +26,7 @@ import {
   parseGoogleApiError,
 } from '../utils/error-factory.js';
 import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
+import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import type { CircuitBreaker } from '../utils/circuit-breaker.js';
@@ -288,7 +289,9 @@ export abstract class BaseHandler<TInput, TOutput> {
       });
     }
 
-    return result;
+    // Apply response compaction to reduce token usage for LLM consumption
+    // Respects verbosity level and COMPACT_RESPONSES environment variable
+    return compactResponse(result, { verbosity: this.currentVerbosity });
   }
 
   /**

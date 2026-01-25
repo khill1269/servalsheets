@@ -8,6 +8,9 @@
 import { beforeEach, afterEach } from 'vitest';
 import { resetAllSingletons } from './helpers/singleton-reset.js';
 
+// Disable response compaction in tests to ensure predictable responses
+process.env['COMPACT_RESPONSES'] = 'false';
+
 // Reset all singletons before each test
 beforeEach(() => {
   resetAllSingletons();
