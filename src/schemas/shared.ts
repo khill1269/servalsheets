@@ -536,14 +536,72 @@ export const ConditionSchema = z.object({
     .describe('Condition values (single value or array, automatically converted to strings)'),
 });
 
+/** Convert column index to letter (0 = A, 1 = B, 25 = Z, 26 = AA) */
+const indexToColumnLetter = (index: number): string => {
+  let letter = '';
+  let n = index + 1;
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    letter = String.fromCharCode(65 + remainder) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+};
+
 /** Chart position */
-export const ChartPositionSchema = z.object({
-  anchorCell: z.string(),
-  offsetX: z.number().optional().default(0),
-  offsetY: z.number().optional().default(0),
-  width: z.number().optional().default(600),
-  height: z.number().optional().default(400),
-});
+export const ChartPositionSchema = z
+  .preprocess(
+    (val) => {
+      if (typeof val !== 'object' || val === null) return val;
+      const pos = val as Record<string, unknown>;
+
+      // Handle Google API format: { overlayPosition: { anchorCell: { sheetId, rowIndex, columnIndex } } }
+      const overlayPos = pos['overlayPosition'] as Record<string, unknown> | undefined;
+      if (overlayPos && typeof overlayPos === 'object') {
+        const anchor = overlayPos['anchorCell'] as Record<string, unknown> | undefined;
+        if (
+          anchor &&
+          typeof anchor === 'object' &&
+          'rowIndex' in anchor &&
+          'columnIndex' in anchor
+        ) {
+          const rowIndex = Number(anchor['rowIndex']) || 0;
+          const colIndex = Number(anchor['columnIndex']) || 0;
+          // Convert to A1 notation (e.g., "E1" for col=4, row=0)
+          const cellRef = `${indexToColumnLetter(colIndex)}${rowIndex + 1}`;
+          return {
+            anchorCell: cellRef,
+            offsetX: (overlayPos['offsetXPixels'] as number) ?? pos['offsetX'] ?? 0,
+            offsetY: (overlayPos['offsetYPixels'] as number) ?? pos['offsetY'] ?? 0,
+            width: (overlayPos['widthPixels'] as number) ?? pos['width'] ?? 600,
+            height: (overlayPos['heightPixels'] as number) ?? pos['height'] ?? 400,
+          };
+        }
+      }
+
+      // Handle anchorCell as object: { anchorCell: { sheetId, rowIndex, columnIndex } }
+      const anchorCell = pos['anchorCell'];
+      if (typeof anchorCell === 'object' && anchorCell !== null) {
+        const anchor = anchorCell as Record<string, unknown>;
+        if ('rowIndex' in anchor && 'columnIndex' in anchor) {
+          const rowIndex = Number(anchor['rowIndex']) || 0;
+          const colIndex = Number(anchor['columnIndex']) || 0;
+          const cellRef = `${indexToColumnLetter(colIndex)}${rowIndex + 1}`;
+          return { ...pos, anchorCell: cellRef };
+        }
+      }
+
+      return val;
+    },
+    z.object({
+      anchorCell: z.string(),
+      offsetX: z.number().optional().default(0),
+      offsetY: z.number().optional().default(0),
+      width: z.number().optional().default(600),
+      height: z.number().optional().default(400),
+    })
+  )
+  .describe('Chart position. anchorCell can be "E1" or object { rowIndex, columnIndex }');
 
 /** Sort specification */
 export const SortSpecSchema = z.object({

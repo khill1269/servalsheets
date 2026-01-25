@@ -517,7 +517,7 @@ export const SheetsDimensionsInputSchema = z.object({
     (val) => {
       if (typeof val !== 'object' || val === null) return val;
       const req = val as Record<string, unknown>;
-      const action = req.action;
+      const action = req['action'];
       if (typeof action !== 'string') return val;
 
       // Check if this is an aliased action
@@ -526,7 +526,7 @@ export const SheetsDimensionsInputSchema = z.object({
         return {
           ...req,
           action: alias.action,
-          dimension: req.dimension ?? alias.dimension, // Don't override if explicitly set
+          dimension: req['dimension'] ?? alias.dimension, // Don't override if explicitly set
         };
       }
       return val;

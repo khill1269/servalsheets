@@ -173,15 +173,31 @@ const SetAlignmentActionSchema = CommonFieldsSchema.extend({
   ),
 });
 
+// LLM-friendly border schema: accepts boolean (true = SOLID border) or object { style, color }
+const LLMBorderSchema = z.preprocess((val) => {
+  // Convert true to { style: "SOLID" } and false to undefined
+  if (val === true) return { style: 'SOLID' };
+  if (val === false || val === null) return undefined;
+  // Also handle string style directly: "SOLID" -> { style: "SOLID" }
+  if (typeof val === 'string') return { style: val };
+  return val;
+}, BorderSchema.optional());
+
 const SetBordersActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_borders').describe('Set cell borders'),
   range: RangeInputSchema.describe('Range to format'),
-  top: BorderSchema.optional().describe('Top border style and color'),
-  bottom: BorderSchema.optional().describe('Bottom border style and color'),
-  left: BorderSchema.optional().describe('Left border style and color'),
-  right: BorderSchema.optional().describe('Right border style and color'),
-  innerHorizontal: BorderSchema.optional().describe('Inner horizontal borders (between rows)'),
-  innerVertical: BorderSchema.optional().describe('Inner vertical borders (between columns)'),
+  top: LLMBorderSchema.describe('Top border: true for SOLID, or { style: "SOLID", color: {...} }'),
+  bottom: LLMBorderSchema.describe(
+    'Bottom border: true for SOLID, or { style: "SOLID", color: {...} }'
+  ),
+  left: LLMBorderSchema.describe(
+    'Left border: true for SOLID, or { style: "SOLID", color: {...} }'
+  ),
+  right: LLMBorderSchema.describe(
+    'Right border: true for SOLID, or { style: "SOLID", color: {...} }'
+  ),
+  innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (between rows)'),
+  innerVertical: LLMBorderSchema.describe('Inner vertical borders (between columns)'),
 });
 
 const ClearFormatActionSchema = CommonFieldsSchema.extend({
