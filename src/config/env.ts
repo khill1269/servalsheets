@@ -72,7 +72,16 @@ const EnvSchema = z.object({
   OAUTH_CLIENT_SECRET: z.string().optional(),
   OAUTH_ISSUER: z.string().default('https://servalsheets.example.com'),
   OAUTH_CLIENT_ID: z.string().default('servalsheets'),
-  ALLOWED_REDIRECT_URIS: z.string().default('http://localhost:3000/callback'),
+  // Claude/Anthropic Directory required callback URLs + localhost for development
+  ALLOWED_REDIRECT_URIS: z
+    .string()
+    .default(
+      'http://localhost:3000/callback,' +
+        'http://localhost:6274/oauth/callback,' +
+        'http://localhost:6274/oauth/callback/debug,' +
+        'https://claude.ai/api/mcp/auth_callback,' +
+        'https://claude.com/api/mcp/auth_callback'
+    ),
   CORS_ORIGINS: z.string().default('https://claude.ai,https://claude.com'),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600), // 1 hour
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2592000), // 30 days

@@ -250,27 +250,27 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ### Tool Summary (19 tools, 252 actions)
 
-| Tool | Actions | Description |
-| --- | --- | --- |
-| `sheets_auth` | 4 | Authentication & OAuth |
-| `sheets_core` | 15 | Spreadsheet and sheet metadata/management |
-| `sheets_data` | 20 | Read/write values, notes, hyperlinks, validation, clipboard |
-| `sheets_format` | 18 | Cell formatting, conditional formats, data validation |
-| `sheets_dimensions` | 39 | Rows/columns, filters, sorts, groups, freezes |
-| `sheets_visualize` | 16 | Charts and pivot tables |
-| `sheets_collaborate` | 28 | Sharing, comments, versions/snapshots |
-| `sheets_advanced` | 19 | Named ranges, protected ranges, metadata, banding, tables |
-| `sheets_transaction` | 6 | Transaction management |
-| `sheets_quality` | 4 | Validation, conflicts, impact analysis |
-| `sheets_history` | 7 | Undo/redo, history, revert |
-| `sheets_confirm` | 2 | Elicitation confirmations |
-| `sheets_analyze` | 11 | AI-assisted analysis & recommendations |
-| `sheets_fix` | 1 | Automated fixes from analysis |
-| `sheets_composite` | 4 | High-level bulk operations |
-| `sheets_session` | 13 | Session context and references |
-| `sheets_appsscript` | 14 | Apps Script automation |
-| `sheets_bigquery` | 12 | BigQuery Connected Sheets |
-| `sheets_templates` | 8 | Enterprise templates |
+| Tool                 | Actions | Description                                                 |
+| -------------------- | ------- | ----------------------------------------------------------- |
+| `sheets_auth`        | 4       | Authentication & OAuth                                      |
+| `sheets_core`        | 15      | Spreadsheet and sheet metadata/management                   |
+| `sheets_data`        | 20      | Read/write values, notes, hyperlinks, validation, clipboard |
+| `sheets_format`      | 18      | Cell formatting, conditional formats, data validation       |
+| `sheets_dimensions`  | 39      | Rows/columns, filters, sorts, groups, freezes               |
+| `sheets_visualize`   | 16      | Charts and pivot tables                                     |
+| `sheets_collaborate` | 28      | Sharing, comments, versions/snapshots                       |
+| `sheets_advanced`    | 19      | Named ranges, protected ranges, metadata, banding, tables   |
+| `sheets_transaction` | 6       | Transaction management                                      |
+| `sheets_quality`     | 4       | Validation, conflicts, impact analysis                      |
+| `sheets_history`     | 7       | Undo/redo, history, revert                                  |
+| `sheets_confirm`     | 2       | Elicitation confirmations                                   |
+| `sheets_analyze`     | 11      | AI-assisted analysis & recommendations                      |
+| `sheets_fix`         | 1       | Automated fixes from analysis                               |
+| `sheets_composite`   | 4       | High-level bulk operations                                  |
+| `sheets_session`     | 13      | Session context and references                              |
+| `sheets_appsscript`  | 14      | Apps Script automation                                      |
+| `sheets_bigquery`    | 12      | BigQuery Connected Sheets                                   |
+| `sheets_templates`   | 8       | Enterprise templates                                        |
 
 ## Examples
 
@@ -983,6 +983,11 @@ graph TB
 ## License
 
 MIT
+
+## Policies
+
+- [Privacy Policy](PRIVACY.md) - Data handling and user rights
+- [Security Policy](SECURITY.md) - Vulnerability disclosure and best practices
 
 ## Links
 
