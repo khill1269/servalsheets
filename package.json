@@ -75,6 +75,7 @@
     "bench:action-level": "TEST_REAL_API=true RUN_BENCHMARKS=true vitest run tests/benchmarks/live-api/action-level.bench.ts",
     "bench:optimizations": "TEST_REAL_API=true vitest run tests/live-api/optimizations",
     "bench:full": "TEST_REAL_API=true RUN_BENCHMARKS=true vitest run tests/benchmarks/live-api tests/live-api/optimizations",
+    "bench:phase2": "npx tsx scripts/benchmarks/benchmark-optimizations.ts",
     "benchmarks:track": "vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
     "benchmarks:run": "RUN_BENCHMARKS=true vitest run tests/benchmarks && node scripts/track-benchmarks.mjs",
     "test:fast": "vitest run tests/unit tests/schemas tests/utils tests/core tests/handlers --exclude='**/*.snapshot.test.ts' --exclude='**/analyze.test.ts' --pool=threads",
