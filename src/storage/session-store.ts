@@ -6,6 +6,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
 
 /**
  * Session store interface for storing temporary data with TTL
@@ -62,14 +63,24 @@ export interface SessionStore {
 }
 
 /**
- * In-memory session store with TTL
+ * In-memory session store with TTL and LRU eviction
  * Suitable for development and single-instance deployments
+ * Uses LRU cache to prevent unbounded memory growth
  */
 export class InMemorySessionStore implements SessionStore {
-  private store = new Map<string, { value: unknown; expires: number }>();
+  private store: LRUCache<string, { value: unknown; expires: number }>;
   private cleanupInterval: NodeJS.Timeout;
 
   constructor(cleanupIntervalMs: number = 60000) {
+    // Initialize LRU cache with bounded size (prevents memory leaks)
+    // Note: LRU provides max size enforcement, but we still track custom expires per entry
+    this.store = new LRUCache<string, { value: unknown; expires: number }>({
+      max: 10000, // Maximum 10000 session entries (prevents unbounded growth)
+      ttl: undefined, // Don't use LRU TTL (we manage expires manually)
+      updateAgeOnGet: true, // LRU behavior: refresh access time
+      noUpdateTTL: true, // Don't auto-update TTL on set
+    });
+
     // Cleanup expired entries every minute by default
     this.cleanupInterval = setInterval(() => {
       this.cleanup().catch(console.error);

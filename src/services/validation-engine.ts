@@ -42,7 +42,7 @@ export class ValidationEngine {
   private config: Required<Omit<ValidationEngineConfig, 'googleClient'>>;
   private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
-  private rules: Map<string, ValidationRule>;
+  private rules: LRUCache<string, ValidationRule>;
   private validationCache: LRUCache<string, { result: ValidationResult; timestamp: number }>;
 
   constructor(config: ValidationEngineConfig = {}) {
@@ -82,7 +82,12 @@ export class ValidationEngine {
       cacheHitRate: 0,
     };
 
-    this.rules = new Map();
+    // Bounded cache for validation rules (prevents unbounded growth from dynamic rules)
+    this.rules = new LRUCache<string, ValidationRule>({
+      max: 500, // Maximum 500 validation rules
+      ttl: 60 * 60 * 1000, // 1 hour TTL for rules
+      updateAgeOnGet: true, // Refresh TTL when rule is accessed
+    });
     this.validationCache = new LRUCache<string, { result: ValidationResult; timestamp: number }>({
       max: 1000, // Maximum 1000 cached validations
       ttl: this.config.cacheTtl, // 5 minutes default
