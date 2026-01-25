@@ -337,6 +337,14 @@ export class MetricsService {
     }
   > = new Map();
 
+  // Recent skip tracking for alert thresholds (sliding window of last 100)
+  private readonly recentConfirmationSkips: Array<{
+    action: string;
+    reason: string;
+    destructive: boolean;
+    timestamp: number;
+  }> = [];
+
   private enabled: boolean;
   private verboseLogging: boolean;
 
@@ -953,13 +961,44 @@ export class MetricsService {
       });
     }
 
-    // Log warning for destructive operations
+    // Track recent skips for alert thresholds (sliding window of last 100)
+    this.recentConfirmationSkips.push({
+      action: params.action,
+      reason: params.reason,
+      destructive: params.destructive,
+      timestamp: params.timestamp,
+    });
+
+    // Maintain sliding window of 100 most recent skips
+    if (this.recentConfirmationSkips.length > 100) {
+      this.recentConfirmationSkips.shift();
+    }
+
+    // Log ERROR for destructive operations (data corruption risk)
     if (params.destructive) {
-      logger.warn('[CONFIRMATION_SKIP] Destructive operation bypassed confirmation', {
+      logger.error('[CONFIRMATION_SKIP] Destructive operation bypassed confirmation', {
         action: params.action,
         reason: params.reason,
         spreadsheetId: params.spreadsheetId,
         timestamp: new Date(params.timestamp).toISOString(),
+        severity: 'CRITICAL', // Indicate data corruption risk
+      });
+    }
+
+    // Alert if skip rate > 10% in last 100 operations (data corruption risk threshold)
+    const destructiveSkipsInWindow = this.recentConfirmationSkips.filter(
+      (s) => s.destructive
+    ).length;
+    const skipRate = destructiveSkipsInWindow / this.recentConfirmationSkips.length;
+
+    if (skipRate > 0.1 && this.recentConfirmationSkips.length >= 50) {
+      // Only alert if we have at least 50 samples
+      logger.error('[ALERT] High destructive operation skip rate detected', {
+        skipRate: (skipRate * 100).toFixed(2) + '%',
+        windowSize: this.recentConfirmationSkips.length,
+        destructiveSkips: destructiveSkipsInWindow,
+        severity: 'CRITICAL',
+        recommendation: 'Investigate confirmation system - potential data corruption risk',
       });
     }
   }
@@ -970,6 +1009,9 @@ export class MetricsService {
   getConfirmationSkipMetrics(): {
     totalSkips: number;
     destructiveSkips: number;
+    recentSkipRate: number;
+    recentDestructiveRate: number;
+    alertThresholdExceeded: boolean;
     byAction: Map<string, { count: number; lastSkipped: number; affectedSpreadsheets: number }>;
   } {
     let totalSkips = 0;
@@ -992,9 +1034,21 @@ export class MetricsService {
       });
     }
 
+    // Calculate recent skip rates from sliding window
+    const recentDestructiveSkips = this.recentConfirmationSkips.filter((s) => s.destructive).length;
+    const recentSkipRate =
+      this.recentConfirmationSkips.length > 0
+        ? recentDestructiveSkips / this.recentConfirmationSkips.length
+        : 0;
+    const alertThresholdExceeded =
+      recentSkipRate > 0.1 && this.recentConfirmationSkips.length >= 50;
+
     return {
       totalSkips,
       destructiveSkips,
+      recentSkipRate,
+      recentDestructiveRate: recentSkipRate, // Alias for clarity
+      alertThresholdExceeded,
       byAction,
     };
   }
