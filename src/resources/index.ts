@@ -44,3 +44,6 @@ export { registerSheetResources, readSheetResource } from './sheets.js';
 
 // Schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
 export { registerSchemaResources, readSchemaResource, getToolSchema } from './schemas.js';
+
+// Discovery resources for API health monitoring (Phase 4)
+export { registerDiscoveryResources } from './discovery.js';

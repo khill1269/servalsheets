@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getMetricsService } from '../services/metrics.js';
 import { getServiceContext } from '../utils/logger-context.js';
+import { generateMetricsDashboard } from '../services/metrics-dashboard.js';
 
 /**
  * Register metrics resources with the MCP server
@@ -46,6 +47,49 @@ export function registerMetricsResources(server: McpServer): number {
               text: JSON.stringify(
                 {
                   error: 'Failed to fetch metrics summary',
+                  message: errorMessage,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // Resource: metrics://dashboard - Optimization Dashboard (Phase 4)
+  server.registerResource(
+    'Optimization Dashboard',
+    'metrics://dashboard',
+    {
+      description:
+        'Performance optimization dashboard showing API efficiency, caching gains, batching stats, and cost savings',
+      mimeType: 'application/json',
+    },
+    async (uri) => {
+      try {
+        const dashboard = await generateMetricsDashboard();
+        return {
+          contents: [
+            {
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
+              text: JSON.stringify(dashboard, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          contents: [
+            {
+              uri: typeof uri === 'string' ? uri : uri.toString(),
+              mimeType: 'application/json',
+              text: JSON.stringify(
+                {
+                  error: 'Failed to generate optimization dashboard',
                   message: errorMessage,
                 },
                 null,
@@ -265,13 +309,14 @@ export function registerMetricsResources(server: McpServer): number {
     }
   );
 
-  console.error('[ServalSheets] Registered 6 metrics resources:');
+  console.error('[ServalSheets] Registered 7 metrics resources:');
   console.error('  - metrics://summary (comprehensive metrics)');
+  console.error('  - metrics://dashboard (optimization dashboard)');
   console.error('  - metrics://operations (operation performance)');
   console.error('  - metrics://cache (cache statistics)');
   console.error('  - metrics://api (API call statistics)');
   console.error('  - metrics://system (system resources)');
   console.error('  - metrics://service (service metadata)');
 
-  return 6;
+  return 7;
 }

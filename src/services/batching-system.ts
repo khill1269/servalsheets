@@ -196,9 +196,9 @@ export class AdaptiveBatchWindow {
     }
     // Otherwise keep current window (optimal range)
 
-    // Track window history for metrics
+    // Track window history for metrics (bounded to prevent memory growth)
     this.windowHistory.push(this.currentWindowMs);
-    if (this.windowHistory.length > 1000) {
+    if (this.windowHistory.length > 100) {
       this.windowHistory.shift();
     }
 

@@ -91,7 +91,7 @@ export function startKeepalive(options: KeepaliveOptions = {}): KeepaliveHandle 
   let notificationCount = 0;
   let stopped = false;
 
-  const sendProgress = async () => {
+  const sendProgress = async (): Promise<void> => {
     if (stopped) return;
 
     try {

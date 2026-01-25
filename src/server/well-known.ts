@@ -2,13 +2,15 @@
  * ServalSheets - .well-known Discovery Endpoints
  *
  * Implements RFC 8615 well-known URIs for server discovery:
- * - /.well-known/mcp-configuration: MCP server capabilities
+ * - /.well-known/mcp.json: MCP Server Card (SEP-1649) - primary discovery
+ * - /.well-known/mcp-configuration: MCP server capabilities (legacy)
  * - /.well-known/oauth-authorization-server: OAuth 2.0 metadata (RFC 8414)
  * - /.well-known/oauth-protected-resource: Resource server metadata (RFC 9728)
  *
  * These endpoints allow clients and registries to discover server
  * capabilities without establishing an MCP connection.
  *
+ * @see https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1649 - SEP-1649 Server Cards
  * @see https://www.rfc-editor.org/rfc/rfc8615 - Well-Known URIs
  * @see https://www.rfc-editor.org/rfc/rfc8414 - OAuth 2.0 Authorization Server Metadata
  * @see https://www.rfc-editor.org/rfc/rfc9728 - OAuth 2.0 Protected Resource Metadata
@@ -118,6 +120,97 @@ export interface OAuthAuthorizationServerMetadata {
 }
 
 /**
+ * MCP Server Card (SEP-1649)
+ *
+ * Structured metadata document for HTTP-based MCP server discovery.
+ * Exposed at /.well-known/mcp.json to enable:
+ * - Autoconfiguration without manual endpoint setup
+ * - Registry/crawler discovery of MCP servers
+ * - Static capability verification before connection
+ * - Reduced latency for server information display
+ *
+ * @see https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1649
+ */
+export interface McpServerCard {
+  /** Schema version for the server card format */
+  $schema?: string;
+  /** MCP protocol version supported */
+  mcp_version: string;
+  /** Server name (unique identifier) */
+  server_name: string;
+  /** Server version (semver) */
+  server_version: string;
+  /** Human-readable description */
+  description: string;
+  /** Server icons for client UIs */
+  icons?: Icon[];
+  /** Transport endpoints */
+  endpoints: {
+    /** Streamable HTTP endpoint (recommended) */
+    streamable_http?: string;
+    /** Legacy SSE endpoint */
+    sse?: string;
+    /** WebSocket endpoint (if supported) */
+    websocket?: string;
+    /** STDIO supported (boolean, no URL) */
+    stdio?: boolean;
+  };
+  /** Server capabilities summary */
+  capabilities: {
+    tools: boolean | { count: number; actions?: number };
+    resources: boolean | { templates?: boolean; subscriptions?: boolean };
+    prompts: boolean | { count?: number };
+    sampling?: boolean;
+    roots?: boolean;
+    tasks?: boolean;
+    elicitation?: boolean | { form?: boolean; url?: boolean };
+    completions?: boolean;
+    logging?: boolean;
+  };
+  /** Authentication requirements */
+  authentication?: {
+    required: boolean;
+    methods: ('oauth2' | 'api_key' | 'bearer' | 'mtls')[];
+    oauth2?: {
+      authorization_endpoint: string;
+      token_endpoint: string;
+      scopes_supported: string[];
+      pkce_required?: boolean;
+    };
+  };
+  /** Security configuration */
+  security?: {
+    tls_required?: boolean;
+    min_tls_version?: string;
+    cors_origins?: string[];
+  };
+  /** Rate limiting information */
+  rate_limits?: {
+    requests_per_minute?: number;
+    requests_per_hour?: number;
+  };
+  /** External links */
+  links?: {
+    documentation?: string;
+    repository?: string;
+    issues?: string;
+    homepage?: string;
+    changelog?: string;
+    registry?: string;
+  };
+  /** Publisher/organization information */
+  publisher?: {
+    name: string;
+    url?: string;
+    email?: string;
+  };
+  /** Keywords for discovery */
+  keywords?: string[];
+  /** License identifier (SPDX) */
+  license?: string;
+}
+
+/**
  * OAuth 2.0 Protected Resource Metadata (RFC 9728)
  */
 export interface OAuthProtectedResourceMetadata {
@@ -189,6 +282,104 @@ export function getMcpConfiguration(): McpServerConfiguration {
 }
 
 /**
+ * Get MCP Server Card (SEP-1649)
+ *
+ * Returns the server card for /.well-known/mcp.json endpoint.
+ * This is the primary discovery mechanism for HTTP-based MCP servers.
+ *
+ * @param serverUrl - Base URL of the server (for endpoint URLs)
+ * @returns McpServerCard - Structured metadata for server discovery
+ */
+export function getMcpServerCard(serverUrl?: string): McpServerCard {
+  const baseUrl = serverUrl || '';
+  const allScopes = [...DEFAULT_SCOPES, ...ELEVATED_SCOPES, ...READONLY_SCOPES].filter(
+    (v, i, a) => a.indexOf(v) === i
+  );
+
+  return {
+    $schema: 'https://modelcontextprotocol.io/schemas/mcp-server-card.json',
+    mcp_version: SERVER_INFO.protocolVersion,
+    server_name: SERVER_INFO.name,
+    server_version: VERSION,
+    description:
+      'Enterprise-grade Google Sheets MCP server with 21 tools and 273 specialized actions. ' +
+      'Features AI-powered analysis, atomic transactions (80% API savings), MCP elicitation, ' +
+      'task support with cancellation, and comprehensive error handling.',
+    icons: SERVER_ICONS,
+    endpoints: {
+      streamable_http: baseUrl ? `${baseUrl}/mcp` : '/mcp',
+      sse: baseUrl ? `${baseUrl}/sse` : '/sse',
+      stdio: true,
+    },
+    capabilities: {
+      tools: {
+        count: TOOL_COUNT,
+        actions: ACTION_COUNT,
+      },
+      resources: {
+        templates: true,
+        subscriptions: false,
+      },
+      prompts: {
+        count: 17,
+      },
+      sampling: true,
+      roots: false,
+      tasks: true,
+      elicitation: {
+        form: true,
+        url: true,
+      },
+      completions: true,
+      logging: true,
+    },
+    authentication: {
+      required: true,
+      methods: ['oauth2'],
+      oauth2: {
+        authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+        token_endpoint: 'https://oauth2.googleapis.com/token',
+        scopes_supported: allScopes,
+        pkce_required: true,
+      },
+    },
+    security: {
+      tls_required: true,
+      min_tls_version: '1.2',
+      cors_origins: ['*'],
+    },
+    rate_limits: {
+      requests_per_minute: 60,
+    },
+    links: {
+      documentation: 'https://github.com/khill1269/servalsheets#readme',
+      repository: 'https://github.com/khill1269/servalsheets',
+      issues: 'https://github.com/khill1269/servalsheets/issues',
+      homepage: 'https://github.com/khill1269/servalsheets',
+      changelog: 'https://github.com/khill1269/servalsheets/blob/main/CHANGELOG.md',
+    },
+    publisher: {
+      name: 'Thomas Lee Cahill',
+      url: 'https://github.com/khill1269',
+    },
+    keywords: [
+      'google-sheets',
+      'spreadsheet',
+      'mcp',
+      'ai',
+      'automation',
+      'data-analysis',
+      'enterprise',
+      'oauth2',
+      'transactions',
+      'charts',
+      'pivot-tables',
+    ],
+    license: 'MIT',
+  };
+}
+
+/**
  * Get OAuth Authorization Server Metadata
  * Points to Google's OAuth server or custom issuer
  */
@@ -251,6 +442,35 @@ export function getOAuthProtectedResourceMetadata(
     bearer_methods_supported: ['header'],
     resource_documentation: 'https://github.com/khill1269/servalsheets#readme',
   };
+}
+
+/**
+ * Express handler for /.well-known/mcp.json (SEP-1649 Server Card)
+ *
+ * Primary discovery endpoint for HTTP-based MCP servers.
+ * Returns structured metadata without requiring MCP connection.
+ */
+export function mcpServerCardHandler(req: Request, res: Response): void {
+  // Determine server URL from request for endpoint URLs
+  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+  const serverUrl = `${protocol}://${host}`;
+
+  const card = getMcpServerCard(serverUrl);
+  const etag = computeETag(card);
+
+  // Check If-None-Match for conditional request
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).end();
+    return;
+  }
+
+  res.set('Content-Type', 'application/json');
+  res.set('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+  res.set('ETag', etag);
+  res.set('Vary', 'Accept-Encoding, Host'); // Vary by host since endpoints depend on it
+  res.set('Access-Control-Allow-Origin', '*'); // Allow discovery from any origin
+  res.json(card);
 }
 
 /**
@@ -327,7 +547,11 @@ export function oauthProtectedResourceHandler(req: Request, res: Response): void
 export function registerWellKnownHandlers(app: {
   get: (path: string, handler: (req: Request, res: Response) => void) => void;
 }): void {
+  // SEP-1649: MCP Server Card - primary discovery endpoint
+  app.get('/.well-known/mcp.json', mcpServerCardHandler);
+  // Legacy MCP configuration endpoint
   app.get('/.well-known/mcp-configuration', mcpConfigurationHandler);
+  // OAuth endpoints (RFC 8414, RFC 9728)
   app.get('/.well-known/oauth-authorization-server', oauthAuthorizationServerHandler);
   app.get('/.well-known/oauth-protected-resource', oauthProtectedResourceHandler);
 }
@@ -350,3 +574,9 @@ export const handleOAuthAuthorizationServer = oauthAuthorizationServerHandler;
 
 /** @deprecated Use oauthProtectedResourceHandler instead */
 export const handleOAuthProtectedResource = oauthProtectedResourceHandler;
+
+/** @deprecated Use mcpServerCardHandler instead */
+export const handleMcpServerCard = mcpServerCardHandler;
+
+/** Alias for getMcpServerCard */
+export const buildMcpServerCard = getMcpServerCard;

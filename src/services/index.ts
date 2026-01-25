@@ -28,6 +28,10 @@ export * from './prefetching-system.js';
 export * from './batching-system.js';
 export * from './access-pattern-tracker.js';
 export * from './request-merger.js';
+export * from './etag-cache.js';
+export * from './cached-sheets-api.js';
+export * from './session-context.js';
+export * from './performance-integration.js';
 
 // Phase 3: MCP-Native Intelligence
 // Export only functions, not types (types come from schemas)

@@ -456,43 +456,118 @@ const ListSlicersActionSchema = z.object({
  * Example: insert(dimension: 'ROWS', ...) vs insert_rows(...) and insert_columns(...)
  * v2.0: set_basic_filter now handles incremental updates via optional columnIndex parameter
  */
+// LLM Action Aliases: Map deprecated row/column-specific actions to consolidated ones
+// This allows LLMs to use intuitive names like "freeze_rows" which map to "freeze" + dimension: "ROWS"
+const DIMENSION_ACTION_ALIASES: Record<string, { action: string; dimension: 'ROWS' | 'COLUMNS' }> =
+  {
+    // Freeze aliases
+    freeze_rows: { action: 'freeze', dimension: 'ROWS' },
+    freeze_columns: { action: 'freeze', dimension: 'COLUMNS' },
+    freeze_row: { action: 'freeze', dimension: 'ROWS' },
+    freeze_column: { action: 'freeze', dimension: 'COLUMNS' },
+    // Insert aliases
+    insert_rows: { action: 'insert', dimension: 'ROWS' },
+    insert_columns: { action: 'insert', dimension: 'COLUMNS' },
+    insert_row: { action: 'insert', dimension: 'ROWS' },
+    insert_column: { action: 'insert', dimension: 'COLUMNS' },
+    add_rows: { action: 'insert', dimension: 'ROWS' },
+    add_columns: { action: 'insert', dimension: 'COLUMNS' },
+    // Delete aliases
+    delete_rows: { action: 'delete', dimension: 'ROWS' },
+    delete_columns: { action: 'delete', dimension: 'COLUMNS' },
+    delete_row: { action: 'delete', dimension: 'ROWS' },
+    delete_column: { action: 'delete', dimension: 'COLUMNS' },
+    remove_rows: { action: 'delete', dimension: 'ROWS' },
+    remove_columns: { action: 'delete', dimension: 'COLUMNS' },
+    // Resize aliases
+    resize_rows: { action: 'resize', dimension: 'ROWS' },
+    resize_columns: { action: 'resize', dimension: 'COLUMNS' },
+    resize_row: { action: 'resize', dimension: 'ROWS' },
+    resize_column: { action: 'resize', dimension: 'COLUMNS' },
+    set_row_height: { action: 'resize', dimension: 'ROWS' },
+    set_column_width: { action: 'resize', dimension: 'COLUMNS' },
+    // Hide/Show aliases
+    hide_rows: { action: 'hide', dimension: 'ROWS' },
+    hide_columns: { action: 'hide', dimension: 'COLUMNS' },
+    hide_row: { action: 'hide', dimension: 'ROWS' },
+    hide_column: { action: 'hide', dimension: 'COLUMNS' },
+    show_rows: { action: 'show', dimension: 'ROWS' },
+    show_columns: { action: 'show', dimension: 'COLUMNS' },
+    show_row: { action: 'show', dimension: 'ROWS' },
+    show_column: { action: 'show', dimension: 'COLUMNS' },
+    unhide_rows: { action: 'show', dimension: 'ROWS' },
+    unhide_columns: { action: 'show', dimension: 'COLUMNS' },
+    // Auto-resize aliases
+    auto_resize_rows: { action: 'auto_resize', dimension: 'ROWS' },
+    auto_resize_columns: { action: 'auto_resize', dimension: 'COLUMNS' },
+    autofit_rows: { action: 'auto_resize', dimension: 'ROWS' },
+    autofit_columns: { action: 'auto_resize', dimension: 'COLUMNS' },
+    // Group aliases
+    group_rows: { action: 'group', dimension: 'ROWS' },
+    group_columns: { action: 'group', dimension: 'COLUMNS' },
+    ungroup_rows: { action: 'ungroup', dimension: 'ROWS' },
+    ungroup_columns: { action: 'ungroup', dimension: 'COLUMNS' },
+    // Append aliases
+    append_rows: { action: 'append', dimension: 'ROWS' },
+    append_columns: { action: 'append', dimension: 'COLUMNS' },
+  };
+
 export const SheetsDimensionsInputSchema = z.object({
-  request: z.discriminatedUnion('action', [
-    // Consolidated dimension actions (11 - was 21)
-    InsertDimensionActionSchema,
-    DeleteDimensionActionSchema,
-    MoveDimensionActionSchema,
-    ResizeDimensionActionSchema,
-    AutoResizeActionSchema,
-    HideDimensionActionSchema,
-    ShowDimensionActionSchema,
-    FreezeDimensionActionSchema,
-    GroupDimensionActionSchema,
-    UngroupDimensionActionSchema,
-    AppendDimensionActionSchema,
-    // Filter and sort actions (4 - v2.0: merged filter_update_filter_criteria into set_basic_filter)
-    SetBasicFilterActionSchema, // Now handles both full and incremental updates via columnIndex
-    ClearBasicFilterActionSchema,
-    GetBasicFilterActionSchema,
-    // FilterUpdateFilterCriteriaActionSchema removed - merged into set_basic_filter
-    SortRangeActionSchema,
-    // Range utility actions (4)
-    TrimWhitespaceActionSchema,
-    RandomizeRangeActionSchema,
-    TextToColumnsActionSchema,
-    AutoFillActionSchema,
-    // Filter view actions (5)
-    CreateFilterViewActionSchema,
-    UpdateFilterViewActionSchema,
-    DeleteFilterViewActionSchema,
-    ListFilterViewsActionSchema,
-    GetFilterViewActionSchema,
-    // Slicer actions (4)
-    CreateSlicerActionSchema,
-    UpdateSlicerActionSchema,
-    DeleteSlicerActionSchema,
-    ListSlicersActionSchema,
-  ]),
+  request: z.preprocess(
+    (val) => {
+      if (typeof val !== 'object' || val === null) return val;
+      const req = val as Record<string, unknown>;
+      const action = req.action;
+      if (typeof action !== 'string') return val;
+
+      // Check if this is an aliased action
+      const alias = DIMENSION_ACTION_ALIASES[action.toLowerCase()];
+      if (alias) {
+        return {
+          ...req,
+          action: alias.action,
+          dimension: req.dimension ?? alias.dimension, // Don't override if explicitly set
+        };
+      }
+      return val;
+    },
+    z.discriminatedUnion('action', [
+      // Consolidated dimension actions (11 - was 21)
+      InsertDimensionActionSchema,
+      DeleteDimensionActionSchema,
+      MoveDimensionActionSchema,
+      ResizeDimensionActionSchema,
+      AutoResizeActionSchema,
+      HideDimensionActionSchema,
+      ShowDimensionActionSchema,
+      FreezeDimensionActionSchema,
+      GroupDimensionActionSchema,
+      UngroupDimensionActionSchema,
+      AppendDimensionActionSchema,
+      // Filter and sort actions (4 - v2.0: merged filter_update_filter_criteria into set_basic_filter)
+      SetBasicFilterActionSchema, // Now handles both full and incremental updates via columnIndex
+      ClearBasicFilterActionSchema,
+      GetBasicFilterActionSchema,
+      // FilterUpdateFilterCriteriaActionSchema removed - merged into set_basic_filter
+      SortRangeActionSchema,
+      // Range utility actions (4)
+      TrimWhitespaceActionSchema,
+      RandomizeRangeActionSchema,
+      TextToColumnsActionSchema,
+      AutoFillActionSchema,
+      // Filter view actions (5)
+      CreateFilterViewActionSchema,
+      UpdateFilterViewActionSchema,
+      DeleteFilterViewActionSchema,
+      ListFilterViewsActionSchema,
+      GetFilterViewActionSchema,
+      // Slicer actions (4)
+      CreateSlicerActionSchema,
+      UpdateSlicerActionSchema,
+      DeleteSlicerActionSchema,
+      ListSlicersActionSchema,
+    ])
+  ),
 });
 
 const DimensionsResponseSchema = z.discriminatedUnion('success', [

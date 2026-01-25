@@ -9,7 +9,12 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ZodTypeAny } from 'zod';
 
-import { TOOL_MODE, ESSENTIAL_TOOLS, STANDARD_TOOLS } from '../../config/constants.js';
+import {
+  TOOL_MODE,
+  ESSENTIAL_TOOLS,
+  STANDARD_TOOLS,
+  DEFER_DESCRIPTIONS,
+} from '../../config/constants.js';
 import {
   SheetsAuthInputSchema,
   SheetsAuthOutputSchema,
@@ -81,7 +86,21 @@ import {
   SHEETS_DEPENDENCIES_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
+  TOOL_DESCRIPTIONS_MINIMAL,
 } from '../../schemas/index.js';
+
+/**
+ * Get the appropriate tool description based on DEFER_DESCRIPTIONS setting.
+ *
+ * When DEFER_DESCRIPTIONS=true, uses minimal ~100 char descriptions to save ~7,700 tokens.
+ * Full documentation available via schema://tools/{toolName} resources.
+ */
+function getDescription(toolName: string): string {
+  if (DEFER_DESCRIPTIONS) {
+    return TOOL_DESCRIPTIONS_MINIMAL[toolName] ?? TOOL_DESCRIPTIONS[toolName] ?? '';
+  }
+  return TOOL_DESCRIPTIONS[toolName] ?? '';
+}
 
 // ============================================================================
 // TYPES
@@ -130,77 +149,77 @@ export interface ToolDefinition {
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: 'sheets_auth',
-    description: TOOL_DESCRIPTIONS['sheets_auth']!,
+    description: getDescription('sheets_auth'),
     inputSchema: SheetsAuthInputSchema,
     outputSchema: SheetsAuthOutputSchema,
     annotations: SHEETS_AUTH_ANNOTATIONS,
   },
   {
     name: 'sheets_core',
-    description: TOOL_DESCRIPTIONS['sheets_core']!,
+    description: getDescription('sheets_core'),
     inputSchema: SheetsCoreInputSchema,
     outputSchema: SheetsCoreOutputSchema,
     annotations: SHEETS_CORE_ANNOTATIONS,
   },
   {
     name: 'sheets_data',
-    description: TOOL_DESCRIPTIONS['sheets_data']!,
+    description: getDescription('sheets_data'),
     inputSchema: SheetsDataInputSchema,
     outputSchema: SheetsDataOutputSchema,
     annotations: SHEETS_DATA_ANNOTATIONS,
   },
   {
     name: 'sheets_format',
-    description: TOOL_DESCRIPTIONS['sheets_format']!,
+    description: getDescription('sheets_format'),
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
     annotations: SHEETS_FORMAT_ANNOTATIONS,
   },
   {
     name: 'sheets_dimensions',
-    description: TOOL_DESCRIPTIONS['sheets_dimensions']!,
+    description: getDescription('sheets_dimensions'),
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
     annotations: SHEETS_DIMENSIONS_ANNOTATIONS,
   },
   {
     name: 'sheets_visualize',
-    description: TOOL_DESCRIPTIONS['sheets_visualize']!,
+    description: getDescription('sheets_visualize'),
     inputSchema: SheetsVisualizeInputSchema,
     outputSchema: SheetsVisualizeOutputSchema,
     annotations: SHEETS_VISUALIZE_ANNOTATIONS,
   },
   {
     name: 'sheets_collaborate',
-    description: TOOL_DESCRIPTIONS['sheets_collaborate']!,
+    description: getDescription('sheets_collaborate'),
     inputSchema: SheetsCollaborateInputSchema,
     outputSchema: SheetsCollaborateOutputSchema,
     annotations: SHEETS_COLLABORATE_ANNOTATIONS,
   },
   {
     name: 'sheets_advanced',
-    description: TOOL_DESCRIPTIONS['sheets_advanced']!,
+    description: getDescription('sheets_advanced'),
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
     annotations: SHEETS_ADVANCED_ANNOTATIONS,
   },
   {
     name: 'sheets_transaction',
-    description: TOOL_DESCRIPTIONS['sheets_transaction']!,
+    description: getDescription('sheets_transaction'),
     inputSchema: SheetsTransactionInputSchema,
     outputSchema: SheetsTransactionOutputSchema,
     annotations: SHEETS_TRANSACTION_ANNOTATIONS,
   },
   {
     name: 'sheets_quality',
-    description: TOOL_DESCRIPTIONS['sheets_quality']!,
+    description: getDescription('sheets_quality'),
     inputSchema: SheetsQualityInputSchema,
     outputSchema: SheetsQualityOutputSchema,
     annotations: SHEETS_QUALITY_ANNOTATIONS,
   },
   {
     name: 'sheets_history',
-    description: TOOL_DESCRIPTIONS['sheets_history']!,
+    description: getDescription('sheets_history'),
     inputSchema: SheetsHistoryInputSchema,
     outputSchema: SheetsHistoryOutputSchema,
     annotations: SHEETS_HISTORY_ANNOTATIONS,
@@ -210,35 +229,35 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_confirm',
-    description: TOOL_DESCRIPTIONS['sheets_confirm']!,
+    description: getDescription('sheets_confirm'),
     inputSchema: SheetsConfirmInputSchema,
     outputSchema: SheetsConfirmOutputSchema,
     annotations: SHEETS_CONFIRM_ANNOTATIONS,
   },
   {
     name: 'sheets_analyze',
-    description: TOOL_DESCRIPTIONS['sheets_analyze']!,
+    description: getDescription('sheets_analyze'),
     inputSchema: SheetsAnalyzeInputSchema,
     outputSchema: SheetsAnalyzeOutputSchema,
     annotations: SHEETS_ANALYZE_ANNOTATIONS,
   },
   {
     name: 'sheets_fix',
-    description: TOOL_DESCRIPTIONS['sheets_fix']!,
+    description: getDescription('sheets_fix'),
     inputSchema: SheetsFixInputSchema,
     outputSchema: SheetsFixOutputSchema,
     annotations: SHEETS_FIX_ANNOTATIONS,
   },
   {
     name: 'sheets_composite',
-    description: TOOL_DESCRIPTIONS['sheets_composite']!,
+    description: getDescription('sheets_composite'),
     inputSchema: CompositeInputSchema,
     outputSchema: CompositeOutputSchema,
     annotations: SHEETS_COMPOSITE_ANNOTATIONS,
   },
   {
     name: 'sheets_session',
-    description: TOOL_DESCRIPTIONS['sheets_session']!,
+    description: getDescription('sheets_session'),
     inputSchema: SheetsSessionInputSchema,
     outputSchema: SheetsSessionOutputSchema,
     annotations: SHEETS_SESSION_ANNOTATIONS,
@@ -248,7 +267,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_templates',
-    description: TOOL_DESCRIPTIONS['sheets_templates']!,
+    description: getDescription('sheets_templates'),
     inputSchema: SheetsTemplatesInputSchema,
     outputSchema: SheetsTemplatesOutputSchema,
     annotations: SHEETS_TEMPLATES_ANNOTATIONS,
@@ -258,7 +277,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_bigquery',
-    description: TOOL_DESCRIPTIONS['sheets_bigquery']!,
+    description: getDescription('sheets_bigquery'),
     inputSchema: SheetsBigQueryInputSchema,
     outputSchema: SheetsBigQueryOutputSchema,
     annotations: SHEETS_BIGQUERY_ANNOTATIONS,
@@ -268,7 +287,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_appsscript',
-    description: TOOL_DESCRIPTIONS['sheets_appsscript']!,
+    description: getDescription('sheets_appsscript'),
     inputSchema: SheetsAppsScriptInputSchema,
     outputSchema: SheetsAppsScriptOutputSchema,
     annotations: SHEETS_APPSSCRIPT_ANNOTATIONS,
@@ -278,14 +297,14 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_webhook',
-    description: TOOL_DESCRIPTIONS['sheets_webhook']!,
+    description: getDescription('sheets_webhook'),
     inputSchema: SheetsWebhookInputSchema,
     outputSchema: SheetsWebhookOutputSchema,
     annotations: SHEETS_WEBHOOK_ANNOTATIONS,
   },
   {
     name: 'sheets_dependencies',
-    description: TOOL_DESCRIPTIONS['sheets_dependencies']!,
+    description: getDescription('sheets_dependencies'),
     inputSchema: SheetsDependenciesInputSchema,
     outputSchema: SheetsDependenciesOutputSchema,
     annotations: SHEETS_DEPENDENCIES_ANNOTATIONS,

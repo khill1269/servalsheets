@@ -68,16 +68,27 @@ export function requireEncryptionKeyInProduction(): void {
 /**
  * Require persistent session store in production
  * SEC-002: OAuth sessions must persist across server restarts in production
+ *
+ * Override: Set ALLOW_MEMORY_SESSIONS=true to bypass Redis requirement for local testing
  */
 export function requireSessionStoreInProduction(): void {
   const isProduction = process.env['NODE_ENV'] === 'production';
   const storeType = process.env['SESSION_STORE_TYPE'] ?? 'memory';
+  const allowMemorySessions = process.env['ALLOW_MEMORY_SESSIONS'] === 'true';
 
-  if (isProduction && storeType === 'memory') {
+  if (isProduction && storeType === 'memory' && !allowMemorySessions) {
     throw new Error(
       'Production mode requires persistent session store. ' +
         'In-memory session store loses all OAuth sessions on restart. ' +
-        'Set SESSION_STORE_TYPE=redis and REDIS_URL=redis://your-redis-host:6379'
+        'Set SESSION_STORE_TYPE=redis and REDIS_URL=redis://your-redis-host:6379, ' +
+        'or set ALLOW_MEMORY_SESSIONS=true for local testing.'
+    );
+  }
+
+  if (isProduction && allowMemorySessions) {
+    logger.warn(
+      'Running production with memory sessions (ALLOW_MEMORY_SESSIONS=true). ' +
+        'Sessions will not persist across restarts. Not recommended for real production.'
     );
   }
 

@@ -24,6 +24,8 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas/data.js';
+import { getETagCache } from '../services/etag-cache.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Type alias for the request union
 type DataRequest = SheetsDataInput['request'];
@@ -50,6 +52,58 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     super('sheets_data', context);
     this.sheetsApi = sheetsApi;
     // No circuit breaker registration - direct API calls only
+  }
+
+  /**
+   * Record access pattern and trigger background prefetch (Phase 3)
+   * Non-blocking - errors are logged but don't affect the main operation
+   */
+  private recordAccessAndTriggerPrefetch(
+    spreadsheetId: string,
+    range: string,
+    action: 'read' | 'write'
+  ): void {
+    try {
+      // Record access pattern
+      const tracker = this.context.accessPatternTracker;
+      if (tracker) {
+        tracker.recordAccess({
+          spreadsheetId,
+          range,
+          action,
+        });
+      }
+
+      // Trigger background prefetch for read operations
+      if (action === 'read' && this.context.prefetchPredictor && this.context.cachedSheetsApi) {
+        const predictor = this.context.prefetchPredictor;
+        const cachedApi = this.context.cachedSheetsApi;
+
+        // Learn from history and generate predictions
+        predictor.learnFromHistory();
+        const predictions = predictor.predict();
+
+        if (predictions.length > 0) {
+          // Execute prefetches in background (non-blocking)
+          predictor
+            .prefetchInBackground(predictions, async (pred) => {
+              if (pred.tool === 'sheets_data' && pred.action === 'read' && pred.params['range']) {
+                const prefetchRange = pred.params['range'] as string;
+                const prefetchSpreadsheetId =
+                  (pred.params['spreadsheetId'] as string) || spreadsheetId;
+                await cachedApi.getValues(prefetchSpreadsheetId, prefetchRange);
+              }
+            })
+            .catch((err) => {
+              // Log but don't propagate prefetch errors
+              this.context.logger?.warn?.('Prefetch failed', { error: String(err) });
+            });
+        }
+      }
+    } catch (err) {
+      // Non-blocking - log but don't affect main operation
+      this.context.logger?.warn?.('Pattern recording failed', { error: String(err) });
+    }
   }
 
   async handle(input: SheetsDataInput): Promise<SheetsDataOutput> {
@@ -324,8 +378,41 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private async handleRead(input: DataRequest & { action: 'read' }): Promise<DataResponse> {
     const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    const etagCache = getETagCache();
 
-    // Direct API call - no caching, no deduplication, no circuit breaker
+    // Build cache key for this request
+    const cacheKey = {
+      spreadsheetId: input.spreadsheetId,
+      endpoint: 'values' as const,
+      range,
+      params: {
+        valueRenderOption: input.valueRenderOption,
+        majorDimension: input.majorDimension,
+      },
+    };
+
+    // Check for cached data (TTL-based caching)
+    const cachedData = etagCache.getCachedData(cacheKey) as sheets_v4.Schema$ValueRange | null;
+    if (cachedData && etagCache.getETag(cacheKey)) {
+      this.context.logger?.info('Cache hit for values read', {
+        spreadsheetId: input.spreadsheetId,
+        range,
+        savedApiCall: true,
+      });
+
+      const values = (cachedData.values ?? []) as ValuesArray;
+      const result: Record<string, unknown> = {
+        values,
+        range: cachedData.range ?? range,
+        _cached: true,
+      };
+      if (cachedData.majorDimension) {
+        result['majorDimension'] = cachedData.majorDimension;
+      }
+      return this.success('read', result);
+    }
+
+    // Cache miss - fetch from API
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId: input.spreadsheetId,
       range,
@@ -334,8 +421,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       fields: 'range,majorDimension,values',
     });
 
-    const values = (response.data.values ?? []) as ValuesArray;
+    // Cache the response
+    etagCache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
+    // Record access pattern for predictive prefetching (Phase 3)
+    this.recordAccessAndTriggerPrefetch(input.spreadsheetId, range, 'read');
+
+    const values = (response.data.values ?? []) as ValuesArray;
     const result: Record<string, unknown> = {
       values,
       range: response.data.range ?? range,
@@ -370,7 +462,40 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       );
     }
 
-    // Direct API call
+    // Use batching system if available (20-40% API reduction via time-window batching)
+    if (this.context.batchingSystem) {
+      try {
+        const result =
+          await this.context.batchingSystem.execute<sheets_v4.Schema$UpdateValuesResponse>({
+            id: uuidv4(),
+            type: 'values:update',
+            spreadsheetId: input.spreadsheetId,
+            params: {
+              range,
+              values: input.values,
+              valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+            },
+          });
+
+        // Invalidate ETag cache after mutation
+        getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+        return this.success('write', {
+          updatedCells: result?.updatedCells ?? cellCount,
+          updatedRows: result?.updatedRows ?? input.values.length,
+          updatedColumns: result?.updatedColumns ?? 0,
+          updatedRange: result?.updatedRange ?? range,
+          _batched: true, // Indicate this was batched
+        });
+      } catch (err) {
+        // Fall through to direct API call on batching error
+        this.context.logger?.warn('Batching failed, falling back to direct API call', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Direct API call (fallback or when batching unavailable)
     const response = await this.sheetsApi.spreadsheets.values.update({
       spreadsheetId: input.spreadsheetId,
       range,
@@ -379,6 +504,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       requestBody: { values: input.values },
       fields: 'spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange',
     });
+
+    // Invalidate ETag cache after mutation
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
     const responseData: Record<string, unknown> = {
       updatedCells: response.data.updatedCells ?? 0,
@@ -412,7 +540,41 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       );
     }
 
-    // Direct API call - no batching system
+    // Use batching system if available (20-40% API reduction)
+    if (this.context.batchingSystem) {
+      try {
+        const result =
+          await this.context.batchingSystem.execute<sheets_v4.Schema$AppendValuesResponse>({
+            id: uuidv4(),
+            type: 'values:append',
+            spreadsheetId: input.spreadsheetId,
+            params: {
+              range,
+              values: input.values,
+              valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+              insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
+            },
+          });
+
+        // Invalidate ETag cache after mutation
+        getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+        const updates = result?.updates;
+        return this.success('append', {
+          updatedCells: updates?.updatedCells ?? cellCount,
+          updatedRows: updates?.updatedRows ?? input.values.length,
+          updatedColumns: updates?.updatedColumns ?? 0,
+          updatedRange: updates?.updatedRange ?? range,
+          _batched: true,
+        });
+      } catch (err) {
+        this.context.logger?.warn('Batching failed for append, falling back to direct API', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Direct API call (fallback)
     const response = await this.sheetsApi.spreadsheets.values.append({
       spreadsheetId: input.spreadsheetId,
       range,
@@ -422,6 +584,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       fields:
         'spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)',
     });
+
+    // Invalidate ETag cache after mutation
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
     const updates = response.data.updates;
 
@@ -435,6 +600,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private async handleClear(input: DataRequest & { action: 'clear' }): Promise<DataResponse> {
     // Simplified: Skip elicitation confirmation to avoid MCP hang issues
+    // CRITICAL: Track confirmation skip for data corruption monitoring
+    this.context.metrics?.recordConfirmationSkip({
+      action: 'sheets_data.clear',
+      reason: 'elicitation_disabled',
+      timestamp: Date.now(),
+      spreadsheetId: input.spreadsheetId,
+      destructive: true,
+    });
+
     const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
 
     // Check for dryRun
@@ -448,6 +622,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       range,
     });
 
+    // Invalidate ETag cache after mutation
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
     return this.success('clear', {
       updatedRange: response.data.clearedRange ?? range,
     });
@@ -460,6 +637,29 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       input.ranges.map((r: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, r))
     );
 
+    // Try cached API first for better performance (30-50% API savings)
+    const cachedApi = this.context.cachedSheetsApi;
+    if (cachedApi) {
+      try {
+        const cachedResult = await cachedApi.batchGetValues(input.spreadsheetId, ranges, {
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+        });
+
+        if (cachedResult && cachedResult.valueRanges) {
+          return this.success('batch_read', {
+            valueRanges: cachedResult.valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
+              range: vr.range ?? '',
+              values: (vr.values ?? []) as ValuesArray,
+            })),
+            _cached: true,
+          });
+        }
+      } catch (_cacheError) {
+        // Fall through to direct API call on cache error
+      }
+    }
+
     // Direct API call - no chunking with dynamic imports, just simple batch
     const response = await this.sheetsApi.spreadsheets.values.batchGet({
       spreadsheetId: input.spreadsheetId,
@@ -467,6 +667,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       valueRenderOption: input.valueRenderOption,
       majorDimension: input.majorDimension,
     });
+
+    // Record access patterns for predictive prefetching (Phase 3)
+    for (const range of ranges) {
+      this.recordAccessAndTriggerPrefetch(input.spreadsheetId, range, 'read');
+    }
 
     return this.success('batch_read', {
       valueRanges: (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
@@ -507,6 +712,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       },
     });
 
+    // Invalidate ETag cache after mutation
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
     const responseData: Record<string, unknown> = {
       updatedCells: response.data.totalUpdatedCells ?? 0,
       updatedRows: response.data.totalUpdatedRows ?? 0,
@@ -520,6 +728,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     input: DataRequest & { action: 'batch_clear' }
   ): Promise<DataResponse> {
     // Simplified: Skip elicitation confirmation to avoid MCP hang issues
+    // CRITICAL: Track confirmation skip for data corruption monitoring
+    this.context.metrics?.recordConfirmationSkip({
+      action: 'sheets_data.batch_clear',
+      reason: 'elicitation_disabled',
+      timestamp: Date.now(),
+      spreadsheetId: input.spreadsheetId,
+      destructive: true,
+    });
+
     const ranges = await Promise.all(
       input.ranges.map((range: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, range))
     );
@@ -542,6 +759,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       spreadsheetId: input.spreadsheetId,
       requestBody: { ranges },
     });
+
+    // Invalidate ETag cache after mutation
+    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
     return this.success('batch_clear', {
       clearedRanges: response.data.clearedRanges ?? ranges,
@@ -880,6 +1100,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     input: DataRequest & { action: 'cut_paste' }
   ): Promise<DataResponse> {
     // Simplified: Skip elicitation confirmation to avoid MCP hang issues
+    // CRITICAL: Track confirmation skip for data corruption monitoring
+    this.context.metrics?.recordConfirmationSkip({
+      action: 'sheets_data.cut_paste',
+      reason: 'elicitation_disabled',
+      timestamp: Date.now(),
+      spreadsheetId: input.spreadsheetId,
+      destructive: true,
+    });
+
     const rangeA1 = await this.resolveRangeToA1(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 

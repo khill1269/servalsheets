@@ -20,6 +20,7 @@ import {
   createRequestContext,
   runWithRequestContext,
   getRequestLogger,
+  getRequestContext,
 } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
 import { recordSpreadsheetId } from '../completions.js';
@@ -198,6 +199,21 @@ export function buildToolResponse(result: unknown): CallToolResult {
         },
       },
     };
+  }
+
+  // Add request correlation ID for tracing (if available)
+  const requestContext = getRequestContext();
+  if (requestContext && 'response' in structuredContent) {
+    const resp = structuredContent['response'] as Record<string, unknown>;
+    if (resp && typeof resp === 'object') {
+      // Add _meta with requestId for correlation across logs/errors
+      resp['_meta'] = {
+        ...(typeof resp['_meta'] === 'object' ? (resp['_meta'] as Record<string, unknown>) : {}),
+        requestId: requestContext.requestId,
+        ...(requestContext.traceId && { traceId: requestContext.traceId }),
+        ...(requestContext.spanId && { spanId: requestContext.spanId }),
+      };
+    }
   }
 
   // Apply response compaction if enabled (reduces context window pressure)

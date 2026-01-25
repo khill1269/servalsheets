@@ -268,6 +268,31 @@ export const TOOL_MODE: ToolMode = (() => {
 export const DEFER_SCHEMAS = process.env['SERVAL_DEFER_SCHEMAS'] === 'true';
 
 /**
+ * Deferred description loading mode
+ *
+ * When enabled, tools are registered with minimal ~100 char descriptions
+ * instead of full ~1000+ char descriptions. Full documentation available via:
+ * - schema://tools/{toolName} - Full schemas with examples
+ * - resource://skill/servalsheets - Comprehensive SKILL.md guide
+ *
+ * Benefits:
+ * - Reduces tool description payload from ~31KB to ~3KB (~90% reduction)
+ * - ~7,700 tokens saved per conversation
+ * - All 21 tools available with essential routing info
+ * - Full docs available on-demand via resources
+ *
+ * Trade-offs:
+ * - Less detailed routing hints in tool descriptions
+ * - Claude should read SKILL.md resource for complex operations
+ *
+ * Set via SERVAL_DEFER_DESCRIPTIONS=true environment variable.
+ *
+ * Recommended Claude Desktop configuration:
+ *   "SERVAL_DEFER_DESCRIPTIONS": "true"
+ */
+export const DEFER_DESCRIPTIONS = process.env['SERVAL_DEFER_DESCRIPTIONS'] === 'true';
+
+/**
  * Essential tools (lite mode) - core spreadsheet operations
  * Reduces schema payload by 62% (527KB → 199KB)
  */

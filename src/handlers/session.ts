@@ -78,11 +78,13 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
     switch (action) {
       case 'set_active': {
         const { spreadsheetId, title, sheetNames } = req;
-        // Type assertion: refine() validates these are defined for set_active action
+        // Title is optional - use spreadsheetId as fallback if not provided
+        // This allows LLMs to quickly set active without knowing the title
+        const resolvedTitle = title ?? `Spreadsheet ${spreadsheetId!.slice(0, 8)}...`;
         const context: SpreadsheetContext = {
           spreadsheetId: spreadsheetId!,
-          title: title!,
-          sheetNames: sheetNames!,
+          title: resolvedTitle,
+          sheetNames: sheetNames ?? [],
           activatedAt: Date.now(),
         };
         session.setActiveSpreadsheet(context);
@@ -91,6 +93,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'set_active',
             spreadsheet: context,
+            ...(title === undefined && {
+              note: 'Title was auto-generated from spreadsheetId. Provide title for better natural language references.',
+            }),
           },
         };
       }

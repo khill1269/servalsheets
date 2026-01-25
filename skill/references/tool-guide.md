@@ -1,14 +1,28 @@
-# ServalSheets Advanced Orchestration Skill (v1.6.0)
+# ServalSheets Complete Tool & Action Reference
 
-## Overview
+**Version:** 1.6.0  
+**Total:** 21 Tools | 271 Actions  
+**Updated:** 2026-01-25
 
-Enterprise-grade Google Sheets MCP server with 273 actions across 21 tools. Implements the UASEV+R protocol for intelligent spreadsheet operations with transaction support, AI analysis, and conversational context.
+---
 
-**Version:** 1.6.0 (21 tools, 273 actions)  
-**Updated:** 2026-01-25  
-**Protocol:** MCP 2025-11-25 Compliant
+## Tool Calling Pattern
 
-## Quick Reference: 21 Tools & 273 Actions
+All tools use a unified request pattern:
+
+```json
+{
+  "request": {
+    "action": "action_name",
+    "spreadsheetId": "abc123 or full URL",
+    ...parameters
+  }
+}
+```
+
+---
+
+## Quick Reference Table
 
 | Tool                  | Actions | Purpose                             |
 | --------------------- | ------- | ----------------------------------- |
@@ -36,37 +50,18 @@ Enterprise-grade Google Sheets MCP server with 273 actions across 21 tools. Impl
 
 ---
 
-## UASEV+R Protocol
-
-For ANY spreadsheet request, follow this sequence:
-
-```
-U - UNDERSTAND: Parse user intent, identify hidden requirements
-A - ASSESS:     sheets_analyze { action: "comprehensive" } - Get full picture
-S - STRATEGIZE: Plan optimal approach, use transactions for 2+ operations
-E - EXECUTE:    Run tools in optimal order with proper error handling
-V - VERIFY:     Confirm goal achieved, validate results
-R - REFLECT:    Report results, suggest improvements, next steps
-```
-
----
-
-## Complete Tool Reference
+## Detailed Tool Reference
 
 ### 🔐 sheets_auth (4 actions)
 
-Authentication management. **Always call first!**
+OAuth 2.1 authentication management. **Always call `status` first!**
 
-| Action     | Purpose                    |
-| ---------- | -------------------------- |
-| `status`   | Check authentication state |
-| `login`    | Get OAuth URL              |
-| `callback` | Complete OAuth with code   |
-| `logout`   | Clear credentials          |
-
-```json
-{ "action": "status" }
-```
+| Action     | Purpose                     |
+| ---------- | --------------------------- |
+| `status`   | Check authentication state  |
+| `login`    | Get OAuth authorization URL |
+| `callback` | Complete OAuth with code    |
+| `logout`   | Clear credentials           |
 
 ---
 
@@ -74,31 +69,25 @@ Authentication management. **Always call first!**
 
 Spreadsheet and sheet management.
 
-| Action                | Purpose                              |
-| --------------------- | ------------------------------------ |
-| `get`                 | Get spreadsheet metadata             |
-| `create`              | Create new spreadsheet               |
-| `copy`                | Copy entire spreadsheet              |
-| `update_properties`   | Update title, locale, timezone       |
-| `get_url`             | Get shareable URL                    |
-| `batch_get`           | Get multiple spreadsheets            |
-| `get_comprehensive`   | **1-SHOT METADATA** - Get everything |
-| `list`                | List user's spreadsheets             |
-| `add_sheet`           | Add new sheet (tab)                  |
-| `delete_sheet`        | Delete sheet                         |
-| `duplicate_sheet`     | Copy sheet within spreadsheet        |
-| `update_sheet`        | Update sheet properties              |
-| `copy_sheet_to`       | Copy sheet to another spreadsheet    |
-| `list_sheets`         | List all sheets                      |
-| `get_sheet`           | Get sheet by name or ID              |
-| `batch_delete_sheets` | Delete multiple sheets               |
-| `batch_update_sheets` | Update multiple sheets               |
-
-**⚡ Power Move:** Use `get_comprehensive` for instant full analysis!
-
-```json
-{ "action": "get_comprehensive", "spreadsheetId": "..." }
-```
+| Action                | Purpose                           |
+| --------------------- | --------------------------------- |
+| `get`                 | Get spreadsheet metadata          |
+| `create`              | Create new spreadsheet            |
+| `copy`                | Copy entire spreadsheet           |
+| `update_properties`   | Update title, locale, timezone    |
+| `get_url`             | Get shareable URL                 |
+| `batch_get`           | Get multiple spreadsheets         |
+| `get_comprehensive`   | **1-SHOT** - Get all metadata     |
+| `list`                | List user's spreadsheets          |
+| `add_sheet`           | Add new sheet (tab)               |
+| `delete_sheet`        | Delete sheet                      |
+| `duplicate_sheet`     | Copy sheet within spreadsheet     |
+| `update_sheet`        | Update sheet properties           |
+| `copy_sheet_to`       | Copy sheet to another spreadsheet |
+| `list_sheets`         | List all sheets                   |
+| `get_sheet`           | Get sheet by name or ID           |
+| `batch_delete_sheets` | Delete multiple sheets            |
+| `batch_update_sheets` | Update multiple sheets            |
 
 ---
 
@@ -128,10 +117,6 @@ Cell values, notes, hyperlinks, and data operations.
 | `get_merges`       | List merged cells     |
 | `cut_paste`        | Cut and paste         |
 | `copy_paste`       | Copy and paste        |
-
-```json
-{ "action": "batch_read", "spreadsheetId": "...", "ranges": ["Sheet1!A1:Z100", "Sheet2!A1:Z100"] }
-```
 
 ---
 
@@ -163,23 +148,11 @@ Cell styling and conditional formatting.
 | `list_data_validations`          | List validations               |
 | `add_conditional_format_rule`    | Add rule (alternate)           |
 
-```json
-{
-  "action": "set_format",
-  "spreadsheetId": "...",
-  "range": "A1:Z1",
-  "format": {
-    "backgroundColor": "#1a73e8",
-    "textFormat": { "bold": true, "foregroundColor": "#ffffff" }
-  }
-}
-```
-
 ---
 
 ### 📐 sheets_dimensions (39 actions)
 
-Rows, columns, filters, and sorting.
+Rows, columns, filters, sorting, and slicers.
 
 | Action                          | Purpose                |
 | ------------------------------- | ---------------------- |
@@ -223,10 +196,6 @@ Rows, columns, filters, and sorting.
 | `delete_slicer`                 | Delete slicer          |
 | `list_slicers`                  | List slicers           |
 
-```json
-{ "action": "freeze_rows", "spreadsheetId": "...", "sheetId": 0, "frozenRowCount": 1 }
-```
-
 ---
 
 ### 📊 sheets_visualize (18 actions)
@@ -253,17 +222,6 @@ Charts and pivot tables.
 | `pivot_list`              | List pivot tables        |
 | `pivot_get`               | Get pivot details        |
 | `pivot_refresh`           | Refresh pivot data       |
-
-```json
-{
-  "action": "chart_create",
-  "spreadsheetId": "...",
-  "sheetId": 0,
-  "chartType": "LINE",
-  "data": { "sourceRange": "A1:B10" },
-  "position": { "anchorCell": "D2" }
-}
-```
 
 ---
 
@@ -302,15 +260,11 @@ Sharing, comments, and version control.
 | `version_compare`          | Compare versions   |
 | `version_export`           | Export version     |
 
-```json
-{ "action": "share_add", "spreadsheetId": "...", "email": "user@example.com", "role": "writer" }
-```
-
 ---
 
 ### ⚙️ sheets_advanced (23 actions)
 
-Named ranges, protection, metadata, chips.
+Named ranges, protection, metadata, and smart chips.
 
 | Action                   | Purpose                 |
 | ------------------------ | ----------------------- |
@@ -338,35 +292,20 @@ Named ranges, protection, metadata, chips.
 | `add_rich_link_chip`     | Add rich link chip      |
 | `list_chips`             | List smart chips        |
 
-```json
-{ "action": "add_named_range", "spreadsheetId": "...", "name": "Revenue", "range": "B2:B100" }
-```
-
 ---
 
 ### 🔄 sheets_transaction (6 actions)
 
-Atomic batch operations - **80% API savings!**
+Atomic batch operations — **80-95% API savings!**
 
 | Action     | Purpose                  |
 | ---------- | ------------------------ |
 | `begin`    | Start transaction        |
-| `queue`    | Add operation            |
+| `queue`    | Add operation to queue   |
 | `commit`   | Execute all atomically   |
 | `rollback` | Cancel transaction       |
 | `status`   | Check transaction status |
 | `list`     | List active transactions |
-
-```json
-// Start transaction
-{ "action": "begin", "spreadsheetId": "..." }
-
-// Queue operations
-{ "action": "queue", "transactionId": "tx_...", "operation": { "tool": "sheets_data", "action": "write", "params": {...} } }
-
-// Commit atomically
-{ "action": "commit", "transactionId": "tx_..." }
-```
 
 ---
 
@@ -374,16 +313,12 @@ Atomic batch operations - **80% API savings!**
 
 Validation and conflict detection.
 
-| Action             | Purpose                       |
-| ------------------ | ----------------------------- |
-| `validate`         | Validate data                 |
-| `detect_conflicts` | Find conflicts                |
-| `resolve_conflict` | Resolve conflict              |
-| `analyze_impact`   | Pre-execution impact analysis |
-
-```json
-{ "action": "validate", "value": "test@email.com", "rules": ["not_empty", "valid_email"] }
-```
+| Action             | Purpose                        |
+| ------------------ | ------------------------------ |
+| `validate`         | Validate data against rules    |
+| `detect_conflicts` | Find concurrent edit conflicts |
+| `resolve_conflict` | Resolve detected conflict      |
+| `analyze_impact`   | Pre-execution impact analysis  |
 
 ---
 
@@ -393,7 +328,7 @@ Operation audit and undo/redo.
 
 | Action      | Purpose                  |
 | ----------- | ------------------------ |
-| `list`      | List operations          |
+| `list`      | List operation history   |
 | `get`       | Get operation details    |
 | `stats`     | Get statistics           |
 | `undo`      | Undo last operation      |
@@ -401,15 +336,11 @@ Operation audit and undo/redo.
 | `revert_to` | Revert to specific point |
 | `clear`     | Clear history            |
 
-```json
-{ "action": "undo", "spreadsheetId": "..." }
-```
-
 ---
 
 ### ⚠️ sheets_confirm (5 actions)
 
-User confirmation (MCP Elicitation).
+User confirmation via MCP Elicitation.
 
 | Action            | Purpose                     |
 | ----------------- | --------------------------- |
@@ -419,39 +350,25 @@ User confirmation (MCP Elicitation).
 | `wizard_step`     | Execute wizard step         |
 | `wizard_complete` | Complete wizard             |
 
-```json
-{
-  "action": "request",
-  "plan": {
-    "title": "Delete Duplicate Rows",
-    "steps": [{ "stepNumber": 1, "description": "Delete 150 rows", "risk": "high" }]
-  }
-}
-```
-
 ---
 
 ### 🤖 sheets_analyze (11 actions)
 
-AI-powered analysis. **Use `comprehensive` for 1-shot analysis!**
+AI-powered analysis.
 
-| Action                   | Purpose                                                  |
-| ------------------------ | -------------------------------------------------------- |
-| `comprehensive`          | **FULL ANALYSIS** - metadata + data + quality + patterns |
-| `analyze_data`           | Analyze data patterns                                    |
-| `suggest_visualization`  | Recommend charts                                         |
-| `generate_formula`       | Generate formula                                         |
-| `detect_patterns`        | Detect patterns                                          |
-| `analyze_structure`      | Analyze structure                                        |
-| `analyze_quality`        | Analyze data quality                                     |
-| `analyze_performance`    | Performance analysis                                     |
-| `analyze_formulas`       | Analyze formulas                                         |
-| `query_natural_language` | Natural language query                                   |
-| `explain_analysis`       | Explain analysis results                                 |
-
-```json
-{ "action": "comprehensive", "spreadsheetId": "..." }
-```
+| Action                   | Purpose                        |
+| ------------------------ | ------------------------------ |
+| `comprehensive`          | **FULL ANALYSIS** - everything |
+| `analyze_data`           | Analyze data patterns          |
+| `suggest_visualization`  | Recommend charts               |
+| `generate_formula`       | Generate formula               |
+| `detect_patterns`        | Detect patterns                |
+| `analyze_structure`      | Analyze structure              |
+| `analyze_quality`        | Analyze data quality           |
+| `analyze_performance`    | Performance analysis           |
+| `analyze_formulas`       | Analyze formulas               |
+| `query_natural_language` | Natural language query         |
+| `explain_analysis`       | Explain analysis results       |
 
 ---
 
@@ -463,29 +380,21 @@ Automated issue resolution.
 | ------ | ------------------------ |
 | `fix`  | Auto-fix detected issues |
 
-```json
-{ "action": "fix", "spreadsheetId": "...", "issues": [...], "mode": "preview" }
-```
-
 ---
 
 ### 🔗 sheets_composite (7 actions)
 
 High-level composite operations.
 
-| Action               | Purpose                   |
-| -------------------- | ------------------------- |
-| `import_csv`         | Import CSV data           |
-| `smart_append`       | Intelligent row append    |
-| `bulk_update`        | Batch update by key       |
-| `deduplicate`        | Remove duplicates         |
-| `export_xlsx`        | Export to Excel           |
-| `import_xlsx`        | Import from Excel         |
-| `get_form_responses` | Get Google Form responses |
-
-```json
-{ "action": "import_csv", "spreadsheetId": "...", "sheet": "Data", "csvData": "Name,Age\nAlice,30" }
-```
+| Action               | Purpose                |
+| -------------------- | ---------------------- |
+| `import_csv`         | Import CSV data        |
+| `smart_append`       | Intelligent row append |
+| `bulk_update`        | Batch update by key    |
+| `deduplicate`        | Remove duplicates      |
+| `export_xlsx`        | Export to Excel        |
+| `import_xlsx`        | Import from Excel      |
+| `get_form_responses` | Get Form responses     |
 
 ---
 
@@ -498,20 +407,16 @@ Conversation context management.
 | `set_active`         | Set active spreadsheet       |
 | `get_active`         | Get active spreadsheet       |
 | `get_context`        | Get full context             |
-| `record_operation`   | Record operation             |
+| `record_operation`   | Record for undo              |
 | `get_last_operation` | Get last operation           |
 | `get_history`        | Get operation history        |
 | `find_by_reference`  | Resolve "that", "the budget" |
-| `update_preferences` | Update user preferences      |
+| `update_preferences` | Update preferences           |
 | `get_preferences`    | Get preferences              |
 | `set_pending`        | Set pending operation        |
 | `get_pending`        | Get pending operation        |
 | `clear_pending`      | Clear pending                |
 | `reset`              | Reset session                |
-
-```json
-{ "action": "set_active", "spreadsheetId": "...", "title": "Budget 2025" }
-```
 
 ---
 
@@ -519,26 +424,22 @@ Conversation context management.
 
 Template library management.
 
-| Action           | Purpose                 |
-| ---------------- | ----------------------- |
-| `list`           | List templates          |
-| `get`            | Get template            |
-| `create`         | Save as template        |
-| `apply`          | Create from template    |
-| `update`         | Update template         |
-| `delete`         | Delete template         |
-| `preview`        | Preview template        |
-| `import_builtin` | Import builtin template |
-
-```json
-{ "action": "apply", "templateId": "budget-2024", "title": "Q1 Budget" }
-```
+| Action           | Purpose              |
+| ---------------- | -------------------- |
+| `list`           | List templates       |
+| `get`            | Get template         |
+| `create`         | Save as template     |
+| `apply`          | Create from template |
+| `update`         | Update template      |
+| `delete`         | Delete template      |
+| `preview`        | Preview template     |
+| `import_builtin` | Import builtin       |
 
 ---
 
 ### 📊 sheets_bigquery (14 actions)
 
-BigQuery Connected Sheets integration.
+BigQuery Connected Sheets.
 
 | Action                 | Purpose                |
 | ---------------------- | ---------------------- |
@@ -548,7 +449,7 @@ BigQuery Connected Sheets integration.
 | `list_connections`     | List connections       |
 | `get_connection`       | Get connection details |
 | `query`                | Run SQL query          |
-| `preview`              | Preview query results  |
+| `preview`              | Preview results        |
 | `refresh`              | Refresh data           |
 | `cancel_refresh`       | Cancel refresh         |
 | `list_datasets`        | List datasets          |
@@ -556,10 +457,6 @@ BigQuery Connected Sheets integration.
 | `get_table_schema`     | Get table schema       |
 | `export_to_bigquery`   | Export to BigQuery     |
 | `import_from_bigquery` | Import from BigQuery   |
-
-```json
-{ "action": "query", "projectId": "my-project", "query": "SELECT * FROM dataset.table LIMIT 100" }
-```
 
 ---
 
@@ -584,152 +481,55 @@ Apps Script automation.
 | `list_processes`   | List processes        |
 | `get_metrics`      | Get usage metrics     |
 
-```json
-{ "action": "run", "scriptId": "...", "functionName": "myFunction", "parameters": [] }
-```
-
 ---
 
 ### 🔔 sheets_webhook (6 actions)
 
-Change notifications with HMAC signature verification.
+Change notifications.
 
-| Action       | Purpose                   |
-| ------------ | ------------------------- |
-| `register`   | Register webhook endpoint |
-| `unregister` | Remove webhook            |
-| `list`       | List active webhooks      |
-| `test`       | Test webhook delivery     |
-| `get_status` | Get webhook status        |
-| `update`     | Update webhook config     |
-
-```json
-{
-  "action": "register",
-  "spreadsheetId": "...",
-  "webhookUrl": "https://your-server.com/webhook",
-  "events": ["cellChange", "sheetAdd"]
-}
-```
+| Action       | Purpose          |
+| ------------ | ---------------- |
+| `register`   | Register webhook |
+| `unregister` | Remove webhook   |
+| `list`       | List webhooks    |
+| `test`       | Test webhook     |
+| `get_status` | Get status       |
+| `update`     | Update webhook   |
 
 ---
 
 ### 🔗 sheets_dependencies (7 actions)
 
-Formula dependency graph analysis.
+Formula dependency graph.
 
-| Action           | Purpose                         |
-| ---------------- | ------------------------------- |
-| `build`          | Build dependency graph          |
-| `analyze_impact` | Impact analysis for changes     |
-| `detect_cycles`  | Find circular references        |
-| `export_dot`     | Export as DOT format            |
-| `get_dependents` | Get cells that depend on range  |
-| `get_precedents` | Get cells that range depends on |
-| `visualize`      | Visualize dependencies          |
-
-```json
-{ "action": "build", "spreadsheetId": "...", "sheetId": 0 }
-```
+| Action           | Purpose                |
+| ---------------- | ---------------------- |
+| `build`          | Build dependency graph |
+| `analyze_impact` | Impact analysis        |
+| `detect_cycles`  | Find circular refs     |
+| `export_dot`     | Export DOT format      |
+| `get_dependents` | Get dependents         |
+| `get_precedents` | Get precedents         |
+| `visualize`      | Visualize dependencies |
 
 ---
 
-## Best Practices
+## Tool Selection Guide
 
-### 1. Always Use Transactions for Multiple Operations
-
-```json
-// ❌ BAD: 10 separate API calls
-sheets_data { action: "write", range: "A1", ... }
-sheets_data { action: "write", range: "B1", ... }
-// ... 8 more calls
-
-// ✅ GOOD: 1 batched API call
-sheets_transaction { action: "begin", spreadsheetId: "..." }
-sheets_transaction { action: "queue", transactionId: "tx_...", operation: {...} }
-// ... queue more operations
-sheets_transaction { action: "commit", transactionId: "tx_..." }
-```
-
-### 2. Use `get_comprehensive` for Analysis
-
-```json
-// ❌ BAD: Multiple calls for metadata
-sheets_core { action: "get", ... }
-sheets_core { action: "list_sheets", ... }
-sheets_advanced { action: "list_named_ranges", ... }
-
-// ✅ GOOD: 1 call gets everything
-sheets_core { action: "get_comprehensive", spreadsheetId: "..." }
-```
-
-### 3. Optimal Execution Sequence
-
-```
-1. AUTH      → sheets_auth { action: "status" }
-2. ANALYZE   → sheets_core { action: "get_comprehensive" }
-3. STRUCTURE → Transaction: Create sheets, headers, freeze rows
-4. DATA      → Transaction: Write data, formulas
-5. FORMAT    → Transaction: Styling, conditional formatting
-6. CHARTS    → sheets_visualize { action: "chart_create" }
-7. PROTECT   → sheets_advanced { action: "add_protected_range" }
-```
-
-### 4. Error Handling Pattern
-
-```json
-// Always check auth first
-sheets_auth { action: "status" }
-
-// Use quality checks
-sheets_quality { action: "validate", dryRun: true }
-
-// Auto-fix issues
-sheets_fix { action: "fix", mode: "preview" }
-
-// Use history for recovery
-sheets_history { action: "undo" }
-```
+| User Intent       | Tool                 | Action                |
+| ----------------- | -------------------- | --------------------- |
+| "Read my data"    | `sheets_data`        | `read`                |
+| "Show structure"  | `sheets_core`        | `get_comprehensive`   |
+| "Clean this up"   | `sheets_analyze`     | `comprehensive`       |
+| "Find duplicates" | `sheets_composite`   | `deduplicate`         |
+| "Analyze trends"  | `sheets_analyze`     | `analyze_data`        |
+| "Make a chart"    | `sheets_visualize`   | `chart_create`        |
+| "Format as table" | `sheets_format`      | `set_format`          |
+| "Protect this"    | `sheets_advanced`    | `add_protected_range` |
+| "Share with team" | `sheets_collaborate` | `share_add`           |
+| "Undo that"       | `sheets_history`     | `undo`                |
+| "Import CSV"      | `sheets_composite`   | `import_csv`          |
 
 ---
 
-## Response Template
-
-After creating a spreadsheet application:
-
-```
-✅ **[Application Name] Created!**
-
-📊 **Dashboard** - KPIs, charts, summary
-👥 **Data Sheet** - X columns, formulas, validation
-⚙️ **Settings** - Reference data (hidden)
-
-**Features:**
-• Auto-generated IDs
-• Linked data (VLOOKUP)
-• Dropdown validation
-• Conditional formatting
-• Calculated fields
-• Frozen headers
-
-🔗 [Open Spreadsheet](url)
-
-Would you like me to:
-1. Add sample data?
-2. Create additional charts?
-3. Customize columns?
-```
-
----
-
-## Limitations
-
-- Max 100 operations per transaction
-- Max 10MB per batchUpdate payload
-- API rate limits: 60 requests/minute/user
-- Some QUERY formulas may need adjustment
-- Cross-sheet INDIRECT requires specific syntax
-
----
-
-_ServalSheets v1.6.0 | 21 Tools | 273 Actions | MCP 2025-11-25_
+_ServalSheets v1.6.0 | 21 Tools | 273 Actions_

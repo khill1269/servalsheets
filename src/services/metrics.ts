@@ -98,6 +98,13 @@ export interface MetricsSummary {
   totalOperations: number;
   /** Average success rate across all operations */
   avgSuccessRate: number;
+  /** Circuit breaker metrics */
+  circuitBreaker?: CircuitBreakerMetrics;
+  /** Confirmation skip tracking (data corruption risk) */
+  confirmationSkips?: {
+    totalSkips: number;
+    destructiveSkips: number;
+  };
 }
 
 export interface RecordOperationOptions {
@@ -319,6 +326,16 @@ export class MetricsService {
     closedEvents: 0,
     currentState: 'closed',
   };
+
+  private readonly confirmationSkips: Map<
+    string,
+    {
+      count: number;
+      lastSkipped: number;
+      spreadsheetIds: Set<string>;
+      destructive: boolean;
+    }
+  > = new Map();
 
   private enabled: boolean;
   private verboseLogging: boolean;
@@ -699,6 +716,10 @@ export class MetricsService {
         ? operations.reduce((sum, op) => sum + op.successRate, 0) / operations.length
         : 0;
 
+    // Get circuit breaker and confirmation skip metrics
+    const circuitBreaker = this.getCircuitBreakerMetrics();
+    const confirmationSkipMetrics = this.getConfirmationSkipMetrics();
+
     return {
       startTime: this.startTime.toISOString(),
       currentTime: new Date().toISOString(),
@@ -709,6 +730,11 @@ export class MetricsService {
       system: this.getSystemMetrics(),
       totalOperations,
       avgSuccessRate,
+      circuitBreaker,
+      confirmationSkips: {
+        totalSkips: confirmationSkipMetrics.totalSkips,
+        destructiveSkips: confirmationSkipMetrics.destructiveSkips,
+      },
     };
   }
 
@@ -895,6 +921,81 @@ export class MetricsService {
       openEvents: this.circuitBreakerEvents.openEvents,
       halfOpenEvents: this.circuitBreakerEvents.halfOpenEvents,
       closedEvents: this.circuitBreakerEvents.closedEvents,
+    };
+  }
+
+  /**
+   * Record confirmation skip for destructive operation
+   * CRITICAL: Tracks when destructive operations bypass confirmation (data corruption risk)
+   */
+  recordConfirmationSkip(params: {
+    action: string;
+    reason: string;
+    timestamp: number;
+    spreadsheetId: string;
+    destructive: boolean;
+  }): void {
+    if (!this.enabled) return;
+
+    const key = `${params.action}:${params.reason}`;
+    const existing = this.confirmationSkips.get(key);
+
+    if (existing) {
+      existing.count++;
+      existing.lastSkipped = params.timestamp;
+      existing.spreadsheetIds.add(params.spreadsheetId);
+    } else {
+      this.confirmationSkips.set(key, {
+        count: 1,
+        lastSkipped: params.timestamp,
+        spreadsheetIds: new Set([params.spreadsheetId]),
+        destructive: params.destructive,
+      });
+    }
+
+    // Log warning for destructive operations
+    if (params.destructive) {
+      logger.warn('[CONFIRMATION_SKIP] Destructive operation bypassed confirmation', {
+        action: params.action,
+        reason: params.reason,
+        spreadsheetId: params.spreadsheetId,
+        timestamp: new Date(params.timestamp).toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Get confirmation skip metrics
+   */
+  getConfirmationSkipMetrics(): {
+    totalSkips: number;
+    destructiveSkips: number;
+    byAction: Map<string, { count: number; lastSkipped: number; affectedSpreadsheets: number }>;
+  } {
+    let totalSkips = 0;
+    let destructiveSkips = 0;
+    const byAction = new Map<
+      string,
+      { count: number; lastSkipped: number; affectedSpreadsheets: number }
+    >();
+
+    for (const [key, value] of this.confirmationSkips.entries()) {
+      totalSkips += value.count;
+      if (value.destructive) {
+        destructiveSkips += value.count;
+      }
+
+      byAction.set(key, {
+        count: value.count,
+        lastSkipped: value.lastSkipped,
+        affectedSpreadsheets: value.spreadsheetIds.size,
+      });
+    }
+
+    return {
+      totalSkips,
+      destructiveSkips,
+      byAction,
     };
   }
 

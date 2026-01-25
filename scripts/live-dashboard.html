@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ServalSheets Live Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+      background: #0f0f1a;
+      color: #eee;
+      min-height: 100vh;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      gap: 1px;
+      background: #333;
+    }
+    .header {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d1b4e 100%);
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      font-size: 1.3em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header h1::before { content: ''; font-size: 1.2em; }
+    .stats-bar {
+      display: flex;
+      gap: 15px;
+    }
+    .stat {
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-align: center;
+      background: rgba(0,0,0,0.3);
+    }
+    .stat-value { font-size: 1.4em; font-weight: bold; }
+    .stat-label { font-size: 0.7em; opacity: 0.7; text-transform: uppercase; }
+    .stat.success .stat-value { color: #4ade80; }
+    .stat.error .stat-value { color: #f87171; }
+    .stat.pending .stat-value { color: #60a5fa; }
+    .stat.perf .stat-value { color: #fbbf24; }
+
+    /* Main log area */
+    .main-panel {
+      background: #0f0f1a;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .tabs {
+      display: flex;
+      background: #1a1a2e;
+      border-bottom: 1px solid #333;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      opacity: 0.6;
+      transition: all 0.2s;
+    }
+    .tab:hover { opacity: 0.8; }
+    .tab.active {
+      opacity: 1;
+      border-bottom-color: #667eea;
+      background: rgba(102,126,234,0.1);
+    }
+    .tab-content { display: none; flex: 1; overflow: hidden; }
+    .tab-content.active { display: flex; flex-direction: column; }
+
+    .log-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .log-entry {
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      background: #1a1a2e;
+      border-left: 3px solid #333;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .log-entry:hover { background: #252540; }
+    .log-entry.success { border-left-color: #4ade80; }
+    .log-entry.error { border-left-color: #f87171; background: rgba(248,113,113,0.08); }
+    .log-entry.pending { border-left-color: #60a5fa; }
+    .log-entry.slow { border-left-color: #fbbf24; }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .timestamp { color: #666; font-size: 0.8em; }
+    .direction {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    .direction.call { background: rgba(96,165,250,0.2); color: #60a5fa; }
+    .direction.response { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .tool-action {
+      flex: 1;
+    }
+    .tool { color: #c084fc; font-weight: 600; }
+    .action { color: #fff; }
+    .status-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      font-weight: 600;
+    }
+    .status-badge.success { background: #166534; color: #4ade80; }
+    .status-badge.error { background: #7f1d1d; color: #f87171; }
+    .status-badge.timeout { background: #78350f; color: #fbbf24; }
+    .status-badge.validation { background: #7f1d1d; color: #fb7185; }
+    .status-badge.pending { background: #1e3a5f; color: #60a5fa; }
+
+    .log-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      font-size: 0.8em;
+      color: #888;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #333;
+    }
+    .detail-item {
+      display: flex;
+      gap: 6px;
+    }
+    .detail-label { color: #666; }
+    .detail-value { color: #aaa; }
+    .detail-value.id { color: #60a5fa; font-family: monospace; }
+    .detail-value.slow { color: #f87171; font-weight: 600; }
+    .detail-value.fast { color: #4ade80; }
+
+    .error-trace {
+      margin-top: 8px;
+      padding: 10px;
+      background: rgba(248,113,113,0.1);
+      border-radius: 4px;
+      font-size: 0.8em;
+      color: #f87171;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* Right sidebar */
+    .sidebar {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-section {
+      border-bottom: 1px solid #333;
+    }
+    .sidebar-header {
+      padding: 12px 15px;
+      background: rgba(0,0,0,0.2);
+      font-weight: 600;
+      font-size: 0.85em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sidebar-content {
+      padding: 10px 15px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* Issues list */
+    .issue-item {
+      padding: 10px;
+      background: rgba(248,113,113,0.1);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border-left: 3px solid #f87171;
+    }
+    .issue-item.warning {
+      background: rgba(251,191,36,0.1);
+      border-left-color: #fbbf24;
+    }
+    .issue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .issue-type {
+      font-weight: 600;
+      font-size: 0.85em;
+    }
+    .issue-type.error { color: #f87171; }
+    .issue-type.warning { color: #fbbf24; }
+    .issue-time { font-size: 0.75em; color: #666; }
+    .issue-detail { font-size: 0.8em; color: #aaa; }
+
+    /* Performance metrics */
+    .perf-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .perf-item {
+      background: rgba(0,0,0,0.2);
+      padding: 12px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .perf-value { font-size: 1.3em; font-weight: bold; color: #fff; }
+    .perf-label { font-size: 0.7em; color: #666; margin-top: 4px; }
+    .perf-value.good { color: #4ade80; }
+    .perf-value.warn { color: #fbbf24; }
+    .perf-value.bad { color: #f87171; }
+
+    /* Tool breakdown */
+    .tool-breakdown {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .tool-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #252540;
+    }
+    .tool-name { flex: 1; font-size: 0.85em; }
+    .tool-count {
+      background: rgba(102,126,234,0.2);
+      color: #667eea;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75em;
+      margin-right: 8px;
+    }
+    .tool-bar {
+      width: 60px;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .tool-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 3px;
+    }
+
+    /* Connection status */
+    .connection-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85em;
+    }
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f87171;
+    }
+    .connection-dot.connected {
+      background: #4ade80;
+      box-shadow: 0 0 10px #4ade80;
+    }
+
+    /* Filters */
+    .filters {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      background: #1a1a2e;
+      border-bottom: 1px solid #333;
+    }
+    .filter-btn {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      background: #252540;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 0.8em;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover { background: #333; }
+    .filter-btn.active { background: #667eea; color: #fff; }
+    .filter-btn.error.active { background: #dc2626; }
+
+    .search-box {
+      flex: 1;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #333;
+      background: #0f0f1a;
+      color: #fff;
+      font-size: 0.85em;
+    }
+    .search-box:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #666;
+    }
+    .empty-state .icon { font-size: 3em; margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="header">
+      <h1>ServalSheets Live Monitor</h1>
+      <div class="stats-bar">
+        <div class="stat success">
+          <div class="stat-value" id="success-count">0</div>
+          <div class="stat-label">Success</div>
+        </div>
+        <div class="stat error">
+          <div class="stat-value" id="error-count">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+        <div class="stat pending">
+          <div class="stat-value" id="pending-count">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat perf">
+          <div class="stat-value" id="avg-time">0ms</div>
+          <div class="stat-label">Avg Time</div>
+        </div>
+      </div>
+      <div class="connection-indicator">
+        <div class="connection-dot" id="connection-dot"></div>
+        <span id="connection-text">Connecting...</span>
+      </div>
+    </div>
+
+    <div class="main-panel">
+      <div class="tabs">
+        <div class="tab active" data-tab="live">Live Feed</div>
+        <div class="tab" data-tab="errors">Errors Only</div>
+        <div class="tab" data-tab="slow">Slow Requests</div>
+      </div>
+
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="call">Calls</button>
+        <button class="filter-btn" data-filter="response">Responses</button>
+        <button class="filter-btn error" data-filter="error">Errors</button>
+        <input type="text" class="search-box" placeholder="Search tool, action, or ID..." id="search-box">
+      </div>
+
+      <div class="tab-content active" id="tab-live">
+        <div class="log-container" id="log-container"></div>
+      </div>
+      <div class="tab-content" id="tab-errors">
+        <div class="log-container" id="error-container"></div>
+      </div>
+      <div class="tab-content" id="tab-slow">
+        <div class="log-container" id="slow-container"></div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-header">
+          <span>Performance</span>
+          <span style="font-size:0.8em;color:#666" id="session-duration">0:00</span>
+        </div>
+        <div class="sidebar-content">
+          <div class="perf-grid">
+            <div class="perf-item">
+              <div class="perf-value" id="perf-min">-</div>
+              <div class="perf-label">Min Time</div>
+            </div>
+            <div class="perf-item">
+              <div class="perf-value" id="perf-max">-</div>
+              <div class="perf-label">Max Time</div>
+            </div>
+            <div class="perf-item">
+              <div class="perf-value" id="perf-p50">-</div>
+              <div class="perf-label">P50</div>
+            </div>
+            <div class="perf-item">
+              <div class="perf-value" id="perf-p95">-</div>
+              <div class="perf-label">P95</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-header">
+          <span>Recent Issues</span>
+          <span class="status-badge error" id="issue-count">0</span>
+        </div>
+        <div class="sidebar-content" id="issues-container">
+          <div class="empty-state" style="padding: 20px;">
+            <div style="color:#4ade80;">No issues detected</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section" style="flex:1;overflow:hidden;">
+        <div class="sidebar-header">
+          <span>Tool Breakdown</span>
+        </div>
+        <div class="sidebar-content tool-breakdown" id="tool-breakdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    const state = {
+      entries: [],
+      issues: [],
+      pending: new Map(), // Track pending calls by their ID
+      toolStats: {},
+      responseTimes: [],
+      filter: 'all',
+      search: '',
+      sessionStart: Date.now()
+    };
+
+    // DOM refs
+    const logContainer = document.getElementById('log-container');
+    const errorContainer = document.getElementById('error-container');
+    const slowContainer = document.getElementById('slow-container');
+    const issuesContainer = document.getElementById('issues-container');
+    const toolBreakdown = document.getElementById('tool-breakdown');
+
+    // Parse log line with full details
+    function parseLogLine(line) {
+      const clean = line.replace(/\x1b\[[0-9;]*m/g, '');
+      if (!clean.trim()) return null;
+
+      // Parse request/response with ID
+      // Format: [HH:MM:SS] → tool.action [spreadsheetId...] or [HH:MM:SS] ← ✓ tool.action (duration)
+      const match = clean.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*(→|←)\s*(✓|✗)?\s*(\w+)\.(\w+)(?:\s*\[([^\]]+)\])?(?:\s*\(([^)]+)\))?/);
+
+      if (match) {
+        const [, timestamp, direction, status, tool, action, spreadsheetId, duration] = match;
+
+        // Extract error type if present
+        let errorType = null;
+        if (clean.includes('TIMEOUT')) errorType = 'TIMEOUT';
+        else if (clean.includes('VALIDATION')) errorType = 'VALIDATION';
+        else if (clean.includes('INTERNAL_ERROR')) errorType = 'INTERNAL_ERROR';
+
+        return {
+          id: `${timestamp}-${tool}-${action}-${Math.random().toString(36).slice(2,8)}`,
+          timestamp,
+          direction: direction === '→' ? 'call' : 'response',
+          status: status === '✓' ? 'success' : (status === '✗' ? 'error' : 'pending'),
+          tool,
+          action,
+          spreadsheetId: spreadsheetId || null,
+          duration: duration || null,
+          durationMs: duration ? parseDuration(duration) : null,
+          errorType,
+          raw: clean
+        };
+      }
+
+      // Parse error details
+      if (clean.includes('└─') || clean.includes('Request:') || clean.includes('Response:')) {
+        return { type: 'detail', content: clean };
+      }
+
+      return null;
+    }
+
+    function parseDuration(str) {
+      if (!str) return null;
+      if (str.includes('ms')) return parseFloat(str);
+      if (str.includes('s')) return parseFloat(str) * 1000;
+      return parseFloat(str);
+    }
+
+    function formatDuration(ms) {
+      if (ms === null || ms === undefined) return '-';
+      if (ms < 1000) return `${Math.round(ms)}ms`;
+      return `${(ms/1000).toFixed(1)}s`;
+    }
+
+    function createLogEntry(data, lastDetail = null) {
+      if (!data || data.type === 'detail') return null;
+
+      const div = document.createElement('div');
+      const isSlow = data.durationMs && data.durationMs > 3000;
+
+      let statusClass = data.status;
+      if (isSlow && data.status === 'success') statusClass = 'slow';
+
+      div.className = `log-entry ${statusClass}`;
+      div.dataset.tool = data.tool;
+      div.dataset.action = data.action;
+      div.dataset.direction = data.direction;
+      div.dataset.status = data.status;
+
+      const durationClass = data.durationMs
+        ? (data.durationMs < 500 ? 'fast' : (data.durationMs > 3000 ? 'slow' : ''))
+        : '';
+
+      let statusBadge = '';
+      if (data.errorType) {
+        statusBadge = `<span class="status-badge ${data.errorType.toLowerCase()}">${data.errorType}</span>`;
+      } else if (data.status === 'success') {
+        statusBadge = '<span class="status-badge success">SUCCESS</span>';
+      } else if (data.status === 'error') {
+        statusBadge = '<span class="status-badge error">ERROR</span>';
+      }
+
+      div.innerHTML = `
+        <div class="log-header">
+          <span class="timestamp">${data.timestamp}</span>
+          <span class="direction ${data.direction}">${data.direction === 'call' ? '→' : '←'}</span>
+          <span class="tool-action">
+            <span class="tool">${data.tool}</span>.<span class="action">${data.action}</span>
+          </span>
+          ${statusBadge}
+        </div>
+        <div class="log-details">
+          ${data.spreadsheetId ? `
+            <div class="detail-item">
+              <span class="detail-label">ID:</span>
+              <span class="detail-value id">${data.spreadsheetId}</span>
+            </div>
+          ` : ''}
+          ${data.durationMs ? `
+            <div class="detail-item">
+              <span class="detail-label">Duration:</span>
+              <span class="detail-value ${durationClass}">${formatDuration(data.durationMs)}</span>
+            </div>
+          ` : ''}
+          <div class="detail-item">
+            <span class="detail-label">Type:</span>
+            <span class="detail-value">${data.direction === 'call' ? 'Request' : 'Response'}</span>
+          </div>
+        </div>
+        ${lastDetail && data.status === 'error' ? `
+          <div class="error-trace">${escapeHtml(lastDetail)}</div>
+        ` : ''}
+      `;
+
+      return div;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function addIssue(data, detail) {
+      const issue = {
+        id: data.id,
+        type: data.errorType || 'ERROR',
+        tool: data.tool,
+        action: data.action,
+        timestamp: data.timestamp,
+        detail: detail || data.raw
+      };
+
+      state.issues.unshift(issue);
+      if (state.issues.length > 50) state.issues.pop();
+      updateIssuesPanel();
+    }
+
+    function updateIssuesPanel() {
+      if (state.issues.length === 0) {
+        issuesContainer.innerHTML = `
+          <div class="empty-state" style="padding: 20px;">
+            <div style="color:#4ade80;">No issues detected</div>
+          </div>
+        `;
+        document.getElementById('issue-count').textContent = '0';
+        return;
+      }
+
+      document.getElementById('issue-count').textContent = state.issues.length;
+      issuesContainer.innerHTML = state.issues.slice(0, 10).map(issue => `
+        <div class="issue-item ${issue.type === 'TIMEOUT' ? 'warning' : ''}">
+          <div class="issue-header">
+            <span class="issue-type ${issue.type === 'TIMEOUT' ? 'warning' : 'error'}">${issue.type}</span>
+            <span class="issue-time">${issue.timestamp}</span>
+          </div>
+          <div class="issue-detail">${issue.tool}.${issue.action}</div>
+        </div>
+      `).join('');
+    }
+
+    function updateToolBreakdown() {
+      const sorted = Object.entries(state.toolStats)
+        .sort((a, b) => b[1].total - a[1].total);
+
+      const maxCount = Math.max(...sorted.map(([, s]) => s.total), 1);
+
+      toolBreakdown.innerHTML = sorted.map(([tool, stats]) => `
+        <div class="tool-row">
+          <span class="tool-name">${tool}</span>
+          <span class="tool-count">${stats.total}</span>
+          <div class="tool-bar">
+            <div class="tool-bar-fill" style="width: ${(stats.total / maxCount) * 100}%"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updatePerformanceMetrics() {
+      const times = state.responseTimes.filter(t => t > 0);
+      if (times.length === 0) return;
+
+      const sorted = [...times].sort((a, b) => a - b);
+      const min = sorted[0];
+      const max = sorted[sorted.length - 1];
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      const p50 = sorted[Math.floor(sorted.length * 0.5)];
+      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+
+      document.getElementById('avg-time').textContent = formatDuration(avg);
+      document.getElementById('perf-min').textContent = formatDuration(min);
+      document.getElementById('perf-min').className = 'perf-value good';
+      document.getElementById('perf-max').textContent = formatDuration(max);
+      document.getElementById('perf-max').className = `perf-value ${max > 5000 ? 'bad' : (max > 2000 ? 'warn' : 'good')}`;
+      document.getElementById('perf-p50').textContent = formatDuration(p50);
+      document.getElementById('perf-p50').className = `perf-value ${p50 > 2000 ? 'warn' : 'good'}`;
+      document.getElementById('perf-p95').textContent = formatDuration(p95);
+      document.getElementById('perf-p95').className = `perf-value ${p95 > 5000 ? 'bad' : (p95 > 3000 ? 'warn' : 'good')}`;
+    }
+
+    function updateStats() {
+      const success = state.entries.filter(e => e.status === 'success').length;
+      const errors = state.entries.filter(e => e.status === 'error').length;
+      const pending = state.pending.size;
+
+      document.getElementById('success-count').textContent = success;
+      document.getElementById('error-count').textContent = errors;
+      document.getElementById('pending-count').textContent = pending;
+
+      // Session duration
+      const elapsed = Math.floor((Date.now() - state.sessionStart) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      document.getElementById('session-duration').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function shouldShowEntry(data) {
+      if (state.filter !== 'all') {
+        if (state.filter === 'error' && data.status !== 'error') return false;
+        if (state.filter === 'call' && data.direction !== 'call') return false;
+        if (state.filter === 'response' && data.direction !== 'response') return false;
+      }
+
+      if (state.search) {
+        const search = state.search.toLowerCase();
+        const searchable = `${data.tool} ${data.action} ${data.spreadsheetId || ''}`.toLowerCase();
+        if (!searchable.includes(search)) return false;
+      }
+
+      return true;
+    }
+
+    function refreshDisplay() {
+      logContainer.innerHTML = '';
+      errorContainer.innerHTML = '';
+      slowContainer.innerHTML = '';
+
+      for (const entry of state.entries) {
+        if (shouldShowEntry(entry)) {
+          const el = createLogEntry(entry, entry.errorDetail);
+          if (el) logContainer.appendChild(el);
+        }
+
+        if (entry.status === 'error') {
+          const el = createLogEntry(entry, entry.errorDetail);
+          if (el) errorContainer.appendChild(el);
+        }
+
+        if (entry.durationMs && entry.durationMs > 3000) {
+          const el = createLogEntry(entry, entry.errorDetail);
+          if (el) slowContainer.appendChild(el);
+        }
+      }
+
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    let lastDetail = null;
+    let processedLines = new Set();
+
+    async function fetchLogs() {
+      try {
+        const response = await fetch('/logs');
+        if (!response.ok) throw new Error('Failed to fetch');
+
+        const text = await response.text();
+        const lines = text.split('\n');
+
+        let hasNewEntries = false;
+
+        for (const line of lines) {
+          if (processedLines.has(line)) continue;
+          processedLines.add(line);
+
+          const data = parseLogLine(line);
+          if (!data) continue;
+
+          if (data.type === 'detail') {
+            lastDetail = data.content;
+            continue;
+          }
+
+          // Track pending calls
+          if (data.direction === 'call') {
+            state.pending.set(`${data.tool}.${data.action}`, data);
+          } else {
+            state.pending.delete(`${data.tool}.${data.action}`);
+          }
+
+          // Track tool stats
+          if (!state.toolStats[data.tool]) {
+            state.toolStats[data.tool] = { total: 0, errors: 0 };
+          }
+          state.toolStats[data.tool].total++;
+          if (data.status === 'error') {
+            state.toolStats[data.tool].errors++;
+          }
+
+          // Track response times
+          if (data.durationMs) {
+            state.responseTimes.push(data.durationMs);
+            if (state.responseTimes.length > 1000) {
+              state.responseTimes.shift();
+            }
+          }
+
+          // Add error detail if available
+          if (data.status === 'error' && lastDetail) {
+            data.errorDetail = lastDetail;
+            addIssue(data, lastDetail);
+          }
+
+          state.entries.push(data);
+          hasNewEntries = true;
+
+          // Keep last 500 entries
+          if (state.entries.length > 500) {
+            state.entries.shift();
+          }
+
+          // Add to display
+          if (shouldShowEntry(data)) {
+            const el = createLogEntry(data, data.errorDetail);
+            if (el) {
+              logContainer.appendChild(el);
+              logContainer.scrollTop = logContainer.scrollHeight;
+            }
+          }
+
+          if (data.status === 'error') {
+            const el = createLogEntry(data, data.errorDetail);
+            if (el) errorContainer.appendChild(el);
+          }
+
+          if (data.durationMs && data.durationMs > 3000) {
+            const el = createLogEntry(data, data.errorDetail);
+            if (el) slowContainer.appendChild(el);
+          }
+
+          lastDetail = null;
+        }
+
+        if (hasNewEntries) {
+          updateStats();
+          updateToolBreakdown();
+          updatePerformanceMetrics();
+        }
+
+        // Update connection status
+        document.getElementById('connection-dot').className = 'connection-dot connected';
+        document.getElementById('connection-text').textContent = 'Live';
+
+      } catch (error) {
+        document.getElementById('connection-dot').className = 'connection-dot';
+        document.getElementById('connection-text').textContent = 'Disconnected';
+      }
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+      });
+    });
+
+    // Filters
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.filter = btn.dataset.filter;
+        refreshDisplay();
+      });
+    });
+
+    // Search
+    document.getElementById('search-box').addEventListener('input', (e) => {
+      state.search = e.target.value;
+      refreshDisplay();
+    });
+
+    // Start polling
+    setInterval(fetchLogs, 300);
+    setInterval(updateStats, 1000);
+    fetchLogs();
+  </script>
+</body>
+</html>

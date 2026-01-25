@@ -33,6 +33,7 @@ import {
   FormatValidation as _FormatValidation,
 } from '../types/validation.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
+import { LRUCache } from 'lru-cache';
 
 /**
  * Validation Engine - Comprehensive data validation
@@ -42,9 +43,7 @@ export class ValidationEngine {
   private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
   private rules: Map<string, ValidationRule>;
-  private validationCache: Map<string, { result: ValidationResult; timestamp: number }>;
-  // Phase 1: Timer cleanup
-  private cacheCleanupInterval?: NodeJS.Timeout;
+  private validationCache: LRUCache<string, { result: ValidationResult; timestamp: number }>;
 
   constructor(config: ValidationEngineConfig = {}) {
     this.googleClient = config.googleClient;
@@ -84,7 +83,12 @@ export class ValidationEngine {
     };
 
     this.rules = new Map();
-    this.validationCache = new Map();
+    this.validationCache = new LRUCache<string, { result: ValidationResult; timestamp: number }>({
+      max: 1000, // Maximum 1000 cached validations
+      ttl: this.config.cacheTtl, // 5 minutes default
+      updateAgeOnGet: true, // Refresh TTL on cache hit
+      updateAgeOnHas: false, // Don't refresh on has() calls
+    });
 
     // Register builtin validators
     this.registerBuiltinValidators();
@@ -536,32 +540,14 @@ export class ValidationEngine {
    * Start cache cleanup
    */
   private startCacheCleanup(): void {
-    this.cacheCleanupInterval = setInterval(() => {
-      const now = Date.now();
-      const expired: string[] = [];
-
-      for (const [key, entry] of this.validationCache.entries()) {
-        if (now - entry.timestamp > this.config.cacheTtl) {
-          expired.push(key);
-        }
-      }
-
-      for (const key of expired) {
-        this.validationCache.delete(key);
-      }
-
-      this.log(`Cleaned up ${expired.length} expired validation cache entries`);
-    }, 60000); // Every minute
-
-    // Phase 1: Register cleanup to prevent memory leak
+    // LRU cache handles TTL expiration automatically, no manual cleanup needed
+    // Register cleanup to dispose cache on shutdown
     registerCleanup(
       'ValidationEngine',
       () => {
-        if (this.cacheCleanupInterval) {
-          clearInterval(this.cacheCleanupInterval);
-        }
+        this.validationCache.clear();
       },
-      'cache-cleanup-interval'
+      'cache-cleanup'
     );
   }
 

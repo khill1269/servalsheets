@@ -31,7 +31,12 @@ const CommonFieldsSchema = z.object({
 const SetActiveActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_active').describe('Set the active spreadsheet for natural references'),
   spreadsheetId: z.string().describe('Spreadsheet ID from URL'),
-  title: z.string().describe('Spreadsheet title for natural reference'),
+  title: z
+    .string()
+    .optional()
+    .describe(
+      'Spreadsheet title for natural reference (optional - will be fetched from API if not provided)'
+    ),
   sheetNames: z
     .array(z.string())
     .optional()

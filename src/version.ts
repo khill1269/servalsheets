@@ -8,7 +8,7 @@
 import type { Icon } from '@modelcontextprotocol/sdk/types.js';
 
 /** Current version - sync with package.json */
-export const VERSION = '1.4.0';
+export const VERSION = '1.6.0';
 
 /** Protocol version */
 export const MCP_PROTOCOL_VERSION = '2025-11-25';

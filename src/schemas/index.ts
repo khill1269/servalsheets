@@ -17,6 +17,7 @@ export * from './annotations.js';
 
 // LLM-optimized tool descriptions
 export * from './descriptions.js';
+export * from './descriptions-minimal.js';
 
 // Core tool schemas
 export * from './auth.js';
