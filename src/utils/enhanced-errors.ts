@@ -363,7 +363,8 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
       };
 
     case 'RANGE_NOT_FOUND':
-      // Range not found → get spreadsheet to see sheet names
+    case 'INVALID_RANGE':
+      // Range issues → get spreadsheet to see sheet names and structure
       if (spreadsheetId) {
         return {
           tool: 'sheets_core',
@@ -393,7 +394,9 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
 
     case 'VALIDATION_FAILED':
     case 'ACTION_REQUIRED':
-      // Validation errors → check auth status to verify connection
+    case 'INTERNAL_ERROR':
+    case 'INVALID_ARGUMENT':
+      // Validation/generic errors → check auth status as basic diagnostic
       return {
         tool: 'sheets_auth',
         action: 'status',
@@ -408,6 +411,33 @@ function getFixableVia(code: string, context?: Record<string, unknown>): ErrorDe
           params: { spreadsheetId },
         };
       }
+      return undefined;
+
+    case 'PARSE_ERROR':
+      // Parse error → analyze data to understand structure
+      if (spreadsheetId && range) {
+        return {
+          tool: 'sheets_analyze',
+          action: 'analyze_data',
+          params: { spreadsheetId, range },
+        };
+      }
+      return undefined;
+
+    case 'TRANSACTION_TIMEOUT':
+      // Transaction timeout → retry the operation
+      // Note: Client should implement retry logic
+      return undefined;
+
+    case 'QUOTA_EXCEEDED':
+    case 'RATE_LIMIT_EXCEEDED':
+      // Quota/rate limit → wait and retry (not automatically fixable)
+      // Note: Client should implement backoff strategy
+      return undefined;
+
+    case 'ELICITATION_UNAVAILABLE':
+    case 'SAMPLING_UNAVAILABLE':
+      // Missing MCP capability → cannot be fixed automatically
       return undefined;
 
     default:
