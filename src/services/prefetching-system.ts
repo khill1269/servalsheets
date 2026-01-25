@@ -77,6 +77,8 @@ export interface PrefetchStats {
   successfulRefreshes: number;
   failedRefreshes: number;
   refreshHitRate: number;
+  failureRate: number; // OPTIMIZATION (Phase 2.3): Rolling failure rate
+  circuitOpen: boolean; // OPTIMIZATION (Phase 2.3): Circuit breaker status
 }
 
 /**
@@ -99,6 +101,12 @@ export class PrefetchingSystem {
 
   // Refresh check interval (30 seconds)
   private refreshCheckInterval = 30000;
+
+  // OPTIMIZATION (Phase 2.3): Failure tracking with circuit breaker
+  private failureWindow = new Array<boolean>(100).fill(true); // Circular buffer
+  private failureIndex = 0;
+  private failureRate = 0;
+  private circuitOpen = false;
 
   // Metrics
   private stats = {
@@ -216,6 +224,15 @@ export class PrefetchingSystem {
    * Queue a prefetch task
    */
   private queuePrefetch(task: PrefetchTask): void {
+    // OPTIMIZATION (Phase 2.3): Circuit breaker - skip if failure rate too high
+    if (this.circuitOpen) {
+      logger.debug('Prefetch skipped - circuit breaker open', {
+        failureRate: this.failureRate,
+        spreadsheetId: task.spreadsheetId,
+      });
+      return;
+    }
+
     const cacheKey = this.getPrefetchCacheKey(task);
 
     // Skip if already in cache
@@ -241,13 +258,34 @@ export class PrefetchingSystem {
         try {
           await this.executePrefetch(task);
           this.stats.successfulPrefetches++;
+          this.recordPrefetchResult(true); // OPTIMIZATION (Phase 2.3): Track success
         } catch (error) {
           this.stats.failedPrefetches++;
+          this.recordPrefetchResult(false); // OPTIMIZATION (Phase 2.3): Track failure
+
           logger.debug('Prefetch failed', {
             spreadsheetId: task.spreadsheetId,
             range: task.range,
             error: error instanceof Error ? error.message : String(error),
+            failureRate: this.failureRate,
           });
+
+          // OPTIMIZATION (Phase 2.3): Circuit breaker check
+          if (this.failureRate > 0.3 && !this.circuitOpen) {
+            this.circuitOpen = true;
+            logger.warn('[Prefetch] High failure rate detected - opening circuit breaker', {
+              failureRate: this.failureRate,
+              recentFailures: this.failureWindow.filter((f) => !f).length,
+            });
+
+            // Auto-close circuit after 5 minutes
+            setTimeout(() => {
+              this.circuitOpen = false;
+              logger.info('[Prefetch] Circuit breaker closed - resuming prefetch', {
+                failureRate: this.failureRate,
+              });
+            }, 300000);
+          }
         } finally {
           // Remove from tracking after completion
           setTimeout(() => {
@@ -468,11 +506,15 @@ export class PrefetchingSystem {
             try {
               await this.refreshCacheEntry(task);
               this.stats.successfulRefreshes++;
+              this.recordPrefetchResult(true); // OPTIMIZATION (Phase 2.3): Track refresh success
             } catch (error) {
               this.stats.failedRefreshes++;
+              this.recordPrefetchResult(false); // OPTIMIZATION (Phase 2.3): Track refresh failure
+
               logger.debug('Background refresh failed', {
                 cacheKey: task.cacheKey,
                 error: error instanceof Error ? error.message : String(error),
+                failureRate: this.failureRate,
               });
             }
           },
@@ -484,6 +526,23 @@ export class PrefetchingSystem {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  /**
+   * Record prefetch result for failure tracking (Phase 2.3)
+   *
+   * Uses circular buffer to track last 100 prefetch attempts.
+   * Calculates rolling failure rate for circuit breaker.
+   *
+   * @param success - Whether the prefetch succeeded
+   */
+  private recordPrefetchResult(success: boolean): void {
+    this.failureWindow[this.failureIndex] = success;
+    this.failureIndex = (this.failureIndex + 1) % 100;
+
+    // Calculate failure rate from circular buffer
+    const failures = this.failureWindow.filter((f) => !f).length;
+    this.failureRate = failures / 100;
   }
 
   /**
@@ -785,11 +844,13 @@ export class PrefetchingSystem {
         this.stats.totalRefreshes > 0
           ? (this.stats.successfulRefreshes / this.stats.totalRefreshes) * 100
           : 0,
+      failureRate: this.failureRate, // OPTIMIZATION (Phase 2.3): Rolling failure rate
+      circuitOpen: this.circuitOpen, // OPTIMIZATION (Phase 2.3): Circuit breaker status
     };
   }
 
   /**
-   * Stop background refresh
+   * Stop background refresh and reset state
    */
   destroy(): void {
     if (this.refreshTimer) {
@@ -797,6 +858,12 @@ export class PrefetchingSystem {
       this.refreshTimer = undefined;
     }
     this.queue.clear();
+
+    // Reset failure tracking (Phase 2.3)
+    this.failureWindow.fill(true);
+    this.failureIndex = 0;
+    this.failureRate = 0;
+    this.circuitOpen = false;
   }
 }
 
