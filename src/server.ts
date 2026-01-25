@@ -1014,6 +1014,39 @@ export class ServalSheetsServer {
       });
     }
 
+    // Phase 2.5: Destroy services with active timers (prevent memory leaks >24h uptime)
+    try {
+      // Destroy GoogleApiClient (pool monitor interval, HTTP agents)
+      if (this.googleClient) {
+        this.googleClient.destroy();
+        baseLogger.debug('GoogleApiClient destroyed');
+      }
+
+      // Destroy RequestMerger (pending group timers)
+      if (this.context?.requestMerger) {
+        this.context.requestMerger.destroy();
+        baseLogger.debug('RequestMerger destroyed');
+      }
+
+      // Destroy BatchingSystem singleton (batch window timers)
+      const { getBatchingSystem } = await import('./services/batching-system.js');
+      const batchingSystem = getBatchingSystem();
+      if (batchingSystem) {
+        batchingSystem.destroy();
+        baseLogger.debug('BatchingSystem destroyed');
+      }
+
+      // Destroy PrefetchingSystem singleton (background refresh timer)
+      const { getPrefetchingSystem } = await import('./services/prefetching-system.js');
+      const prefetchingSystem = getPrefetchingSystem();
+      if (prefetchingSystem) {
+        prefetchingSystem.destroy();
+        baseLogger.debug('PrefetchingSystem destroyed');
+      }
+    } catch (error) {
+      baseLogger.warn('Error during service cleanup', { error });
+    }
+
     // Dispose task store (stops cleanup interval)
     this.taskStore.dispose();
 
