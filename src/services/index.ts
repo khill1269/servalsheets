@@ -74,6 +74,9 @@ export * from './webhook-manager.js';
 export * from './webhook-queue.js';
 export * from './webhook-worker.js';
 
+// Observability & Tracing
+export * from './trace-aggregator.js';
+
 // Task Management
 export * from './task-manager.js';
 

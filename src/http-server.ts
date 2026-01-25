@@ -665,6 +665,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         metrics: `${baseUrl}/metrics`,
         circuitBreakers: `${baseUrl}/metrics/circuit-breakers`,
         stats: `${baseUrl}/stats`,
+        traces: `${baseUrl}/traces`,
+        tracesRecent: `${baseUrl}/traces/recent`,
+        tracesSlow: `${baseUrl}/traces/slow`,
+        tracesErrors: `${baseUrl}/traces/errors`,
+        tracesStats: `${baseUrl}/traces/stats`,
       },
     });
   });
@@ -822,6 +827,219 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       userQuota: userQuota || { enabled: false },
     });
   });
+
+  // ==================== Trace Endpoints ====================
+
+  // Search traces with filters
+  app.get('/traces', (req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      // Parse query filters
+      const filters: Record<string, unknown> = {};
+      if (req.query['tool']) filters['tool'] = req.query['tool'] as string;
+      if (req.query['action']) filters['action'] = req.query['action'] as string;
+      if (req.query['errorCode']) filters['errorCode'] = req.query['errorCode'] as string;
+      if (req.query['success']) filters['success'] = req.query['success'] === 'true';
+      if (req.query['minDuration']) filters['minDuration'] = Number.parseInt(req.query['minDuration'] as string, 10);
+      if (req.query['maxDuration']) filters['maxDuration'] = Number.parseInt(req.query['maxDuration'] as string, 10);
+      if (req.query['startTime']) filters['startTime'] = Number.parseInt(req.query['startTime'] as string, 10);
+      if (req.query['endTime']) filters['endTime'] = Number.parseInt(req.query['endTime'] as string, 10);
+
+      const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
+
+      const traces = aggregator.searchTraces(filters as import('./services/trace-aggregator.js').TraceSearchFilters);
+
+      res.json({
+        count: traces.length,
+        traces: traces.slice(0, limit),
+        filters,
+        _links: {
+          self: '/traces',
+          recent: '/traces/recent',
+          slow: '/traces/slow',
+          errors: '/traces/errors',
+          stats: '/traces/stats',
+        },
+      });
+    } catch (error) {
+      logger.error('Failed to search traces', { error });
+      res.status(500).json({ error: 'Failed to search traces' });
+    }
+  });
+
+  // Get recent traces
+  app.get('/traces/recent', (req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
+      const traces = aggregator.getRecentTraces(limit);
+
+      res.json({
+        count: traces.length,
+        traces,
+      });
+    } catch (error) {
+      logger.error('Failed to get recent traces', { error });
+      res.status(500).json({ error: 'Failed to get recent traces' });
+    }
+  });
+
+  // Get slowest traces
+  app.get('/traces/slow', (req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 10;
+      const traces = aggregator.getSlowestTraces(limit);
+
+      res.json({
+        count: traces.length,
+        traces,
+      });
+    } catch (error) {
+      logger.error('Failed to get slowest traces', { error });
+      res.status(500).json({ error: 'Failed to get slowest traces' });
+    }
+  });
+
+  // Get error traces
+  app.get('/traces/errors', (req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
+      const traces = aggregator.getErrorTraces(limit);
+
+      res.json({
+        count: traces.length,
+        traces,
+      });
+    } catch (error) {
+      logger.error('Failed to get error traces', { error });
+      res.status(500).json({ error: 'Failed to get error traces' });
+    }
+  });
+
+  // Get trace statistics
+  app.get('/traces/stats', (_req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      const stats = aggregator.getStats();
+      const cacheStats = aggregator.getCacheStats();
+
+      res.json({
+        timestamp: new Date().toISOString(),
+        enabled: true,
+        cache: cacheStats,
+        statistics: {
+          total: stats.totalTraces,
+          success: stats.successCount,
+          errors: stats.errorCount,
+          errorRate: stats.totalTraces > 0 ? ((stats.errorCount / stats.totalTraces) * 100).toFixed(2) + '%' : '0%',
+          averageDuration: `${stats.averageDuration.toFixed(2)}ms`,
+          p50Duration: `${stats.p50Duration.toFixed(2)}ms`,
+          p95Duration: `${stats.p95Duration.toFixed(2)}ms`,
+          p99Duration: `${stats.p99Duration.toFixed(2)}ms`,
+        },
+        byTool: Object.entries(stats.byTool).map(([tool, toolStats]) => {
+          const stats = toolStats as { count: number; averageDuration: number; errorRate: number };
+          return {
+            tool,
+            count: stats.count,
+            averageDuration: `${stats.averageDuration.toFixed(2)}ms`,
+            errorRate: `${(stats.errorRate * 100).toFixed(2)}%`,
+          };
+        }),
+        byError: stats.byError,
+      });
+    } catch (error) {
+      logger.error('Failed to get trace stats', { error });
+      res.status(500).json({ error: 'Failed to get trace stats' });
+    }
+  });
+
+  // Get specific trace by request ID
+  app.get('/traces/:requestId', (req: Request, res: Response) => {
+    try {
+      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      const aggregator = getTraceAggregator();
+
+      if (!aggregator.isEnabled()) {
+        res.json({
+          enabled: false,
+          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+        });
+        return;
+      }
+
+      const { requestId } = req.params;
+      const trace = aggregator.getTrace(requestId);
+
+      if (!trace) {
+        res.status(404).json({
+          error: 'Trace not found',
+          requestId,
+          hint: 'Traces are kept in memory for 5 minutes. Check /traces/recent for available traces.',
+        });
+        return;
+      }
+
+      res.json(trace);
+    } catch (error) {
+      logger.error('Failed to get trace', { error, requestId: req.params['requestId'] });
+      res.status(500).json({ error: 'Failed to get trace' });
+    }
+  });
+
+  // ==================== End of Trace Endpoints ====================
 
   // Helper function to format uptime
   function formatUptime(seconds: number): string {
