@@ -26,6 +26,7 @@ export * from './error-messages.js';
 export * from './google-sheets-helpers.js';
 export * from './etag-helpers.js';
 export * from './field-masks.js';
+export * from './range-helpers.js';
 
 // HTTP/2 Detection
 export * from './http2-detector.js';
