@@ -739,10 +739,17 @@ export class ServalSheetsServer {
             });
           }
 
+          // OPTIMIZATION: Create session-level metadata cache (N+1 elimination)
+          const { createMetadataCache } = await import('./services/metadata-cache.js');
+          const metadataCache = this.googleClient?.sheets
+            ? createMetadataCache(this.googleClient.sheets)
+            : undefined;
+
           const perRequestContext: HandlerContext = {
             ...this.context,
             requestId: requestContext.requestId,
             abortSignal: extra?.abortSignal,
+            metadataCache, // Session-level metadata cache for N+1 elimination
           };
 
           // Start keepalive to prevent Claude Desktop timeouts during long operations
@@ -759,6 +766,9 @@ export class ServalSheetsServer {
           } finally {
             // Stop keepalive when handler completes
             keepalive.stop();
+
+            // OPTIMIZATION: Clear metadata cache after request completes
+            metadataCache?.clear();
           }
 
           const duration = (Date.now() - startTime) / 1000;

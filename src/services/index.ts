@@ -32,6 +32,7 @@ export * from './etag-cache.js';
 export * from './cached-sheets-api.js';
 export * from './session-context.js';
 export * from './performance-integration.js';
+export * from './metadata-cache.js';
 
 // Phase 3: MCP-Native Intelligence
 // Export only functions, not types (types come from schemas)

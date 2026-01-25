@@ -66,6 +66,7 @@ export interface HandlerContext {
   server?: import('@modelcontextprotocol/sdk/server/index.js').Server; // MCP Server instance for elicitation/sampling
   taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter; // For task-based execution (SEP-1686)
   metrics?: import('../services/metrics.js').MetricsService; // For tracking confirmation skips and performance
+  metadataCache?: import('../services/metadata-cache.js').MetadataCache; // Session-level metadata cache (N+1 elimination)
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;
@@ -981,6 +982,39 @@ export abstract class BaseHandler<TInput, TOutput> {
     sheetName?: string,
     sheetsApi?: import('googleapis').sheets_v4.Sheets
   ): Promise<number> {
+    // OPTIMIZATION: Use session-level metadata cache if available (N+1 elimination)
+    if (this.context.metadataCache) {
+      if (!sheetName) {
+        // Get first sheet ID
+        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        return metadata.sheets[0]?.sheetId ?? 0;
+      }
+
+      // Get sheet ID by name
+      const sheetId = await this.context.metadataCache.getSheetId(spreadsheetId, sheetName);
+      if (sheetId === undefined) {
+        // Sheet not found - provide helpful error
+        const metadata = await this.context.metadataCache.getOrFetch(spreadsheetId);
+        const availableSheets = metadata.sheets.map((s) => s.title).slice(0, 5);
+        const RangeResolutionError = (await import('../core/range-resolver.js'))
+          .RangeResolutionError;
+        throw new RangeResolutionError(
+          `Sheet "${sheetName}" not found. Available sheets: ${availableSheets.join(', ')}${metadata.sheets.length > 5 ? ` (+${metadata.sheets.length - 5} more)` : ''}. Use sheets_core action:"list_sheets" to see all sheets.`,
+          'SHEET_NOT_FOUND',
+          {
+            sheetName,
+            spreadsheetId,
+            availableSheets,
+            hint: 'Sheet names are case-sensitive. Check spelling and use exact name.',
+            suggestedAction: 'sheets_core action:"list_sheets"',
+          },
+          false
+        );
+      }
+      return sheetId;
+    }
+
+    // FALLBACK: Use global cache manager (legacy path)
     const { cacheManager, createCacheKey } = await import('../utils/cache-manager.js');
     const { CACHE_TTL_SPREADSHEET } = await import('../config/constants.js');
 
