@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console */
 /**
  * ServalSheets - Analyze Handler Tests
  *
@@ -66,6 +68,9 @@ const createMockContext = (): HandlerContext => ({
   } as any,
   server: {
     createMessage: vi.fn(),
+    getClientCapabilities: vi.fn().mockReturnValue({
+      sampling: {},
+    }),
   } as any,
   requestId: 'test-request-id',
 });
@@ -167,10 +172,10 @@ describe('AnalyzeHandler', () => {
         analysisTypes: ['summary'],
       });
 
-      // Handler currently returns INTERNAL_ERROR for empty data (handler bug)
+      // Handler correctly returns NO_DATA for empty data
       expect(result.response.success).toBe(false);
-      expect(result.response.error?.code).toBe('INTERNAL_ERROR');
-      expect(result.response.error?.message).toContain('Cannot read properties');
+      expect(result.response.error?.code).toBe('NO_DATA');
+      expect(result.response.error?.message).toContain('No data found');
     });
 
     it('should handle missing server instance', async () => {
@@ -459,7 +464,13 @@ describe('AnalyzeHandler', () => {
 
     it('should handle sampling service errors', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
-        data: { values: [['A', 'B']] },
+        data: {
+          values: [
+            ['A', 'B'],
+            ['1', '2'],
+            ['3', '4'],
+          ],
+        },
       });
 
       mockContext.server!.createMessage = vi
