@@ -29,10 +29,14 @@ TRACKED_FILES=(
   "server.json"
 )
 
-# Save current state (stage files so we can detect changes)
+# Save original file contents to temp directory
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
+
 for file in "${TRACKED_FILES[@]}"; do
   if [ -f "$file" ]; then
-    git add "$file" 2>/dev/null || true
+    # Format the original file with prettier to ensure consistent comparison
+    npx prettier "$file" > "$TEMP_DIR/$(basename $file).original" 2>/dev/null || cp "$file" "$TEMP_DIR/$(basename $file).original"
   fi
 done
 
@@ -43,27 +47,17 @@ npm run gen:metadata --silent 2>/dev/null
 
 # Ensure generated files conform to repo formatting rules.
 # This avoids false-positive drift when generator output formatting differs
-# from the project's Prettier defaults (notably src/mcp/completions.ts).
+# from the project's Prettier defaults.
 npx prettier --write src/mcp/completions.ts server.json >/dev/null 2>&1
 
-# Also format the tracked files in git's index to ensure apples-to-apples comparison
-for file in "${TRACKED_FILES[@]}"; do
-  if [ -f "$file" ]; then
-    git show HEAD:"$file" 2>/dev/null | npx prettier --stdin-filepath "$file" > "/tmp/drift_check_$$.tmp" 2>/dev/null && \
-      mv "/tmp/drift_check_$$.tmp" "$file.baseline" 2>/dev/null || rm -f "/tmp/drift_check_$$.tmp"
-  fi
-done
-
-# Check for changes in any tracked file (compare against baseline if available)
+# Check for changes in any tracked file
 CHANGED_FILES=()
 for file in "${TRACKED_FILES[@]}"; do
-  if [ -f "$file.baseline" ]; then
-    if ! diff -q "$file" "$file.baseline" >/dev/null 2>&1; then
+  original="$TEMP_DIR/$(basename $file).original"
+  if [ -f "$original" ] && [ -f "$file" ]; then
+    if ! diff -q "$file" "$original" >/dev/null 2>&1; then
       CHANGED_FILES+=("$file")
     fi
-    rm -f "$file.baseline"
-  elif ! git diff --exit-code "$file" >/dev/null 2>&1; then
-    CHANGED_FILES+=("$file")
   fi
 done
 
@@ -86,9 +80,10 @@ if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
   echo ""
 
   for file in "${CHANGED_FILES[@]}"; do
+    original="$TEMP_DIR/$(basename $file).original"
     echo "📄 $file:"
     echo ""
-    git diff --color=always "$file" 2>/dev/null || true
+    diff -u "$original" "$file" 2>/dev/null || true
     echo ""
   done
 

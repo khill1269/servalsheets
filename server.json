@@ -6,9 +6,7 @@
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
       "mimeType": "image/png",
-      "sizes": [
-        "1536x1024"
-      ]
+      "sizes": ["1536x1024"]
     }
   ],
   "mcpProtocol": "2025-11-25",
