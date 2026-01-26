@@ -335,7 +335,8 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
           });
         });
 
-        expect(matches.length).toBe(4);
+        // Test data has 3 cells containing 'apple': 'apple', 'apple pie', 'apple sauce'
+        expect(matches.length).toBe(3);
         expect(matches.map((m) => m.value)).toContain('apple');
         expect(matches.map((m) => m.value)).toContain('apple pie');
         expect(matches.map((m) => m.value)).toContain('apple sauce');
@@ -671,17 +672,19 @@ describe.skipIf(!runLiveTests)('sheets_data Live API Tests', () => {
       client.resetMetrics();
 
       // Perform batch write
-      await client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          valueInputOption: 'RAW',
-          data: [
-            { range: 'TestData!A1:A10', values: Array(10).fill(['A']) },
-            { range: 'TestData!B1:B10', values: Array(10).fill(['B']) },
-            { range: 'TestData!C1:C10', values: Array(10).fill(['C']) },
-          ],
-        },
-      });
+      await client.trackOperation('valuesBatchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            valueInputOption: 'RAW',
+            data: [
+              { range: 'TestData!A1:A10', values: Array(10).fill(['A']) },
+              { range: 'TestData!B1:B10', values: Array(10).fill(['B']) },
+              { range: 'TestData!C1:C10', values: Array(10).fill(['C']) },
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
 

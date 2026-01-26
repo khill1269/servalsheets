@@ -14,6 +14,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createResourceNotFoundError, createResourceReadError } from '../utils/mcp-errors.js';
 
 /**
  * Register performance guide resources
@@ -86,7 +87,11 @@ export async function readGuideResource(uri: string): Promise<{
 
   const fileName = guideFiles[resourceId];
   if (!fileName) {
-    throw new Error(`Unknown guide resource: ${resourceId}`);
+    throw createResourceNotFoundError(
+      'guide',
+      resourceId,
+      'Available guides: quota-optimization, batching-strategies, caching-patterns, error-recovery'
+    );
   }
 
   try {
@@ -104,15 +109,6 @@ export async function readGuideResource(uri: string): Promise<{
       ],
     };
   } catch (error) {
-    // Fallback if file doesn't exist
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'text/plain',
-          text: `Guide not found: ${fileName}. Error: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-    };
+    throw createResourceReadError(uri, error);
   }
 }

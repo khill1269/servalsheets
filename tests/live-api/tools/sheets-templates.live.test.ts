@@ -591,15 +591,19 @@ describe.skipIf(!runLiveTests)('sheets_templates Live API Tests', () => {
       client.resetMetrics();
 
       // Operations typical for template management
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'sheets.properties,namedRanges',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'sheets.properties,namedRanges',
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!1:1',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!1:1',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

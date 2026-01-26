@@ -847,25 +847,27 @@ describe.skipIf(!runLiveTests)('sheets_dimensions Live API Tests', () => {
     it('should track batch dimension operations', async () => {
       client.resetMetrics();
 
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              insertDimension: {
-                range: { sheetId, dimension: 'ROWS', startIndex: 5, endIndex: 7 },
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                insertDimension: {
+                  range: { sheetId, dimension: 'ROWS', startIndex: 5, endIndex: 7 },
+                },
               },
-            },
-            {
-              updateDimensionProperties: {
-                range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 5 },
-                properties: { pixelSize: 100 },
-                fields: 'pixelSize',
+              {
+                updateDimensionProperties: {
+                  range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 5 },
+                  properties: { pixelSize: 100 },
+                  fields: 'pixelSize',
+                },
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBe(1);

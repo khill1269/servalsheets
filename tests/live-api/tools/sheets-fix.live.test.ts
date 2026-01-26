@@ -566,29 +566,33 @@ describe.skipIf(!runLiveTests)('sheets_fix Live API Tests', () => {
       client.resetMetrics();
 
       // Typical fix workflow
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'sheets.properties.gridProperties',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'sheets.properties.gridProperties',
+        })
+      );
 
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              updateSheetProperties: {
-                properties: {
-                  sheetId,
-                  gridProperties: {
-                    frozenRowCount: 1,
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                updateSheetProperties: {
+                  properties: {
+                    sheetId,
+                    gridProperties: {
+                      frozenRowCount: 1,
+                    },
                   },
+                  fields: 'gridProperties.frozenRowCount',
                 },
-                fields: 'gridProperties.frozenRowCount',
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

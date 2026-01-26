@@ -1,7 +1,7 @@
 # MCP 2025-11-25 Compliance Checklist
 
 > ServalSheets MCP Protocol Compliance Audit & Testing Guide
-> Last Updated: 2026-01-20
+> Last Updated: 2026-01-26
 > Protocol Version: 2025-11-25
 
 ## Executive Summary
@@ -25,7 +25,7 @@
 
 | Feature | Status | File | Test Command |
 |---------|--------|------|--------------|
-| 19 tools registered | ✅ | `src/mcp/registration/tool-definitions.ts` | `npm run check:drift` |
+| 21 tools registered | ✅ | `src/mcp/registration/tool-definitions.ts` | `npm run check:drift` |
 | inputSchema for all tools | ✅ | `src/schemas/*.ts` | `npm run test -- schemas` |
 | outputSchema for all tools | ✅ | `src/schemas/*.ts` | `npm run test -- schemas` |
 | Discriminated unions | ✅ | `src/schemas/*.ts` | `npm run test -- contracts` |
@@ -35,7 +35,7 @@
 ```bash
 # Verify tool count
 node -e "const {TOOL_DEFINITIONS}=require('./dist/mcp/registration/tool-definitions.js'); console.log('Tools:', TOOL_DEFINITIONS.length)"
-# Expected: Tools: 19
+# Expected: Tools: 21
 ```
 
 ### 1.2 Resources
@@ -73,7 +73,7 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 | Feature | Status | File | Test Command |
 |---------|--------|------|--------------|
 | completions capability declared | ✅ | `src/mcp/features-2025-11-25.ts:267` | Manual |
-| 241 action completions | ✅ | `src/mcp/completions.ts` | `npm run check:drift` |
+| 267 action completions | ✅ | `src/mcp/completions.ts` | `npm run check:drift` |
 | Spreadsheet ID completion | ✅ | `src/mcp/completions.ts` | Manual |
 | Range completion | ✅ | `src/mcp/completions.ts` | Manual |
 
@@ -198,16 +198,16 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 
 | Feature | Status | Evidence |
 |---------|--------|----------|
-| snake_case naming | ✅ | All 19 tools: sheets_auth, sheets_core, etc. |
+| snake_case naming | ✅ | All 21 tools: sheets_auth, sheets_core, etc. |
 
 ### 4.2 Annotation Hints
 
 | Hint | Status | File | Verification |
 |------|--------|------|--------------|
-| readOnlyHint | ✅ | `src/schemas/*.ts` | All 19 tools |
-| destructiveHint | ✅ | `src/schemas/*.ts` | All 19 tools |
-| idempotentHint | ✅ | `src/schemas/*.ts` | All 19 tools |
-| openWorldHint | ✅ | `src/schemas/*.ts` | All 19 tools |
+| readOnlyHint | ✅ | `src/schemas/*.ts` | All 21 tools |
+| destructiveHint | ✅ | `src/schemas/*.ts` | All 21 tools |
+| idempotentHint | ✅ | `src/schemas/*.ts` | All 21 tools |
+| openWorldHint | ✅ | `src/schemas/*.ts` | All 21 tools |
 
 **Verification Script:**
 ```bash
@@ -313,7 +313,7 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-1
 | server.json | ✅ | `server.json` | Generated |
 | OAuth AS metadata | ✅ | `src/oauth-provider.ts` | `/.well-known/oauth-authorization-server` |
 | Protected resource metadata | ✅ | `src/server/well-known.ts` | `/.well-known/oauth-protected-resource` |
-| MCP Server Cards (SEP-1649) | ⚠️ | Not implemented | Future |
+| MCP Server Cards (SEP-1649) | ✅ | `src/server/well-known.ts` | `/.well-known/mcp.json` |
 
 ---
 
@@ -414,7 +414,7 @@ npm run test -- contracts
 - [ ] Integration test for task cancellation
 
 ### Priority 2: Important Tests
-- [ ] Contract tests for all 19 tool schemas
+- [ ] Contract tests for all 21 tool schemas
 - [ ] Resource template completion tests
 - [ ] Prompt argument validation tests
 - [ ] OAuth PKCE flow end-to-end test
@@ -445,7 +445,7 @@ npm run test -- contracts
 | SEP-1576 | Token bloat mitigation | ✅ defer_loading | - |
 | SEP-1577 | Sampling with tools | ✅ Implemented | - |
 | SEP-1613 | JSON Schema 2020-12 | ✅ Implemented | - |
-| SEP-1649 | Server Cards | ❌ Not started | P3 |
+| SEP-1649 | Server Cards | ✅ Implemented | - |
 | SEP-1686 | Tasks | ✅ Implemented | - |
 | SEP-1699 | SSE polling | ✅ Implemented | - |
 | SEP-1865 | MCP Apps | ❌ Not applicable | - |
@@ -462,7 +462,7 @@ npm run test -- contracts
 
 ### Near Term (Next Sprint)
 1. [ ] Implement OAuth client credentials flow (SEP-1046)
-2. [ ] Add MCP Server Cards endpoint (SEP-1649)
+2. [x] Add MCP Server Cards endpoint (SEP-1649) - DONE at `/.well-known/mcp.json`
 3. [ ] Formalize extensions framework support (SEP-1502)
 4. [ ] Add resource pagination with cursors
 
@@ -483,15 +483,15 @@ echo "=== MCP 2025-11-25 Compliance Check ==="
 
 # 1. Check tool count
 TOOLS=$(node -e "const {TOOL_DEFINITIONS}=require('./dist/mcp/registration/tool-definitions.js'); console.log(TOOL_DEFINITIONS.length)")
-echo "Tools: $TOOLS (expected: 19)"
+echo "Tools: $TOOLS (expected: 21)"
 
 # 2. Check action count
 ACTIONS=$(node -e "const {ACTION_COUNT}=require('./dist/schemas/index.js'); console.log(ACTION_COUNT)")
-echo "Actions: $ACTIONS (expected: 241)"
+echo "Actions: $ACTIONS (expected: 267)"
 
 # 3. Check annotations
 ANNOTATIONS=$(grep -r "ToolAnnotations" src/schemas/*.ts | wc -l | tr -d ' ')
-echo "Tool annotations: $ANNOTATIONS (expected: 19)"
+echo "Tool annotations: $ANNOTATIONS (expected: 21)"
 
 # 4. Check icons
 ICONS=$(grep -c "sheets_" src/mcp/features-2025-11-25.ts | head -1)

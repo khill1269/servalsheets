@@ -302,7 +302,7 @@ export function getMcpServerCard(serverUrl?: string): McpServerCard {
     server_name: SERVER_INFO.name,
     server_version: VERSION,
     description:
-      'Enterprise-grade Google Sheets MCP server with 21 tools and 273 specialized actions. ' +
+      `Enterprise-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} specialized actions. ` +
       'Features AI-powered analysis, atomic transactions (80% API savings), MCP elicitation, ' +
       'task support with cancellation, and comprehensive error handling.',
     icons: SERVER_ICONS,

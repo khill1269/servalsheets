@@ -398,15 +398,19 @@ function onEdit(e) {
       client.resetMetrics();
 
       // Operations that would be part of script workflow
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'properties,sheets.properties',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'properties,sheets.properties',
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:Z100',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:Z100',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

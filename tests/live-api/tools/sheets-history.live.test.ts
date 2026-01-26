@@ -543,27 +543,33 @@ describe.skipIf(!runLiveTests)('sheets_history Live API Tests', () => {
       client.resetMetrics();
 
       // Operations that would be tracked in history
-      await client.sheets.spreadsheets.values.update({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:B2',
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [
-            ['History', 'Test'],
-            ['Data', 'Values'],
-          ],
-        },
-      });
+      await client.trackOperation('valuesUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B2',
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [
+              ['History', 'Test'],
+              ['Data', 'Values'],
+            ],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:B2',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B2',
+        })
+      );
 
-      await client.drive.revisions.list({
-        fileId: testSpreadsheet.id,
-        fields: 'revisions(id)',
-      });
+      await client.trackOperation('revisionsList', 'GET', () =>
+        client.drive.revisions.list({
+          fileId: testSpreadsheet.id,
+          fields: 'revisions(id)',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(3);

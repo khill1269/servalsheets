@@ -355,10 +355,12 @@ describe.skipIf(!runLiveTests)('sheets_bigquery Live API Tests', () => {
       client.resetMetrics();
 
       // Operations that would be part of BigQuery workflow
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'dataSources,dataSourceSchedules',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'dataSources,dataSourceSchedules',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(1);

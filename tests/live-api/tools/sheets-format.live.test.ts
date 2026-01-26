@@ -263,11 +263,11 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
 
   describe('Number Formatting', () => {
     it('should format numbers as currency', async () => {
-      // Write a number
+      // Write a number (USER_ENTERED parses as numeric, RAW would store as text)
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1',
-        valueInputOption: 'RAW',
+        valueInputOption: 'USER_ENTERED',
         requestBody: { values: [['1234.56']] },
       });
 
@@ -313,11 +313,11 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
     });
 
     it('should format numbers as percentages', async () => {
-      // Write a decimal
+      // Write a decimal (USER_ENTERED parses as numeric, RAW would store as text)
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
         range: 'TestData!A1',
-        valueInputOption: 'RAW',
+        valueInputOption: 'USER_ENTERED',
         requestBody: { values: [['0.75']] },
       });
 
@@ -710,27 +710,29 @@ describe.skipIf(!runLiveTests)('sheets_format Live API Tests', () => {
       client.resetMetrics();
 
       // Apply multiple format operations in one batch
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              repeatCell: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 0, endColumnIndex: 5 },
-                cell: { userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
-                fields: 'userEnteredFormat.backgroundColor',
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                repeatCell: {
+                  range: { sheetId, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 0, endColumnIndex: 5 },
+                  cell: { userEnteredFormat: { backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+                  fields: 'userEnteredFormat.backgroundColor',
+                },
               },
-            },
-            {
-              updateBorders: {
-                range: { sheetId, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 0, endColumnIndex: 5 },
-                top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
-                bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+              {
+                updateBorders: {
+                  range: { sheetId, startRowIndex: 0, endRowIndex: 10, startColumnIndex: 0, endColumnIndex: 5 },
+                  top: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                  bottom: { style: 'SOLID', width: 1, color: { red: 0, green: 0, blue: 0 } },
+                },
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBe(1); // All in one batch

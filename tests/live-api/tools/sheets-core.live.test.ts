@@ -456,14 +456,18 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
       client.resetMetrics();
 
       // Make a few API calls
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1',
+        })
+      );
 
       const stats = client.getStats();
 

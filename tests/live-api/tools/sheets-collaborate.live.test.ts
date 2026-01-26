@@ -474,15 +474,19 @@ describe.skipIf(!runLiveTests)('sheets_collaborate Live API Tests', () => {
       client.resetMetrics();
 
       // Make a few collaboration API calls
-      await client.drive.permissions.list({
-        fileId: testSpreadsheet.id,
-        fields: 'permissions(id,type,role)',
-      });
+      await client.trackOperation('permissionsList', 'GET', () =>
+        client.drive.permissions.list({
+          fileId: testSpreadsheet.id,
+          fields: 'permissions(id,type,role)',
+        })
+      );
 
-      await client.drive.files.get({
-        fileId: testSpreadsheet.id,
-        fields: 'id,name',
-      });
+      await client.trackOperation('filesGet', 'GET', () =>
+        client.drive.files.get({
+          fileId: testSpreadsheet.id,
+          fields: 'id,name',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

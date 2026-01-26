@@ -343,19 +343,23 @@ describe.skipIf(!runLiveTests)('sheets_quality Live API Tests', () => {
       client.resetMetrics();
 
       // Run some operations
-      await client.sheets.spreadsheets.values.update({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:A5',
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [['Data1'], ['Data2'], ['Data3'], ['Data4'], ['Data5']],
-        },
-      });
+      await client.trackOperation('valuesUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:A5',
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [['Data1'], ['Data2'], ['Data3'], ['Data4'], ['Data5']],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:A5',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:A5',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

@@ -39,6 +39,9 @@ export { registerDecisionResources, readDecisionResource } from './decisions.js'
 // Examples library resources
 export { registerExamplesResources, readExamplesResource } from './examples.js';
 
+// Workflow patterns resources (UASEV+R protocol demonstrations)
+export { registerPatternResources, readPatternResource } from './patterns.js';
+
 // Dynamic sheet discovery (MCP 2025-11-25 Resource Templates)
 export { registerSheetResources, readSheetResource } from './sheets.js';
 

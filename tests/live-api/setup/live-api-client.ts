@@ -38,6 +38,10 @@ export interface ApiStats {
 
 /**
  * Live API Client with metrics tracking
+ *
+ * Note: For automatic metrics tracking, use trackOperation() method.
+ * Direct API calls via client.sheets.* are not auto-tracked due to
+ * Google API client limitations with JavaScript Proxies.
  */
 export class LiveApiClient {
   private sheetsApi: sheets_v4.Sheets;
@@ -95,13 +99,14 @@ export class LiveApiClient {
   }
 
   /**
-   * Track an operation and record metrics
+   * Track an operation and record metrics.
+   * Use this method when you need explicit metrics tracking.
    */
   async trackOperation<T>(
     operation: string,
     method: string,
     fn: () => Promise<GaxiosResponse<T>>
-  ): Promise<T> {
+  ): Promise<GaxiosResponse<T>> {
     const startTime = performance.now();
 
     try {
@@ -122,7 +127,7 @@ export class LiveApiClient {
         console.log(`[API] ${operation} ${method}: ${duration.toFixed(2)}ms (${response.status})`);
       }
 
-      return response.data;
+      return response;
     } catch (error) {
       const duration = performance.now() - startTime;
 

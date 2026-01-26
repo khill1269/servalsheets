@@ -2,6 +2,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import type { sheets_v4 } from 'googleapis';
 import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
 import { completeSpreadsheetId } from '../mcp/completions.js';
+import { createResourceReadError } from '../utils/mcp-errors.js';
 
 export function registerPivotResources(
   server: McpServer,
@@ -56,21 +57,7 @@ export function registerPivotResources(
           ],
         };
       } catch (error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        throw createResourceReadError(uri.href, error);
       }
     }
   );

@@ -624,54 +624,58 @@ describe.skipIf(!runLiveTests)('sheets_composite Live API Tests', () => {
       client.resetMetrics();
 
       // Typical composite workflow: import CSV, format, freeze headers
-      await client.sheets.spreadsheets.values.update({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:C3',
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [
-            ['Name', 'Email', 'Department'],
-            ['Alice', 'alice@example.com', 'Engineering'],
-            ['Bob', 'bob@example.com', 'Sales'],
-          ],
-        },
-      });
+      await client.trackOperation('valuesUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:C3',
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [
+              ['Name', 'Email', 'Department'],
+              ['Alice', 'alice@example.com', 'Engineering'],
+              ['Bob', 'bob@example.com', 'Sales'],
+            ],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 0,
-                  endRowIndex: 1,
-                  startColumnIndex: 0,
-                  endColumnIndex: 3,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    textFormat: { bold: true },
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                repeatCell: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 0,
+                    endColumnIndex: 3,
                   },
-                },
-                fields: 'userEnteredFormat.textFormat.bold',
-              },
-            },
-            {
-              updateSheetProperties: {
-                properties: {
-                  sheetId,
-                  gridProperties: {
-                    frozenRowCount: 1,
+                  cell: {
+                    userEnteredFormat: {
+                      textFormat: { bold: true },
+                    },
                   },
+                  fields: 'userEnteredFormat.textFormat.bold',
                 },
-                fields: 'gridProperties.frozenRowCount',
               },
-            },
-          ],
-        },
-      });
+              {
+                updateSheetProperties: {
+                  properties: {
+                    sheetId,
+                    gridProperties: {
+                      frozenRowCount: 1,
+                    },
+                  },
+                  fields: 'gridProperties.frozenRowCount',
+                },
+              },
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

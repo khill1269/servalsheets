@@ -2,13 +2,13 @@
 
 ## Overview
 
-Enterprise-grade Google Sheets MCP server with 273 actions across 21 tools. Implements the UASEV+R protocol for intelligent spreadsheet operations with transaction support, AI analysis, and conversational context.
+Enterprise-grade Google Sheets MCP server with 267 actions across 21 tools. Implements the UASEV+R protocol for intelligent spreadsheet operations with transaction support, AI analysis, and conversational context.
 
-**Version:** 1.6.0 (21 tools, 273 actions)  
+**Version:** 1.6.0 (21 tools, 267 actions)  
 **Updated:** 2026-01-25  
 **Protocol:** MCP 2025-11-25 Compliant
 
-## Quick Reference: 21 Tools & 273 Actions
+## Quick Reference: 21 Tools & 271 Actions
 
 | Tool                  | Actions | Purpose                             |
 | --------------------- | ------- | ----------------------------------- |
@@ -48,6 +48,28 @@ E - EXECUTE:    Run tools in optimal order with proper error handling
 V - VERIFY:     Confirm goal achieved, validate results
 R - REFLECT:    Report results, suggest improvements, next steps
 ```
+
+### Quick Decision Guide
+
+**When to skip comprehensive analysis (fast path):**
+- Simple reads/writes < 100 cells → Use `sheets_auth status` only
+- Known spreadsheet structure → Skip analysis
+
+**When to use transactions:**
+- 2+ related writes → 80% quota savings + atomicity guarantee
+- Multi-sheet updates → Prevents inconsistent data on failure
+
+**When to use batch operations:**
+- 3+ reads from different ranges → `batch_read` (1 call vs N calls)
+- Multiple writes → `batch_write` (1 call vs N calls)
+- Quota savings: 66-99% depending on operation count
+
+**When to request confirmation (`sheets_confirm`):**
+- Destructive operations: delete, clear, truncate
+- Updates affecting > 100 cells
+- Operations without snapshots/undo
+
+**For workflow patterns:** Load `servalsheets://patterns/workflows` resource to see real-world examples with API metrics.
 
 ---
 
@@ -732,4 +754,4 @@ Would you like me to:
 
 ---
 
-_ServalSheets v1.6.0 | 21 Tools | 273 Actions | MCP 2025-11-25_
+_ServalSheets v1.6.0 | 21 Tools | 271 Actions | MCP 2025-11-25_

@@ -233,14 +233,18 @@ describe.skipIf(!runLiveTests)('sheets_auth Live API Tests', () => {
       client.resetMetrics();
 
       // Authentication-related operations
-      await client.drive.files.list({
-        pageSize: 1,
-        fields: 'files(id)',
-      });
+      await client.trackOperation('filesList', 'GET', () =>
+        client.drive.files.list({
+          pageSize: 1,
+          fields: 'files(id)',
+        })
+      );
 
-      await client.drive.about.get({
-        fields: 'user(emailAddress)',
-      });
+      await client.trackOperation('aboutGet', 'GET', () =>
+        client.drive.about.get({
+          fields: 'user(emailAddress)',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

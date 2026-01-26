@@ -464,7 +464,34 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
 
   describe('Pivot Table Operations', () => {
     beforeEach(async () => {
-      // Add more detailed data for pivot tables
+      // Check if Benchmarks sheet exists, create only if it doesn't
+      const meta = await client.sheets.spreadsheets.get({
+        spreadsheetId: testSpreadsheet.id,
+      });
+
+      const benchmarksExists = meta.data.sheets?.some(
+        (s) => s.properties?.title === 'Benchmarks'
+      );
+
+      if (!benchmarksExists) {
+        // Create the Benchmarks sheet
+        await client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title: 'Benchmarks',
+                  },
+                },
+              },
+            ],
+          },
+        });
+      }
+
+      // Add more detailed data for pivot tables (always refresh the data)
       await client.sheets.spreadsheets.values.update({
         spreadsheetId: testSpreadsheet.id,
         range: 'Benchmarks!A1:D10',
@@ -524,6 +551,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
                               {
                                 sourceColumnOffset: 2, // Quarter
                                 showTotals: true,
+                                sortOrder: 'ASCENDING',
                               },
                             ],
                             values: [
@@ -582,6 +610,7 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
                               {
                                 sourceColumnOffset: 1, // Product
                                 showTotals: true,
+                                sortOrder: 'ASCENDING',
                               },
                             ],
                             values: [
@@ -662,51 +691,53 @@ describe.skipIf(!runLiveTests)('sheets_visualize Live API Tests', () => {
     it('should track chart creation latency', async () => {
       client.resetMetrics();
 
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              addChart: {
-                chart: {
-                  spec: {
-                    title: 'Performance Test Chart',
-                    basicChart: {
-                      chartType: 'COLUMN',
-                      domains: [
-                        {
-                          domain: {
-                            sourceRange: {
-                              sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                addChart: {
+                  chart: {
+                    spec: {
+                      title: 'Performance Test Chart',
+                      basicChart: {
+                        chartType: 'COLUMN',
+                        domains: [
+                          {
+                            domain: {
+                              sourceRange: {
+                                sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }],
+                              },
                             },
                           },
-                        },
-                      ],
-                      series: [
-                        {
-                          series: {
-                            sourceRange: {
-                              sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+                        ],
+                        series: [
+                          {
+                            series: {
+                              sourceRange: {
+                                sources: [{ sheetId, startRowIndex: 0, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }],
+                              },
                             },
                           },
-                        },
-                      ],
-                      headerCount: 1,
+                        ],
+                        headerCount: 1,
+                      },
                     },
-                  },
-                  position: {
-                    overlayPosition: {
-                      anchorCell: { sheetId, rowIndex: 0, columnIndex: 5 },
-                      widthPixels: 400,
-                      heightPixels: 300,
+                    position: {
+                      overlayPosition: {
+                        anchorCell: { sheetId, rowIndex: 0, columnIndex: 5 },
+                        widthPixels: 400,
+                        heightPixels: 300,
+                      },
                     },
                   },
                 },
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(1);

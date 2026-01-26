@@ -459,15 +459,19 @@ describe.skipIf(!runLiveTests)('sheets_confirm Live API Tests', () => {
       client.resetMetrics();
 
       // Operations that would be confirmed
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'properties.title',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'properties.title',
+        })
+      );
 
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:A10',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:A10',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

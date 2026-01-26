@@ -435,25 +435,29 @@ describe.skipIf(!runLiveTests)('sheets_dependencies Live API Tests', () => {
       client.resetMetrics();
 
       // Create data with formulas
-      await client.sheets.spreadsheets.values.update({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:B3',
-        valueInputOption: 'USER_ENTERED',
-        requestBody: {
-          values: [
-            ['100', '=A1*2'],
-            ['200', '=A2*2'],
-            ['=SUM(A1:A2)', '=SUM(B1:B2)'],
-          ],
-        },
-      });
+      await client.trackOperation('valuesUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B3',
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [
+              ['100', '=A1*2'],
+              ['200', '=A2*2'],
+              ['=SUM(A1:A2)', '=SUM(B1:B2)'],
+            ],
+          },
+        })
+      );
 
       // Read formulas for analysis
-      await client.sheets.spreadsheets.values.get({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:B3',
-        valueRenderOption: 'FORMULA',
-      });
+      await client.trackOperation('valuesGet', 'GET', () =>
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B3',
+          valueRenderOption: 'FORMULA',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

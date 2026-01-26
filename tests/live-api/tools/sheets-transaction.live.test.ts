@@ -738,42 +738,46 @@ describe.skipIf(!runLiveTests)('sheets_transaction Live API Tests', () => {
       client.resetMetrics();
 
       // Perform a typical transaction workflow
-      await client.sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          valueInputOption: 'RAW',
-          data: [
-            { range: 'TestData!A1:B1', values: [['Key', 'Value']] },
-            { range: 'TestData!A2:B2', values: [['Item1', '100']] },
-            { range: 'TestData!A3:B3', values: [['Item2', '200']] },
-          ],
-        },
-      });
+      await client.trackOperation('valuesBatchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            valueInputOption: 'RAW',
+            data: [
+              { range: 'TestData!A1:B1', values: [['Key', 'Value']] },
+              { range: 'TestData!A2:B2', values: [['Item1', '100']] },
+              { range: 'TestData!A3:B3', values: [['Item2', '200']] },
+            ],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              repeatCell: {
-                range: {
-                  sheetId,
-                  startRowIndex: 0,
-                  endRowIndex: 1,
-                  startColumnIndex: 0,
-                  endColumnIndex: 2,
-                },
-                cell: {
-                  userEnteredFormat: {
-                    textFormat: { bold: true },
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                repeatCell: {
+                  range: {
+                    sheetId,
+                    startRowIndex: 0,
+                    endRowIndex: 1,
+                    startColumnIndex: 0,
+                    endColumnIndex: 2,
                   },
+                  cell: {
+                    userEnteredFormat: {
+                      textFormat: { bold: true },
+                    },
+                  },
+                  fields: 'userEnteredFormat.textFormat.bold',
                 },
-                fields: 'userEnteredFormat.textFormat.bold',
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

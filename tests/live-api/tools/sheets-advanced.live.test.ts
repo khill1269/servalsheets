@@ -1219,32 +1219,36 @@ describe.skipIf(!runLiveTests)('sheets_advanced Live API Tests', () => {
       client.resetMetrics();
 
       // Perform several advanced operations
-      await client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: testSpreadsheet.id,
-        requestBody: {
-          requests: [
-            {
-              addNamedRange: {
-                namedRange: {
-                  name: 'PerfTestRange',
-                  range: {
-                    sheetId,
-                    startRowIndex: 0,
-                    endRowIndex: 10,
-                    startColumnIndex: 0,
-                    endColumnIndex: 5,
+      await client.trackOperation('batchUpdate', 'POST', () =>
+        client.sheets.spreadsheets.batchUpdate({
+          spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [
+              {
+                addNamedRange: {
+                  namedRange: {
+                    name: 'PerfTestRange',
+                    range: {
+                      sheetId,
+                      startRowIndex: 0,
+                      endRowIndex: 10,
+                      startColumnIndex: 0,
+                      endColumnIndex: 5,
+                    },
                   },
                 },
               },
-            },
-          ],
-        },
-      });
+            ],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'namedRanges',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'namedRanges',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

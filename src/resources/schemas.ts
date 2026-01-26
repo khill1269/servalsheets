@@ -14,6 +14,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
 import { zodSchemaToJsonSchema } from '../utils/schema-compat.js';
 import { logger } from '../utils/logger.js';
+import { createInvalidResourceUriError, createResourceNotFoundError } from '../utils/mcp-errors.js';
 
 /**
  * Schema resource content cache
@@ -114,14 +115,18 @@ export async function readSchemaResource(
   // Extract tool name from URI
   const match = uri.match(/^schema:\/\/tools\/([a-z_]+)$/);
   if (!match) {
-    throw new Error(`Invalid schema URI: ${uri}. Expected schema://tools/{toolName}`);
+    throw createInvalidResourceUriError(uri, 'schema://tools/{toolName}');
   }
 
   const toolName = match[1]!;
   const content = getToolSchema(toolName);
 
   if (!content) {
-    throw new Error(`Unknown tool: ${toolName}. Use schema://tools to see available tools.`);
+    throw createResourceNotFoundError(
+      'tool',
+      toolName,
+      'Use schema://tools to see available tools'
+    );
   }
 
   return {
@@ -155,7 +160,7 @@ export function registerSchemaResources(server: McpServer): void {
       'schema://tools',
       {
         description:
-          'Index of all ServalSheets tool schemas. Lists 19 tools with their URIs and metadata.',
+          'Index of all ServalSheets tool schemas. Lists all tools with their URIs and metadata.',
         mimeType: 'application/json',
       },
       async (uri) => readSchemaResource(typeof uri === 'string' ? uri : String(uri))

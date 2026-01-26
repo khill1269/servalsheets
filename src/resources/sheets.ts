@@ -8,6 +8,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { HandlerContext } from '../handlers/index.js';
 import { logger } from '../utils/logger.js';
+import { createInvalidResourceUriError, createResourceReadError } from '../utils/mcp-errors.js';
 
 export interface SheetResourceOptions {
   spreadsheetId: string;
@@ -63,7 +64,10 @@ export async function readSheetResource(
   const match = /^sheets:\/\/spreadsheets\/([^/]+)\/sheets(?:\/(.+))?$/.exec(uri);
 
   if (!match) {
-    throw new Error(`Invalid sheet resource URI: ${uri}`);
+    throw createInvalidResourceUriError(
+      uri,
+      'sheets://spreadsheets/{spreadsheetId}/sheets or sheets://spreadsheets/{spreadsheetId}/sheets/{sheetName}'
+    );
   }
 
   const spreadsheetId = match[1]!;
@@ -120,7 +124,7 @@ async function listSheetsInSpreadsheet(
     };
   } catch (error) {
     logger.error('Failed to list sheets', { spreadsheetId, error });
-    throw new Error(`Failed to list sheets: ${String(error)}`);
+    throw createResourceReadError(`sheets://spreadsheets/${spreadsheetId}/sheets`, error);
   }
 }
 
@@ -164,6 +168,9 @@ async function getSheetData(
     };
   } catch (error) {
     logger.error('Failed to get sheet data', { spreadsheetId, sheetName, error });
-    throw new Error(`Failed to get sheet data: ${String(error)}`);
+    throw createResourceReadError(
+      `sheets://spreadsheets/${spreadsheetId}/sheets/${sheetName}`,
+      error
+    );
   }
 }

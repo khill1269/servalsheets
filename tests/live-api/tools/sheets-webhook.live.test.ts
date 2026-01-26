@@ -355,22 +355,26 @@ describe.skipIf(!runLiveTests)('sheets_webhook Live API Tests', () => {
       client.resetMetrics();
 
       // Operations that would be monitored by webhooks
-      await client.sheets.spreadsheets.values.update({
-        spreadsheetId: testSpreadsheet.id,
-        range: 'TestData!A1:B2',
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [
-            ['Key', 'Value'],
-            ['test', '123'],
-          ],
-        },
-      });
+      await client.trackOperation('valuesUpdate', 'POST', () =>
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B2',
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [
+              ['Key', 'Value'],
+              ['test', '123'],
+            ],
+          },
+        })
+      );
 
-      await client.sheets.spreadsheets.get({
-        spreadsheetId: testSpreadsheet.id,
-        fields: 'sheets.properties',
-      });
+      await client.trackOperation('get', 'GET', () =>
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          fields: 'sheets.properties',
+        })
+      );
 
       const stats = client.getStats();
       expect(stats.totalRequests).toBeGreaterThanOrEqual(2);

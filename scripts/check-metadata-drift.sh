@@ -44,11 +44,25 @@ npm run gen:metadata --silent 2>/dev/null
 # Ensure generated files conform to repo formatting rules.
 # This avoids false-positive drift when generator output formatting differs
 # from the project's Prettier defaults (notably src/mcp/completions.ts).
-npx prettier --write src/mcp/completions.ts >/dev/null 2>&1
-# Check for changes in any tracked file
+npx prettier --write src/mcp/completions.ts server.json >/dev/null 2>&1
+
+# Also format the tracked files in git's index to ensure apples-to-apples comparison
+for file in "${TRACKED_FILES[@]}"; do
+  if [ -f "$file" ]; then
+    git show HEAD:"$file" 2>/dev/null | npx prettier --stdin-filepath "$file" > "/tmp/drift_check_$$.tmp" 2>/dev/null && \
+      mv "/tmp/drift_check_$$.tmp" "$file.baseline" 2>/dev/null || rm -f "/tmp/drift_check_$$.tmp"
+  fi
+done
+
+# Check for changes in any tracked file (compare against baseline if available)
 CHANGED_FILES=()
 for file in "${TRACKED_FILES[@]}"; do
-  if ! git diff --exit-code "$file" >/dev/null 2>&1; then
+  if [ -f "$file.baseline" ]; then
+    if ! diff -q "$file" "$file.baseline" >/dev/null 2>&1; then
+      CHANGED_FILES+=("$file")
+    fi
+    rm -f "$file.baseline"
+  elif ! git diff --exit-code "$file" >/dev/null 2>&1; then
     CHANGED_FILES+=("$file")
   fi
 done

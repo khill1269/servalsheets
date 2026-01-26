@@ -247,6 +247,68 @@ describe('MCP Protocol tools/list', () => {
     }
   }, 15000); // 15 second timeout for this test
 
+  it('should not return empty schemas (SDK bug detection)', async () => {
+    // This test specifically catches the MCP SDK bug where schemas might be
+    // registered as empty objects, breaking LLM tool discovery.
+
+    const child = spawn('node', ['dist/cli.js']);
+
+    const request =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: {
+            name: 'test-client',
+            version: '1.0.0',
+          },
+        },
+      }) +
+      '\n' +
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+      }) +
+      '\n';
+
+    child.stdin.write(request);
+    child.stdin.end();
+
+    const parsed = await collectResponse(child, 2);
+
+    expect(parsed).toBeDefined();
+    expect(parsed.result).toBeDefined();
+    expect(parsed.result!.tools).toBeDefined();
+
+    const tools = parsed.result!.tools as Array<{
+      name: string;
+      inputSchema: Record<string, unknown>;
+    }>;
+
+    // Check each tool for SDK bug signature: empty object schema
+    for (const tool of tools) {
+      const schema = tool.inputSchema;
+
+      // SDK bug signature: type: 'object' with no properties and no union types
+      const isEmpty =
+        schema.type === 'object' &&
+        (!schema.properties || Object.keys(schema.properties as object).length === 0) &&
+        !schema.oneOf &&
+        !schema.anyOf;
+
+      if (isEmpty) {
+        throw new Error(
+          `SDK BUG DETECTED: Tool ${tool.name} has empty schema. ` +
+            `This breaks LLM tool discovery. Check prepareSchemaForRegistration().`
+        );
+      }
+    }
+  }, 15000);
+
   it('should handle tool invocation without safeParseAsync errors', async () => {
     // Spawn the MCP server as a child process
     const child = spawn('node', ['dist/cli.js']);

@@ -12,6 +12,10 @@ import { completeRange, completeSpreadsheetId } from '../completions.js';
 import { registerChartResources } from '../../resources/charts.js';
 import { registerPivotResources } from '../../resources/pivots.js';
 import { registerQualityResources } from '../../resources/quality.js';
+import {
+  createAuthRequiredError,
+  createResourceReadError,
+} from '../../utils/mcp-errors.js';
 
 // ============================================================================
 // RESOURCES REGISTRATION
@@ -63,15 +67,7 @@ export function registerServalSheetsResources(
       }
 
       if (!googleClient) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify({ error: 'Not authenticated' }),
-            },
-          ],
-        };
+        throw createAuthRequiredError(uri.href);
       }
 
       try {
@@ -90,17 +86,7 @@ export function registerServalSheetsResources(
           ],
         };
       } catch (error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify({
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            },
-          ],
-        };
+        throw createResourceReadError(uri.href, error);
       }
     }
   );
@@ -127,15 +113,7 @@ export function registerServalSheetsResources(
       }
 
       if (!googleClient) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify({ error: 'Not authenticated' }),
-            },
-          ],
-        };
+        throw createAuthRequiredError(uri.href);
       }
 
       try {
@@ -154,17 +132,7 @@ export function registerServalSheetsResources(
           ],
         };
       } catch (error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify({
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            },
-          ],
-        };
+        throw createResourceReadError(uri.href, error);
       }
     }
   );

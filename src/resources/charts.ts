@@ -2,6 +2,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import type { sheets_v4 } from 'googleapis';
 import { requestDeduplicator, createRequestKey } from '../utils/request-deduplication.js';
 import { completeSpreadsheetId } from '../mcp/completions.js';
+import { createResourceNotFoundError, createResourceReadError } from '../utils/mcp-errors.js';
 
 export function registerChartResources(
   server: McpServer,
@@ -84,21 +85,7 @@ export function registerChartResources(
           ],
         };
       } catch (error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        throw createResourceReadError(uri.href, error);
       }
     }
   );
@@ -149,7 +136,11 @@ export function registerChartResources(
                 }
               }
             }
-            throw new Error(`Chart ${chartId} not found`);
+            throw createResourceNotFoundError(
+              'chart',
+              chartId,
+              'Use sheets:///{spreadsheetId}/charts to list all charts'
+            );
           }
         );
 
@@ -163,21 +154,7 @@ export function registerChartResources(
           ],
         };
       } catch (error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: 'application/json',
-              text: JSON.stringify(
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        throw createResourceReadError(uri.href, error);
       }
     }
   );

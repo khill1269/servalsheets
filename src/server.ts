@@ -89,6 +89,7 @@ import {
   registerGuideResources,
   registerDecisionResources,
   registerExamplesResources,
+  registerPatternResources,
   registerSheetResources,
   registerSchemaResources,
   registerDiscoveryResources,
@@ -894,6 +895,9 @@ export class ServalSheetsServer {
 
     // Register examples library resources (Phase 6)
     registerExamplesResources(this._server); // Basic operations, batch, transactions, composite workflows, analysis
+
+    // Register workflow patterns resources (UASEV+R protocol demonstrations)
+    registerPatternResources(this._server); // Real-world patterns showing optimal tool usage per workflow phase
 
     // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
     // These resources expose full tool schemas on-demand when using minimal registration

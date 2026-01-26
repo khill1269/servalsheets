@@ -18,105 +18,31 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // AUTHENTICATION
   //=============================================================================
 
-  sheets_auth: `🔐 AUTH - OAuth 2.1 authentication (4 actions).
+  sheets_auth: `🔐 Authenticate with Google Sheets via OAuth 2.1. Always call status first before any other operation.
 
-**ROUTING - Pick this tool when:**
-> Checking if authenticated or need to log in/out
-
-**NOT this tool:** All other operations require auth first
-
-**ACTIONS:** status, login, callback, logout
-
-**WORKFLOW:**
-1. status -> Check auth state
-2. login -> Get OAuth URL (if not authenticated)
-3. callback -> Complete OAuth with code
-4. logout -> Clear tokens
-
-**ALWAYS START HERE:** Call status before any other sheets_* tool.`,
+**Use when:** Checking auth state, logging in/out
+**Actions:** status (check auth), login (get OAuth URL), callback (complete OAuth), logout
+**Always start here:** All other tools require authentication`,
 
   //=============================================================================
   // CORE DATA OPERATIONS
   //=============================================================================
 
-  sheets_core: `📋 CORE - Spreadsheet & sheet management (17 actions).
+  sheets_core: `📋 Create and manage spreadsheets and sheets (tabs). Get metadata and URLs.
 
-**PREREQUISITES:** sheets_auth action:"status" must show authenticated:true
+**Use when:** Creating/copying spreadsheets, adding/deleting/renaming sheets, getting metadata
+**Not for:** Cell data (use sheets_data), styling (use sheets_format), analysis (use sheets_analyze)
+**Common actions:** create (new spreadsheet), get (metadata), add_sheet (new tab), batch_get (multiple spreadsheets)
+**Tip:** Use sheets_analyze comprehensive instead of get for metadata + data + analysis in 1 call`,
 
-**ROUTING - Pick this tool when:**
-> Creating, copying, or managing spreadsheets/sheets
-> Getting spreadsheet metadata or URLs
-> Adding/deleting/renaming sheets (tabs)
+  sheets_data: `📝 Read and write cell values, notes, validation, and hyperlinks. Append rows, find/replace text, merge cells.
 
-**NOT this tool - use instead:**
-> sheets_data - Reading/writing CELL DATA
-> sheets_analyze - Getting metadata + data + analysis together
-> sheets_format - Changing cell APPEARANCE
-
-**COST (API calls/latency):**
-- get/list_sheets: 1 call, ~150-300ms (cached 5min)
-- batch_get: 1 call for multiple spreadsheets (preferred!)
-- get_comprehensive: 1 call, ~500ms (includes all sheet data)
-- create: 1 call, ~300-500ms
-
-**ACTIONS BY CATEGORY:**
-[Spreadsheet] get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list
-[Sheet/Tab] add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet (supports sheetId OR sheetName)
-
-**TOP 3 ACTIONS:**
-1. create: {"action":"create","title":"My Sheet"} - New spreadsheet
-2. get: {"action":"get","spreadsheetId":"1ABC..."} - Get metadata
-3. add_sheet: {"action":"add_sheet","spreadsheetId":"1ABC...","title":"Q1"} - Add tab
-
-**TIP:** For analysis, use sheets_analyze action="comprehensive" - gets metadata + data + analysis in ONE call!`,
-
-  sheets_data: `📝 DATA - Cell values, notes, validation, hyperlinks (20 actions).
-
-**PREREQUISITES:** sheets_auth must be authenticated. Optional: sheets_session action:"set_active" to enable natural language ranges.
-
-**ROUTING - Pick this tool when:**
-> Reading or writing cell VALUES
-> Appending rows to a sheet
-> Adding notes, hyperlinks, or validation to cells
-> Merging cells or using clipboard operations
-> Finding/replacing text
-
-**NOT this tool - use instead:**
-> sheets_format - Changing cell COLORS, FONTS, BORDERS
-> sheets_dimensions - Inserting/deleting ROWS or COLUMNS
-> sheets_analyze - ANALYZING data patterns
-
-**COST COMPARISON (Quick Win #3 - Choose wisely!):**
-┌─────────────────────────────────────────────────────────────────┐
-│ EXAMPLE: Reading 5 ranges from a spreadsheet                   │
-├─────────────────────────────────────────────────────────────────┤
-│ ❌ BAD:  read x5 = 5 API calls, ~1000ms (200ms each)           │
-│ ✅ GOOD: batch_read = 1 API call, ~250ms (80% savings!)        │
-└─────────────────────────────────────────────────────────────────┘
-- Single operations: 1 call per range (~200-400ms each)
-- batch_read/batch_write: 1 call for up to 100 ranges (same latency!)
-- **ALWAYS use batch_* when working with 2+ ranges**
-- 10 ranges: Single=10 calls (2000ms), Batch=1 call (250ms) = 87% faster
-
-**ACTIONS BY CATEGORY:**
-[Read] read, batch_read
-[Write] write, append, batch_write
-[Clear] clear, batch_clear
-[Find] find_replace
-[Notes] add_note, get_note, clear_note
-[Validation] set_validation, clear_validation
-[Links] set_hyperlink, clear_hyperlink
-[Merge] merge_cells, unmerge_cells, get_merges
-[Clipboard] cut_paste, copy_paste
-
-**TOP 3 ACTIONS:**
-1. read: {"action":"read","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10"}
-2. write: {"action":"write","spreadsheetId":"1ABC...","range":"Sheet1!A1","values":[["Hello"]]}
-3. append: {"action":"append","spreadsheetId":"1ABC...","range":"Sheet1","values":[["New","Row"]]}
-
-**RANGE FORMAT:** Always include sheet name! Use "Sheet1!A1:D10" NOT just "A1:D10". Sheet names are CASE-SENSITIVE. If sheet has spaces: "'My Sheet'!A1:D10"
-
-**SAFETY:** write/clear are destructive. Use dryRun:true to preview. Use sheets_confirm for >100 cells.`,
+**Use when:** Reading/writing cell values, appending rows, managing notes/links/validation, clipboard operations
+**Not for:** Cell styling (use sheets_format), row/column operations (use sheets_dimensions), analysis (use sheets_analyze)
+**Batch operations:** 3+ ranges? Use batch_read/batch_write (1 call vs N calls, 80%+ quota savings)
+**Common actions:** read, write, append, batch_read, batch_write, find_replace
+**Range format:** Always include sheet name: "Sheet1!A1:D10" (case-sensitive, use quotes for spaces: "'My Sheet'!A1")
+**Safety:** write/clear are destructive - use dryRun:true to preview, sheets_confirm for >100 cells`,
 
   //=============================================================================
   // FORMATTING & STYLING
@@ -289,49 +215,13 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
   // ANALYSIS & INTELLIGENCE
   //=============================================================================
 
-  sheets_analyze: `🤖 ANALYZE - AI-powered analysis (11 actions). START HERE for understanding data.
+  sheets_analyze: `🤖 Analyze spreadsheet structure, quality, and patterns. Generate AI insights, chart suggestions, and formulas. START HERE for new spreadsheets.
 
-**PREREQUISITES:** sheets_auth must be authenticated. No other prerequisites - this tool is designed to be your FIRST call after auth.
-
-**ROUTING - Pick this tool when:**
-> You want to UNDERSTAND a spreadsheet (structure, quality, patterns)
-> You need AI to suggest charts, formulas, or insights
-> You want comprehensive analysis in ONE call
-> You need natural language queries about data
-
-**NOT this tool - use instead:**
-> sheets_data - After analysis, to WRITE changes
-> sheets_visualize - After analysis, to CREATE suggested charts
-> sheets_fix - After analysis, to FIX detected issues
-
-**COST COMPARISON (Quick Win #3 - Maximum efficiency!):**
-┌─────────────────────────────────────────────────────────────────┐
-│ EXAMPLE: Understanding a new spreadsheet                       │
-├─────────────────────────────────────────────────────────────────┤
-│ ❌ BAD:  get + list_sheets + read + analyze_quality + ...      │
-│         = 6 API calls, ~3000ms                                  │
-│ ✅ GOOD: comprehensive = 1-2 calls, ~800ms (73% savings!)      │
-└─────────────────────────────────────────────────────────────────┘
-- comprehensive: 1-2 calls, 500ms-2s (gets metadata + data + analysis)
-- analyze_data: 1 call (~500ms traditional), 2-3 calls (3-15s AI-powered)
-- Individual tools: 5-6 separate calls, cumulative latency
-- **ALWAYS start with 'comprehensive' for new spreadsheets**
-
-**ACTIONS BY CATEGORY:**
-[Comprehensive] comprehensive (RECOMMENDED - gets EVERYTHING in 1 call)
-[Specific Analysis] analyze_data, analyze_structure, analyze_quality, analyze_performance, analyze_formulas
-[AI Generation] suggest_visualization, generate_formula, detect_patterns
-[Natural Language] query_natural_language, explain_analysis
-
-**START HERE:**
-comprehensive: {"action":"comprehensive","spreadsheetId":"1ABC..."}
-Returns: metadata + data sample + quality issues + patterns + chart recommendations + formula analysis
-
-**WORKFLOW:**
-1. sheets_analyze comprehensive -> Understand the spreadsheet (1 call)
-2. sheets_visualize -> Create recommended charts
-3. sheets_fix -> Fix detected issues
-4. sheets_data -> Apply generated formulas`,
+**Use when:** Understanding spreadsheet structure/quality, generating AI insights, detecting patterns, natural language queries
+**Not for:** Writing changes (use sheets_data), creating charts (use sheets_visualize), fixing issues (use sheets_fix)
+**Start with:** comprehensive action (gets metadata + data + quality + insights in 1-2 calls, 73% faster than manual approach)
+**Common actions:** comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns
+**Tip:** Always start with comprehensive for new spreadsheets - uses tiered retrieval (metadata → sample → full scan only if needed)`,
 
   //=============================================================================
   // ADVANCED FEATURES
@@ -531,45 +421,12 @@ Returns: metadata + data sample + quality issues + patterns + chart recommendati
   // COMPOSITE OPERATIONS
   //=============================================================================
 
-  sheets_composite: `🔗 COMPOSITE - High-level data operations (10 actions).
+  sheets_composite: `🔗 Pre-optimized workflows for common operations. Combines multiple steps into single calls for 60-80% API savings.
 
-**PREREQUISITES:** sheets_auth must be authenticated.
-
-**ROUTING - Pick this tool when:**
-> Setting up a new sheet with headers + formatting in ONE call
-> Importing CSV data with auto-formatting
-> Appending data with automatic COLUMN MATCHING
-> Bulk updating rows by a KEY column
-> Cloning sheet structure without data
-> Removing DUPLICATE rows
-> Exporting/importing XLSX files
-> Reading Google Forms responses
-
-**NOT this tool - use instead:**
-> sheets_data - For simple read/write/append
-> sheets_transaction - For custom multi-step operations
-
-**LLM-OPTIMIZED WORKFLOW ACTIONS (save 60-80% API calls):**
-- setup_sheet: Create sheet + headers + formatting + freeze in ONE call
-- import_and_format: Import CSV + apply header formatting + auto-resize
-- clone_structure: Copy sheet structure (headers, formats) without data
-
-**COST (vs manual alternatives):**
-- setup_sheet: 2-3 calls vs 5-7 manual calls (70% savings!)
-- import_and_format: 2 calls vs 4-5 manual calls (60% savings!)
-- clone_structure: 2 calls vs 5-6 manual calls (65% savings!)
-- import_csv: 1-2 calls (~500ms) vs parsing manually (~5 calls)
-- smart_append: 2 calls (reads headers + appends) vs ~4 manual calls
-- deduplicate: 2-3 calls vs complex manual loop
-
-**ACTIONS:** import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses, setup_sheet, import_and_format, clone_structure
-
-**TOP 3 ACTIONS:**
-1. setup_sheet: {"action":"setup_sheet","spreadsheetId":"1ABC...","sheetName":"Q1 Data","headers":["Date","Amount","Category"],"freezeHeaderRow":true}
-2. import_and_format: {"action":"import_and_format","spreadsheetId":"1ABC...","csvData":"Name,Age\\nAlice,30","headerFormat":{"bold":true},"autoResizeColumns":true}
-3. smart_append: {"action":"smart_append","spreadsheetId":"1ABC...","sheet":"Sheet1","data":[{"Name":"Alice","Age":30}],"matchHeaders":true}
-
-**BENEFIT:** Workflow actions combine multiple operations, reducing latency and API calls.`,
+**Use when:** Importing CSV, setting up sheets with headers, appending with column matching, bulk updates, deduplication, exporting XLSX, cloning structure
+**Not for:** Simple read/write (use sheets_data), custom multi-step operations (use sheets_transaction)
+**Common actions:** import_csv (parse + write in 1-2 calls), smart_append (auto-match headers), setup_sheet (headers + format + freeze), bulk_update (key-based updates), deduplicate
+**Savings:** 60-80% fewer API calls vs manual approach (e.g., setup_sheet: 2-3 calls vs 5-7 manual calls)`,
 
   //=============================================================================
   // SESSION CONTEXT

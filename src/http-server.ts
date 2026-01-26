@@ -418,18 +418,39 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // MCP Protocol Version Header (MCP 2025-11-25 Compliance)
   // Specification: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports.md
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // Set MCP protocol version on all responses
+    // Always set supported version on response
     res.setHeader('MCP-Protocol-Version', '2025-11-25');
 
-    // Check client protocol version (optional but recommended)
-    const clientVersion = req.headers['mcp-protocol-version'];
+    // Skip version check for non-MCP endpoints (health, metrics, info, etc.)
+    if (
+      !req.path.startsWith('/sse') &&
+      !req.path.startsWith('/mcp') &&
+      !req.path.startsWith('/session')
+    ) {
+      return next();
+    }
+
+    const clientVersion = req.headers['mcp-protocol-version'] as string | undefined;
+
+    // If client specifies a different version, reject with 400
     if (clientVersion && clientVersion !== '2025-11-25') {
-      logger.warn('Client using different MCP protocol version', {
+      logger.warn('Request rejected: unsupported MCP protocol version', {
         clientVersion,
-        serverVersion: '2025-11-25',
+        supportedVersion: '2025-11-25',
         path: req.path,
         method: req.method,
       });
+
+      res.status(400).json({
+        error: 'UNSUPPORTED_PROTOCOL_VERSION',
+        message: `MCP protocol version '${clientVersion}' is not supported`,
+        details: {
+          requested: clientVersion,
+          supported: '2025-11-25',
+          spec: 'https://modelcontextprotocol.io/specification/2025-11-25/basic/transports',
+        },
+      });
+      return;
     }
 
     next();
