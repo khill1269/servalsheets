@@ -25,7 +25,11 @@ import {
   createZodValidationError,
   parseGoogleApiError,
 } from '../utils/error-factory.js';
-import { enhanceResponse, type EnhancementContext } from '../utils/response-enhancer.js';
+import {
+  enhanceResponse,
+  estimateCost,
+  type EnhancementContext,
+} from '../utils/response-enhancer.js';
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
@@ -317,6 +321,10 @@ export abstract class BaseHandler<TInput, TOutput> {
 
   /**
    * Generate response metadata with suggestions and cost estimates
+   * Phase 1.5: Smart metadata generation based on verbosity level
+   * - minimal: No metadata (handled by caller)
+   * - standard: Only costEstimate (saves ~300-600 tokens)
+   * - detailed: Full metadata (suggestions, costEstimate, relatedTools, nextSteps)
    */
   protected generateMeta(
     action: string,
@@ -338,6 +346,14 @@ export abstract class BaseHandler<TInput, TOutput> {
       duration: options?.duration,
     };
 
+    // For standard verbosity, generate lightweight metadata (cost only)
+    // This saves ~300-600 tokens while preserving essential cost information
+    if (this.currentVerbosity === 'standard') {
+      const costEstimate = estimateCost(context);
+      return { costEstimate };
+    }
+
+    // For detailed verbosity, include full metadata
     return enhanceResponse(context);
   }
 

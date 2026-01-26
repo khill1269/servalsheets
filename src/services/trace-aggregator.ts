@@ -94,11 +94,14 @@ export interface TraceStats {
   p50Duration: number;
   p95Duration: number;
   p99Duration: number;
-  byTool: Record<string, {
-    count: number;
-    averageDuration: number;
-    errorRate: number;
-  }>;
+  byTool: Record<
+    string,
+    {
+      count: number;
+      averageDuration: number;
+      errorRate: number;
+    }
+  >;
   byError: Record<string, number>;
 }
 
@@ -108,11 +111,13 @@ class TraceAggregatorImpl {
   private traces: LRUCache<string, RequestTrace>;
   private enabled: boolean;
 
-  constructor(options: {
-    maxSize?: number;
-    ttl?: number;
-    enabled?: boolean;
-  } = {}) {
+  constructor(
+    options: {
+      maxSize?: number;
+      ttl?: number;
+      enabled?: boolean;
+    } = {}
+  ) {
     this.enabled = options.enabled ?? process.env['TRACE_AGGREGATION_ENABLED'] === 'true';
 
     this.traces = new LRUCache<string, RequestTrace>({
@@ -226,9 +231,7 @@ class TraceAggregatorImpl {
    */
   getRecentTraces(limit: number = 100): RequestTrace[] {
     const traces = Array.from(this.traces.values());
-    return traces
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, limit);
+    return traces.sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
   }
 
   /**
@@ -236,9 +239,7 @@ class TraceAggregatorImpl {
    */
   getSlowestTraces(limit: number = 10): RequestTrace[] {
     const traces = Array.from(this.traces.values());
-    return traces
-      .sort((a, b) => b.duration - a.duration)
-      .slice(0, limit);
+    return traces.sort((a, b) => b.duration - a.duration).slice(0, limit);
   }
 
   /**
@@ -300,7 +301,8 @@ class TraceAggregatorImpl {
       }
     }
 
-    const toolStats: Record<string, { count: number; averageDuration: number; errorRate: number }> = {};
+    const toolStats: Record<string, { count: number; averageDuration: number; errorRate: number }> =
+      {};
     for (const [tool, stats] of Object.entries(byTool)) {
       toolStats[tool] = {
         count: stats.count,

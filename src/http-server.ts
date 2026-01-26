@@ -839,7 +839,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
@@ -850,14 +851,20 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (req.query['action']) filters['action'] = req.query['action'] as string;
       if (req.query['errorCode']) filters['errorCode'] = req.query['errorCode'] as string;
       if (req.query['success']) filters['success'] = req.query['success'] === 'true';
-      if (req.query['minDuration']) filters['minDuration'] = Number.parseInt(req.query['minDuration'] as string, 10);
-      if (req.query['maxDuration']) filters['maxDuration'] = Number.parseInt(req.query['maxDuration'] as string, 10);
-      if (req.query['startTime']) filters['startTime'] = Number.parseInt(req.query['startTime'] as string, 10);
-      if (req.query['endTime']) filters['endTime'] = Number.parseInt(req.query['endTime'] as string, 10);
+      if (req.query['minDuration'])
+        filters['minDuration'] = Number.parseInt(req.query['minDuration'] as string, 10);
+      if (req.query['maxDuration'])
+        filters['maxDuration'] = Number.parseInt(req.query['maxDuration'] as string, 10);
+      if (req.query['startTime'])
+        filters['startTime'] = Number.parseInt(req.query['startTime'] as string, 10);
+      if (req.query['endTime'])
+        filters['endTime'] = Number.parseInt(req.query['endTime'] as string, 10);
 
       const limit = req.query['limit'] ? Number.parseInt(req.query['limit'] as string, 10) : 100;
 
-      const traces = aggregator.searchTraces(filters as import('./services/trace-aggregator.js').TraceSearchFilters);
+      const traces = aggregator.searchTraces(
+        filters as import('./services/trace-aggregator.js').TraceSearchFilters
+      );
 
       res.json({
         count: traces.length,
@@ -886,7 +893,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
@@ -913,7 +921,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
@@ -940,7 +949,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
@@ -967,7 +977,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
@@ -983,7 +994,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           total: stats.totalTraces,
           success: stats.successCount,
           errors: stats.errorCount,
-          errorRate: stats.totalTraces > 0 ? ((stats.errorCount / stats.totalTraces) * 100).toFixed(2) + '%' : '0%',
+          errorRate:
+            stats.totalTraces > 0
+              ? ((stats.errorCount / stats.totalTraces) * 100).toFixed(2) + '%'
+              : '0%',
           averageDuration: `${stats.averageDuration.toFixed(2)}ms`,
           p50Duration: `${stats.p50Duration.toFixed(2)}ms`,
           p95Duration: `${stats.p95Duration.toFixed(2)}ms`,
@@ -1015,7 +1029,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       if (!aggregator.isEnabled()) {
         res.json({
           enabled: false,
-          message: 'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
+          message:
+            'Trace aggregation is not enabled. Set TRACE_AGGREGATION_ENABLED=true to enable.',
         });
         return;
       }
