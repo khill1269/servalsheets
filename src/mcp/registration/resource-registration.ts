@@ -12,10 +12,7 @@ import { completeRange, completeSpreadsheetId } from '../completions.js';
 import { registerChartResources } from '../../resources/charts.js';
 import { registerPivotResources } from '../../resources/pivots.js';
 import { registerQualityResources } from '../../resources/quality.js';
-import {
-  createAuthRequiredError,
-  createResourceReadError,
-} from '../../utils/mcp-errors.js';
+import { createAuthRequiredError, createResourceReadError } from '../../utils/mcp-errors.js';
 
 // ============================================================================
 // RESOURCES REGISTRATION
