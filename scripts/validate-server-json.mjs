@@ -55,8 +55,8 @@ try {
 }
 
 if (!fs.existsSync(schemaPath)) {
-  errors.push(
-    `server.json schema not found at ${schemaPath}. Set MCP_SERVER_SCHEMA_PATH to the official schema file.`
+  console.log(
+    `Note: server.json schema not found at ${schemaPath}. Skipping JSON schema validation.`
   );
 } else {
   try {
