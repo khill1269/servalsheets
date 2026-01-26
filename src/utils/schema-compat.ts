@@ -133,7 +133,13 @@ export function zodSchemaToJsonSchema(
     //
     // When USE_SCHEMA_REFS is enabled, use `reused: 'ref'` to create $defs
     // for shared types. This reduces payload by ~60% (527KB → 209KB).
-    const jsonSchemaOptions = USE_SCHEMA_REFS ? { reused: 'ref' as const } : undefined;
+    //
+    // For schemas with transforms, we use io: 'input' to get the input schema
+    // since transforms cannot be represented in JSON Schema.
+    const jsonSchemaOptions = {
+      ...(USE_SCHEMA_REFS ? { reused: 'ref' as const } : {}),
+      io: 'input' as const, // Use input schema to avoid transform errors
+    };
     const jsonSchema = z.toJSONSchema(schema, jsonSchemaOptions);
 
     // Remove $schema property (MCP doesn't need it)
