@@ -20,6 +20,29 @@ const redactSensitive = winston.format((info) => {
   return redacted;
 });
 
+/**
+ * Add request context (requestId, traceId, spanId) to all log entries
+ * Enables request correlation across services and distributed tracing
+ * Uses AsyncLocalStorage to automatically inject context without manual passing
+ */
+const addRequestContext = winston.format((info) => {
+  // Use lazy import to avoid circular dependency
+  try {
+    const { getRequestContext } =
+      require('./request-context.js') as typeof import('./request-context.js');
+    const ctx = getRequestContext();
+    if (ctx) {
+      // Only add fields that exist (don't pollute logs with undefined)
+      if (ctx.requestId) info['requestId'] = ctx.requestId;
+      if (ctx.traceId) info['traceId'] = ctx.traceId;
+      if (ctx.spanId) info['spanId'] = ctx.spanId;
+    }
+  } catch {
+    // Ignore errors (module may not be available during initialization)
+  }
+  return info;
+});
+
 const addServiceContext = winston.format((info) => {
   const serviceContext = getServiceContextFlat();
   Object.assign(info, serviceContext);
@@ -39,6 +62,7 @@ export const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
+    addRequestContext(), // Auto-inject requestId, traceId, spanId from AsyncLocalStorage
     addServiceContext(),
     redactSensitive(),
     winston.format.json()
