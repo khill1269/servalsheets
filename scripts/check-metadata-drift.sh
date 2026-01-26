@@ -48,7 +48,7 @@ npm run gen:metadata --silent 2>/dev/null
 # Ensure generated files conform to repo formatting rules.
 # This avoids false-positive drift when generator output formatting differs
 # from the project's Prettier defaults.
-npx prettier --write src/mcp/completions.ts server.json >/dev/null 2>&1
+npx prettier --write src/mcp/completions.ts src/schemas/index.ts src/schemas/annotations.ts server.json >/dev/null 2>&1
 
 # Check for changes in any tracked file
 CHANGED_FILES=()
