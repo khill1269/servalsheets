@@ -13,19 +13,35 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export interface TestCredentials {
-  serviceAccount: {
-    type: string;
-    project_id: string;
-    private_key_id: string;
-    private_key: string;
-    client_email: string;
-    client_id: string;
-    auth_uri: string;
-    token_uri: string;
-    auth_provider_x509_cert_url: string;
-    client_x509_cert_url: string;
+export interface ServiceAccountCredentials {
+  type: string;
+  project_id: string;
+  private_key_id: string;
+  private_key: string;
+  client_email: string;
+  client_id: string;
+  auth_uri: string;
+  token_uri: string;
+  auth_provider_x509_cert_url: string;
+  client_x509_cert_url: string;
+}
+
+export interface OAuthCredentials {
+  client_id: string;
+  client_secret: string;
+  redirect_uri: string;
+  tokens: {
+    access_token: string;
+    refresh_token: string;
+    scope: string;
+    token_type: string;
+    expiry_date: number;
   };
+}
+
+export interface TestCredentials {
+  serviceAccount?: ServiceAccountCredentials;
+  oauth?: OAuthCredentials;
   testSpreadsheet: {
     id: string;
     name?: string;
@@ -140,16 +156,30 @@ export function getMissingCredentialsMessage(): string {
  * Validate that credentials have all required fields
  */
 export function validateCredentials(creds: TestCredentials): boolean {
-  if (!creds.serviceAccount) {
-    console.error('❌ Missing serviceAccount in credentials');
+  // Must have either service account or OAuth credentials
+  if (!creds.serviceAccount && !creds.oauth) {
+    console.error('❌ Missing credentials: need either serviceAccount or oauth');
     return false;
   }
 
-  const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
+  if (creds.serviceAccount) {
+    const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
 
-  for (const field of requiredFields) {
-    if (!creds.serviceAccount[field as keyof typeof creds.serviceAccount]) {
-      console.error(`❌ Missing required field in serviceAccount: ${field}`);
+    for (const field of requiredFields) {
+      if (!creds.serviceAccount[field as keyof typeof creds.serviceAccount]) {
+        console.error(`❌ Missing required field in serviceAccount: ${field}`);
+        return false;
+      }
+    }
+  }
+
+  if (creds.oauth) {
+    if (!creds.oauth.client_id || !creds.oauth.client_secret) {
+      console.error('❌ Missing client_id or client_secret in oauth credentials');
+      return false;
+    }
+    if (!creds.oauth.tokens?.refresh_token) {
+      console.error('❌ Missing refresh_token in oauth credentials');
       return false;
     }
   }
