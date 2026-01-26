@@ -20,7 +20,7 @@ import type {
   SheetsWebhookInput,
   SheetsWebhookOutput,
   WebhookEventType,
-} from '../schemas/webhooks.js';
+} from '../schemas/webhook.js';
 import { logger } from '../utils/logger.js';
 
 /**

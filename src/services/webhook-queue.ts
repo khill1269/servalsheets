@@ -19,7 +19,7 @@
 
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
-import type { WebhookEventType } from '../schemas/webhooks.js';
+import type { WebhookEventType } from '../schemas/webhook.js';
 
 // Use any for Redis client to avoid type conflicts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

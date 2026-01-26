@@ -27,7 +27,7 @@ import type {
   WebhookInfo,
   WebhookRegisterInput,
   WebhookRegisterResponse,
-} from '../schemas/webhooks.js';
+} from '../schemas/webhook.js';
 
 // Use any for Redis client to avoid type conflicts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -286,7 +286,7 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'pivot_get',
     'pivot_refresh',
   ],
-  sheets_webhooks: ['register', 'unregister', 'list', 'get', 'test', 'get_stats'],
+  sheets_webhook: ['register', 'unregister', 'list', 'get', 'test', 'get_stats'],
 };
 
 /**
