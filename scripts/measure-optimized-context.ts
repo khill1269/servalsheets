@@ -9,7 +9,12 @@ import {
 } from '../src/mcp/registration/tool-definitions.js';
 import { TOOL_DESCRIPTIONS, TOOL_DESCRIPTIONS_MINIMAL } from '../src/schemas/index.js';
 import { getLazyLoadTools, getSchemaStats } from '../src/config/schema-optimization.js';
-import { DEFER_DESCRIPTIONS, TOOL_MODE } from '../src/config/constants.js';
+import {
+  DEFER_DESCRIPTIONS,
+  TOOL_MODE,
+  STRIP_SCHEMA_DESCRIPTIONS,
+} from '../src/config/constants.js';
+import { USE_SCHEMA_REFS } from '../src/utils/schema-compat.js';
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -36,6 +41,8 @@ async function main() {
   console.log('📊 CURRENT CONFIGURATION:\n');
   console.log(`   TOOL_MODE: ${TOOL_MODE}`);
   console.log(`   DEFER_DESCRIPTIONS: ${DEFER_DESCRIPTIONS}`);
+  console.log(`   STRIP_SCHEMA_DESCRIPTIONS: ${STRIP_SCHEMA_DESCRIPTIONS}`);
+  console.log(`   USE_SCHEMA_REFS: ${USE_SCHEMA_REFS}`);
   console.log(
     `   Lazy-loaded tools: ${getLazyLoadTools().length > 0 ? getLazyLoadTools().join(', ') : 'none'}`
   );
@@ -184,20 +191,34 @@ async function main() {
 
   // Recommendations
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log('   RECOMMENDATIONS');
+  console.log('   OPTIMIZATION OPTIONS FOR FULL MODE');
   console.log('═══════════════════════════════════════════════════════════════\n');
 
-  console.log('🎯 FOR CLAUDE DESKTOP (recommended):');
-  console.log('   SERVAL_TOOL_MODE=full LAZY_LOAD_ENTERPRISE=true SERVAL_DEFER_DESCRIPTIONS=true');
-  console.log('   → ~21K tokens (~10.5% context), leaves ~179K for conversation\n');
+  console.log('🔧 ENVIRONMENT VARIABLES:\n');
+  console.log('   SERVAL_DEFER_DESCRIPTIONS=true');
+  console.log('     → Uses minimal ~100 char descriptions (saves ~7K tokens)\n');
+  console.log('   SERVAL_STRIP_SCHEMA_DESCRIPTIONS=true');
+  console.log('     → Removes inline .describe() from schemas (saves ~14K tokens)\n');
+  console.log('   SERVAL_SCHEMA_REFS=true');
+  console.log('     → Uses $defs for shared types (saves ~60% of schema size)\n');
 
-  console.log('📱 FOR CONSTRAINED ENVIRONMENTS:');
-  console.log('   SERVAL_TOOL_MODE=lite SERVAL_DEFER_DESCRIPTIONS=true');
-  console.log('   → ~12K tokens (~6% context), leaves ~188K for conversation\n');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('   RECOMMENDED CONFIGURATIONS');
+  console.log('═══════════════════════════════════════════════════════════════\n');
 
-  console.log('🔬 FOR DEVELOPMENT/TESTING:');
-  console.log('   SERVAL_TOOL_MODE=full (default)');
-  console.log('   → ~41K tokens (~20.5% context), full documentation inline\n');
+  console.log('🎯 FULL MODE - OPTIMIZED (recommended for Claude Desktop):');
+  console.log('   SERVAL_STRIP_SCHEMA_DESCRIPTIONS=true SERVAL_DEFER_DESCRIPTIONS=true');
+  console.log('   → All 21 tools, ~16K tokens (~8% context), ~184K remaining\n');
+
+  console.log('🚀 FULL MODE - MAXIMUM OPTIMIZATION:');
+  console.log(
+    '   SERVAL_STRIP_SCHEMA_DESCRIPTIONS=true SERVAL_DEFER_DESCRIPTIONS=true SERVAL_SCHEMA_REFS=true'
+  );
+  console.log('   → All 21 tools, ~12K tokens (~6% context), ~188K remaining\n');
+
+  console.log('🔬 FULL MODE - DEFAULT (development/testing):');
+  console.log('   No env vars needed');
+  console.log('   → All 21 tools, ~37K tokens (~18.5% context), full docs inline\n');
 
   console.log('✅ Analysis complete!\n');
 }

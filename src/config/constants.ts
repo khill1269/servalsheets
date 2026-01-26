@@ -293,6 +293,28 @@ export const DEFER_SCHEMAS = process.env['SERVAL_DEFER_SCHEMAS'] === 'true';
 export const DEFER_DESCRIPTIONS = process.env['SERVAL_DEFER_DESCRIPTIONS'] === 'true';
 
 /**
+ * Strip inline descriptions from JSON schemas
+ *
+ * When enabled, removes the "description" field from JSON Schema properties.
+ * This saves ~14,000 tokens by removing inline `.describe()` content from schemas
+ * while keeping the top-level tool descriptions intact.
+ *
+ * Benefits:
+ * - Saves ~14,000 tokens (~7% of 200K context)
+ * - Schemas still fully functional (validation works without descriptions)
+ * - Tool descriptions still provide action routing info
+ *
+ * Trade-offs:
+ * - No inline parameter documentation in schemas
+ * - Claude relies on tool descriptions and examples for parameter guidance
+ *
+ * Best combined with SERVAL_SCHEMA_REFS=true for maximum savings (~60% + 14K tokens).
+ *
+ * Set via SERVAL_STRIP_SCHEMA_DESCRIPTIONS=true environment variable.
+ */
+export const STRIP_SCHEMA_DESCRIPTIONS = process.env['SERVAL_STRIP_SCHEMA_DESCRIPTIONS'] === 'true';
+
+/**
  * Essential tools (lite mode) - core spreadsheet operations
  * Reduces schema payload by 62% (527KB → 199KB)
  */

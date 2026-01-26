@@ -9,10 +9,40 @@
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import { z } from 'zod';
 import { verifyJsonSchema, USE_SCHEMA_REFS } from '../../utils/schema-compat.js';
-import { DEFER_SCHEMAS } from '../../config/constants.js';
+import { DEFER_SCHEMAS, STRIP_SCHEMA_DESCRIPTIONS } from '../../config/constants.js';
 
 // Use z.ZodType instead of deprecated ZodTypeAny
 type ZodSchema = z.ZodType;
+
+/**
+ * Recursively strips "description" fields from JSON Schema
+ *
+ * When STRIP_SCHEMA_DESCRIPTIONS is enabled, this removes inline descriptions
+ * from converted schemas to save ~14,000 tokens. Validation still works since
+ * descriptions are purely documentation.
+ *
+ * @param schema - JSON Schema object to strip descriptions from
+ * @returns Schema with description fields removed
+ */
+function stripSchemaDescriptions(schema: unknown): unknown {
+  if (schema === null || typeof schema !== 'object') {
+    return schema;
+  }
+
+  if (Array.isArray(schema)) {
+    return schema.map(stripSchemaDescriptions);
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+    // Skip description fields (but keep them at the top level for tool routing)
+    if (key === 'description') {
+      continue;
+    }
+    result[key] = stripSchemaDescriptions(value);
+  }
+  return result;
+}
 
 // ============================================================================
 // SCHEMA PREPARATION
@@ -102,17 +132,28 @@ export function prepareSchemaForRegistration(
     return minimalSchema as unknown as AnySchema;
   }
 
-  if (USE_SCHEMA_REFS) {
-    // Pre-convert to JSON Schema with $ref optimization
-    // This reduces payload by ~60% by using $defs for shared types
-    const jsonSchema = z.toJSONSchema(schema, { reused: 'ref' });
+  if (USE_SCHEMA_REFS || STRIP_SCHEMA_DESCRIPTIONS) {
+    // Pre-convert to JSON Schema
+    // USE_SCHEMA_REFS: Uses $ref optimization reducing payload by ~60%
+    // STRIP_SCHEMA_DESCRIPTIONS: Removes inline descriptions saving ~14K tokens
+    const jsonSchemaOptions = USE_SCHEMA_REFS ? { reused: 'ref' as const } : undefined;
+    const rawJsonSchema = z.toJSONSchema(schema, jsonSchemaOptions);
+
+    // Process the schema as a plain object
+    let processed: Record<string, unknown> =
+      typeof rawJsonSchema === 'object' && rawJsonSchema !== null
+        ? { ...(rawJsonSchema as Record<string, unknown>) }
+        : {};
 
     // Remove $schema property (MCP doesn't need it)
-    if (typeof jsonSchema === 'object' && jsonSchema !== null) {
-      const { $schema: _$schema, ...rest } = jsonSchema as Record<string, unknown>;
-      return rest as unknown as AnySchema;
+    delete processed['$schema'];
+
+    // Strip descriptions if enabled (saves ~14K tokens)
+    if (STRIP_SCHEMA_DESCRIPTIONS) {
+      processed = stripSchemaDescriptions(processed) as Record<string, unknown>;
     }
-    return jsonSchema as unknown as AnySchema;
+
+    return processed as unknown as AnySchema;
   }
 
   // Default: return Zod schema for SDK to handle
