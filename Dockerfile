@@ -2,7 +2,7 @@
 # Multi-stage build for optimal image size (~50MB final)
 
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ RUN npm run build
 RUN npm prune --production
 
 # Stage 2: Runtime
-FROM node:20-alpine
+FROM node:25-alpine
 
 WORKDIR /app
 
