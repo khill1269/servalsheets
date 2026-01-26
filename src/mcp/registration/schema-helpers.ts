@@ -8,7 +8,11 @@
 
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import { z } from 'zod';
-import { verifyJsonSchema, USE_SCHEMA_REFS, zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
+import {
+  verifyJsonSchema,
+  USE_SCHEMA_REFS,
+  zodSchemaToJsonSchema,
+} from '../../utils/schema-compat.js';
 import { DEFER_SCHEMAS, STRIP_SCHEMA_DESCRIPTIONS } from '../../config/constants.js';
 import { logger } from '../../utils/logger.js';
 
@@ -133,27 +137,34 @@ export function prepareSchemaForRegistration(
     return minimalSchema as unknown as AnySchema;
   }
 
-  // ALWAYS pre-convert to JSON Schema to handle transforms safely
-  // The MCP SDK calls z.toJSONSchema() internally, which throws on .transform()
-  // By pre-converting with our safe wrapper, we catch transform errors and return fallbacks
-  try {
-    // Use zodSchemaToJsonSchema which has error handling for transforms
-    let processed = zodSchemaToJsonSchema(schema);
+  if (USE_SCHEMA_REFS || STRIP_SCHEMA_DESCRIPTIONS) {
+    // Pre-convert to JSON Schema with safe error handling
+    // USE_SCHEMA_REFS: Uses $ref optimization reducing payload by ~60%
+    // STRIP_SCHEMA_DESCRIPTIONS: Removes inline descriptions saving ~14K tokens
+    try {
+      let processed = zodSchemaToJsonSchema(schema);
 
-    // Strip descriptions if enabled (saves ~14K tokens)
-    if (STRIP_SCHEMA_DESCRIPTIONS) {
-      processed = stripSchemaDescriptions(processed) as Record<string, unknown>;
+      // Strip descriptions if enabled (saves ~14K tokens)
+      if (STRIP_SCHEMA_DESCRIPTIONS) {
+        processed = stripSchemaDescriptions(processed) as Record<string, unknown>;
+      }
+
+      // IMPORTANT: SDK expects Zod schemas, not JSON Schema objects
+      // We need to wrap the JSON Schema in a minimal Zod schema for SDK compatibility
+      // The SDK will use the JSON Schema for tools/list but validate with Zod
+      return processed as unknown as AnySchema;
+    } catch (error) {
+      logger.warn('Schema conversion failed, returning original Zod schema', {
+        component: 'schema-helpers',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Fall through to return original schema
     }
-
-    return processed as unknown as AnySchema;
-  } catch (error) {
-    // Fallback for any unexpected conversion errors
-    logger.warn('Schema conversion failed, using fallback', {
-      component: 'schema-helpers',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { type: 'object', properties: {} } as unknown as AnySchema;
   }
+
+  // Default: return Zod schema for SDK to handle
+  // The SDK will convert to JSON Schema internally
+  return schema as unknown as AnySchema;
 }
 
 /**
