@@ -35,6 +35,7 @@ Thumbs.db
 !tsconfig.eslint.json
 !inspector.json
 !server.json
+!.prettierrc.json
 !vitest.config.ts
 !tests/config/test-credentials.example.json
 !claude_desktop_config.example.json
