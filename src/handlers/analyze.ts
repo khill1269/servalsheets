@@ -294,86 +294,7 @@ export class AnalyzeHandler {
             spreadsheetId: string;
             description: string;
           };
-
-          // Check sampling capability
-          const samplingError2 = await this.checkSamplingCapability();
-          if (samplingError2) {
-            response = samplingError2;
-            break;
-          }
-
-          const _server2 = this.context.server!;
-          const startTime = Date.now();
-
-          // Read context data if range provided
-          let headers: string[] | undefined;
-          let sampleData: unknown[][] | undefined;
-
-          if (formulaInput.range) {
-            const convertedFormulaRange = this.convertRangeInput(formulaInput.range);
-            const rangeStr = this.resolveRange(convertedFormulaRange);
-            const data = await this.readData(formulaInput.spreadsheetId, rangeStr);
-            if (data.length > 0) {
-              headers = data[0]?.map(String);
-              sampleData = data.slice(0, 10);
-            }
-          }
-
-          // Build sampling request
-          const formulaSheetName =
-            formulaInput.range && 'sheetName' in formulaInput.range
-              ? (formulaInput.range as { sheetName: string }).sheetName
-              : undefined;
-
-          const samplingRequest = buildFormulaSamplingRequest(formulaInput.description, {
-            headers,
-            sampleData,
-            targetCell: formulaInput.targetCell,
-            sheetName: formulaSheetName,
-          });
-
-          // Call LLM via MCP Sampling or LLM fallback
-          const contentText = await this.createAIMessage(samplingRequest);
-          const duration = Date.now() - startTime;
-
-          try {
-            const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-            if (!jsonMatch)
-              throw new DataError(
-                'No JSON in response - model returned invalid format',
-                'DATA_ERROR',
-                false
-              );
-            const parsed = JSON.parse(jsonMatch[0]);
-
-            response = {
-              success: true,
-              action: 'generate_formula',
-              formula: {
-                formula: parsed.formula,
-                explanation: parsed.explanation,
-                assumptions: parsed.assumptions,
-                alternatives: parsed.alternatives,
-                tips: parsed.tips,
-              },
-              duration,
-              message: `Formula generated: ${parsed.formula}`,
-            };
-          } catch (error) {
-            logger.error('Failed to parse formula response', {
-              component: 'analyze-handler',
-              action: 'generate_formula',
-              error: error instanceof Error ? error.message : String(error),
-            });
-            response = {
-              success: false,
-              error: {
-                code: 'PARSE_ERROR',
-                message: 'Failed to parse formula response',
-                retryable: true,
-              },
-            };
-          }
+          response = await this.handleGenerateFormula(formulaInput, verbosity);
           break;
         }
 
@@ -2191,6 +2112,97 @@ export class AnalyzeHandler {
         error: {
           code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
+          retryable: true,
+        },
+      };
+    }
+  }
+
+  /**
+   * Handle generate_formula action
+   * Generate Google Sheets formula from natural language description
+   */
+  private async handleGenerateFormula(
+    req: SheetsAnalyzeInput['request'] & {
+      spreadsheetId: string;
+      description: string;
+    },
+    _verbosity: 'minimal' | 'standard' | 'detailed'
+  ): Promise<AnalyzeResponse> {
+    // Check sampling capability
+    const samplingError = await this.checkSamplingCapability();
+    if (samplingError) {
+      return samplingError;
+    }
+
+    const _server = this.context.server!;
+    const startTime = Date.now();
+
+    // Read context data if range provided
+    let headers: string[] | undefined;
+    let sampleData: unknown[][] | undefined;
+
+    if ('range' in req && req.range) {
+      const convertedRange = this.convertRangeInput(req.range);
+      const rangeStr = this.resolveRange(convertedRange);
+      const data = await this.readData(req.spreadsheetId, rangeStr);
+      if (data.length > 0) {
+        headers = data[0]?.map(String);
+        sampleData = data.slice(0, 10);
+      }
+    }
+
+    // Build sampling request
+    const sheetName =
+      'range' in req && req.range && 'sheetName' in req.range
+        ? (req.range as { sheetName: string }).sheetName
+        : undefined;
+
+    const samplingRequest = buildFormulaSamplingRequest(req.description, {
+      headers,
+      sampleData,
+      targetCell: 'targetCell' in req ? req.targetCell : undefined,
+      sheetName,
+    });
+
+    // Call LLM via MCP Sampling or LLM fallback
+    const contentText = await this.createAIMessage(samplingRequest);
+    const duration = Date.now() - startTime;
+
+    try {
+      const jsonMatch = contentText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch)
+        throw new DataError(
+          'No JSON in response - model returned invalid format',
+          'DATA_ERROR',
+          false
+        );
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      return {
+        success: true,
+        action: 'generate_formula',
+        formula: {
+          formula: parsed.formula,
+          explanation: parsed.explanation,
+          assumptions: parsed.assumptions,
+          alternatives: parsed.alternatives,
+          tips: parsed.tips,
+        },
+        duration,
+        message: `Formula generated: ${parsed.formula}`,
+      };
+    } catch (error) {
+      logger.error('Failed to parse formula response', {
+        component: 'analyze-handler',
+        action: 'generate_formula',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false,
+        error: {
+          code: 'PARSE_ERROR',
+          message: 'Failed to parse formula response',
           retryable: true,
         },
       };
