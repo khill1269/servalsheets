@@ -1,53 +1,62 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 19 tools, 252 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 22 tools, 267 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-1761%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
+[![Tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen)](https://github.com/khill1269/servalsheets)
 [![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](https://github.com/khill1269/servalsheets)
 
-## What's New in v1.3.0 (2026-01-06)
+<p align="center">
+  <img src="docs/public/demos/hero-optimized.gif" alt="ServalSheets Demo" width="600">
+</p>
 
-🎯 **MCP Protocol Native Refactor + Full Protocol Compliance**
+## What's New in v1.6.0 (2026-01-26)
 
-- ✅ **MCP Logging**: Dynamic log level control via logging/setLevel handler
-- ✅ **Expanded Resources**: 6 URI templates (charts, pivots, quality analysis)
-- ✅ **Task Cancellation**: Full AbortController support (SEP-1686)
-- ✅ **Request Tracing**: Request ID propagation through handler chain
-- ✅ **MCP Confirm**: User confirmations via sheets_confirm (SEP-1036)
-- ✅ **MCP Analyze**: AI analysis via sheets_analyze (SEP-1577)
-- ✅ **Architecture**: Replaced custom planning/insights with MCP-native patterns
+🚀 **Enterprise Deployment & Infrastructure Release**
+
+- ✅ **Helm Charts**: Production-ready Kubernetes deployment with HPA, PDB, ServiceMonitor
+- ✅ **Terraform Modules**: AWS (ECS Fargate) and GCP (Cloud Run) infrastructure as code
+- ✅ **Health Monitoring**: Heap health checks, connection tracking, heartbeat detection
+- ✅ **W3C Trace Context**: Distributed tracing for Google API calls
+- ✅ **Schema Caching**: 80-90% validation overhead reduction via memoization
+- ✅ **Webhook Support**: Event-driven notifications with HMAC signatures
+- ✅ **Per-User Rate Limiting**: Redis-backed quota tracking with sliding windows
+- ✅ **VitePress Docs**: Full documentation site with 115+ pages
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
-### Previous Release: v1.2.0 (2026-01-05)
+### Previous Releases
 
-🤖 **Advanced Analytics & AI Integration Release**
+<details>
+<summary>v1.4.0 - Zod v4 & Performance (2026-01-10)</summary>
 
-- Pattern Detection: Trend analysis, correlations, anomalies, seasonality
-- Column Analysis: Deep data profiling with quality metrics
-- AI-Powered Tools: Template suggestions, formula generation, chart recommendations
-- Request Deduplication, User Confirmations
+- Upgraded Zod 3.25 → 4.3.5 with native JSON Schema
+- 14x faster string parsing, 7x faster arrays
+- 57% smaller bundle size
+</details>
 
-### Earlier Release: v1.1.0 (2026-01-03)
+<details>
+<summary>v1.3.0 - MCP Protocol Native (2026-01-06)</summary>
 
-🎉 **Production Hardening Release**
+- MCP Logging, Tasks, Elicitation, Sampling support
+- 6 URI resource templates
+- Full AbortController cancellation
+</details>
 
-- Security Hardened: OAuth 2.1 with CSRF protection, signed state tokens, redirect URI allowlist
-- Production Ready: Required secrets enforcement, comprehensive deployment checklist
-- Modern Stack: Express 5, Zod 4, Node 22 LTS, latest dependencies
-- Session Storage: TTL-based storage with optional Redis support for HA
-- Type Safety: Zero `as any` casts, full Zod validation
-- 1761 Tests: Comprehensive coverage including integration tests
-- ESLint: Strict code quality enforcement
+<details>
+<summary>v1.2.0 - Advanced Analytics (2026-01-05)</summary>
+
+- Pattern Detection, Column Analysis
+- AI-Powered formula generation & chart recommendations
+</details>
 
 ## Features
 
 ### Core Capabilities
 
-- **19 Tools, 241 Actions**: Comprehensive Google Sheets API v4 coverage
+- **22 Tools, 267 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -57,8 +66,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 Full compliance with Model Context Protocol 2025-11-25:
 
-- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.1
-- ✅ **Tools**: 19 tools with 252 actions using discriminated unions
+- ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.2
+- ✅ **Tools**: 22 tools with 267 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values

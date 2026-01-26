@@ -6,7 +6,12 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
     groups:
       # Group all production dependencies together
       production-dependencies:
@@ -19,6 +24,9 @@ updates:
           - "prettier"
           - "vitest"
           - "tsx"
+        update-types:
+          - "minor"
+          - "patch"
       # Group all dev dependencies together
       development-dependencies:
         patterns:
@@ -28,9 +36,16 @@ updates:
           - "prettier"
           - "vitest"
           - "tsx"
+        update-types:
+          - "minor"
+          - "patch"
     # Allow only minor and patch updates for MCP SDK (it's pinned)
     ignore:
       - dependency-name: "@modelcontextprotocol/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
         update-types: ["version-update:semver-major"]
 
   # GitHub Actions
@@ -39,4 +54,31 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
     open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"

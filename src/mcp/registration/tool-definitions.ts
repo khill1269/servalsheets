@@ -15,6 +15,7 @@ import {
   STANDARD_TOOLS,
   DEFER_DESCRIPTIONS,
 } from '../../config/constants.js';
+import { getLazyLoadTools } from '../../config/schema-optimization.js';
 import {
   SheetsAuthInputSchema,
   SheetsAuthOutputSchema,
@@ -331,14 +332,44 @@ function getAllowedToolNames(): readonly string[] {
 }
 
 /**
- * Filtered tool definitions based on SERVAL_TOOL_MODE
+ * Filtered tool definitions based on SERVAL_TOOL_MODE and lazy loading
  *
  * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 19 tools (~527KB schema payload)
- * - 'standard': 12 tools (~444KB)
- * - 'lite': 8 tools (~199KB, recommended for Claude Desktop)
+ * - 'full': All 22 tools (~41K tokens)
+ * - 'standard': 12 tools (~25K tokens)
+ * - 'lite': 8 tools (~15K tokens)
+ *
+ * Additional filtering:
+ * - LAZY_LOAD_ENTERPRISE=true: Excludes enterprise tools (saves ~10K tokens)
+ * - LAZY_LOAD_TOOLS=tool1,tool2: Excludes specific tools
  */
 export const ACTIVE_TOOL_DEFINITIONS: readonly ToolDefinition[] = (() => {
   const allowedNames = getAllowedToolNames();
-  return TOOL_DEFINITIONS.filter((t) => allowedNames.includes(t.name));
+  const lazyLoadTools = getLazyLoadTools();
+
+  return TOOL_DEFINITIONS.filter((t) => {
+    // Must be in allowed tool mode
+    if (!allowedNames.includes(t.name)) return false;
+    // Must not be lazy-loaded
+    if (lazyLoadTools.includes(t.name)) return false;
+    return true;
+  });
 })();
+
+/**
+ * Get lazy-loaded tool definitions (for on-demand loading)
+ *
+ * These tools are not included in the initial tools/list response
+ * but can be loaded later via tool discovery.
+ */
+export function getLazyToolDefinitions(): readonly ToolDefinition[] {
+  const lazyLoadTools = getLazyLoadTools();
+  return TOOL_DEFINITIONS.filter((t) => lazyLoadTools.includes(t.name));
+}
+
+/**
+ * Get a specific tool definition by name (includes lazy-loaded tools)
+ */
+export function getToolDefinition(name: string): ToolDefinition | undefined {
+  return TOOL_DEFINITIONS.find((t) => t.name === name);
+}

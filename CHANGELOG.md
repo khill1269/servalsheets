@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Nothing yet
+
+---
+
+## [1.6.0] - 2026-01-26
+
+**Enterprise Deployment & Infrastructure Release**
+
+This release adds production-ready deployment infrastructure with Helm charts, Terraform modules, comprehensive monitoring, and documentation site.
+
+### Added
+
 - **Health monitoring integration** - Unified health monitoring for STDIO server
   - Heap health checks (warns at 70%, critical at 85% memory usage)
   - Connection health checks (heartbeat tracking, disconnect detection)
@@ -59,6 +71,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Event types** - 7 types: sheet.update, cell.update, format.update, etc.
   - Default: 3 retry attempts, 10-second timeout, 2 concurrent workers
   - Note: Google Sheets API v4 doesn't support push notifications; production use requires Google Drive API watch or polling
+
+- **Helm Chart** - Production-ready Kubernetes deployment (`deployment/helm/servalsheets/`)
+  - Configurable replicas, resources, autoscaling (HPA 2-10 replicas)
+  - Secret management for Google credentials and OAuth
+  - Network policies and security contexts
+  - Prometheus ServiceMonitor integration
+  - Pod disruption budget for HA
+  - Ingress with TLS support
+
+- **Terraform AWS Module** - ECS Fargate infrastructure (`deployment/terraform/aws/`)
+  - VPC with public/private subnets across 2 AZs
+  - Application Load Balancer with HTTPS
+  - Auto Scaling (CPU 70%, Memory 80% targets)
+  - Secrets Manager for OAuth credentials
+  - CloudWatch Logs with Container Insights
+
+- **Terraform GCP Module** - Cloud Run infrastructure (`deployment/terraform/gcp/`)
+  - Serverless container deployment
+  - Secret Manager for credentials
+  - Custom domain mapping support
+  - Auto-scaling 1-10 instances
+
+- **VitePress Documentation Site** - Full docs site with 115+ pages
+  - Landing page with hero, features, demo GIF
+  - API reference documentation
+  - Deployment guides (Docker, K8s, Helm, AWS, GCP)
+  - Comparison matrix and case studies
+
+- **Demo Infrastructure** - Automated demo recording and hosted demo
+  - Demo GIF generator with asciinema + agg
+  - Cloud Run demo deployment setup
+  - Landing page for hosted demo
 
 ### Changed
 

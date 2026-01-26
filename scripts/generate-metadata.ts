@@ -245,6 +245,7 @@ const schemaFiles = readdirSync(join(ROOT, 'src/schemas')).filter(
     f !== 'shared.ts' &&
     f !== 'annotations.ts' &&
     f !== 'descriptions.ts' &&
+    f !== 'descriptions-minimal.ts' && // Minimal descriptions, not a tool
     f !== 'prompts.ts' &&
     f !== 'logging.ts' &&
     f !== 'fast-validators.ts' &&
