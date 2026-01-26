@@ -445,6 +445,14 @@ const serverJson = {
 
 const serverJsonPath = join(ROOT, 'server.json');
 writeFileSync(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
+
+// Run prettier on server.json to match repo formatting
+try {
+  execSync('npx prettier --write server.json', { cwd: ROOT, stdio: 'pipe' });
+} catch {
+  // Prettier may not be available in all environments, continue silently
+}
+
 console.log('✅ Generated server.json');
 
 // ============================================================================
