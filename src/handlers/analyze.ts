@@ -1349,159 +1349,8 @@ export class AnalyzeHandler {
         }
 
         case 'comprehensive': {
-          // ONE TOOL TO RULE THEM ALL (MCP 2025-11-25 Enhanced)
-          // Complete analysis with pagination, task support, and resource URIs
-          const comprehensiveInput = req as typeof req & {
-            spreadsheetId: string;
-            quickScan?: boolean;
-          };
-
-          // QUICK SCAN MODE: Override settings for fast initial assessment
-          const isQuickScan =
-            'quickScan' in comprehensiveInput && comprehensiveInput.quickScan === true;
-
-          logger.info('Comprehensive analysis requested', {
-            spreadsheetId: comprehensiveInput.spreadsheetId,
-            sheetId: comprehensiveInput.sheetId,
-            quickScan: isQuickScan,
-            cursor: 'cursor' in comprehensiveInput ? comprehensiveInput.cursor : undefined,
-            pageSize: 'pageSize' in comprehensiveInput ? comprehensiveInput.pageSize : undefined,
-          });
-
-          // Check if this should be task-based (long-running operation)
-          // Estimate if analysis will take >10s based on spreadsheet size
-          const shouldUseTask = await this.shouldUseTaskForComprehensive(
-            comprehensiveInput.spreadsheetId,
-            comprehensiveInput.sheetId
-          );
-
-          if (shouldUseTask && this.context.taskStore) {
-            // Create task for long-running analysis
-            const task = await this.context.taskStore.createTask(
-              { ttl: 3600000 }, // 1 hour TTL
-              'analyze-comprehensive',
-              {
-                method: 'tools/call',
-                params: { name: 'sheets_analyze', arguments: comprehensiveInput },
-              }
-            );
-
-            logger.info('Creating task for comprehensive analysis', {
-              taskId: task.taskId,
-              spreadsheetId: comprehensiveInput.spreadsheetId,
-            });
-
-            // Run analysis in background
-            void this.runComprehensiveAnalysisTask(task.taskId, comprehensiveInput).catch(
-              (error) => {
-                logger.error('Background comprehensive analysis failed', {
-                  taskId: task.taskId,
-                  error: error instanceof Error ? error.message : String(error),
-                });
-              }
-            );
-
-            // Return task immediately
-            response = {
-              success: true,
-              action: 'comprehensive',
-              message: `Large analysis started - check task ${task.taskId} for progress (estimated time: 30-60s)`,
-              taskId: task.taskId,
-              taskStatus: task.status,
-              summary: 'Analysis running in background...',
-              topInsights: [],
-            } as AnalyzeResponse;
-
-            break;
-          }
-
-          // Run synchronously for smaller analyses
-          // Create comprehensive analyzer with pagination support
-          // QUICK SCAN MODE: Override settings for faster analysis
-          const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
-            includeFormulas: isQuickScan
-              ? false
-              : 'includeFormulas' in comprehensiveInput
-                ? (comprehensiveInput.includeFormulas as boolean)
-                : true,
-            includeVisualizations: isQuickScan
-              ? false
-              : 'includeVisualizations' in comprehensiveInput
-                ? (comprehensiveInput.includeVisualizations as boolean)
-                : true,
-            includePerformance: isQuickScan
-              ? false
-              : 'includePerformance' in comprehensiveInput
-                ? (comprehensiveInput.includePerformance as boolean)
-                : true,
-            forceFullData:
-              'forceFullData' in comprehensiveInput
-                ? (comprehensiveInput.forceFullData as boolean)
-                : false,
-            samplingThreshold: isQuickScan
-              ? 1000
-              : 'samplingThreshold' in comprehensiveInput
-                ? (comprehensiveInput.samplingThreshold as number)
-                : 10000,
-            sampleSize: isQuickScan
-              ? 100
-              : 'sampleSize' in comprehensiveInput
-                ? (comprehensiveInput.sampleSize as number)
-                : 100,
-            sheetId: comprehensiveInput.sheetId,
-            context: comprehensiveInput.context,
-            cursor:
-              'cursor' in comprehensiveInput ? (comprehensiveInput.cursor as string) : undefined,
-            pageSize:
-              'pageSize' in comprehensiveInput
-                ? (comprehensiveInput.pageSize as number)
-                : undefined,
-            // Issue #3 fix: Pass timeout setting
-            timeoutMs: isQuickScan
-              ? 15000
-              : 'timeoutMs' in comprehensiveInput
-                ? (comprehensiveInput.timeoutMs as number)
-                : 30000,
-          });
-
-          try {
-            // Import sendProgress for progress tracking
-            const { sendProgress } = await import('../utils/request-context.js');
-
-            // Emit starting progress
-            await sendProgress(0, 100, 'Starting comprehensive analysis');
-
-            // Run comprehensive analysis
-            const result = await analyzer.analyze(comprehensiveInput.spreadsheetId);
-
-            // Emit completion progress
-            await sendProgress(100, 100, 'Comprehensive analysis complete');
-
-            // ComprehensiveResult matches AnalyzeResponse schema (comprehensive fields added)
-            response = result;
-
-            logger.info('Comprehensive analysis complete', {
-              spreadsheetId: comprehensiveInput.spreadsheetId,
-              sheetCount: result.sheets.length,
-              totalIssues: result.aggregate.totalIssues,
-              hasMore: result.hasMore ?? false,
-              resourceUri: result.resourceUri,
-            });
-          } catch (error) {
-            logger.error('Comprehensive analysis failed', {
-              error: error instanceof Error ? error.message : String(error),
-              spreadsheetId: comprehensiveInput.spreadsheetId,
-            });
-
-            response = {
-              success: false,
-              error: {
-                code: 'INTERNAL_ERROR',
-                message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
-                retryable: true,
-              },
-            };
-          }
+          // Type assertion: refine() ensures spreadsheetId is present for 'comprehensive' action
+          response = await this.handleComprehensive(req as ComprehensiveInput, verbosity);
           break;
         }
 
@@ -2212,6 +2061,139 @@ export class AnalyzeHandler {
           message: `Streaming analysis complete: ${streamingResult.totalRowsProcessed} rows processed in ${streamingResult.totalChunks} chunks (${(duration / 1000).toFixed(1)}s)`,
         };
       }
+    }
+  }
+
+  /**
+   * Handle comprehensive analysis action
+   * Complete analysis with pagination, task support, and resource URIs
+   */
+  private async handleComprehensive(
+    req: ComprehensiveInput,
+    _verbosity: 'minimal' | 'standard' | 'detailed'
+  ): Promise<AnalyzeResponse> {
+    // QUICK SCAN MODE: Override settings for fast initial assessment
+    const isQuickScan = 'quickScan' in req && req.quickScan === true;
+
+    logger.info('Comprehensive analysis requested', {
+      spreadsheetId: req.spreadsheetId,
+      sheetId: req.sheetId,
+      quickScan: isQuickScan,
+      cursor: 'cursor' in req ? req.cursor : undefined,
+      pageSize: 'pageSize' in req ? req.pageSize : undefined,
+    });
+
+    // Check if this should be task-based (long-running operation)
+    // Estimate if analysis will take >10s based on spreadsheet size
+    const shouldUseTask = await this.shouldUseTaskForComprehensive(req.spreadsheetId, req.sheetId);
+
+    if (shouldUseTask && this.context.taskStore) {
+      // Create task for long-running analysis
+      const task = await this.context.taskStore.createTask(
+        { ttl: 3600000 }, // 1 hour TTL
+        'analyze-comprehensive',
+        {
+          method: 'tools/call',
+          params: { name: 'sheets_analyze', arguments: req },
+        }
+      );
+
+      logger.info('Creating task for comprehensive analysis', {
+        taskId: task.taskId,
+        spreadsheetId: req.spreadsheetId,
+      });
+
+      // Run analysis in background
+      void this.runComprehensiveAnalysisTask(task.taskId, req).catch((error) => {
+        logger.error('Background comprehensive analysis failed', {
+          taskId: task.taskId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+      // Return task immediately
+      return {
+        success: true,
+        action: 'comprehensive',
+        message: `Large analysis started - check task ${task.taskId} for progress (estimated time: 30-60s)`,
+        taskId: task.taskId,
+        taskStatus: task.status,
+        summary: 'Analysis running in background...',
+        topInsights: [],
+      } as AnalyzeResponse;
+    }
+
+    // Run synchronously for smaller analyses
+    // Create comprehensive analyzer with pagination support
+    // QUICK SCAN MODE: Override settings for faster analysis
+    const analyzer = new ComprehensiveAnalyzer(this.sheetsApi, {
+      includeFormulas: isQuickScan
+        ? false
+        : 'includeFormulas' in req
+          ? (req.includeFormulas as boolean)
+          : true,
+      includeVisualizations: isQuickScan
+        ? false
+        : 'includeVisualizations' in req
+          ? (req.includeVisualizations as boolean)
+          : true,
+      includePerformance: isQuickScan
+        ? false
+        : 'includePerformance' in req
+          ? (req.includePerformance as boolean)
+          : true,
+      forceFullData: 'forceFullData' in req ? (req.forceFullData as boolean) : false,
+      samplingThreshold: isQuickScan
+        ? 1000
+        : 'samplingThreshold' in req
+          ? (req.samplingThreshold as number)
+          : 10000,
+      sampleSize: isQuickScan ? 100 : 'sampleSize' in req ? (req.sampleSize as number) : 100,
+      sheetId: req.sheetId,
+      context: 'context' in req ? req.context : undefined,
+      cursor: 'cursor' in req ? (req.cursor as string) : undefined,
+      pageSize: 'pageSize' in req ? (req.pageSize as number) : undefined,
+      // Issue #3 fix: Pass timeout setting
+      timeoutMs: isQuickScan ? 15000 : 'timeoutMs' in req ? (req.timeoutMs as number) : 30000,
+    });
+
+    try {
+      // Import sendProgress for progress tracking
+      const { sendProgress } = await import('../utils/request-context.js');
+
+      // Emit starting progress
+      await sendProgress(0, 100, 'Starting comprehensive analysis');
+
+      // Run comprehensive analysis
+      const result = await analyzer.analyze(req.spreadsheetId);
+
+      // Emit completion progress
+      await sendProgress(100, 100, 'Comprehensive analysis complete');
+
+      // ComprehensiveResult matches AnalyzeResponse schema (comprehensive fields added)
+      logger.info('Comprehensive analysis complete', {
+        spreadsheetId: req.spreadsheetId,
+        sheetCount: result.sheets.length,
+        totalIssues: result.aggregate.totalIssues,
+        hasMore: result.hasMore ?? false,
+        resourceUri: result.resourceUri,
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Comprehensive analysis failed', {
+        error: error instanceof Error ? error.message : String(error),
+        spreadsheetId: req.spreadsheetId,
+      });
+
+      return {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Comprehensive analysis failed',
+          retryable: true,
+        },
+      };
     }
   }
 
