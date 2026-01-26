@@ -18,20 +18,65 @@ interface TestCase {
 const testCases: TestCase[] = [
   // ChartType tests
   { name: 'ChartType: lowercase "bar"', schema: ChartTypeSchema, input: 'bar', expected: 'BAR' },
-  { name: 'ChartType: lowercase "column"', schema: ChartTypeSchema, input: 'column', expected: 'COLUMN' },
+  {
+    name: 'ChartType: lowercase "column"',
+    schema: ChartTypeSchema,
+    input: 'column',
+    expected: 'COLUMN',
+  },
   { name: 'ChartType: lowercase "line"', schema: ChartTypeSchema, input: 'line', expected: 'LINE' },
   { name: 'ChartType: lowercase "pie"', schema: ChartTypeSchema, input: 'pie', expected: 'PIE' },
-  { name: 'ChartType: mixed case "CoLuMn"', schema: ChartTypeSchema, input: 'CoLuMn', expected: 'COLUMN' },
+  {
+    name: 'ChartType: mixed case "CoLuMn"',
+    schema: ChartTypeSchema,
+    input: 'CoLuMn',
+    expected: 'COLUMN',
+  },
   { name: 'ChartType: uppercase "BAR"', schema: ChartTypeSchema, input: 'BAR', expected: 'BAR' },
 
   // LegendPosition tests
-  { name: 'Legend: lowercase "top_legend"', schema: LegendPositionSchema, input: 'top_legend', expected: 'TOP_LEGEND' },
-  { name: 'Legend: lowercase "bottom_legend"', schema: LegendPositionSchema, input: 'bottom_legend', expected: 'BOTTOM_LEGEND' },
-  { name: 'Legend: lowercase "left_legend"', schema: LegendPositionSchema, input: 'left_legend', expected: 'LEFT_LEGEND' },
-  { name: 'Legend: lowercase "right_legend"', schema: LegendPositionSchema, input: 'right_legend', expected: 'RIGHT_LEGEND' },
-  { name: 'Legend: lowercase "no_legend"', schema: LegendPositionSchema, input: 'no_legend', expected: 'NO_LEGEND' },
-  { name: 'Legend: mixed case "Top_Legend"', schema: LegendPositionSchema, input: 'Top_Legend', expected: 'TOP_LEGEND' },
-  { name: 'Legend: uppercase "TOP_LEGEND"', schema: LegendPositionSchema, input: 'TOP_LEGEND', expected: 'TOP_LEGEND' },
+  {
+    name: 'Legend: lowercase "top_legend"',
+    schema: LegendPositionSchema,
+    input: 'top_legend',
+    expected: 'TOP_LEGEND',
+  },
+  {
+    name: 'Legend: lowercase "bottom_legend"',
+    schema: LegendPositionSchema,
+    input: 'bottom_legend',
+    expected: 'BOTTOM_LEGEND',
+  },
+  {
+    name: 'Legend: lowercase "left_legend"',
+    schema: LegendPositionSchema,
+    input: 'left_legend',
+    expected: 'LEFT_LEGEND',
+  },
+  {
+    name: 'Legend: lowercase "right_legend"',
+    schema: LegendPositionSchema,
+    input: 'right_legend',
+    expected: 'RIGHT_LEGEND',
+  },
+  {
+    name: 'Legend: lowercase "no_legend"',
+    schema: LegendPositionSchema,
+    input: 'no_legend',
+    expected: 'NO_LEGEND',
+  },
+  {
+    name: 'Legend: mixed case "Top_Legend"',
+    schema: LegendPositionSchema,
+    input: 'Top_Legend',
+    expected: 'TOP_LEGEND',
+  },
+  {
+    name: 'Legend: uppercase "TOP_LEGEND"',
+    schema: LegendPositionSchema,
+    input: 'TOP_LEGEND',
+    expected: 'TOP_LEGEND',
+  },
 ];
 
 function main() {

@@ -141,12 +141,11 @@ class Agent4Tester {
     console.log('🎨 Testing color precision auto-rounding...\n');
 
     // Test 1: Background color with high precision
-    await this.testColorOperation(
-      'set_background with high precision',
-      'set_background',
-      'A1:A3',
-      { red: 0.333333333333, green: 0.666666666666, blue: 0.999999999999 }
-    );
+    await this.testColorOperation('set_background with high precision', 'set_background', 'A1:A3', {
+      red: 0.333333333333,
+      green: 0.666666666666,
+      blue: 0.999999999999,
+    });
 
     // Test 2: Text color with high precision
     await this.testColorOperation(
@@ -157,12 +156,11 @@ class Agent4Tester {
     );
 
     // Test 3: Google blue (real-world example)
-    await this.testColorOperation(
-      'Google blue color',
-      'set_background',
-      'C1:C3',
-      { red: 0.2588235294117647, green: 0.5215686274509804, blue: 0.9568627450980393 }
-    );
+    await this.testColorOperation('Google blue color', 'set_background', 'C1:C3', {
+      red: 0.2588235294117647,
+      green: 0.5215686274509804,
+      blue: 0.9568627450980393,
+    });
 
     // Test 4: Conditional formatting with gradient
     await this.testConditionalFormattingColor();
@@ -436,13 +434,23 @@ class Agent4Tester {
     }
 
     console.log('Test Categories:');
-    const colorTests = this.results.filter((r) => r.name.includes('color') || r.name.includes('Conditional'));
-    const sortTests = this.results.filter((r) => r.name.includes('Sort') || r.name.includes('column'));
+    const colorTests = this.results.filter(
+      (r) => r.name.includes('color') || r.name.includes('Conditional')
+    );
+    const sortTests = this.results.filter(
+      (r) => r.name.includes('Sort') || r.name.includes('column')
+    );
     const autoFitTests = this.results.filter((r) => r.name.includes('Auto-fit'));
 
-    console.log(`  Color Precision: ${colorTests.filter((r) => r.success).length}/${colorTests.length} passed`);
-    console.log(`  Dimension Operations: ${sortTests.filter((r) => r.success).length}/${sortTests.length} passed`);
-    console.log(`  Auto-fit Lowercase: ${autoFitTests.filter((r) => r.success).length}/${autoFitTests.length} passed`);
+    console.log(
+      `  Color Precision: ${colorTests.filter((r) => r.success).length}/${colorTests.length} passed`
+    );
+    console.log(
+      `  Dimension Operations: ${sortTests.filter((r) => r.success).length}/${sortTests.length} passed`
+    );
+    console.log(
+      `  Auto-fit Lowercase: ${autoFitTests.filter((r) => r.success).length}/${autoFitTests.length} passed`
+    );
 
     console.log('\n' + '='.repeat(60));
     console.log(`Spreadsheet ID: ${this.spreadsheetId}`);

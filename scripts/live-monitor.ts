@@ -108,7 +108,7 @@ const anomalyDetection = {
 
   getCurrentErrorRate(): number {
     if (this.recentCalls.length < 5) return 0;
-    const errors = this.recentCalls.filter(c => !c.success).length;
+    const errors = this.recentCalls.filter((c) => !c.success).length;
     return errors / this.recentCalls.length;
   },
 
@@ -124,7 +124,9 @@ const anomalyDetection = {
         this.lastAlertTime = now;
         const failingTools = this.getFailingTools();
         console.log(`\n${c.bgRed}${c.white}${c.bright} ⚠️  ANOMALY DETECTED ${c.reset}`);
-        console.log(`${c.red}  Error rate spike: ${(currentRate * 100).toFixed(0)}% (baseline: ${(this.baselineErrorRate * 100).toFixed(0)}%)${c.reset}`);
+        console.log(
+          `${c.red}  Error rate spike: ${(currentRate * 100).toFixed(0)}% (baseline: ${(this.baselineErrorRate * 100).toFixed(0)}%)${c.reset}`
+        );
         if (failingTools.length > 0) {
           console.log(`${c.yellow}  Affected tools: ${failingTools.join(', ')}${c.reset}`);
         }
@@ -134,7 +136,11 @@ const anomalyDetection = {
 
     // Check for sudden silence (possible crash/hang)
     const oldestCall = this.recentCalls[0];
-    if (oldestCall && now - oldestCall.timestamp > 60000 && this.recentCalls.length === this.windowSize) {
+    if (
+      oldestCall &&
+      now - oldestCall.timestamp > 60000 &&
+      this.recentCalls.length === this.windowSize
+    ) {
       // All calls are older than 1 minute - possible stall
       if (now - this.lastAlertTime > this.alertCooldown) {
         this.lastAlertTime = now;
@@ -158,12 +164,13 @@ const anomalyDetection = {
     const failing: string[] = [];
     for (const [tool, errors] of toolErrors) {
       const calls = toolCalls.get(tool) || 1;
-      if (errors / calls > 0.3) { // >30% error rate for this tool
+      if (errors / calls > 0.3) {
+        // >30% error rate for this tool
         failing.push(`${tool}(${((errors / calls) * 100).toFixed(0)}%)`);
       }
     }
     return failing;
-  }
+  },
 };
 
 const LOG_FILE = `${process.env['HOME']}/Library/Logs/Claude/mcp-server-ServalSheets.log`;
@@ -254,17 +261,22 @@ interface JsonRpcMessage {
 }
 
 // Track pending calls
-const pendingCalls = new Map<number | string, {
-  tool: string;
-  action: string;
-  time: number;
-  timestamp: string;
-  spreadsheetId?: string;
-  request?: unknown;
-}>();
+const pendingCalls = new Map<
+  number | string,
+  {
+    tool: string;
+    action: string;
+    time: number;
+    timestamp: string;
+    spreadsheetId?: string;
+    request?: unknown;
+  }
+>();
 
 function parseLogLine(line: string): CallRecord | null {
-  const match = line.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[[sS]erval[sS]heets\]\s+\[\w+\]\s+Message from (client|server): (\{.+\})\s+\{/);
+  const match = line.match(
+    /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[[sS]erval[sS]heets\]\s+\[\w+\]\s+Message from (client|server): (\{.+\})\s+\{/
+  );
 
   if (!match) return null;
 
@@ -374,15 +386,23 @@ function parseLogLine(line: string): CallRecord | null {
     if (content?.type === 'text' && content.text) {
       try {
         responseData = JSON.parse(content.text);
-        const typedResponse = responseData as { response?: { success?: boolean; error?: { message?: string; code?: string } } };
+        const typedResponse = responseData as {
+          response?: { success?: boolean; error?: { message?: string; code?: string } };
+        };
         if (typedResponse.response?.success === false) {
           success = false;
-          error = typedResponse.response.error?.message || typedResponse.response.error?.code || 'Unknown error';
+          error =
+            typedResponse.response.error?.message ||
+            typedResponse.response.error?.code ||
+            'Unknown error';
           errorCategory = categorizeError(error);
           stats.errors++;
 
           // Update error stats
-          stats.byErrorCategory.set(errorCategory, (stats.byErrorCategory.get(errorCategory) || 0) + 1);
+          stats.byErrorCategory.set(
+            errorCategory,
+            (stats.byErrorCategory.get(errorCategory) || 0) + 1
+          );
 
           const toolStats = stats.byTool.get(tool);
           if (toolStats) toolStats.errors++;
@@ -478,9 +498,15 @@ function formatCall(record: CallRecord): string {
 
   // This is a response
   const statusIcon = record.success ? `${c.green}✓${c.reset}` : `${c.red}✗${c.reset}`;
-  const durationColor = record.duration && record.duration > slowThreshold ? c.red :
-                        record.duration && record.duration > 1000 ? c.yellow : c.green;
-  const durationStr = record.duration ? ` ${durationColor}(${formatDuration(record.duration)})${c.reset}` : '';
+  const durationColor =
+    record.duration && record.duration > slowThreshold
+      ? c.red
+      : record.duration && record.duration > 1000
+        ? c.yellow
+        : c.green;
+  const durationStr = record.duration
+    ? ` ${durationColor}(${formatDuration(record.duration)})${c.reset}`
+    : '';
 
   let line = `${ts} ${c.yellow}←${c.reset} ${statusIcon} ${c.magenta}${record.tool}${c.reset}.${c.bright}${record.action}${c.reset}${durationStr}`;
 
@@ -518,7 +544,10 @@ ${c.cyan}Legend:${c.reset} ${c.cyan}→${c.reset} call  ${c.yellow}←${c.reset}
 
 function printStats(): void {
   const runtime = Date.now() - stats.startTime;
-  const callsPerMin = stats.toolCalls > 0 && runtime > 60000 ? (stats.toolCalls / (runtime / 60000)).toFixed(1) : 'N/A';
+  const callsPerMin =
+    stats.toolCalls > 0 && runtime > 60000
+      ? (stats.toolCalls / (runtime / 60000)).toFixed(1)
+      : 'N/A';
   const errorRate = stats.toolCalls > 0 ? ((stats.errors / stats.toolCalls) * 100).toFixed(1) : '0';
 
   console.log(`
@@ -541,27 +570,41 @@ ${c.bright}${c.underscore}Error Categories${c.reset}`);
   const sortedCategories = [...stats.byErrorCategory.entries()].sort((a, b) => b[1] - a[1]);
   for (const [category, count] of sortedCategories) {
     const pct = ((count / stats.errors) * 100).toFixed(0);
-    const color = category === 'VALIDATION' || category === 'SCHEMA' ? c.yellow :
-                  category === 'AUTH' ? c.magenta :
-                  category === 'TIMEOUT' ? c.blue : c.red;
-    console.log(`  ${color}${category.padEnd(12)}${c.reset} ${String(count).padStart(4)} (${pct}%)`);
+    const color =
+      category === 'VALIDATION' || category === 'SCHEMA'
+        ? c.yellow
+        : category === 'AUTH'
+          ? c.magenta
+          : category === 'TIMEOUT'
+            ? c.blue
+            : c.red;
+    console.log(
+      `  ${color}${category.padEnd(12)}${c.reset} ${String(count).padStart(4)} (${pct}%)`
+    );
   }
 
   // Anomaly Detection Summary
   const currentErrorRate = anomalyDetection.getCurrentErrorRate();
-  const anomalyStatus = currentErrorRate > anomalyDetection.baselineErrorRate * anomalyDetection.alertThreshold
-    ? `${c.bgRed}${c.white} ELEVATED ${c.reset}`
-    : currentErrorRate > anomalyDetection.baselineErrorRate
-    ? `${c.yellow}⚠ Above baseline${c.reset}`
-    : `${c.green}✓ Normal${c.reset}`;
+  const anomalyStatus =
+    currentErrorRate > anomalyDetection.baselineErrorRate * anomalyDetection.alertThreshold
+      ? `${c.bgRed}${c.white} ELEVATED ${c.reset}`
+      : currentErrorRate > anomalyDetection.baselineErrorRate
+        ? `${c.yellow}⚠ Above baseline${c.reset}`
+        : `${c.green}✓ Normal${c.reset}`;
 
   console.log(`\n${c.bright}${c.underscore}Anomaly Detection${c.reset}`);
-  console.log(`  Recent error rate: ${(currentErrorRate * 100).toFixed(1)}% (baseline: ${(anomalyDetection.baselineErrorRate * 100).toFixed(0)}%)`);
+  console.log(
+    `  Recent error rate: ${(currentErrorRate * 100).toFixed(1)}% (baseline: ${(anomalyDetection.baselineErrorRate * 100).toFixed(0)}%)`
+  );
   console.log(`  Status: ${anomalyStatus}`);
-  console.log(`  Window: Last ${anomalyDetection.recentCalls.length}/${anomalyDetection.windowSize} calls`);
+  console.log(
+    `  Window: Last ${anomalyDetection.recentCalls.length}/${anomalyDetection.windowSize} calls`
+  );
 
   console.log(`\n${c.bright}${c.underscore}Tool Performance${c.reset}`);
-  console.log(`  ${'Tool'.padEnd(22)} ${'Calls'.padStart(6)} ${'Errors'.padStart(8)} ${'Err%'.padStart(6)} ${'Avg'.padStart(10)} ${'Slow'.padStart(6)}`);
+  console.log(
+    `  ${'Tool'.padEnd(22)} ${'Calls'.padStart(6)} ${'Errors'.padStart(8)} ${'Err%'.padStart(6)} ${'Avg'.padStart(10)} ${'Slow'.padStart(6)}`
+  );
   console.log(`  ${'-'.repeat(60)}`);
 
   const sortedTools = [...stats.byTool.entries()].sort((a, b) => b[1].calls - a[1].calls);
@@ -570,22 +613,30 @@ ${c.bright}${c.underscore}Error Categories${c.reset}`);
     const errorPct = data.calls > 0 ? ((data.errors / data.calls) * 100).toFixed(0) : '0';
     const errorColor = data.errors > 0 ? (parseInt(errorPct) > 20 ? c.red : c.yellow) : c.green;
     const slowColor = data.slowCalls > 0 ? c.yellow : c.dim;
-    console.log(`  ${c.magenta}${tool.padEnd(22)}${c.reset} ${String(data.calls).padStart(6)} ${errorColor}${String(data.errors).padStart(8)}${c.reset} ${errorColor}${errorPct.padStart(5)}%${c.reset} ${formatDuration(avgMs).padStart(10)} ${slowColor}${String(data.slowCalls).padStart(6)}${c.reset}`);
+    console.log(
+      `  ${c.magenta}${tool.padEnd(22)}${c.reset} ${String(data.calls).padStart(6)} ${errorColor}${String(data.errors).padStart(8)}${c.reset} ${errorColor}${errorPct.padStart(5)}%${c.reset} ${formatDuration(avgMs).padStart(10)} ${slowColor}${String(data.slowCalls).padStart(6)}${c.reset}`
+    );
   }
 
   console.log(`\n${c.bright}${c.underscore}Top 20 Actions${c.reset}`);
-  const sortedActions = [...stats.byAction.entries()].sort((a, b) => b[1].calls - a[1].calls).slice(0, 20);
+  const sortedActions = [...stats.byAction.entries()]
+    .sort((a, b) => b[1].calls - a[1].calls)
+    .slice(0, 20);
   for (const [action, data] of sortedActions) {
     const bar = '█'.repeat(Math.min(15, Math.round((data.calls / stats.toolCalls) * 30)));
     const avgMs = data.calls > 0 ? data.totalMs / data.calls : 0;
     const errorColor = data.errors > 0 ? c.red : c.dim;
-    console.log(`  ${c.cyan}${action.padEnd(40)}${c.reset} ${String(data.calls).padStart(4)} ${errorColor}(${data.errors} err)${c.reset} ${formatDuration(avgMs).padStart(8)} ${c.dim}${bar}${c.reset}`);
+    console.log(
+      `  ${c.cyan}${action.padEnd(40)}${c.reset} ${String(data.calls).padStart(4)} ${errorColor}(${data.errors} err)${c.reset} ${formatDuration(avgMs).padStart(8)} ${c.dim}${bar}${c.reset}`
+    );
   }
 
   if (stats.validationErrors.size > 0) {
     console.log(`\n${c.bright}${c.underscore}${c.yellow}Validation Error Hot Spots${c.reset}`);
     console.log(`  ${c.dim}These fields are causing the most validation errors:${c.reset}`);
-    const sortedValidation = [...stats.validationErrors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const sortedValidation = [...stats.validationErrors.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15);
     for (const [path, count] of sortedValidation) {
       console.log(`  ${c.yellow}${path.padEnd(55)}${c.reset} ${count} errors`);
     }
@@ -593,17 +644,25 @@ ${c.bright}${c.underscore}Error Categories${c.reset}`);
 
   if (stats.bySpreadsheet.size > 0) {
     console.log(`\n${c.bright}${c.underscore}Spreadsheets Accessed${c.reset}`);
-    const sortedSS = [...stats.bySpreadsheet.entries()].sort((a, b) => b[1].calls - a[1].calls).slice(0, 10);
+    const sortedSS = [...stats.bySpreadsheet.entries()]
+      .sort((a, b) => b[1].calls - a[1].calls)
+      .slice(0, 10);
     for (const [ssId, data] of sortedSS) {
       const errorColor = data.errors > 0 ? c.red : c.green;
-      console.log(`  ${c.dim}${ssId.substring(0, 20)}...${c.reset} ${data.calls} calls ${errorColor}(${data.errors} errors)${c.reset}`);
+      console.log(
+        `  ${c.dim}${ssId.substring(0, 20)}...${c.reset} ${data.calls} calls ${errorColor}(${data.errors} errors)${c.reset}`
+      );
     }
   }
 
   if (stats.slowCalls.length > 0) {
-    console.log(`\n${c.bright}${c.underscore}${c.yellow}Slow Calls (>${slowThreshold}ms)${c.reset}`);
+    console.log(
+      `\n${c.bright}${c.underscore}${c.yellow}Slow Calls (>${slowThreshold}ms)${c.reset}`
+    );
     for (const call of stats.slowCalls.slice(-10)) {
-      console.log(`  ${c.dim}[${formatTime(call.timestamp)}]${c.reset} ${c.magenta}${call.tool}${c.reset}.${call.action} ${c.yellow}${formatDuration(call.duration!)}${c.reset}`);
+      console.log(
+        `  ${c.dim}[${formatTime(call.timestamp)}]${c.reset} ${c.magenta}${call.tool}${c.reset}.${call.action} ${c.yellow}${formatDuration(call.duration!)}${c.reset}`
+      );
     }
   }
 
@@ -611,12 +670,18 @@ ${c.bright}${c.underscore}Error Categories${c.reset}`);
     console.log(`\n${c.bright}${c.underscore}${c.red}Recent Errors (last 15)${c.reset}`);
     for (const err of stats.errorDetails.slice(-15)) {
       const errorTrunc = truncate((err.error || '').replace(/\n/g, ' '), 80);
-      console.log(`  ${c.dim}[${formatTime(err.timestamp)}]${c.reset} ${c.magenta}${err.tool}${c.reset}.${err.action}`);
-      console.log(`    ${c.bgRed}${c.white} ${err.errorCategory || 'ERROR'} ${c.reset} ${c.red}${errorTrunc}${c.reset}`);
+      console.log(
+        `  ${c.dim}[${formatTime(err.timestamp)}]${c.reset} ${c.magenta}${err.tool}${c.reset}.${err.action}`
+      );
+      console.log(
+        `    ${c.bgRed}${c.white} ${err.errorCategory || 'ERROR'} ${c.reset} ${c.red}${errorTrunc}${c.reset}`
+      );
     }
   }
 
-  console.log(`\n${c.cyan}═══════════════════════════════════════════════════════════════════════════${c.reset}\n`);
+  console.log(
+    `\n${c.cyan}═══════════════════════════════════════════════════════════════════════════${c.reset}\n`
+  );
 
   // Export if requested
   if (exportMode) {
@@ -648,7 +713,9 @@ ${c.bright}${c.underscore}Error Categories${c.reset}`);
 async function monitor(): Promise<void> {
   if (!existsSync(LOG_FILE)) {
     console.error(`${c.red}Log file not found: ${LOG_FILE}${c.reset}`);
-    console.log(`${c.yellow}Make sure Claude Desktop is running with ServalSheets configured.${c.reset}`);
+    console.log(
+      `${c.yellow}Make sure Claude Desktop is running with ServalSheets configured.${c.reset}`
+    );
     process.exit(1);
   }
 

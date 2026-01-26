@@ -31,10 +31,10 @@ for (const toolName of validTools) {
           action: 'test_action',
           params: {
             range: 'A1:B10',
-            values: [['test']]
-          }
-        }
-      }
+            values: [['test']],
+          },
+        },
+      },
     });
 
     if (result.success) {
@@ -43,7 +43,7 @@ for (const toolName of validTools) {
     } else {
       console.log(`❌ ${toolName}: REJECTED (should accept)`);
       if (result.error?.errors) {
-        console.log(`   Errors:`, result.error.errors.map(e => e.message).join(', '));
+        console.log(`   Errors:`, result.error.errors.map((e) => e.message).join(', '));
       } else {
         console.log(`   Error:`, result.error);
       }
@@ -70,10 +70,10 @@ for (const toolName of invalidTools) {
           action: 'test_action',
           params: {
             range: 'A1:B10',
-            values: [['test']]
-          }
-        }
-      }
+            values: [['test']],
+          },
+        },
+      },
     });
 
     if (!result.success) {
@@ -102,39 +102,46 @@ try {
             stepNumber: 1,
             description: 'Read data',
             tool: 'sheets_data',
-            action: 'read'
+            action: 'read',
             // NO optional fields: risk, isDestructive, canUndo, estimatedApiCalls
           },
           {
             stepNumber: 2,
             description: 'Format cells',
             tool: 'sheets_format',
-            action: 'format'
+            action: 'format',
             // NO optional fields
           },
           {
             stepNumber: 3,
             description: 'Create chart',
             tool: 'sheets_visualize',
-            action: 'create'
+            action: 'create',
             // NO optional fields
-          }
-        ]
-      }
-    }
+          },
+        ],
+      },
+    },
   });
 
   if (result.success) {
     console.log(`✅ Confirm WITHOUT optional fields: ACCEPTED`);
     console.log(`   Defaults applied:`);
     console.log(`   - Step 1 risk: ${result.data.request.plan.steps[0].risk} (expected: low)`);
-    console.log(`   - Step 1 isDestructive: ${result.data.request.plan.steps[0].isDestructive} (expected: false)`);
-    console.log(`   - Step 1 canUndo: ${result.data.request.plan.steps[0].canUndo} (expected: false)`);
+    console.log(
+      `   - Step 1 isDestructive: ${result.data.request.plan.steps[0].isDestructive} (expected: false)`
+    );
+    console.log(
+      `   - Step 1 canUndo: ${result.data.request.plan.steps[0].canUndo} (expected: false)`
+    );
     passedTests++;
   } else {
     console.log(`❌ Confirm WITHOUT optional fields: REJECTED`);
     if (result.error?.errors) {
-      console.log(`   Errors:`, result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('\n   '));
+      console.log(
+        `   Errors:`,
+        result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('\n   ')
+      );
     } else {
       console.log(`   Error:`, result.error);
     }
@@ -162,7 +169,7 @@ try {
             risk: 'high',
             estimatedApiCalls: 2,
             isDestructive: true,
-            canUndo: false
+            canUndo: false,
           },
           {
             stepNumber: 2,
@@ -172,24 +179,31 @@ try {
             risk: 'critical',
             estimatedApiCalls: 5,
             isDestructive: true,
-            canUndo: false
-          }
-        ]
-      }
-    }
+            canUndo: false,
+          },
+        ],
+      },
+    },
   });
 
   if (result.success) {
     console.log(`✅ Confirm WITH optional fields: ACCEPTED`);
     console.log(`   Values preserved:`);
     console.log(`   - Step 1 risk: ${result.data.request.plan.steps[0].risk} (expected: high)`);
-    console.log(`   - Step 1 isDestructive: ${result.data.request.plan.steps[0].isDestructive} (expected: true)`);
-    console.log(`   - Step 1 canUndo: ${result.data.request.plan.steps[0].canUndo} (expected: false)`);
+    console.log(
+      `   - Step 1 isDestructive: ${result.data.request.plan.steps[0].isDestructive} (expected: true)`
+    );
+    console.log(
+      `   - Step 1 canUndo: ${result.data.request.plan.steps[0].canUndo} (expected: false)`
+    );
     passedTests++;
   } else {
     console.log(`❌ Confirm WITH optional fields: REJECTED`);
     if (result.error?.errors) {
-      console.log(`   Errors:`, result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('\n   '));
+      console.log(
+        `   Errors:`,
+        result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('\n   ')
+      );
     } else {
       console.log(`   Error:`, result.error);
     }
@@ -212,12 +226,12 @@ try {
           {
             stepNumber: 1,
             description: 'Invalid step',
-            tool: 'invalid_tool',  // Should fail regex
-            action: 'do_something'
-          }
-        ]
-      }
-    }
+            tool: 'invalid_tool', // Should fail regex
+            action: 'do_something',
+          },
+        ],
+      },
+    },
   });
 
   if (!result.success) {

@@ -27,11 +27,7 @@ interface BenchmarkResult {
   p99Time: number;
 }
 
-function benchmark(
-  name: string,
-  iterations: number,
-  fn: () => void
-): BenchmarkResult {
+function benchmark(name: string, iterations: number, fn: () => void): BenchmarkResult {
   const samples: number[] = [];
 
   // Warmup (10% of iterations)
@@ -110,9 +106,15 @@ function printComparison(baseline: BenchmarkResult, optimized: BenchmarkResult):
   const speedup = baseline.avgTime / optimized.avgTime;
 
   console.log(`\n  📊 Results:`);
-  console.log(`    Baseline:  ${baseline.avgTime.toFixed(4)}ms avg (P95: ${baseline.p95Time.toFixed(4)}ms)`);
-  console.log(`    Optimized: ${optimized.avgTime.toFixed(4)}ms avg (P95: ${optimized.p95Time.toFixed(4)}ms)`);
-  console.log(`    Improvement: ${improvement > 0 ? '+' : ''}${improvement.toFixed(1)}% (${speedup.toFixed(2)}x faster) ✨`);
+  console.log(
+    `    Baseline:  ${baseline.avgTime.toFixed(4)}ms avg (P95: ${baseline.p95Time.toFixed(4)}ms)`
+  );
+  console.log(
+    `    Optimized: ${optimized.avgTime.toFixed(4)}ms avg (P95: ${optimized.p95Time.toFixed(4)}ms)`
+  );
+  console.log(
+    `    Improvement: ${improvement > 0 ? '+' : ''}${improvement.toFixed(1)}% (${speedup.toFixed(2)}x faster) ✨`
+  );
 }
 
 // ============================================================================
@@ -176,7 +178,9 @@ async function benchmarkMetadataCache(): Promise<void> {
   const optimizedAPICalls = optimizedResult.iterations; // Only 1 fetch per iteration
   const apiReduction = ((baselineAPICalls - optimizedAPICalls) / baselineAPICalls) * 100;
 
-  console.log(`\n  📉 API Call Reduction: ${apiReduction.toFixed(1)}% (${baselineAPICalls} → ${optimizedAPICalls} calls)`);
+  console.log(
+    `\n  📉 API Call Reduction: ${apiReduction.toFixed(1)}% (${baselineAPICalls} → ${optimizedAPICalls} calls)`
+  );
 }
 
 // ============================================================================
@@ -314,7 +318,9 @@ async function benchmarkCircuitBreaker(): Promise<void> {
   console.log(`\n  📊 Results:`);
   console.log(`    Baseline:  ${baselineTotal} API calls (no circuit breaker)`);
   console.log(`    Optimized: ${optimizedTotal} API calls (circuit breaker active)`);
-  console.log(`    Reduction: ${((baselineTotal - optimizedTotal) / baselineTotal * 100).toFixed(1)}% fewer calls ✨`);
+  console.log(
+    `    Reduction: ${(((baselineTotal - optimizedTotal) / baselineTotal) * 100).toFixed(1)}% fewer calls ✨`
+  );
 }
 
 // ============================================================================
@@ -354,7 +360,9 @@ function benchmarkArrayAllocation(): void {
 
   // Memory allocation churn estimate
   const baselineAllocations = Math.ceil(Math.log2(TARGET_SIZE)); // Approximation of reallocation count
-  console.log(`\n  📦 Estimated allocation events: ${baselineAllocations} (baseline) vs 1 (optimized)`);
+  console.log(
+    `\n  📦 Estimated allocation events: ${baselineAllocations} (baseline) vs 1 (optimized)`
+  );
 }
 
 // ============================================================================
@@ -397,7 +405,9 @@ function benchmarkResponseSize(): void {
   console.log(`    Baseline:  ${(baselineSize / 1024).toFixed(2)} KB`);
   console.log(`    Optimized: ${(optimizedSize / 1024).toFixed(2)} KB`);
   console.log(`    Reduction: ${reduction.toFixed(1)}% smaller ✨`);
-  console.log(`    Token savings: ~${Math.floor(reduction * 4)} tokens (estimated at 4 chars/token)`);
+  console.log(
+    `    Token savings: ~${Math.floor(reduction * 4)} tokens (estimated at 4 chars/token)`
+  );
 }
 
 // ============================================================================

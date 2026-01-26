@@ -96,7 +96,14 @@ class Logger {
     this.logBuffer.push(formatted);
 
     if (this.config.console) {
-      const color = level === 'ERROR' ? '\x1b[31m' : level === 'WARN' ? '\x1b[33m' : level === 'DEBUG' ? '\x1b[36m' : '';
+      const color =
+        level === 'ERROR'
+          ? '\x1b[31m'
+          : level === 'WARN'
+            ? '\x1b[33m'
+            : level === 'DEBUG'
+              ? '\x1b[36m'
+              : '';
       const reset = color ? '\x1b[0m' : '';
       console.log(`${color}${formatted}${reset}`);
     }
@@ -106,12 +113,22 @@ class Logger {
     }
   }
 
-  debug(message: string, data?: any): void { this.write('DEBUG', message, data); }
-  info(message: string, data?: any): void { this.write('INFO', message, data); }
-  warn(message: string, data?: any): void { this.write('WARN', message, data); }
-  error(message: string, data?: any): void { this.write('ERROR', message, data); }
+  debug(message: string, data?: any): void {
+    this.write('DEBUG', message, data);
+  }
+  info(message: string, data?: any): void {
+    this.write('INFO', message, data);
+  }
+  warn(message: string, data?: any): void {
+    this.write('WARN', message, data);
+  }
+  error(message: string, data?: any): void {
+    this.write('ERROR', message, data);
+  }
 
-  getBuffer(): string[] { return [...this.logBuffer]; }
+  getBuffer(): string[] {
+    return [...this.logBuffer];
+  }
 }
 
 // Global logger instance (configured in main)
@@ -335,11 +352,11 @@ interface ClassificationResult {
 function extractErrorCode(text: string): string | undefined {
   // Match common error code patterns
   const patterns = [
-    /\[([A-Z_]+)\]/,                    // [ERROR_CODE]
-    /ErrorCode:\s*([A-Z_]+)/i,          // ErrorCode: ERROR_CODE
-    /code:\s*"?([A-Z_]+)"?/i,           // code: ERROR_CODE or code: "ERROR_CODE"
-    /"code":\s*"?([A-Z_]+)"?/,          // "code": "ERROR_CODE"
-    /Error:\s*([A-Z_]+):/,              // Error: ERROR_CODE:
+    /\[([A-Z_]+)\]/, // [ERROR_CODE]
+    /ErrorCode:\s*([A-Z_]+)/i, // ErrorCode: ERROR_CODE
+    /code:\s*"?([A-Z_]+)"?/i, // code: ERROR_CODE or code: "ERROR_CODE"
+    /"code":\s*"?([A-Z_]+)"?/, // "code": "ERROR_CODE"
+    /Error:\s*([A-Z_]+):/, // Error: ERROR_CODE:
   ];
 
   for (const pattern of patterns) {
@@ -353,7 +370,10 @@ function extractErrorCode(text: string): string | undefined {
 /**
  * Classify response into detailed status categories with error code extraction
  */
-function classifyResponse(text: string, jsonError?: { code: number; message: string; data?: any }): ClassificationResult {
+function classifyResponse(
+  text: string,
+  jsonError?: { code: number; message: string; data?: any }
+): ClassificationResult {
   // Handle JSON-RPC error first
   if (jsonError) {
     const errorCode = jsonError.data?.code || `RPC_${jsonError.code}`;
@@ -383,7 +403,11 @@ function classifyResponse(text: string, jsonError?: { code: number; message: str
     errorCode === 'OAUTH_NOT_CONFIGURED' ||
     errorCode === 'AUTH_REQUIRED'
   ) {
-    return { status: 'auth_required', message: 'Expected auth error', errorCode: errorCode || 'AUTH_REQUIRED' };
+    return {
+      status: 'auth_required',
+      message: 'Expected auth error',
+      errorCode: errorCode || 'AUTH_REQUIRED',
+    };
   }
 
   // Validation errors (schema caught bad input)
@@ -396,7 +420,11 @@ function classifyResponse(text: string, jsonError?: { code: number; message: str
     errorCode === 'INVALID_PARAMS' ||
     errorCode === 'VALIDATION_ERROR'
   ) {
-    return { status: 'validation_error', message: text.substring(0, 100), errorCode: errorCode || 'VALIDATION_ERROR' };
+    return {
+      status: 'validation_error',
+      message: text.substring(0, 100),
+      errorCode: errorCode || 'VALIDATION_ERROR',
+    };
   }
 
   // API errors (Google API issues)
@@ -413,12 +441,25 @@ function classifyResponse(text: string, jsonError?: { code: number; message: str
     errorCode === 'NOT_FOUND' ||
     errorCode === 'PERMISSION_DENIED'
   ) {
-    return { status: 'api_error', message: text.substring(0, 100), errorCode: errorCode || 'API_ERROR' };
+    return {
+      status: 'api_error',
+      message: text.substring(0, 100),
+      errorCode: errorCode || 'API_ERROR',
+    };
   }
 
   // Generic errors
-  if (text.includes('Error:') || text.includes('Failed') || text.includes('error') || text.includes('Error')) {
-    return { status: 'fail', message: text.substring(0, 100), errorCode: errorCode || 'UNKNOWN_ERROR' };
+  if (
+    text.includes('Error:') ||
+    text.includes('Failed') ||
+    text.includes('error') ||
+    text.includes('Error')
+  ) {
+    return {
+      status: 'fail',
+      message: text.substring(0, 100),
+      errorCode: errorCode || 'UNKNOWN_ERROR',
+    };
   }
 
   // Success
@@ -553,7 +594,9 @@ async function testAction(
       duration,
       timestamp,
       requestPayload: CONFIG.debug ? request : undefined,
-      responsePayload: CONFIG.debug ? { ...response, result: { content: [{ type: 'text', text: text.substring(0, 1000) }] } } : undefined,
+      responsePayload: CONFIG.debug
+        ? { ...response, result: { content: [{ type: 'text', text: text.substring(0, 1000) }] } }
+        : undefined,
     };
 
     if (status === 'pass') {
@@ -663,7 +706,11 @@ function getTestArgs(toolName: string, action: string): any {
       }),
       list_sheets: wrap({ action: 'list_sheets', spreadsheetId }),
       get_sheet: wrap({ action: 'get_sheet', spreadsheetId, sheetId }),
-      batch_delete_sheets: wrap({ action: 'batch_delete_sheets', spreadsheetId, sheetIds: [999, 998] }),
+      batch_delete_sheets: wrap({
+        action: 'batch_delete_sheets',
+        spreadsheetId,
+        sheetIds: [999, 998],
+      }),
       batch_update_sheets: wrap({
         action: 'batch_update_sheets',
         spreadsheetId,
@@ -707,8 +754,18 @@ function getTestArgs(toolName: string, action: string): any {
       merge_cells: wrap({ action: 'merge_cells', spreadsheetId, range, mergeType: 'MERGE_ALL' }),
       unmerge_cells: wrap({ action: 'unmerge_cells', spreadsheetId, range }),
       get_merges: wrap({ action: 'get_merges', spreadsheetId, sheetId }),
-      cut_paste: wrap({ action: 'cut_paste', spreadsheetId, source: range, destination: 'Sheet1!D1' }),
-      copy_paste: wrap({ action: 'copy_paste', spreadsheetId, source: range, destination: 'Sheet1!D1' }),
+      cut_paste: wrap({
+        action: 'cut_paste',
+        spreadsheetId,
+        source: range,
+        destination: 'Sheet1!D1',
+      }),
+      copy_paste: wrap({
+        action: 'copy_paste',
+        spreadsheetId,
+        source: range,
+        destination: 'Sheet1!D1',
+      }),
     },
 
     // ========================================
@@ -723,7 +780,12 @@ function getTestArgs(toolName: string, action: string): any {
         range,
         color: { red: 1, green: 0, blue: 0 },
       }),
-      set_text_format: wrap({ action: 'set_text_format', spreadsheetId, range, textFormat: { bold: true } }),
+      set_text_format: wrap({
+        action: 'set_text_format',
+        spreadsheetId,
+        range,
+        textFormat: { bold: true },
+      }),
       set_number_format: wrap({
         action: 'set_number_format',
         spreadsheetId,
@@ -738,7 +800,12 @@ function getTestArgs(toolName: string, action: string): any {
         borders: { top: { style: 'SOLID' } },
       }),
       clear_format: wrap({ action: 'clear_format', spreadsheetId, range }),
-      apply_preset: wrap({ action: 'apply_preset', spreadsheetId, range, preset: 'alternating_rows' }),
+      apply_preset: wrap({
+        action: 'apply_preset',
+        spreadsheetId,
+        range,
+        preset: 'alternating_rows',
+      }),
       auto_fit: wrap({ action: 'auto_fit', spreadsheetId, range, dimension: 'COLUMNS' }),
       sparkline_add: wrap({
         action: 'sparkline_add',
@@ -802,7 +869,13 @@ function getTestArgs(toolName: string, action: string): any {
     // sheets_dimensions (35 actions)
     // ========================================
     sheets_dimensions: {
-      insert_rows: wrap({ action: 'insert_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
+      insert_rows: wrap({
+        action: 'insert_rows',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 1,
+      }),
       insert_columns: wrap({
         action: 'insert_columns',
         spreadsheetId,
@@ -810,7 +883,13 @@ function getTestArgs(toolName: string, action: string): any {
         startIndex: 0,
         endIndex: 1,
       }),
-      delete_rows: wrap({ action: 'delete_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
+      delete_rows: wrap({
+        action: 'delete_rows',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 1,
+      }),
       delete_columns: wrap({
         action: 'delete_columns',
         spreadsheetId,
@@ -859,12 +938,35 @@ function getTestArgs(toolName: string, action: string): any {
         endIndex: 5,
       }),
       hide_rows: wrap({ action: 'hide_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
-      hide_columns: wrap({ action: 'hide_columns', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
+      hide_columns: wrap({
+        action: 'hide_columns',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 1,
+      }),
       show_rows: wrap({ action: 'show_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
-      show_columns: wrap({ action: 'show_columns', spreadsheetId, sheetId, startIndex: 0, endIndex: 1 }),
+      show_columns: wrap({
+        action: 'show_columns',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 1,
+      }),
       freeze_rows: wrap({ action: 'freeze_rows', spreadsheetId, sheetId, frozenRowCount: 1 }),
-      freeze_columns: wrap({ action: 'freeze_columns', spreadsheetId, sheetId, frozenColumnCount: 1 }),
-      group_rows: wrap({ action: 'group_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 5 }),
+      freeze_columns: wrap({
+        action: 'freeze_columns',
+        spreadsheetId,
+        sheetId,
+        frozenColumnCount: 1,
+      }),
+      group_rows: wrap({
+        action: 'group_rows',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 5,
+      }),
       group_columns: wrap({
         action: 'group_columns',
         spreadsheetId,
@@ -872,7 +974,13 @@ function getTestArgs(toolName: string, action: string): any {
         startIndex: 0,
         endIndex: 5,
       }),
-      ungroup_rows: wrap({ action: 'ungroup_rows', spreadsheetId, sheetId, startIndex: 0, endIndex: 5 }),
+      ungroup_rows: wrap({
+        action: 'ungroup_rows',
+        spreadsheetId,
+        sheetId,
+        startIndex: 0,
+        endIndex: 5,
+      }),
       ungroup_columns: wrap({
         action: 'ungroup_columns',
         spreadsheetId,
@@ -900,7 +1008,12 @@ function getTestArgs(toolName: string, action: string): any {
       }),
       trim_whitespace: wrap({ action: 'trim_whitespace', spreadsheetId, range }),
       randomize_range: wrap({ action: 'randomize_range', spreadsheetId, range }),
-      text_to_columns: wrap({ action: 'text_to_columns', spreadsheetId, source: 'Sheet1!A:A', delimiterType: 'COMMA' }),
+      text_to_columns: wrap({
+        action: 'text_to_columns',
+        spreadsheetId,
+        source: 'Sheet1!A:A',
+        delimiterType: 'COMMA',
+      }),
       auto_fill: wrap({
         action: 'auto_fill',
         spreadsheetId,
@@ -954,7 +1067,12 @@ function getTestArgs(toolName: string, action: string): any {
         position: { anchorCell: 'E1' },
       }),
       suggest_chart: wrap({ action: 'suggest_chart', spreadsheetId, range }),
-      chart_update: wrap({ action: 'chart_update', spreadsheetId, chartId: 1, options: { title: 'Updated Chart' } }),
+      chart_update: wrap({
+        action: 'chart_update',
+        spreadsheetId,
+        chartId: 1,
+        options: { title: 'Updated Chart' },
+      }),
       chart_delete: wrap({ action: 'chart_delete', spreadsheetId, chartId: 1 }),
       chart_list: wrap({ action: 'chart_list', spreadsheetId }),
       chart_get: wrap({ action: 'chart_get', spreadsheetId, chartId: 1 }),
@@ -964,7 +1082,13 @@ function getTestArgs(toolName: string, action: string): any {
         chartId: 1,
         position: { anchorCell: 'G1' },
       }),
-      chart_resize: wrap({ action: 'chart_resize', spreadsheetId, chartId: 1, width: 600, height: 400 }),
+      chart_resize: wrap({
+        action: 'chart_resize',
+        spreadsheetId,
+        chartId: 1,
+        width: 600,
+        height: 400,
+      }),
       chart_update_data_range: wrap({
         action: 'chart_update_data_range',
         spreadsheetId,
@@ -1022,7 +1146,12 @@ function getTestArgs(toolName: string, action: string): any {
         spreadsheetId,
         newOwnerEmail: 'new@example.com',
       }),
-      share_set_link: wrap({ action: 'share_set_link', spreadsheetId, enabled: true, role: 'reader' }),
+      share_set_link: wrap({
+        action: 'share_set_link',
+        spreadsheetId,
+        enabled: true,
+        role: 'reader',
+      }),
       share_get_link: wrap({ action: 'share_get_link', spreadsheetId }),
       comment_add: wrap({ action: 'comment_add', spreadsheetId, content: 'Test comment' }),
       comment_update: wrap({
@@ -1056,7 +1185,11 @@ function getTestArgs(toolName: string, action: string): any {
         replyId: 'reply123',
       }),
       version_list_revisions: wrap({ action: 'version_list_revisions', spreadsheetId }),
-      version_get_revision: wrap({ action: 'version_get_revision', spreadsheetId, revisionId: '1' }),
+      version_get_revision: wrap({
+        action: 'version_get_revision',
+        spreadsheetId,
+        revisionId: '1',
+      }),
       version_restore_revision: wrap({
         action: 'version_restore_revision',
         spreadsheetId,
@@ -1104,7 +1237,11 @@ function getTestArgs(toolName: string, action: string): any {
         namedRangeId: 'nr123',
         name: 'UpdatedRange',
       }),
-      delete_named_range: wrap({ action: 'delete_named_range', spreadsheetId, namedRangeId: 'nr123' }),
+      delete_named_range: wrap({
+        action: 'delete_named_range',
+        spreadsheetId,
+        namedRangeId: 'nr123',
+      }),
       list_named_ranges: wrap({ action: 'list_named_ranges', spreadsheetId }),
       get_named_range: wrap({ action: 'get_named_range', spreadsheetId, name: 'TestRange' }),
       add_protected_range: wrap({
@@ -1125,7 +1262,12 @@ function getTestArgs(toolName: string, action: string): any {
         protectedRangeId: 12345,
       }),
       list_protected_ranges: wrap({ action: 'list_protected_ranges', spreadsheetId }),
-      set_metadata: wrap({ action: 'set_metadata', spreadsheetId, metadataKey: 'testKey', metadataValue: 'testValue' }),
+      set_metadata: wrap({
+        action: 'set_metadata',
+        spreadsheetId,
+        metadataKey: 'testKey',
+        metadataValue: 'testValue',
+      }),
       get_metadata: wrap({ action: 'get_metadata', spreadsheetId, metadataKey: 'testKey' }),
       delete_metadata: wrap({ action: 'delete_metadata', spreadsheetId, metadataId: 12345 }),
       add_banding: wrap({ action: 'add_banding', spreadsheetId, range }),
@@ -1186,7 +1328,12 @@ function getTestArgs(toolName: string, action: string): any {
       analyze_impact: wrap({
         action: 'analyze_impact',
         spreadsheetId,
-        operation: { type: 'values_write', tool: 'sheets_data', action: 'write', params: { range: 'A1:B2' } },
+        operation: {
+          type: 'values_write',
+          tool: 'sheets_data',
+          action: 'write',
+          params: { range: 'A1:B2' },
+        },
       }),
     },
 
@@ -1212,13 +1359,15 @@ function getTestArgs(toolName: string, action: string): any {
         plan: {
           title: 'Test Operation',
           description: 'A test operation for validation',
-          steps: [{
-            stepNumber: 1,
-            description: 'Read data from sheet',
-            tool: 'sheets_data',
-            action: 'read',
-            risk: 'low',
-          }],
+          steps: [
+            {
+              stepNumber: 1,
+              description: 'Read data from sheet',
+              tool: 'sheets_data',
+              action: 'read',
+              risk: 'low',
+            },
+          ],
         },
       }),
       get_stats: wrap({ action: 'get_stats' }),
@@ -1226,14 +1375,21 @@ function getTestArgs(toolName: string, action: string): any {
         action: 'wizard_start',
         title: 'Create Spreadsheet Wizard',
         description: 'Step-by-step spreadsheet creation',
-        steps: [{
-          stepId: 'step1',
-          title: 'Basic Info',
-          description: 'Enter basic information',
-          fields: [{ name: 'title', label: 'Title', type: 'text', required: true }],
-        }],
+        steps: [
+          {
+            stepId: 'step1',
+            title: 'Basic Info',
+            description: 'Enter basic information',
+            fields: [{ name: 'title', label: 'Title', type: 'text', required: true }],
+          },
+        ],
       }),
-      wizard_step: wrap({ action: 'wizard_step', wizardId: 'wiz123', stepId: 'step1', values: { title: 'Test' } }),
+      wizard_step: wrap({
+        action: 'wizard_step',
+        wizardId: 'wiz123',
+        stepId: 'step1',
+        values: { title: 'Test' },
+      }),
       wizard_complete: wrap({ action: 'wizard_complete', wizardId: 'wiz123' }),
     },
 
@@ -1244,7 +1400,11 @@ function getTestArgs(toolName: string, action: string): any {
       comprehensive: wrap({ action: 'comprehensive', spreadsheetId }),
       analyze_data: wrap({ action: 'analyze_data', spreadsheetId, range }),
       suggest_visualization: wrap({ action: 'suggest_visualization', spreadsheetId, range }),
-      generate_formula: wrap({ action: 'generate_formula', spreadsheetId, description: 'Sum column A' }),
+      generate_formula: wrap({
+        action: 'generate_formula',
+        spreadsheetId,
+        description: 'Sum column A',
+      }),
       detect_patterns: wrap({ action: 'detect_patterns', spreadsheetId, range }),
       analyze_structure: wrap({ action: 'analyze_structure', spreadsheetId }),
       analyze_quality: wrap({ action: 'analyze_quality', spreadsheetId }),
@@ -1255,7 +1415,10 @@ function getTestArgs(toolName: string, action: string): any {
         spreadsheetId,
         query: 'What is the total?',
       }),
-      explain_analysis: wrap({ action: 'explain_analysis', question: 'Explain the analysis results' }),
+      explain_analysis: wrap({
+        action: 'explain_analysis',
+        question: 'Explain the analysis results',
+      }),
     },
 
     // ========================================
@@ -1290,9 +1453,18 @@ function getTestArgs(toolName: string, action: string): any {
         keyColumn: 'ID',
         updates: [{ ID: '1', Name: 'Updated' }],
       }),
-      deduplicate: wrap({ action: 'deduplicate', spreadsheetId, sheet: 'Sheet1', keyColumns: ['Name'] }),
+      deduplicate: wrap({
+        action: 'deduplicate',
+        spreadsheetId,
+        sheet: 'Sheet1',
+        keyColumns: ['Name'],
+      }),
       export_xlsx: wrap({ action: 'export_xlsx', spreadsheetId }),
-      import_xlsx: wrap({ action: 'import_xlsx', fileContent: 'UEsDBBQAAAAIAA==', title: 'Imported Workbook' }),
+      import_xlsx: wrap({
+        action: 'import_xlsx',
+        fileContent: 'UEsDBBQAAAAIAA==',
+        title: 'Imported Workbook',
+      }),
       get_form_responses: wrap({ action: 'get_form_responses', spreadsheetId }),
     },
 
@@ -1313,10 +1485,23 @@ function getTestArgs(toolName: string, action: string): any {
       }),
       get_last_operation: wrap({ action: 'get_last_operation' }),
       get_history: wrap({ action: 'get_history', limit: 10 }),
-      find_by_reference: wrap({ action: 'find_by_reference', reference: 'the spreadsheet', referenceType: 'spreadsheet' }),
-      update_preferences: wrap({ action: 'update_preferences', preferences: { verbosity: 'minimal' } }),
+      find_by_reference: wrap({
+        action: 'find_by_reference',
+        reference: 'the spreadsheet',
+        referenceType: 'spreadsheet',
+      }),
+      update_preferences: wrap({
+        action: 'update_preferences',
+        preferences: { verbosity: 'minimal' },
+      }),
       get_preferences: wrap({ action: 'get_preferences' }),
-      set_pending: wrap({ action: 'set_pending', type: 'bulk_operation', step: 1, totalSteps: 3, context: { operation: 'write' } }),
+      set_pending: wrap({
+        action: 'set_pending',
+        type: 'bulk_operation',
+        step: 1,
+        totalSteps: 3,
+        context: { operation: 'write' },
+      }),
       get_pending: wrap({ action: 'get_pending' }),
       clear_pending: wrap({ action: 'clear_pending' }),
       reset: wrap({ action: 'reset' }),
@@ -1348,7 +1533,11 @@ function getTestArgs(toolName: string, action: string): any {
       connect_looker: wrap({
         action: 'connect_looker',
         spreadsheetId,
-        spec: { instanceUri: 'https://looker.example.com', model: 'my_model', explore: 'my_explore' },
+        spec: {
+          instanceUri: 'https://looker.example.com',
+          model: 'my_model',
+          explore: 'my_explore',
+        },
       }),
       disconnect: wrap({ action: 'disconnect', spreadsheetId, dataSourceId: 'ds123' }),
       list_connections: wrap({ action: 'list_connections', spreadsheetId }),
@@ -1363,7 +1552,11 @@ function getTestArgs(toolName: string, action: string): any {
       refresh: wrap({ action: 'refresh', spreadsheetId, dataSourceId: 'ds123' }),
       cancel_refresh: wrap({ action: 'cancel_refresh', spreadsheetId, dataSourceId: 'ds123' }),
       list_datasets: wrap({ action: 'list_datasets', projectId: 'project123' }),
-      list_tables: wrap({ action: 'list_tables', projectId: 'project123', datasetId: 'dataset123' }),
+      list_tables: wrap({
+        action: 'list_tables',
+        projectId: 'project123',
+        datasetId: 'dataset123',
+      }),
       get_table_schema: wrap({
         action: 'get_table_schema',
         projectId: 'project123',
@@ -1396,7 +1589,11 @@ function getTestArgs(toolName: string, action: string): any {
         scriptId: 'script123',
         files: [{ name: 'Code', type: 'SERVER_JS', source: 'function test() {}' }],
       }),
-      create_version: wrap({ action: 'create_version', scriptId: 'script123', description: 'v1.0' }),
+      create_version: wrap({
+        action: 'create_version',
+        scriptId: 'script123',
+        description: 'v1.0',
+      }),
       list_versions: wrap({ action: 'list_versions', scriptId: 'script123' }),
       get_version: wrap({ action: 'get_version', scriptId: 'script123', versionNumber: 1 }),
       deploy: wrap({
@@ -1714,7 +1911,9 @@ function generateReport() {
     const sortedErrors = [...errorsByCode.values()].sort((a, b) => b.count - a.count);
     for (const err of sortedErrors) {
       console.log(`  ${err.errorCode}: ${err.count} occurrences`);
-      console.log(`    Tools: ${err.tools.slice(0, 5).join(', ')}${err.tools.length > 5 ? '...' : ''}`);
+      console.log(
+        `    Tools: ${err.tools.slice(0, 5).join(', ')}${err.tools.length > 5 ? '...' : ''}`
+      );
       console.log(`    Sample: ${err.sampleMessage.substring(0, 80)}`);
       console.log();
     }
@@ -1807,7 +2006,7 @@ function generateReport() {
  * Generate detailed error log file for debugging
  */
 function generateErrorLog(): void {
-  const errorResults = results.filter(r => r.status !== 'pass' && r.status !== 'auth_required');
+  const errorResults = results.filter((r) => r.status !== 'pass' && r.status !== 'auth_required');
 
   if (errorResults.length === 0) {
     logger.info('No errors to log');
@@ -1885,7 +2084,7 @@ function generateCSVReport(): void {
   const rows: string[][] = [headers];
 
   // Add all results (or just errors based on config)
-  const toExport = CONFIG.debug ? results : results.filter(r => r.status !== 'pass');
+  const toExport = CONFIG.debug ? results : results.filter((r) => r.status !== 'pass');
 
   for (const r of toExport) {
     rows.push([
@@ -1900,7 +2099,7 @@ function generateCSVReport(): void {
     ]);
   }
 
-  const csvContent = rows.map(row => row.join(',')).join('\n');
+  const csvContent = rows.map((row) => row.join(',')).join('\n');
   writeFileSync(csvPath, csvContent);
   console.log(`📊 CSV report written to: ${csvPath}`);
   logger.info(`CSV report written to: ${csvPath}`);
@@ -1913,16 +2112,19 @@ function generatePerformanceReport(): void {
   const perfPath = `${CONFIG.outputDir}/test-performance.json`;
 
   // Calculate statistics per tool
-  const toolPerf: Record<string, {
-    total: number;
-    min: number;
-    max: number;
-    avg: number;
-    p50: number;
-    p95: number;
-    p99: number;
-    durations: number[];
-  }> = {};
+  const toolPerf: Record<
+    string,
+    {
+      total: number;
+      min: number;
+      max: number;
+      avg: number;
+      p50: number;
+      p95: number;
+      p99: number;
+      durations: number[];
+    }
+  > = {};
 
   for (const m of performanceMetrics) {
     if (!toolPerf[m.tool]) {
@@ -1955,7 +2157,7 @@ function generatePerformanceReport(): void {
   }
 
   // Clean up durations array for JSON output
-  const cleanToolPerf: Record<string, Omit<typeof toolPerf[string], 'durations'>> = {};
+  const cleanToolPerf: Record<string, Omit<(typeof toolPerf)[string], 'durations'>> = {};
   for (const [tool, perf] of Object.entries(toolPerf)) {
     const { durations: _, ...rest } = perf;
     cleanToolPerf[tool] = rest;
@@ -1965,7 +2167,7 @@ function generatePerformanceReport(): void {
   const slowest = [...performanceMetrics]
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 20)
-    .map(m => ({
+    .map((m) => ({
       tool: m.tool,
       action: m.action,
       duration: m.duration,
@@ -1975,8 +2177,8 @@ function generatePerformanceReport(): void {
   // Find timeout-prone actions (close to timeout)
   const timeoutThreshold = CONFIG.requestTimeoutMs * 0.8;
   const nearTimeout = performanceMetrics
-    .filter(m => m.duration > timeoutThreshold && m.status !== 'timeout')
-    .map(m => ({
+    .filter((m) => m.duration > timeoutThreshold && m.status !== 'timeout')
+    .map((m) => ({
       tool: m.tool,
       action: m.action,
       duration: m.duration,
@@ -1990,9 +2192,10 @@ function generatePerformanceReport(): void {
     },
     overall: {
       totalTests: performanceMetrics.length,
-      avgDuration: performanceMetrics.reduce((a, m) => a + m.duration, 0) / performanceMetrics.length,
-      minDuration: Math.min(...performanceMetrics.map(m => m.duration)),
-      maxDuration: Math.max(...performanceMetrics.map(m => m.duration)),
+      avgDuration:
+        performanceMetrics.reduce((a, m) => a + m.duration, 0) / performanceMetrics.length,
+      minDuration: Math.min(...performanceMetrics.map((m) => m.duration)),
+      maxDuration: Math.max(...performanceMetrics.map((m) => m.duration)),
     },
     byTool: cleanToolPerf,
     slowestActions: slowest,

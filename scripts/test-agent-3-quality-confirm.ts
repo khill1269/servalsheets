@@ -21,10 +21,12 @@ console.log(`1. Creating test spreadsheet: ${spreadsheetName}`);
 const createResult = await sheets.spreadsheets.create({
   requestBody: {
     properties: { title: spreadsheetName },
-    sheets: [{
-      properties: { title: 'TestSheet', gridProperties: { rowCount: 100, columnCount: 26 } }
-    }]
-  }
+    sheets: [
+      {
+        properties: { title: 'TestSheet', gridProperties: { rowCount: 100, columnCount: 26 } },
+      },
+    ],
+  },
 });
 
 const spreadsheetId = createResult.data.spreadsheetId!;
@@ -47,18 +49,22 @@ for (const toolName of validTools) {
         tool: toolName,
         action: 'test_action',
         affectedRange: 'A1:B10',
-        estimatedCellCount: 20
-      }
+        estimatedCellCount: 20,
+      },
     });
 
     if (result.content && result.content.length > 0) {
       console.log(`✅ sheets_quality.analyze_impact with tool="${toolName}" succeeded`);
       successCount++;
     } else {
-      console.log(`❌ sheets_quality.analyze_impact with tool="${toolName}" returned empty content`);
+      console.log(
+        `❌ sheets_quality.analyze_impact with tool="${toolName}" returned empty content`
+      );
     }
   } catch (error: any) {
-    console.log(`❌ sheets_quality.analyze_impact with tool="${toolName}" failed: ${error.message}`);
+    console.log(
+      `❌ sheets_quality.analyze_impact with tool="${toolName}" failed: ${error.message}`
+    );
   }
 }
 
@@ -72,13 +78,19 @@ try {
       tool: 'invalid_tool',
       action: 'test_action',
       affectedRange: 'A1:B10',
-      estimatedCellCount: 20
-    }
+      estimatedCellCount: 20,
+    },
   });
   console.log(`❌ sheets_quality.analyze_impact with invalid tool should have failed but didn't`);
 } catch (error: any) {
-  if (error.message.includes('Invalid tool name') || error.message.includes('validation') || error.name === 'ZodError') {
-    console.log(`✅ sheets_quality.analyze_impact correctly rejected invalid tool: ${error.message}`);
+  if (
+    error.message.includes('Invalid tool name') ||
+    error.message.includes('validation') ||
+    error.name === 'ZodError'
+  ) {
+    console.log(
+      `✅ sheets_quality.analyze_impact correctly rejected invalid tool: ${error.message}`
+    );
     successCount++;
   } else {
     console.log(`⚠️  sheets_quality.analyze_impact failed with unexpected error: ${error.message}`);
@@ -94,8 +106,8 @@ try {
     plan: [
       { stepNumber: 1, description: 'Read data', tool: 'sheets_data', action: 'read' },
       { stepNumber: 2, description: 'Format cells', tool: 'sheets_format', action: 'format' },
-      { stepNumber: 3, description: 'Create chart', tool: 'sheets_visualize', action: 'create' }
-    ]
+      { stepNumber: 3, description: 'Create chart', tool: 'sheets_visualize', action: 'create' },
+    ],
     // NO optional fields: risk, isDestructive, canUndo
   });
 
@@ -121,11 +133,11 @@ try {
     spreadsheetId,
     plan: [
       { stepNumber: 1, description: 'Delete sheet', tool: 'sheets_core', action: 'delete' },
-      { stepNumber: 2, description: 'Clear data', tool: 'sheets_data', action: 'clear' }
+      { stepNumber: 2, description: 'Clear data', tool: 'sheets_data', action: 'clear' },
     ],
     risk: 'high',
     isDestructive: true,
-    canUndo: false
+    canUndo: false,
   });
 
   if (result.content && result.content.length > 0) {

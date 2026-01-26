@@ -23,38 +23,25 @@ import {
 // Additional schemas from visualize.ts need to be extracted
 // Let me recreate the schemas inline for testing
 
-const TrendlineTypeSchema = z
-  .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['LINEAR', 'EXPONENTIAL', 'POLYNOMIAL', 'POWER', 'LOGARITHMIC', 'MOVING_AVERAGE'])
-  );
+const TrendlineTypeSchema = z.preprocess(
+  (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+  z.enum(['LINEAR', 'EXPONENTIAL', 'POLYNOMIAL', 'POWER', 'LOGARITHMIC', 'MOVING_AVERAGE'])
+);
 
-const DataLabelPlacementSchema = z
-  .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum([
-      'CENTER',
-      'LEFT',
-      'RIGHT',
-      'ABOVE',
-      'BELOW',
-      'INSIDE_END',
-      'INSIDE_BASE',
-      'OUTSIDE_END',
-    ])
-  );
+const DataLabelPlacementSchema = z.preprocess(
+  (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+  z.enum(['CENTER', 'LEFT', 'RIGHT', 'ABOVE', 'BELOW', 'INSIDE_END', 'INSIDE_BASE', 'OUTSIDE_END'])
+);
 
-const DataLabelTypeSchema = z
-  .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['NONE', 'DATA', 'CUSTOM'])
-  );
+const DataLabelTypeSchema = z.preprocess(
+  (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+  z.enum(['NONE', 'DATA', 'CUSTOM'])
+);
 
-const TextToColumnsDelimiterTypeSchema = z
-  .preprocess(
-    (val) => (typeof val === 'string' ? val.toUpperCase() : val),
-    z.enum(['AUTODETECT', 'COMMA', 'SEMICOLON', 'PERIOD', 'SPACE', 'CUSTOM'])
-  );
+const TextToColumnsDelimiterTypeSchema = z.preprocess(
+  (val) => (typeof val === 'string' ? val.toUpperCase() : val),
+  z.enum(['AUTODETECT', 'COMMA', 'SEMICOLON', 'PERIOD', 'SPACE', 'CUSTOM'])
+);
 
 interface TestResult {
   schema: string;
@@ -283,18 +270,21 @@ console.log(`✅ Passed: ${passedTests} (${((passedTests / totalTests) * 100).to
 console.log(`❌ Failed: ${failedTests} (${((failedTests / totalTests) * 100).toFixed(1)}%)`);
 
 // Group results by schema
-const schemaGroups = results.reduce((acc, result) => {
-  if (!acc[result.schema]) {
-    acc[result.schema] = { passed: 0, failed: 0, total: 0 };
-  }
-  acc[result.schema].total++;
-  if (result.success) {
-    acc[result.schema].passed++;
-  } else {
-    acc[result.schema].failed++;
-  }
-  return acc;
-}, {} as Record<string, { passed: number; failed: number; total: number }>);
+const schemaGroups = results.reduce(
+  (acc, result) => {
+    if (!acc[result.schema]) {
+      acc[result.schema] = { passed: 0, failed: 0, total: 0 };
+    }
+    acc[result.schema].total++;
+    if (result.success) {
+      acc[result.schema].passed++;
+    } else {
+      acc[result.schema].failed++;
+    }
+    return acc;
+  },
+  {} as Record<string, { passed: number; failed: number; total: number }>
+);
 
 console.log('\n📋 Results by Schema:');
 for (const [schema, stats] of Object.entries(schemaGroups)) {
@@ -304,7 +294,7 @@ for (const [schema, stats] of Object.entries(schemaGroups)) {
 
 if (failedTests > 0) {
   console.log('\n🔍 FAILED TESTS:');
-  const failures = results.filter(r => !r.success);
+  const failures = results.filter((r) => !r.success);
   for (const failure of failures) {
     console.log(`  ❌ ${failure.schema}: ${failure.testCase}`);
     if (failure.error) {

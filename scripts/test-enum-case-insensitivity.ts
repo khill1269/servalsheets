@@ -219,7 +219,7 @@ console.log(`❌ Failed: ${failedTests} (${((failedTests / totalTests) * 100).to
 
 if (failedTests > 0) {
   console.log('\n🔍 FAILED TESTS:');
-  const failures = results.filter(r => !r.success);
+  const failures = results.filter((r) => !r.success);
   for (const failure of failures) {
     console.log(`  ❌ ${failure.schema}: ${failure.testCase}`);
     if (failure.error) {
