@@ -30,6 +30,7 @@ import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
 import { metricsHandler } from './observability/metrics.js';
 import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
+import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import {
   BatchCompiler,
   RateLimiter,
@@ -825,6 +826,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         active: sessions.size,
       },
       userQuota: userQuota || { enabled: false },
+      circuitBreakers: circuitBreakerRegistry.getAllStats(),
     });
   });
 
