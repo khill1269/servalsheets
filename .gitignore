@@ -29,6 +29,7 @@ Thumbs.db
 *.key
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
 !tsconfig.build.json
 !inspector.json
