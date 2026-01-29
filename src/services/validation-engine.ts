@@ -137,6 +137,49 @@ export class ValidationEngine {
           )
         : [...this.rules.values()];
 
+    // BUG FIX 0.2: Validate that requested rules exist
+    if (rulesFilter && rulesFilter.length > 0 && rulesToRun.length === 0) {
+      // No rules matched - return error with available rule IDs
+      const availableRuleIds = [...this.rules.values()].map((r) => r.id);
+      const report: ValidationReport = {
+        id: uuidv4(),
+        valid: false,
+        totalChecks: 0,
+        passedChecks: 0,
+        failedChecks: 0,
+        errors: [
+          {
+            id: uuidv4(),
+            rule: {
+              id: 'INVALID_RULE_IDS',
+              name: 'Invalid Rule IDs',
+              type: 'custom',
+              description: 'Requested validation rules do not exist',
+              validator: () => ({ valid: false }),
+              severity: 'error',
+              errorMessage: `None of the requested rule IDs matched registered rules. Requested: [${rulesFilter.join(', ')}]. Available: [${availableRuleIds.join(', ')}]`,
+              enabled: true,
+            },
+            value,
+            message: `None of the requested rule IDs matched registered rules. Requested: [${rulesFilter.join(', ')}]. Available rule IDs: ${availableRuleIds.join(', ')}`,
+            severity: 'error',
+            timestamp: Date.now(),
+            context,
+          },
+        ],
+        warnings: [],
+        infoMessages: [],
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+        context,
+      };
+
+      this.stats.failedValidations++;
+      this.stats.successRate = this.stats.passedValidations / this.stats.totalValidations;
+
+      return report;
+    }
+
     for (const rule of rulesToRun) {
       if (!rule.enabled) continue;
 
