@@ -58,6 +58,8 @@ const CONDITIONAL_FIELDS = [
   'deployments', // sheets_appsscript: list_deployments
   'versions', // sheets_appsscript: list_versions
   'processes', // sheets_appsscript: list_processes
+  // Suggestion/recommendation response fields (BUG FIX 0.4)
+  'suggestions', // sheets_visualize: suggest_chart, suggest_pivot
 ];
 
 /**

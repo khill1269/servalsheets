@@ -197,6 +197,57 @@ describe('Response Compactor', () => {
       // With verbosity:detailed, arrays should not be truncated
       expect((compacted.permissions as unknown[]).length).toBe(200);
     });
+
+    it('should preserve suggestions array from suggest_chart (BUG FIX 0.4)', () => {
+      const response = {
+        success: true,
+        action: 'suggest_chart',
+        suggestions: [
+          {
+            chartType: 'COLUMN',
+            title: 'Sales by Product',
+            explanation: 'Shows sales trends',
+            confidence: 95,
+          },
+          {
+            chartType: 'LINE',
+            title: 'Sales Over Time',
+            explanation: 'Shows time series',
+            confidence: 85,
+          },
+        ],
+      };
+
+      const compacted = compactResponse(response);
+
+      expect(compacted.success).toBe(true);
+      expect(compacted.action).toBe('suggest_chart');
+      expect(compacted.suggestions).toBeDefined();
+      expect(Array.isArray(compacted.suggestions)).toBe(true);
+      expect((compacted.suggestions as unknown[]).length).toBe(2);
+    });
+
+    it('should preserve suggestions array from suggest_pivot (BUG FIX 0.4)', () => {
+      const response = {
+        success: true,
+        action: 'suggest_pivot',
+        suggestions: [
+          {
+            title: 'Sales by Region',
+            rowFields: ['Region'],
+            columnFields: ['Quarter'],
+            valueFields: ['Sales'],
+            confidence: 90,
+          },
+        ],
+      };
+
+      const compacted = compactResponse(response);
+
+      expect(compacted.suggestions).toBeDefined();
+      expect(Array.isArray(compacted.suggestions)).toBe(true);
+      expect((compacted.suggestions as unknown[]).length).toBe(1);
+    });
   });
 
   describe('Compact Mode Configuration', () => {
