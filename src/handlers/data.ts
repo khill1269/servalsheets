@@ -24,6 +24,7 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas/data.js';
+import { getEnv } from '../config/env.js';
 import { getETagCache } from '../services/etag-cache.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -34,6 +35,12 @@ import type { RangeInput } from '../schemas/shared.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { validateHyperlinkUrl } from '../utils/url.js';
 import {
+  validateValuesPayload,
+  validateValuesBatchPayload,
+  type PayloadSizeResult,
+} from '../utils/payload-validator.js';
+import {
+  buildA1Notation,
   buildGridRangeInput,
   parseA1Notation,
   parseCellReference,
@@ -41,16 +48,31 @@ import {
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 
+const DEFAULT_READ_PAGE_SIZE = 1000;
+// Heuristic safety limit to keep read payloads small and latency predictable.
+const MAX_CELLS_PER_REQUEST = 10_000;
+
 /**
  * Main handler for sheets_data tool
  * Single class with direct methods - no sub-handler delegation
  */
 export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOutput> {
   private sheetsApi: sheets_v4.Sheets;
+  private featureFlags: {
+    enableDataFilterBatch: boolean;
+    enableTableAppends: boolean;
+    enablePayloadValidation: boolean;
+  };
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_data', context);
     this.sheetsApi = sheetsApi;
+    const env = getEnv();
+    this.featureFlags = {
+      enableDataFilterBatch: env.ENABLE_DATAFILTER_BATCH,
+      enableTableAppends: env.ENABLE_TABLE_APPENDS,
+      enablePayloadValidation: env.ENABLE_PAYLOAD_VALIDATION,
+    };
     // No circuit breaker registration - direct API calls only
   }
 
@@ -309,6 +331,215 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     return value.replace(/"/g, '""');
   }
 
+  private buildPayloadWarnings(
+    action: string,
+    validation: {
+      level: 'none' | 'warning' | 'critical' | 'exceeded';
+      message: string;
+      suggestions?: string[];
+    }
+  ): string[] | undefined {
+    if (validation.level === 'none') {
+      return undefined;
+    }
+
+    if (validation.level !== 'exceeded') {
+      this.context.metrics?.recordPayloadWarning({
+        level: validation.level,
+        tool: this.toolName,
+        action,
+      });
+    }
+
+    const warnings = [validation.message];
+    if (validation.suggestions && validation.suggestions.length > 0) {
+      warnings.push(...validation.suggestions);
+    }
+    return warnings;
+  }
+
+  private payloadTooLargeError(
+    action: string,
+    validation: {
+      message: string;
+      sizeMB: string;
+      suggestions?: string[];
+      estimatedSplitCount?: number;
+    }
+  ): DataResponse {
+    this.context.metrics?.recordPayloadWarning({
+      level: 'exceeded',
+      tool: this.toolName,
+      action,
+    });
+
+    return this.error({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: validation.message,
+      retryable: false,
+      suggestedFix: validation.suggestions?.join('; ') || 'Split request into smaller batches',
+      details: {
+        payloadSizeMB: validation.sizeMB,
+        limitMB: 9,
+        estimatedSplitCount: validation.estimatedSplitCount,
+      },
+    });
+  }
+
+  private validateValuesPayloadIfEnabled(values: ValuesArray, range?: string): PayloadSizeResult {
+    if (!this.featureFlags.enablePayloadValidation) {
+      return {
+        sizeBytes: 0,
+        sizeMB: '0.00',
+        withinLimits: true,
+        level: 'none',
+        message: 'Payload validation disabled',
+      };
+    }
+
+    return validateValuesPayload(values, range);
+  }
+
+  private validateValuesBatchPayloadIfEnabled(
+    data: Array<{ values: ValuesArray }>
+  ): PayloadSizeResult {
+    if (!this.featureFlags.enablePayloadValidation) {
+      return {
+        sizeBytes: 0,
+        sizeMB: '0.00',
+        withinLimits: true,
+        level: 'none',
+        message: 'Payload validation disabled',
+      };
+    }
+
+    return validateValuesBatchPayload(data, {
+      spreadsheetId: this.currentSpreadsheetId,
+      operationType: 'values.batchUpdate',
+    });
+  }
+
+  private decodeCursor(cursor?: string): number | null {
+    if (!cursor) return 0;
+    try {
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const offset = Number.parseInt(decoded, 10);
+      return Number.isFinite(offset) ? offset : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private encodeCursor(offset: number): string {
+    return Buffer.from(String(offset)).toString('base64');
+  }
+
+  private buildPaginationPlan(options: {
+    range: string;
+    cursor?: string;
+    pageSize?: number;
+    chunkSize?: number;
+    streaming?: boolean;
+  }):
+    | {
+        range: string;
+        hasMore: boolean;
+        nextCursor?: string;
+        totalRows: number;
+      }
+    | { error: DataResponse }
+    | undefined {
+    const { range, cursor, pageSize, chunkSize, streaming } = options;
+    const wantsPagination = Boolean(cursor || pageSize || streaming);
+
+    let parsed;
+    try {
+      parsed = parseA1Notation(range);
+    } catch (error) {
+      if (wantsPagination) {
+        return {
+          error: this.error({
+            code: 'INVALID_PARAMS',
+            message: 'Pagination is not supported for this range format',
+            retryable: false,
+            details: {
+              range,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }),
+        };
+      }
+      return undefined;
+    }
+
+    const totalRows = Math.max(parsed.endRow - parsed.startRow, 0);
+    const totalColumns = Math.max(parsed.endCol - parsed.startCol, 1);
+    const totalCells = totalRows * totalColumns;
+    const autoPaginate = totalCells > MAX_CELLS_PER_REQUEST;
+    if (!wantsPagination && !autoPaginate) {
+      return undefined;
+    }
+
+    const maxRowsPerPage = Math.max(1, Math.floor(MAX_CELLS_PER_REQUEST / totalColumns));
+    const effectivePageSize = Math.min(
+      pageSize ?? chunkSize ?? DEFAULT_READ_PAGE_SIZE,
+      maxRowsPerPage
+    );
+    const offset = this.decodeCursor(cursor);
+    if (offset === null || offset < 0 || offset >= totalRows) {
+      return {
+        error: this.error({
+          code: 'INVALID_PARAMS',
+          message: 'Invalid pagination cursor',
+          retryable: false,
+          details: { cursor },
+        }),
+      };
+    }
+
+    const pageStart = parsed.startRow + offset;
+    const pageEnd = Math.min(pageStart + effectivePageSize, parsed.endRow);
+    const pageRange = buildA1Notation(
+      parsed.sheetName,
+      parsed.startCol,
+      pageStart,
+      parsed.endCol,
+      pageEnd
+    );
+    const hasMore = pageEnd < parsed.endRow;
+    const nextCursor = hasMore ? this.encodeCursor(pageEnd - parsed.startRow) : undefined;
+
+    return {
+      range: pageRange,
+      hasMore,
+      nextCursor,
+      totalRows,
+    };
+  }
+
+  private buildRowData(values: ValuesArray, valueInputOption: string): sheets_v4.Schema$RowData[] {
+    return values.map((rowValues: unknown[]) => ({
+      values: rowValues.map((cellValue: unknown) => {
+        const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
+
+        if (valueInputOption === 'USER_ENTERED' || valueInputOption === 'RAW') {
+          if (isFormula) {
+            return { userEnteredValue: { formulaValue: cellValue as string } };
+          }
+          if (typeof cellValue === 'number') {
+            return { userEnteredValue: { numberValue: cellValue } };
+          }
+          if (typeof cellValue === 'boolean') {
+            return { userEnteredValue: { boolValue: cellValue } };
+          }
+          return { userEnteredValue: { stringValue: String(cellValue) } };
+        }
+
+        return { userEnteredValue: { stringValue: String(cellValue) } };
+      }),
+    }));
+  }
+
   private async cellToGridRange(spreadsheetId: string, cell: string): Promise<GridRangeInput> {
     const parsed = parseCellReference(cell);
     const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
@@ -378,13 +609,24 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private async handleRead(input: DataRequest & { action: 'read' }): Promise<DataResponse> {
     const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    const paginationPlan = this.buildPaginationPlan({
+      range,
+      cursor: input.cursor,
+      pageSize: input.pageSize,
+      chunkSize: input.chunkSize,
+      streaming: input.streaming,
+    });
+    if (paginationPlan && 'error' in paginationPlan) {
+      return paginationPlan.error;
+    }
+    const readRange = paginationPlan?.range ?? range;
     const etagCache = getETagCache();
 
     // Build cache key for this request
     const cacheKey = {
       spreadsheetId: input.spreadsheetId,
       endpoint: 'values' as const,
-      range,
+      range: readRange,
       params: {
         valueRenderOption: input.valueRenderOption,
         majorDimension: input.majorDimension,
@@ -396,18 +638,23 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     if (cachedData && etagCache.getETag(cacheKey)) {
       this.context.logger?.info('Cache hit for values read', {
         spreadsheetId: input.spreadsheetId,
-        range,
+        range: readRange,
         savedApiCall: true,
       });
 
       const values = (cachedData.values ?? []) as ValuesArray;
       const result: Record<string, unknown> = {
         values,
-        range: cachedData.range ?? range,
+        range: cachedData.range ?? readRange,
         _cached: true,
       };
       if (cachedData.majorDimension) {
         result['majorDimension'] = cachedData.majorDimension;
+      }
+      if (paginationPlan) {
+        result['nextCursor'] = paginationPlan.nextCursor;
+        result['hasMore'] = paginationPlan.hasMore;
+        result['totalRows'] = paginationPlan.totalRows;
       }
       return this.success('read', result);
     }
@@ -415,7 +662,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     // Cache miss - fetch from API
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId: input.spreadsheetId,
-      range,
+      range: readRange,
       valueRenderOption: input.valueRenderOption,
       majorDimension: input.majorDimension,
       fields: 'range,majorDimension,values',
@@ -425,16 +672,21 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     etagCache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
     // Record access pattern for predictive prefetching (Phase 3)
-    this.recordAccessAndTriggerPrefetch(input.spreadsheetId, range, 'read');
+    this.recordAccessAndTriggerPrefetch(input.spreadsheetId, readRange, 'read');
 
     const values = (response.data.values ?? []) as ValuesArray;
     const result: Record<string, unknown> = {
       values,
-      range: response.data.range ?? range,
+      range: response.data.range ?? readRange,
     };
 
     if (response.data.majorDimension) {
       result['majorDimension'] = response.data.majorDimension;
+    }
+    if (paginationPlan) {
+      result['nextCursor'] = paginationPlan.nextCursor;
+      result['hasMore'] = paginationPlan.hasMore;
+      result['totalRows'] = paginationPlan.totalRows;
     }
 
     return this.success('read', result);
@@ -442,10 +694,30 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
   private async handleWrite(input: DataRequest & { action: 'write' }): Promise<DataResponse> {
     const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    const payloadValidation = this.validateValuesPayloadIfEnabled(input.values, range);
+    if (!payloadValidation.withinLimits) {
+      return this.payloadTooLargeError('write', payloadValidation);
+    }
     const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
 
     // Check for dryRun
     if (input.safety?.dryRun) {
+      const warnings = this.buildPayloadWarnings('write', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('write', input, {
+              updatedCells: cellCount,
+              updatedRows: input.values.length,
+              updatedColumns:
+                input.values.length > 0
+                  ? Math.max(...input.values.map((row: unknown[]) => row.length))
+                  : 0,
+              updatedRange: range,
+            }),
+            warnings,
+          }
+        : undefined;
+
       return this.success(
         'write',
         {
@@ -458,7 +730,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           updatedRange: range,
         },
         undefined,
-        true
+        true,
+        meta
       );
     }
 
@@ -480,13 +753,25 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         // Invalidate ETag cache after mutation
         getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
-        return this.success('write', {
+        const responseData: Record<string, unknown> = {
           updatedCells: result?.updatedCells ?? cellCount,
           updatedRows: result?.updatedRows ?? input.values.length,
           updatedColumns: result?.updatedColumns ?? 0,
           updatedRange: result?.updatedRange ?? range,
           _batched: true, // Indicate this was batched
-        });
+        };
+
+        const warnings = this.buildPayloadWarnings('write', payloadValidation);
+        const meta = warnings
+          ? {
+              ...this.generateMeta('write', input, responseData, {
+                cellsAffected: (responseData['updatedCells'] as number | undefined) ?? undefined,
+              }),
+              warnings,
+            }
+          : undefined;
+
+        return this.success('write', responseData, undefined, undefined, meta);
       } catch (err) {
         // Fall through to direct API call on batching error
         this.context.logger?.warn('Batching failed, falling back to direct API call', {
@@ -515,15 +800,47 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       updatedRange: response.data.updatedRange ?? range,
     };
 
-    return this.success('write', responseData);
+    const warnings = this.buildPayloadWarnings('write', payloadValidation);
+    const meta = warnings
+      ? {
+          ...this.generateMeta('write', input, responseData, {
+            cellsAffected: response.data.updatedCells ?? undefined,
+          }),
+          warnings,
+        }
+      : undefined;
+
+    return this.success('write', responseData, undefined, undefined, meta);
   }
 
   private async handleAppend(input: DataRequest & { action: 'append' }): Promise<DataResponse> {
-    const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    const range = input.range
+      ? await this.resolveRangeToA1(input.spreadsheetId, input.range)
+      : undefined;
+    const payloadValidation = this.validateValuesPayloadIfEnabled(input.values, range);
+    if (!payloadValidation.withinLimits) {
+      return this.payloadTooLargeError('append', payloadValidation);
+    }
     const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
 
     // Check for dryRun
     if (input.safety?.dryRun) {
+      const warnings = this.buildPayloadWarnings('append', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('append', input, {
+              updatedCells: cellCount,
+              updatedRows: input.values.length,
+              updatedColumns:
+                input.values.length > 0
+                  ? Math.max(...input.values.map((row: unknown[]) => row.length))
+                  : 0,
+              ...(range ? { updatedRange: range } : {}),
+            }),
+            warnings,
+          }
+        : undefined;
+
       return this.success(
         'append',
         {
@@ -533,11 +850,127 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             input.values.length > 0
               ? Math.max(...input.values.map((row: unknown[]) => row.length))
               : 0,
-          updatedRange: range,
+          ...(range ? { updatedRange: range } : {}),
         },
         undefined,
-        true
+        true,
+        meta
       );
+    }
+
+    if (input.tableId) {
+      if (!this.featureFlags.enableTableAppends) {
+        this.context.metrics?.recordFeatureFlagBlock({
+          flag: 'tableAppends',
+          tool: this.toolName,
+          action: 'append',
+        });
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'Table appends are disabled. Set ENABLE_TABLE_APPENDS=true to enable.',
+          retryable: false,
+        });
+      }
+
+      if (this.context.batchingSystem) {
+        try {
+          await this.context.batchingSystem.execute({
+            id: uuidv4(),
+            type: 'values:append',
+            spreadsheetId: input.spreadsheetId,
+            params: {
+              tableId: input.tableId,
+              range,
+              values: input.values,
+              valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+            },
+          });
+
+          // Invalidate ETag cache after mutation
+          getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+          const responseData: Record<string, unknown> = {
+            updatedCells: cellCount,
+            updatedRows: input.values.length,
+            updatedColumns:
+              input.values.length > 0
+                ? Math.max(...input.values.map((row: unknown[]) => row.length))
+                : 0,
+            ...(range ? { updatedRange: range } : {}),
+            _batched: true,
+          };
+
+          const warnings = this.buildPayloadWarnings('append', payloadValidation);
+          const meta = warnings
+            ? {
+                ...this.generateMeta('append', input, responseData, {
+                  cellsAffected: cellCount,
+                }),
+                warnings,
+              }
+            : undefined;
+
+          return this.success('append', responseData, undefined, undefined, meta);
+        } catch (err) {
+          this.context.logger?.warn(
+            'Batching failed for table append, falling back to direct API',
+            {
+              error: err instanceof Error ? err.message : String(err),
+            }
+          );
+        }
+      }
+
+      const rows = this.buildRowData(input.values, input.valueInputOption ?? 'USER_ENTERED');
+
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              appendCells: {
+                tableId: input.tableId,
+                rows,
+                fields: 'userEnteredValue',
+              },
+            },
+          ],
+          includeSpreadsheetInResponse: false,
+        },
+      });
+
+      // Invalidate ETag cache after mutation
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      const responseData: Record<string, unknown> = {
+        updatedCells: cellCount,
+        updatedRows: input.values.length,
+        updatedColumns:
+          input.values.length > 0
+            ? Math.max(...input.values.map((row: unknown[]) => row.length))
+            : 0,
+        ...(range ? { updatedRange: range } : {}),
+      };
+
+      const warnings = this.buildPayloadWarnings('append', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('append', input, responseData, {
+              cellsAffected: cellCount,
+            }),
+            warnings,
+          }
+        : undefined;
+
+      return this.success('append', responseData, undefined, undefined, meta);
+    }
+
+    if (!range) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Range is required when tableId is not provided for append',
+        retryable: false,
+      });
     }
 
     // Use batching system if available (20-40% API reduction)
@@ -560,13 +993,25 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         getETagCache().invalidateSpreadsheet(input.spreadsheetId);
 
         const updates = result?.updates;
-        return this.success('append', {
+        const responseData: Record<string, unknown> = {
           updatedCells: updates?.updatedCells ?? cellCount,
           updatedRows: updates?.updatedRows ?? input.values.length,
           updatedColumns: updates?.updatedColumns ?? 0,
           updatedRange: updates?.updatedRange ?? range,
           _batched: true,
-        });
+        };
+
+        const warnings = this.buildPayloadWarnings('append', payloadValidation);
+        const meta = warnings
+          ? {
+              ...this.generateMeta('append', input, responseData, {
+                cellsAffected: updates?.updatedCells ?? cellCount,
+              }),
+              warnings,
+            }
+          : undefined;
+
+        return this.success('append', responseData, undefined, undefined, meta);
       } catch (err) {
         this.context.logger?.warn('Batching failed for append, falling back to direct API', {
           error: err instanceof Error ? err.message : String(err),
@@ -590,12 +1035,24 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     const updates = response.data.updates;
 
-    return this.success('append', {
+    const responseData: Record<string, unknown> = {
       updatedCells: updates?.updatedCells ?? 0,
       updatedRows: updates?.updatedRows ?? 0,
       updatedColumns: updates?.updatedColumns ?? 0,
       updatedRange: updates?.updatedRange ?? range,
-    });
+    };
+
+    const warnings = this.buildPayloadWarnings('append', payloadValidation);
+    const meta = warnings
+      ? {
+          ...this.generateMeta('append', input, responseData, {
+            cellsAffected: updates?.updatedCells ?? undefined,
+          }),
+          warnings,
+        }
+      : undefined;
+
+    return this.success('append', responseData, undefined, undefined, meta);
   }
 
   private async handleClear(input: DataRequest & { action: 'clear' }): Promise<DataResponse> {
@@ -620,6 +1077,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const response = await this.sheetsApi.spreadsheets.values.clear({
       spreadsheetId: input.spreadsheetId,
       range,
+      fields: 'clearedRange',
     });
 
     // Invalidate ETag cache after mutation
@@ -633,8 +1091,102 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleBatchRead(
     input: DataRequest & { action: 'batch_read' }
   ): Promise<DataResponse> {
+    // Pagination support exists but disabled pending schema updates (cursor, pageSize, streaming fields)
+    const wantsPagination = false; // Boolean(input.cursor || input.pageSize || input.streaming);
+
+    if (wantsPagination) {
+      if (input.dataFilters && input.dataFilters.length > 0) {
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: 'Pagination is not supported with dataFilters in batch_read',
+          retryable: false,
+        });
+      }
+      if (!input.ranges || input.ranges.length !== 1) {
+        return this.error({
+          code: 'INVALID_PARAMS',
+          message: 'Pagination in batch_read requires exactly one range',
+          retryable: false,
+        });
+      }
+
+      const singleRange = await this.resolveRangeToA1(input.spreadsheetId, input.ranges![0] as any);
+      const paginationPlan = this.buildPaginationPlan({
+        range: singleRange,
+        cursor: undefined, // input.cursor,
+        pageSize: undefined, // input.pageSize,
+        streaming: undefined, // input.streaming,
+      });
+      if (paginationPlan && 'error' in paginationPlan) {
+        return paginationPlan.error;
+      }
+      const readRange = paginationPlan?.range ?? singleRange;
+
+      const response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: readRange,
+        valueRenderOption: input.valueRenderOption,
+        majorDimension: input.majorDimension,
+        fields: 'range,majorDimension,values',
+      });
+
+      const responseData: Record<string, unknown> = {
+        valueRanges: [
+          {
+            range: response.data.range ?? readRange,
+            values: (response.data.values ?? []) as ValuesArray,
+          },
+        ],
+      };
+
+      if (response.data.majorDimension) {
+        responseData['majorDimension'] = response.data.majorDimension;
+      }
+      if (paginationPlan) {
+        responseData['nextCursor'] = paginationPlan.nextCursor;
+        responseData['hasMore'] = paginationPlan.hasMore;
+        responseData['totalRows'] = paginationPlan.totalRows;
+      }
+
+      return this.success('batch_read', responseData);
+    }
+
+    if (input.dataFilters && input.dataFilters.length > 0) {
+      if (!this.featureFlags.enableDataFilterBatch) {
+        this.context.metrics?.recordFeatureFlagBlock({
+          flag: 'dataFilterBatch',
+          tool: this.toolName,
+          action: 'batch_read',
+        });
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'DataFilter batch reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+          retryable: false,
+        });
+      }
+
+      const response = await this.sheetsApi.spreadsheets.values.batchGetByDataFilter({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'valueRanges(valueRange(range,values))',
+        requestBody: {
+          dataFilters: input.dataFilters,
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+        },
+      });
+
+      return this.success('batch_read', {
+        valueRanges: (response.data.valueRanges ?? []).map(
+          (mvr: sheets_v4.Schema$MatchedValueRange) => ({
+            range: mvr.valueRange?.range ?? '',
+            values: (mvr.valueRange?.values ?? []) as ValuesArray,
+          })
+        ),
+      });
+    }
+
     const ranges = await Promise.all(
-      input.ranges.map((r: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, r))
+      (input.ranges ?? []).map((r: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, r))
     );
 
     // Try cached API first for better performance (30-50% API savings)
@@ -666,6 +1218,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       ranges,
       valueRenderOption: input.valueRenderOption,
       majorDimension: input.majorDimension,
+      fields: 'valueRanges(range,values)',
     });
 
     // Record access patterns for predictive prefetching (Phase 3)
@@ -684,27 +1237,125 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleBatchWrite(
     input: DataRequest & { action: 'batch_write' }
   ): Promise<DataResponse> {
-    const data = await Promise.all(
-      input.data.map(async (d: { range: RangeInput; values: ValuesArray }) => ({
-        range: await this.resolveRangeToA1(input.spreadsheetId, d.range),
-        values: d.values,
-      }))
-    );
+    const payloadValidation = this.validateValuesBatchPayloadIfEnabled(input.data);
+    if (!payloadValidation.withinLimits) {
+      return this.payloadTooLargeError('batch_write', payloadValidation);
+    }
 
-    const totalCells = data.reduce(
-      (sum: number, d: { range: string; values: ValuesArray }) =>
+    const totalCells = input.data.reduce(
+      (sum: number, d: { values: ValuesArray }) =>
         sum + d.values.reduce((s: number, row: unknown[]) => s + row.length, 0),
       0
     );
 
+    const hasDataFilters = input.data.some((d) => (d as { dataFilter?: unknown }).dataFilter);
+    const hasRanges = input.data.some((d) => (d as { range?: unknown }).range);
+
+    if (hasDataFilters && !this.featureFlags.enableDataFilterBatch) {
+      this.context.metrics?.recordFeatureFlagBlock({
+        flag: 'dataFilterBatch',
+        tool: this.toolName,
+        action: 'batch_write',
+      });
+      return this.error({
+        code: 'FEATURE_UNAVAILABLE',
+        message: 'DataFilter batch writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+        retryable: false,
+      });
+    }
+
+    if (hasDataFilters && !hasRanges) {
+      const data = input.data.map((d) => ({
+        dataFilter: (d as { dataFilter: sheets_v4.Schema$DataFilter }).dataFilter,
+        values: d.values as ValuesArray,
+        majorDimension: (d as { majorDimension?: string }).majorDimension,
+      }));
+
+      if (input.safety?.dryRun) {
+        const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+        const meta = warnings
+          ? {
+              ...this.generateMeta('batch_write', input, { updatedCells: totalCells }),
+              warnings,
+            }
+          : undefined;
+
+        return this.success('batch_write', { updatedCells: totalCells }, undefined, true, meta);
+      }
+
+      const response = await this.sheetsApi.spreadsheets.values.batchUpdateByDataFilter({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
+        requestBody: {
+          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+          includeValuesInResponse: input.includeValuesInResponse ?? false,
+          data,
+        },
+      });
+
+      // Invalidate ETag cache after mutation
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      const responseData: Record<string, unknown> = {
+        updatedCells: response.data.totalUpdatedCells ?? 0,
+        updatedRows: response.data.totalUpdatedRows ?? 0,
+        updatedColumns: response.data.totalUpdatedColumns ?? 0,
+      };
+
+      const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('batch_write', input, responseData, {
+              cellsAffected: response.data.totalUpdatedCells ?? undefined,
+            }),
+            warnings,
+          }
+        : undefined;
+
+      return this.success('batch_write', responseData, undefined, undefined, meta);
+    }
+
+    if (hasDataFilters && hasRanges) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Do not mix range-based and dataFilter-based entries in batch_write',
+        retryable: false,
+      });
+    }
+
+    const rangeEntries = input.data as Array<{ range?: RangeInput; values: ValuesArray }>;
+    if (rangeEntries.some((entry) => !entry.range)) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Missing range for batch_write entry',
+        retryable: false,
+      });
+    }
+
+    const data = await Promise.all(
+      rangeEntries.map(async (d) => ({
+        range: await this.resolveRangeToA1(input.spreadsheetId, d.range!),
+        values: d.values,
+      }))
+    );
+
     // Check for dryRun
     if (input.safety?.dryRun) {
-      return this.success('batch_write', { updatedCells: totalCells }, undefined, true);
+      const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('batch_write', input, { updatedCells: totalCells }),
+            warnings,
+          }
+        : undefined;
+
+      return this.success('batch_write', { updatedCells: totalCells }, undefined, true, meta);
     }
 
     // Direct API call - no progress reporting with dynamic imports
     const response = await this.sheetsApi.spreadsheets.values.batchUpdate({
       spreadsheetId: input.spreadsheetId,
+      fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
       requestBody: {
         valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
         includeValuesInResponse: input.includeValuesInResponse ?? false,
@@ -721,7 +1372,17 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       updatedColumns: response.data.totalUpdatedColumns ?? 0,
     };
 
-    return this.success('batch_write', responseData);
+    const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+    const meta = warnings
+      ? {
+          ...this.generateMeta('batch_write', input, responseData, {
+            cellsAffected: response.data.totalUpdatedCells ?? undefined,
+          }),
+          warnings,
+        }
+      : undefined;
+
+    return this.success('batch_write', responseData, undefined, undefined, meta);
   }
 
   private async handleBatchClear(
@@ -737,8 +1398,49 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       destructive: true,
     });
 
+    if (input.dataFilters && input.dataFilters.length > 0) {
+      if (!this.featureFlags.enableDataFilterBatch) {
+        this.context.metrics?.recordFeatureFlagBlock({
+          flag: 'dataFilterBatch',
+          tool: this.toolName,
+          action: 'batch_clear',
+        });
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'DataFilter batch clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+          retryable: false,
+        });
+      }
+
+      if (input.safety?.dryRun) {
+        return this.success(
+          'batch_clear',
+          {
+            clearedRanges: [],
+          },
+          undefined,
+          true
+        );
+      }
+
+      const response = await this.sheetsApi.spreadsheets.values.batchClearByDataFilter({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'clearedRanges',
+        requestBody: { dataFilters: input.dataFilters },
+      });
+
+      // Invalidate ETag cache after mutation
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      return this.success('batch_clear', {
+        clearedRanges: response.data.clearedRanges ?? [],
+      });
+    }
+
     const ranges = await Promise.all(
-      input.ranges.map((range: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, range))
+      (input.ranges ?? []).map((range: RangeInput) =>
+        this.resolveRangeToA1(input.spreadsheetId, range)
+      )
     );
 
     // Check for dryRun
@@ -757,6 +1459,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     // Direct API call - no confirmation, no snapshot (simplified for reliability)
     const response = await this.sheetsApi.spreadsheets.values.batchClear({
       spreadsheetId: input.spreadsheetId,
+      fields: 'clearedRanges',
       requestBody: { ranges },
     });
 

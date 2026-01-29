@@ -29,8 +29,36 @@ const ESSENTIAL_FIELDS = ['success', 'action', 'message', 'error', 'authenticate
 
 /**
  * Fields included only if they don't exceed size limits
+ *
+ * These fields are preserved (with truncation for large arrays) rather than stripped.
+ * Includes all common list/array response fields from handlers.
  */
-const CONDITIONAL_FIELDS = ['values', 'data', 'sheets', 'charts', 'items', 'results'];
+const CONDITIONAL_FIELDS = [
+  'values',
+  'data',
+  'sheets',
+  'charts',
+  'items',
+  'results',
+  // List action response fields (BUG FIX 0.1 - preserve list action data arrays)
+  'permissions', // sheets_collaborate: share_list
+  'comments', // sheets_collaborate: comment_list
+  'revisions', // sheets_collaborate: version_list_revisions
+  'namedRanges', // sheets_advanced: list_named_ranges
+  'protectedRanges', // sheets_advanced: list_protected_ranges
+  'filterViews', // sheets_dimensions: list_filter_views
+  'filter', // sheets_dimensions: get_basic_filter
+  'valueRanges', // sheets_data: batch_read
+  'templates', // sheets_templates: list
+  'webhooks', // sheets_webhook: list
+  'validations', // sheets_format: list_data_validations
+  'conditionalFormats', // sheets_format: rule_list_conditional_formats
+  'pivotTables', // sheets_visualize: list_pivot_tables
+  'dataSourceTables', // sheets_bigquery: list_connections
+  'deployments', // sheets_appsscript: list_deployments
+  'versions', // sheets_appsscript: list_versions
+  'processes', // sheets_appsscript: list_processes
+];
 
 /**
  * Fields always stripped in compact mode
