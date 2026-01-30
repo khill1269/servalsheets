@@ -342,6 +342,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         spreadsheetId: input.spreadsheetId,
         ranges: [rangeStr],
         includeGridData: true,
+        fields: 'sheets.data.rowData.values(formattedValue,effectiveValue,effectiveFormat)',
       });
 
       const sheet = response.data.sheets?.[0];
@@ -597,8 +598,11 @@ Always return valid JSON in the exact format requested.`,
     if (fields.length === 0) {
       return this.error({
         code: 'INVALID_PARAMS',
-        message: 'No alignment properties specified',
+        message:
+          'No alignment properties specified. You must provide at least one of: horizontal (LEFT, CENTER, RIGHT), vertical (TOP, MIDDLE, BOTTOM), or wrapStrategy (OVERFLOW_CELL, LEGACY_WRAP, CLIP, WRAP)',
         retryable: false,
+        resolution:
+          'Specify at least one alignment property: horizontal, vertical, or wrapStrategy. Example: { horizontal: "CENTER", vertical: "MIDDLE" }',
       });
     }
 
