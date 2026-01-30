@@ -42,8 +42,9 @@ export class ValidationEngine {
   private config: Required<Omit<ValidationEngineConfig, 'googleClient'>>;
   private googleClient?: ValidationEngineConfig['googleClient'];
   private stats: ValidationEngineStats;
-  private rules: LRUCache<string, ValidationRule>;
+  private rules: LRUCache<string, ValidationRule & { _registrationOrder?: number }>;
   private validationCache: LRUCache<string, { result: ValidationResult; timestamp: number }>;
+  private ruleRegistrationSequence = 0;
 
   constructor(config: ValidationEngineConfig = {}) {
     this.googleClient = config.googleClient;
@@ -106,7 +107,8 @@ export class ValidationEngine {
    * Register a validation rule
    */
   registerRule(rule: ValidationRule): void {
-    this.rules.set(rule.id, rule);
+    const ruleWithOrder = { ...rule, _registrationOrder: this.ruleRegistrationSequence++ };
+    this.rules.set(rule.id, ruleWithOrder);
     this.log(`Registered validation rule: ${rule.name}`);
   }
 
@@ -129,13 +131,15 @@ export class ValidationEngine {
     let passedChecks = 0;
 
     // Filter rules if specific rule IDs are provided in context
+    // Sort by registration order to ensure consistent execution order
     const rulesFilter = context?.rules as string[] | undefined;
+    const allRules = [...this.rules.values()].sort(
+      (a, b) => (a._registrationOrder ?? 0) - (b._registrationOrder ?? 0)
+    );
     const rulesToRun =
       rulesFilter && rulesFilter.length > 0
-        ? [...this.rules.values()].filter(
-            (r) => rulesFilter.includes(r.id) || rulesFilter.includes(r.name)
-          )
-        : [...this.rules.values()];
+        ? allRules.filter((r) => rulesFilter.includes(r.id) || rulesFilter.includes(r.name))
+        : allRules;
 
     // BUG FIX 0.2: Validate that requested rules exist
     if (rulesFilter && rulesFilter.length > 0 && rulesToRun.length === 0) {
@@ -655,7 +659,9 @@ export class ValidationEngine {
    * Get all registered rules
    */
   getRules(): ValidationRule[] {
-    return Array.from(this.rules.values());
+    return Array.from(this.rules.values()).sort(
+      (a, b) => (a._registrationOrder ?? 0) - (b._registrationOrder ?? 0)
+    );
   }
 
   /**

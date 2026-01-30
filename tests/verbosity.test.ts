@@ -9,56 +9,66 @@ describe('Verbosity Parameter (LLM Optimization)', () => {
   describe('SheetsCoreInputSchema', () => {
     it('should accept verbosity: minimal', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'abc123',
-        verbosity: 'minimal',
+        request: {
+          action: 'get',
+          spreadsheetId: 'abc123',
+          verbosity: 'minimal',
+        },
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.verbosity).toBe('minimal');
+        expect(result.data.request.verbosity).toBe('minimal');
       }
     });
 
     it('should accept verbosity: standard', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'abc123',
-        verbosity: 'standard',
+        request: {
+          action: 'get',
+          spreadsheetId: 'abc123',
+          verbosity: 'standard',
+        },
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.verbosity).toBe('standard');
+        expect(result.data.request.verbosity).toBe('standard');
       }
     });
 
     it('should accept verbosity: detailed', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'abc123',
-        verbosity: 'detailed',
+        request: {
+          action: 'get',
+          spreadsheetId: 'abc123',
+          verbosity: 'detailed',
+        },
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.verbosity).toBe('detailed');
+        expect(result.data.request.verbosity).toBe('detailed');
       }
     });
 
     it('should default to standard when verbosity omitted', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'abc123',
+        request: {
+          action: 'get',
+          spreadsheetId: 'abc123',
+        },
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.verbosity).toBe('standard');
+        expect(result.data.request.verbosity).toBe('standard');
       }
     });
 
     it('should reject invalid verbosity values', () => {
       const result = SheetsCoreInputSchema.safeParse({
-        action: 'get',
-        spreadsheetId: 'abc123',
-        verbosity: 'invalid',
+        request: {
+          action: 'get',
+          spreadsheetId: 'abc123',
+          verbosity: 'invalid',
+        },
       });
       expect(result.success).toBe(false);
     });

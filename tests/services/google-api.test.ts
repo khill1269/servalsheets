@@ -108,7 +108,7 @@ import {
   DEFAULT_SCOPES,
   ELEVATED_SCOPES,
   READONLY_SCOPES,
-  type GoogleApiClientOptions,
+  FULL_SCOPES,
 } from '../../src/services/google-api.js';
 
 describe('GoogleApiClient', () => {
@@ -157,7 +157,8 @@ describe('GoogleApiClient', () => {
 
     it('should use default scopes by default', () => {
       client = new GoogleApiClient();
-      expect(client.scopes).toEqual(DEFAULT_SCOPES);
+      // Default is now FULL_SCOPES for complete functionality (templates, BigQuery, Apps Script)
+      expect(client.scopes).toEqual(FULL_SCOPES);
     });
 
     it('should use elevated scopes when requested', () => {
@@ -281,9 +282,10 @@ describe('GoogleApiClient', () => {
   });
 
   describe('hasElevatedAccess', () => {
-    it('should return false for default scopes', () => {
+    it('should return true for default scopes', () => {
       client = new GoogleApiClient();
-      expect(client.hasElevatedAccess).toBe(false);
+      // Default FULL_SCOPES includes full drive access, so hasElevatedAccess is true
+      expect(client.hasElevatedAccess).toBe(true);
     });
 
     it('should return true for elevated scopes', () => {

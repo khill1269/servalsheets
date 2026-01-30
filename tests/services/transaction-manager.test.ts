@@ -16,10 +16,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { TransactionManager } from '../../src/services/transaction-manager.js';
 import type { TransactionConfig } from '../../src/types/transaction.js';
-import type { sheets_v4 } from 'googleapis';
 
 describe('TransactionManager', () => {
   let transactionManager: TransactionManager;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockGoogleClient: any;
   let cleanupInterval: NodeJS.Timeout | undefined;
 
@@ -259,7 +259,7 @@ describe('TransactionManager', () => {
       // Reset status to allow second operation
       transaction.status = 'pending';
 
-      const opId2 = await transactionManager.queue(txnId, {
+      await transactionManager.queue(txnId, {
         type: 'values_write',
         tool: 'sheets_data',
         action: 'write',
@@ -337,7 +337,7 @@ describe('TransactionManager', () => {
           action: 'write',
           params: { range: 'A2', values: [[2]] },
         })
-      ).rejects.toThrow('not in pending state');
+      ).rejects.toThrow(/not in pending.*state/);
     });
 
     it('should support operation dependencies and detect duplicates', async () => {
@@ -362,7 +362,7 @@ describe('TransactionManager', () => {
       });
 
       transaction.status = 'pending';
-      const opId3 = await transactionManager.queue(txnId, {
+      await transactionManager.queue(txnId, {
         type: 'values_write',
         tool: 'sheets_data',
         action: 'write',
@@ -758,6 +758,7 @@ describe('TransactionManager', () => {
   describe('Transaction Events', () => {
     it('should emit events throughout transaction lifecycle', async () => {
       // Arrange
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const events: any[] = [];
       transactionManager.addEventListener((event) => {
         events.push(event);

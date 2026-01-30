@@ -13,15 +13,22 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { ConflictDetector } from '../../src/services/conflict-detector.js';
 import type {
-  RangeVersion,
   Conflict,
   ConflictResolution,
-  ConflictResolutionResult,
   ConflictDetectorConfig,
 } from '../../src/types/conflict.js';
 
 // Mock Google API client
-const createMockGoogleClient = () => ({
+const createMockGoogleClient = (): {
+  sheets: {
+    spreadsheets: {
+      values: {
+        get: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+      };
+    };
+  };
+} => ({
   sheets: {
     spreadsheets: {
       values: {
@@ -43,7 +50,7 @@ describe('ConflictDetector', () => {
       checkBeforeWrite: true,
       autoResolve: false,
       defaultResolution: 'manual',
-      versionCacheTtl: 1, // Very short TTL for testing
+      versionCacheTtl: 60000, // 60 seconds for testing (prevent premature expiration)
       maxVersionsToCache: 1000,
       verboseLogging: false,
       googleClient: mockGoogleClient as unknown as ConflictDetectorConfig['googleClient'],
@@ -639,6 +646,7 @@ describe('ConflictDetector', () => {
       // Act
       const result = await conflictDetector.resolveConflict({
         conflictId: conflict!.id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         strategy: 'invalid_strategy' as any,
       });
 
@@ -674,12 +682,7 @@ describe('ConflictDetector', () => {
       const spreadsheetId = 'test-sheet-123';
       const range = 'Sheet1!A1:B10';
 
-      const expectedVersion = await noClientDetector.trackVersion(
-        spreadsheetId,
-        range,
-        'user1@example.com',
-        [['data']]
-      );
+      await noClientDetector.trackVersion(spreadsheetId, range, 'user1@example.com', [['data']]);
 
       // Clear cache to force fetching
       noClientDetector.clearCaches();

@@ -89,6 +89,21 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
       continue;
     }
 
+    // Unwrap effects (preprocess, transform)
+    // Note: ZodEffects is not exported in Zod v4, so we check _def.typeName and _def.schema
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for effects detection
+    const def = (current as any)._def;
+    if (
+      def &&
+      typeof def === 'object' &&
+      def.typeName === 'ZodEffects' &&
+      'schema' in def &&
+      def.schema
+    ) {
+      current = def.schema as ZodTypeAny;
+      continue;
+    }
+
     // No more wrappers found
     break;
   }
