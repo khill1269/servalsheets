@@ -4,7 +4,7 @@
  * Tests for automated issue resolution.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FixHandler } from '../../src/handlers/fix.js';
 import { SheetsFixOutputSchema } from '../../src/schemas/fix.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -130,6 +130,11 @@ describe('FixHandler', () => {
       expect(operation).toHaveProperty('risk');
       expect(operation.estimatedImpact).toContain('Freeze');
     });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('fix action - apply mode', () => {

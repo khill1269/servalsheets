@@ -180,32 +180,12 @@ exports[`Schema Snapshots > Input Schemas > SetupSheetInputSchema should match s
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetSpreadsheetInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetSpreadsheetInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetSpreadsheetInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsAdvancedInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsAdvancedInputSchema",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsAdvancedInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsAnalysisInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsAnalysisInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsAnalysisInputSchema": {},
   },
 }
 `;
@@ -250,26 +230,6 @@ exports[`Schema Snapshots > Input Schemas > SheetsBigQueryInputSchema should mat
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetsCellsInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsCellsInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsCellsInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsChartsInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsChartsInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsChartsInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsCollaborateInputSchema",
@@ -280,32 +240,12 @@ exports[`Schema Snapshots > Input Schemas > SheetsCollaborateInputSchema should 
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetsCommentsInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsCommentsInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsCommentsInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsConfirmInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsConfirmInputSchema",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsConfirmInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsConflictInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsConflictInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsConflictInputSchema": {},
   },
 }
 `;
@@ -350,16 +290,6 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetsFilterSortInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsFilterSortInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsFilterSortInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsFixInputSchema",
@@ -390,26 +320,6 @@ exports[`Schema Snapshots > Input Schemas > SheetsHistoryInputSchema should matc
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetsImpactInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsImpactInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsImpactInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsPivotInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsPivotInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsPivotInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsQualityInputSchema",
@@ -420,42 +330,12 @@ exports[`Schema Snapshots > Input Schemas > SheetsQualityInputSchema should matc
 }
 `;
 
-exports[`Schema Snapshots > Input Schemas > SheetsRulesInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsRulesInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsRulesInputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Input Schemas > SheetsSessionInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsSessionInputSchema",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsSessionInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsSharingInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsSharingInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsSharingInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsSheetInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsSheetInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsSheetInputSchema": {},
   },
 }
 `;
@@ -476,36 +356,6 @@ exports[`Schema Snapshots > Input Schemas > SheetsTransactionInputSchema should 
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsTransactionInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsValidationInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsValidationInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsValidationInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsValuesInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsValuesInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsValuesInputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Input Schemas > SheetsVersionsInputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsVersionsInputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsVersionsInputSchema": {},
   },
 }
 `;
@@ -730,16 +580,6 @@ exports[`Schema Snapshots > Output Schemas > SheetsAdvancedOutputSchema should m
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsAnalysisOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsAnalysisOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsAnalysisOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsAnalyzeOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsAnalyzeOutputSchema",
@@ -780,26 +620,6 @@ exports[`Schema Snapshots > Output Schemas > SheetsBigQueryOutputSchema should m
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsCellsOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsCellsOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsCellsOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsChartsOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsChartsOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsChartsOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsCollaborateOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsCollaborateOutputSchema",
@@ -810,32 +630,12 @@ exports[`Schema Snapshots > Output Schemas > SheetsCollaborateOutputSchema shoul
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsCommentsOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsCommentsOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsCommentsOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsConfirmOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsConfirmOutputSchema",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsConfirmOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsConflictOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsConflictOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsConflictOutputSchema": {},
   },
 }
 `;
@@ -880,16 +680,6 @@ exports[`Schema Snapshots > Output Schemas > SheetsDimensionsOutputSchema should
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsFilterSortOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsFilterSortOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsFilterSortOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsFixOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsFixOutputSchema",
@@ -920,26 +710,6 @@ exports[`Schema Snapshots > Output Schemas > SheetsHistoryOutputSchema should ma
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsImpactOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsImpactOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsImpactOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsPivotOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsPivotOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsPivotOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsQualityOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsQualityOutputSchema",
@@ -950,52 +720,12 @@ exports[`Schema Snapshots > Output Schemas > SheetsQualityOutputSchema should ma
 }
 `;
 
-exports[`Schema Snapshots > Output Schemas > SheetsRulesOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsRulesOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsRulesOutputSchema": {},
-  },
-}
-`;
-
 exports[`Schema Snapshots > Output Schemas > SheetsSessionOutputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsSessionOutputSchema",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsSessionOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsSharingOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsSharingOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsSharingOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsSheetOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsSheetOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsSheetOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsSpreadsheetOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsSpreadsheetOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsSpreadsheetOutputSchema": {},
   },
 }
 `;
@@ -1016,36 +746,6 @@ exports[`Schema Snapshots > Output Schemas > SheetsTransactionOutputSchema shoul
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsTransactionOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsValidationOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsValidationOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsValidationOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsValuesOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsValuesOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsValuesOutputSchema": {},
-  },
-}
-`;
-
-exports[`Schema Snapshots > Output Schemas > SheetsVersionsOutputSchema should match snapshot 1`] = `
-{
-  "$ref": "#/definitions/SheetsVersionsOutputSchema",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "SheetsVersionsOutputSchema": {},
   },
 }
 `;

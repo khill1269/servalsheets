@@ -4,7 +4,7 @@
  * Tests for cell formatting operations.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FormatHandler } from '../../src/handlers/format.js';
 import { SheetsFormatOutputSchema } from '../../src/schemas/format.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -65,6 +65,11 @@ describe('FormatHandler', () => {
         sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
       },
     });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('set_format action', () => {

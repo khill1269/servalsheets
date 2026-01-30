@@ -64,7 +64,7 @@ npm run verify:build        # Build + validate + smoke
 
 - `src/server.ts` - MCP server entrypoint
 - `src/mcp/registration/*` - Tool + schema registration
-- `src/handlers/*` - Tool handlers (19 tools)
+- `src/handlers/*` - Tool handlers (21 tools)
 - `src/schemas/*` - Zod schemas (validation source of truth)
 - `src/utils/schema-compat.ts` - Schema transformation layer
 - `tests/contracts/*` - Contract tests (schema guarantees)
@@ -114,8 +114,8 @@ When starting work, operate as an auditor:
 
 | Metric | Source File | Current Value |
 |--------|-------------|---------------|
-| **ACTION_COUNT** | `src/schemas/index.ts` | 252 actions |
-| **TOOL_COUNT** | `src/schemas/index.ts` | 19 tools |
+| **ACTION_COUNT** | `src/schemas/index.ts` | 272 actions |
+| **TOOL_COUNT** | `src/schemas/index.ts` | 21 tools |
 | **Protocol Version** | `src/version.ts:14` | MCP 2025-11-25 |
 | **Zod Version** | `package.json` | 4.3.5 |
 | **SDK Version** | `package.json` | ^1.25.2 |
@@ -185,7 +185,7 @@ All verification checks passing:
 2. Added sheets_session tool to all registry locations
 3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced)
 4. Added Tier 7 enterprise tools (sheets_appsscript, sheets_bigquery, sheets_templates)
-5. Current state: 19 tools with 252 actions
+5. Current state: 21 tools with 272 actions
 6. Synchronized metadata across all files
 7. Fixed TypeScript strict mode issues in handlers
 
@@ -229,12 +229,12 @@ The `sheets_session` tool provides conversational context management.
 - ✅ `src/handlers/session.ts` - Handler implementation
 - ✅ `src/mcp/registration/tool-definitions.ts` - Registered
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
-- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 19 tools"
-- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 19 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "252 actions across 19 tools"
+- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 21 tools"
+- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 21 entries
+- ✅ `src/mcp/completions.ts` - Comment updated to "272 actions across 21 tools"
 - ✅ Tool is functional and working
 
-**Note:** After Wave 5 consolidation and Tier 7 additions, we have 19 total tools with 252 actions (as of 2026-01-23)
+**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 272 actions (as of 2026-01-27)
 
 ---
 

@@ -4,7 +4,7 @@
  * Tests for data quality operations: validation, conflict detection/resolution, and impact analysis.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QualityHandler } from '../../src/handlers/quality.js';
 import { SheetsQualityOutputSchema } from '../../src/schemas/quality.js';
 
@@ -66,6 +66,11 @@ describe('QualityHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     handler = new QualityHandler();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

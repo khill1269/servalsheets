@@ -293,32 +293,34 @@ sheets_data → {
 ```json
 // Step 1: Build operation plan
 sheets_confirm → {
-  "action": "request",
-  "plan": {
-    "title": "Clean Data Quality Issues",
-    "description": "Fix 25 data quality issues in Sales sheet",
-    "steps": [
-      {
-        "stepNumber": 1,
-        "description": "Remove 10 duplicate rows from A2:A100",
-        "tool": "sheets_dimensions",
-        "action": "delete_rows",
-        "risk": "high",
-        "isDestructive": true,
-        "canUndo": true
-      },
-      {
-        "stepNumber": 2,
-        "description": "Fill 15 empty cells in required columns",
-        "tool": "sheets_data",
-        "action": "write",
-        "risk": "medium",
-        "isDestructive": false,
-        "canUndo": true
-      }
-    ],
-    "willCreateSnapshot": true,
-    "additionalWarnings": ["This will permanently delete rows unless snapshot is created"]
+  "request": {
+    "action": "request",
+    "plan": {
+      "title": "Clean Data Quality Issues",
+      "description": "Fix 25 data quality issues in Sales sheet",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "description": "Remove 10 duplicate rows from A2:A100",
+          "tool": "sheets_dimensions",
+          "action": "delete_rows",
+          "risk": "high",
+          "isDestructive": true,
+          "canUndo": true
+        },
+        {
+          "stepNumber": 2,
+          "description": "Fill 15 empty cells in required columns",
+          "tool": "sheets_data",
+          "action": "write",
+          "risk": "medium",
+          "isDestructive": false,
+          "canUndo": true
+        }
+      ],
+      "willCreateSnapshot": true,
+      "additionalWarnings": ["This will permanently delete rows unless snapshot is created"]
+    }
   }
 }
 

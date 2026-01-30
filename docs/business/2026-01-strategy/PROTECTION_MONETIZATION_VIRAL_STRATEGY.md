@@ -733,19 +733,19 @@ async function generateShareCard(userId: string): Promise<string> {
 }
 ```
 
-### Launch Campaign: "The 267 Challenge"
+### Launch Campaign: "The 272 Challenge"
 
-**Concept:** Showcase that you have 267 actions by challenging users to find a Sheets task you can't do.
+**Concept:** Showcase that you have 272 actions by challenging users to find a Sheets task you can't do.
 
 **Campaign Flow:**
 ```
 Week 1: Teaser
-├── "We built an AI tool with 267 Google Sheets actions"
-├── "Competitors have 15. We have 267."
+├── "We built an AI tool with 272 Google Sheets actions"
+├── "Competitors have 15. We have 272."
 └── "Think of something we can't do. We dare you."
 
 Week 2: Launch
-├── Tweet thread: "267 things AI can now do with your spreadsheets"
+├── Tweet thread: "272 things AI can now do with your spreadsheets"
 ├── Each reply showcases a different action
 ├── Users reply with challenges → You demo solutions
 └── Creates massive engagement
@@ -769,7 +769,7 @@ Week 4: Referral Push
 | D1 | HN | Show HN post | Front page |
 | D2 | Reddit | r/ChatGPT demo | 100 upvotes |
 | D3 | YouTube | 10-min tutorial | 1K views |
-| D5 | Twitter | "267 Challenge" start | Engagement |
+| D5 | Twitter | "272 Challenge" start | Engagement |
 | D7 | LinkedIn | Founder story | 50 comments |
 | D10 | Dev.to | Technical deep-dive | 5K views |
 | D14 | Twitter | Week 2 stats | Social proof |

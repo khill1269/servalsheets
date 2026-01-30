@@ -44,32 +44,35 @@ export class DependenciesHandler {
     try {
       switch (req.action) {
         case 'build':
-          return await this.handleBuild(req);
+          return { response: await this.handleBuild(req) };
 
         case 'analyze_impact':
-          return await this.handleAnalyzeImpact(req);
+          return { response: await this.handleAnalyzeImpact(req) };
 
         case 'detect_cycles':
-          return await this.handleDetectCycles(req);
+          return { response: await this.handleDetectCycles(req) };
 
         case 'get_dependencies':
-          return await this.handleGetDependencies(req);
+          return { response: await this.handleGetDependencies(req) };
 
         case 'get_dependents':
-          return await this.handleGetDependents(req);
+          return { response: await this.handleGetDependents(req) };
 
         case 'get_stats':
-          return await this.handleGetStats(req);
+          return { response: await this.handleGetStats(req) };
 
         case 'export_dot':
-          return await this.handleExportDot(req);
+          return { response: await this.handleExportDot(req) };
 
         default:
           return {
-            success: false,
-            error: {
-              code: 'INVALID_ACTION',
-              message: `Unknown action: ${(req as { action: string }).action}`,
+            response: {
+              success: false,
+              error: {
+                code: 'INVALID_PARAMS',
+                message: `Unknown action: ${(req as { action: string }).action}`,
+                retryable: false,
+              },
             },
           };
       }
@@ -80,11 +83,14 @@ export class DependenciesHandler {
       });
 
       return {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: { error: String(error) },
+        response: {
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : 'Unknown error',
+            details: { error: String(error) },
+            retryable: false,
+          },
         },
       };
     }
@@ -95,7 +101,7 @@ export class DependenciesHandler {
    */
   private async handleBuild(
     input: Extract<SheetsDependenciesInput['request'], { action: 'build' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId, sheetNames } = input;
 
@@ -127,9 +133,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'DEPENDENCY_BUILD_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to build dependency graph',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -140,7 +147,7 @@ export class DependenciesHandler {
    */
   private async handleAnalyzeImpact(
     input: Extract<SheetsDependenciesInput['request'], { action: 'analyze_impact' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId, cell } = input;
 
@@ -162,9 +169,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'IMPACT_ANALYSIS_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to analyze impact',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -175,7 +183,7 @@ export class DependenciesHandler {
    */
   private async handleDetectCycles(
     input: Extract<SheetsDependenciesInput['request'], { action: 'detect_cycles' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId } = input;
 
@@ -197,9 +205,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'CYCLE_DETECTION_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to detect cycles',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -210,7 +219,7 @@ export class DependenciesHandler {
    */
   private async handleGetDependencies(
     input: Extract<SheetsDependenciesInput['request'], { action: 'get_dependencies' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId, cell } = input;
 
@@ -232,9 +241,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'GET_DEPENDENCIES_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to get dependencies',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -245,7 +255,7 @@ export class DependenciesHandler {
    */
   private async handleGetDependents(
     input: Extract<SheetsDependenciesInput['request'], { action: 'get_dependents' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId, cell } = input;
 
@@ -267,9 +277,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'GET_DEPENDENTS_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to get dependents',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -280,7 +291,7 @@ export class DependenciesHandler {
    */
   private async handleGetStats(
     input: Extract<SheetsDependenciesInput['request'], { action: 'get_stats' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId } = input;
 
@@ -302,9 +313,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'GET_STATS_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to get statistics',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -315,7 +327,7 @@ export class DependenciesHandler {
    */
   private async handleExportDot(
     input: Extract<SheetsDependenciesInput['request'], { action: 'export_dot' }>
-  ): Promise<SheetsDependenciesOutput> {
+  ): Promise<SheetsDependenciesOutput['response']> {
     try {
       const { spreadsheetId } = input;
 
@@ -337,9 +349,10 @@ export class DependenciesHandler {
       return {
         success: false,
         error: {
-          code: 'EXPORT_DOT_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to export DOT format',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }

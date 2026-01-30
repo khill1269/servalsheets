@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 19 tools, 253 actions
+ * Total: 21 tools, 272 actions
  *
  * PREREQUISITES documented for each tool to prevent wrong-order calls.
  */
@@ -35,7 +35,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **Common actions:** create (new spreadsheet), get (metadata), add_sheet (new tab), batch_get (multiple spreadsheets)
 **Tip:** Use sheets_analyze comprehensive instead of get for metadata + data + analysis in 1 call`,
 
-  sheets_data: `📝 Read and write cell values, notes, validation, and hyperlinks. Append rows, find/replace text, merge cells.
+  sheets_data: `📝 Read and write cell values, notes, and hyperlinks. Append rows, find/replace text, merge cells.
 
 **Use when:** Reading/writing cell values, appending rows, managing notes/links/validation, clipboard operations
 **Not for:** Cell styling (use sheets_format), row/column operations (use sheets_dimensions), analysis (use sheets_analyze)
@@ -92,7 +92,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // DIMENSIONS & STRUCTURE
   //=============================================================================
 
-  sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (29 actions).
+  sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (28 actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated.
 
@@ -130,7 +130,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 [Group] group, ungroup - collapsible sections
 
 **OTHER ACTIONS:**
-[Basic Filter] set_basic_filter, clear_basic_filter, get_basic_filter, filter_update_filter_criteria
+[Basic Filter] set_basic_filter, clear_basic_filter, get_basic_filter
 [Filter Views] create_filter_view, update_filter_view, delete_filter_view, list_filter_views, get_filter_view
 [Sort] sort_range
 [Range Utils] trim_whitespace, randomize_range, text_to_columns, auto_fill
@@ -221,13 +221,14 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 **Not for:** Writing changes (use sheets_data), creating charts (use sheets_visualize), fixing issues (use sheets_fix)
 **Start with:** comprehensive action (gets metadata + data + quality + insights in 1-2 calls, 73% faster than manual approach)
 **Common actions:** comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns
+**Progressive actions:** scout, plan, execute_plan, drill_down, generate_actions (use for large/complex sheets)
 **Tip:** Always start with comprehensive for new spreadsheets - uses tiered retrieval (metadata → sample → full scan only if needed)`,
 
   //=============================================================================
   // ADVANCED FEATURES
   //=============================================================================
 
-  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding, tables (19 actions).
+  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding, tables (23 actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated.
 
@@ -249,6 +250,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 [Metadata] set_metadata, get_metadata, delete_metadata
 [Banding] add_banding, update_banding, delete_banding, list_banding
 [Tables] create_table, delete_table, list_tables
+[Smart Chips] add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
 
 **TOP 3 ACTIONS:**
 1. add_named_range: {"action":"add_named_range","spreadsheetId":"1ABC...","name":"Revenue","range":"B2:B100"}
@@ -342,7 +344,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 
 **LIMITS:** Tracks last 100 operations per spreadsheet.`,
 
-  sheets_confirm: `⚠️ CONFIRM - User confirmation before destructive operations (2 actions).
+  sheets_confirm: `⚠️ CONFIRM - User confirmation before destructive operations (5 actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Use AFTER planning but BEFORE executing destructive operations.
 
@@ -363,7 +365,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 4. User approves/modifies/declines
 5. Claude receives result and acts accordingly
 
-**ACTIONS:** request, get_stats
+**ACTIONS:** request, get_stats, wizard_start, wizard_step, wizard_complete
 
 **WORKFLOW:**
 1. Build your plan:
@@ -374,7 +376,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
        "description": "Remove 150 duplicate rows from Sales sheet",
        "steps": [
          {"stepNumber":1, "description":"Identify duplicates", "tool":"sheets_analyze", "action":"comprehensive", "risk":"low"},
-         {"stepNumber":2, "description":"Delete 150 rows", "tool":"sheets_dimensions", "action":"delete_rows", "risk":"high", "isDestructive":true}
+         {"stepNumber":2, "description":"Delete 150 rows", "tool":"sheets_dimensions", "action":"delete", "risk":"high", "isDestructive":true}
        ],
        "willCreateSnapshot": true,
        "additionalWarnings": ["This cannot be undone without the snapshot"]
@@ -432,7 +434,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
   // SESSION CONTEXT
   //=============================================================================
 
-  sheets_session: `📋 SESSION - Conversation context for natural language (13 actions).
+  sheets_session: `📋 SESSION - Conversation context for natural language (17 actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Call action:"set_active" EARLY to enable natural language references.
 
@@ -452,6 +454,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 [References] find_by_reference
 [Preferences] update_preferences, get_preferences
 [Pending] set_pending, get_pending, clear_pending
+[Checkpoints] save_checkpoint, load_checkpoint, list_checkpoints, delete_checkpoint
 [Reset] reset
 
 **TOP 3 ACTIONS:**
@@ -494,7 +497,7 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 
 **TIP:** Use import_builtin to import pre-built templates from ServalSheets knowledge base.`,
 
-  sheets_bigquery: `📊 BIGQUERY - Connected Sheets integration (12 actions).
+  sheets_bigquery: `📊 BIGQUERY - Connected Sheets integration (14 actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. BigQuery API must be enabled in GCP project. OAuth scopes: bigquery.readonly or bigquery.
 
@@ -510,8 +513,8 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 > sheets_visualize - For creating charts from sheet data
 
 **ACTIONS BY CATEGORY:**
-[Connection] connect, disconnect, list_connections, get_connection
-[Query] query (run SQL), preview (test without full execution), refresh (update data)
+[Connection] connect, connect_looker, disconnect, list_connections, get_connection
+[Query] query (run SQL), preview (test without full execution), refresh (update data), cancel_refresh
 [Discovery] list_datasets, list_tables, get_table_schema
 [Transfer] export_to_bigquery, import_from_bigquery
 

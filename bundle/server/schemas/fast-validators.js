@@ -1,7 +1,7 @@
 /**
  * ServalSheets - Fast Validators
  *
- * Pre-compiled validators for ALL 16 tools (after Wave 5 consolidation).
+ * Pre-compiled validators for ALL 21 tools (after Wave 5 consolidation).
  * These perform FAST validation (action + required fields only).
  * Full Zod validation happens in handlers for type safety.
  *

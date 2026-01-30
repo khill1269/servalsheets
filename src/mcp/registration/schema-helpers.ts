@@ -105,7 +105,7 @@ export type SchemaType = 'input' | 'output';
  * - Returns a minimal passthrough schema (~200 bytes per tool)
  * - Full schemas available via schema://tools/{toolName} resources
  * - Reduces initial payload from ~231KB to ~5KB
- * - All 19 tools available with dynamic schema loading
+ * - All 21 tools available with dynamic schema loading
  *
  * When SERVAL_SCHEMA_REFS=true:
  * - Pre-converts Zod schemas to JSON Schema with `reused: 'ref'` option

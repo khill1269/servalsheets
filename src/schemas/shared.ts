@@ -433,6 +433,7 @@ export const ErrorCodeSchema = z.enum([
   'NO_DATA',
   // Service lifecycle
   'SERVICE_NOT_INITIALIZED',
+  'SERVICE_NOT_ENABLED', // BUG FIX 0.9: For GCP API not enabled errors
   'SNAPSHOT_CREATION_FAILED',
   'SNAPSHOT_RESTORE_FAILED',
   // Transactions
@@ -507,6 +508,37 @@ export const GridRangeSchema = z.object({
   startColumnIndex: z.number().int().min(0).optional(),
   endColumnIndex: z.number().int().min(0).optional(),
 });
+
+/** Developer metadata lookup */
+export const DeveloperMetadataLookupSchema = z.object({
+  metadataId: z.coerce.number().int().optional(),
+  metadataKey: z.string().optional(),
+  metadataValue: z.string().optional(),
+  locationType: z
+    .enum(['DEVELOPER_METADATA_LOCATION_TYPE_UNSPECIFIED', 'ROW', 'COLUMN', 'SHEET', 'SPREADSHEET'])
+    .optional(),
+  locationMatchingStrategy: z
+    .enum([
+      'DEVELOPER_METADATA_LOCATION_MATCHING_STRATEGY_UNSPECIFIED',
+      'EXACT_LOCATION',
+      'INTERSECTING_LOCATION',
+    ])
+    .optional(),
+  visibility: z
+    .enum(['DEVELOPER_METADATA_VISIBILITY_UNSPECIFIED', 'DOCUMENT', 'PROJECT'])
+    .optional(),
+});
+
+/** Data filter for advanced range selection */
+export const DataFilterSchema = z
+  .object({
+    a1Range: z.string().optional(),
+    gridRange: GridRangeSchema.optional(),
+    developerMetadataLookup: DeveloperMetadataLookupSchema.optional(),
+  })
+  .refine((val) => val.a1Range || val.gridRange || val.developerMetadataLookup, {
+    message: 'DataFilter must include a1Range, gridRange, or developerMetadataLookup',
+  });
 
 /** Condition for rules - accepts flexible value formats */
 export const ConditionSchema = z.object({
@@ -931,6 +963,8 @@ export type Color = z.infer<typeof ColorSchema>;
 export type CellValue = z.infer<typeof CellValueSchema>;
 export type ValuesArray = z.infer<typeof ValuesArraySchema>;
 export type GridRange = z.infer<typeof GridRangeSchema>;
+export type DeveloperMetadataLookup = z.infer<typeof DeveloperMetadataLookupSchema>;
+export type DataFilter = z.infer<typeof DataFilterSchema>;
 export type CellFormat = z.infer<typeof CellFormatSchema>;
 export type SafetyOptions = z.infer<typeof SafetyOptionsSchema>;
 export type EffectScope = z.infer<typeof EffectScopeSchema>;

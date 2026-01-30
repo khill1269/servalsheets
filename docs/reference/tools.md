@@ -1,33 +1,32 @@
 # Tools Overview
 
-ServalSheets provides 22 MCP tools with 267 total actions covering the complete Google Sheets API v4.
+ServalSheets provides 21 MCP tools with 272 total actions covering the complete Google Sheets API v4.
 
 ## Tool Categories
 
-| Tool                                               | Actions | Description                          |
-| -------------------------------------------------- | ------- | ------------------------------------ |
-| [`sheets_data`](./tools/sheets_data)               | 18      | Read, write, append, clear data      |
-| [`sheets_structure`](./tools/sheets_structure)     | 18      | Sheets, rows, columns management     |
-| [`sheets_formatting`](./tools/sheets_formatting)   | 22      | Cell styles, borders, colors         |
-| [`sheets_advanced`](./tools/sheets_advanced)       | 20      | Named ranges, filters, protection    |
-| [`sheets_charts`](./tools/sheets_charts)           | 12      | Create and modify charts             |
-| [`sheets_pivots`](./tools/sheets_pivots)           | 8       | Pivot table operations               |
-| [`sheets_validation`](./tools/sheets_validation)   | 10      | Data validation rules                |
-| [`sheets_conditional`](./tools/sheets_conditional) | 14      | Conditional formatting               |
-| [`sheets_analysis`](./tools/sheets_analysis)       | 16      | Pattern detection, profiling         |
-| [`sheets_batch`](./tools/sheets_batch)             | 6       | Batch operations                     |
-| [`sheets_metadata`](./tools/sheets_metadata)       | 8       | Spreadsheet properties               |
-| [`sheets_export`](./tools/sheets_export)           | 4       | PDF, CSV export                      |
-| [`sheets_import`](./tools/sheets_import)           | 4       | CSV, data import                     |
-| [`sheets_merge`](./tools/sheets_merge)             | 6       | Cell merging                         |
-| [`sheets_notes`](./tools/sheets_notes)             | 4       | Cell notes/comments                  |
-| [`sheets_find`](./tools/sheets_find)               | 4       | Find and replace                     |
-| [`sheets_confirm`](./tools/sheets_confirm)         | 2       | User confirmations (MCP Elicitation) |
-| [`sheets_analyze`](./tools/sheets_analyze)         | 2       | AI analysis (MCP Sampling)           |
-| [`sheets_task`](./tools/sheets_task)               | 3       | Background tasks                     |
-| [`sheets_webhook`](./tools/sheets_webhook)         | 6       | Webhook notifications                |
-| [`sheets_auth`](./tools/sheets_auth)               | 4       | OAuth authentication                 |
-| [`sheets_core`](./tools/sheets_core)               | 6       | Core spreadsheet operations          |
+| Tool                  | Actions | Description                                             |
+| --------------------- | ------- | ------------------------------------------------------- |
+| `sheets_auth`         | 4       | OAuth status/login/callback/logout                      |
+| `sheets_core`         | 17      | Spreadsheet + sheet metadata and management             |
+| `sheets_data`         | 18      | Read/write/append/clear values, notes, links, merges     |
+| `sheets_format`       | 21      | Formatting, borders, number formats, validation, rules   |
+| `sheets_dimensions`   | 28      | Rows/columns, filters, sort, filter views, slicers       |
+| `sheets_visualize`    | 18      | Charts + pivots (create/update/list)                    |
+| `sheets_collaborate`  | 28      | Sharing, comments, revisions, snapshots                 |
+| `sheets_advanced`     | 23      | Named ranges, protections, metadata, banding, chips      |
+| `sheets_transaction`  | 6       | Begin/queue/commit/rollback/status/list                  |
+| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                  |
+| `sheets_history`      | 7       | History, undo/redo, revert                              |
+| `sheets_confirm`      | 5       | Elicitation-based confirmations                          |
+| `sheets_analyze`      | 16      | AI analysis + planning (comprehensive, scout, plan, etc) |
+| `sheets_fix`          | 1       | Auto-fix detected issues                                |
+| `sheets_composite`    | 10      | CSV/XLSX import/export, smart append, dedupe, setup      |
+| `sheets_session`      | 17      | Context, preferences, checkpoints                        |
+| `sheets_templates`    | 8       | Template management                                      |
+| `sheets_bigquery`     | 14      | Connected Sheets + BigQuery query/import/export          |
+| `sheets_appsscript`   | 14      | Apps Script project/deploy/run                           |
+| `sheets_webhook`      | 6       | Webhook register/test/stats                              |
+| `sheets_dependencies` | 7       | Dependency graph + impact analysis                       |
 
 ## Common Parameters
 
@@ -35,10 +34,10 @@ All tools share these common parameters:
 
 ### Required
 
-| Parameter       | Type   | Description                    |
-| --------------- | ------ | ------------------------------ |
-| `action`        | string | The specific action to perform |
-| `spreadsheetId` | string | Google Sheets spreadsheet ID   |
+| Parameter       | Type   | Description                                  |
+| --------------- | ------ | -------------------------------------------- |
+| `action`        | string | The specific action to perform               |
+| `spreadsheetId` | string | Spreadsheet ID (required for most actions)   |
 
 ### Optional (Safety Rails)
 
@@ -98,10 +97,11 @@ Prevent accidental large operations:
 
 ```json
 {
-  "tool": "sheets_structure",
-  "action": "delete_rows",
+  "tool": "sheets_dimensions",
+  "action": "delete",
   "spreadsheetId": "...",
   "sheetId": 0,
+  "dimension": "ROWS",
   "startIndex": 0,
   "endIndex": 1000,
   "effectScope": {

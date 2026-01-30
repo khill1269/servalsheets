@@ -53,7 +53,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 19 powerful tools and 260 actions.
+I'm your Google Sheets assistant with 21 powerful tools and 272 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`

@@ -118,6 +118,14 @@ const mockContext = createMockContext({
 4. **Realism**: Mocks behave like real Google APIs
 5. **Type Safety**: Full TypeScript support
 
+## HTTP Transport Integration Tests
+
+Some HTTP transport integration tests require binding to a local port. They are opt-in:
+
+```bash
+TEST_HTTP_INTEGRATION=true npm test -- tests/integration/http-transport.test.ts
+```
+
 ### API Coverage
 
 **Sheets API:**

@@ -42,6 +42,12 @@ const EnvSchema = z.object({
   CACHE_MAX_SIZE_MB: z.coerce.number().positive().default(100),
   CACHE_TTL_MS: z.coerce.number().positive().default(300000), // 5 minutes
 
+  // Feature flags (staged rollout)
+  ENABLE_DATAFILTER_BATCH: z.coerce.boolean().default(true),
+  ENABLE_TABLE_APPENDS: z.coerce.boolean().default(true),
+  ENABLE_PAYLOAD_VALIDATION: z.coerce.boolean().default(true),
+  ENABLE_LEGACY_SSE: z.coerce.boolean().default(true),
+
   // Deduplication
   DEDUP_ENABLED: z.coerce.boolean().default(true),
   DEDUP_WINDOW_MS: z.coerce.number().positive().default(5000), // 5 seconds
@@ -65,6 +71,10 @@ const EnvSchema = z.object({
   // Session Store Configuration (for OAuth)
   SESSION_STORE_TYPE: z.enum(['memory', 'redis']).default('memory'),
   REDIS_URL: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
+
+  // Streamable HTTP event store (resumability)
+  STREAMABLE_HTTP_EVENT_TTL_MS: z.coerce.number().positive().default(300000), // 5 minutes
+  STREAMABLE_HTTP_EVENT_MAX_EVENTS: z.coerce.number().int().positive().default(5000),
 
   // OAuth Server Configuration (for remote server)
   JWT_SECRET: z.string().optional(),
@@ -138,6 +148,14 @@ export function validateEnv(): Env {
 
     throw error;
   }
+}
+
+/**
+ * Access validated environment variables without re-parsing.
+ * Uses defaults if validateEnv() has not been called yet.
+ */
+export function getEnv(): Env {
+  return ensureEnv();
 }
 
 /**

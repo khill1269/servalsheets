@@ -12,7 +12,7 @@ export default {
     ['meta', { name: 'theme-color', content: '#5f6fd9' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'ServalSheets Documentation' }],
-    ['meta', { property: 'og:description', content: 'Production-grade Google Sheets MCP Server with 267 actions' }],
+    ['meta', { property: 'og:description', content: 'Production-grade Google Sheets MCP Server with 272 actions' }],
   ],
 
   themeConfig: {
@@ -119,9 +119,9 @@ export default {
         {
           text: 'Operations',
           items: [
-            { text: 'Monitoring', link: '/deployment/monitoring' },
-            { text: 'Scaling', link: '/deployment/scaling' },
-            { text: 'Disaster Recovery', link: '/deployment/disaster-recovery' },
+            { text: 'Monitoring', link: '/guides/MONITORING' },
+            { text: 'Scaling', link: '/operations/scaling' },
+            { text: 'Disaster Recovery', link: '/operations/disaster-recovery' },
           ]
         }
       ]

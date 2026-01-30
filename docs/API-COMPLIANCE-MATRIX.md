@@ -6,7 +6,7 @@
 |--------|--------------|--------------|----------|
 | **HTTP Endpoints** | 7 | 7 | ✅ 100% |
 | **batchUpdate Operations** | 52 | 52 | ✅ 100% |
-| **Values API Methods** | 10 | 8 | ✅ 80% |
+| **Values API Methods** | 10 | 10 | ✅ 100% |
 | **Drive API Integration** | Required | Implemented | ✅ Full |
 | **MCP Protocol** | 2025-11-25 | 2025-11-25 | ✅ Full |
 
@@ -211,7 +211,7 @@
 
 ---
 
-## 3. Values API Coverage (8/10 = 80%)
+## 3. Values API Coverage (10/10 = 100%)
 
 | API Method | ServalSheets Action | Tool | Status |
 |------------|---------------------|------|--------|
@@ -222,9 +222,9 @@
 | `values.batchGet` | `batch_read` | sheets_data | ✅ |
 | `values.batchUpdate` | `batch_write` | sheets_data | ✅ |
 | `values.batchClear` | `batch_clear` | sheets_data | ✅ |
-| `values.batchGetByDataFilter` | - | - | ❌ Missing |
-| `values.batchUpdateByDataFilter` | - | - | ❌ Missing |
-| `values.batchClearByDataFilter` | - | - | ❌ Missing |
+| `values.batchGetByDataFilter` | `batch_read` (dataFilters) | sheets_data | ✅ |
+| `values.batchUpdateByDataFilter` | `batch_write` (dataFilters) | sheets_data | ✅ |
+| `values.batchClearByDataFilter` | `batch_clear` (dataFilters) | sheets_data | ✅ |
 
 ---
 
@@ -263,7 +263,7 @@ Required for: Sharing, Comments, Version History, File Operations
 
 | Feature | Spec Version | Status | Implementation |
 |---------|--------------|--------|----------------|
-| Tool Registration | 2025-11-25 | ✅ | 16 tools, 207 actions |
+| Tool Registration | 2025-11-25 | ✅ | 21 tools, 272 actions |
 | Tool Annotations | 2025-11-25 | ✅ | All 4 hints |
 | Structured Errors | 2025-11-25 | ✅ | 40+ error codes |
 | Progress Notifications | 2025-11-25 | ✅ | Streaming support |
@@ -312,13 +312,9 @@ The following operations were added to complete 100% coverage:
 - `trimWhitespace` → `trim_whitespace` in sheets_dimensions
 - `randomizeRange` → `randomize_range` in sheets_dimensions
 
-### 6.2 Missing Values API Methods (3 items)
+### 6.2 Missing Values API Methods (0 items)
 
-| Method | Priority | Notes |
-|--------|----------|-------|
-| `batchGetByDataFilter` | Medium | Advanced filtering |
-| `batchUpdateByDataFilter` | Medium | Advanced filtering |
-| `batchClearByDataFilter` | Medium | Advanced filtering |
+✅ **All Values API methods are now implemented!**
 
 ### 6.3 Not Implemented (Intentionally)
 
@@ -336,7 +332,7 @@ Google Sheets API v4 Coverage
 ═══════════════════════════════════════
 HTTP Endpoints:        7/7   (100%)
 batchUpdate Ops:      52/52  (100%)
-Values API:            8/10  (80%)
+Values API:           10/10 (100%)
 Drive API (sharing):  20/20  (100%)
 ═══════════════════════════════════════
 OVERALL:              87/89  (98%)
@@ -454,6 +450,7 @@ RequestBuilder.autoFill()
 
 ### Minor Gaps (Low Priority - Advanced Use Cases)
 - DataFilter variants of Values API (batchGetByDataFilter, batchUpdateByDataFilter, batchClearByDataFilter)
+  are supported via `batch_read`, `batch_write`, and `batch_clear` with `dataFilters`.
 - These are advanced filtering patterns rarely used in typical workflows
 
 ### Planned Future Work

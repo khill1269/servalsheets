@@ -6,9 +6,9 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
-import { SheetsCoreHandler } from '../../src/handlers/core.js';
-import type { HandlerContext } from '../../src/handlers/base.js';
-import type { SheetsCoreInput } from '../../src/schemas/core.js';
+import { SheetsCoreHandler } from '../src/handlers/core.js';
+import type { HandlerContext } from '../src/handlers/base.js';
+import type { SheetsCoreInput } from '../src/schemas/core.js';
 
 describe('SheetsCoreHandler - Verbosity Feature', () => {
   let handler: SheetsCoreHandler;

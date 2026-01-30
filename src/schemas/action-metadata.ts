@@ -1,7 +1,7 @@
 /**
  * Action-Level Metadata for AI Cost-Aware Decision Making
  *
- * Provides detailed metadata for all 207 actions across 16 tools.
+ * Provides detailed metadata for all 272 actions across 21 tools.
  * This enables AI to make informed decisions about:
  * - API quota costs
  * - Read-only vs destructive operations
@@ -30,7 +30,7 @@ export interface ActionMetadata {
 }
 
 /**
- * Complete action metadata for all 207 actions
+ * Complete action metadata for all 272 actions
  */
 export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
   sheets_advanced: {
@@ -305,6 +305,51 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       destructive: false,
       idempotent: true,
       typicalLatency: '3-15s',
+    },
+    scout: {
+      readOnly: true,
+      apiCalls: 1,
+      quotaCost: 1,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '200-500ms',
+    },
+    plan: {
+      readOnly: true,
+      apiCalls: 'dynamic',
+      quotaCost: 'dynamic',
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '1-3s',
+    },
+    execute_plan: {
+      readOnly: true,
+      apiCalls: 0,
+      quotaCost: 0,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '50-200ms',
+    },
+    drill_down: {
+      readOnly: true,
+      apiCalls: 'dynamic',
+      quotaCost: 'dynamic',
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '200-800ms',
+    },
+    generate_actions: {
+      readOnly: true,
+      apiCalls: 0,
+      quotaCost: 0,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '200-800ms',
     },
   },
   sheets_auth: {

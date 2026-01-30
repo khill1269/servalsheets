@@ -26,7 +26,7 @@ export function registerDecisionResources(server) {
     }, async (uri) => readDecisionResource(typeof uri === 'string' ? uri : uri.toString()));
     // Tool selection guidance
     server.registerResource('Tool Selection Decision Tree', 'servalsheets://decisions/tool-selection', {
-        description: 'Decision tree for selecting the right ServalSheets tool for your task. Covers all 16 tools with use case guidance and examples.',
+        description: 'Decision tree for selecting the right ServalSheets tool for your task. Covers all 21 tools with use case guidance and examples.',
         mimeType: 'application/json',
     }, async (uri) => readDecisionResource(typeof uri === 'string' ? uri : uri.toString()));
     // Read vs batch_read

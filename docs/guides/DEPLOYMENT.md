@@ -121,6 +121,9 @@ services:
       GOOGLE_TOKEN_STORE_PATH: /app/data/tokens.enc
       GOOGLE_TOKEN_STORE_KEY: ${GOOGLE_TOKEN_STORE_KEY}
 
+      # Optional: Redis for HA sessions + Streamable HTTP resumability
+      # REDIS_URL: redis://redis:6379
+
     # Secrets (for service account)
     secrets:
       - service_account
@@ -653,7 +656,32 @@ GOOGLE_APPLICATION_CREDENTIALS=/opt/servalsheets/config/service-account.json
 # Token store
 GOOGLE_TOKEN_STORE_PATH=/opt/servalsheets/data/tokens.enc
 GOOGLE_TOKEN_STORE_KEY=8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+
+# Feature flags (staged rollout)
+ENABLE_DATAFILTER_BATCH=true
+ENABLE_TABLE_APPENDS=true
+ENABLE_PAYLOAD_VALIDATION=true
+ENABLE_LEGACY_SSE=true
 ```
+
+### Feature Flag Rollout (Production)
+
+Recommended staged rollout for new data paths:
+
+1. **Deploy with flags enabled only in staging**
+2. **Canary (5–10%)**: enable in a single instance or subset of tenants
+3. **Ramp (25–50%)**: monitor error rate, latency p95, quota usage
+4. **Full rollout (100%)** once metrics are stable for 24–48h
+
+Key metrics to monitor:
+- `sheets_data.batch_*` error rates
+- Payload warning counts (`PAYLOAD_TOO_LARGE`, warning logs)
+- Append/write latency p95/p99
+- Quota limit hits (429s)
+
+Rollback:
+- Disable flags in environment and restart service
+- Revert to range-based operations (no DataFilters, no tableId appends)
 
 ### Installation
 

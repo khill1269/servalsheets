@@ -8,7 +8,7 @@
  * - Large transaction warnings
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TransactionHandler } from '../../src/handlers/transaction.js';
 import { SheetsTransactionOutputSchema } from '../../src/schemas/transaction.js';
 import type { TransactionManager } from '../../src/services/transaction-manager.js';
@@ -48,6 +48,11 @@ describe('TransactionHandler', () => {
     getTransactionManagerMock.mockReturnValue(mockTransactionManager);
 
     handler = new TransactionHandler();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('begin action', () => {

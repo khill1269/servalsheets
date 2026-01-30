@@ -16,7 +16,7 @@
  * // servalsheets_api_calls_total{operation="read"} 1250
  */
 
-import { MetricsService } from './metrics.js';
+import { MetricsService, type FeatureFlagMetrics, type PayloadWarningMetrics } from './metrics.js';
 import { CacheManager } from '../utils/cache-manager.js';
 
 export interface MetricsSnapshot {
@@ -24,6 +24,8 @@ export interface MetricsSnapshot {
   cache: Record<string, CacheStats>;
   batching: BatchingStats;
   api: APIStats;
+  featureFlags: FeatureFlagMetrics;
+  payloadWarnings: PayloadWarningMetrics;
 }
 
 export interface CacheStats {
@@ -90,6 +92,8 @@ export class MetricsExporter {
       cache: cacheStats as Record<string, CacheStats>,
       batching: batchingStats,
       api: apiStats,
+      featureFlags: summary.featureFlags,
+      payloadWarnings: summary.payloadWarnings,
     };
   }
 
@@ -186,6 +190,46 @@ export class MetricsExporter {
     }
     lines.push(``);
 
+    // Feature flag block metrics
+    lines.push(`# HELP feature_flag_blocks_total Total feature flag blocks by flag`);
+    lines.push(`# TYPE feature_flag_blocks_total counter`);
+    for (const [flag, count] of Object.entries(snapshot.featureFlags.byFlag)) {
+      lines.push(`feature_flag_blocks_total{flag="${flag}"} ${count}`);
+    }
+    lines.push(``);
+
+    lines.push(`# HELP feature_flag_blocks_by_action_total Total feature flag blocks by action`);
+    lines.push(`# TYPE feature_flag_blocks_by_action_total counter`);
+    for (const [action, count] of Object.entries(snapshot.featureFlags.byAction)) {
+      lines.push(`feature_flag_blocks_by_action_total{action="${action}"} ${count}`);
+    }
+    lines.push(``);
+
+    // Payload warning metrics
+    lines.push(`# HELP payload_warnings_total Total payload warnings by level`);
+    lines.push(`# TYPE payload_warnings_total counter`);
+    lines.push(`payload_warnings_total{level="warning"} ${snapshot.payloadWarnings.warning}`);
+    lines.push(`payload_warnings_total{level="critical"} ${snapshot.payloadWarnings.critical}`);
+    lines.push(`payload_warnings_total{level="exceeded"} ${snapshot.payloadWarnings.exceeded}`);
+    lines.push(``);
+
+    lines.push(
+      `# HELP payload_warnings_by_action_total Total payload warnings by action and level`
+    );
+    lines.push(`# TYPE payload_warnings_by_action_total counter`);
+    for (const [action, stats] of Object.entries(snapshot.payloadWarnings.byAction)) {
+      lines.push(
+        `payload_warnings_by_action_total{action="${action}",level="warning"} ${stats.warning}`
+      );
+      lines.push(
+        `payload_warnings_by_action_total{action="${action}",level="critical"} ${stats.critical}`
+      );
+      lines.push(
+        `payload_warnings_by_action_total{action="${action}",level="exceeded"} ${stats.exceeded}`
+      );
+    }
+    lines.push(``);
+
     // Summary metrics
     lines.push(`# HELP api_calls_summary_total Total API calls across all methods`);
     lines.push(`# TYPE api_calls_summary_total counter`);
@@ -257,6 +301,39 @@ export class MetricsExporter {
       lines.push(`  Errors by Code:`);
       for (const [code, count] of Object.entries(snapshot.api.errorsByCode)) {
         lines.push(`    ${code}: ${count}`);
+      }
+    }
+    lines.push(``);
+
+    // Feature flag blocks
+    lines.push(`Feature Flag Blocks:`);
+    lines.push(`  Total Blocks: ${snapshot.featureFlags.totalBlocks}`);
+    if (Object.keys(snapshot.featureFlags.byFlag).length > 0) {
+      lines.push(`  By Flag:`);
+      for (const [flag, count] of Object.entries(snapshot.featureFlags.byFlag)) {
+        lines.push(`    ${flag}: ${count}`);
+      }
+    }
+    if (Object.keys(snapshot.featureFlags.byAction).length > 0) {
+      lines.push(`  By Action:`);
+      for (const [action, count] of Object.entries(snapshot.featureFlags.byAction)) {
+        lines.push(`    ${action}: ${count}`);
+      }
+    }
+    lines.push(``);
+
+    // Payload warnings
+    lines.push(`Payload Warnings:`);
+    lines.push(`  Warning: ${snapshot.payloadWarnings.warning}`);
+    lines.push(`  Critical: ${snapshot.payloadWarnings.critical}`);
+    lines.push(`  Exceeded: ${snapshot.payloadWarnings.exceeded}`);
+    lines.push(`  Total: ${snapshot.payloadWarnings.total}`);
+    if (Object.keys(snapshot.payloadWarnings.byAction).length > 0) {
+      lines.push(`  By Action:`);
+      for (const [action, stats] of Object.entries(snapshot.payloadWarnings.byAction)) {
+        lines.push(
+          `    ${action}: warning=${stats.warning}, critical=${stats.critical}, exceeded=${stats.exceeded}, total=${stats.total}`
+        );
       }
     }
 

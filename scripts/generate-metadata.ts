@@ -33,7 +33,7 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
   validation: { count: 1, actions: ['validate'] },
   impact: { count: 1, actions: ['analyze'] },
   analyze: {
-    count: 11,
+    count: 16,
     actions: [
       'comprehensive',
       'analyze_data',
@@ -46,6 +46,11 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
       'analyze_formulas',
       'query_natural_language',
       'explain_analysis',
+      'scout',
+      'plan',
+      'execute_plan',
+      'drill_down',
+      'generate_actions',
     ],
   },
   confirm: {
@@ -335,12 +340,12 @@ const actionCountsMap = analyses
   .map((a) => `  sheets_${a.toolName}: ${a.actionCount},`)
   .join('\n');
 
-const actionCountsBlock = `export const ACTION_COUNTS = {\n${actionCountsMap}\n} as const;`;
+const actionCountsBlock = `export const ACTION_COUNTS: Record<string, number> = {\n${actionCountsMap}\n};`;
 
 // Replace existing ACTION_COUNTS or add it
 if (annotationsContent.includes('export const ACTION_COUNTS')) {
   annotationsContent = annotationsContent.replace(
-    /export const ACTION_COUNTS = \{[\s\S]*?\} as const;/,
+    /export const ACTION_COUNTS[\s\S]*?=\s*\{[\s\S]*?\n\};/,
     actionCountsBlock
   );
 } else {
@@ -386,7 +391,7 @@ if (completionsContent.includes('const TOOL_ACTIONS')) {
 
 writeFileSync(completionsPath, completionsContent);
 // Format with Prettier to match codebase style
-execSync(`npx prettier --write ${completionsPath}`, { cwd: ROOT, stdio: 'ignore' });
+execSync(`npx prettier --write "${completionsPath}"`, { cwd: ROOT, stdio: 'ignore' });
 console.log('✅ Updated src/mcp/completions.ts TOOL_ACTIONS');
 
 // ============================================================================

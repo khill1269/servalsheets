@@ -23,7 +23,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutM
   jitterRatio: parseFloat(process.env['GOOGLE_API_RETRY_JITTER'] ?? '0.2'),
 };
 
-const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([401, 429, 500, 502, 503, 504]);
 const RETRYABLE_CODES = new Set([
   'ETIMEDOUT',
   'ECONNRESET',
@@ -101,6 +101,11 @@ function isRetryableError(error: unknown): boolean {
 
   const status = errAny.response?.status;
   if (typeof status === 'number' && RETRYABLE_STATUS.has(status)) {
+    // Special handling for 401: only retry if token expired
+    if (status === 401) {
+      const message = typeof errAny.message === 'string' ? errAny.message.toLowerCase() : '';
+      return message.includes('token expired') || message.includes('invalid credentials');
+    }
     return true;
   }
 

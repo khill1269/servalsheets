@@ -12,6 +12,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { randomUUID } from 'crypto';
 import { recordToolCall } from '../../observability/metrics.js';
+import type { ZodSchema, ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';
@@ -65,6 +66,38 @@ import {
   SheetsDependenciesInputSchema,
 } from '../../schemas/index.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
+import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
+
+// Wrap input schemas for legacy envelopes during validation.
+// Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
+const SheetsAuthInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAuthInputSchema);
+const SheetsCoreInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsCoreInputSchema);
+const SheetsDataInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsDataInputSchema);
+const SheetsFormatInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsFormatInputSchema);
+const SheetsDimensionsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsDimensionsInputSchema);
+const SheetsVisualizeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsVisualizeInputSchema);
+const SheetsCollaborateInputSchemaLegacy =
+  wrapInputSchemaForLegacyRequest(SheetsCollaborateInputSchema);
+const SheetsAdvancedInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAdvancedInputSchema);
+const SheetsTransactionInputSchemaLegacy =
+  wrapInputSchemaForLegacyRequest(SheetsTransactionInputSchema);
+const SheetsQualityInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsQualityInputSchema);
+const SheetsHistoryInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsHistoryInputSchema);
+const SheetsConfirmInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsConfirmInputSchema);
+const SheetsAnalyzeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAnalyzeInputSchema);
+const SheetsFixInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsFixInputSchema);
+const CompositeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(CompositeInputSchema);
+const SheetsSessionInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsSessionInputSchema);
+const SheetsTemplatesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsTemplatesInputSchema);
+const SheetsBigQueryInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsBigQueryInputSchema);
+const SheetsAppsScriptInputSchemaLegacy =
+  wrapInputSchemaForLegacyRequest(SheetsAppsScriptInputSchema);
+const SheetsWebhookInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsWebhookInputSchema);
+const SheetsDependenciesInputSchemaLegacy =
+  wrapInputSchemaForLegacyRequest(SheetsDependenciesInputSchema);
+
+const parseForHandler = <T>(schema: ZodTypeAny, args: unknown, schemaName: string): T =>
+  parseWithCache(schema as ZodSchema<T>, args, schemaName);
 
 // ============================================================================
 // HANDLER MAPPING
@@ -82,74 +115,180 @@ export function createToolHandlerMap(
 ): Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> {
   const map: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> = {
     sheets_core: (args) =>
-      handlers.core.handle(parseWithCache(SheetsCoreInputSchema, args, 'SheetsCoreInput')),
+      handlers.core.handle(
+        parseForHandler<Parameters<Handlers['core']['handle']>[0]>(
+          SheetsCoreInputSchemaLegacy,
+          args,
+          'SheetsCoreInput'
+        )
+      ),
     sheets_data: (args) =>
-      handlers.data.handle(parseWithCache(SheetsDataInputSchema, args, 'SheetsDataInput')),
+      handlers.data.handle(
+        parseForHandler<Parameters<Handlers['data']['handle']>[0]>(
+          SheetsDataInputSchemaLegacy,
+          args,
+          'SheetsDataInput'
+        )
+      ),
     sheets_format: (args) =>
-      handlers.format.handle(parseWithCache(SheetsFormatInputSchema, args, 'SheetsFormatInput')),
+      handlers.format.handle(
+        parseForHandler<Parameters<Handlers['format']['handle']>[0]>(
+          SheetsFormatInputSchemaLegacy,
+          args,
+          'SheetsFormatInput'
+        )
+      ),
     sheets_dimensions: (args) =>
       handlers.dimensions.handle(
-        parseWithCache(SheetsDimensionsInputSchema, args, 'SheetsDimensionsInput')
+        parseForHandler<Parameters<Handlers['dimensions']['handle']>[0]>(
+          SheetsDimensionsInputSchemaLegacy,
+          args,
+          'SheetsDimensionsInput'
+        )
       ),
     sheets_visualize: (args) =>
       handlers.visualize.handle(
-        parseWithCache(SheetsVisualizeInputSchema, args, 'SheetsVisualizeInput')
+        parseForHandler<Parameters<Handlers['visualize']['handle']>[0]>(
+          SheetsVisualizeInputSchemaLegacy,
+          args,
+          'SheetsVisualizeInput'
+        )
       ),
     sheets_collaborate: (args) =>
       handlers.collaborate.handle(
-        parseWithCache(SheetsCollaborateInputSchema, args, 'SheetsCollaborateInput')
+        parseForHandler<Parameters<Handlers['collaborate']['handle']>[0]>(
+          SheetsCollaborateInputSchemaLegacy,
+          args,
+          'SheetsCollaborateInput'
+        )
       ),
     sheets_advanced: (args) =>
       handlers.advanced.handle(
-        parseWithCache(SheetsAdvancedInputSchema, args, 'SheetsAdvancedInput')
+        parseForHandler<Parameters<Handlers['advanced']['handle']>[0]>(
+          SheetsAdvancedInputSchemaLegacy,
+          args,
+          'SheetsAdvancedInput'
+        )
       ),
     sheets_transaction: (args) =>
       handlers.transaction.handle(
-        parseWithCache(SheetsTransactionInputSchema, args, 'SheetsTransactionInput')
+        parseForHandler<Parameters<Handlers['transaction']['handle']>[0]>(
+          SheetsTransactionInputSchemaLegacy,
+          args,
+          'SheetsTransactionInput'
+        )
       ),
     sheets_quality: (args) =>
-      handlers.quality.handle(parseWithCache(SheetsQualityInputSchema, args, 'SheetsQualityInput')),
+      handlers.quality.handle(
+        parseForHandler<Parameters<Handlers['quality']['handle']>[0]>(
+          SheetsQualityInputSchemaLegacy,
+          args,
+          'SheetsQualityInput'
+        )
+      ),
     sheets_history: (args) =>
-      handlers.history.handle(parseWithCache(SheetsHistoryInputSchema, args, 'SheetsHistoryInput')),
+      handlers.history.handle(
+        parseForHandler<Parameters<Handlers['history']['handle']>[0]>(
+          SheetsHistoryInputSchemaLegacy,
+          args,
+          'SheetsHistoryInput'
+        )
+      ),
     // MCP-native tools (use Server instance from context for Elicitation/Sampling)
     sheets_confirm: (args) =>
-      handlers.confirm.handle(parseWithCache(SheetsConfirmInputSchema, args, 'SheetsConfirmInput')),
+      handlers.confirm.handle(
+        parseForHandler<Parameters<Handlers['confirm']['handle']>[0]>(
+          SheetsConfirmInputSchemaLegacy,
+          args,
+          'SheetsConfirmInput'
+        )
+      ),
     sheets_analyze: (args) =>
-      handlers.analyze.handle(parseWithCache(SheetsAnalyzeInputSchema, args, 'SheetsAnalyzeInput')),
+      handlers.analyze.handle(
+        parseForHandler<Parameters<Handlers['analyze']['handle']>[0]>(
+          SheetsAnalyzeInputSchemaLegacy,
+          args,
+          'SheetsAnalyzeInput'
+        )
+      ),
     sheets_fix: (args) =>
-      handlers.fix.handle(parseWithCache(SheetsFixInputSchema, args, 'SheetsFixInput')),
+      handlers.fix.handle(
+        parseForHandler<Parameters<Handlers['fix']['handle']>[0]>(
+          SheetsFixInputSchemaLegacy,
+          args,
+          'SheetsFixInput'
+        )
+      ),
     // Composite operations
     sheets_composite: (args) =>
-      handlers.composite.handle(parseWithCache(CompositeInputSchema, args, 'CompositeInput')),
+      handlers.composite.handle(
+        parseForHandler<Parameters<Handlers['composite']['handle']>[0]>(
+          CompositeInputSchemaLegacy,
+          args,
+          'CompositeInput'
+        )
+      ),
     // Session context for NL excellence
     sheets_session: (args) =>
-      handlers.session.handle(parseWithCache(SheetsSessionInputSchema, args, 'SheetsSessionInput')),
+      handlers.session.handle(
+        parseForHandler<Parameters<Handlers['session']['handle']>[0]>(
+          SheetsSessionInputSchemaLegacy,
+          args,
+          'SheetsSessionInput'
+        )
+      ),
     // Tier 7 Enterprise tools
     sheets_templates: (args) =>
       handlers.templates.handle(
-        parseWithCache(SheetsTemplatesInputSchema, args, 'SheetsTemplatesInput')
+        parseForHandler<Parameters<Handlers['templates']['handle']>[0]>(
+          SheetsTemplatesInputSchemaLegacy,
+          args,
+          'SheetsTemplatesInput'
+        )
       ),
     sheets_bigquery: (args) =>
       handlers.bigquery.handle(
-        parseWithCache(SheetsBigQueryInputSchema, args, 'SheetsBigQueryInput')
+        parseForHandler<Parameters<Handlers['bigquery']['handle']>[0]>(
+          SheetsBigQueryInputSchemaLegacy,
+          args,
+          'SheetsBigQueryInput'
+        )
       ),
     sheets_appsscript: (args) =>
       handlers.appsscript.handle(
-        parseWithCache(SheetsAppsScriptInputSchema, args, 'SheetsAppsScriptInput')
+        parseForHandler<Parameters<Handlers['appsscript']['handle']>[0]>(
+          SheetsAppsScriptInputSchemaLegacy,
+          args,
+          'SheetsAppsScriptInput'
+        )
       ),
     sheets_webhook: (args) =>
       handlers.webhooks.handle(
-        parseWithCache(SheetsWebhookInputSchema, args, 'SheetsWebhookInput')
+        parseForHandler<Parameters<Handlers['webhooks']['handle']>[0]>(
+          SheetsWebhookInputSchemaLegacy,
+          args,
+          'SheetsWebhookInput'
+        )
       ),
     sheets_dependencies: (args) =>
       handlers.dependencies.handle(
-        parseWithCache(SheetsDependenciesInputSchema, args, 'SheetsDependenciesInput')
+        parseForHandler<Parameters<Handlers['dependencies']['handle']>[0]>(
+          SheetsDependenciesInputSchemaLegacy,
+          args,
+          'SheetsDependenciesInput'
+        )
       ),
   };
 
   if (authHandler) {
     map['sheets_auth'] = (args) =>
-      authHandler.handle(parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput'));
+      authHandler.handle(
+        parseForHandler<Parameters<AuthHandler['handle']>[0]>(
+          SheetsAuthInputSchemaLegacy,
+          args,
+          'SheetsAuthInput'
+        )
+      );
   }
 
   return map;
@@ -546,15 +685,18 @@ export async function registerServalSheetsTools(
     ? createToolHandlerMap(handlers, authHandler)
     : {
         sheets_auth: (args: unknown) =>
-          authHandler.handle(parseWithCache(SheetsAuthInputSchema, args, 'SheetsAuthInput')),
+          authHandler.handle(
+            parseForHandler<Parameters<AuthHandler['handle']>[0]>(
+              SheetsAuthInputSchema,
+              args,
+              'SheetsAuthInput'
+            )
+          ),
       };
 
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
     // Prepare schemas for SDK registration
-    const inputSchemaForRegistration = prepareSchemaForRegistration(
-      wrapInputSchemaForLegacyRequest(tool.inputSchema),
-      'input'
-    );
+    const inputSchemaForRegistration = prepareSchemaForRegistration(tool.inputSchema, 'input');
     const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema, 'output');
 
     // Register tool with prepared schemas
@@ -622,30 +764,9 @@ export async function registerServalSheetsTools(
     );
   }
 
-  // KNOWN_ISSUE: MCP SDK v1.25.x Bug - Discriminated Unions Serialize as Empty
-  //
-  // PROBLEM: The MCP SDK's normalizeObjectSchema() returns undefined for discriminated
-  // unions, causing tools/list to use EMPTY_OBJECT_JSON_SCHEMA ({ type: "object", properties: {} }).
-  //
-  // ROOT CAUSE: In @modelcontextprotocol/sdk/dist/esm/server/mcp.js, the tools/list handler:
-  //   inputSchema: (() => {
-  //     const obj = normalizeObjectSchema(tool.inputSchema);
-  //     return obj ? toJsonSchemaCompat(obj, {...}) : EMPTY_OBJECT_JSON_SCHEMA;
-  //   })()
-  //
-  // ATTEMPTS MADE:
-  // 1. Pre-converting to JSON Schema - SDK still calls normalizeObjectSchema on it
-  // 2. Monkey-patching after initialization - Handler already set up
-  // 3. Overriding tools/list handler - SDK doesn't allow replacement
-  //
-  // SOLUTIONS (pick one):
-  // A) Wrap all schemas in z.object() before registration (RECOMMENDED)
-  // B) Monkey-patch normalizeObjectSchema BEFORE McpServer construction
-  // C) Fork/patch the SDK
-  // D) Wait for SDK v1.26 fix
-  //
-  // IMPACT: All 16 tools show empty schemas in tools/list, breaking LLM tool discovery.
-  // WORKAROUND: LLMs can still call tools (validation works), but can't discover parameters.
-  //
-  // For now, tools are registered as-is. This preserves validation but breaks discovery.
+  // Override tools/list to safely serialize schemas with transforms/pipes.
+  registerToolsListCompatibilityHandler(server);
+
+  // NOTE: We register unwrapped object schemas for tools/list compatibility.
+  // Legacy request envelopes are handled during validation via wrapInputSchemaForLegacyRequest.
 }

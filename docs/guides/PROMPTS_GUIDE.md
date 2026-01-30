@@ -13,7 +13,7 @@ Invoke with:
 ```
 
 What it shows:
-- Overview of 15 tools and 156 actions
+- Overview of 21 tools and 272 actions
 - Quick start with test spreadsheet
 - What ServalSheets can do
 - Safety features

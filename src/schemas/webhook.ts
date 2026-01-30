@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { ErrorDetailSchema } from './shared.js';
 
 /**
  * Webhook actions
@@ -196,7 +197,7 @@ export const WebhookStatsSchema = z.object({
 /**
  * Webhook output response
  */
-export const SheetsWebhookOutputSchema = z.union([
+const WebhookResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     data: z.union([
@@ -210,13 +211,13 @@ export const SheetsWebhookOutputSchema = z.union([
   }),
   z.object({
     success: z.literal(false),
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-      details: z.record(z.string(), z.unknown()).optional(),
-    }),
+    error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsWebhookOutputSchema = z.object({
+  response: WebhookResponseSchema,
+});
 
 /**
  * Tool annotations for sheets_webhook

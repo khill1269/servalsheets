@@ -3,13 +3,13 @@ import {
   SchemaValidator,
   getSchemaValidator,
   resetSchemaValidator,
-} from '../../src/services/schema-validator.js';
+} from '../src/services/schema-validator.js';
 import {
   DiscoveryApiClient,
   type DiscoverySchema,
   type SchemaComparison,
-} from '../../src/services/discovery-client.js';
-import { SchemaCache } from '../../src/services/schema-cache.js';
+} from '../src/services/discovery-client.js';
+import { SchemaCache } from '../src/services/schema-cache.js';
 
 describe('SchemaValidator', () => {
   let validator: SchemaValidator;

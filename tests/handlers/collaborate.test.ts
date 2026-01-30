@@ -5,7 +5,7 @@
  * Covers 29 actions across sharing (8), comments (10), and versions (11)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CollaborateHandler } from '../../src/handlers/collaborate.js';
 import { SheetsCollaborateOutputSchema } from '../../src/schemas/collaborate.js';
 import type { HandlerContext } from '../../src/handlers/base.js';

@@ -5,8 +5,8 @@ import {
   getRequestReplaySystem,
   resetRequestReplaySystem,
   type ReplayHandler,
-} from '../../src/utils/request-replay.js';
-import type { ErrorDetail } from '../../src/schemas/shared.js';
+} from '../src/utils/request-replay.js';
+import type { ErrorDetail } from '../src/schemas/shared.js';
 
 describe('RequestReplaySystem', () => {
   let replaySystem: RequestReplaySystem;

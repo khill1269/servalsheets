@@ -72,8 +72,8 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 
 | Feature | Status | File | Test Command |
 |---------|--------|------|--------------|
-| completions capability declared | ✅ | `src/mcp/features-2025-11-25.ts:267` | Manual |
-| 267 action completions | ✅ | `src/mcp/completions.ts` | `npm run check:drift` |
+| completions capability declared | ✅ | `src/mcp/features-2025-11-25.ts:272` | Manual |
+| 272 action completions | ✅ | `src/mcp/completions.ts` | `npm run check:drift` |
 | Spreadsheet ID completion | ✅ | `src/mcp/completions.ts` | Manual |
 | Range completion | ✅ | `src/mcp/completions.ts` | Manual |
 
@@ -81,7 +81,7 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 
 | Feature | Status | File | Test Command |
 |---------|--------|------|--------------|
-| logging capability declared | ✅ | `src/mcp/features-2025-11-25.ts:283` | Manual |
+| logging capability declared | ✅ | `src/mcp/features-2025-11-25.ts:289` | Manual |
 | logging/setLevel handler | ✅ | `src/server.ts:816-844` | Manual |
 | Dynamic level control | ✅ | `src/handlers/logging.ts` | Manual |
 | Winston integration | ✅ | `src/utils/logger.ts` | Manual |
@@ -212,14 +212,14 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 **Verification Script:**
 ```bash
 grep -r "ToolAnnotations" src/schemas/*.ts | wc -l
-# Expected: 19 (one per tool)
+# Expected: 21 (one per tool)
 ```
 
 ### 4.3 Icons (SEP-973)
 
 | Feature | Status | File | Count |
 |---------|--------|------|-------|
-| SVG icons | ✅ | `src/mcp/features-2025-11-25.ts:75-188` | 17 tools |
+| SVG icons | ⚠️ | `src/mcp/features-2025-11-25.ts:75-188` | 16 tools (partial icon set) |
 | Base64 encoded | ✅ | data:image/svg+xml;base64,... | All |
 | 24x24 size | ✅ | sizes: ['24x24'] | All |
 | mimeType specified | ✅ | image/svg+xml | All |
@@ -487,7 +487,7 @@ echo "Tools: $TOOLS (expected: 21)"
 
 # 2. Check action count
 ACTIONS=$(node -e "const {ACTION_COUNT}=require('./dist/schemas/index.js'); console.log(ACTION_COUNT)")
-echo "Actions: $ACTIONS (expected: 267)"
+echo "Actions: $ACTIONS (W2)"
 
 # 3. Check annotations
 ANNOTATIONS=$(grep -r "ToolAnnotations" src/schemas/*.ts | wc -l | tr -d ' ')

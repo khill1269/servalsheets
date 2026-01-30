@@ -15,13 +15,15 @@ import {
   isDiscriminatedUnion,
   isZodObject,
   isZodUnion,
+  unwrapZodSchema,
   zodToJsonSchemaCompat,
   verifyJsonSchema,
 } from '../../src/utils/schema-compat.js';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration.js';
 
 const getZodShape = (schema: any): Record<string, unknown> | undefined => {
-  const shape = schema?.shape ?? schema?._def?.shape;
+  const unwrapped = unwrapZodSchema(schema);
+  const shape = (unwrapped as any)?.shape ?? (unwrapped as any)?._def?.shape;
   if (typeof shape === 'function') {
     return shape();
   }

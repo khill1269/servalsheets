@@ -419,9 +419,11 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```javascript
    try {
      const result = await sheets_confirm({
-       action: 'request',
-       operation: 'delete_rows',
-       impact: { rowsAffected: 100 }
+       request: {
+         action: 'request',
+         operation: 'delete_rows',
+         impact: { rowsAffected: 100 }
+       }
      });
    } catch (error) {
      if (error.code === 'USER_REJECTED') {

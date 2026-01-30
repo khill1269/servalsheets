@@ -111,7 +111,7 @@ echo "Test files: $(find tests -name '*.ts' | wc -l)"
 - [ ] All deps resolve
 
 ### Category 88: Tool Registration
-- [ ] 16 tools registered
+- [ ] 21 tools registered
 - [ ] All have descriptions
 - [ ] All have schemas
 - [ ] All have annotations

@@ -8,11 +8,11 @@ Core data operations for reading and writing spreadsheet data.
 | -------------- | ------------------------- |
 | `read`         | Read values from a range  |
 | `write`        | Write values to a range   |
-| `append`       | Append rows to a sheet    |
+| `append`       | Append rows to a sheet or table |
 | `clear`        | Clear values from a range |
-| `batch_read`   | Read multiple ranges      |
-| `batch_write`  | Write to multiple ranges  |
-| `batch_clear`  | Clear multiple ranges     |
+| `batch_read`   | Read multiple ranges or dataFilters |
+| `batch_write`  | Write to multiple ranges or dataFilters |
+| `batch_clear`  | Clear multiple ranges or dataFilters |
 | `get_values`   | Get formatted values      |
 | `get_formulas` | Get cell formulas         |
 | `update_cells` | Update specific cells     |
@@ -34,12 +34,27 @@ Read values from a spreadsheet range.
 | `range`                | string | ✅       | A1 notation or named range    |
 | `valueRenderOption`    | string |          | How values should be rendered |
 | `dateTimeRenderOption` | string |          | How dates should be rendered  |
+| `streaming`            | boolean |         | Enable automatic pagination for large reads |
+| `chunkSize`            | number |         | Rows per page when streaming (default: 1000) |
+| `cursor`               | string |          | Opaque pagination cursor from previous response |
+| `pageSize`             | number |          | Max rows per page (capped to keep payloads small; internal ~10k-cell heuristic) |
 
 ### Value Render Options
 
 - `FORMATTED_VALUE` - As displayed in UI (default)
 - `UNFORMATTED_VALUE` - Raw values
 - `FORMULA` - Cell formulas
+
+### Pagination
+
+Large ranges are automatically paginated when the estimated cell count exceeds an internal
+threshold (default ~10k cells) to keep payloads small. Responses may include `nextCursor`,
+`hasMore`, and `totalRows`. Use `cursor` to fetch the next page. `pageSize` is capped so
+each request stays within the cell budget.
+
+Google Sheets API doesn't enforce a hard request-size limit, but it recommends keeping
+payloads around 2 MB for performance. Pagination and smaller `pageSize` help stay within
+that guideline.
 
 ### Example
 
@@ -142,7 +157,8 @@ Append rows to the end of data in a sheet.
 | Parameter          | Type      | Required | Description                     |
 | ------------------ | --------- | -------- | ------------------------------- |
 | `spreadsheetId`    | string    | ✅       | Spreadsheet ID                  |
-| `range`            | string    | ✅       | Range to search for table       |
+| `range`            | string    | ✅*      | Range to search for table (required unless `tableId` is provided) |
+| `tableId`          | string    | ✅*      | Table ID to append to (preferred for tables; required if `range` omitted) |
 | `values`           | array[][] | ✅       | Rows to append                  |
 | `valueInputOption` | string    |          | How input should be interpreted |
 | `insertDataOption` | string    |          | How data is inserted            |
@@ -160,6 +176,18 @@ Append rows to the end of data in a sheet.
   "action": "append",
   "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
   "range": "Sheet1!A:D",
+  "values": [["Charlie", "charlie@example.com", 92, "2026-01-17"]]
+}
+```
+
+### Table append example
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "append",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "tableId": "table-123",
   "values": [["Charlie", "charlie@example.com", 92, "2026-01-17"]]
 }
 ```
@@ -187,6 +215,56 @@ Clear values from a range (formatting preserved).
   "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
   "range": "Sheet1!A2:D100",
   "confirm": true
+}
+```
+
+---
+
+## batch_read / batch_write / batch_clear (dataFilters)
+
+Batch operations can use either `ranges` or `dataFilters` (choose one).
+
+### batch_read with dataFilters
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "batch_read",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilters": [
+    {
+      "developerMetadataLookup": {
+        "metadataKey": "dataset:customers"
+      }
+    }
+  ]
+}
+```
+
+### batch_write with dataFilters
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "batch_write",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "data": [
+    {
+      "dataFilter": { "a1Range": "Sheet1!A1:B2" },
+      "values": [["Name", "Score"], ["Alice", 95]]
+    }
+  ]
+}
+```
+
+### batch_clear with dataFilters
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "batch_clear",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilters": [{ "a1Range": "Sheet1!A2:D100" }]
 }
 ```
 

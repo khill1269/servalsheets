@@ -8,8 +8,8 @@ import {
   parseGoogleApiError,
   enrichErrorWithContext,
   detectErrorPattern,
-} from '../../src/utils/error-factory.js';
-import type { ErrorDetail } from '../../src/schemas/shared.js';
+} from '../src/utils/error-factory.js';
+import type { ErrorDetail } from '../src/schemas/shared.js';
 
 describe('Error Factory', () => {
   describe('createPermissionError', () => {

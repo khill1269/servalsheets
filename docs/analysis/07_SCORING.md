@@ -235,7 +235,7 @@ Use this for rapid assessment:
 - [ ] Type check passes
 - [ ] All tests pass (1,500+)
 - [ ] 0 security high/critical
-- [ ] 16 tools registered
+- [ ] 21 tools registered
 - [ ] server.json valid
 
 ### Should Pass (P1)
@@ -265,4 +265,4 @@ Use this for rapid assessment:
 | Lint | 0 errors | ___ errors |
 | Audit | 0 high/critical | ___ |
 | Tools | 27 | ___ |
-| Actions | 208 | ___ |
+| Actions | 2 | ___ |

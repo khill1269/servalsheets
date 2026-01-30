@@ -18,7 +18,7 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 | MCP Protocol Compliance | ✅ Excellent    | 96% (26/28)                                  |
 | Security Implementation | ✅ Excellent    | OAuth 2.1, PKCE, HMAC                        |
 | Architecture            | ✅ Excellent    | 3-layer context, clean separation            |
-| Tool Design             | ✅ Excellent    | 21 tools, 273 actions, discriminated unions  |
+| Tool Design             | ✅ Excellent    | 21 tools, 272 actions, discriminated unions  |
 | Documentation           | ✅ Excellent    | Comprehensive SKILL.md, API docs             |
 | Testing                 | ⚠️ Good         | Unit + Integration, needs more E2E           |
 | Skill Format            | ⚠️ Needs Update | Sync required between local and Claude skill |
@@ -35,21 +35,21 @@ ServalSheets is an **exceptionally well-architected** MCP server that already im
 
 #### ServalSheets Implementation ✅ EXCELLENT
 
-ServalSheets groups 273 actions into **21 logical tool categories** using discriminated unions:
+ServalSheets groups 272 actions into **21 logical tool categories** using discriminated unions:
 
 ```
 sheets_auth       → Authentication (4 actions)
 sheets_core       → Spreadsheet management (17 actions)
-sheets_data       → Cell operations (20 actions)
+sheets_data       → Cell operations (18 actions)
 sheets_format     → Styling (21 actions)
-sheets_dimensions → Row/column ops (39 actions)
+sheets_dimensions → Row/column ops (28 actions)
 sheets_visualize  → Charts/pivots (18 actions)
 ... and 15 more categories
 ```
 
 **Why This Works:**
 
-- Reduces context window bloat (one tool definition instead of 273)
+- Reduces context window bloat (one tool definition instead of 272)
 - Clear mental model for AI agents
 - Action-based routing reduces ambiguity
 - Follows "focused toolset" principle perfectly
@@ -80,7 +80,7 @@ const SheetsDataSchema = z.discriminatedUnion('action', [
     range: z.string(),
     values: z.array(z.array(z.any())),
   }),
-  // ... 18 more actions
+  // ... 16 more actions
 ]);
 ```
 
@@ -312,7 +312,7 @@ This design:
 
 ### 2.1 High Priority: Skill Synchronization
 
-**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (21 tools, 273 actions).
+**Issue:** The skill loaded by Claude at `/mnt/skills/user/google-sheets-expert/` contains outdated information ("111 tools") that doesn't match the actual implementation (21 tools, 272 actions).
 
 **Recommendation:**
 
@@ -322,7 +322,7 @@ This design:
 
 ### 2.2 Medium Priority: Progressive Disclosure for Actions
 
-**Issue:** All 273 action schemas are loaded into context even when only one is needed.
+**Issue:** All 272 action schemas are loaded into context even when only one is needed.
 
 **Recommendation:** Implement the "Less is More" pattern:
 
@@ -351,7 +351,7 @@ sheets_data { action: "write", ... }
   "version": "1.6.0",
   "description": "Enterprise Google Sheets MCP Server",
   "tools": 21,
-  "actions": 273,
+  "W2,
   "capabilities": ["oauth", "tasks", "elicitation", "sampling"]
 }
 ```
@@ -382,7 +382,7 @@ Based on this analysis, I recommend the following skill structure:
 google-sheets-expert/
 ├── SKILL.md                    # Main skill file (updated)
 └── references/
-    ├── tool-guide.md           # Complete 21 tools, 273 actions reference
+    ├── tool-guide.md           # Complete 21 tools, 272 actions reference
     ├── patterns.md             # Workflow templates
     ├── formulas.md             # Google Sheets functions
     └── best-practices.md       # Data standards
@@ -395,7 +395,7 @@ google-sheets-expert/
 name: google-sheets-expert
 description: |
   Enterprise-grade Google Sheets MCP server (ServalSheets v1.6.0) with 21 tool 
-  categories and 273 specialized actions. Implements UASEV+R protocol for 
+  categories and 272 specialized actions. Implements UASEV+R protocol for 
   intelligent spreadsheet operations with transaction support (80% API savings), 
   AI analysis, conversational context, and MCP 2025-11-25 compliance (96% score).
 

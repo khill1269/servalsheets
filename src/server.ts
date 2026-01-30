@@ -53,6 +53,8 @@ import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
 import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
+import { initWebhookManager } from './services/webhook-manager.js';
+import { initWebhookQueue } from './services/webhook-queue.js';
 import { createHandlers, type HandlerContext, type Handlers } from './handlers/index.js';
 import { AuthHandler } from './handlers/auth.js';
 import { handleLoggingSetLevel } from './handlers/logging.js';
@@ -72,6 +74,7 @@ import {
   registerServalSheetsResources,
   registerServalSheetsPrompts,
   prepareSchemaForRegistration,
+  registerToolsListCompatibilityHandler,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
 import {
@@ -326,6 +329,12 @@ export class ServalSheetsServer {
       initConflictDetector(this.googleClient); // Phase 4, Task 4.2
       initImpactAnalyzer(this.googleClient); // Phase 4, Task 4.3
       initValidationEngine(this.googleClient); // Phase 4, Task 4.4
+
+      // Initialize webhook infrastructure (BUG FIX 0.8)
+      // Note: Redis is optional - webhooks will fail gracefully without it
+      const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'] || 'https://localhost:3000/webhook';
+      initWebhookQueue(null); // No Redis by default - would need to add Redis client
+      initWebhookManager(null, this.googleClient, webhookEndpoint);
     }
 
     // Register all tools
@@ -357,7 +366,7 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 16 tools with proper annotations
+   * Register all 21 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
@@ -468,6 +477,9 @@ export class ServalSheetsServer {
         }
       );
     }
+
+    // Override tools/list to safely serialize schemas with transforms/pipes.
+    registerToolsListCompatibilityHandler(this._server);
   }
 
   private createToolTaskHandler(toolName: string): ToolTaskHandler<AnySchema> {

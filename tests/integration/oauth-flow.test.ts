@@ -11,11 +11,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
 import express, { type Express } from 'express';
 import jwt from 'jsonwebtoken';
 import { OAuthProvider } from '../../src/oauth-provider.js';
+import { VERSION } from '../../src/version.js';
 import { randomBytes, createHash } from 'crypto';
+import { requestApp, type AppResponse } from '../helpers/request-app.js';
 
 describe('OAuth Flow Integration Tests', () => {
   let app: Express;
@@ -27,8 +28,17 @@ describe('OAuth Flow Integration Tests', () => {
   const stateSecret = 'state-secret-789';
   const validRedirectUri = 'https://example.com/callback';
   const allowedRedirectUris = [validRedirectUri];
+  const get = (path: string, query?: Record<string, unknown>): Promise<AppResponse> =>
+    requestApp(app, { method: 'GET', path, query });
+  const post = (path: string, body?: Record<string, unknown>): Promise<AppResponse> =>
+    requestApp(app, {
+      method: 'POST',
+      path,
+      body,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    });
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // Create OAuth provider
     oauthProvider = new OAuthProvider({
       issuer,
@@ -44,21 +54,20 @@ describe('OAuth Flow Integration Tests', () => {
     // Create Express app with OAuth router
     app = express();
     app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
     app.use(oauthProvider.createRouter());
+
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     oauthProvider.destroy();
   });
 
   describe('OAuth Server Metadata', () => {
     it('should return OAuth authorization server metadata', async () => {
-      const response = await request(app)
-        .get('/.well-known/oauth-authorization-server')
-        .expect(200)
-        .expect('Content-Type', /json/);
+      const response = await get('/.well-known/oauth-authorization-server');
 
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toMatch(/json/);
       expect(response.body).toMatchObject({
         issuer,
         authorization_endpoint: `${issuer}/oauth/authorize`,
@@ -70,14 +79,13 @@ describe('OAuth Flow Integration Tests', () => {
     });
 
     it('should return MCP server metadata', async () => {
-      const response = await request(app)
-        .get('/.well-known/mcp.json')
-        .expect(200)
-        .expect('Content-Type', /json/);
+      const response = await get('/.well-known/mcp.json');
 
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toMatch(/json/);
       expect(response.body).toMatchObject({
         name: 'servalsheets',
-        version: '1.4.0',
+        version: VERSION,
         oauth: {
           authorization_endpoint: `${issuer}/oauth/authorize`,
           token_endpoint: `${issuer}/oauth/token`,
@@ -90,16 +98,14 @@ describe('OAuth Flow Integration Tests', () => {
     it('should reject invalid redirect URI', async () => {
       const invalidRedirectUri = 'https://evil.com/callback';
 
-      const response = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: clientId,
-          redirect_uri: invalidRedirectUri,
-          response_type: 'code',
-          scope: 'sheets:read',
-        })
-        .expect(400);
+      const response = await get('/oauth/authorize', {
+        client_id: clientId,
+        redirect_uri: invalidRedirectUri,
+        response_type: 'code',
+        scope: 'sheets:read',
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         error: 'invalid_request',
         error_description: 'redirect_uri not in allowlist',
@@ -107,48 +113,42 @@ describe('OAuth Flow Integration Tests', () => {
     });
 
     it('should reject invalid client_id', async () => {
-      const response = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: 'invalid-client',
-          redirect_uri: validRedirectUri,
-          response_type: 'code',
-          scope: 'sheets:read',
-        })
-        .expect(400);
+      const response = await get('/oauth/authorize', {
+        client_id: 'invalid-client',
+        redirect_uri: validRedirectUri,
+        response_type: 'code',
+        scope: 'sheets:read',
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         error: 'invalid_client',
       });
     });
 
     it('should reject unsupported response_type', async () => {
-      const response = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: clientId,
-          redirect_uri: validRedirectUri,
-          response_type: 'token', // Only 'code' is supported
-          scope: 'sheets:read',
-        })
-        .expect(400);
+      const response = await get('/oauth/authorize', {
+        client_id: clientId,
+        redirect_uri: validRedirectUri,
+        response_type: 'token', // Only 'code' is supported
+        scope: 'sheets:read',
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         error: 'unsupported_response_type',
       });
     });
 
     it('should require redirect_uri parameter', async () => {
-      const response = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: clientId,
-          response_type: 'code',
-          scope: 'sheets:read',
-          // Missing redirect_uri
-        })
-        .expect(400);
+      const response = await get('/oauth/authorize', {
+        client_id: clientId,
+        response_type: 'code',
+        scope: 'sheets:read',
+        // Missing redirect_uri
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         error: 'invalid_request',
         error_description: 'redirect_uri required',
@@ -185,67 +185,59 @@ describe('OAuth Flow Integration Tests', () => {
 
   describe('Token Endpoint Security', () => {
     it('should reject token request with invalid client credentials', async () => {
-      const response = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'authorization_code',
-          code: 'test-code',
-          redirect_uri: validRedirectUri,
-          client_id: clientId,
-          client_secret: 'wrong-secret',
-        })
-        .expect(401);
+      const response = await post('/oauth/token', {
+        grant_type: 'authorization_code',
+        code: 'test-code',
+        redirect_uri: validRedirectUri,
+        client_id: clientId,
+        client_secret: 'wrong-secret',
+      });
 
+      expect(response.status).toBe(401);
       expect(response.body).toMatchObject({
         error: 'invalid_client',
       });
     });
 
     it('should reject token request with missing client credentials', async () => {
-      const response = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'authorization_code',
-          code: 'test-code',
-          redirect_uri: validRedirectUri,
-          // Missing client_id and client_secret
-        })
-        .expect(401);
+      const response = await post('/oauth/token', {
+        grant_type: 'authorization_code',
+        code: 'test-code',
+        redirect_uri: validRedirectUri,
+        // Missing client_id and client_secret
+      });
 
+      expect(response.status).toBe(401);
       expect(response.body).toMatchObject({
         error: 'invalid_client',
       });
     });
 
     it('should reject invalid grant_type', async () => {
-      const response = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'password', // Unsupported
-          username: 'user',
-          password: 'pass',
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(400);
+      const response = await post('/oauth/token', {
+        grant_type: 'password', // Unsupported
+        username: 'user',
+        password: 'pass',
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         error: 'unsupported_grant_type',
       });
     });
 
     it('should reject authorization_code with invalid code', async () => {
-      const response = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'authorization_code',
-          code: 'invalid-code-123',
-          redirect_uri: validRedirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(400);
+      const response = await post('/oauth/token', {
+        grant_type: 'authorization_code',
+        code: 'invalid-code-123',
+        redirect_uri: validRedirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
       expect(['invalid_grant', 'invalid_request']).toContain(response.body.error);
     });
@@ -266,15 +258,13 @@ describe('OAuth Flow Integration Tests', () => {
       );
 
       // Try to use this token for introspection
-      const response = await request(app)
-        .post('/oauth/introspect')
-        .send({
-          token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(200);
+      const response = await post('/oauth/introspect', {
+        token,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(200);
       // Token should be marked as inactive
       expect(response.body.active).toBe(false);
     });
@@ -292,15 +282,13 @@ describe('OAuth Flow Integration Tests', () => {
         { expiresIn: '1h' }
       );
 
-      const response = await request(app)
-        .post('/oauth/introspect')
-        .send({
-          token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(200);
+      const response = await post('/oauth/introspect', {
+        token,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(200);
       // Token should be marked as inactive
       expect(response.body.active).toBe(false);
     });
@@ -317,15 +305,13 @@ describe('OAuth Flow Integration Tests', () => {
         { expiresIn: '-1h' } // Expired 1 hour ago
       );
 
-      const response = await request(app)
-        .post('/oauth/introspect')
-        .send({
-          token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(200);
+      const response = await post('/oauth/introspect', {
+        token,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(200);
       // Token should be marked as inactive
       expect(response.body.active).toBe(false);
     });
@@ -343,15 +329,13 @@ describe('OAuth Flow Integration Tests', () => {
         { expiresIn: '1h' }
       );
 
-      const response = await request(app)
-        .post('/oauth/introspect')
-        .send({
-          token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(200);
+      const response = await post('/oauth/introspect', {
+        token,
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
+      expect(response.status).toBe(200);
       // Token should be marked as inactive
       expect(response.body.active).toBe(false);
     });
@@ -363,17 +347,14 @@ describe('OAuth Flow Integration Tests', () => {
       const codeVerifier = randomBytes(32).toString('base64url');
       const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
-      const authResponse = await request(app)
-        .get('/oauth/authorize')
-        .query({
-          client_id: clientId,
-          redirect_uri: validRedirectUri,
-          response_type: 'code',
-          scope: 'sheets:read',
-          code_challenge: codeChallenge,
-          code_challenge_method: 'S256',
-        })
-        .expect(302);
+      const authResponse = await get('/oauth/authorize', {
+        client_id: clientId,
+        redirect_uri: validRedirectUri,
+        response_type: 'code',
+        scope: 'sheets:read',
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      });
 
       // This would normally redirect to Google OAuth
       // For testing, we just verify the challenge was accepted
@@ -381,56 +362,49 @@ describe('OAuth Flow Integration Tests', () => {
 
       // Note: A full test would require mocking the callback with an actual code
       // For now, we verify that attempting token exchange without verifier fails
-      const tokenResponse = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'authorization_code',
-          code: 'test-code-with-pkce',
-          redirect_uri: validRedirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-          // Missing code_verifier - should fail
-        })
-        .expect(400);
+      const tokenResponse = await post('/oauth/token', {
+        grant_type: 'authorization_code',
+        code: 'test-code-with-pkce',
+        redirect_uri: validRedirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+        // Missing code_verifier - should fail
+      });
 
+      expect(tokenResponse.status).toBe(400);
       expect(tokenResponse.body.error).toBeDefined();
     });
 
     it('should reject token exchange with wrong code_verifier', async () => {
       // Test that wrong verifier fails validation
-      const response = await request(app)
-        .post('/oauth/token')
-        .send({
-          grant_type: 'authorization_code',
-          code: 'test-code-with-pkce',
-          redirect_uri: validRedirectUri,
-          client_id: clientId,
-          client_secret: clientSecret,
-          code_verifier: 'wrong-verifier-value',
-        })
-        .expect(400);
+      const response = await post('/oauth/token', {
+        grant_type: 'authorization_code',
+        code: 'test-code-with-pkce',
+        redirect_uri: validRedirectUri,
+        client_id: clientId,
+        client_secret: clientSecret,
+        code_verifier: 'wrong-verifier-value',
+      });
 
+      expect(response.status).toBe(400);
       expect(response.body.error).toBeDefined();
     });
   });
 
   describe('Token Revocation', () => {
     it('should accept token revocation request', async () => {
-      const response = await request(app)
-        .post('/oauth/revoke')
-        .send({
-          token: 'test-token-to-revoke',
-          client_id: clientId,
-          client_secret: clientSecret,
-        })
-        .expect(200);
+      const response = await post('/oauth/revoke', {
+        token: 'test-token-to-revoke',
+        client_id: clientId,
+        client_secret: clientSecret,
+      });
 
       // Revocation should succeed (or return 200 even if token doesn't exist)
       expect(response.status).toBe(200);
     });
 
     it('should require client authentication for revocation', async () => {
-      const response = await request(app).post('/oauth/revoke').send({
+      const response = await post('/oauth/revoke', {
         token: 'test-token-to-revoke',
         // Missing client credentials
       });
@@ -450,7 +424,7 @@ describe('OAuth Flow Integration Tests', () => {
       const validCodeChallenge = 'a'.repeat(43);
 
       for (const scope of validScopes) {
-        const response = await request(app).get('/oauth/authorize').query({
+        const response = await get('/oauth/authorize', {
           client_id: clientId,
           redirect_uri: validRedirectUri,
           response_type: 'code',
@@ -467,7 +441,7 @@ describe('OAuth Flow Integration Tests', () => {
     it('should handle multiple scopes', async () => {
       // Valid PKCE code_challenge must be base64url and 43-128 chars.
       const validCodeChallenge = 'a'.repeat(43);
-      const response = await request(app).get('/oauth/authorize').query({
+      const response = await get('/oauth/authorize', {
         client_id: clientId,
         redirect_uri: validRedirectUri,
         response_type: 'code',

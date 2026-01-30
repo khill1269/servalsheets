@@ -171,32 +171,27 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
  * Action counts per tool
  */
 export const ACTION_COUNTS: Record<string, number> = {
+  sheets_advanced: 23,
+  sheets_analyze: 16,
+  sheets_appsscript: 14,
   sheets_auth: 4,
-  sheets_core: 15, // Consolidated: spreadsheet (8) + sheet (7)
-  sheets_data: 18, // v2.0: Was 20, reduced by 2 (validation moved to sheets_format)
-  sheets_format: 18, // Wave 2: Added 8 rule actions (conditional format + data validation) + 1 suggest_format
-  sheets_dimensions: 39, // Wave 2: Added filter/sort + range utilities + views + slicers
-  sheets_visualize: 16, // Consolidated: charts (9) + pivot (7)
-  sheets_collaborate: 28, // Consolidated: sharing (8) + comments (10) + versions (10)
-  sheets_advanced: 19, // Named ranges, protected ranges, metadata, banding, tables
-  // Enterprise Tools
-  sheets_transaction: 6, // begin, queue, commit, rollback, status, list
-  sheets_quality: 4, // validate, detect_conflicts, resolve_conflict, analyze_impact
-  sheets_history: 7, // list, get, stats, undo, redo, revert_to, clear
-  // MCP-Native Tools
-  sheets_confirm: 2, // request, get_stats (via Elicitation)
-  sheets_analyze: 11, // CONSOLIDATED (2026-01-12) - comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis
-  sheets_fix: 1, // fix action (automated issue resolution)
-  // Composite Operations
-  sheets_composite: 4, // import_csv, smart_append, bulk_update, deduplicate
-  sheets_session: 13, // set_active, get_active, get_context, record_operation, get_last_operation, get_history, find_by_reference, update_preferences, get_preferences, set_pending, get_pending, clear_pending, reset
-  // Tier 7 Enterprise Tools
-  sheets_templates: 8, // list, get, create, apply, update, delete, preview, import_builtin
-  sheets_bigquery: 12, // connect, disconnect, list_connections, get_connection, query, preview, refresh, list_datasets, list_tables, get_table_schema, export_to_bigquery, import_from_bigquery
-  sheets_appsscript: 14, // create, get, get_content, update_content, create_version, list_versions, get_version, deploy, list_deployments, get_deployment, undeploy, run, list_processes, get_metrics
-  // Phase 3: Webhooks and Formula Dependencies
-  sheets_webhook: 6, // register, unregister, list, get, test, get_stats
-  sheets_dependencies: 7, // build, analyze_impact, detect_cycles, get_dependencies, get_dependents, get_stats, export_dot
+  sheets_bigquery: 14,
+  sheets_collaborate: 28,
+  sheets_composite: 10,
+  sheets_confirm: 5,
+  sheets_core: 17,
+  sheets_data: 18,
+  sheets_dependencies: 7,
+  sheets_dimensions: 28,
+  sheets_fix: 1,
+  sheets_format: 21,
+  sheets_history: 7,
+  sheets_quality: 4,
+  sheets_session: 17,
+  sheets_templates: 8,
+  sheets_transaction: 6,
+  sheets_visualize: 18,
+  sheets_webhook: 6,
 };
 
 /**

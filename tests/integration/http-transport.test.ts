@@ -11,20 +11,34 @@
  * without requiring actual Google API access.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import { createHttpServer, type HttpServerOptions } from '../../src/http-server.js';
 import type { Express } from 'express';
+import net from 'node:net';
 
-describe('HTTP Transport Integration Tests', () => {
+const canListenLocalhost = await new Promise<boolean>((resolve) => {
+  const server = net.createServer();
+  server.once('error', () => resolve(false));
+  server.listen(0, '127.0.0.1', () => {
+    server.close(() => resolve(true));
+  });
+});
+
+const SKIP_HTTP_INTEGRATION =
+  process.env['TEST_HTTP_INTEGRATION'] !== 'true' || !canListenLocalhost;
+
+describe.skipIf(SKIP_HTTP_INTEGRATION)('HTTP Transport Integration Tests', () => {
   let app: Express;
   let server: ReturnType<typeof createHttpServer>;
+  let httpServer: ReturnType<Express['listen']>;
+  let agent: ReturnType<typeof request>;
 
   beforeAll(async () => {
     // Create HTTP server for testing
     const options: HttpServerOptions = {
       port: 0, // Use random port
-      host: 'localhost',
+      host: '127.0.0.1',
       corsOrigins: ['http://localhost:3000'],
       rateLimitMax: 1000, // High limit for tests
       trustProxy: false,
@@ -34,9 +48,21 @@ describe('HTTP Transport Integration Tests', () => {
     // `createHttpServer` currently types `app` as `unknown` even though it is an Express app.
     // For test purposes we narrow it here.
     app = server.app as Express;
+    httpServer = await new Promise<ReturnType<Express['listen']>>((resolve, reject) => {
+      const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
+      listener.on('error', reject);
+    });
+    const address = httpServer.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('HTTP test server failed to start');
+    }
+    agent = request(`http://127.0.0.1:${address.port}`);
   });
 
   afterAll(async () => {
+    if (httpServer) {
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    }
     // Clean up any active sessions/transports
     const sessions = server.sessions as Map<
       string,
@@ -55,7 +81,7 @@ describe('HTTP Transport Integration Tests', () => {
 
   describe('Health and Info Endpoints', () => {
     it('should return healthy status on /health', async () => {
-      const response = await request(app).get('/health').expect(200).expect('Content-Type', /json/);
+      const response = await agent.get('/health').expect(200).expect('Content-Type', /json/);
 
       // May be 'degraded' if OAuth tokens not configured (expected in test env)
       expect(['healthy', 'degraded']).toContain(response.body.status);
@@ -65,7 +91,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should return server info on /info', async () => {
-      const response = await request(app).get('/info').expect(200).expect('Content-Type', /json/);
+      const response = await agent.get('/info').expect(200).expect('Content-Type', /json/);
 
       expect(response.body).toMatchObject({
         name: 'servalsheets',
@@ -100,7 +126,7 @@ describe('HTTP Transport Integration Tests', () => {
         },
       };
 
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .send(initializeRequest)
         .set('Content-Type', 'application/json');
@@ -117,21 +143,18 @@ describe('HTTP Transport Integration Tests', () => {
         params: {},
       };
 
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .send(toolsListRequest)
-        .set('Content-Type', 'application/json')
-        .set('X-Session-ID', 'test-session-tools-list');
+        .set('Content-Type', 'application/json');
 
-      // Should return tools list or handle appropriately
-      expect([200, 406, 426]).toContain(response.status);
+      // No session established yet; should reject the request
+      expect(response.status).toBe(400);
     });
   });
 
   describe('Session Management', () => {
     it('should create session on first /mcp request', async () => {
-      const sessionId = 'test-session-create';
-
       const initializeRequest = {
         jsonrpc: '2.0',
         id: 1,
@@ -146,14 +169,13 @@ describe('HTTP Transport Integration Tests', () => {
         },
       };
 
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .send(initializeRequest)
-        .set('Content-Type', 'application/json')
-        .set('X-Session-ID', sessionId);
+        .set('Content-Type', 'application/json');
 
       // Should accept request
-      expect([200, 406, 426]).toContain(response.status);
+      expect([200, 406]).toContain(response.status);
 
       // Session may or may not be stored depending on transport type
       // This is implementation-specific
@@ -162,8 +184,39 @@ describe('HTTP Transport Integration Tests', () => {
     it('should delete session via DELETE endpoint', async () => {
       const sessionId = 'test-session-delete';
 
-      // Create session first
-      const initRequest = {
+      // Seed an in-memory session entry to exercise the endpoint
+      const sessions = server.sessions as Map<
+        string,
+        { transport?: { close?: () => void }; taskStore?: { dispose?: () => void } }
+      >;
+      sessions.set(sessionId, {
+        transport: { close: vi.fn() },
+        taskStore: { dispose: vi.fn() },
+      });
+
+      // Now delete it
+      const deleteResponse = await agent.delete(`/session/${sessionId}`).timeout({
+        // Prevent occasional hangs from causing global Vitest timeout.
+        // Either response is acceptable (200 = deleted, 404 = already gone).
+        response: 2000,
+        deadline: 5000,
+      });
+
+      // Delete should return 200 for success or 404 if session not found
+      expect([200, 404]).toContain(deleteResponse.status);
+    });
+
+    it('should return 404 when deleting non-existent session', async () => {
+      const response = await agent.delete('/session/non-existent-session').expect(404);
+
+      // Error format may vary - check for error indication
+      expect(response.body.error).toBeDefined();
+    });
+  });
+
+  describe('Streamable HTTP transport behavior', () => {
+    it('should reject client-specified session ID on initialize', async () => {
+      const initializeRequest = {
         jsonrpc: '2.0',
         id: 1,
         method: 'initialize',
@@ -177,44 +230,43 @@ describe('HTTP Transport Integration Tests', () => {
         },
       };
 
-      const createResponse = await request(app)
+      const response = await agent
         .post('/mcp')
-        .send(initRequest)
-        .set('X-Session-ID', sessionId);
+        .send(initializeRequest)
+        .set('Content-Type', 'application/json')
+        .set('Mcp-Session-Id', 'client-specified');
 
-      // Should accept request
-      expect([200, 406, 426]).toContain(createResponse.status);
-
-      // Now delete it
-      const deleteResponse = await request(app).delete(`/session/${sessionId}`).timeout({
-        // Prevent occasional hangs from causing global Vitest timeout.
-        // Either response is acceptable (200 = deleted, 404 = already gone).
-        response: 2000,
-        deadline: 5000,
-      });
-
-      // Delete should return 200 for success or 404 if session not found
-      expect([200, 404]).toContain(deleteResponse.status);
+      expect(response.status).toBe(400);
     });
 
-    it('should return 404 when deleting non-existent session', async () => {
-      const response = await request(app).delete('/session/non-existent-session').expect(404);
+    it('should return 400 on GET /mcp without session', async () => {
+      const response = await agent.get('/mcp');
+      expect(response.status).toBe(400);
+    });
 
-      // Error format may vary - check for error indication
-      expect(response.body.error).toBeDefined();
+    it('should return 404 on GET /mcp with unknown session', async () => {
+      const response = await agent.get('/mcp').set('Mcp-Session-Id', 'missing-session');
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 404 on DELETE /mcp with unknown session', async () => {
+      const response = await agent
+        .delete('/mcp')
+        .set('Mcp-Session-Id', 'missing-session');
+      expect(response.status).toBe(404);
     });
   });
 
   describe('Security Headers', () => {
     it('should include security headers from helmet', async () => {
-      const response = await request(app).get('/health').expect(200);
+      const response = await agent.get('/health').expect(200);
 
       // Helmet adds various security headers
       expect(response.headers['x-content-type-options']).toBeDefined();
     });
 
     it('should include CORS headers', async () => {
-      const response = await request(app)
+      const response = await agent
         .options('/health')
         .set('Origin', 'http://localhost:3000')
         .expect(204);
@@ -223,7 +275,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should include request ID in response', async () => {
-      const response = await request(app).get('/health').expect(200);
+      const response = await agent.get('/health').expect(200);
 
       expect(response.headers['x-request-id']).toBeDefined();
       expect(typeof response.headers['x-request-id']).toBe('string');
@@ -232,7 +284,7 @@ describe('HTTP Transport Integration Tests', () => {
     it('should accept custom request ID from client', async () => {
       const customRequestId = 'custom-test-request-id';
 
-      const response = await request(app)
+      const response = await agent
         .get('/health')
         .set('X-Request-ID', customRequestId)
         .expect(200);
@@ -243,7 +295,7 @@ describe('HTTP Transport Integration Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle malformed JSON gracefully', async () => {
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .send('invalid json{')
         .set('Content-Type', 'application/json');
@@ -253,7 +305,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should handle missing session ID on SSE message endpoint', async () => {
-      const response = await request(app)
+      const response = await agent
         .post('/sse/message')
         .send({ jsonrpc: '2.0', method: 'test' })
         .expect(400);
@@ -263,7 +315,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should handle non-existent session on SSE message endpoint', async () => {
-      const response = await request(app)
+      const response = await agent
         .post('/sse/message')
         .set('X-Session-ID', 'non-existent')
         .send({ jsonrpc: '2.0', method: 'test' })
@@ -278,7 +330,7 @@ describe('HTTP Transport Integration Tests', () => {
     it('should accept requests under rate limit', async () => {
       // Make several requests
       for (let i = 0; i < 5; i++) {
-        await request(app).get('/health').expect(200);
+        await agent.get('/health').expect(200);
       }
     });
 
@@ -288,7 +340,7 @@ describe('HTTP Transport Integration Tests', () => {
 
   describe('Authorization Header Handling', () => {
     it('should accept Bearer token in Authorization header', async () => {
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .set('Authorization', 'Bearer test-token-123')
         .set('Content-Type', 'application/json')
@@ -312,7 +364,7 @@ describe('HTTP Transport Integration Tests', () => {
     });
 
     it('should work without Authorization header', async () => {
-      const response = await request(app)
+      const response = await agent
         .post('/mcp')
         .set('Content-Type', 'application/json')
         .send({

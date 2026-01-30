@@ -3,7 +3,7 @@
 ## Executive Summary
 
 **Source Documentation:** `/mnt/project/15-complete-architecture-map.md`, `/mnt/project/18-tool-intelligence-mapping.md`  
-**Target Specification:** 16 tools, 211 actions (192 base + 19 MCP features)  
+**Target Specification:** 21 tools, 211 actions (192 base + 19 MCP features)  
 **MCP Version:** 2025-11-25  
 
 ---

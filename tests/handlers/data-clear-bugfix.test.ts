@@ -5,7 +5,7 @@
  * Evidence from test log: "Returns NO RESULT from client-side tool execution"
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsDataHandler } from '../../src/handlers/data.js';
 import { SheetsDataOutputSchema } from '../../src/schemas/data.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -66,6 +66,11 @@ describe('SheetsDataHandler - Clear Action (BUG FIX 0.7)', () => {
     };
 
     handler = new SheetsDataHandler(mockContext, mockApi);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('clear returns result (BUG FIX 0.7)', () => {

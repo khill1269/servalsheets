@@ -337,7 +337,10 @@ function generateTestCases(
 
   tests.set('sheets_history', new Map([['list', () => ({ action: 'list' })]]));
 
-  tests.set('sheets_confirm', new Map([['get_stats', () => ({ action: 'get_stats' })]]));
+  tests.set(
+    'sheets_confirm',
+    new Map([['get_stats', () => ({ request: { action: 'get_stats' } })]])
+  );
 
   tests.set(
     'sheets_analyze',

@@ -37,6 +37,11 @@ describe('BaseHandler error enrichment', () => {
     expect(result.error.resolutionSteps?.length).toBeGreaterThan(0);
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
   it('adds resolution steps for range errors', () => {
     const handler = new TestHandler('test', createContext());
     const error = new RangeResolutionError('Sheet "Sheet1" not found', 'SHEET_NOT_FOUND', {

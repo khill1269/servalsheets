@@ -311,6 +311,40 @@ describe('BatchingSystem', () => {
       expect(results[0].updates.updatedColumns).toBe(2);
     });
 
+    it('should batch tableId appends without metadata lookup', async () => {
+      const spreadsheetId = 'append-table';
+      mockSheetsApi.spreadsheets.get = vi.fn();
+      mockSheetsApi.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
+        data: {
+          replies: [{ appendCells: {} }, { appendCells: {} }],
+        },
+      });
+
+      const promises = [
+        batchingSystem.execute({
+          id: 'table-append-1',
+          type: 'values:append',
+          spreadsheetId,
+          params: { tableId: 'table-1', values: [[1, 2]] },
+        }),
+        batchingSystem.execute({
+          id: 'table-append-2',
+          type: 'values:append',
+          spreadsheetId,
+          params: { tableId: 'table-2', values: [[3, 4]] },
+        }),
+      ];
+
+      await vi.advanceTimersByTimeAsync(50);
+      await Promise.all(promises);
+
+      expect(mockSheetsApi.spreadsheets.get).not.toHaveBeenCalled();
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
+      const batchCall = (mockSheetsApi.spreadsheets.batchUpdate as any).mock.calls[0][0];
+      expect(batchCall.requestBody.requests[0].appendCells.tableId).toBe('table-1');
+      expect(batchCall.requestBody.requests[1].appendCells.tableId).toBe('table-2');
+    });
+
     it('should distribute append responses correctly to callers', async () => {
       // Arrange
       const spreadsheetId = 'append-test-2';

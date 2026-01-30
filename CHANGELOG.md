@@ -106,7 +106,7 @@ This release adds production-ready deployment infrastructure with Helm charts, T
 
 ### Changed
 
-- **Action consolidation** - Reduced action count from 252 to 250 actions
+- **Action consolidation** - Reduced action count from 252, with current total at 272 after subsequent additions
   - Removed `set_data_validation`, `clear_data_validation`, `list_data_validations` from sheets_data (available in sheets_format)
   - Merged `filter_update_filter_criteria` into enhanced `set_basic_filter` action with optional `columnIndex` parameter
   - sheets_data: 21 actions → 18 actions
@@ -138,7 +138,7 @@ This release upgrades two critical dependencies to their latest major versions, 
   - Fixed `z.record()` API breaking change (now requires 2 arguments: key type + value type)
   - Updated 10+ schema files to use `z.record(z.string(), valueType)` instead of `z.record(valueType)`
   - Added `isZodUnion()` helper function for robust union schema detection
-  - All 17 tools (226 actions) fully compatible with Zod v4
+  - All 21 tools (272 actions) fully compatible with Zod v4
   - All 1,830+ passing tests remain passing
   - Performance improvements: 14x faster string parsing, 7x faster arrays, 6.5x faster objects
   - Bundle size reduction: ~57% smaller
@@ -179,7 +179,7 @@ This release upgrades two critical dependencies to their latest major versions, 
 - **CRITICAL**: Fixed runtime error "taskStore.isTaskCancelled is not a function" affecting all tool calls
   - Issue: Task cancellation code was calling methods on SDK's `extra.taskStore` which doesn't support cancellation
   - Fix: Use `this.taskStore` (TaskStoreAdapter) for cancellation checks and storing cancelled status
-  - Affected: All 23 tools (sheets_data, sheets_analyze, etc.)
+  - Affected: All 21 tools (sheets_data, sheets_analyze, etc.)
   - Commit: 9e2ce8b
 
 ## [1.3.0] - 2026-01-06
@@ -284,7 +284,7 @@ This release refactors AI and planning capabilities to use MCP protocol-native f
   - Error handling with retry support
   - Statistics tracking for analysis operations
 
-- **Tool Count**: 23 tools with 152 actions
+- **Tool Count**: 21 tools with 272 actions
 
 ---
 
@@ -589,7 +589,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 
 ### Added
 
-- **15 Unified Tools** (156 actions total) with comprehensive Google Sheets operations:
+- **21 Unified Tools** (272 actions total) with comprehensive Google Sheets operations:
   - `sheets_core`: Create, get, update, delete, list, copy spreadsheets
   - `sheets_core`: Create, get, update, delete, list, copy, move sheets
   - `sheets_data`: Read, write, append, clear, batch operations
@@ -605,6 +605,9 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
   - `sheets_collaborate`: Version history (list, get, restore, pin, delete)
   - `sheets_analyze`: Data quality, formula audit, statistics, correlations
   - `sheets_advanced`: Named ranges, protected ranges, banding, data source tables
+  - Additional tools: `sheets_transaction`, `sheets_quality`, `sheets_history`, `sheets_confirm`, `sheets_fix`,
+    `sheets_composite`, `sheets_session`, `sheets_templates`, `sheets_bigquery`, `sheets_appsscript`,
+    `sheets_webhook`, `sheets_dependencies`
 
 - **Intent-Based Architecture**: BatchCompiler with intelligent operation batching and progress events
 - **Tiered Diff Engine**: METADATA, SAMPLE, FULL tiers for change tracking
@@ -637,7 +640,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Expected State Preconditions**: Row count, sheet title, checksum validation
 - **Reduced Drive Permissions**: Minimum required scopes by default
 - **Dry-Run Support**: Test operations without side effects
-- **Input Validation**: Zod schemas for all 156 actions
+- **Input Validation**: Zod schemas for all 272 actions
 
 ### Infrastructure
 

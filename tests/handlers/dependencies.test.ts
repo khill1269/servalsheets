@@ -4,13 +4,16 @@
  * Validates formula dependency analysis, graph building, and cycle detection.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { sheets_v4 } from 'googleapis';
 import {
   DependenciesHandler,
   createDependenciesHandler,
   clearAnalyzerCache,
 } from '../../src/handlers/dependencies.js';
+
+const unwrapResponse = <T extends { response?: unknown }>(result: T) =>
+  ('response' in result ? (result as { response?: unknown }).response : result);
 
 describe('DependenciesHandler', () => {
   let handler: DependenciesHandler;
@@ -53,14 +56,19 @@ describe('DependenciesHandler', () => {
     handler = createDependenciesHandler(mockSheetsApi);
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
   describe('Build Action', () => {
     it('should build dependency graph from spreadsheet', async () => {
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'build',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
@@ -71,13 +79,13 @@ describe('DependenciesHandler', () => {
     });
 
     it('should filter by sheet names if provided', async () => {
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'build',
           spreadsheetId: '1ABC',
           sheetNames: ['Sheet1'],
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       // When sheetNames provided, spreadsheets.get is skipped
@@ -95,15 +103,15 @@ describe('DependenciesHandler', () => {
     it('should handle build errors', async () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('API error'));
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'build',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('DEPENDENCY_BUILD_FAILED');
+      expect(result.error?.code).toBe('INTERNAL_ERROR');
     });
 
     it('should cache analyzer for subsequent calls', async () => {
@@ -139,13 +147,13 @@ describe('DependenciesHandler', () => {
       });
 
       // Analyze impact
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'analyze_impact',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!A1',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
@@ -156,13 +164,13 @@ describe('DependenciesHandler', () => {
     });
 
     it('should build graph if not cached', async () => {
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'analyze_impact',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!C1',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
@@ -176,13 +184,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'analyze_impact',
           spreadsheetId: '1ABC',
           cell: 'InvalidCell',
         },
-      });
+      }));
 
       // Should handle gracefully
       expect(result.success).toBe(true);
@@ -196,13 +204,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'analyze_impact',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!A1',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('dependencies');
@@ -241,12 +249,12 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'detect_cycles',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('circularDependencies');
@@ -260,12 +268,12 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'detect_cycles',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -283,13 +291,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_dependencies',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!C1',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('dependencies');
@@ -306,13 +314,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_dependencies',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!A1', // A1 is a constant value
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
     });
@@ -327,13 +335,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_dependents',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!A1',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('dependents');
@@ -350,13 +358,13 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_dependents',
           spreadsheetId: '1ABC',
           cell: 'Sheet1!C2', // C2 is a leaf node
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
     });
@@ -371,12 +379,12 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_stats',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
@@ -387,12 +395,12 @@ describe('DependenciesHandler', () => {
     });
 
     it('should build graph if not cached', async () => {
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'get_stats',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(mockSheetsApi.spreadsheets.get).toHaveBeenCalled();
@@ -408,12 +416,12 @@ describe('DependenciesHandler', () => {
         },
       });
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'export_dot',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('dot');
@@ -426,12 +434,12 @@ describe('DependenciesHandler', () => {
     it('should handle export errors', async () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('API error'));
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'export_dot',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(false);
     });
@@ -439,27 +447,27 @@ describe('DependenciesHandler', () => {
 
   describe('Error Handling', () => {
     it('should handle unknown action', async () => {
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           action: 'unknown_action' as any,
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('INVALID_ACTION');
+      expect(result.error?.code).toBe('INVALID_PARAMS');
     });
 
     it('should handle internal errors', async () => {
       mockSheetsApi.spreadsheets.get.mockRejectedValueOnce(new Error('Internal server error'));
 
-      const result = await handler.handle({
+      const result = unwrapResponse(await handler.handle({
         request: {
           action: 'build',
           spreadsheetId: '1ABC',
         },
-      });
+      }));
 
       expect(result.success).toBe(false);
       expect(result.error?.message).toContain('Internal server error');

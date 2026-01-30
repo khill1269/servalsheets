@@ -31,7 +31,7 @@ export function registerServalSheetsPrompts(server) {
                         type: 'text',
                         text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 16 powerful tools and 207 actions.
+I'm your Google Sheets assistant with 16 powerful tools and 267 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`

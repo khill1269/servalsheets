@@ -36,7 +36,7 @@
 │  ┌───────────────────────────▼───────────────────────┐                                 │
 │  │              Tool Registration                      │                                │
 │  │  ┌──────────────────────────────────────────────┐  │                                │
-│  │  │ TOOL_DEFINITIONS (16 tools, 207 actions)     │  │                                │
+│  │  │ TOOL_DEFINITIONS (21 tools, 272 actions)     │  │                                │
 │  │  │ ├── schemas/*.ts (Zod discriminated unions)  │  │                                │
 │  │  │ ├── annotations.ts (64 MCP hints)            │  │                                │
 │  │  │ └── schema-compat.ts (SDK compatibility)     │  │                                │
@@ -342,7 +342,7 @@
 │  │ SEP-986: Tool Naming                                                      ✅ PASS  ││
 │  │ ├── Pattern: /^[A-Za-z0-9._-]{1,128}$/                                             ││
 │  │ ├── Convention: snake_case                                                          ││
-│  │ └── All 16 tools validated                                                          ││
+│  │ └── All 21 tools validated                                                          ││
 │  └─────────────────────────────────────────────────────────────────────────────────────┘│
 │                                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐│

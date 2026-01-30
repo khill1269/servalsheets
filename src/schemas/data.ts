@@ -11,6 +11,7 @@ import {
   SpreadsheetIdSchema,
   SheetIdSchema,
   RangeInputSchema,
+  DataFilterSchema,
   ValuesArraySchema,
   ValueRenderOptionSchema,
   ValueInputOptionSchema,
@@ -23,6 +24,7 @@ import {
   ResponseMetaSchema,
   DiffOptionsSchema,
   type ToolAnnotations,
+  type DataFilter,
   type RangeInput,
 } from './shared.js';
 import {
@@ -111,7 +113,8 @@ const WriteActionSchema = CommonFieldsSchema.extend({
 
 const AppendActionSchema = CommonFieldsSchema.extend({
   action: z.literal('append'),
-  range: RangeInputSchema.describe('Range to append to (table or sheet range)'),
+  range: RangeInputSchema.optional().describe('Range to append to (ignored if tableId provided)'),
+  tableId: z.string().optional().describe('Table ID to append to (preferred for table ranges)'),
   values: ValuesArraySchema.describe('2D array of cell values to append'),
   valueInputOption: ValueInputOptionSchema.optional()
     .default('USER_ENTERED')
@@ -119,6 +122,14 @@ const AppendActionSchema = CommonFieldsSchema.extend({
   insertDataOption: InsertDataOptionSchema.optional()
     .default('INSERT_ROWS')
     .describe('Whether to overwrite or insert rows (INSERT_ROWS or OVERWRITE)'),
+}).superRefine((val, ctx) => {
+  if (!val.range && !val.tableId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or tableId for append',
+      path: ['range'],
+    });
+  }
 });
 
 const ClearActionSchema = CommonFieldsSchema.extend({
@@ -131,38 +142,91 @@ const ClearActionSchema = CommonFieldsSchema.extend({
     .describe('Show what would change without applying'),
 });
 
+const BatchWriteEntrySchema = z
+  .object({
+    range: RangeInputSchema.optional().describe('Target range'),
+    dataFilter: DataFilterSchema.optional().describe('Data filter for target range'),
+    values: ValuesArraySchema.describe('2D array of cell values'),
+    majorDimension: MajorDimensionSchema.optional().describe('Major dimension for data layout'),
+  })
+  .superRefine((val, ctx) => {
+    if (!val.range && !val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter for each batch_write entry',
+        path: ['range'],
+      });
+    }
+    if (val.range && val.dataFilter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either range or dataFilter (not both) for each batch_write entry',
+        path: ['dataFilter'],
+      });
+    }
+  });
+
 const BatchReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_read'),
   ranges: z
     .array(RangeInputSchema)
     .min(1)
     .max(100)
+    .optional()
     .describe('Array of ranges to read (1-100 ranges)'),
+  dataFilters: z
+    .array(DataFilterSchema)
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Array of data filters to read (1-100 filters)'),
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
     .describe('How values should be rendered'),
   majorDimension: MajorDimensionSchema.optional().default('ROWS').describe('Major dimension'),
   cursor: z.string().optional().describe('Pagination cursor'),
   pageSize: z.coerce.number().int().positive().max(10000).optional().describe('Rows per page'),
+}).superRefine((val, ctx) => {
+  const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
+  const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
+  if (!hasRanges && !hasFilters) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either ranges or dataFilters for batch_read',
+      path: ['ranges'],
+    });
+  }
+  if (hasRanges && hasFilters) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either ranges or dataFilters, not both, for batch_read',
+      path: ['dataFilters'],
+    });
+  }
 });
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
   action: z.literal('batch_write'),
   data: z
-    .array(
-      z.object({
-        range: RangeInputSchema.describe('Target range'),
-        values: ValuesArraySchema.describe('2D array of cell values'),
-      })
-    )
+    .array(BatchWriteEntrySchema)
     .min(1)
     .max(100)
-    .describe('Array of range-value pairs to write (1-100 ranges)'),
+    .describe('Array of range-value or filter-value pairs to write (1-100 entries)'),
   valueInputOption: ValueInputOptionSchema.optional()
     .default('USER_ENTERED')
     .describe('How input data should be interpreted'),
   includeValuesInResponse: z.boolean().optional().default(false).describe('Return written values'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+}).superRefine((val, ctx) => {
+  const hasRanges = val.data.some((entry) => entry.range !== undefined);
+  const hasFilters = val.data.some((entry) => entry.dataFilter !== undefined);
+  if (hasRanges && hasFilters) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Do not mix range-based and dataFilter-based entries in batch_write',
+      path: ['data'],
+    });
+  }
 });
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
@@ -171,8 +235,32 @@ const BatchClearActionSchema = CommonFieldsSchema.extend({
     .array(RangeInputSchema)
     .min(1)
     .max(100)
+    .optional()
     .describe('Array of ranges to clear (1-100 ranges)'),
+  dataFilters: z
+    .array(DataFilterSchema)
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Array of data filters to clear (1-100 filters)'),
   previewMode: z.boolean().optional().default(false).describe('Preview changes without applying'),
+}).superRefine((val, ctx) => {
+  const hasRanges = Boolean(val.ranges && val.ranges.length > 0);
+  const hasFilters = Boolean(val.dataFilters && val.dataFilters.length > 0);
+  if (!hasRanges && !hasFilters) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either ranges or dataFilters for batch_clear',
+      path: ['ranges'],
+    });
+  }
+  if (hasRanges && hasFilters) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either ranges or dataFilters, not both, for batch_clear',
+      path: ['dataFilters'],
+    });
+  }
 });
 
 const FindReplaceActionSchema = CommonFieldsSchema.extend({
@@ -568,7 +656,8 @@ export type DataWriteInput = SheetsDataInput['request'] & {
 export type DataAppendInput = SheetsDataInput['request'] & {
   action: 'append';
   spreadsheetId: string;
-  range: RangeInput;
+  range?: RangeInput;
+  tableId?: string;
   values: unknown[][];
 };
 
@@ -581,14 +670,16 @@ export type DataClearInput = SheetsDataInput['request'] & {
 export type DataBatchReadInput = SheetsDataInput['request'] & {
   action: 'batch_read';
   spreadsheetId: string;
-  ranges: RangeInput[];
+  ranges?: RangeInput[];
+  dataFilters?: DataFilter[];
 };
 
 export type DataBatchWriteInput = SheetsDataInput['request'] & {
   action: 'batch_write';
   spreadsheetId: string;
   data: Array<{
-    range: RangeInput;
+    range?: RangeInput;
+    dataFilter?: DataFilter;
     values: unknown[][];
   }>;
 };
@@ -596,7 +687,8 @@ export type DataBatchWriteInput = SheetsDataInput['request'] & {
 export type DataBatchClearInput = SheetsDataInput['request'] & {
   action: 'batch_clear';
   spreadsheetId: string;
-  ranges: RangeInput[];
+  ranges?: RangeInput[];
+  dataFilters?: DataFilter[];
 };
 
 export type DataFindReplaceInput = SheetsDataInput['request'] & {

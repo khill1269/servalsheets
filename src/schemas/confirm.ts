@@ -161,32 +161,15 @@ const WizardCompleteActionSchema = z.object({
   verbosity: VerbositySchema,
 });
 
-// Preprocess to accept both wrapped and unwrapped request formats
-// LLMs sometimes send: { action: "get_stats" } instead of { request: { action: "get_stats" } }
-const normalizeConfirmInput = (val: unknown): unknown => {
-  if (typeof val !== 'object' || val === null) return val;
-  const obj = val as Record<string, unknown>;
-
-  // If 'action' is at top level and 'request' is missing, wrap it
-  if (obj['action'] && !obj['request']) {
-    return { request: obj };
-  }
-
-  return val;
-};
-
-export const SheetsConfirmInputSchema = z.preprocess(
-  normalizeConfirmInput,
-  z.object({
-    request: z.discriminatedUnion('action', [
-      RequestActionSchema,
-      GetStatsActionSchema,
-      WizardStartActionSchema,
-      WizardStepActionSchema,
-      WizardCompleteActionSchema,
-    ]),
-  })
-);
+export const SheetsConfirmInputSchema = z.object({
+  request: z.discriminatedUnion('action', [
+    RequestActionSchema,
+    GetStatsActionSchema,
+    WizardStartActionSchema,
+    WizardStepActionSchema,
+    WizardCompleteActionSchema,
+  ]),
+});
 
 /**
  * Confirmation result schema

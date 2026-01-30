@@ -144,6 +144,9 @@ export const TOOL_REGISTRY = {
       'clear_format',
       'apply_preset',
       'auto_fit',
+      'sparkline_add',
+      'sparkline_get',
+      'sparkline_clear',
       'rule_add_conditional_format',
       'rule_update_conditional_format',
       'rule_delete_conditional_format',
@@ -216,6 +219,8 @@ export const TOOL_REGISTRY = {
       'chart_move',
       'chart_resize',
       'chart_update_data_range',
+      'chart_add_trendline',
+      'chart_remove_trendline',
       'pivot_create',
       'suggest_pivot',
       'pivot_update',
@@ -292,6 +297,10 @@ export const TOOL_REGISTRY = {
       'create_table',
       'delete_table',
       'list_tables',
+      'add_person_chip',
+      'add_drive_chip',
+      'add_rich_link_chip',
+      'list_chips',
     ],
   },
   sheets_transaction: {
@@ -332,7 +341,7 @@ export const TOOL_REGISTRY = {
     schema: 'SheetsConfirmInputSchema',
     output: 'SheetsConfirmOutputSchema',
     annotations: 'SHEETS_CONFIRM_ANNOTATIONS',
-    actions: ['request', 'get_stats'],
+    actions: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
   },
   sheets_analyze: {
     name: 'sheets_analyze',
@@ -354,6 +363,11 @@ export const TOOL_REGISTRY = {
       'analyze_formulas',
       'query_natural_language',
       'explain_analysis',
+      'scout',
+      'plan',
+      'execute_plan',
+      'drill_down',
+      'generate_actions',
     ],
   },
   sheets_fix: {
@@ -374,7 +388,18 @@ export const TOOL_REGISTRY = {
     schema: 'CompositeInputSchema',
     output: 'CompositeOutputSchema',
     annotations: 'SHEETS_COMPOSITE_ANNOTATIONS',
-    actions: ['import_csv', 'smart_append', 'bulk_update', 'deduplicate'],
+    actions: [
+      'import_csv',
+      'smart_append',
+      'bulk_update',
+      'deduplicate',
+      'export_xlsx',
+      'import_xlsx',
+      'get_form_responses',
+      'setup_sheet',
+      'import_and_format',
+      'clone_structure',
+    ],
   },
   sheets_session: {
     name: 'sheets_session',
@@ -397,6 +422,10 @@ export const TOOL_REGISTRY = {
       'set_pending',
       'get_pending',
       'clear_pending',
+      'save_checkpoint',
+      'load_checkpoint',
+      'list_checkpoints',
+      'delete_checkpoint',
       'reset',
     ],
   },
@@ -420,12 +449,14 @@ export const TOOL_REGISTRY = {
     annotations: 'SHEETS_BIGQUERY_ANNOTATIONS',
     actions: [
       'connect',
+      'connect_looker',
       'disconnect',
       'list_connections',
       'get_connection',
       'query',
       'preview',
       'refresh',
+      'cancel_refresh',
       'list_datasets',
       'list_tables',
       'get_table_schema',
@@ -488,19 +519,18 @@ export const TOOL_REGISTRY = {
   },
 } as const;
 
-// Tool count (21 tools)
+// Tool count
 export const TOOL_COUNT = 21;
 
-// Action count (271 actions across 21 tools)
-// Last updated: 2026-01-24
-// Phase 3: Added sheets_webhook (6 actions) and sheets_dependencies (7 actions)
-// v2.0: Removed 2 validation actions from sheets_data (moved to sheets_format)
+// Action count
+export const ACTION_COUNT = 272;
+
+// Last updated: 2026-01-29
 // Breakdown:
 //   sheets_auth: 4, sheets_core: 17, sheets_data: 18, sheets_format: 21,
-//   sheets_dimensions: 39, sheets_visualize: 18, sheets_collaborate: 28,
+//   sheets_dimensions: 28, sheets_visualize: 18, sheets_collaborate: 28,
 //   sheets_advanced: 23, sheets_transaction: 6, sheets_quality: 4,
-//   sheets_history: 7, sheets_confirm: 5, sheets_analyze: 11, sheets_fix: 1,
-//   sheets_composite: 7, sheets_session: 13, sheets_templates: 8,
+//   sheets_history: 7, sheets_confirm: 5, sheets_analyze: 16, sheets_fix: 1,
+//   sheets_composite: 10, sheets_session: 17, sheets_templates: 8,
 //   sheets_bigquery: 14, sheets_appsscript: 14, sheets_webhook: 6,
 //   sheets_dependencies: 7
-export const ACTION_COUNT = 271;

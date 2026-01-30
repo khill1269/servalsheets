@@ -20,7 +20,7 @@
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 19 tools, 244 actions
+# ✅ Total: 21 tools, 272 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -112,7 +112,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 **Verification:**
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 19 tools, 244 actions
+# Output: ✅ Total: 21 tools, 272 actions
 ```
 
 ---
@@ -186,7 +186,7 @@ Evidence: <file:line> OR <command → output>
 
 ✅ **Good:**
 ```
-Claim: ServalSheets has 252 actions
+Claim: ServalSheets has 272 actions
 Evidence: src/schemas/index.ts exports ACTION_COUNT = 207
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
 Output: export const ACTION_COUNT = 207;
@@ -281,7 +281,7 @@ A: Let me verify...
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
 Output: export const ACTION_COUNT = 207;
 
-ServalSheets has 252 actions across 19 tools.
+ServalSheets has 272 actions across 21 tools.
 Evidence: src/schemas/index.ts exports ACTION_COUNT = 207
 ```
 

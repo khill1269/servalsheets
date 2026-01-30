@@ -68,6 +68,11 @@ describe('Composite Handler', () => {
     handler = new CompositeHandler(mockContext, mockSheetsApi);
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
   describe('initialization', () => {
     it('should initialize successfully', () => {
       expect(handler).toBeDefined();

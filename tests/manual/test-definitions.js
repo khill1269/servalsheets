@@ -10,7 +10,7 @@
 
 const TEST_SPREADSHEET_ID = process.argv[2] || '1GGSb44zvzRa6z7z7q6CrfGj94ALeZEbXb9AGA_wRkQA';
 
-// All 17 tools with their actions based on TOOL_REGISTRY
+// All 21 tools with their actions based on TOOL_REGISTRY
 const TOOL_DEFINITIONS = {
   sheets_auth: {
     actions: ['status', 'login', 'callback', 'logout'],
@@ -217,7 +217,7 @@ const TOOL_DEFINITIONS = {
   sheets_confirm: {
     actions: ['request', 'get_stats'],
     testCases: {
-      get_stats: { action: 'get_stats' }
+      get_stats: { request: { action: 'get_stats' } }
     }
   },
   

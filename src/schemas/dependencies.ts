@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { ErrorDetailSchema } from './shared.js';
 
 /**
  * Dependency actions
@@ -175,7 +176,7 @@ export const DependencyBuildResultSchema = z.object({
 /**
  * Dependencies output response
  */
-export const SheetsDependenciesOutputSchema = z.union([
+const DependenciesResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
     data: z.union([
@@ -190,13 +191,13 @@ export const SheetsDependenciesOutputSchema = z.union([
   }),
   z.object({
     success: z.literal(false),
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-      details: z.record(z.string(), z.unknown()).optional(),
-    }),
+    error: ErrorDetailSchema,
   }),
 ]);
+
+export const SheetsDependenciesOutputSchema = z.object({
+  response: DependenciesResponseSchema,
+});
 
 /**
  * Tool annotations for sheets_dependencies

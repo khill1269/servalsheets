@@ -110,23 +110,25 @@ The formal MCP Elicitation tool:
 
 ```json
 {
-  "action": "request",
-  "plan": {
-    "title": "Delete Empty Rows",
-    "description": "Remove 47 rows with no data",
-    "steps": [
-      {
-        "stepNumber": 1,
-        "description": "Delete 47 empty rows",
-        "tool": "sheets_dimensions",
-        "action": "delete_rows",
-        "risk": "high",
-        "isDestructive": true,
-        "canUndo": true
-      }
-    ],
-    "willCreateSnapshot": true,
-    "additionalWarnings": ["Cannot be undone without snapshot"]
+  "request": {
+    "action": "request",
+    "plan": {
+      "title": "Delete Empty Rows",
+      "description": "Remove 47 rows with no data",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "description": "Delete 47 empty rows",
+          "tool": "sheets_dimensions",
+          "action": "delete_rows",
+          "risk": "high",
+          "isDestructive": true,
+          "canUndo": true
+        }
+      ],
+      "willCreateSnapshot": true,
+      "additionalWarnings": ["Cannot be undone without snapshot"]
+    }
   }
 }
 ```

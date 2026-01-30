@@ -2,7 +2,7 @@
  * ServalSheets v4 - Analysis Handler Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AnalyzeHandler } from '../../src/handlers/analyze.js';
 import { SheetsAnalyzeOutputSchema } from '../../src/schemas/analyze.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -58,6 +58,11 @@ describe('AnalyzeHandler', () => {
         ],
       },
     });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('runs data quality check', async () => {

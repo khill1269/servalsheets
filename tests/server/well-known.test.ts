@@ -17,10 +17,10 @@ import {
 
 // Mock version
 vi.mock('../../src/version.js', () => ({
-  VERSION: '1.4.0',
+  VERSION: '1.6.0',
   SERVER_INFO: {
     name: 'servalsheets',
-    version: '1.4.0',
+    version: '1.6.0',
     protocolVersion: '2025-11-25',
   },
   SERVER_ICONS: [],
@@ -29,8 +29,8 @@ vi.mock('../../src/version.js', () => ({
 
 // Mock schemas
 vi.mock('../../src/schemas/index.js', () => ({
-  TOOL_COUNT: 26,
-  ACTION_COUNT: 208,
+  TOOL_COUNT: 21,
+  ACTION_COUNT: 272,
 }));
 
 // Mock google-api
@@ -93,11 +93,11 @@ describe('buildMcpConfiguration', () => {
     const config = buildMcpConfiguration();
 
     expect(config.name).toBe('servalsheets');
-    expect(config.version).toBe('1.4.0');
+    expect(config.version).toBe('1.6.0');
     expect(config.protocol_version).toBeDefined();
     expect(config.capabilities).toBeDefined();
-    expect(config.capabilities.tools.count).toBe(26);
-    expect(config.capabilities.tools.actions).toBe(208);
+    expect(config.capabilities.tools.count).toBe(21);
+    expect(config.capabilities.tools.actions).toBe(272);
     expect(config.transports).toContain('stdio');
   });
 

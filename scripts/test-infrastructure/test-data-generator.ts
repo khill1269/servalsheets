@@ -21,7 +21,7 @@ export interface TestDataSpec {
 export function generateAllTestData(): Map<string, TestDataSpec> {
   const testData = new Map<string, TestDataSpec>();
 
-  // Generate test data for each tool (19 tools)
+  // Generate test data for each tool (21 tools)
   const generators = [
     ...generateAuthTestData(),
     ...generateSpreadsheetTestData(),

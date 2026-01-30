@@ -2,8 +2,8 @@
  * Tool: sheets_analyze (CONSOLIDATED - PURE ANALYSIS)
  *
  * Ultimate analysis tool combining traditional statistics + AI-powered insights.
- * Consolidates legacy sheets_analysis into sheets_analyze (11 actions)
- * into a single intelligent tool with 11 actions and smart routing.
+ * Consolidates legacy sheets_analysis into sheets_analyze (16 actions)
+ * into a single intelligent tool with 16 actions and smart routing.
  *
  * DESIGN PRINCIPLE: This tool ANALYZES data and provides recommendations.
  * It does NOT create or modify spreadsheets. Recommendations include executable
@@ -158,7 +158,7 @@ export const PerformanceRecommendationSchema = z.object({
 });
 
 // ============================================================================
-// INPUT SCHEMA (11 actions)
+// INPUT SCHEMA (16 actions)
 // ============================================================================
 
 const CommonFieldsSchema = z.object({

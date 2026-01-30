@@ -1179,7 +1179,7 @@ ultimate-gworkspace-mcp/
 
 ### Phase 0: Foundation (Week 1-2)
 - [ ] Project setup with TypeScript + dependencies
-- [ ] Tool annotations for all 16 tools
+- [ ] Tool annotations for all 21 tools
 - [ ] Logging infrastructure (MCPLogger)
 - [ ] Cancellation support framework
 - [ ] OAuth2 authentication flow
@@ -1229,7 +1229,7 @@ ultimate-gworkspace-mcp/
 | Aspect | ServalSheets v2 | GWorkspace MCP |
 |--------|-----------------|----------------|
 | **Status** | ✅ Implemented | 📋 Specification |
-| **Tools/Handlers** | 11 handlers | 16 tools |
+| **Tools/Handlers** | 11 handlers | 21 tools |
 | **Actions** | 171 | 211 |
 | **Source LOC** | 93,907 | ~15,000-20,000 (est) |
 | **Test LOC** | 40,693 | TBD |

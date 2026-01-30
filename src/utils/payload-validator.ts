@@ -269,6 +269,88 @@ export function validateValuesPayload(values: unknown[][], range?: string): Payl
 }
 
 /**
+ * Validate values batch payload size
+ *
+ * Specialized validator for values.batchUpdate and values.batchUpdateByDataFilter operations.
+ *
+ * @param data - Batch entries containing values (and ranges/filters)
+ * @param context - Additional context for logging
+ * @returns Validation result
+ */
+export function validateValuesBatchPayload(
+  data: Array<{ values: unknown[][] }>,
+  context?: {
+    spreadsheetId?: string;
+    operationType?: string;
+  }
+): PayloadSizeResult {
+  const payload = { data };
+  const sizeBytes = estimatePayloadSize(payload);
+  const sizeMB = (sizeBytes / 1_000_000).toFixed(2);
+
+  let level: PayloadSizeResult['level'] = 'none';
+  let withinLimits = true;
+  let message = `Values batch payload size: ${sizeMB}MB`;
+  const suggestions: string[] = [];
+
+  if (sizeBytes > PAYLOAD_LIMITS.MAX_SIZE) {
+    level = 'exceeded';
+    withinLimits = false;
+    message = `Values batch payload (${sizeMB}MB) exceeds 9MB limit`;
+    suggestions.push(
+      'Split batch into smaller requests',
+      'Reduce value sizes or number of ranges per batch'
+    );
+  } else if (sizeBytes > PAYLOAD_LIMITS.CRITICAL_THRESHOLD) {
+    level = 'critical';
+    message = `Values batch payload (${sizeMB}MB) approaching limit`;
+    suggestions.push('Consider splitting into multiple smaller batches');
+  } else if (sizeBytes > PAYLOAD_LIMITS.WARNING_THRESHOLD) {
+    level = 'warning';
+    message = `Values batch payload (${sizeMB}MB) above 7MB threshold`;
+  }
+
+  let estimatedSplitCount: number | undefined;
+  if (!withinLimits) {
+    const perBatch = calculateOptimalBatchSize(data.length, sizeBytes);
+    estimatedSplitCount = perBatch > 0 ? Math.ceil(data.length / perBatch) : undefined;
+  }
+
+  if (level === 'exceeded') {
+    logger.error('Values batch payload size limit exceeded', {
+      spreadsheetId: context?.spreadsheetId,
+      operationType: context?.operationType,
+      sizeMB,
+      entryCount: data.length,
+    });
+  } else if (level === 'critical') {
+    logger.warn('Values batch payload size critical', {
+      spreadsheetId: context?.spreadsheetId,
+      operationType: context?.operationType,
+      sizeMB,
+      entryCount: data.length,
+    });
+  } else if (level === 'warning') {
+    logger.info('Values batch payload size warning', {
+      spreadsheetId: context?.spreadsheetId,
+      operationType: context?.operationType,
+      sizeMB,
+      entryCount: data.length,
+    });
+  }
+
+  return {
+    sizeBytes,
+    sizeMB,
+    withinLimits,
+    level,
+    message,
+    suggestions: suggestions.length > 0 ? suggestions : undefined,
+    estimatedSplitCount,
+  };
+}
+
+/**
  * Check if payload should be split proactively
  *
  * Returns true if payload is above warning threshold and would benefit from splitting.

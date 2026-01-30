@@ -232,7 +232,7 @@ ServalSheets requires Google API credentials. You have three authentication opti
 **Pros**: User-specific access, refresh tokens, suitable for applications
 **Cons**: Requires OAuth flow implementation, more complex
 
-**See**: [SECURITY.md](./SECURITY.md#oauth-security) for OAuth 2.1 best practices
+**See**: [SECURITY.md](../../SECURITY.md#oauth-security) for OAuth 2.1 best practices
 
 ### Encrypted Token Store (Optional)
 
@@ -246,7 +246,7 @@ export GOOGLE_TOKEN_STORE_KEY=$(openssl rand -hex 32)
 export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
 ```
 
-**See**: [SECURITY.md](./SECURITY.md#token-storage) for encryption details
+**See**: [SECURITY.md](../../SECURITY.md#token-storage) for encryption details
 
 ---
 
@@ -827,7 +827,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 - **OAuth Tokens**: Use refresh tokens
 - **Encryption Keys**: Rotate when compromised
 
-**See**: [SECURITY.md](./SECURITY.md) for security best practices
+**See**: [SECURITY.md](../../SECURITY.md) for security best practices
 
 ---
 
@@ -909,7 +909,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 - ✅ Experiment with the test spreadsheet: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 
 ### Production Deployment
-- 📖 Read [SECURITY.md](./SECURITY.md) - Security best practices
+- 📖 Read [SECURITY.md](../../SECURITY.md) - Security best practices
 - 📖 Read [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment options
 - 📖 Read [MONITORING.md](./MONITORING.md) - Observability setup
 
@@ -919,8 +919,8 @@ export LOG_FILE=/var/log/servalsheets/app.log
 - 📖 Explore [PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md) - All 7 interactive prompts
 
 ### Contributing
-- 📖 Read [IMPLEMENTATION_MAP.md](./IMPLEMENTATION_MAP.md) - Architecture overview
-- 📖 Read [COMPLIANCE_CHECKLIST.md](./COMPLIANCE_CHECKLIST.md) - Requirements
+- 📖 Read [IMPLEMENTATION_GUARDRAILS.md](../development/IMPLEMENTATION_GUARDRAILS.md) - Architecture overview
+- 📖 Read [MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md) - Requirements
 - 🐛 Report issues: https://github.com/khill1269/servalsheets/issues
 
 ---
@@ -973,7 +973,7 @@ export LOG_LEVEL=debug
 - **[USAGE_GUIDE.md](./USAGE_GUIDE.md)** - This comprehensive guide ⬅️
 - **[FIRST_TIME_USER.md](./FIRST_TIME_USER.md)** - 5-minute quick start
 - **[SKILL.md](./SKILL.md)** - Guide for Claude (AI) on using tools
-- **[SECURITY.md](./SECURITY.md)** - Security best practices
+- **[SECURITY.md](../../SECURITY.md)** - Security best practices
 - **[PERFORMANCE.md](./PERFORMANCE.md)** - Performance tuning
 - **[MONITORING.md](./MONITORING.md)** - Observability setup
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment examples

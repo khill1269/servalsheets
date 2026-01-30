@@ -392,7 +392,7 @@ async function stressTest() {
 2. Add ServalSheets config
 3. Restart Claude Desktop
 4. Ask Claude: "What spreadsheet tools do you have?"
-5. Verify: Lists all 16 tools
+5. Verify: Lists all 21 tools
 6. Ask Claude: "Show me my spreadsheets"
 7. Verify: Authentication prompt or spreadsheet list
 

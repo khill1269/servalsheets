@@ -128,7 +128,7 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  *
- * 16 tools after Phase 1 optimization (removed deprecated sheets_analysis):
+ * 21 tools after consolidation + enterprise additions:
  * - Wave 1: sheets_core (replaces sheets_spreadsheet + sheets_sheet)
  * - Wave 1: sheets_visualize (replaces sheets_charts + sheets_pivot)
  * - Wave 1: sheets_collaborate (replaces sheets_sharing + sheets_comments + sheets_versions)
@@ -335,7 +335,7 @@ function getAllowedToolNames(): readonly string[] {
  * Filtered tool definitions based on SERVAL_TOOL_MODE and lazy loading
  *
  * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 22 tools (~41K tokens)
+ * - 'full': All 21 tools (~41K tokens)
  * - 'standard': 12 tools (~25K tokens)
  * - 'lite': 8 tools (~15K tokens)
  *

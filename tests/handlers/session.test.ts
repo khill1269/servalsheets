@@ -7,7 +7,7 @@
  * get_preferences, set_pending, get_pending, clear_pending, reset
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionHandler } from '../../src/handlers/session.js';
 import { SheetsSessionOutputSchema } from '../../src/schemas/session.js';
 
@@ -16,6 +16,11 @@ describe('SessionHandler', () => {
 
   beforeEach(() => {
     handler = new SessionHandler();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('set_active', () => {

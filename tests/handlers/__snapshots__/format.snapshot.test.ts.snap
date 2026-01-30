@@ -13,8 +13,6 @@ exports[`FormatHandler Snapshots > matches snapshot for set_format response 1`] 
         "remaining": 59,
       },
     },
-    "relatedTools": undefined,
-    "suggestions": undefined,
   },
   "action": "set_format",
   "cellsFormatted": 4,

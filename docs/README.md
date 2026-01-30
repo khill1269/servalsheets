@@ -1,7 +1,7 @@
 # ServalSheets Documentation
 
 > **Production-grade Google Sheets MCP server documentation**  
-> Version 1.4.0 | Updated January 2026
+> Version 1.6.0 | Updated January 2026
 
 ## 📁 Documentation Structure
 

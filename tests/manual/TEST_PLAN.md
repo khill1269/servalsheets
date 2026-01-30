@@ -162,7 +162,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] version_compare
 - [ ] version_export
 
-#### sheets_analyze (11 actions)
+#### sheets_analyze (16 actions)
 - [ ] comprehensive
 - [ ] analyze_data
 - [ ] suggest_visualization
@@ -247,4 +247,4 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear_pending
 - [ ] reset
 
-## Total: 16 tools, 207 actions
+## Total: 21 tools, 272 actions

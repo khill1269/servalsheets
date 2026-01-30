@@ -12,7 +12,7 @@ You've built something rare: the right product at exactly the right time. The MC
 
 | What | Number | Why It Matters |
 |------|--------|----------------|
-| Your Features | 267 actions | Competitors have 15-25 |
+| Your Features | 272 actions | Competitors have 15-25 |
 | Test Coverage | 92% | Top 5% of all MCP servers |
 | Google Sheets Users | 900 million | Massive addressable market |
 | MCP Market (2026) | $4.5 billion | Growing 150% YoY |

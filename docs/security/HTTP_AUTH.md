@@ -86,6 +86,21 @@ HTTP sessions include security binding to prevent session hijacking:
 - User-agent binding
 - IP address tracking (warning on change, not blocking)
 
+## Streamable HTTP Sessions
+
+Streamable HTTP sessions use the `Mcp-Session-Id` header for continuity:
+
+- The server **generates** the session ID during `initialize`.
+- Clients must **omit** `Mcp-Session-Id` on the initial `initialize` request.
+- Use the returned `Mcp-Session-Id` header for subsequent requests (POST/GET/DELETE).
+
+### Resumability Storage
+
+Resumability is backed by the Streamable HTTP event store:
+
+- **Default**: in-memory (per instance)
+- **With `REDIS_URL`**: Redis-backed event store for cross-instance resumability
+
 ## Rate Limiting
 
 Two levels of rate limiting protect the service:

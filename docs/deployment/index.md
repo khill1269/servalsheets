@@ -79,7 +79,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `OAUTH_CLIENT_SECRET`            | OAuth    | Google OAuth client secret       |
 | `SESSION_SECRET`                 | OAuth    | Session encryption secret        |
 | `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error` |
-| `REDIS_URL`                      |          | Redis URL for HA sessions        |
+| `REDIS_URL`                      |          | Redis URL for HA sessions + Streamable HTTP resumability |
 
 ## Health Checks
 

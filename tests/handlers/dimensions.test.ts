@@ -5,7 +5,7 @@
  * Covers all 21 actions across insert, delete, move, resize, visibility, freeze, group, and append.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DimensionsHandler } from '../../src/handlers/dimensions.js';
 import { SheetsDimensionsOutputSchema } from '../../src/schemas/dimensions.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -52,6 +52,11 @@ describe('DimensionsHandler', () => {
         sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
       },
     });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('Insert Operations', () => {

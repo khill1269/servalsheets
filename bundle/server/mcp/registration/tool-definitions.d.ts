@@ -23,7 +23,7 @@ export interface ToolDefinition {
 /**
  * Complete tool registry for ServalSheets
  *
- * 16 tools after Phase 1 optimization (removed deprecated sheets_analysis):
+ * 21 tools after Phase 1 optimization (removed deprecated sheets_analysis):
  * - Wave 1: sheets_core (replaces sheets_spreadsheet + sheets_sheet)
  * - Wave 1: sheets_visualize (replaces sheets_charts + sheets_pivot)
  * - Wave 1: sheets_collaborate (replaces sheets_sharing + sheets_comments + sheets_versions)
@@ -47,7 +47,7 @@ export declare const TOOL_DEFINITIONS: readonly ToolDefinition[];
  * Filtered tool definitions based on SERVAL_TOOL_MODE
  *
  * Use this instead of TOOL_DEFINITIONS for registration.
- * - 'full': All 19 tools (~527KB schema payload)
+ * - 'full': All 21 tools (~527KB schema payload)
  * - 'standard': 12 tools (~444KB)
  * - 'lite': 8 tools (~199KB, recommended for Claude Desktop)
  */

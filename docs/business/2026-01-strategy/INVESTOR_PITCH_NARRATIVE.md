@@ -2,7 +2,7 @@
 
 ## The One-Liner
 
-**"ServalSheets is the Stripe for AI-to-Spreadsheet connectivity - enabling any AI agent to read, write, analyze, and automate Google Sheets with 267 enterprise-grade actions."**
+**"ServalSheets is the Stripe for AI-to-Spreadsheet connectivity - enabling any AI agent to read, write, analyze, and automate Google Sheets with 272 enterprise-grade actions."**
 
 ---
 
@@ -51,7 +51,7 @@
 │   ┌─────────────┐     ┌─────────────┐     ┌─────────────┐       │
 │   │   Claude    │     │             │     │   Google    │       │
 │   │   ChatGPT   │────▶│ ServalSheets│────▶│   Sheets    │       │
-│   │   Gemini    │     │  267 Actions│     │             │       │
+│   │   Gemini    │     │  272 Actions│     │             │       │
 │   │   Copilot   │◀────│  21 Tools   │◀────│  Full API   │       │
 │   └─────────────┘     └─────────────┘     └─────────────┘       │
 │                              │                                   │
@@ -69,7 +69,7 @@
 
 **What We Built:**
 - **21 specialized tools** organized by function
-- **267 validated actions** covering 100% of Sheets API
+- **272 validated actions** covering 100% of Sheets API
 - **Enterprise-ready** with OAuth 2.1, SOC2 path, audit logging
 - **Production-grade** with 1,800+ tests, 92% coverage
 
@@ -143,7 +143,7 @@ Feature Comparison Matrix
 
                           ServalSheets    Best Competitor
                           ────────────    ───────────────
-Actions                        267              15
+W2              15
 Tools                           21               4
 Test Coverage                  92%             ~10%
 Charts/Visualizations           ✅              ❌
@@ -266,7 +266,7 @@ Phase 3: Enterprise Sales (Months 12-24)
 │    Full                                                          │
 │    Featured    ┌─────────────┐                                  │
 │       ▲        │ ServalSheets│  ← Category Creator              │
-│       │        │   267 ops   │                                  │
+│       │        │   272 ops   │                                  │
 │       │        └─────────────┘                                  │
 │       │                                                          │
 │       │                                                          │

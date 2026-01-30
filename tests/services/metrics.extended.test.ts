@@ -155,6 +155,63 @@ describe('MetricsService', () => {
     });
   });
 
+  describe('recordFeatureFlagBlock', () => {
+    it('should track feature flag blocks by flag and action', () => {
+      service.recordFeatureFlagBlock({
+        flag: 'dataFilterBatch',
+        tool: 'sheets_data',
+        action: 'batch_read',
+      });
+      service.recordFeatureFlagBlock({
+        flag: 'dataFilterBatch',
+        tool: 'sheets_data',
+        action: 'batch_read',
+      });
+      service.recordFeatureFlagBlock({
+        flag: 'tableAppends',
+        tool: 'sheets_data',
+        action: 'append',
+      });
+
+      const summary = service.getSummary();
+      expect(summary.featureFlags.totalBlocks).toBe(3);
+      expect(summary.featureFlags.byFlag['dataFilterBatch']).toBe(2);
+      expect(summary.featureFlags.byFlag['tableAppends']).toBe(1);
+      expect(summary.featureFlags.byAction['sheets_data.batch_read']).toBe(2);
+      expect(summary.featureFlags.byAction['sheets_data.append']).toBe(1);
+    });
+  });
+
+  describe('recordPayloadWarning', () => {
+    it('should track payload warnings by level and action', () => {
+      service.recordPayloadWarning({ level: 'warning', tool: 'sheets_data', action: 'write' });
+      service.recordPayloadWarning({ level: 'critical', tool: 'sheets_data', action: 'write' });
+      service.recordPayloadWarning({
+        level: 'exceeded',
+        tool: 'sheets_data',
+        action: 'batch_write',
+      });
+
+      const summary = service.getSummary();
+      expect(summary.payloadWarnings.total).toBe(3);
+      expect(summary.payloadWarnings.warning).toBe(1);
+      expect(summary.payloadWarnings.critical).toBe(1);
+      expect(summary.payloadWarnings.exceeded).toBe(1);
+      expect(summary.payloadWarnings.byAction['sheets_data.write']).toEqual({
+        warning: 1,
+        critical: 1,
+        exceeded: 0,
+        total: 2,
+      });
+      expect(summary.payloadWarnings.byAction['sheets_data.batch_write']).toEqual({
+        warning: 0,
+        critical: 0,
+        exceeded: 1,
+        total: 1,
+      });
+    });
+  });
+
   describe('getOverallMetrics', () => {
     it('should aggregate all metrics', () => {
       service.recordApiCall({ tool: 'sheets_data', action: 'read', duration: 100, success: true });

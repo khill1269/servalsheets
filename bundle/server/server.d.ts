@@ -33,7 +33,7 @@ export declare class ServalSheetsServer {
      */
     initialize(): Promise<void>;
     /**
-     * Register all 16 tools with proper annotations
+     * Register all 21 tools with proper annotations
      */
     private registerTools;
     private createToolTaskHandler;

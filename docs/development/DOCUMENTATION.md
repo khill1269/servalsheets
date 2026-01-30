@@ -12,10 +12,10 @@ Start here if you're new to ServalSheets:
 
 | Document | Time | Purpose |
 |----------|------|---------|
-| **[USAGE_GUIDE.md](./USAGE_GUIDE.md)** | 20 min | Complete usage guide - read this first! |
-| **[FIRST_TIME_USER.md](./FIRST_TIME_USER.md)** | 5 min | Quick 5-minute start guide |
-| **[QUICKSTART_CREDENTIALS.md](./QUICKSTART_CREDENTIALS.md)** | 10 min | How to get Google credentials |
-| **[CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md)** | 15 min | Detailed Claude Desktop setup |
+| **[USAGE_GUIDE.md](../guides/USAGE_GUIDE.md)** | 20 min | Complete usage guide - read this first! |
+| **[FIRST_TIME_USER.md](../guides/FIRST_TIME_USER.md)** | 5 min | Quick 5-minute start guide |
+| **[QUICKSTART_CREDENTIALS.md](../guides/QUICKSTART_CREDENTIALS.md)** | 10 min | How to get Google credentials |
+| **[CLAUDE_DESKTOP_SETUP.md](../guides/CLAUDE_DESKTOP_SETUP.md)** | 15 min | Detailed Claude Desktop setup |
 
 **Recommended path**: FIRST_TIME_USER.md → QUICKSTART_CREDENTIALS.md → CLAUDE_DESKTOP_SETUP.md → USAGE_GUIDE.md
 
@@ -27,9 +27,9 @@ Essential reference documentation:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[README.md](./README.md)** | Overview, quick start, API reference | All users |
-| **[CHANGELOG.md](./CHANGELOG.md)** | Version history and breaking changes | All users |
-| **[PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md)** | 7 interactive prompts for Claude Desktop | Claude Desktop users |
+| **[README.md](../../README.md)** | Overview, quick start, API reference | All users |
+| **[CHANGELOG.md](../../CHANGELOG.md)** | Version history and breaking changes | All users |
+| **[PROMPTS_GUIDE.md](../guides/PROMPTS_GUIDE.md)** | 7 interactive prompts for Claude Desktop | Claude Desktop users |
 
 ---
 
@@ -39,9 +39,9 @@ Documentation for AI assistants like Claude:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[SKILL.md](./SKILL.md)** | How to use ServalSheets tools effectively | AI assistants (Claude, GPT, etc.) |
+| **[SKILL.md](../guides/SKILL.md)** | How to use ServalSheets tools effectively | AI assistants (Claude, GPT, etc.) |
 
-**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 15 tools and 158 actions. It includes best practices, safety guidelines, and common patterns.
+**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 21 tools and 272 actions. It includes best practices, safety guidelines, and common patterns.
 
 ---
 
@@ -53,7 +53,7 @@ Comprehensive guides for production deployments:
 
 | Document | Lines | Topics Covered |
 |----------|-------|----------------|
-| **[SECURITY.md](./SECURITY.md)** | 3,482 | Token storage, authentication methods, key rotation, incident response, compliance |
+| **[SECURITY.md](../../SECURITY.md)** | 3,482 | Token storage, authentication methods, key rotation, incident response, compliance |
 
 **Key topics**:
 - AES-256-GCM token encryption
@@ -130,10 +130,10 @@ Documentation for developers and contributors:
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[LOCAL_TESTING.md](./LOCAL_TESTING.md)** | How to test locally before deployment | Developers |
-| **[IMPLEMENTATION_MAP.md](./IMPLEMENTATION_MAP.md)** | Architecture and implementation phases | Contributors |
-| **[COMPLIANCE_CHECKLIST.md](./COMPLIANCE_CHECKLIST.md)** | Requirements checklist | Contributors |
-| **[OFFICIAL_SOURCES.md](./OFFICIAL_SOURCES.md)** | Source-of-truth references | Contributors |
+| **[TESTING.md](./TESTING.md)** | How to test locally before deployment | Developers |
+| **[IMPLEMENTATION_GUARDRAILS.md](./IMPLEMENTATION_GUARDRAILS.md)** | Architecture and implementation phases | Contributors |
+| **[MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)** | Requirements checklist | Contributors |
+| **[SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)** | Source-of-truth references | Contributors |
 
 ---
 
@@ -154,37 +154,37 @@ Comprehensive analysis and audit reports:
 
 ### "I'm a new user, where do I start?"
 
-1. **[FIRST_TIME_USER.md](./FIRST_TIME_USER.md)** - Your first 5 minutes
-2. **[QUICKSTART_CREDENTIALS.md](./QUICKSTART_CREDENTIALS.md)** - Get Google credentials
-3. **[CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md)** - Set up Claude Desktop
-4. **[USAGE_GUIDE.md](./USAGE_GUIDE.md)** - Learn how to use everything
+1. **[FIRST_TIME_USER.md](../guides/FIRST_TIME_USER.md)** - Your first 5 minutes
+2. **[QUICKSTART_CREDENTIALS.md](../guides/QUICKSTART_CREDENTIALS.md)** - Get Google credentials
+3. **[CLAUDE_DESKTOP_SETUP.md](../guides/CLAUDE_DESKTOP_SETUP.md)** - Set up Claude Desktop
+4. **[USAGE_GUIDE.md](../guides/USAGE_GUIDE.md)** - Learn how to use everything
 
 ### "I want to deploy to production"
 
-1. **[SECURITY.md](./SECURITY.md)** - Security best practices
-2. **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Choose deployment method
-3. **[MONITORING.md](./MONITORING.md)** - Set up observability
-4. **[PERFORMANCE.md](./PERFORMANCE.md)** - Optimize performance
+1. **[SECURITY.md](../../SECURITY.md)** - Security best practices
+2. **[DEPLOYMENT.md](../guides/DEPLOYMENT.md)** - Choose deployment method
+3. **[MONITORING.md](../guides/MONITORING.md)** - Set up observability
+4. **[PERFORMANCE.md](../guides/PERFORMANCE.md)** - Optimize performance
 
 ### "I'm having issues"
 
-1. **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions
+1. **[TROUBLESHOOTING.md](../guides/TROUBLESHOOTING.md)** - Common issues and solutions
 2. Enable debug logging: `export LOG_LEVEL=debug`
 3. Check logs: `~/Library/Logs/Claude/mcp-server-servalsheets.log`
 4. Open issue: https://github.com/khill1269/servalsheets/issues
 
 ### "I want to contribute"
 
-1. **[IMPLEMENTATION_MAP.md](./IMPLEMENTATION_MAP.md)** - Architecture overview
-2. **[COMPLIANCE_CHECKLIST.md](./COMPLIANCE_CHECKLIST.md)** - Requirements
-3. **[OFFICIAL_SOURCES.md](./OFFICIAL_SOURCES.md)** - Source references
-4. **[README.md](./README.md)** - Development setup
+1. **[IMPLEMENTATION_GUARDRAILS.md](./IMPLEMENTATION_GUARDRAILS.md)** - Architecture overview
+2. **[MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)** - Requirements
+3. **[SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)** - Source references
+4. **[README.md](../../README.md)** - Development setup
 
 ### "I'm an AI assistant learning to use ServalSheets"
 
-1. **[SKILL.md](./SKILL.md)** - Complete tool usage guide for AI
-2. **[README.md](./README.md)** - API reference and examples
-3. **[PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md)** - Interactive prompts
+1. **[SKILL.md](../guides/SKILL.md)** - Complete tool usage guide for AI
+2. **[README.md](../../README.md)** - API reference and examples
+3. **[PROMPTS_GUIDE.md](../guides/PROMPTS_GUIDE.md)** - Interactive prompts
 
 ---
 

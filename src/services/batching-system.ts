@@ -296,6 +296,29 @@ export class BatchingSystem {
     }
   }
 
+  private buildRowData(values: unknown[][], valueInputOption: string): sheets_v4.Schema$RowData[] {
+    return values.map((rowValues: unknown[]) => ({
+      values: rowValues.map((cellValue: unknown) => {
+        const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
+
+        if (valueInputOption === 'USER_ENTERED' || valueInputOption === 'RAW') {
+          if (isFormula) {
+            return { userEnteredValue: { formulaValue: cellValue as string } };
+          }
+          if (typeof cellValue === 'number') {
+            return { userEnteredValue: { numberValue: cellValue } };
+          }
+          if (typeof cellValue === 'boolean') {
+            return { userEnteredValue: { boolValue: cellValue } };
+          }
+          return { userEnteredValue: { stringValue: String(cellValue) } };
+        }
+
+        return { userEnteredValue: { stringValue: String(cellValue) } };
+      }),
+    }));
+  }
+
   /**
    * Execute an operation (with batching if enabled)
    */
@@ -503,24 +526,28 @@ export class BatchingSystem {
     const spreadsheetId = operations[0]!.spreadsheetId;
     const coordinator = getConcurrencyCoordinator(); // Phase 1
 
-    // Phase 1: Acquire global permit for metadata fetch
-    const spreadsheetMetadata = await coordinator.execute('BatchingSystem', async () =>
-      this.sheetsApi.spreadsheets.get({
-        spreadsheetId,
-        fields: 'sheets(properties(sheetId,title))',
-      })
-    );
-
+    const needsSheetIds = operations.some((op) => !op.params.tableId);
     const sheetIdMap = new Map<string, number>();
-    spreadsheetMetadata.data.sheets?.forEach((sheet) => {
-      if (
-        sheet.properties?.title &&
-        sheet.properties.sheetId !== undefined &&
-        sheet.properties.sheetId !== null
-      ) {
-        sheetIdMap.set(sheet.properties.title, sheet.properties.sheetId);
-      }
-    });
+
+    if (needsSheetIds) {
+      // Phase 1: Acquire global permit for metadata fetch
+      const spreadsheetMetadata = await coordinator.execute('BatchingSystem', async () =>
+        this.sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          fields: 'sheets(properties(sheetId,title))',
+        })
+      );
+
+      spreadsheetMetadata.data.sheets?.forEach((sheet) => {
+        if (
+          sheet.properties?.title &&
+          sheet.properties.sheetId !== undefined &&
+          sheet.properties.sheetId !== null
+        ) {
+          sheetIdMap.set(sheet.properties.title, sheet.properties.sheetId);
+        }
+      });
+    }
 
     // Convert append operations to batchUpdate requests
     const requests: sheets_v4.Schema$Request[] = [];
@@ -530,52 +557,41 @@ export class BatchingSystem {
     }> = [];
 
     for (const op of operations) {
-      // OPTIMIZATION: Use cached range parser (5-10ms saved per batch)
-      const sheetName = extractSheetName(op.params.range);
-
-      const sheetId = sheetIdMap.get(sheetName);
-
-      if (sheetId === undefined) {
-        // If we can't resolve sheet ID, fall back to individual append
-        op.reject(new Error(`Could not resolve sheet ID for range: ${op.params.range}`));
-        continue;
-      }
-
-      // Create appendCells request with the values
-      const rows: sheets_v4.Schema$RowData[] = op.params.values.map((rowValues: unknown[]) => ({
-        values: rowValues.map((cellValue: unknown) => {
-          // Determine if value should be parsed as formula or literal
-          const isFormula = typeof cellValue === 'string' && cellValue.startsWith('=');
-          const valueInputOption = op.params.valueInputOption || 'USER_ENTERED';
-
-          if (valueInputOption === 'USER_ENTERED' || valueInputOption === 'RAW') {
-            // For USER_ENTERED or RAW, store as userEnteredValue
-            if (isFormula) {
-              return {
-                userEnteredValue: { formulaValue: cellValue as string },
-              };
-            } else if (typeof cellValue === 'number') {
-              return { userEnteredValue: { numberValue: cellValue } };
-            } else if (typeof cellValue === 'boolean') {
-              return { userEnteredValue: { boolValue: cellValue } };
-            } else {
-              return { userEnteredValue: { stringValue: String(cellValue) } };
-            }
-          } else {
-            // For INPUT_VALUE_OPTION_UNSPECIFIED, store as formatted string
-            return { userEnteredValue: { stringValue: String(cellValue) } };
-          }
-        }),
-      }));
+      const valueInputOption = op.params.valueInputOption || 'USER_ENTERED';
+      const rows = this.buildRowData(op.params.values, valueInputOption);
 
       const requestIndex = requests.length;
-      requests.push({
-        appendCells: {
-          sheetId,
-          rows,
-          fields: 'userEnteredValue',
-        },
-      });
+      if (op.params.tableId) {
+        requests.push({
+          appendCells: {
+            tableId: op.params.tableId,
+            rows,
+            fields: 'userEnteredValue',
+          },
+        });
+      } else if (op.params.range) {
+        // OPTIMIZATION: Use cached range parser (5-10ms saved per batch)
+        const sheetName = extractSheetName(op.params.range);
+
+        const sheetId = sheetIdMap.get(sheetName);
+
+        if (sheetId === undefined) {
+          // If we can't resolve sheet ID, fall back to individual append
+          op.reject(new Error(`Could not resolve sheet ID for range: ${op.params.range}`));
+          continue;
+        }
+
+        requests.push({
+          appendCells: {
+            sheetId,
+            rows,
+            fields: 'userEnteredValue',
+          },
+        });
+      } else {
+        op.reject(new Error('Missing range or tableId for append operation'));
+        continue;
+      }
 
       operationRangeMap.push({ operation: op, requestIndex });
     }
@@ -608,7 +624,7 @@ export class BatchingSystem {
       const constructedResponse = {
         updates: {
           spreadsheetId,
-          updatedRange: operation.params.range,
+          updatedRange: operation.params.range ?? '',
           updatedRows: operation.params.values.length,
           updatedColumns: operation.params.values[0]?.length || 0,
           updatedCells: operation.params.values.reduce(
@@ -616,7 +632,7 @@ export class BatchingSystem {
             0
           ),
         },
-        tableRange: operation.params.range,
+        tableRange: operation.params.range ?? '',
       };
 
       operation.resolve(constructedResponse);
@@ -700,6 +716,47 @@ export class BatchingSystem {
         )) as T;
 
       case 'values:append':
+        if (operation.params.tableId) {
+          const rows = this.buildRowData(
+            operation.params.values,
+            operation.params.valueInputOption || 'USER_ENTERED'
+          );
+
+          await coordinator.execute('BatchingSystem', async () =>
+            this.sheetsApi.spreadsheets.batchUpdate({
+              spreadsheetId: operation.spreadsheetId,
+              requestBody: {
+                requests: [
+                  {
+                    appendCells: {
+                      tableId: operation.params.tableId,
+                      rows,
+                      fields: 'userEnteredValue',
+                    },
+                  },
+                ],
+                includeSpreadsheetInResponse: false,
+              },
+            })
+          );
+
+          const updatedCells = operation.params.values.reduce(
+            (sum: number, row: unknown[]) => sum + row.length,
+            0
+          );
+
+          return {
+            updates: {
+              spreadsheetId: operation.spreadsheetId,
+              updatedRange: operation.params.range ?? '',
+              updatedRows: operation.params.values.length,
+              updatedColumns: operation.params.values[0]?.length || 0,
+              updatedCells,
+            },
+            tableRange: operation.params.range ?? '',
+          } as T;
+        }
+
         // Phase 1: Acquire global permit for immediate append
         return (await coordinator.execute('BatchingSystem', async () =>
           this.sheetsApi.spreadsheets.values.append({

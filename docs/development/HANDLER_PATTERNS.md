@@ -2,7 +2,7 @@
 
 > **Version:** 1.0.0
 > **Architecture:** Action-based discriminated unions
-> **Tools:** 19 tools with 244 actions
+> **Tools:** 21 tools with 272 actions
 
 ---
 

@@ -42,9 +42,9 @@ npm audit --json > analysis-output/audit.json
 
 | Metric | Value |
 |--------|-------|
-| Version | 1.4.0 |
-| Tools | 17 |
-| Actions | 226 |
+| Version | 1.6.0 |
+| Tools | 21 |
+| Actions | 2 |
 | Tests | 1,830+ |
 | LOC | 77,813 |
 | MCP SDK | 1.25.2 |

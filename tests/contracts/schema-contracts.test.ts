@@ -183,8 +183,8 @@ describe('Schema Contracts', () => {
       expect(TOOL_SCHEMAS).toHaveLength(21);
     });
 
-    it('should have 271 total actions across all tools', () => {
-      expect(ACTION_COUNT).toBe(271);
+    it('should have 272 total actions across all tools', () => {
+      expect(ACTION_COUNT).toBe(272);
     });
 
     it('should not have duplicate tool names', () => {
@@ -256,6 +256,23 @@ describe('Schema Contracts', () => {
 
         expect(result.success).toBe(true);
       }
+    });
+
+    it('sheets_data append accepts tableId without range', () => {
+      const result = SheetsDataInputSchema.safeParse({
+        request: {
+          action: 'append',
+          spreadsheetId: 'test123',
+          tableId: 'table-1',
+          values: [[1, 2]],
+        },
+      });
+
+      if (!result.success) {
+        console.error('sheets_data append with tableId failed:', result.error.issues);
+      }
+
+      expect(result.success).toBe(true);
     });
 
     it('sheets_core discriminates correctly', () => {

@@ -244,7 +244,7 @@
 
 | Feature | Status | Implementation |
 |---------|--------|----------------|
-| Tool Registration | ✅ | 16 tools via `server.tool()` |
+| Tool Registration | ✅ | 21 tools via `server.tool()` |
 | Tool Annotations | ✅ | All 4 hints (readOnlyHint, destructiveHint, idempotentHint, openWorldHint) |
 | Zod Schema Validation | ✅ | 24 schema files |
 | Structured Outputs | ✅ | content + structuredContent |
@@ -265,7 +265,7 @@
 
 ```typescript
 capabilities: {
-  tools: { enabled: true },          // ✅ 16 tools, 207 actions
+  tools: { enabled: true },          // ✅ 21 tools, 272 actions
   resources: { enabled: true },      // ✅ URI templates + knowledge
   prompts: { enabled: true },        // ✅ 6 guided workflows
   completions: { enabled: true },    // ✅ Argument autocompletion
@@ -289,7 +289,7 @@ capabilities: {
 
 ## Part 5: ServalSheets Tool Summary
 
-### 5.1 Tools by Category (16 tools, 207 actions)
+### 5.1 Tools by Category (21 tools, 272 actions)
 
 | Tool | Actions | Google API | Category |
 |------|---------|------------|----------|
@@ -317,7 +317,7 @@ capabilities: {
 | Sheets API v4 | 50+ batchUpdate types | 140+ mapped actions | **~95%** |
 | Values API | 10 methods | 7 actions (+ batch) | **100%** |
 | Drive API v3 | 14 endpoints used | 28 actions | **100%** |
-| **Total** | 74+ API operations | 207 actions | **>100%** |
+| **Total** | 74+ API operations | 272 actions | **>100%** |
 
 ---
 
@@ -410,8 +410,8 @@ src/core/request-builder.ts (1544 lines)
    - Pattern: Add `?? undefined` for null coalescing
    
 2. **Update Documentation**
-   - CLAUDE.md shows 16 tools/207 actions
-   - Actual: 16 tools/207 actions
+   - CLAUDE.md shows 21 tools/272 actions
+   - Actual: 21 tools/272 actions
 
 ### 8.2 Future Enhancements (Optional)
 

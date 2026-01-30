@@ -14,8 +14,8 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 246 actions across 19 tools (Tier 7: templates, bigquery, appsscript)
- * Note: sheets_analyze now has 16 actions (11 original + 5 progressive analysis)
+ * Total: 272 actions across 21 tools (Tier 7: templates, bigquery, appsscript)
+ * Note: sheets_analyze has 16 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
   sheets_advanced: [
@@ -55,6 +55,11 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'analyze_formulas',
     'query_natural_language',
     'explain_analysis',
+    'scout',
+    'plan',
+    'execute_plan',
+    'drill_down',
+    'generate_actions',
   ],
   sheets_appsscript: [
     'create',

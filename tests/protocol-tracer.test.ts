@@ -3,8 +3,8 @@ import {
   ProtocolTracer,
   getProtocolTracer,
   resetProtocolTracer,
-} from '../../src/utils/protocol-tracer.js';
-import type { ErrorDetail } from '../../src/utils/error-factory.js';
+} from '../scripts/test-infrastructure/protocol-tracer.js';
+import type { ErrorDetail } from '../src/utils/error-factory.js';
 
 describe('ProtocolTracer', () => {
   let tracer: ProtocolTracer;

@@ -20,7 +20,7 @@ src/schemas/index.ts
 ```
 
 ### Questions
-1. All 16 tools have schemas?
+1. All 21 tools have schemas?
 2. Are discriminated unions used?
 3. Are refinements present?
 4. Is JSON Schema generated correctly?
@@ -102,7 +102,7 @@ npm ls --depth=0
 ## Category 21: MCP Tool Registration (4%)
 
 ### Requirements
-- [ ] All 16 tools registered
+- [ ] All 21 tools registered
 - [ ] Names follow convention
 - [ ] Descriptions clear
 - [ ] Input schemas valid

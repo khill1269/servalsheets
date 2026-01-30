@@ -11,7 +11,7 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 16 tools with 207 actions (current consolidated set)
+ * - tools: 21 tools with 267 actions (current consolidated set)
  * - resources: 2 URI templates + 7 knowledge resources
  * - prompts: 6 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
@@ -42,7 +42,7 @@ import type { ServerCapabilities, Icon, ToolExecution } from '@modelcontextproto
  * - Prompts (6 guided workflows)
  * - Knowledge Resources (formulas, colors, formats)
  * - listChanged notifications (auto-registered by McpServer)
- * - SEP-973 Icons (SVG icons for all 16 tools)
+ * - SEP-973 Icons (SVG icons for 16 tools; icon set is partial)
  * - Server Instructions (LLM context guidance)
  * - SEP-1686 Tasks (SDK-compatible TaskStoreAdapter with listTasks)
  * - Logging capability (winston logger + MCP logging/setLevel)

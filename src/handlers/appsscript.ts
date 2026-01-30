@@ -197,6 +197,16 @@ export class SheetsAppsScriptHandler extends BaseHandler<
     if (!response.ok) {
       const errorBody = await response.text();
       let errorMessage = `Apps Script API error: ${response.status} ${response.statusText}`;
+      let errorCode:
+        | 'UNAVAILABLE'
+        | 'SERVICE_NOT_ENABLED'
+        | 'PERMISSION_DENIED'
+        | 'INVALID_PARAMS'
+        | 'NOT_FOUND'
+        | 'AUTH_ERROR' = 'UNAVAILABLE';
+      let retryable = response.status >= 500; // Retryable for server errors
+      let resolution: string | undefined;
+
       try {
         const errorJson = JSON.parse(errorBody);
         if (errorJson.error?.message) {
@@ -205,13 +215,58 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       } catch {
         // Use default error message
       }
-      throw new ServiceError(
-        errorMessage,
-        'UNAVAILABLE',
-        'AppsScript',
-        response.status >= 500, // Retryable for server errors
-        { statusCode: response.status, path }
-      );
+
+      // BUG FIX 0.9: Enhance error handling with prerequisite guidance
+      if (response.status === 403) {
+        // Forbidden - likely API not enabled or missing scopes
+        if (errorMessage.includes('has not been used')) {
+          // API not enabled
+          errorCode = 'SERVICE_NOT_ENABLED';
+          errorMessage = `Google Apps Script API is not enabled. ${errorMessage}`;
+          resolution =
+            'Enable the Apps Script API in your Google Cloud Console: ' +
+            '1. Go to https://console.cloud.google.com/apis/library/script.googleapis.com ' +
+            '2. Click "Enable" ' +
+            '3. Wait a few minutes for the change to propagate ' +
+            '4. Retry your request';
+          retryable = false;
+        } else if (
+          errorMessage.includes('Insufficient Permission') ||
+          errorMessage.includes('permission')
+        ) {
+          // Missing OAuth scopes
+          errorCode = 'PERMISSION_DENIED';
+          errorMessage = `Insufficient OAuth permissions for Apps Script API. ${errorMessage}`;
+          resolution =
+            'Required OAuth scopes: ' +
+            'https://www.googleapis.com/auth/script.projects (manage projects), ' +
+            'https://www.googleapis.com/auth/script.deployments (manage deployments), ' +
+            'https://www.googleapis.com/auth/script.processes (view execution logs). ' +
+            'Re-authenticate with sheets_auth to grant these scopes.';
+          retryable = true; // User can re-authenticate
+        }
+      } else if (response.status === 400) {
+        // Bad Request - invalid parameters
+        errorCode = 'INVALID_PARAMS';
+        retryable = false;
+      } else if (response.status === 404) {
+        // Not Found
+        errorCode = 'NOT_FOUND';
+        errorMessage = `Apps Script resource not found. ${errorMessage}`;
+        retryable = false;
+      } else if (response.status === 401) {
+        // Unauthorized - token expired
+        errorCode = 'AUTH_ERROR';
+        errorMessage = `Authentication failed for Apps Script API. ${errorMessage}`;
+        resolution = 'Re-authenticate using sheets_auth tool.';
+        retryable = true;
+      }
+
+      throw new ServiceError(errorMessage, errorCode, 'AppsScript', retryable, {
+        statusCode: response.status,
+        path,
+        resolution,
+      });
     }
 
     // Handle empty responses (e.g., DELETE operations return no body)

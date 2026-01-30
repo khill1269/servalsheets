@@ -79,6 +79,28 @@ export interface SystemMetrics {
   uptime: number;
 }
 
+export interface FeatureFlagMetrics {
+  /** Total feature flag blocks */
+  totalBlocks: number;
+  /** Block counts by feature flag */
+  byFlag: Record<string, number>;
+  /** Block counts by tool/action */
+  byAction: Record<string, number>;
+}
+
+export interface PayloadWarningMetrics {
+  /** Warning-level payloads */
+  warning: number;
+  /** Critical-level payloads */
+  critical: number;
+  /** Exceeded-limit payloads */
+  exceeded: number;
+  /** Total payload warnings */
+  total: number;
+  /** Payload warnings by tool/action */
+  byAction: Record<string, { warning: number; critical: number; exceeded: number; total: number }>;
+}
+
 export interface MetricsSummary {
   /** Service start time */
   startTime: string;
@@ -94,6 +116,10 @@ export interface MetricsSummary {
   api: ApiMetrics;
   /** System metrics */
   system: SystemMetrics;
+  /** Feature flag blocks */
+  featureFlags: FeatureFlagMetrics;
+  /** Payload size warnings */
+  payloadWarnings: PayloadWarningMetrics;
   /** Total operations */
   totalOperations: number;
   /** Average success rate across all operations */
@@ -344,6 +370,24 @@ export class MetricsService {
     destructive: boolean;
     timestamp: number;
   }> = [];
+
+  private featureFlagBlockCount = 0;
+  private readonly featureFlagBlocks: Map<string, number> = new Map();
+  private readonly featureFlagBlocksByAction: Map<string, number> = new Map();
+
+  private payloadWarnings: {
+    warning: number;
+    critical: number;
+    exceeded: number;
+  } = {
+    warning: 0,
+    critical: 0,
+    exceeded: 0,
+  };
+  private readonly payloadWarningsByAction: Map<
+    string,
+    { warning: number; critical: number; exceeded: number }
+  > = new Map();
 
   private enabled: boolean;
   private verboseLogging: boolean;
@@ -727,6 +771,8 @@ export class MetricsService {
     // Get circuit breaker and confirmation skip metrics
     const circuitBreaker = this.getCircuitBreakerMetrics();
     const confirmationSkipMetrics = this.getConfirmationSkipMetrics();
+    const featureFlags = this.getFeatureFlagMetrics();
+    const payloadWarnings = this.getPayloadWarningMetrics();
 
     return {
       startTime: this.startTime.toISOString(),
@@ -736,6 +782,8 @@ export class MetricsService {
       cache: this.getCacheMetrics(),
       api: this.getApiMetrics(),
       system: this.getSystemMetrics(),
+      featureFlags,
+      payloadWarnings,
       totalOperations,
       avgSuccessRate,
       circuitBreaker,
@@ -902,6 +950,136 @@ export class MetricsService {
       readLimits: this.rateLimits.readLimits,
       writeLimits: this.rateLimits.writeLimits,
       totalLimits: this.rateLimits.readLimits + this.rateLimits.writeLimits,
+    };
+  }
+
+  /**
+   * Record feature flag block
+   */
+  recordFeatureFlagBlock(params: { flag: string; tool?: string; action?: string }): void {
+    if (!this.enabled) return;
+
+    this.featureFlagBlockCount++;
+
+    if (
+      !this.featureFlagBlocks.has(params.flag) &&
+      this.featureFlagBlocks.size >= MAX_LABEL_CARDINALITY
+    ) {
+      logger.warn('Feature flag metrics cardinality limit reached', {
+        limit: MAX_LABEL_CARDINALITY,
+        droppedFlag: params.flag,
+      });
+    } else {
+      this.featureFlagBlocks.set(params.flag, (this.featureFlagBlocks.get(params.flag) || 0) + 1);
+    }
+
+    if (params.tool && params.action) {
+      const actionKey = `${params.tool}.${params.action}`;
+      if (
+        !this.featureFlagBlocksByAction.has(actionKey) &&
+        this.featureFlagBlocksByAction.size >= MAX_LABEL_CARDINALITY
+      ) {
+        logger.warn('Feature flag action metrics cardinality limit reached', {
+          limit: MAX_LABEL_CARDINALITY,
+          droppedAction: actionKey,
+        });
+      } else {
+        this.featureFlagBlocksByAction.set(
+          actionKey,
+          (this.featureFlagBlocksByAction.get(actionKey) || 0) + 1
+        );
+      }
+    }
+  }
+
+  /**
+   * Get feature flag block metrics
+   */
+  getFeatureFlagMetrics(): FeatureFlagMetrics {
+    return {
+      totalBlocks: this.featureFlagBlockCount,
+      byFlag: Object.fromEntries(this.featureFlagBlocks),
+      byAction: Object.fromEntries(this.featureFlagBlocksByAction),
+    };
+  }
+
+  /**
+   * Record payload size warning
+   */
+  recordPayloadWarning(params: {
+    level: 'warning' | 'critical' | 'exceeded';
+    tool?: string;
+    action?: string;
+  }): void {
+    if (!this.enabled) return;
+
+    if (params.level === 'warning') {
+      this.payloadWarnings.warning++;
+    } else if (params.level === 'critical') {
+      this.payloadWarnings.critical++;
+    } else {
+      this.payloadWarnings.exceeded++;
+    }
+
+    if (params.tool && params.action) {
+      const actionKey = `${params.tool}.${params.action}`;
+      if (
+        !this.payloadWarningsByAction.has(actionKey) &&
+        this.payloadWarningsByAction.size >= MAX_LABEL_CARDINALITY
+      ) {
+        logger.warn('Payload warning metrics cardinality limit reached', {
+          limit: MAX_LABEL_CARDINALITY,
+          droppedAction: actionKey,
+        });
+        return;
+      }
+
+      const stats = this.payloadWarningsByAction.get(actionKey) ?? {
+        warning: 0,
+        critical: 0,
+        exceeded: 0,
+      };
+
+      if (params.level === 'warning') {
+        stats.warning++;
+      } else if (params.level === 'critical') {
+        stats.critical++;
+      } else {
+        stats.exceeded++;
+      }
+
+      this.payloadWarningsByAction.set(actionKey, stats);
+    }
+  }
+
+  /**
+   * Get payload warning metrics
+   */
+  getPayloadWarningMetrics(): PayloadWarningMetrics {
+    const byAction: Record<
+      string,
+      { warning: number; critical: number; exceeded: number; total: number }
+    > = {};
+
+    for (const [actionKey, stats] of this.payloadWarningsByAction.entries()) {
+      const total = stats.warning + stats.critical + stats.exceeded;
+      byAction[actionKey] = {
+        warning: stats.warning,
+        critical: stats.critical,
+        exceeded: stats.exceeded,
+        total,
+      };
+    }
+
+    const total =
+      this.payloadWarnings.warning + this.payloadWarnings.critical + this.payloadWarnings.exceeded;
+
+    return {
+      warning: this.payloadWarnings.warning,
+      critical: this.payloadWarnings.critical,
+      exceeded: this.payloadWarnings.exceeded,
+      total,
+      byAction,
     };
   }
 
@@ -1195,6 +1373,15 @@ export class MetricsService {
       closedEvents: 0,
       currentState: 'closed',
     };
+    this.featureFlagBlockCount = 0;
+    this.featureFlagBlocks.clear();
+    this.featureFlagBlocksByAction.clear();
+    this.payloadWarnings = {
+      warning: 0,
+      critical: 0,
+      exceeded: 0,
+    };
+    this.payloadWarningsByAction.clear();
 
     this.startTime = new Date();
   }

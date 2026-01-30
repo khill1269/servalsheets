@@ -43,6 +43,11 @@ describe('Cache Key Generation', () => {
     });
   });
 
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
   describe('spreadsheetCacheKey', () => {
     it('should generate key with range', () => {
       const key = spreadsheetCacheKey('values:read', 'ss123', 'Sheet1!A1:B10');

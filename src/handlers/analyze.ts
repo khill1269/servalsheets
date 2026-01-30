@@ -536,7 +536,8 @@ export class AnalyzeHandler {
             // Get spreadsheet structure using existing API
             const spreadsheet = await this.sheetsApi.spreadsheets.get({
               spreadsheetId: structureInput.spreadsheetId,
-              includeGridData: false,
+              fields:
+                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount))),namedRanges(namedRangeId,name,range)',
             });
 
             const sheets = spreadsheet.data.sheets ?? [];
@@ -710,7 +711,8 @@ export class AnalyzeHandler {
             // Get spreadsheet metadata
             const spreadsheet = await this.sheetsApi.spreadsheets.get({
               spreadsheetId: perfInput.spreadsheetId,
-              includeGridData: false,
+              fields:
+                'spreadsheetId,properties,sheets(properties(sheetId,title,index,gridProperties(rowCount,columnCount)))',
             });
 
             const sheets = spreadsheet.data.sheets ?? [];

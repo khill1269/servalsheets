@@ -126,7 +126,7 @@ For each category:
 
 ### Tool Registration (Category 21)
 - Count registered tools (target: 27)
-- Verify action counts (target: 208)
+- Verify action counts (target: 272)
 - Check annotations on all tools
 - Files: `src/mcp/registration.ts`, `server.json`
 

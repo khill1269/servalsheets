@@ -29,18 +29,18 @@ This is the primary discovery mechanism for HTTP-based MCP servers per SEP-1649.
 
 **Version:** 1.6.0
 **Tools:** 21
-**Actions:** 271
+**Actions:** 272
 
 **Package contents:**
 
 - `SKILL.md` - Main skill file with UASEV+R protocol
-- `references/tool-guide.md` - Complete 21 tools, 271 actions reference
+- `references/tool-guide.md` - Complete 21 tools, 272 actions reference
 
 ### 3. Version Updates
 
 - `package.json`: 1.4.0 → 1.6.0
 - `src/version.ts`: 1.4.0 → 1.6.0
-- Description updated to "21 tools, 271 actions"
+- Description updated to "21 tools, 272 actions"
 
 ## Files Modified
 
@@ -63,14 +63,14 @@ This is the primary discovery mechanism for HTTP-based MCP servers per SEP-1649.
   "mcp_version": "2025-11-25",
   "server_name": "servalsheets",
   "server_version": "1.6.0",
-  "description": "Enterprise-grade Google Sheets MCP server with 21 tools and 273 specialized actions...",
+  "description": "Enterprise-grade Google Sheets MCP server with 21 tools and 272 specialized actions...",
   "endpoints": {
     "streamable_http": "https://example.com/mcp",
     "sse": "https://example.com/sse",
     "stdio": true
   },
   "capabilities": {
-    "tools": { "count": 21, "actions": 271 },
+    "tools": { "count": 21, "actions": 272 },
     "resources": { "templates": true, "subscriptions": false },
     "prompts": { "count": 17 },
     "sampling": true,

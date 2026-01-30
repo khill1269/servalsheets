@@ -1,6 +1,12 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    // Handle .js imports for .ts files (NodeNext module resolution compatibility)
+    extensionAlias: {
+      '.js': ['.ts', '.js'],
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

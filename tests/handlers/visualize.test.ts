@@ -7,7 +7,7 @@
  * update, delete, list, get, refresh)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VisualizeHandler } from '../../src/handlers/visualize.js';
 import { SheetsVisualizeOutputSchema } from '../../src/schemas/visualize.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -149,6 +149,11 @@ describe('VisualizeHandler', () => {
     mockApi = createMockSheetsApi();
     mockContext = createMockContext();
     handler = new VisualizeHandler(mockContext, mockApi as any);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('chart_create', () => {

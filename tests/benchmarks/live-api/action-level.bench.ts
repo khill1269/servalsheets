@@ -1,7 +1,7 @@
 /**
  * Action-Level Performance Benchmarks
  *
- * Comprehensive benchmarks for all 271 actions across 21 tools.
+ * Comprehensive benchmarks for all 272 actions across 21 tools.
  * Run with: npm run bench:action-level
  *
  * Note: This is a more granular benchmark than tool-level.bench.ts.
@@ -130,7 +130,7 @@ function createActionConfigs(): Map<string, ActionConfig[]> {
     { action: 'get_stats', getArgs: () => ({}), category: 'Confirm', maxP95Ms: 100 },
   ]);
 
-  // sheets_analyze (11 actions)
+  // sheets_analyze (16 actions)
   configs.set('sheets_analyze', [
     { action: 'comprehensive', getArgs: (sid) => ({ spreadsheetId: sid }), category: 'Analyze', maxP95Ms: 2500 },
     { action: 'analyze_structure', getArgs: (sid) => ({ spreadsheetId: sid }), category: 'Analyze', maxP95Ms: 1000 },

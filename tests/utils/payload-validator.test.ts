@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateBatchUpdatePayload,
   validateValuesPayload,
+  validateValuesBatchPayload,
   estimatePayloadSize,
   shouldSplitPayload,
   calculateOptimalBatchSize,
@@ -165,6 +166,22 @@ describe('PayloadValidator', () => {
       expect(result.breakdown).toBeDefined();
       expect(result.breakdown!.updateCells).toBeGreaterThan(0);
       expect(result.breakdown!.repeatCell).toBeGreaterThan(0);
+    });
+  });
+
+  describe('validateValuesBatchPayload', () => {
+    it('should pass for small values batch payloads', () => {
+      const result = validateValuesBatchPayload([
+        {
+          values: [
+            ['Name', 'Age'],
+            ['Alice', 30],
+          ],
+        },
+      ]);
+
+      expect(result.withinLimits).toBe(true);
+      expect(result.level).toBe('none');
     });
   });
 

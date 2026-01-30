@@ -35,29 +35,32 @@ export class WebhookHandler {
     try {
       switch (req.action) {
         case 'register':
-          return await this.handleRegister(req);
+          return { response: await this.handleRegister(req) };
 
         case 'unregister':
-          return await this.handleUnregister(req);
+          return { response: await this.handleUnregister(req) };
 
         case 'list':
-          return await this.handleList(req);
+          return { response: await this.handleList(req) };
 
         case 'get':
-          return await this.handleGet(req);
+          return { response: await this.handleGet(req) };
 
         case 'test':
-          return await this.handleTest(req);
+          return { response: await this.handleTest(req) };
 
         case 'get_stats':
-          return await this.handleGetStats(req);
+          return { response: await this.handleGetStats(req) };
 
         default:
           return {
-            success: false,
-            error: {
-              code: 'INVALID_ACTION',
-              message: `Unknown action: ${(req as { action: string }).action}`,
+            response: {
+              success: false,
+              error: {
+                code: 'INVALID_PARAMS',
+                message: `Unknown action: ${(req as { action: string }).action}`,
+                retryable: false,
+              },
             },
           };
       }
@@ -68,11 +71,14 @@ export class WebhookHandler {
       });
 
       return {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: { error: String(error) },
+        response: {
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : 'Unknown error',
+            details: { error: String(error) },
+            retryable: false,
+          },
         },
       };
     }
@@ -83,7 +89,7 @@ export class WebhookHandler {
    */
   private async handleRegister(
     input: Extract<SheetsWebhookInput['request'], { action: 'register' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const result = await manager.register(input);
@@ -96,9 +102,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_REGISTRATION_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to register webhook',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -109,7 +116,7 @@ export class WebhookHandler {
    */
   private async handleUnregister(
     input: Extract<SheetsWebhookInput['request'], { action: 'unregister' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const result = await manager.unregister(input.webhookId);
@@ -122,9 +129,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_UNREGISTER_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to unregister webhook',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -135,7 +143,7 @@ export class WebhookHandler {
    */
   private async handleList(
     input: Extract<SheetsWebhookInput['request'], { action: 'list' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const webhooks = await manager.list(input.spreadsheetId, input.active);
@@ -148,9 +156,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_LIST_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to list webhooks',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -161,7 +170,7 @@ export class WebhookHandler {
    */
   private async handleGet(
     input: Extract<SheetsWebhookInput['request'], { action: 'get' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const webhook = await manager.get(input.webhookId);
@@ -170,8 +179,9 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'WEBHOOK_NOT_FOUND',
+            code: 'NOT_FOUND',
             message: `Webhook ${input.webhookId} not found`,
+            retryable: false,
           },
         };
       }
@@ -184,9 +194,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_GET_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to get webhook',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -197,7 +208,7 @@ export class WebhookHandler {
    */
   private async handleTest(
     input: Extract<SheetsWebhookInput['request'], { action: 'test' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const webhook = await manager.get(input.webhookId);
@@ -206,8 +217,9 @@ export class WebhookHandler {
         return {
           success: false,
           error: {
-            code: 'WEBHOOK_NOT_FOUND',
+            code: 'NOT_FOUND',
             message: `Webhook ${input.webhookId} not found`,
+            retryable: false,
           },
         };
       }
@@ -248,9 +260,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_TEST_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to send test webhook',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }
@@ -261,7 +274,7 @@ export class WebhookHandler {
    */
   private async handleGetStats(
     input: Extract<SheetsWebhookInput['request'], { action: 'get_stats' }>
-  ): Promise<SheetsWebhookOutput> {
+  ): Promise<SheetsWebhookOutput['response']> {
     try {
       const manager = getWebhookManager();
       const queue = getWebhookQueue();
@@ -307,9 +320,10 @@ export class WebhookHandler {
       return {
         success: false,
         error: {
-          code: 'WEBHOOK_STATS_FAILED',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to get webhook stats',
           details: { error: String(error) },
+          retryable: false,
         },
       };
     }

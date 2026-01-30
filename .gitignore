@@ -117,3 +117,6 @@ src/__tests__/
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
+
+# Python cache
+.mypy_cache/

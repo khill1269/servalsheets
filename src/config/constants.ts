@@ -211,7 +211,7 @@ export const MAX_PAGE_SIZE = 50;
  * Large schema payloads (500KB+) can overwhelm some MCP clients.
  *
  * Modes:
- * - 'full': All 19 tools (default, ~527KB schema payload)
+ * - 'full': All 21 tools (default, ~527KB schema payload)
  * - 'standard': 12 tools - removes MCP-native + Tier 7 (~444KB)
  * - 'lite': 8 essential tools (~199KB, recommended for Claude Desktop)
  *
@@ -252,7 +252,7 @@ export const TOOL_MODE: ToolMode = (() => {
  *
  * Benefits:
  * - Reduces initial tools/list payload from ~231KB to ~5KB
- * - All 19 tools available immediately
+ * - All 21 tools available immediately
  * - Claude fetches full schema only when needed via resources
  * - Optimal for Claude Desktop and other token-conscious clients
  *

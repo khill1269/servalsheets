@@ -76,10 +76,51 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     this.sheetsApi = sheetsApi;
   }
 
+  /**
+   * Override to add count-to-endIndex conversion (BUG FIX 0.6)
+   */
+  protected inferRequestParameters<T extends Record<string, unknown>>(request: T): T {
+    // First, do standard parameter inference from context
+    const inferredReq = super.inferRequestParameters(request);
+
+    // BUG FIX 0.6: Convert count parameter to endIndex for range-based actions
+    const rangeActions = new Set(['delete', 'move', 'resize', 'hide', 'show', 'group', 'ungroup']);
+
+    const action = inferredReq['action'] as string;
+    if (rangeActions.has(action)) {
+      const count = inferredReq['count'];
+      const startIndex = inferredReq['startIndex'];
+      const endIndex = inferredReq['endIndex'];
+
+      // If count is provided but endIndex is not, convert count to endIndex
+      if (count !== undefined && endIndex === undefined && startIndex !== undefined) {
+        const countNum = typeof count === 'number' ? count : Number(count);
+        const startNum = typeof startIndex === 'number' ? startIndex : Number(startIndex);
+
+        if (!isNaN(countNum) && !isNaN(startNum)) {
+          // Create new object with endIndex and without count
+          const { count: _c, ...rest } = inferredReq;
+          return {
+            ...rest,
+            endIndex: startNum + countNum,
+          } as unknown as T;
+        }
+      }
+
+      // Remove count field if it exists (even if conversion didn't happen)
+      if ('count' in inferredReq) {
+        const { count: _c, ...rest } = inferredReq;
+        return rest as unknown as T;
+      }
+    }
+
+    return inferredReq;
+  }
+
   async handle(input: SheetsDimensionsInput): Promise<SheetsDimensionsOutput> {
     // Extract the request from the wrapper
     const rawReq = unwrapRequest<SheetsDimensionsInput['request']>(input);
-    // Phase 1, Task 1.4: Infer missing parameters from context
+    // Phase 1, Task 1.4: Infer missing parameters from context (includes count-to-endIndex conversion)
     const req = this.inferRequestParameters(rawReq) as DimensionsRequest;
 
     try {

@@ -164,7 +164,7 @@ export class ServalSheetsServer {
         cacheManager.startCleanupTask();
     }
     /**
-     * Register all 16 tools with proper annotations
+     * Register all 21 tools with proper annotations
      */
     registerTools() {
         for (const tool of TOOL_DEFINITIONS) {

@@ -1,15 +1,15 @@
 # Claude Desktop Setup Guide
 
-**ServalSheets v1.4.0** - Ready to test in Claude Desktop!
+**ServalSheets v1.6.0** - Ready to test in Claude Desktop!
 
 ---
 
 ## ✅ Build Complete
 
 Your ServalSheets MCP server is compiled and ready:
-- **Version:** 1.4.0
-- **Tools:** 17
-- **Actions:** 226
+- **Version:** 1.6.0
+- **Tools:** 21
+- **Actions:** 272
 - **Files:** 859 compiled files in `dist/`
 
 ---
@@ -313,7 +313,7 @@ If you install globally with `npm install -g`:
    cd /Users/thomascahill/Downloads/servalsheets
    node dist/cli.js --version
    ```
-   Should print: `servalsheets v1.4.0`
+   Should print: `servalsheets v1.6.0`
 
 2. **Check for missing dependencies:**
    ```bash
@@ -337,7 +337,7 @@ If you install globally with `npm install -g`:
 - ✅ **sheets_dimensions** - Row/column operations
 - ✅ **sheets_visualize** - Charts and pivot tables
 
-### Modern Features (v1.4.0)
+### Modern Features (v1.6.0)
 - ✅ **sheets_session** - "the spreadsheet", "undo that"
 - ✅ **sheets_composite** - import_csv, deduplicate, bulk_update
 - ✅ **sheets_quality** - validate, detect_conflicts
@@ -399,13 +399,13 @@ If you install globally with `npm install -g`:
 ## 📚 Additional Resources
 
 ### Included in Package
-- **SKILL.md** - Claude skill file (v1.4.0, updated 2026-01-16)
+- **SKILL.md** - Claude skill file (v1.6.0, updated 2026-01-26)
 - **README.md** - Complete documentation
 - **TESTING_GUIDE.md** - Comprehensive testing guide
 - **docs/** - Full documentation directory
 
 ### Key Files
-- **server.json** - MCP metadata (17 tools, 226 actions)
+- **server.json** - MCP metadata (21 tools, 272 actions)
 - **dist/cli.js** - STDIO server entrypoint
 - **dist/server.js** - Server core
 - **dist/http-server.js** - HTTP/SSE transport
@@ -421,7 +421,7 @@ If you install globally with `npm install -g`:
 Your setup is successful when:
 
 - [ ] Claude Desktop shows "servalsheets" in MCP servers list
-- [ ] Can list available tools (17 tools)
+- [ ] Can list available tools (21 tools)
 - [ ] Can check auth status
 - [ ] Can create a test spreadsheet
 - [ ] Can read/write cell data
@@ -433,6 +433,6 @@ Your setup is successful when:
 
 ## 🚀 You're Ready!
 
-ServalSheets v1.4.0 is now configured for Claude Desktop testing. Restart Claude Desktop and start building sophisticated Google Sheets applications!
+ServalSheets v1.6.0 is now configured for Claude Desktop testing. Restart Claude Desktop and start building sophisticated Google Sheets applications!
 
 **Happy testing!** 🎉

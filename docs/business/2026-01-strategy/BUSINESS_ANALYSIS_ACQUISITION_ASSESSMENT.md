@@ -18,7 +18,7 @@ ServalSheets represents a **first-mover advantage** in the rapidly emerging MCP 
 | Metric | Score | Notes |
 |--------|-------|-------|
 | **Market Timing** | 9/10 | Perfect timing - MCP adoption is exploding |
-| **Technical Moat** | 8/10 | 267 actions vs. 15-25 competitors |
+| **Technical Moat** | 8/10 | 272 actions vs. 15-25 competitors |
 | **Revenue Potential** | 7/10 | Clear enterprise monetization path |
 | **Acquisition Fit** | 9/10 | Strategic for Anthropic, OpenAI, Google |
 | **Risk Profile** | Medium | Execution risk, not market risk |
@@ -133,7 +133,7 @@ Jan 2026: 97M+ monthly SDK downloads
 
 | Server | Stars | Tools | Actions | Charts | Pivots | OAuth | Tests |
 |--------|-------|-------|---------|--------|--------|-------|-------|
-| **ServalSheets** | 0 | 21 | 267 | ✅ | ✅ | 2.1 | 1,800+ |
+| **ServalSheets** | 0 | 21 | 272 | ✅ | ✅ | 2.1 | 1,800+ |
 | xing5/mcp-google-sheets | 508 | 4 | 15 | ❌ | ❌ | PAT | ~20 |
 | nicholascpark/google-sheets | 25 | 4 | 10 | ❌ | ❌ | PAT | ~10 |
 | Stitch-It/mcp-google-sheets | 12 | 5 | 12 | ❌ | ❌ | OAuth | ~15 |
@@ -190,7 +190,7 @@ Jan 2026: 97M+ monthly SDK downloads
 │                    ServalSheets Architecture                     │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   21 Tools  │  │ 267 Actions │  │  Type-Safe  │             │
+│  │   21 Tools  │  │ 272 Actions │  │  Type-Safe  │             │
 │  │   Modular   │  │  Validated  │  │   Schemas   │             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                          │                                       │
@@ -216,7 +216,7 @@ Jan 2026: 97M+ monthly SDK downloads
 | IP Component | Description | Value Driver |
 |--------------|-------------|--------------|
 | Tool Architecture | 21-tool modular design | Extensibility |
-| Action Library | 267 validated operations | Completeness |
+| Action Library | 272 validated operations | Completeness |
 | Test Suite | 1,800+ comprehensive tests | Reliability |
 | Schema System | Type-safe with Zod validation | Quality |
 | Batching System | 20-40% API reduction | Cost savings |

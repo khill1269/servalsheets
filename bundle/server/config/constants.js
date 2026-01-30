@@ -169,7 +169,7 @@ export const TOOL_MODE = (() => {
  *
  * Benefits:
  * - Reduces initial tools/list payload from ~231KB to ~5KB
- * - All 19 tools available immediately
+ * - All 21 tools available immediately
  * - Claude fetches full schema only when needed via resources
  * - Optimal for Claude Desktop and other token-conscious clients
  *

@@ -358,7 +358,7 @@ The following features are **always active** in v1.1.1:
 
 ## 📊 Verify Tools Are Loaded
 
-You should see **19 tools** available:
+You should see **21 tools** available:
 
 1. `sheets_auth` - Authentication & OAuth
 2. `sheets_core` - Spreadsheet CRUD operations
@@ -380,12 +380,12 @@ You should see **19 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 19 tools, 252 actions
+**Total**: 21 tools, 272 actions
 
 To see the current action breakdown, run:
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 19 tools, 252 actions
+# Output: ✅ Total: 21 tools, 272 actions
 ```
 
 ## 🎯 Example Tasks

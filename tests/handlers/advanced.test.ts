@@ -2,7 +2,7 @@
  * ServalSheets v4 - Advanced Handler Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AdvancedHandler } from '../../src/handlers/advanced.js';
 import { SheetsAdvancedOutputSchema } from '../../src/schemas/advanced.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -43,6 +43,11 @@ describe('AdvancedHandler', () => {
       data: { sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }], namedRanges: [] },
     });
     mockSheetsApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [] } });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('adds a named range', async () => {
@@ -115,5 +120,123 @@ describe('AdvancedHandler', () => {
       expect(result.response.table).toBeDefined();
       expect(result.response.table?.tableId).toBe('table-1');
     }
+  });
+
+  describe('smart chips', () => {
+    it('adds a person chip', async () => {
+      const result = await handler.handle({
+        action: 'add_person_chip',
+        spreadsheetId: 'sheet-id',
+        range: { a1: 'Sheet1!A1' },
+        email: 'alice@example.com',
+        displayFormat: 'SHORT',
+      });
+
+      const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.chip?.type).toBe('person');
+        expect(result.response.chip?.email).toBe('alice@example.com');
+      }
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    });
+
+    it('adds a drive chip', async () => {
+      const result = await handler.handle({
+        action: 'add_drive_chip',
+        spreadsheetId: 'sheet-id',
+        range: { a1: 'Sheet1!B1' },
+        fileId: 'abcdef1234567890',
+      });
+
+      const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.chip?.type).toBe('drive');
+        expect(result.response.chip?.fileId).toBe('abcdef1234567890');
+      }
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    });
+
+    it('adds a rich link chip', async () => {
+      const result = await handler.handle({
+        action: 'add_rich_link_chip',
+        spreadsheetId: 'sheet-id',
+        range: { a1: 'Sheet1!C1' },
+        uri: 'https://example.com/docs',
+      });
+
+      const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.chip?.type).toBe('rich_link');
+        expect(result.response.chip?.uri).toBe('https://example.com/docs');
+      }
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    });
+
+    it('lists chips in a range', async () => {
+      mockSheetsApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [
+            {
+              properties: { sheetId: 0, title: 'Sheet1' },
+              data: [
+                {
+                  startRow: 0,
+                  startColumn: 0,
+                  rowData: [
+                    {
+                      values: [
+                        {
+                          userEnteredValue: { stringValue: 'Alice' },
+                          textFormatRuns: [
+                            { format: { link: { uri: 'mailto:alice@example.com' } } },
+                          ],
+                        },
+                        {
+                          userEnteredValue: { stringValue: 'File' },
+                          textFormatRuns: [
+                            {
+                              format: {
+                                link: {
+                                  uri: 'https://drive.google.com/file/d/FILE123/view',
+                                },
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          userEnteredValue: { stringValue: 'Example' },
+                          textFormatRuns: [
+                            { format: { link: { uri: 'https://example.com' } } },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      const result = await handler.handle({
+        action: 'list_chips',
+        spreadsheetId: 'sheet-id',
+        chipType: 'all',
+      });
+
+      const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.chips?.length).toBe(3);
+      }
+    });
   });
 });

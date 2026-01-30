@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SheetsCoreInputSchema } from '../../src/schemas/core.js';
+import { SheetsCoreInputSchema } from '../src/schemas/core.js';
 
 describe('Verbosity Parameter (LLM Optimization)', () => {
   describe('SheetsCoreInputSchema', () => {

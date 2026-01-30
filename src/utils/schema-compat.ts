@@ -50,7 +50,8 @@ export function isZodDiscriminatedUnion(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
 ): schema is z.ZodDiscriminatedUnion<any, any> {
   // ✅ STABLE API: instanceof check instead of _def property access
-  return schema instanceof z.ZodDiscriminatedUnion;
+  const unwrapped = unwrapZodSchema(schema);
+  return unwrapped instanceof z.ZodDiscriminatedUnion;
 }
 
 /**
@@ -66,7 +67,8 @@ export function isZodUnion(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generic Zod type parameter required by library
 ): schema is z.ZodUnion<any> {
   // ✅ STABLE API: instanceof check instead of _def property access
-  return schema instanceof z.ZodUnion;
+  const unwrapped = unwrapZodSchema(schema);
+  return unwrapped instanceof z.ZodUnion;
 }
 
 /**
@@ -79,7 +81,49 @@ export function isZodUnion(
  */
 export function isZodObject(schema: unknown): schema is z.ZodObject<z.ZodRawShape> {
   // ✅ STABLE API: instanceof check instead of _def property access
-  return schema instanceof z.ZodObject;
+  const unwrapped = unwrapZodSchema(schema);
+  return unwrapped instanceof z.ZodObject;
+}
+
+/**
+ * Unwraps Zod wrappers like preprocess/pipe/effects to their output schema.
+ *
+ * This helps schema detection work with z.preprocess and z.pipe wrappers.
+ *
+ * @param schema - Any Zod schema
+ * @returns Unwrapped schema if applicable
+ */
+export function unwrapZodSchema(schema: unknown): unknown {
+  let current = schema;
+  let guard = 0;
+
+  const ZodPipeCtor = (z as { ZodPipe?: unknown }).ZodPipe;
+  const ZodEffectsCtor = (z as { ZodEffects?: unknown }).ZodEffects;
+
+  while (current && guard < 5) {
+    guard += 1;
+
+    if (typeof ZodPipeCtor === 'function' && current instanceof ZodPipeCtor) {
+      const next =
+        (current as { out?: unknown }).out ?? (current as { def?: { out?: unknown } }).def?.out;
+      if (!next || next === current) break;
+      current = next;
+      continue;
+    }
+
+    if (typeof ZodEffectsCtor === 'function' && current instanceof ZodEffectsCtor) {
+      const next =
+        (current as { _def?: { schema?: unknown; innerType?: unknown } })._def?.schema ??
+        (current as { _def?: { innerType?: unknown } })._def?.innerType;
+      if (!next || next === current) break;
+      current = next;
+      continue;
+    }
+
+    break;
+  }
+
+  return current;
 }
 
 /**
@@ -197,7 +241,7 @@ export function validateMcpSchema(schema: unknown, name: string): void {
 }
 
 // ============================================================================
-// LEGACY ALIASES (for migration from sdk-patch.ts)
+// LEGACY ALIASES (from earlier schema compatibility helpers)
 // ============================================================================
 
 /**

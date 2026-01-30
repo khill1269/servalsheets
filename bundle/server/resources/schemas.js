@@ -128,7 +128,7 @@ export function registerSchemaResources(server) {
     try {
         // Schema index - lists all available tool schemas
         server.registerResource('Tool Schema Index', 'schema://tools', {
-            description: 'Index of all ServalSheets tool schemas. Lists 19 tools with their URIs and metadata.',
+            description: 'Index of all ServalSheets tool schemas. Lists 21 tools with their URIs and metadata.',
             mimeType: 'application/json',
         }, async (uri) => readSchemaResource(typeof uri === 'string' ? uri : String(uri)));
         // Register resource template for individual tool schemas

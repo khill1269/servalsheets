@@ -1,7 +1,7 @@
 /**
  * Action-Level Metadata for AI Cost-Aware Decision Making
  *
- * Provides detailed metadata for all 207 actions across 16 tools.
+ * Provides detailed metadata for all 267 actions across 21 tools.
  * This enables AI to make informed decisions about:
  * - API quota costs
  * - Read-only vs destructive operations
@@ -10,7 +10,7 @@
  * - Quota savings opportunities
  */
 /**
- * Complete action metadata for all 207 actions
+ * Complete action metadata for all 267 actions
  */
 export const ACTION_METADATA = {
     sheets_advanced: {

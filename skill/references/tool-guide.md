@@ -1,7 +1,7 @@
 # ServalSheets Complete Tool & Action Reference
 
 **Version:** 1.6.0  
-**Total:** 21 Tools | 271 Actions  
+**Total:** 21 Tools | 272 Actions  
 **Updated:** 2026-01-25
 
 ---
@@ -532,4 +532,4 @@ Formula dependency graph.
 
 ---
 
-_ServalSheets v1.6.0 | 21 Tools | 273 Actions_
+_ServalSheets v1.6.0 | 21 Tools | 272 Actions_

@@ -3,7 +3,7 @@ import {
   GoogleApiInspector,
   getGoogleApiInspector,
   resetGoogleApiInspector,
-} from '../../src/utils/google-api-inspector.js';
+} from '../src/utils/google-api-inspector.js';
 
 describe('GoogleApiInspector', () => {
   let inspector: GoogleApiInspector;

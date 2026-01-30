@@ -435,7 +435,7 @@ export async function registerServalSheetsTools(server, handlers, options) {
     // C) Fork/patch the SDK
     // D) Wait for SDK v1.26 fix
     //
-    // IMPACT: All 16 tools show empty schemas in tools/list, breaking LLM tool discovery.
+    // IMPACT: All 21 tools show empty schemas in tools/list, breaking LLM tool discovery.
     // WORKAROUND: LLMs can still call tools (validation works), but can't discover parameters.
     //
     // For now, tools are registered as-is. This preserves validation but breaks discovery.

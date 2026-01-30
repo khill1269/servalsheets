@@ -4,7 +4,7 @@
  * Tests for OAuth authentication flows.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AuthHandler } from '../../src/handlers/auth.js';
 import { SheetsAuthOutputSchema } from '../../src/schemas/auth.js';
 import type { GoogleApiClient } from '../../src/services/google-api.js';

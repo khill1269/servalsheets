@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 22 tools, 267 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 21 tools, 272 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -56,7 +56,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 ### Core Capabilities
 
-- **22 Tools, 267 Actions**: Comprehensive Google Sheets API v4 coverage
+- **21 Tools, 272 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -67,7 +67,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.2
-- ✅ **Tools**: 22 tools with 267 actions using discriminated unions
+- ✅ **Tools**: 21 tools with 272 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -257,29 +257,31 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (19 tools, 252 actions)
+### Tool Summary (21 tools, 272 actions)
 
-| Tool                 | Actions | Description                                                 |
-| -------------------- | ------- | ----------------------------------------------------------- |
-| `sheets_auth`        | 4       | Authentication & OAuth                                      |
-| `sheets_core`        | 15      | Spreadsheet and sheet metadata/management                   |
-| `sheets_data`        | 20      | Read/write values, notes, hyperlinks, validation, clipboard |
-| `sheets_format`      | 18      | Cell formatting, conditional formats, data validation       |
-| `sheets_dimensions`  | 39      | Rows/columns, filters, sorts, groups, freezes               |
-| `sheets_visualize`   | 16      | Charts and pivot tables                                     |
-| `sheets_collaborate` | 28      | Sharing, comments, versions/snapshots                       |
-| `sheets_advanced`    | 19      | Named ranges, protected ranges, metadata, banding, tables   |
-| `sheets_transaction` | 6       | Transaction management                                      |
-| `sheets_quality`     | 4       | Validation, conflicts, impact analysis                      |
-| `sheets_history`     | 7       | Undo/redo, history, revert                                  |
-| `sheets_confirm`     | 2       | Elicitation confirmations                                   |
-| `sheets_analyze`     | 11      | AI-assisted analysis & recommendations                      |
-| `sheets_fix`         | 1       | Automated fixes from analysis                               |
-| `sheets_composite`   | 4       | High-level bulk operations                                  |
-| `sheets_session`     | 13      | Session context and references                              |
-| `sheets_appsscript`  | 14      | Apps Script automation                                      |
-| `sheets_bigquery`    | 12      | BigQuery Connected Sheets                                   |
-| `sheets_templates`   | 8       | Enterprise templates                                        |
+| Tool                 | Actions | Description                                                     |
+| -------------------- | ------- | --------------------------------------------------------------- |
+| `sheets_auth`        | 4       | Authentication & OAuth                                          |
+| `sheets_core`        | 17      | Spreadsheet and sheet metadata/management                       |
+| `sheets_data`        | 18      | Read/write values, notes, hyperlinks, clipboard                 |
+| `sheets_format`      | 21      | Cell formatting, conditional formats, data validation, sparklines |
+| `sheets_dimensions`  | 28      | Rows/columns, filters, sorts, groups, freezes, views, slicers   |
+| `sheets_visualize`   | 18      | Charts and pivot tables                                         |
+| `sheets_collaborate` | 28      | Sharing, comments, versions/snapshots                           |
+| `sheets_advanced`    | 23      | Named ranges, protected ranges, metadata, banding, tables, chips |
+| `sheets_transaction` | 6       | Transaction management                                          |
+| `sheets_quality`     | 4       | Validation, conflicts, impact analysis                          |
+| `sheets_history`     | 7       | Undo/redo, history, revert                                      |
+| `sheets_confirm`     | 5       | Elicitation confirmations & wizards                             |
+| `sheets_analyze`     | 11      | AI-assisted analysis & recommendations                          |
+| `sheets_fix`         | 1       | Automated fixes from analysis                                   |
+| `sheets_composite`   | 10      | High-level bulk operations                                      |
+| `sheets_session`     | 17      | Session context and references                                  |
+| `sheets_appsscript`  | 14      | Apps Script automation                                          |
+| `sheets_bigquery`    | 14      | BigQuery Connected Sheets                                       |
+| `sheets_templates`   | 8       | Enterprise templates                                            |
+| `sheets_webhook`     | 6       | Webhook registration & delivery                                 |
+| `sheets_dependencies`| 7       | Formula dependency analysis                                     |
 
 ## Examples
 
@@ -569,12 +571,17 @@ export REDIS_URL=redis://localhost:6379
 
 # Optional: Maximum sessions per user (default: 5)
 export MAX_SESSIONS_PER_USER=5
+
+# Optional: Streamable HTTP event store (resumability)
+export STREAMABLE_HTTP_EVENT_TTL_MS=300000
+export STREAMABLE_HTTP_EVENT_MAX_EVENTS=5000
 ```
 
 Redis provides:
 
 - Shared session storage across multiple server instances
 - Persistent sessions across server restarts
+- Streamable HTTP resumability across instances
 - Better performance at scale
 
 ### Rate Limiting
@@ -886,7 +893,7 @@ npm run start:remote
 
 ```
 src/
-├── schemas/           # Zod schemas for all 19 tools
+├── schemas/           # Zod schemas for all 21 tools
 ├── core/              # Core infrastructure
 │   ├── intent.ts          # Intent types and mappings
 │   ├── batch-compiler.ts  # Compiles intents to API requests

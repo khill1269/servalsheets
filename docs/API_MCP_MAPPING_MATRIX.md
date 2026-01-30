@@ -186,7 +186,7 @@
 │                                                                                  │
 │  CORE MCP FEATURES                                                               │
 │  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ Tool Registration (16 tools) ................................ ✅      │     │
+│  │ Tool Registration (21 tools) ................................ ✅      │     │
 │  │ Tool Annotations (4 hints) .................................. ✅      │     │
 │  │   ├── readOnlyHint                                                    │     │
 │  │   ├── destructiveHint                                                 │     │
@@ -209,7 +209,7 @@
 │                                                                                  │
 │  DECLARED CAPABILITIES                                                           │
 │  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ tools ...................... ✅ 16 tools, 207 actions                 │     │
+│  │ tools ...................... ✅ 21 tools, 272 actions                 │     │
 │  │ resources .................. ✅ URI templates + knowledge             │     │
 │  │ prompts .................... ✅ 6 guided workflows                    │     │
 │  │ completions ................ ✅ Argument autocompletion               │     │
@@ -289,7 +289,7 @@ ServalSheets v1.4.0 MCP Server
 ├── sheets_composite (4 actions) ────────── High-level Operations
 └── sheets_session (13 actions) ─────────── Context Management
     ═══════════════════════════════════════
-    Total: 16 tools, 207 actions
+    Total: 21 tools, 272 actions
 ```
 
 ## Verification Commands

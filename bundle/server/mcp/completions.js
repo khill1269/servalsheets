@@ -11,7 +11,7 @@
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 241 actions across 19 tools (Tier 7: templates, bigquery, appsscript)
+ * Total: 267 actions across 21 tools (Tier 7: templates, bigquery, appsscript)
  */
 export const TOOL_ACTIONS = {
     sheets_advanced: [

@@ -10,6 +10,7 @@ import { SheetsDataHandler } from '../../src/handlers/data.js';
 import { SheetsDataOutputSchema } from '../../src/schemas/data.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
 import type { sheets_v4 } from 'googleapis';
+import { resetETagCache } from '../../src/services/etag-cache.js';
 
 // Mock Google Sheets API
 const createMockSheetsApi = () => ({
@@ -75,6 +76,22 @@ const createMockSheetsApi = () => ({
           ],
         },
       }),
+      batchGetByDataFilter: vi.fn().mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          valueRanges: [
+            {
+              valueRange: {
+                range: 'Sheet1!A1:B2',
+                values: [
+                  ['Name', 'Age'],
+                  ['Alice', '30'],
+                ],
+              },
+            },
+          ],
+        },
+      }),
       batchUpdate: vi.fn().mockResolvedValue({
         data: {
           spreadsheetId: 'test-id',
@@ -89,6 +106,19 @@ const createMockSheetsApi = () => ({
               updatedCells: 4,
             },
           ],
+        },
+      }),
+      batchUpdateByDataFilter: vi.fn().mockResolvedValue({
+        data: {
+          spreadsheetId: 'test-id',
+          totalUpdatedRows: 2,
+          totalUpdatedColumns: 2,
+          totalUpdatedCells: 4,
+        },
+      }),
+      batchClearByDataFilter: vi.fn().mockResolvedValue({
+        data: {
+          clearedRanges: ['Sheet1!A1:B2'],
         },
       }),
     },
@@ -210,9 +240,15 @@ describe('SheetsDataHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetETagCache();
     mockApi = createMockSheetsApi();
     mockContext = createMockContext();
     handler = new SheetsDataHandler(mockContext, mockApi as any as sheets_v4.Sheets);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {
@@ -276,6 +312,66 @@ describe('SheetsDataHandler', () => {
             valueRenderOption: 'FORMULA',
           })
         );
+      });
+
+      it('should auto paginate large ranges to respect 10k cell limit', async () => {
+        mockContext.rangeResolver.resolve.mockResolvedValueOnce({
+          a1Notation: 'Sheet1!A1:Z1000',
+          sheetId: 0,
+          sheetName: 'Sheet1',
+          gridRange: {
+            sheetId: 0,
+            startRowIndex: 0,
+            endRowIndex: 1000,
+            startColumnIndex: 0,
+            endColumnIndex: 26,
+          },
+          resolution: {
+            method: 'a1_direct',
+            confidence: 1.0,
+            path: '',
+          },
+        });
+
+        mockApi.spreadsheets.values.get.mockResolvedValueOnce({
+          data: {
+            range: 'Sheet1!A1:Z384',
+            values: [['Name']],
+          },
+        });
+
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:Z1000',
+        });
+
+        expect(mockApi.spreadsheets.values.get).toHaveBeenCalledWith(
+          expect.objectContaining({
+            range: 'Sheet1!A1:Z384',
+          })
+        );
+
+        const response = result.response as any;
+        expect(response.success).toBe(true);
+        expect(response.hasMore).toBe(true);
+        expect(response.totalRows).toBe(1000);
+        expect(response.nextCursor).toBeDefined();
+        const decodedCursor = Buffer.from(response.nextCursor, 'base64').toString('utf-8');
+        expect(decodedCursor).toBe('384');
+      });
+
+      it('should reject invalid pagination cursor', async () => {
+        const result = await handler.handle({
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: 'Sheet1!A1:B2',
+          cursor: 'not-a-valid-cursor',
+        });
+
+        expect(result.response.success).toBe(false);
+        expect((result.response as any).error.code).toBe('INVALID_PARAMS');
+        expect(mockApi.spreadsheets.values.get).not.toHaveBeenCalled();
       });
     });
 
@@ -353,6 +449,76 @@ describe('SheetsDataHandler', () => {
             insertDataOption: 'INSERT_ROWS',
           })
         );
+      });
+
+      it('should append values to table by tableId', async () => {
+        const result = await handler.handle({
+          action: 'append',
+          spreadsheetId: 'test-id',
+          tableId: 'table-123',
+          values: [['Eve', '42']],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              requests: [
+                expect.objectContaining({
+                  appendCells: expect.objectContaining({
+                    tableId: 'table-123',
+                  }),
+                }),
+              ],
+            }),
+          })
+        );
+      });
+    });
+
+    describe('batch actions with dataFilters', () => {
+      it('should batch_read with dataFilters', async () => {
+        const result = await handler.handle({
+          action: 'batch_read',
+          spreadsheetId: 'test-id',
+          dataFilters: [
+            {
+              developerMetadataLookup: {
+                metadataKey: 'dataset:customers',
+              },
+            },
+          ],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.batchGetByDataFilter).toHaveBeenCalled();
+      });
+
+      it('should batch_write with dataFilters', async () => {
+        const result = await handler.handle({
+          action: 'batch_write',
+          spreadsheetId: 'test-id',
+          data: [
+            {
+              dataFilter: { a1Range: 'Sheet1!A1:B2' },
+              values: [['Name', 'Age']],
+            },
+          ],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.batchUpdateByDataFilter).toHaveBeenCalled();
+      });
+
+      it('should batch_clear with dataFilters', async () => {
+        const result = await handler.handle({
+          action: 'batch_clear',
+          spreadsheetId: 'test-id',
+          dataFilters: [{ a1Range: 'Sheet1!A1:B2' }],
+        });
+
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.batchClearByDataFilter).toHaveBeenCalled();
       });
     });
 

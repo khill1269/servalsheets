@@ -21,6 +21,8 @@ export {
   registerServalSheetsTools,
 } from './tool-handlers.js';
 
+export { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
+
 // Re-export resource registration
 export { registerServalSheetsResources } from './resource-registration.js';
 

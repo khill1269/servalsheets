@@ -2,7 +2,7 @@
 name: google-sheets-expert
 description: |
   Enterprise-grade Google Sheets MCP server (ServalSheets v1.6.0) with 21 tool 
-  categories and 271 specialized actions. Implements UASEV+R protocol for 
+  categories and 272 specialized actions. Implements UASEV+R protocol for 
   intelligent spreadsheet operations with transaction support (80% API savings), 
   AI analysis, conversational context, and MCP 2025-11-25 compliance (96% score).
 
@@ -35,7 +35,7 @@ R - REFLECT     Report results, suggest improvements, next steps
 
 ## Tool Architecture
 
-21 tools with 273 actions. Each tool called with `request` object:
+21 tools with 272 actions. Each tool called with `request` object:
 
 ```json
 { "request": { "action": "action_name", "spreadsheetId": "...", ...params } }
@@ -129,4 +129,4 @@ R - REFLECT     Report results, suggest improvements, next steps
 
 Load for detailed information:
 
-- [references/tool-guide.md](references/tool-guide.md) — Complete 21 tools, 273 actions
+- [references/tool-guide.md](references/tool-guide.md) — Complete 21 tools, 272 actions

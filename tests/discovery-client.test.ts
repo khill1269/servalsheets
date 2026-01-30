@@ -4,7 +4,7 @@ import {
   getDiscoveryApiClient,
   resetDiscoveryApiClient,
   type DiscoverySchema,
-} from '../../src/services/discovery-client.js';
+} from '../src/services/discovery-client.js';
 
 // Mock fetch globally
 global.fetch = vi.fn();

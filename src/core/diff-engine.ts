@@ -343,7 +343,7 @@ export class DiffEngine {
    * Use this after values.update() or values.batchUpdate() operations.
    *
    * @param range - The range that was updated
-   * @param updateResponse - The UpdateValuesResponse or updatedData from the API
+   * @param updatedData - The UpdateValuesResponse.updatedData from the API
    * @returns Range state constructed from response data
    *
    * @example

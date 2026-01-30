@@ -523,13 +523,50 @@ export const SheetsDimensionsInputSchema = z.object({
       // Check if this is an aliased action
       const alias = DIMENSION_ACTION_ALIASES[action.toLowerCase()];
       if (alias) {
-        return {
-          ...req,
-          action: alias.action,
-          dimension: req['dimension'] ?? alias.dimension, // Don't override if explicitly set
-        };
+        req['action'] = alias.action;
+        req['dimension'] = req['dimension'] ?? alias.dimension; // Don't override if explicitly set
       }
-      return val;
+
+      // BUG FIX 0.6: Convert count parameter to endIndex for range-based actions
+      // Actions that use startIndex + endIndex: delete, move, resize, hide, show, group, ungroup
+      const rangeActions = new Set([
+        'delete',
+        'move',
+        'resize',
+        'hide',
+        'show',
+        'group',
+        'ungroup',
+      ]);
+
+      if (rangeActions.has(req['action'] as string)) {
+        const count = req['count'];
+        const startIndex = req['startIndex'];
+        const endIndex = req['endIndex'];
+
+        // If count is provided but endIndex is not, convert count to endIndex
+        if (count !== undefined && endIndex === undefined && startIndex !== undefined) {
+          const countNum = typeof count === 'number' ? count : Number(count);
+          const startNum = typeof startIndex === 'number' ? startIndex : Number(startIndex);
+
+          if (!isNaN(countNum) && !isNaN(startNum)) {
+            // Create new object with endIndex and without count
+            const { count: _c, ...rest } = req;
+            return {
+              ...rest,
+              endIndex: startNum + countNum,
+            };
+          }
+        }
+
+        // Remove count field if it exists (even if conversion didn't happen)
+        if ('count' in req) {
+          const { count: _c, ...rest } = req;
+          return rest;
+        }
+      }
+
+      return req;
     },
     z.discriminatedUnion('action', [
       // Consolidated dimension actions (11 - was 21)

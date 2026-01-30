@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 16 tools, 207 actions
+ * Total: 21 tools, 267 actions
  */
 export declare const TOOL_DESCRIPTIONS: Record<string, string>;
 export type ToolName = keyof typeof TOOL_DESCRIPTIONS;

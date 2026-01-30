@@ -633,9 +633,9 @@ describe('MCP Protocol Integration', () => {
   });
 
   describe('tools/list', () => {
-    it('should return all 15 tools', async () => {
+    it('should return all 21 tools', async () => {
       const tools = await client.listTools();
-      expect(tools.tools).toHaveLength(15);
+      expect(tools.tools).toHaveLength(21);
     });
 
     it('should have valid tool names per SEP-986', async () => {

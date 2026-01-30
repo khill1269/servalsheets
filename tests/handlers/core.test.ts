@@ -5,7 +5,7 @@
  * Covers 15 actions: 8 spreadsheet operations + 7 sheet operations.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SheetsCoreHandler } from '../../src/handlers/core.js';
 import { SheetsCoreOutputSchema } from '../../src/schemas/core.js';
 import type { HandlerContext } from '../../src/handlers/base.js';
@@ -215,12 +215,16 @@ describe('SheetsCoreHandler', () => {
           spreadsheetId: 'test-spreadsheet-id',
         });
 
-        expect(result).toBeDefined();
-        expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'get');
-        expect((result.response as any).spreadsheet).toBeDefined();
-        expect((result.response as any).spreadsheet.spreadsheetId).toBe('test-spreadsheet-id');
-        expect((result.response as any).spreadsheet.title).toBe('Test Spreadsheet');
+        expect(result.response).toMatchObject({
+          success: true,
+          action: 'get',
+          spreadsheet: expect.objectContaining({
+            spreadsheetId: 'test-spreadsheet-id',
+            title: 'Test Spreadsheet',
+          }),
+        });
+
+        expect(mockApi.spreadsheets.get).toHaveBeenCalledTimes(1);
         expect(mockApi.spreadsheets.get).toHaveBeenCalledWith(
           expect.objectContaining({
             spreadsheetId: 'test-spreadsheet-id',
@@ -238,11 +242,21 @@ describe('SheetsCoreHandler', () => {
           includeSheets: true,
         });
 
-        expect(result.response.success).toBe(true);
-        expect((result.response as any).spreadsheet).toBeDefined();
-        expect((result.response as any).spreadsheet.sheets).toBeDefined();
-        expect(Array.isArray((result.response as any).spreadsheet.sheets)).toBe(true);
-        expect((result.response as any).spreadsheet.sheets.length).toBeGreaterThanOrEqual(0);
+        expect(result.response).toMatchObject({
+          success: true,
+          action: 'get',
+          spreadsheet: expect.objectContaining({
+            spreadsheetId: 'test-spreadsheet-id',
+            sheets: expect.any(Array),
+          }),
+        });
+
+        const spreadsheet = (result.response as any).spreadsheet;
+        expect(spreadsheet.sheets).toHaveLength(1);
+        expect(spreadsheet.sheets[0]).toMatchObject({
+          sheetId: expect.any(Number),
+          title: 'Sheet1',
+        });
       });
 
       it('should handle API errors gracefully', async () => {
@@ -253,8 +267,15 @@ describe('SheetsCoreHandler', () => {
           spreadsheetId: 'nonexistent-id',
         });
 
-        expect(result.response.success).toBe(false);
-        expect((result.response as any).error).toBeDefined();
+        expect(result.response).toMatchObject({
+          success: false,
+          error: expect.objectContaining({
+            code: expect.any(String),
+            message: expect.any(String),
+          }),
+        });
+
+        expect((result.response as any).error.message).toBeDefined();
       });
     });
 
@@ -265,15 +286,35 @@ describe('SheetsCoreHandler', () => {
           title: 'My New Spreadsheet',
         });
 
-        expect(result).toBeDefined();
-        if (!result.response.success) {
-          console.log('create error:', JSON.stringify(result.response, null, 2));
+        expect(result.response).toMatchObject({
+          success: true,
+          action: 'create',
+          spreadsheet: expect.objectContaining({
+            spreadsheetId: 'new-spreadsheet-id',
+            sheets: expect.arrayContaining([
+              expect.objectContaining({
+                sheetId: 0,
+                title: 'Sheet1',
+              }),
+            ]),
+          }),
+        });
+
+        // Verify URL is either present and valid, or not present (handler-dependent)
+        if ((result.response as any).spreadsheetUrl) {
+          expect((result.response as any).spreadsheetUrl).toContain('new-spreadsheet-id');
         }
-        expect(result.response.success).toBe(true);
-        expect(result.response).toHaveProperty('action', 'create');
-        expect((result.response as any).spreadsheet).toBeDefined();
-        expect((result.response as any).spreadsheet.spreadsheetId).toBe('new-spreadsheet-id');
-        expect(mockApi.spreadsheets.create).toHaveBeenCalled();
+
+        expect(mockApi.spreadsheets.create).toHaveBeenCalledTimes(1);
+        expect(mockApi.spreadsheets.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestBody: expect.objectContaining({
+              properties: expect.objectContaining({
+                title: 'My New Spreadsheet',
+              }),
+            }),
+          })
+        );
 
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
@@ -287,7 +328,15 @@ describe('SheetsCoreHandler', () => {
           timeZone: 'Europe/London',
         });
 
-        expect(result.response.success).toBe(true);
+        expect(result.response).toMatchObject({
+          success: true,
+          action: 'create',
+          spreadsheet: expect.objectContaining({
+            spreadsheetId: expect.any(String),
+          }),
+        });
+
+        expect(mockApi.spreadsheets.create).toHaveBeenCalledTimes(1);
         expect(mockApi.spreadsheets.create).toHaveBeenCalledWith(
           expect.objectContaining({
             requestBody: expect.objectContaining({

@@ -2,7 +2,7 @@
 /**
  * ServalSheets - API & MCP Compliance Validator
  *
- * Validates all 16 tools and 207 actions against:
+ * Validates all 21 tools and 272 actions against:
  * 1. Google Sheets API v4 requirements
  * 2. MCP Protocol 2025-11-25 compliance
  * 3. Common implementation pitfalls
@@ -61,6 +61,14 @@ function addIssue(issue: Omit<ValidationIssue, 'tool'> & { tool?: string }) {
   });
 }
 
+function unwrapZodPipe(schema: z.ZodTypeAny): z.ZodTypeAny {
+  const def = (schema as { _def?: { type?: string; out?: z.ZodTypeAny } })._def;
+  if (def?.type === 'pipe' && def.out) {
+    return def.out;
+  }
+  return schema;
+}
+
 // ============================================================================
 // 1. MCP PROTOCOL VALIDATION
 // ============================================================================
@@ -98,7 +106,7 @@ function validateMcpSchemaStructure() {
     }
 
     // Check if request uses discriminated union
-    const requestSchema = shape.request;
+    const requestSchema = unwrapZodPipe(shape.request as z.ZodTypeAny);
 
     if (requestSchema instanceof z.ZodDiscriminatedUnion) {
       log(`  ✅ ${tool.name}: Correct discriminated union structure`, 'green');
@@ -197,7 +205,7 @@ function validateMcpActionCoverage() {
     if (!(inputSchema instanceof z.ZodObject)) continue;
 
     const shape = inputSchema.shape as Record<string, z.ZodTypeAny>;
-    const requestSchema = shape.request;
+    const requestSchema = unwrapZodPipe(shape.request as z.ZodTypeAny);
 
     let actionCount = 0;
 
@@ -269,18 +277,26 @@ function validateGoogleApiPatterns() {
     // Check batch compiler for proper payload validation
     const batchCompilerContent = fs.readFileSync(batchCompilerPath, 'utf-8');
 
-    if (batchCompilerContent.includes('MAX_PAYLOAD_SIZE')) {
+    const hasPayloadValidation =
+      batchCompilerContent.includes('validateBatchUpdatePayload') ||
+      batchCompilerContent.includes('PAYLOAD_TOO_LARGE');
+    if (hasPayloadValidation) {
       log('  ✅ Payload size validation present in batch-compiler', 'green');
     } else {
       addIssue({
         severity: 'error',
         category: 'GOOGLE_API',
-        message: 'Missing payload size validation (MAX_PAYLOAD_SIZE check)',
+        message: 'Missing payload size validation (validateBatchUpdatePayload check)',
         file: 'src/core/batch-compiler.ts',
       });
     }
 
-    if (batchCompilerContent.includes('9_000_000') || batchCompilerContent.includes('9000000')) {
+    const has9mbLimit =
+      batchCompilerContent.includes('limitMB: 9') ||
+      batchCompilerContent.includes('limitMB:9') ||
+      batchCompilerContent.includes('9_000_000') ||
+      batchCompilerContent.includes('9000000');
+    if (has9mbLimit) {
       log('  ✅ 9MB payload limit enforced', 'green');
     } else {
       addIssue({
@@ -714,7 +730,8 @@ function generateReport() {
 
 async function main() {
   log('🚀 ServalSheets API & MCP Compliance Validator', 'bright');
-  log('Validating 16 tools with 207 actions...\n', 'cyan');
+const actionTotal = Object.values(TOOL_ACTIONS).reduce((sum, actions) => sum + actions.length, 0);
+log(`Validating ${TOOL_DEFINITIONS.length} tools with ${actionTotal} actions...\n`, 'cyan');
 
   // Run all validations
   validateMcpSchemaStructure();

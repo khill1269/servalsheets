@@ -4,7 +4,7 @@
  * Tests for operation history tracking, undo/redo functionality, and debugging.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HistoryHandler } from '../../src/handlers/history.js';
 import type { HistoryService } from '../../src/services/history-service.js';
 import type { SnapshotService } from '../../src/services/snapshot.js';
@@ -97,6 +97,11 @@ describe('HistoryHandler', () => {
 
     // Create handler with snapshot service
     handler = new HistoryHandler({ snapshotService: mockSnapshotService });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe('list action', () => {

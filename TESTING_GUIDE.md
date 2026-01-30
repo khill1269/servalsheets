@@ -1,8 +1,8 @@
-# ServalSheets v1.4.0 - Testing Guide
+# ServalSheets v1.6.0 - Testing Guide
 
-**Package:** `servalsheets-1.4.0.mcpb`
-**Version:** 1.4.0 (19 tools, 252 actions)
-**Updated:** 2026-01-16
+**Package:** `servalsheets.mcpb`
+**Version:** 1.6.0 (21 tools, 272 actions)
+**Updated:** 2026-01-26
 **Status:** Production Ready ✅
 
 ---
@@ -13,10 +13,10 @@
 
 ```bash
 # Install from the .mcpb package
-npm install -g ./servalsheets-1.4.0.mcpb
+npm install -g ./servalsheets.mcpb
 
 # Or extract and install locally
-tar -xzf servalsheets-1.4.0.mcpb
+tar -xzf servalsheets.mcpb
 cd package
 npm install -g .
 ```
@@ -26,7 +26,7 @@ npm install -g .
 ```bash
 # Check version
 servalsheets --version
-# Expected: 1.4.0
+# Expected: 1.6.0
 
 # Check server starts
 servalsheets
@@ -80,7 +80,7 @@ npm run start:remote
 
 ---
 
-## 📋 What's New in v1.4.0
+## 📋 What's New in v1.6.0
 
 ### Performance Optimizations (Phase 7) 🚀
 - **10-20x faster diff engine** - Map-based O(1) lookups instead of O(n×m) nested loops
@@ -102,8 +102,8 @@ npm run start:remote
 - **sheets_history** - Undo/redo/revert operations
 
 ### Architecture
-- **19 tools** (after Wave 5 consolidation + Tier 7 enterprise)
-- **252 actions** across all tools
+- **21 tools** (after Wave 5 consolidation + Tier 7 enterprise)
+- **272 actions** across all tools
 - **100% metadata synchronized**
 - **Production ready** - All verification checks passing
 
@@ -285,7 +285,7 @@ curl -H "traceparent: 00-$(openssl rand -hex 16)-$(openssl rand -hex 8)-01" \
 | **sheets_bigquery** | 14 | BigQuery Connected Sheets |
 | **sheets_appsscript** | 14 | Apps Script automation |
 
-**Total:** 252 actions
+**Total:** 272 actions
 
 ---
 
@@ -312,7 +312,7 @@ server.json validation failed:
 ### Included Files
 - `README.md` - Main documentation
 - `CLAUDE.md` - Claude Code rules
-- `SKILL.md` - Claude skill file (v1.4.0, updated 2026-01-16)
+- `SKILL.md` - Claude skill file (v1.6.0, updated 2026-01-26)
 - `docs/` - Complete documentation directory
 - `examples/` - Example code
 
@@ -386,7 +386,7 @@ npm run show:tools       # List all tools
 
 Your testing is successful if:
 
-1. ✅ **Installation works** - `servalsheets --version` shows 1.4.0
+1. ✅ **Installation works** - `servalsheets --version` shows 1.6.0
 2. ✅ **Server starts** - No errors when running `servalsheets`
 3. ✅ **Authentication works** - `sheets_auth` status returns valid response
 4. ✅ **Basic operations work** - Can create/read/write spreadsheets
@@ -442,6 +442,6 @@ This package includes all **Phase 7: Elite Performance & Observability** improve
 
 ## 🚀 Ready to Test!
 
-Install the package and start testing the new v1.4.0 features. Report any issues or feedback!
+Install the package and start testing the new v1.6.0 features. Report any issues or feedback!
 
 **Happy testing!** 🎉

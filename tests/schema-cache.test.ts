@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, rmSync } from 'node:fs';
-import { SchemaCache, getSchemaCache, resetSchemaCache } from '../../src/services/schema-cache.js';
-import type { DiscoverySchema } from '../../src/services/discovery-client.js';
+import { SchemaCache, getSchemaCache, resetSchemaCache } from '../src/services/schema-cache.js';
+import type { DiscoverySchema } from '../src/services/discovery-client.js';
 
 describe('SchemaCache', () => {
   const testCacheDir = '.test-discovery-cache';

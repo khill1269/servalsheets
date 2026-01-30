@@ -436,9 +436,9 @@ export const TOOL_REGISTRY = {
         ],
     },
 };
-// Tool count (19 tools: 16 core + 3 Tier 7 enterprise)
+// Tool count (21 tools: 16 core + 3 Tier 7 enterprise + 2 Phase 3)
 export const TOOL_COUNT = 19;
-// Action count (241 actions: 207 core + 8 templates + 12 bigquery + 14 appsscript)
+// Action count (267 actions: 207 core + 8 templates + 12 bigquery + 14 appsscript)
 // Computed in annotations.ts from ACTION_COUNTS map
 export const ACTION_COUNT = 241;
 //# sourceMappingURL=index.js.map

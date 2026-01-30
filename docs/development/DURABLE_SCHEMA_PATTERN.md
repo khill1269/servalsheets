@@ -5,7 +5,7 @@
 **Root Cause**: MCP SDK's `normalizeObjectSchema()` expects top-level `z.object()` schemas. Root-level discriminated unions cause empty schemas `{"type":"object","properties":{}}` in tools/list.
 
 **Previous Approach (BRITTLE)**:
-- Custom `zodToJsonSchemaCompat()` in `src/utils/sdk-patch.ts`
+- Custom `zodToJsonSchemaCompat()` (historical; sdk-patch removed)
 - Runtime schema transformation at registration
 - Breaks with MCP SDK upgrades
 - 252 lines of workaround code
@@ -290,7 +290,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 - **Type-safe**: Full TypeScript inference maintained
 
 ### ✅ Simplicity
-- **Remove 252 lines of workaround code** (sdk-patch.ts)
+- **Removed 252 lines of workaround code** (sdk-patch)
 - **Standard Zod**: No custom schema utilities
 - **Clear pattern**: Top-level object → easy to understand
 
@@ -338,9 +338,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 15. ⏳ `src/handlers/advanced.ts`
 
 ### Cleanup
-- ❌ DELETE: `src/utils/sdk-patch.ts` (252 lines of workaround code)
-- ✏️ UPDATE: `src/mcp/registration.ts` - Remove `zodToJsonSchemaCompat` imports/calls
-- ✏️ UPDATE: `src/server.ts` - Remove `zodToJsonSchemaCompat` imports/calls
+- ✅ Removed `src/utils/sdk-patch.ts` workaround
+- ✅ No custom transformation in server/registration
 
 ---
 
@@ -408,14 +407,14 @@ describe('MCP tools/list', () => {
 - Use automation script (see below)
 - Update handlers systematically
 
-### Phase 3: Cleanup
-- Remove `src/utils/sdk-patch.ts`
-- Remove custom transformation from registration
-- Update tests
+### Phase 3: Cleanup ✅
+- Removed sdk-patch workaround
+- Removed custom transformation hooks
+- Updated tests/docs
 
 ### Phase 4: Verification
 - Run full test suite
-- Test tools/list with all 15 tools
+- Test tools/list with all 21 tools
 - Verify no empty schemas
 
 ---
@@ -436,6 +435,6 @@ See `scripts/migrate-schema-pattern.sh` for automated migration tooling.
 - ✅ SDK upgrade-proof
 - ✅ Simpler, more maintainable
 
-**Status**: ✅ Proven with values.ts, ready for rollout
+**Status**: ✅ Pattern established; cleanup complete for sdk-patch
 
-**Next Steps**: Apply to remaining 14 schemas, remove sdk-patch.ts
+**Next Steps**: Apply to remaining schemas using the durable pattern

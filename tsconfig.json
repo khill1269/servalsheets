@@ -28,13 +28,6 @@
     "node_modules",
     "dist",
     "tests",
-    "src/__tests__",
-    "src/services/discovery-client.ts",
-    "src/services/schema-cache.ts",
-    "src/services/schema-validator.ts",
-    "src/cli/schema-manager.ts",
-    "src/utils/google-api-inspector.ts",
-    "src/utils/protocol-tracer.ts",
-    "src/utils/request-replay.ts"
+    "src/__tests__"
   ]
 }
