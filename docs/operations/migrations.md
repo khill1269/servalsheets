@@ -47,7 +47,7 @@ Procedures for migrating between ServalSheets versions, including breaking chang
 
 # 2. Pull new version
 git fetch origin
-git checkout v1.1.1
+git checkout v1.6.0
 
 # 3. Install dependencies
 npm ci
@@ -208,7 +208,7 @@ npx tsx scripts/migrate-sessions.ts
 docker-compose down
 
 # 2. Restore previous version
-git checkout v1.1.1
+git checkout v1.6.0
 npm ci
 npm run build
 
@@ -232,7 +232,7 @@ docker-compose down
 ./docs/operations/backup-restore.sh restore-all pre-migration
 
 # 3. Checkout previous version
-git checkout v1.1.1
+git checkout v1.6.0
 npm ci
 npm run build
 
@@ -271,7 +271,7 @@ source "$INPUT_FILE"
 
 # Transform variables
 cat > "$OUTPUT_FILE" << EOF
-# Migrated from version 1.1.x to 2.0.x
+# Migrated from version 1.6.x to 2.0.x
 
 # Renamed variables
 ACCESS_TOKEN_TTL=${OAUTH_TTL:-3600}
@@ -527,7 +527,7 @@ redis-cli SET servalsheets:schema_version "2.0.0"
 
 ## Version-Specific Migration Guides
 
-### v1.0.0 → v1.1.0
+### v1.6.0 → v1.6.0
 
 **Date**: 2026-01-04
 **Difficulty**: Easy
@@ -540,7 +540,7 @@ Changes:
 
 No migration required - fully backward compatible.
 
-### v1.1.0 → v1.1.1 (Patch)
+### v1.6.0 → v1.6.0 (Patch)
 
 **Date**: 2026-01-04
 **Difficulty**: Trivial

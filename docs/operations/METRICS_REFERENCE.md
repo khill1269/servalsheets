@@ -532,9 +532,9 @@ function executeBatch(operation: string, items: unknown[]) {
 }
 ```
 
-## New Metrics (v1.3.0) 🆕
+## New Metrics (v1.6.0) 🆕
 
-The following metrics were added in v1.3.0 to enhance production observability:
+The following metrics were added in v1.6.0 to enhance production observability:
 
 1. **`servalsheets_errors_by_type_total`** - Detailed error tracking by type
 2. **`servalsheets_tool_call_latency_summary`** - Efficient percentile calculation

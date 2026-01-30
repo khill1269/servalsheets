@@ -1,4 +1,4 @@
-# ServalSheets v1.1.1 Release Notes
+# ServalSheets v1.6.0 Release Notes
 
 **Release Date:** 2026-01-04
 **Type:** Performance & Observability Enhancement
@@ -89,7 +89,7 @@ OTEL_LOG_SPANS=true
 ## Documentation Updates
 
 ### Updated Files
-1. **CHANGELOG.md** - Complete v1.1.1 release notes
+1. **CHANGELOG.md** - Complete v1.6.0 release notes
 2. **README.md** - Updated version, features, configuration sections
 3. **.env.example** - Fixed inconsistencies, added new variables
 4. **package.json** - Version bump to 1.1.1
@@ -110,7 +110,7 @@ The `install-claude-desktop.sh` script now includes:
 3. **Rate Limiting**: Customize reads/writes per minute
 
 ### Enhanced Output
-- Version banner showing v1.1.1
+- Version banner showing v1.6.0
 - Feature highlights at startup
 - Active features confirmation at completion
 - Documentation links for all resources
@@ -129,7 +129,7 @@ The `install-claude-desktop.sh` script now includes:
 
 ## Migration Guide
 
-### From v1.1.0 to v1.1.1
+### From v1.6.0 to v1.6.0
 
 **No Breaking Changes** - This is a minor version bump with additive features only.
 
@@ -241,7 +241,7 @@ npm run test:coverage
 
 Recommended next steps for users:
 
-1. **Update to v1.1.1**: Get latest performance improvements
+1. **Update to v1.6.0**: Get latest performance improvements
 2. **Run Installation Script**: Configure new features interactively
 3. **Enable Monitoring**: Set `OTEL_ENABLED=true` for debugging
 4. **Review Statistics**: Check batch efficiency and cache hit rates
@@ -274,7 +274,7 @@ None. All features tested and working correctly.
 
 ```
 Modified (9):
-  CHANGELOG.md                    - Added v1.1.1 release notes
+  CHANGELOG.md                    - Added v1.6.0 release notes
   README.md                       - Updated version and features
   package.json                    - Version bump
   .env.example                    - Fixed inconsistencies
@@ -285,7 +285,7 @@ Modified (9):
   src/startup/lifecycle.ts        - Stats exports
 
 New Files (5):
-  RELEASE_NOTES_v1.1.1.md        - This file
+  RELEASE_NOTES_v1.6.0.md        - This file
   vitest.config.ts                - Coverage thresholds
   src/utils/payload-monitor.ts    - Payload tracking
   src/utils/batch-efficiency.ts   - Batch analysis
@@ -303,4 +303,4 @@ Developed and tested on:
 ---
 
 **Full Changelog**: See [CHANGELOG.md](./CHANGELOG.md)
-**Previous Release**: [v1.1.0](./CHANGELOG.md#110---2026-01-03)
+**Previous Release**: [v1.6.0](./CHANGELOG.md#110---2026-01-03)

@@ -30,7 +30,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 ### Previous Releases
 
 <details>
-<summary>v1.4.0 - Zod v4 & Performance (2026-01-10)</summary>
+<summary>v1.6.0 - Zod v4 & Performance (2026-01-10)</summary>
 
 - Upgraded Zod 3.25 → 4.3.5 with native JSON Schema
 - 14x faster string parsing, 7x faster arrays
@@ -38,7 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 </details>
 
 <details>
-<summary>v1.3.0 - MCP Protocol Native (2026-01-06)</summary>
+<summary>v1.6.0 - MCP Protocol Native (2026-01-06)</summary>
 
 - MCP Logging, Tasks, Elicitation, Sampling support
 - 6 URI resource templates
@@ -46,7 +46,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 </details>
 
 <details>
-<summary>v1.2.0 - Advanced Analytics (2026-01-05)</summary>
+<summary>v1.6.0 - Advanced Analytics (2026-01-05)</summary>
 
 - Pattern Detection, Column Analysis
 - AI-Powered formula generation & chart recommendations

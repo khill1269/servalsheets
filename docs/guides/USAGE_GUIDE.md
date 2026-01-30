@@ -969,7 +969,7 @@ export LOG_LEVEL=debug
 
 ## Documentation Index
 
-- **[README.md](./README.md)** - Overview and quick reference
+- **[README.md](../../README.md)** - Overview and quick reference
 - **[USAGE_GUIDE.md](./USAGE_GUIDE.md)** - This comprehensive guide ⬅️
 - **[FIRST_TIME_USER.md](./FIRST_TIME_USER.md)** - 5-minute quick start
 - **[SKILL.md](./SKILL.md)** - Guide for Claude (AI) on using tools

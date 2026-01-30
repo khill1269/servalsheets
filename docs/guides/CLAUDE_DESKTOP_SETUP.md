@@ -1,10 +1,10 @@
 # Claude Desktop Setup Guide
 
-This guide helps you configure ServalSheets v1.4.0 to work with Claude Desktop.
+This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
 
-## 🆕 What's New in v1.1.1
+## 🆕 What's New in v1.6.0
 
-ServalSheets v1.1.1 includes production-ready performance and observability features:
+ServalSheets v1.6.0 includes production-ready performance and observability features:
 - ✅ **HTTP Compression**: 60-80% bandwidth reduction
 - ✅ **Payload Monitoring**: Automatic size tracking (2MB warnings, 10MB limits)
 - ✅ **Batch Efficiency**: Real-time optimization analysis
@@ -85,7 +85,7 @@ The script will:
 }
 ```
 
-**With v1.1.1 features enabled**:
+**With v1.6.0 features enabled**:
 
 ```json
 {
@@ -171,9 +171,9 @@ List all sheets in this spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm
 
 Expected: Claude should use the `sheets_core` tool and return sheet names.
 
-## ⚙️ Environment Variables (v1.1.1)
+## ⚙️ Environment Variables (v1.6.0)
 
-ServalSheets v1.1.1 supports extensive configuration via environment variables:
+ServalSheets v1.6.0 supports extensive configuration via environment variables:
 
 ### Core Configuration
 ```bash
@@ -186,7 +186,7 @@ GOOGLE_ACCESS_TOKEN=ya29.xxx
 LOG_LEVEL=info              # debug, info, warn, error
 ```
 
-### Performance & Observability (v1.1.1)
+### Performance & Observability (v1.6.0)
 ```bash
 # Rate limiting (default: 300/60)
 RATE_LIMIT_READS_PER_MINUTE=300
@@ -204,7 +204,7 @@ DEDUPLICATION_ENABLED=true  # Prevent duplicate requests (default: true)
 ```
 
 ### Automatic Features (No Configuration)
-The following features are **always active** in v1.1.1:
+The following features are **always active** in v1.6.0:
 - ✅ HTTP compression (60-80% bandwidth reduction)
 - ✅ Payload monitoring (2MB warnings, 10MB limits)
 - ✅ Batch efficiency analysis
@@ -281,7 +281,7 @@ The following features are **always active** in v1.1.1:
 
 **Symptoms**: Operations fail with "RATE_LIMITED" errors
 
-**Fixes** (v1.1.1 automatic):
+**Fixes** (v1.6.0 automatic):
 1. Dynamic throttling is **automatic** - wait 60 seconds for recovery
 2. Check logs for rate limit events
 3. Adjust rate limits if needed:
@@ -297,7 +297,7 @@ The following features are **always active** in v1.1.1:
 
 **Symptoms**: Operations fail with size limit errors
 
-**Fixes** (v1.1.1 monitoring):
+**Fixes** (v1.6.0 monitoring):
 1. Check logs for payload size warnings (>2MB)
 2. Reduce batch sizes or range selections
 3. Use pagination for large data reads
@@ -310,7 +310,7 @@ The following features are **always active** in v1.1.1:
 
 **Symptoms**: Slow responses, high latency
 
-**Fixes** (v1.1.1 features):
+**Fixes** (v1.6.0 features):
 1. Enable OpenTelemetry to identify bottlenecks:
    ```json
    "env": {

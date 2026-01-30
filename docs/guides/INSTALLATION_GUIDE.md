@@ -1,4 +1,4 @@
-# ServalSheets v1.1.1 Installation Guide
+# ServalSheets v1.6.0 Installation Guide
 
 Complete installation guide for all deployment scenarios.
 
@@ -118,7 +118,7 @@ npm run start:http
 
 ---
 
-## 🆕 v1.1.1 Features (Automatic)
+## 🆕 v1.6.0 Features (Automatic)
 
 These features are **always active** and require no configuration:
 
@@ -131,7 +131,7 @@ These features are **always active** and require no configuration:
 
 ---
 
-## ⚙️ Optional Configuration (v1.1.1)
+## ⚙️ Optional Configuration (v1.6.0)
 
 Enable these features via environment variables:
 
@@ -182,7 +182,7 @@ Enable these features via environment variables:
 | [README.md](../../README.md) | Project overview | Everyone |
 | [CLAUDE_DESKTOP_SETUP.md](./CLAUDE_DESKTOP_SETUP.md) | Claude Desktop setup | Desktop users |
 | [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md) | This document | Everyone |
-| [RELEASE_NOTES_v1.1.1.md](../releases/RELEASE_NOTES_v1.1.1.md) | v1.1.1 details | Upgrading users |
+| [RELEASE_NOTES_v1.6.0.md](../releases/RELEASE_NOTES_v1.6.0.md) | v1.6.0 details | Upgrading users |
 | [CHANGELOG.md](../../CHANGELOG.md) | All versions | Everyone |
 | [.env.example](../../.env.example) | Environment variables | Deployers |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Production deployment | DevOps |
@@ -223,10 +223,10 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log
 **Look for:**
 - ✅ `ServalSheets MCP Server initialized`
 - ✅ `Background tasks started`
-- ✅ `HTTP compression enabled automatically` (v1.1.1)
-- ✅ `Connection health monitoring started` (v1.1.1)
+- ✅ `HTTP compression enabled automatically` (v1.6.0)
+- ✅ `Connection health monitoring started` (v1.6.0)
 
-### 4. Verify Features (v1.1.1)
+### 4. Verify Features (v1.6.0)
 ```bash
 # In logs, look for:
 - "HTTP compression enabled" → Compression active
@@ -319,9 +319,9 @@ import {
 
 ---
 
-## 🔄 Upgrading from v1.1.0
+## 🔄 Upgrading from v1.6.0
 
-**No Breaking Changes** - v1.1.1 is fully backwards compatible.
+**No Breaking Changes** - v1.6.0 is fully backwards compatible.
 
 ### Quick Upgrade:
 ```bash
@@ -346,7 +346,7 @@ export RATE_LIMIT_WRITES_PER_MINUTE=60
 export OTEL_LOG_SPANS=true
 ```
 
-[Full Migration Guide →](./RELEASE_NOTES_v1.1.1.md#migration-guide)
+[Full Migration Guide →](./RELEASE_NOTES_v1.6.0.md#migration-guide)
 
 ---
 
@@ -369,11 +369,11 @@ Before considering installation complete:
 - [ ] Claude Desktop restarted and shows 🔨 icon (custom ServalSheets icon may not appear yet)
 - [ ] Test operation succeeded
 - [ ] Logs show no errors
-- [ ] v1.1.1 features confirmed in logs
+- [ ] v1.6.0 features confirmed in logs
 - [ ] Service account email shared with target spreadsheets (if applicable)
 - [ ] Documentation reviewed for your use case
 
-**Congratulations!** ServalSheets v1.1.1 is now installed and ready to use.
+**Congratulations!** ServalSheets v1.6.0 is now installed and ready to use.
 
 ---
 

@@ -1,4 +1,4 @@
-# 🔬 ServalSheets v1.3.0 - Advanced Testing & Tracing Strategy
+# 🔬 ServalSheets v1.6.0 - Advanced Testing & Tracing Strategy
 
 **"Think Outside the Box" - Comprehensive Testing Plan**
 

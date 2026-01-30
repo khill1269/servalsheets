@@ -1,6 +1,6 @@
 # ServalSheets Documentation Index
 
-**Complete documentation for ServalSheets v1.0.0**
+**Complete documentation for ServalSheets v1.6.0**
 
 Welcome to the ServalSheets documentation! This index helps you find the right guide for your needs.
 
@@ -313,4 +313,4 @@ Found an error or want to improve documentation?
 
 All documentation is licensed under MIT, same as ServalSheets.
 
-**ServalSheets v1.0.0** | **Production-Ready** | **MCP 2025-11-25**
+**ServalSheets v1.6.0** | **Production-Ready** | **MCP 2025-11-25**

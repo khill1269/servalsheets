@@ -271,7 +271,7 @@
 ## ServalSheets Tool Architecture
 
 ```
-ServalSheets v1.4.0 MCP Server
+ServalSheets v1.6.0 MCP Server
 ├── sheets_auth (4 actions) ─────────────── OAuth 2.1 Authentication
 ├── sheets_core (15 actions) ────────────── Spreadsheet/Sheet Management
 ├── sheets_data (20 actions) ────────────── Cell Values (values.* API)
