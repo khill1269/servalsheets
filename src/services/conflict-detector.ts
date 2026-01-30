@@ -202,6 +202,10 @@ export class ConflictDetector {
       return null; // No cached version to compare
     }
 
+    // CRITICAL: Delete cache entry to force fresh fetch from API
+    // We need to compare expectedVersion with ACTUAL current state, not cached state
+    this.versionCache.delete(cacheKey);
+
     // Fetch current state from spreadsheet
     const currentVersion = await this.fetchCurrentVersion(spreadsheetId, range);
 

@@ -514,7 +514,7 @@ describe('ConflictDetector', () => {
         enabled: true,
         autoResolve: true,
         defaultResolution: 'cancel',
-        versionCacheTtl: 1,
+        versionCacheTtl: 60000, // Use 60s TTL to prevent premature cache expiration
         googleClient: mockGoogleClient as unknown as ConflictDetectorConfig['googleClient'],
       });
 
@@ -690,11 +690,11 @@ describe('ConflictDetector', () => {
       // Track again to set up cache properly
       await noClientDetector.trackVersion(spreadsheetId, range, 'user1@example.com', [['data']]);
 
-      // Wait to ensure cache has expired (set to 1ms TTL via config)
+      // Create detector without Google client to test error handling
       const shortTTLDetector = new ConflictDetector({
         enabled: true,
         checkBeforeWrite: true,
-        versionCacheTtl: 1,
+        versionCacheTtl: 60000, // Use 60s TTL to ensure cache is valid during test
       });
 
       const expectedVersion2 = await shortTTLDetector.trackVersion(
