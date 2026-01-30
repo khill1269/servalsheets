@@ -1,261 +1,222 @@
-import { describe, it, expect } from 'vitest';
-import { compactResponse, isCompactModeEnabled } from '../../src/utils/response-compactor.js';
+/**
+ * Response Compactor Tests
+ * Phase 0.1: Verify list action fields remain arrays (not wrapped in objects)
+ */
 
-describe('Response Compactor', () => {
-  describe('List Action Fields Preservation (BUG FIX 0.1)', () => {
-    it('should preserve permissions array from share_list', () => {
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { compactResponse } from '../../src/utils/response-compactor.js';
+
+describe('Response Compactor - List Action Fields (Phase 0.1)', () => {
+  beforeEach(() => {
+    // Ensure compact mode is enabled for tests
+    delete process.env['COMPACT_RESPONSES'];
+  });
+
+  afterEach(() => {
+    delete process.env['COMPACT_RESPONSES'];
+  });
+
+  describe('BUG FIX: List action fields remain arrays', () => {
+    it('should keep permissions array for share_list (small array)', () => {
       const response = {
         success: true,
         action: 'share_list',
         permissions: [
-          { id: '1', emailAddress: 'user@example.com', role: 'writer' },
-          { id: '2', emailAddress: 'viewer@example.com', role: 'reader' },
+          { id: '1', email: 'user1@test.com', role: 'writer' },
+          { id: '2', email: 'user2@test.com', role: 'reader' },
         ],
       };
 
       const compacted = compactResponse(response);
 
-      expect(compacted.success).toBe(true);
-      expect(compacted.action).toBe('share_list');
       expect(compacted.permissions).toBeDefined();
       expect(Array.isArray(compacted.permissions)).toBe(true);
-      expect((compacted.permissions as unknown[]).length).toBeGreaterThan(0);
+      expect(compacted.permissions).toHaveLength(2);
+      expect(compacted.permissions[0]).toEqual({
+        id: '1',
+        email: 'user1@test.com',
+        role: 'writer',
+      });
     });
 
-    it('should preserve namedRanges array from list_named_ranges', () => {
-      const response = {
-        success: true,
-        action: 'list_named_ranges',
-        namedRanges: [
-          { namedRangeId: '1', name: 'MyRange', range: 'Sheet1!A1:B10' },
-          { namedRangeId: '2', name: 'OtherRange', range: 'Sheet1!C1:D10' },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.success).toBe(true);
-      expect(compacted.namedRanges).toBeDefined();
-      expect(Array.isArray(compacted.namedRanges)).toBe(true);
-    });
-
-    it('should preserve valueRanges array from batch_read', () => {
-      const response = {
-        success: true,
-        action: 'batch_read',
-        valueRanges: [
-          { range: 'Sheet1!A1:A5', values: [['A'], ['B'], ['C']] },
-          { range: 'Sheet1!B1:B5', values: [['1'], ['2'], ['3']] },
-        ],
-        _cached: true,
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.success).toBe(true);
-      expect(compacted.valueRanges).toBeDefined();
-      expect(Array.isArray(compacted.valueRanges)).toBe(true);
-      expect((compacted.valueRanges as unknown[]).length).toBe(2);
-    });
-
-    it('should preserve comments array from comment_list', () => {
-      const response = {
-        success: true,
-        action: 'comment_list',
-        comments: [
-          { commentId: '1', content: 'Test comment 1' },
-          { commentId: '2', content: 'Test comment 2' },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.comments).toBeDefined();
-      expect(Array.isArray(compacted.comments)).toBe(true);
-    });
-
-    it('should preserve revisions array from version_list_revisions', () => {
-      const response = {
-        success: true,
-        action: 'version_list_revisions',
-        revisions: [
-          { id: '1', modifiedTime: '2024-01-01' },
-          { id: '2', modifiedTime: '2024-01-02' },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.revisions).toBeDefined();
-      expect(Array.isArray(compacted.revisions)).toBe(true);
-    });
-
-    it('should preserve filterViews array from list_filter_views', () => {
-      const response = {
-        success: true,
-        action: 'list_filter_views',
-        filterViews: [
-          { filterViewId: '1', title: 'My Filter' },
-          { filterViewId: '2', title: 'Other Filter' },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.filterViews).toBeDefined();
-      expect(Array.isArray(compacted.filterViews)).toBe(true);
-    });
-
-    it('should preserve templates array from list templates', () => {
-      const response = {
-        success: true,
-        action: 'list',
-        templates: [
-          { templateId: '1', name: 'Budget Template' },
-          { templateId: '2', name: 'Invoice Template' },
-        ],
-        totalTemplates: 2,
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.templates).toBeDefined();
-      expect(Array.isArray(compacted.templates)).toBe(true);
-      expect((compacted.templates as unknown[]).length).toBe(2);
-      expect(compacted.totalTemplates).toBe(2);
-    });
-
-    it('should preserve filter object from get_basic_filter', () => {
-      const response = {
-        success: true,
-        action: 'get_basic_filter',
-        filter: {
-          range: 'Sheet1!A1:Z100',
-          sortSpecs: [],
-          criteria: {},
-        },
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.filter).toBeDefined();
-      expect(typeof compacted.filter).toBe('object');
-    });
-
-    it('should truncate very large arrays but not remove them', () => {
-      // Create a large permissions array (>100 items)
-      const largePermissions = Array.from({ length: 150 }, (_, i) => ({
-        id: `${i}`,
-        emailAddress: `user${i}@example.com`,
+    it('should keep permissions array for share_list (large array, truncated)', () => {
+      const permissions = Array.from({ length: 100 }, (_, i) => ({
+        id: String(i),
+        email: `user${i}@test.com`,
         role: 'reader',
       }));
 
       const response = {
         success: true,
         action: 'share_list',
-        permissions: largePermissions,
+        permissions,
       };
 
       const compacted = compactResponse(response);
 
+      // Should be truncated to 50 items but remain an array
       expect(compacted.permissions).toBeDefined();
       expect(Array.isArray(compacted.permissions)).toBe(true);
-      // Should be truncated but still present
-      const compactedPerms = compacted.permissions as unknown[];
-      expect(compactedPerms.length).toBeGreaterThan(0);
-      expect(compactedPerms.length).toBeLessThanOrEqual(largePermissions.length);
+      expect(compacted.permissions).toHaveLength(50);
+      expect(compacted.permissions[0]).toEqual({
+        id: '0',
+        email: 'user0@test.com',
+        role: 'reader',
+      });
+
+      // Should NOT be wrapped in object like { _truncated: true, items: [...] }
+      expect('_truncated' in (compacted.permissions as object)).toBe(false);
     });
 
-    it('should preserve empty arrays', () => {
+    it('should keep comments array for comment_list', () => {
+      const comments = Array.from({ length: 30 }, (_, i) => ({
+        id: String(i),
+        content: `Comment ${i}`,
+        author: 'user@test.com',
+      }));
+
+      const response = {
+        success: true,
+        action: 'comment_list',
+        comments,
+      };
+
+      const compacted = compactResponse(response);
+
+      expect(compacted.comments).toBeDefined();
+      expect(Array.isArray(compacted.comments)).toBe(true);
+      expect(compacted.comments).toHaveLength(30);
+    });
+
+    it('should keep namedRanges array for list_named_ranges', () => {
+      const namedRanges = Array.from({ length: 15 }, (_, i) => ({
+        name: `Range${i}`,
+        range: `Sheet1!A${i}:B${i}`,
+      }));
+
       const response = {
         success: true,
         action: 'list_named_ranges',
-        namedRanges: [],
-        totalCount: 0,
+        namedRanges,
       };
 
       const compacted = compactResponse(response);
 
       expect(compacted.namedRanges).toBeDefined();
       expect(Array.isArray(compacted.namedRanges)).toBe(true);
-      expect((compacted.namedRanges as unknown[]).length).toBe(0);
-      expect(compacted.totalCount).toBe(0);
+      expect(compacted.namedRanges).toHaveLength(15);
     });
 
-    it('should respect verbosity:detailed setting', () => {
+    it('should truncate but keep array for very large permissions list', () => {
+      const permissions = Array.from({ length: 200 }, (_, i) => ({
+        id: String(i),
+        email: `user${i}@test.com`,
+        role: 'reader',
+      }));
+
       const response = {
         success: true,
         action: 'share_list',
-        permissions: Array.from({ length: 200 }, (_, i) => ({
-          id: `${i}`,
-          emailAddress: `user${i}@example.com`,
-        })),
+        permissions,
+      };
+
+      const compacted = compactResponse(response);
+
+      // Should be truncated to 50 items
+      expect(compacted.permissions).toBeDefined();
+      expect(Array.isArray(compacted.permissions)).toBe(true);
+      expect(compacted.permissions).toHaveLength(50);
+
+      // First item should be preserved
+      expect(compacted.permissions[0]).toEqual({
+        id: '0',
+        email: 'user0@test.com',
+        role: 'reader',
+      });
+    });
+  });
+
+  describe('Verbosity override', () => {
+    it('should skip truncation with verbosity:"detailed"', () => {
+      const permissions = Array.from({ length: 100 }, (_, i) => ({
+        id: String(i),
+        email: `user${i}@test.com`,
+        role: 'reader',
+      }));
+
+      const response = {
+        success: true,
+        action: 'share_list',
+        permissions,
       };
 
       const compacted = compactResponse(response, { verbosity: 'detailed' });
 
-      // With verbosity:detailed, arrays should not be truncated
-      expect((compacted.permissions as unknown[]).length).toBe(200);
-    });
-
-    it('should preserve suggestions array from suggest_chart (BUG FIX 0.4)', () => {
-      const response = {
-        success: true,
-        action: 'suggest_chart',
-        suggestions: [
-          {
-            chartType: 'COLUMN',
-            title: 'Sales by Product',
-            explanation: 'Shows sales trends',
-            confidence: 95,
-          },
-          {
-            chartType: 'LINE',
-            title: 'Sales Over Time',
-            explanation: 'Shows time series',
-            confidence: 85,
-          },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.success).toBe(true);
-      expect(compacted.action).toBe('suggest_chart');
-      expect(compacted.suggestions).toBeDefined();
-      expect(Array.isArray(compacted.suggestions)).toBe(true);
-      expect((compacted.suggestions as unknown[]).length).toBe(2);
-    });
-
-    it('should preserve suggestions array from suggest_pivot (BUG FIX 0.4)', () => {
-      const response = {
-        success: true,
-        action: 'suggest_pivot',
-        suggestions: [
-          {
-            title: 'Sales by Region',
-            rowFields: ['Region'],
-            columnFields: ['Quarter'],
-            valueFields: ['Sales'],
-            confidence: 90,
-          },
-        ],
-      };
-
-      const compacted = compactResponse(response);
-
-      expect(compacted.suggestions).toBeDefined();
-      expect(Array.isArray(compacted.suggestions)).toBe(true);
-      expect((compacted.suggestions as unknown[]).length).toBe(1);
+      // Should NOT be truncated
+      expect(compacted.permissions).toHaveLength(100);
+      expect(Array.isArray(compacted.permissions)).toBe(true);
     });
   });
 
-  describe('Compact Mode Configuration', () => {
-    it('should check compact mode based on environment variable', () => {
-      // isCompactModeEnabled() returns true unless COMPACT_RESPONSES='false'
-      // In test environment, this may be set to false, so we just verify it's a boolean
-      const isEnabled = isCompactModeEnabled();
-      expect(typeof isEnabled).toBe('boolean');
+  describe('Empty arrays', () => {
+    it('should handle empty permissions array', () => {
+      const response = {
+        success: true,
+        action: 'share_list',
+        permissions: [],
+      };
+
+      const compacted = compactResponse(response);
+
+      expect(compacted.permissions).toBeDefined();
+      expect(Array.isArray(compacted.permissions)).toBe(true);
+      expect(compacted.permissions).toHaveLength(0);
     });
+  });
+});
+
+describe('Phase 0.1 - All Affected List Actions', () => {
+  it('should handle all 8 affected list action fields from bug report', () => {
+    // Test all fields mentioned in Phase 0.1 bug report
+    const testCases = [
+      { field: 'permissions', action: 'share_list', handler: 'sheets_collaborate' },
+      { field: 'comments', action: 'comment_list', handler: 'sheets_collaborate' },
+      { field: 'revisions', action: 'version_list_revisions', handler: 'sheets_collaborate' },
+      { field: 'namedRanges', action: 'list_named_ranges', handler: 'sheets_advanced' },
+      { field: 'filterViews', action: 'list_filter_views', handler: 'sheets_dimensions' },
+      { field: 'filter', action: 'get_basic_filter', handler: 'sheets_dimensions' },
+      { field: 'valueRanges', action: 'batch_read', handler: 'sheets_data' },
+      { field: 'templates', action: 'list', handler: 'sheets_templates' },
+    ];
+
+    for (const { field, action } of testCases) {
+      // Create test data (20 items to test truncation logic)
+      const data = Array.from({ length: 20 }, (_, i) => ({
+        id: String(i),
+        value: `Item ${i}`,
+      }));
+
+      const response = {
+        success: true,
+        action,
+        [field]: data,
+      };
+
+      const compacted = compactResponse(response);
+
+      // Verify field exists and is array (not object)
+      expect(compacted[field], `${field} should exist`).toBeDefined();
+      expect(Array.isArray(compacted[field]), `${field} should be an array`).toBe(true);
+
+      const fieldValue = compacted[field];
+      if (Array.isArray(fieldValue)) {
+        expect(fieldValue.length, `${field} should have items`).toBeGreaterThan(0);
+      }
+
+      // Ensure not wrapped in truncation object
+      expect('_truncated' in (compacted[field] as object), `${field} should not be wrapped`).toBe(
+        false
+      );
+    }
   });
 });

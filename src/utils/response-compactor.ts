@@ -63,6 +63,30 @@ const CONDITIONAL_FIELDS = [
 ];
 
 /**
+ * List action fields that must remain arrays (not wrapped in objects)
+ * BUG FIX Phase 0.1: These fields get truncated but keep array structure
+ */
+const LIST_ACTION_FIELDS = new Set([
+  'permissions',
+  'comments',
+  'revisions',
+  'namedRanges',
+  'protectedRanges',
+  'filterViews',
+  'valueRanges',
+  'templates',
+  'webhooks',
+  'validations',
+  'conditionalFormats',
+  'pivotTables',
+  'dataSourceTables',
+  'deployments',
+  'versions',
+  'processes',
+  'suggestions',
+]);
+
+/**
  * Fields always stripped in compact mode
  */
 const STRIPPED_FIELDS = [
@@ -215,6 +239,14 @@ function truncateArray(
   // Small arrays pass through unchanged
   if (arr.length <= 10) {
     return arr;
+  }
+
+  // BUG FIX Phase 0.1: For list action fields, return truncated array directly
+  // (preserve array structure for schema compatibility)
+  if (LIST_ACTION_FIELDS.has(fieldName)) {
+    // Return first 50 items as array (not wrapped in object)
+    // This maintains schema compatibility while still reducing payload size
+    return arr.slice(0, 50);
   }
 
   // For 2D arrays (like cell values), use row-based truncation
