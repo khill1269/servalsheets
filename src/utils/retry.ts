@@ -32,6 +32,11 @@ const RETRYABLE_CODES = new Set([
   'ENOTFOUND',
   'ENETUNREACH',
   'ECONNABORTED',
+  // HTTP/2 connection errors (Google servers close idle connections after ~5 min)
+  'ERR_HTTP2_GOAWAY_SESSION',
+  'ERR_HTTP2_SESSION_ERROR',
+  'ERR_HTTP2_STREAM_CANCEL',
+  'ERR_HTTP2_STREAM_ERROR',
 ]);
 
 export async function executeWithRetry<T>(
@@ -129,7 +134,14 @@ function isRetryableError(error: unknown): boolean {
       message.includes('timeout') ||
       message.includes('timed out') ||
       message.includes('temporarily unavailable') ||
-      message.includes('backend error')
+      message.includes('backend error') ||
+      // HTTP/2 GOAWAY errors - connection was closed by server
+      message.includes('goaway') ||
+      message.includes('new streams cannot be created') ||
+      message.includes('session error') ||
+      (message.includes('stream') && message.includes('closed')) ||
+      message.includes('socket hang up') ||
+      (message.includes('connection') && message.includes('closed'))
     );
   }
 

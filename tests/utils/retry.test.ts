@@ -476,4 +476,147 @@ describe('executeWithRetry', () => {
       expect(attempts).toBe(2);
     });
   });
+
+  describe('HTTP/2 GOAWAY Error Handling', () => {
+    it('should retry on GOAWAY message error', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 3) {
+          return Promise.reject(
+            new Error('New streams cannot be created after receiving a GOAWAY')
+          );
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        maxDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(30);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(3);
+    });
+
+    it('should retry on ERR_HTTP2_GOAWAY_SESSION code', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 2) {
+          const error = new Error('HTTP/2 session closed');
+          (error as Error & { code: string }).code = 'ERR_HTTP2_GOAWAY_SESSION';
+          return Promise.reject(error);
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(20);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(2);
+    });
+
+    it('should retry on socket hang up error', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 2) {
+          return Promise.reject(new Error('socket hang up'));
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(20);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(2);
+    });
+
+    it('should retry on stream closed error', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 2) {
+          return Promise.reject(
+            new Error('The stream was closed with error code NGHTTP2_REFUSED_STREAM')
+          );
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(20);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(2);
+    });
+
+    it('should retry on connection closed error', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 2) {
+          return Promise.reject(new Error('The connection was closed'));
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(20);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(2);
+    });
+
+    it('should retry on ERR_HTTP2_SESSION_ERROR code', async () => {
+      let attempts = 0;
+      const op = vi.fn().mockImplementation(() => {
+        attempts += 1;
+        if (attempts < 2) {
+          const error = new Error('Session error');
+          (error as Error & { code: string }).code = 'ERR_HTTP2_SESSION_ERROR';
+          return Promise.reject(error);
+        }
+        return Promise.resolve('ok');
+      });
+
+      const promise = executeWithRetry((signal) => op(signal), {
+        maxRetries: 3,
+        baseDelayMs: 10,
+        jitterRatio: 0,
+        timeoutMs: 1000,
+      });
+
+      await vi.advanceTimersByTimeAsync(20);
+      await expect(promise).resolves.toBe('ok');
+      expect(attempts).toBe(2);
+    });
+  });
 });
