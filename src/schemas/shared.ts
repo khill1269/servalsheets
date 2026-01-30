@@ -603,10 +603,10 @@ export const ChartPositionSchema = z
           const cellRef = `${indexToColumnLetter(colIndex)}${rowIndex + 1}`;
           return {
             anchorCell: cellRef,
-            offsetX: (overlayPos['offsetXPixels'] as number) ?? pos['offsetX'] ?? 0,
-            offsetY: (overlayPos['offsetYPixels'] as number) ?? pos['offsetY'] ?? 0,
-            width: (overlayPos['widthPixels'] as number) ?? pos['width'] ?? 600,
-            height: (overlayPos['heightPixels'] as number) ?? pos['height'] ?? 400,
+            offsetX: Number((overlayPos['offsetXPixels'] as number) ?? pos['offsetX'] ?? 0),
+            offsetY: Number((overlayPos['offsetYPixels'] as number) ?? pos['offsetY'] ?? 0),
+            width: Number((overlayPos['widthPixels'] as number) ?? pos['width'] ?? 600),
+            height: Number((overlayPos['heightPixels'] as number) ?? pos['height'] ?? 400),
           };
         }
       }
@@ -627,10 +627,10 @@ export const ChartPositionSchema = z
     },
     z.object({
       anchorCell: z.string(),
-      offsetX: z.number().optional().default(0),
-      offsetY: z.number().optional().default(0),
-      width: z.number().optional().default(600),
-      height: z.number().optional().default(400),
+      offsetX: z.coerce.number().optional().default(0),
+      offsetY: z.coerce.number().optional().default(0),
+      width: z.coerce.number().optional().default(600),
+      height: z.coerce.number().optional().default(400),
     })
   )
   .describe('Chart position. anchorCell can be "E1" or object { rowIndex, columnIndex }');

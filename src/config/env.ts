@@ -52,8 +52,8 @@ const EnvSchema = z.object({
   DEDUP_ENABLED: z.coerce.boolean().default(true),
   DEDUP_WINDOW_MS: z.coerce.number().positive().default(5000), // 5 seconds
 
-  // Tracing & Observability
-  TRACING_ENABLED: z.coerce.boolean().default(false),
+  // Tracing & Observability (OTEL enabled by default for production observability)
+  TRACING_ENABLED: z.coerce.boolean().default(true),
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
   // Circuit Breaker

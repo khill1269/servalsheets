@@ -69,9 +69,21 @@ export function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
       continue;
     }
 
-    // Unwrap pipes (transform in Zod v4)
+    // Unwrap pipes (preprocess/transform in Zod v4)
+    // Two cases:
+    // 1. z.preprocess(fn, schema) → pipe.in=ZodTransform, pipe.out=schema → use .out
+    // 2. z.string().transform(fn) → pipe.in=ZodString, pipe.out=ZodTransform → use .in
     if (current instanceof z.ZodPipe) {
-      current = current.in as ZodTypeAny;
+      const pipeIn = current.in as ZodTypeAny;
+      const pipeOut = current.out as ZodTypeAny;
+
+      // Check if .in is a transform (preprocess case)
+      // ZodTransform has _def.type === 'transform'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- No public API for type check
+      const inIsTransform = (pipeIn as any)?._def?.type === 'transform';
+
+      // For preprocess, use .out (the target schema); for transform, use .in (the input schema)
+      current = inIsTransform ? pipeOut : pipeIn;
       continue;
     }
 
