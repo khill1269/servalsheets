@@ -1681,8 +1681,38 @@ Always return valid JSON in the exact format requested.`,
   private async resolveGridRange(
     spreadsheetId: string,
     sheetId: number,
-    range: { a1?: string } | { namedRange?: string } | { semantic?: unknown } | { grid?: unknown }
+    range:
+      | { a1?: string }
+      | { namedRange?: string }
+      | { semantic?: unknown }
+      | { grid?: unknown }
+      | string
+      | undefined
+      | null
   ): Promise<GridRangeInput> {
+    // Validate range is provided
+    if (range === undefined || range === null) {
+      throw new RangeResolutionError(
+        'Range is required for this operation. Provide A1 notation (e.g., "Sheet1!A1:D10") or a range object with { a1: "..." }.',
+        'INVALID_PARAMS',
+        { spreadsheetId, sheetId },
+        false
+      );
+    }
+
+    // Handle string input (A1 notation passed directly instead of { a1: "..." })
+    if (typeof range === 'string') {
+      const parsed = parseA1Notation(range);
+      return buildGridRangeInput(
+        sheetId,
+        parsed.startRow,
+        parsed.endRow,
+        parsed.startCol,
+        parsed.endCol
+      );
+    }
+
+    // Handle object with a1 property
     if ('a1' in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
       return buildGridRangeInput(
@@ -1740,8 +1770,39 @@ Always return valid JSON in the exact format requested.`,
 
   private async resolveRangeInput(
     spreadsheetId: string,
-    range: { a1?: string } | { namedRange?: string } | { semantic?: unknown } | { grid?: unknown }
+    range:
+      | { a1?: string }
+      | { namedRange?: string }
+      | { semantic?: unknown }
+      | { grid?: unknown }
+      | string
+      | undefined
+      | null
   ): Promise<GridRangeInput> {
+    // Validate range is provided
+    if (range === undefined || range === null) {
+      throw new RangeResolutionError(
+        'Range is required for this operation. Provide A1 notation (e.g., "Sheet1!A1:D10") or a range object.',
+        'INVALID_PARAMS',
+        { spreadsheetId },
+        false
+      );
+    }
+
+    // Handle string input (A1 notation passed directly)
+    if (typeof range === 'string') {
+      const parsed = parseA1Notation(range);
+      const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
+      return buildGridRangeInput(
+        sheetId,
+        parsed.startRow,
+        parsed.endRow,
+        parsed.startCol,
+        parsed.endCol
+      );
+    }
+
+    // Handle object with a1 property
     if ('a1' in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
       const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
