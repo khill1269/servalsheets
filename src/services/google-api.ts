@@ -677,8 +677,16 @@ export class GoogleApiClient {
       return { valid: false, error: 'No tokens present' };
     }
 
-    // Return cached result if still valid (5 minute TTL)
+    // Fast path: Check expiry date first (no API call needed!)
     const now = Date.now();
+    if (status.expiryDate && status.expiryDate > now) {
+      logger.debug('Token valid based on expiry date', {
+        expiresIn: Math.round((status.expiryDate - now) / 1000),
+      });
+      return { valid: true };
+    }
+
+    // Return cached validation result if still fresh (5 minute TTL)
     if (
       this.lastValidationResult &&
       this.lastValidationTime &&
@@ -692,7 +700,7 @@ export class GoogleApiClient {
     }
 
     try {
-      // Make lightweight API call to validate token
+      // Make lightweight API call to validate token (only if expiry unknown)
       const oauth2 = google.oauth2({ version: 'v2', auth: this.auth });
       await oauth2.userinfo.get();
 
@@ -710,7 +718,7 @@ export class GoogleApiClient {
         error: errorMessage,
       };
 
-      // Cache the failed result (shorter TTL via same mechanism)
+      // Cache the failed result
       this.lastValidationResult = result;
       this.lastValidationTime = now;
 
