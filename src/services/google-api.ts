@@ -163,6 +163,10 @@ export class GoogleApiClient {
   private _authType: GoogleAuthType;
   private tokenManager?: TokenManager;
   private poolMonitorInterval?: NodeJS.Timeout;
+  // Token validation cache to avoid excessive API calls
+  private lastValidationResult?: { valid: boolean; error?: string };
+  private lastValidationTime?: number;
+  private static readonly VALIDATION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
@@ -173,8 +177,9 @@ export class GoogleApiClient {
         : options.accessToken
           ? 'access_token'
           : 'application_default';
-    // Determine scopes based on options - use FULL_SCOPES by default for complete functionality
-    this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : FULL_SCOPES);
+    // Determine scopes based on options - use DEFAULT_SCOPES by default for minimal permissions
+    // Users will be prompted for additional scopes via incremental consent when needed
+    this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : DEFAULT_SCOPES);
     this.retryOptions = options.retryOptions;
     this.timeoutMs = options.timeoutMs;
     this.tokenStore = options.tokenStore;
@@ -473,6 +478,10 @@ export class GoogleApiClient {
         });
 
         await this.safeSaveTokens(merged);
+
+        // Invalidate validation cache when tokens are auto-refreshed
+        this.lastValidationResult = undefined;
+        this.lastValidationTime = undefined;
       });
     };
 
@@ -668,18 +677,44 @@ export class GoogleApiClient {
       return { valid: false, error: 'No tokens present' };
     }
 
+    // Return cached result if still valid (5 minute TTL)
+    const now = Date.now();
+    if (
+      this.lastValidationResult &&
+      this.lastValidationTime &&
+      now - this.lastValidationTime < GoogleApiClient.VALIDATION_CACHE_TTL_MS
+    ) {
+      logger.debug('Using cached token validation result', {
+        age: Math.round((now - this.lastValidationTime) / 1000),
+        valid: this.lastValidationResult.valid,
+      });
+      return this.lastValidationResult;
+    }
+
     try {
       // Make lightweight API call to validate token
       const oauth2 = google.oauth2({ version: 'v2', auth: this.auth });
       await oauth2.userinfo.get();
+
+      // Cache the successful result
+      this.lastValidationResult = { valid: true };
+      this.lastValidationTime = now;
+
       return { valid: true };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.debug('Token validation failed', { error: errorMessage });
-      return {
+
+      const result = {
         valid: false,
         error: errorMessage,
       };
+
+      // Cache the failed result (shorter TTL via same mechanism)
+      this.lastValidationResult = result;
+      this.lastValidationTime = now;
+
+      return result;
     }
   }
 
@@ -756,6 +791,10 @@ export class GoogleApiClient {
     });
     this.auth.setCredentials(tokens);
     void this.safeSaveTokens(tokens);
+
+    // Invalidate validation cache when credentials change
+    this.lastValidationResult = undefined;
+    this.lastValidationTime = undefined;
 
     logger.debug('Credentials updated', {
       hasAccessToken: Boolean(accessToken),
