@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 21 tools, 272 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 21 tools, 291 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -35,6 +35,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 - Upgraded Zod 3.25 → 4.3.5 with native JSON Schema
 - 14x faster string parsing, 7x faster arrays
 - 57% smaller bundle size
+
 </details>
 
 <details>
@@ -43,6 +44,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 - MCP Logging, Tasks, Elicitation, Sampling support
 - 6 URI resource templates
 - Full AbortController cancellation
+
 </details>
 
 <details>
@@ -50,13 +52,14 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
 - Pattern Detection, Column Analysis
 - AI-Powered formula generation & chart recommendations
+
 </details>
 
 ## Features
 
 ### Core Capabilities
 
-- **21 Tools, 272 Actions**: Comprehensive Google Sheets API v4 coverage
+- **21 Tools, 291 Actions**: Comprehensive Google Sheets API v4 coverage
 - **MCP 2025-11-25 Compliant**: Full protocol compliance with structured outputs
 - **Multiple Transports**: STDIO, SSE, and Streamable HTTP
 - **Safety Rails**: Dry-run, effect scope limits, expected state validation, user confirmations
@@ -67,7 +70,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.2
-- ✅ **Tools**: 21 tools with 272 actions using discriminated unions
+- ✅ **Tools**: 21 tools with 291 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -259,29 +262,29 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ### Tool Summary (21 tools, 272 actions)
 
-| Tool                 | Actions | Description                                                     |
-| -------------------- | ------- | --------------------------------------------------------------- |
-| `sheets_auth`        | 4       | Authentication & OAuth                                          |
-| `sheets_core`        | 17      | Spreadsheet and sheet metadata/management                       |
-| `sheets_data`        | 18      | Read/write values, notes, hyperlinks, clipboard                 |
-| `sheets_format`      | 21      | Cell formatting, conditional formats, data validation, sparklines |
-| `sheets_dimensions`  | 28      | Rows/columns, filters, sorts, groups, freezes, views, slicers   |
-| `sheets_visualize`   | 18      | Charts and pivot tables                                         |
-| `sheets_collaborate` | 28      | Sharing, comments, versions/snapshots                           |
-| `sheets_advanced`    | 23      | Named ranges, protected ranges, metadata, banding, tables, chips |
-| `sheets_transaction` | 6       | Transaction management                                          |
-| `sheets_quality`     | 4       | Validation, conflicts, impact analysis                          |
-| `sheets_history`     | 7       | Undo/redo, history, revert                                      |
-| `sheets_confirm`     | 5       | Elicitation confirmations & wizards                             |
-| `sheets_analyze`     | 11      | AI-assisted analysis & recommendations                          |
-| `sheets_fix`         | 1       | Automated fixes from analysis                                   |
-| `sheets_composite`   | 10      | High-level bulk operations                                      |
-| `sheets_session`     | 17      | Session context and references                                  |
-| `sheets_appsscript`  | 14      | Apps Script automation                                          |
-| `sheets_bigquery`    | 14      | BigQuery Connected Sheets                                       |
-| `sheets_templates`   | 8       | Enterprise templates                                            |
-| `sheets_webhook`     | 6       | Webhook registration & delivery                                 |
-| `sheets_dependencies`| 7       | Formula dependency analysis                                     |
+| Tool                  | Actions | Description                                                       |
+| --------------------- | ------- | ----------------------------------------------------------------- |
+| `sheets_auth`         | 4       | Authentication & OAuth                                            |
+| `sheets_core`         | 17      | Spreadsheet and sheet metadata/management                         |
+| `sheets_data`         | 18      | Read/write values, notes, hyperlinks, clipboard                   |
+| `sheets_format`       | 21      | Cell formatting, conditional formats, data validation, sparklines |
+| `sheets_dimensions`   | 28      | Rows/columns, filters, sorts, groups, freezes, views, slicers     |
+| `sheets_visualize`    | 18      | Charts and pivot tables                                           |
+| `sheets_collaborate`  | 28      | Sharing, comments, versions/snapshots                             |
+| `sheets_advanced`     | 23      | Named ranges, protected ranges, metadata, banding, tables, chips  |
+| `sheets_transaction`  | 6       | Transaction management                                            |
+| `sheets_quality`      | 4       | Validation, conflicts, impact analysis                            |
+| `sheets_history`      | 7       | Undo/redo, history, revert                                        |
+| `sheets_confirm`      | 5       | Elicitation confirmations & wizards                               |
+| `sheets_analyze`      | 11      | AI-assisted analysis & recommendations                            |
+| `sheets_fix`          | 1       | Automated fixes from analysis                                     |
+| `sheets_composite`    | 10      | High-level bulk operations                                        |
+| `sheets_session`      | 17      | Session context and references                                    |
+| `sheets_appsscript`   | 14      | Apps Script automation                                            |
+| `sheets_bigquery`     | 14      | BigQuery Connected Sheets                                         |
+| `sheets_templates`    | 8       | Enterprise templates                                              |
+| `sheets_webhook`      | 6       | Webhook registration & delivery                                   |
+| `sheets_dependencies` | 7       | Formula dependency analysis                                       |
 
 ## Examples
 

@@ -28,5 +28,38 @@ if [ -n "$STAGED_TS_FILES" ]; then
   echo "✅ Pre-commit checks passed"
 fi
 
+# Check for staged markdown files
+STAGED_MD_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.md$' || true)
+
+if [ -n "$STAGED_MD_FILES" ]; then
+  echo "📝 Running documentation checks..."
+
+  # Lint only the staged markdown files
+  echo "  → Linting staged markdown files"
+  echo "$STAGED_MD_FILES" | xargs npx markdownlint-cli2 || { echo "❌ Markdown lint failed"; exit 1; }
+
+  # Validate frontmatter in docs/ markdown files
+  STAGED_DOCS_MD=$(echo "$STAGED_MD_FILES" | tr ' ' '\n' | grep '^docs/' || true)
+  if [ -n "$STAGED_DOCS_MD" ]; then
+    echo "  → Validating frontmatter"
+    echo "$STAGED_DOCS_MD" | xargs tsx scripts/check-frontmatter.ts || { echo "❌ Frontmatter validation failed"; exit 1; }
+  fi
+
+  # Verify documentation action counts if README.md or SKILL.md changed
+  if echo "$STAGED_MD_FILES" | grep -q "README.md\|docs/guides/SKILL.md"; then
+    echo "  → Verifying action counts in documentation"
+    if ! grep -q "21 tools, 291 actions" README.md; then
+      echo "❌ README.md has incorrect action count. Should be '21 tools, 291 actions'"
+      exit 1
+    fi
+    if ! grep -q "21 tools with 291 actions" docs/guides/SKILL.md; then
+      echo "❌ SKILL.md has incorrect action count. Should be '21 tools with 291 actions'"
+      exit 1
+    fi
+  fi
+
+  echo "✅ Documentation checks passed"
+fi
+
 # Run lint-staged (formats and lints)
 npx lint-staged
