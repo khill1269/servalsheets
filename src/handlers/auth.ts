@@ -215,6 +215,7 @@ export class AuthHandler {
       access_type: 'offline',
       scope: requestedScopes,
       prompt: 'consent',
+      include_granted_scopes: true, // Enable incremental consent - merge with previously granted scopes
     });
 
     // Check if we should use automatic callback server
@@ -226,9 +227,9 @@ export class AuthHandler {
       try {
         const port = extractPortFromRedirectUri(this.redirectUri);
 
-        // Start callback server
+        // Start callback server (60s timeout - faster feedback if browser doesn't open)
         logger.info(`Starting OAuth callback server on port ${port}...`);
-        const callbackPromise = startCallbackServer({ port, timeout: 120000 });
+        const callbackPromise = startCallbackServer({ port, timeout: 60000 });
 
         // Use elicitation API if available
         if (this.elicitationServer) {
@@ -246,10 +247,13 @@ export class AuthHandler {
         // Open browser
         if (autoOpenBrowser) {
           try {
+            logger.info('Opening browser for OAuth...', { url: authUrl.substring(0, 100) + '...' });
             await open(authUrl);
+            logger.info('Browser opened successfully');
           } catch (error) {
-            logger.error('Failed to open browser', {
+            logger.error('Failed to open browser - user must open URL manually', {
               error: error instanceof Error ? error.message : String(error),
+              url: authUrl,
             });
           }
         }
