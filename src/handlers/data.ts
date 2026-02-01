@@ -27,6 +27,7 @@ import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas
 import { getEnv } from '../config/env.js';
 import { getETagCache } from '../services/etag-cache.js';
 import { v4 as uuidv4 } from 'uuid';
+import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
 
 // Type alias for the request union
 type DataRequest = SheetsDataInput['request'];
@@ -761,6 +762,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           _batched: true, // Indicate this was batched
         };
 
+        // Trigger background quality analysis (Phase 4: Optional Enhancement)
+        const cellsAffected = (responseData['updatedCells'] as number | undefined) ?? cellCount;
+        if (cellsAffected >= 10) {
+          const analyzer = getBackgroundAnalyzer();
+          analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, this.sheetsApi, {
+            qualityThreshold: 65,
+          });
+        }
+
         const warnings = this.buildPayloadWarnings('write', payloadValidation);
         const meta = warnings
           ? {
@@ -799,6 +809,15 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       updatedColumns: response.data.updatedColumns ?? 0,
       updatedRange: response.data.updatedRange ?? range,
     };
+
+    // Trigger background quality analysis (Phase 4: Optional Enhancement)
+    const cellsAffected = response.data.updatedCells ?? 0;
+    if (cellsAffected >= 10) {
+      const analyzer = getBackgroundAnalyzer();
+      analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, this.sheetsApi, {
+        qualityThreshold: 65,
+      });
+    }
 
     const warnings = this.buildPayloadWarnings('write', payloadValidation);
     const meta = warnings
@@ -1091,8 +1110,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   private async handleBatchRead(
     input: DataRequest & { action: 'batch_read' }
   ): Promise<DataResponse> {
-    // Pagination support exists but disabled pending schema updates (cursor, pageSize, streaming fields)
-    const wantsPagination = false; // Boolean(input.cursor || input.pageSize || input.streaming);
+    // Pagination enabled: check for cursor or pageSize fields
+    const wantsPagination = Boolean(input.cursor || input.pageSize);
 
     if (wantsPagination) {
       if (input.dataFilters && input.dataFilters.length > 0) {
@@ -1113,9 +1132,9 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       const singleRange = await this.resolveRangeToA1(input.spreadsheetId, input.ranges![0] as any);
       const paginationPlan = this.buildPaginationPlan({
         range: singleRange,
-        cursor: undefined, // input.cursor,
-        pageSize: undefined, // input.pageSize,
-        streaming: undefined, // input.streaming,
+        cursor: input.cursor,
+        pageSize: input.pageSize,
+        streaming: false, // batch_read doesn't support streaming (only 'read' action does)
       });
       if (paginationPlan && 'error' in paginationPlan) {
         return paginationPlan.error;

@@ -119,12 +119,47 @@ export function registerServalSheetsResources(
           range,
         });
 
+        // Truncate large responses to prevent MCP protocol issues
+        const MAX_CELLS = 10000;
+        const values = valuesResponse.data.values || [];
+        const totalCells = values.reduce(
+          (sum, row) => sum + (Array.isArray(row) ? row.length : 0),
+          0
+        );
+
+        let result: Record<string, unknown>;
+
+        if (totalCells > MAX_CELLS) {
+          // Truncate to first N rows that fit within limit
+          let cellCount = 0;
+          const truncatedValues: unknown[][] = [];
+
+          for (const row of values) {
+            const rowLength = Array.isArray(row) ? row.length : 0;
+            if (cellCount + rowLength > MAX_CELLS) {
+              break;
+            }
+            truncatedValues.push(row);
+            cellCount += rowLength;
+          }
+
+          result = {
+            ...valuesResponse.data,
+            values: truncatedValues,
+            _truncated: true,
+            _message: `Response truncated: ${totalCells} cells exceeds ${MAX_CELLS} limit. Use sheets_data tool with pagination for large ranges.`,
+            _originalCellCount: totalCells,
+          };
+        } else {
+          result = { ...valuesResponse.data };
+        }
+
         return {
           contents: [
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(valuesResponse.data, null, 2),
+              text: JSON.stringify(result, null, 2),
             },
           ],
         };
