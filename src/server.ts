@@ -240,40 +240,16 @@ export class ServalSheetsServer {
       // Create SnapshotService for undo/revert operations
       const snapshotService = new SnapshotService({ driveApi: this.googleClient.drive });
 
-      // Initialize batching system for time-window operation batching
-      const { initBatchingSystem } = await import('./services/batching-system.js');
-      const batchingSystem = initBatchingSystem(this.googleClient.sheets);
-
-      // Initialize cached Sheets API for ETag-based caching (30-50% API savings)
-      const { getCachedSheetsApi } = await import('./services/cached-sheets-api.js');
-      const cachedSheetsApi = getCachedSheetsApi(this.googleClient.sheets);
-
-      // Initialize request merger for overlapping read request optimization (20-40% API savings)
-      const { RequestMerger } = await import('./services/request-merger.js');
-      const requestMerger = new RequestMerger({ enabled: true, windowMs: 50, maxWindowSize: 100 });
-
-      // Initialize parallel executor for concurrent batch operations (40% faster batch ops)
-      const { ParallelExecutor } = await import('./services/parallel-executor.js');
-      const parallelExecutor = new ParallelExecutor({
-        concurrency: 20,
-        retryOnError: true,
-        maxRetries: 3,
-      });
-
-      // Initialize prefetch predictor for predictive caching (200-500ms latency reduction)
-      const { PrefetchPredictor } = await import('./services/prefetch-predictor.js');
-      const prefetchPredictor = new PrefetchPredictor({
-        minConfidence: 0.6,
-        maxPredictions: 5,
-        enablePrefetch: true,
-      });
-
-      // Initialize access pattern tracker for learning user patterns
-      const { AccessPatternTracker } = await import('./services/access-pattern-tracker.js');
-      const accessPatternTracker = new AccessPatternTracker({
-        maxHistory: 1000,
-        patternWindow: 300000,
-      });
+      // Initialize all performance optimizations (batching, caching, merging, prefetching)
+      const { initializePerformanceOptimizations } = await import('./startup/performance-init.js');
+      const {
+        batchingSystem,
+        cachedSheetsApi,
+        requestMerger,
+        parallelExecutor,
+        prefetchPredictor,
+        accessPatternTracker,
+      } = await initializePerformanceOptimizations(this.googleClient.sheets);
 
       // Create reusable context and handlers
       this.context = {
