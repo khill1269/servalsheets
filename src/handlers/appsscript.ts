@@ -28,6 +28,9 @@
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import { AuthenticationError, ServiceError } from '../core/errors.js';
 import type { Intent } from '../core/intent.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type {
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput,
@@ -53,12 +56,57 @@ import { logger } from '../utils/logger.js';
 // Apps Script API base URL
 const APPS_SCRIPT_API_BASE = 'https://script.googleapis.com/v1';
 
+/**
+ * Timeout constants per Google Apps Script API documentation
+ * @see https://developers.google.com/apps-script/api/how-tos/execute
+ *
+ * - SCRIPT_RUN_TIMEOUT: 380 seconds (6 min max execution + overhead)
+ * - SCRIPT_ADMIN_TIMEOUT: 30 seconds (for metadata operations)
+ */
+const SCRIPT_RUN_TIMEOUT_MS = 380_000; // 380 seconds (6 min + buffer)
+const SCRIPT_ADMIN_TIMEOUT_MS = 30_000; // 30 seconds (default)
+
 export class SheetsAppsScriptHandler extends BaseHandler<
   SheetsAppsScriptInput,
   SheetsAppsScriptOutput
 > {
+  private circuitBreaker: CircuitBreaker;
+
   constructor(context: HandlerContext) {
     super('sheets_appsscript', context);
+
+    // Initialize circuit breaker for Apps Script API
+    // Lower failure threshold (3 vs 5) due to lower quotas
+    const circuitConfig = getCircuitBreakerConfig();
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: 3,
+      successThreshold: circuitConfig.successThreshold,
+      timeout: 60000, // 60 seconds (longer due to script execution time)
+      name: 'appsscript-api',
+    });
+
+    // Register fallback strategy for circuit breaker
+    this.circuitBreaker.registerFallback({
+      name: 'appsscript-unavailable-fallback',
+      priority: 1,
+      shouldUse: () => true,
+      execute: async () => {
+        throw new ServiceError(
+          'Apps Script API temporarily unavailable due to repeated failures. Check quota limits and try again in 60 seconds.',
+          'UNAVAILABLE',
+          'appsscript-api',
+          true,
+          { circuitBreaker: 'appsscript-api', retryAfterSeconds: 60 }
+        );
+      },
+    });
+
+    // Register with global registry
+    circuitBreakerRegistry.register(
+      'appsscript-api',
+      this.circuitBreaker,
+      'Apps Script API circuit breaker'
+    );
   }
 
   async handle(input: SheetsAppsScriptInput): Promise<SheetsAppsScriptOutput> {
@@ -150,7 +198,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async apiRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
-    body?: unknown
+    body?: unknown,
+    timeoutMs: number = SCRIPT_ADMIN_TIMEOUT_MS
   ): Promise<T> {
     // Get access token from the Google client
     const googleClient = this.context.googleClient;
@@ -181,19 +230,49 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       'Content-Type': 'application/json',
     };
 
+    // Set up abort controller for timeout
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
     const options: RequestInit = {
       method,
       headers,
+      signal: abortController.signal,
     };
 
     if (body && (method === 'POST' || method === 'PUT')) {
       options.body = JSON.stringify(body);
     }
 
-    logger.debug(`Apps Script API ${method} ${path}`);
+    logger.debug(`Apps Script API ${method} ${path} (timeout: ${timeoutMs}ms)`);
 
-    const response = await fetch(url, options);
+    // Wrap API call with circuit breaker (P2-4)
+    return await this.circuitBreaker.execute(async () => {
+      try {
+        const response = await fetch(url, options);
+        clearTimeout(timeoutId);
 
+        return await this.handleApiResponse<T>(response, path);
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        // Handle timeout
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new ServiceError(
+            `Apps Script API request timed out after ${timeoutMs}ms`,
+            'DEADLINE_EXCEEDED',
+            'AppsScript',
+            true,
+            { method, path, timeoutMs }
+          );
+        }
+
+        throw error;
+      }
+    });
+  }
+
+  private async handleApiResponse<T>(response: Response, path: string): Promise<T> {
     if (!response.ok) {
       const errorBody = await response.text();
       let errorMessage = `Apps Script API error: ${response.status} ${response.statusText}`;
@@ -705,6 +784,34 @@ export class SheetsAppsScriptHandler extends BaseHandler<
   private async handleRun(req: AppsScriptRunInput): Promise<AppsScriptResponse> {
     logger.info(`Running function ${req.functionName} in: ${req.scriptId}`);
 
+    // Pre-flight token check: Refresh if expiring within 360 seconds (6 minutes)
+    // This prevents mid-execution auth failures for long-running scripts
+    const googleClient = this.context.googleClient;
+    if (googleClient) {
+      const tokenStatus = googleClient.getTokenStatus();
+      if (tokenStatus.expiryDate) {
+        const now = Date.now();
+        const secondsRemaining = Math.floor((tokenStatus.expiryDate - now) / 1000);
+
+        if (secondsRemaining < 360) {
+          logger.info('Pre-refreshing token before long-running script', {
+            secondsRemaining,
+            scriptId: req.scriptId,
+            functionName: req.functionName,
+          });
+
+          // Force token refresh by calling getAccessToken()
+          try {
+            await googleClient.oauth2.getAccessToken();
+            logger.info('Token pre-refresh successful', { scriptId: req.scriptId });
+          } catch (error) {
+            logger.warn('Token pre-refresh failed', { error, scriptId: req.scriptId });
+            // Continue anyway - the refresh might happen during the request
+          }
+        }
+      }
+    }
+
     interface RunRequest {
       function: string;
       parameters?: unknown[];
@@ -744,7 +851,56 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       body.devMode = req.devMode;
     }
 
-    const result = await this.apiRequest<RunResponse>('POST', `/scripts/${req.scriptId}:run`, body);
+    // Use 380s timeout for script execution (6 min max + overhead)
+    let result: RunResponse;
+    try {
+      result = await this.apiRequest<RunResponse>(
+        'POST',
+        `/scripts/${req.scriptId}:run`,
+        body,
+        SCRIPT_RUN_TIMEOUT_MS
+      );
+    } catch (error) {
+      // Retry once on 401 auth error (token may have expired during execution)
+      if (
+        error instanceof ServiceError &&
+        error.code === 'AUTH_ERROR' &&
+        error.message.includes('Authentication')
+      ) {
+        logger.warn('Auth error during script execution, refreshing token and retrying', {
+          scriptId: req.scriptId,
+          functionName: req.functionName,
+        });
+
+        // Force token refresh
+        if (googleClient) {
+          try {
+            await googleClient.oauth2.getAccessToken();
+            logger.info('Mid-execution token refresh successful, retrying script', {
+              scriptId: req.scriptId,
+            });
+
+            // Retry the request with fresh token
+            result = await this.apiRequest<RunResponse>(
+              'POST',
+              `/scripts/${req.scriptId}:run`,
+              body,
+              SCRIPT_RUN_TIMEOUT_MS
+            );
+          } catch (retryError) {
+            logger.error('Retry after token refresh failed', {
+              retryError,
+              scriptId: req.scriptId,
+            });
+            throw error; // Throw original error
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
 
     // Check for execution error
     if (result.error) {

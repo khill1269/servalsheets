@@ -5,6 +5,7 @@
  */
 
 import { getRequestContext, getRequestLogger } from './request-context.js';
+import { recordRateLimitHit, recordRetryAttempt } from '../observability/metrics.js';
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -57,7 +58,17 @@ export async function executeWithRetry<T>(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await withTimeout(operation, timeoutMs);
+      const result = await withTimeout(operation, timeoutMs);
+
+      // Record successful retry if this wasn't the first attempt
+      if (attempt > 0) {
+        const status = getErrorStatus(lastError);
+        const isRateLimited = status === 429;
+        const retryReason = isRateLimited ? 'rate_limit' : status ? `status_${status}` : 'unknown';
+        recordRetryAttempt('google-api', retryReason, true, 0);
+      }
+
+      return result;
     } catch (error) {
       lastError = error;
 
@@ -65,6 +76,9 @@ export async function executeWithRetry<T>(
         throw error;
       }
 
+      // Enhanced rate limit handling (P2-1: Adaptive backoff for 429s)
+      const status = getErrorStatus(error);
+      const isRateLimited = status === 429;
       const retryAfterMs = parseRetryAfter(error);
       const backoff = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
       const jitter = backoff * jitterRatio * (Math.random() * 2 - 1);
@@ -75,21 +89,67 @@ export async function executeWithRetry<T>(
           attempt,
           maxRetries,
           delayMs: delay,
+          isRateLimited,
         });
         throw error;
       }
 
-      logger.warn('Retrying Google API call', {
-        attempt,
-        maxRetries,
-        delayMs: delay,
-      });
+      // Enhanced logging for rate limits with Retry-After header detection
+      if (isRateLimited) {
+        // Record rate limit hit metric
+        recordRateLimitHit('google-api', 'sheets');
+
+        logger.warn('Rate limit hit, backing off with adaptive delay', {
+          attempt,
+          maxRetries,
+          delayMs: delay,
+          retryAfterMs,
+          usedRetryAfterHeader: retryAfterMs !== undefined,
+          exponentialBackoff: backoff,
+        });
+      } else {
+        logger.warn('Retrying Google API call', {
+          attempt,
+          maxRetries,
+          delayMs: delay,
+          errorStatus: status,
+        });
+      }
+
+      // Record retry attempt metric
+      const retryReason = isRateLimited ? 'rate_limit' : status ? `status_${status}` : 'unknown';
+      recordRetryAttempt('google-api', retryReason, false, delay / 1000);
 
       await sleep(delay);
     }
   }
 
   throw lastError;
+}
+
+/**
+ * Extract HTTP status code from error object
+ */
+function getErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const errAny = error as {
+    code?: unknown;
+    response?: { status?: number };
+  };
+
+  const status = errAny.response?.status;
+  if (typeof status === 'number') {
+    return status;
+  }
+
+  if (typeof errAny.code === 'number') {
+    return errAny.code;
+  }
+
+  return undefined;
 }
 
 function isRetryableError(error: unknown): boolean {

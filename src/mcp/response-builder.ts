@@ -44,6 +44,19 @@ const MAX_INLINE_CELLS = 1000; // cells to include inline
 const TRUNCATION_ROWS = 100; // rows to show when truncating
 
 /**
+ * MCP client response size limits (in bytes)
+ *
+ * Claude Desktop has a practical limit of ~100KB for tool responses.
+ * Responses exceeding this may cause client-side timeout or memory issues.
+ */
+const MCP_CLIENT_LIMITS = {
+  /** Claude Desktop conservative limit */
+  claude_desktop: 90_000, // 90KB
+  /** Default limit for other MCP clients */
+  default: 100_000, // 100KB
+} as const;
+
+/**
  * Response optimization configuration
  *
  * These thresholds control when optimizations are applied:
@@ -51,6 +64,7 @@ const TRUNCATION_ROWS = 100; // rows to show when truncating
  * - **STREAMING_THRESHOLD**: Splits responses >50k cells into progressive chunks
  * - **MAX_INLINE_CELLS**: Limits inline data to 1000 cells, provides resource URI for rest
  * - **TRUNCATION_ROWS**: Shows first 100 rows when truncating, with resource link for full data
+ * - **MCP_CLIENT_LIMITS**: Size limits for different MCP clients (90KB for Claude Desktop)
  *
  * @example
  * ```ts
@@ -59,6 +73,7 @@ const TRUNCATION_ROWS = 100; // rows to show when truncating
  *   maxInlineCells: 500,
  *   truncationRows: 50,
  *   enableStreaming: true,
+ *   clientHint: 'claude_desktop',
  * });
  * ```
  */
@@ -67,6 +82,7 @@ export const RESPONSE_CONFIG = {
   STREAMING_THRESHOLD,
   MAX_INLINE_CELLS,
   TRUNCATION_ROWS,
+  MCP_CLIENT_LIMITS,
 } as const;
 
 // Pre-allocated response templates (avoid repeated object creation)
@@ -90,6 +106,8 @@ export interface ResponseOptions {
   spreadsheetId?: string;
   /** Range for resource URI */
   range?: string;
+  /** MCP client hint for size limits (default: 'default') */
+  clientHint?: 'claude_desktop' | 'default';
 }
 
 export interface LazyResponse {
@@ -206,6 +224,21 @@ export function buildSuccessResponse<T extends Record<string, unknown>>(
   };
 
   const structured = { response };
+
+  // Enforce MCP client size limit (final safeguard)
+  const clientHint = (options as Record<string, unknown>)['clientHint'] as
+    | 'claude_desktop'
+    | 'default'
+    | undefined;
+  const sizeCheck = enforceClientSizeLimit(structured, clientHint ?? 'default');
+
+  if (sizeCheck.truncated) {
+    // Response exceeded client limit - return truncated version
+    return {
+      content: [{ type: 'text', text: JSON.stringify(sizeCheck.data, null, 2) }],
+      structuredContent: sizeCheck.data,
+    };
+  }
 
   return {
     content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
@@ -497,6 +530,96 @@ function isRetryableError(code: string): boolean {
   return retryableCodes.has(code);
 }
 
+/**
+ * Enforce MCP client response size limit
+ *
+ * Checks if response exceeds client limits and truncates if necessary.
+ * Adds _truncated metadata with continuation hints.
+ */
+function enforceClientSizeLimit<T extends Record<string, unknown>>(
+  response: T,
+  clientHint: 'claude_desktop' | 'default' = 'default'
+): { data: T; truncated: boolean; originalSize: number; truncatedSize?: number } {
+  const limit = MCP_CLIENT_LIMITS[clientHint];
+  const serialized = JSON.stringify(response);
+  const size = new TextEncoder().encode(serialized).length;
+
+  // Response fits within limit
+  if (size <= limit) {
+    return { data: response, truncated: false, originalSize: size };
+  }
+
+  // Response exceeds limit - truncate
+  const truncated = truncateToSizeLimit(response, limit);
+  const truncatedSerialized = JSON.stringify(truncated);
+  const truncatedSize = new TextEncoder().encode(truncatedSerialized).length;
+
+  return {
+    data: truncated as T,
+    truncated: true,
+    originalSize: size,
+    truncatedSize,
+  };
+}
+
+/**
+ * Truncate response to fit within size limit
+ */
+function truncateToSizeLimit<T extends Record<string, unknown>>(response: T, limit: number): T {
+  // Find largest array field to truncate
+  let largestArray: { key: string; value: unknown[]; size: number } | null = null;
+
+  for (const [key, value] of Object.entries(response)) {
+    if (Array.isArray(value) && value.length > 0) {
+      const size = JSON.stringify(value).length;
+      if (!largestArray || size > largestArray.size) {
+        largestArray = { key, value, size };
+      }
+    }
+  }
+
+  // If no arrays to truncate, truncate string fields
+  if (!largestArray) {
+    const truncated: Record<string, unknown> = { ...response };
+    for (const [key, value] of Object.entries(truncated)) {
+      if (typeof value === 'string' && value.length > 100) {
+        truncated[key] = value.substring(0, 100) + '... [truncated]';
+      }
+    }
+    addTruncationMetadata(truncated, limit, 'strings');
+    return truncated as T;
+  }
+
+  // Calculate how many items we can keep
+  const arrayKey = largestArray.key;
+  const arrayValue = largestArray.value;
+  const itemSize = Math.ceil(largestArray.size / arrayValue.length);
+  const maxItems = Math.max(10, Math.floor((limit * 0.8) / itemSize)); // Use 80% of limit
+
+  const truncated: Record<string, unknown> = { ...response };
+  const truncatedArray = arrayValue.slice(0, Math.min(maxItems, arrayValue.length));
+  truncated[arrayKey] = truncatedArray;
+
+  addTruncationMetadata(truncated, limit, arrayKey);
+  return truncated as T;
+}
+
+/**
+ * Add truncation metadata to response
+ */
+function addTruncationMetadata(
+  response: Record<string, unknown>,
+  limit: number,
+  truncatedField: string
+): void {
+  response['_truncated'] = {
+    reason: 'MCP client size limit',
+    limit,
+    truncatedField,
+    hint: 'Use pagination (startRow/maxRows) or filters (range) to retrieve specific data',
+  };
+}
+
 // ============================================================================
 // RESPONSE TEMPLATE CACHE
 // ============================================================================
@@ -618,5 +741,6 @@ export const ResponseBuilder = {
   STREAMING_THRESHOLD,
   MAX_INLINE_CELLS,
   TRUNCATION_ROWS,
+  MCP_CLIENT_LIMITS,
   RESPONSE_CONFIG,
 };

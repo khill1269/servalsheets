@@ -52,10 +52,10 @@ export const WebhookRegisterInputSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(2592000000) // 30 days max
+    .max(86400000) // 1 day max (Drive API files.watch limit)
     .optional()
-    .default(604800000) // 7 days default
-    .describe('Webhook expiration time in milliseconds'),
+    .default(43200000) // 12 hours default (safe buffer before 1-day limit)
+    .describe('Webhook expiration time in milliseconds (max 1 day for files.watch)'),
 });
 
 /**
@@ -153,6 +153,43 @@ export const WebhookInfoSchema = z.object({
   failureCount: z.number().int(),
   lastDelivery: z.string().optional(),
   lastFailure: z.string().optional(),
+  avgDeliveryTimeMs: z.number().optional().describe('Average delivery time in milliseconds'),
+  p95DeliveryTimeMs: z
+    .number()
+    .optional()
+    .describe('95th percentile delivery time in milliseconds'),
+  p99DeliveryTimeMs: z
+    .number()
+    .optional()
+    .describe('99th percentile delivery time in milliseconds'),
+});
+
+/**
+ * Webhook payload structure
+ * (Phase 4.2A - Fine-Grained Event Filtering)
+ */
+export const WebhookPayloadSchema = z.object({
+  channelId: z.string(),
+  resourceId: z.string(),
+  resourceState: z.string(),
+  spreadsheetId: z.string(),
+  messageNumber: z.string().optional(),
+  timestamp: z.string(),
+  changeDetails: z
+    .object({
+      sheetsAdded: z.array(z.string()).optional().describe('Array of sheet titles that were added'),
+      sheetsRemoved: z
+        .array(z.string())
+        .optional()
+        .describe('Array of sheet titles that were removed'),
+      sheetsRenamed: z
+        .array(z.object({ from: z.string(), to: z.string() }))
+        .optional()
+        .describe('Array of sheets that were renamed'),
+      cellRanges: z.array(z.string()).optional().describe('Array of A1 ranges where cells changed'),
+    })
+    .optional()
+    .describe('Detailed breakdown of changes detected by DiffEngine'),
 });
 
 /**
@@ -233,6 +270,7 @@ export const SHEETS_WEBHOOK_ANNOTATIONS = {
 // Type exports
 export type WebhookActions = z.infer<typeof WebhookActionsSchema>;
 export type WebhookEventType = z.infer<typeof WebhookEventTypeSchema>;
+export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
 export type SheetsWebhookInput = z.infer<typeof SheetsWebhookInputSchema>;
 export type WebhookRegisterInput = z.infer<typeof WebhookRegisterInputSchema>;
 export type WebhookUnregisterInput = z.infer<typeof WebhookUnregisterInputSchema>;

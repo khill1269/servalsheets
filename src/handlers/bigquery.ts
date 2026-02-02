@@ -28,6 +28,10 @@ import type { sheets_v4 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { ServiceError } from '../core/errors.js';
 import type {
   SheetsBigQueryInput,
   SheetsBigQueryOutput,
@@ -53,6 +57,7 @@ import { logger } from '../utils/logger.js';
 export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, SheetsBigQueryOutput> {
   private sheetsApi: sheets_v4.Sheets;
   private bigqueryApi: bigquery_v2.Bigquery | null;
+  private circuitBreaker: CircuitBreaker;
 
   constructor(
     context: HandlerContext,
@@ -62,6 +67,36 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     super('sheets_bigquery', context);
     this.sheetsApi = sheetsApi;
     this.bigqueryApi = bigqueryApi ?? null;
+
+    // Initialize circuit breaker for BigQuery API
+    const circuitConfig = getCircuitBreakerConfig();
+    this.circuitBreaker = new CircuitBreaker({
+      ...circuitConfig,
+      name: 'bigquery-api',
+    });
+
+    // Register fallback strategy for circuit breaker
+    this.circuitBreaker.registerFallback({
+      name: 'bigquery-unavailable-fallback',
+      priority: 1,
+      shouldUse: () => true,
+      execute: async () => {
+        throw new ServiceError(
+          'BigQuery API temporarily unavailable due to repeated failures. Try again in 30 seconds.',
+          'UNAVAILABLE',
+          'bigquery-api',
+          true,
+          { circuitBreaker: 'bigquery-api', retryAfterSeconds: 30 }
+        );
+      },
+    });
+
+    // Register with global registry
+    circuitBreakerRegistry.register(
+      'bigquery-api',
+      this.circuitBreaker,
+      'BigQuery API circuit breaker'
+    );
   }
 
   async handle(input: SheetsBigQueryInput): Promise<SheetsBigQueryOutput> {
@@ -161,6 +196,15 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
     }
     return this.bigqueryApi;
+  }
+
+  /**
+   * Wrap BigQuery API operations with circuit breaker protection (P2-4)
+   * @param operation - The BigQuery API operation to execute
+   * @returns Result of the operation
+   */
+  private async withCircuitBreaker<T>(operation: () => Promise<T>): Promise<T> {
+    return await this.circuitBreaker.execute(operation);
   }
 
   /**
@@ -532,15 +576,22 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      // Use BigQuery jobs.query with dryRun for cost estimation, then actual query with maxResults
-      const queryResponse = await bigquery.jobs.query({
-        projectId: req.projectId,
-        requestBody: {
-          query: req.query,
-          maxResults: req.maxRows ?? 10,
-          useLegacySql: false,
-        },
-      });
+      // Use BigQuery jobs.query with query controls (wrapped with circuit breaker - P2-4)
+      const queryResponse = await this.withCircuitBreaker(() =>
+        bigquery.jobs.query({
+          projectId: req.projectId,
+          requestBody: {
+            query: req.query,
+            maxResults: req.maxRows ?? 10,
+            useLegacySql: false,
+            // Query control parameters (P1-2)
+            timeoutMs: req.timeoutMs,
+            dryRun: req.dryRun ?? false,
+            useQueryCache: req.useQueryCache ?? true,
+            location: req.location,
+          },
+        })
+      );
 
       const schema = queryResponse.data.schema?.fields ?? [];
       const columns = schema.map((f) => f.name ?? '');
@@ -640,10 +691,12 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await bigquery.datasets.list({
-        projectId: req.projectId,
-        maxResults: req.maxResults ?? 100,
-      });
+      const response = await this.withCircuitBreaker(() =>
+        bigquery.datasets.list({
+          projectId: req.projectId,
+          maxResults: req.maxResults ?? 100,
+        })
+      );
 
       const datasets =
         response.data.datasets?.map((ds) => ({
@@ -668,11 +721,13 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await bigquery.tables.list({
-        projectId: req.projectId,
-        datasetId: req.datasetId,
-        maxResults: req.maxResults ?? 100,
-      });
+      const response = await this.withCircuitBreaker(() =>
+        bigquery.tables.list({
+          projectId: req.projectId,
+          datasetId: req.datasetId,
+          maxResults: req.maxResults ?? 100,
+        })
+      );
 
       const tables =
         response.data.tables?.map((t) => ({
@@ -698,11 +753,13 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await bigquery.tables.get({
-        projectId: req.projectId,
-        datasetId: req.datasetId,
-        tableId: req.tableId,
-      });
+      const response = await this.withCircuitBreaker(() =>
+        bigquery.tables.get({
+          projectId: req.projectId,
+          datasetId: req.datasetId,
+          tableId: req.tableId,
+        })
+      );
 
       const schema =
         response.data.schema?.fields?.map((f) => ({
@@ -775,27 +832,70 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         return { json };
       });
 
-      // Use streaming insert for data
-      // Note: For full load job support with writeDisposition, use jobs.insert instead
-      const insertResponse = await bigquery.tabledata.insertAll({
-        projectId: req.destination.projectId,
-        datasetId: req.destination.datasetId,
-        tableId: req.destination.tableId,
-        requestBody: {
-          rows,
-        },
-      });
+      // Use streaming insert with chunking for large datasets (P1-3)
+      // BigQuery streaming insert has a soft limit of ~10,000 rows per call
+      const CHUNK_SIZE = 10_000;
+      const totalRows = rows.length;
+      const allInsertErrors: unknown[] = [];
 
-      const insertErrors = insertResponse.data.insertErrors ?? [];
-      if (insertErrors.length > 0) {
-        logger.warn('Some rows failed to insert', { insertErrors });
+      if (totalRows > CHUNK_SIZE) {
+        logger.info('Chunking large export', {
+          totalRows,
+          chunkSize: CHUNK_SIZE,
+          chunks: Math.ceil(totalRows / CHUNK_SIZE),
+        });
+      }
+
+      // Process rows in chunks
+      for (let i = 0; i < totalRows; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, Math.min(i + CHUNK_SIZE, totalRows));
+        const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+        const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
+
+        logger.debug('Inserting chunk', {
+          chunkNumber,
+          totalChunks,
+          chunkSize: chunk.length,
+          rowsProcessed: i + chunk.length,
+          totalRows,
+        });
+
+        const insertResponse = await this.withCircuitBreaker(() =>
+          bigquery.tabledata.insertAll({
+            projectId: req.destination.projectId,
+            datasetId: req.destination.datasetId,
+            tableId: req.destination.tableId,
+            requestBody: {
+              rows: chunk,
+            },
+          })
+        );
+
+        const chunkErrors = insertResponse.data.insertErrors ?? [];
+        if (chunkErrors.length > 0) {
+          logger.warn('Some rows failed to insert in chunk', {
+            chunkNumber,
+            errorCount: chunkErrors.length,
+          });
+          allInsertErrors.push(...chunkErrors);
+        }
+      }
+
+      const successfulRows = totalRows - allInsertErrors.length;
+
+      if (allInsertErrors.length > 0) {
+        logger.warn('Export completed with errors', {
+          totalRows,
+          successfulRows,
+          failedRows: allInsertErrors.length,
+        });
       }
 
       return this.success('export_to_bigquery', {
-        rowCount: rows.length - insertErrors.length,
+        rowCount: successfulRows,
         jobId: `streaming_${Date.now()}`,
         mutation: {
-          cellsAffected: rows.length,
+          cellsAffected: totalRows,
           sheetsModified: [],
         },
       });
@@ -812,15 +912,34 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      // Run the query
-      const queryResponse = await bigquery.jobs.query({
-        projectId: req.projectId,
-        requestBody: {
-          query: req.query,
-          maxResults: req.maxResults ?? 10000,
-          useLegacySql: false,
+      // Transform parameters to BigQuery API format (all values must be strings)
+      const queryParameters = req.parameters?.map((param) => ({
+        name: param.name,
+        parameterType: param.parameterType,
+        parameterValue: {
+          value: String(param.parameterValue.value),
         },
-      });
+      }));
+
+      // Run the query with control parameters (wrapped with circuit breaker - P2-4)
+      const queryResponse = await this.withCircuitBreaker(() =>
+        bigquery.jobs.query({
+          projectId: req.projectId,
+          requestBody: {
+            query: req.query,
+            maxResults: req.maxResults ?? 10000,
+            useLegacySql: false,
+            // Query control parameters (P1-2)
+            timeoutMs: req.timeoutMs,
+            maximumBytesBilled: req.maximumBytesBilled,
+            dryRun: req.dryRun ?? false,
+            useQueryCache: req.useQueryCache ?? true,
+            location: req.location,
+            parameterMode: queryParameters ? 'NAMED' : undefined,
+            queryParameters,
+          },
+        })
+      );
 
       const schema = queryResponse.data.schema?.fields ?? [];
       const columns = schema.map((f) => f.name ?? '');

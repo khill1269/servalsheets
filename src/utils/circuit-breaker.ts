@@ -11,6 +11,7 @@
  */
 
 import { logger } from './logger.js';
+import { recordCircuitBreakerTransition } from '../observability/metrics.js';
 
 export type CircuitState = 'closed' | 'open' | 'half_open';
 
@@ -267,6 +268,9 @@ export class CircuitBreaker {
       this.successCount = 0;
       this.failureCount = 0;
     }
+
+    // Record state transition metric
+    recordCircuitBreakerTransition(this.name, oldState, newState);
 
     logger.info('Circuit breaker state transition', {
       circuit: this.name,

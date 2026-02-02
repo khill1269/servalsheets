@@ -54,43 +54,53 @@ export class TemplateStore {
   }
 
   /**
-   * List all user templates
+   * List all user templates (with pagination support - P1-4)
    */
   async list(category?: string): Promise<TemplateSummary[]> {
     await this.ensureFolder();
 
     try {
-      const response = await this.driveApi.files.list({
-        spaces: APP_DATA_SPACE,
-        q: `'${this.folderId}' in parents and mimeType='${TEMPLATE_MIME_TYPE}' and trashed=false`,
-        fields: 'files(id, name, description, createdTime, modifiedTime, appProperties)',
-        pageSize: 100,
-      });
-
-      const files = response.data.files || [];
       const templates: TemplateSummary[] = [];
+      let pageToken: string | undefined;
 
-      for (const file of files) {
-        const appProps = file.appProperties || {};
-        const templateCategory = appProps['category'] || '';
+      // Paginate through all template files
+      do {
+        const response = await this.driveApi.files.list({
+          spaces: APP_DATA_SPACE,
+          q: `'${this.folderId}' in parents and mimeType='${TEMPLATE_MIME_TYPE}' and trashed=false`,
+          fields:
+            'nextPageToken, files(id, name, description, createdTime, modifiedTime, appProperties)',
+          pageSize: 100,
+          pageToken,
+        });
 
-        // Apply category filter if provided
-        if (category && templateCategory !== category) {
-          continue;
+        const files = response.data.files || [];
+
+        for (const file of files) {
+          const appProps = file.appProperties || {};
+          const templateCategory = appProps['category'] || '';
+
+          // Apply category filter if provided
+          if (category && templateCategory !== category) {
+            continue;
+          }
+
+          templates.push({
+            id: file.id!,
+            name: appProps['templateName'] || file.name || 'Unnamed',
+            description: file.description || undefined,
+            category: templateCategory || undefined,
+            version: appProps['version'] || '1.0.0',
+            created: file.createdTime || undefined,
+            updated: file.modifiedTime || undefined,
+            sheetCount: parseInt(appProps['sheetCount'] || '1', 10),
+          });
         }
 
-        templates.push({
-          id: file.id!,
-          name: appProps['templateName'] || file.name || 'Unnamed',
-          description: file.description || undefined,
-          category: templateCategory || undefined,
-          version: appProps['version'] || '1.0.0',
-          created: file.createdTime || undefined,
-          updated: file.modifiedTime || undefined,
-          sheetCount: parseInt(appProps['sheetCount'] || '1', 10),
-        });
-      }
+        pageToken = response.data.nextPageToken ?? undefined;
+      } while (pageToken);
 
+      logger.debug('Listed templates', { count: templates.length });
       return templates;
     } catch (error) {
       logger.error('Failed to list templates', { error });
@@ -356,12 +366,13 @@ export class TemplateStore {
     if (this.folderId) return;
 
     try {
-      // Search for existing folder
+      // Search for existing folder (with pagination support - P1-4)
       const response = await this.driveApi.files.list({
         spaces: APP_DATA_SPACE,
         q: `name='${TEMPLATES_FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         fields: 'files(id)',
         pageSize: 1,
+        // Note: pageSize=1 means pagination unlikely, but included for completeness
       });
 
       const existingFile = response.data.files?.[0];

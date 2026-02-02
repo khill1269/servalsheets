@@ -255,3 +255,156 @@ export function updateRequestQueueDepth(depth: number): void {
 export function recordCacheEviction(reason: string): void {
   cacheEvictions.inc({ reason });
 }
+
+// Rate limit and retry metrics (P3-1)
+export const rateLimitHitsTotal = new Counter({
+  name: 'servalsheets_rate_limit_hits_total',
+  help: 'Number of 429 rate limit responses',
+  labelNames: ['api', 'endpoint'],
+  registers: [register],
+});
+
+export const retryAttemptsTotal = new Counter({
+  name: 'servalsheets_retry_attempts_total',
+  help: 'Number of retry attempts',
+  labelNames: ['api', 'reason', 'success'],
+  registers: [register],
+});
+
+export const retryDelayHistogram = new Histogram({
+  name: 'servalsheets_retry_delay_seconds',
+  help: 'Retry delay duration in seconds',
+  labelNames: ['api'],
+  buckets: [0.5, 1, 2, 5, 10, 30, 60],
+  registers: [register],
+});
+
+// Webhook renewal metrics (P3-1)
+export const webhookRenewalsTotal = new Counter({
+  name: 'servalsheets_webhook_renewals_total',
+  help: 'Number of webhook channel renewals',
+  labelNames: ['type', 'reason'],
+  registers: [register],
+});
+
+// Circuit breaker transition metrics (P3-1)
+export const circuitBreakerTransitionsTotal = new Counter({
+  name: 'servalsheets_circuit_breaker_transitions_total',
+  help: 'Circuit breaker state transitions',
+  labelNames: ['breaker', 'from_state', 'to_state'],
+  registers: [register],
+});
+
+// Webhook delivery metrics (Phase 4.1)
+export const webhookDeliveriesTotal = new Counter({
+  name: 'servalsheets_webhook_deliveries_total',
+  help: 'Total webhook delivery attempts',
+  labelNames: ['webhook_id', 'spreadsheet_id', 'event_type', 'status'],
+  registers: [register],
+});
+
+export const webhookDeliveryDuration = new Histogram({
+  name: 'servalsheets_webhook_delivery_duration_seconds',
+  help: 'Webhook delivery duration in seconds',
+  labelNames: ['webhook_id', 'event_type'],
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30],
+  registers: [register],
+});
+
+export const webhookQueueDepth = new Gauge({
+  name: 'servalsheets_webhook_queue_depth',
+  help: 'Current webhook queue depth by type',
+  labelNames: ['queue_type'],
+  registers: [register],
+});
+
+export const webhookActiveCount = new Gauge({
+  name: 'servalsheets_webhook_active_count',
+  help: 'Total number of active webhooks',
+  registers: [register],
+});
+
+/**
+ * Record webhook delivery attempt
+ */
+export function recordWebhookDelivery(
+  webhookId: string,
+  spreadsheetId: string,
+  eventType: string,
+  status: 'success' | 'failure',
+  durationSeconds: number
+): void {
+  webhookDeliveriesTotal.inc({
+    webhook_id: webhookId,
+    spreadsheet_id: spreadsheetId,
+    event_type: eventType,
+    status,
+  });
+  webhookDeliveryDuration.observe(
+    { webhook_id: webhookId, event_type: eventType },
+    durationSeconds
+  );
+}
+
+/**
+ * Update webhook queue depth metrics
+ */
+export function updateWebhookQueueDepth(
+  queueType: 'pending' | 'retry' | 'dlq',
+  depth: number
+): void {
+  webhookQueueDepth.set({ queue_type: queueType }, depth);
+}
+
+/**
+ * Update active webhook count
+ */
+export function updateActiveWebhookCount(count: number): void {
+  webhookActiveCount.set(count);
+}
+
+/**
+ * Record rate limit hit (429 response)
+ */
+export function recordRateLimitHit(api: string, endpoint: string): void {
+  rateLimitHitsTotal.inc({ api, endpoint });
+}
+
+/**
+ * Record retry attempt
+ */
+export function recordRetryAttempt(
+  api: string,
+  reason: string,
+  success: boolean,
+  delaySeconds: number
+): void {
+  retryAttemptsTotal.inc({
+    api,
+    reason,
+    success: success ? 'true' : 'false',
+  });
+  retryDelayHistogram.observe({ api }, delaySeconds);
+}
+
+/**
+ * Record webhook renewal
+ */
+export function recordWebhookRenewal(type: 'file' | 'changes', reason: string): void {
+  webhookRenewalsTotal.inc({ type, reason });
+}
+
+/**
+ * Record circuit breaker state transition
+ */
+export function recordCircuitBreakerTransition(
+  breaker: string,
+  fromState: 'closed' | 'open' | 'half_open',
+  toState: 'closed' | 'open' | 'half_open'
+): void {
+  circuitBreakerTransitionsTotal.inc({
+    breaker,
+    from_state: fromState,
+    to_state: toState,
+  });
+}
