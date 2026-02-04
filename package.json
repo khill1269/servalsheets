@@ -51,6 +51,7 @@
     "check:doc-action-counts": "bash scripts/check-doc-action-counts.sh",
     "fix:doc-action-counts": "bash scripts/fix-doc-action-counts.sh",
     "validate:compliance": "tsx scripts/validate-api-mcp-compliance.ts",
+    "validate:actions": "tsx scripts/validate-action-counts.ts",
     "build": "npm run gen:metadata && tsc -p tsconfig.build.json && npm run build:copy-assets",
     "build:copy-assets": "cp -r src/knowledge dist/ && cp src/cli/*.html dist/cli/",
     "build:clean": "npm run clean && npm run build",

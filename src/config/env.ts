@@ -59,8 +59,17 @@ const EnvSchema = z.object({
   ENABLE_TABLE_APPENDS: z.coerce.boolean().default(true),
   ENABLE_PAYLOAD_VALIDATION: z.coerce.boolean().default(true),
   ENABLE_LEGACY_SSE: z.coerce.boolean().default(true),
-  // HTTP/2 connection reset on credential change (prevents GOAWAY errors)
+  // HTTP/2 connection health management (prevents GOAWAY errors)
   ENABLE_AUTO_CONNECTION_RESET: z.coerce.boolean().default(true),
+  GOOGLE_API_HTTP2_ENABLED: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false'), // Enabled by default, only false if explicitly set
+  GOOGLE_API_MAX_IDLE_MS: z.coerce.number().int().positive().default(300000), // 5 minutes
+  GOOGLE_API_KEEPALIVE_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60000), // 1 minute, 0 = disabled
+  GOOGLE_API_CONNECTION_RESET_THRESHOLD: z.coerce.number().int().positive().default(3), // Consecutive failures before reset
+  GOOGLE_API_MAX_SOCKETS: z.coerce.number().int().positive().default(50), // Connection pool size
+  GOOGLE_API_KEEPALIVE_TIMEOUT: z.coerce.number().int().positive().default(30000), // Keep-alive timeout (30s)
 
   // Performance optimization flags
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)

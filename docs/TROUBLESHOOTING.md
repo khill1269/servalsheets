@@ -346,6 +346,145 @@ Common issues, solutions, and debugging tips for ServalSheets.
 
 ---
 
+### HTTP/2 Connection Errors (GOAWAY, Stream Closed)
+
+**Symptom:** Intermittent errors from Google API:
+
+- "GOAWAY received"
+- "Stream closed with error code CANCEL"
+- "The connection was closed before a final response was received"
+- "HTTP/2 session error"
+
+**Causes & Solutions:**
+
+1. **HTTP/2 connection became stale**
+
+   ```bash
+   # ServalSheets automatically detects and recovers from HTTP/2 errors
+   # Connection pool resets after 3 consecutive failures (default)
+
+   # Verify automatic recovery is enabled (default: true)
+   export GOOGLE_API_HTTP2_ENABLED=true
+   export GOOGLE_API_CONNECTION_RESET_THRESHOLD=3
+   ```
+
+2. **Long idle periods between API calls**
+
+   ```bash
+   # Configure proactive connection refresh
+   export GOOGLE_API_MAX_IDLE_MS=300000  # 5 minutes (default)
+
+   # Enable keepalive to maintain healthy connections
+   export GOOGLE_API_KEEPALIVE_INTERVAL_MS=60000  # 1 minute (default)
+   ```
+
+3. **Connection pool exhaustion**
+
+   ```bash
+   # Increase connection pool size if needed
+   export GOOGLE_API_MAX_SOCKETS=50  # Default: 50
+   export GOOGLE_API_KEEPALIVE_TIMEOUT=30000  # 30 seconds (default)
+   ```
+
+**How It Works:**
+
+ServalSheets includes production-grade HTTP/2 connection health management:
+
+- **Automatic Error Detection**: Recognizes all HTTP/2 error patterns
+- **Call Result Tracking**: Records success/failure for each API call
+- **Proactive Connection Reset**: Resets connections after threshold failures
+- **Idle Connection Refresh**: Proactively refreshes stale connections
+- **Keepalive Mechanism**: Periodic health checks maintain connection health
+- **Connection Metrics**: Tracks resets and health scores via `/metrics` endpoint
+
+**Monitoring:**
+
+```bash
+# Check connection health metrics
+curl http://localhost:3000/metrics | grep -i "http2\|connection"
+
+# Key metrics to watch:
+# - servalsheets_http2_errors_total (by error_code)
+# - servalsheets_http2_connection_resets_total (by reason)
+# - servalsheets_connection_health_score (0-100)
+# - servalsheets_consecutive_errors_current
+```
+
+**Configuration Reference:**
+
+| Environment Variable                    | Default  | Description                                    |
+| --------------------------------------- | -------- | ---------------------------------------------- |
+| `GOOGLE_API_HTTP2_ENABLED`              | `true`   | Enable HTTP/2 for Google API calls             |
+| `GOOGLE_API_CONNECTION_RESET_THRESHOLD` | `3`      | Consecutive failures before connection reset   |
+| `GOOGLE_API_MAX_IDLE_MS`                | `300000` | Max idle time (5 min) before proactive refresh |
+| `GOOGLE_API_KEEPALIVE_INTERVAL_MS`      | `60000`  | Keepalive interval (1 min), 0 = disabled       |
+| `GOOGLE_API_MAX_SOCKETS`                | `50`     | Connection pool size                           |
+| `GOOGLE_API_KEEPALIVE_TIMEOUT`          | `30000`  | Keep-alive timeout (30 sec)                    |
+
+**Troubleshooting Steps:**
+
+1. **Check if errors are being automatically recovered:**
+
+   ```bash
+   # Look for connection reset logs
+   tail -f servalsheets.log | grep -i "resetting\|connection reset"
+   ```
+
+2. **Verify connection health:**
+
+   ```bash
+   # Check consecutive errors counter
+   curl http://localhost:3000/metrics | grep consecutive_errors_current
+   # Should be 0 or low (<3)
+
+   # Check health score
+   curl http://localhost:3000/metrics | grep connection_health_score
+   # Should be 80-100
+   ```
+
+3. **Check connection reset activity:**
+
+   ```bash
+   # View reset counts by reason
+   curl http://localhost:3000/metrics | grep connection_resets_total
+   # Reasons: consecutive_errors, token_refresh, idle_timeout
+   ```
+
+4. **Adjust thresholds if needed:**
+
+   ```bash
+   # More aggressive reset (sensitive to errors)
+   export GOOGLE_API_CONNECTION_RESET_THRESHOLD=2
+
+   # Less aggressive (tolerate more errors)
+   export GOOGLE_API_CONNECTION_RESET_THRESHOLD=5
+   ```
+
+5. **Disable HTTP/2 as last resort:**
+
+   ```bash
+   # Only if HTTP/2 errors persist after other fixes
+   export GOOGLE_API_HTTP2_ENABLED=false
+   # Note: This disables multiplexing benefits
+   ```
+
+**Prevention:**
+
+- Keep default connection health settings (optimized for production)
+- Monitor connection health metrics in production
+- Set up alerts for high consecutive errors (>5)
+- Set up alerts for low health scores (<50)
+- Ensure keepalive is enabled (default) for long-running servers
+- Use recommended environment variable defaults
+
+**Related Issues:**
+
+- If errors persist after automatic recovery, check Google API status: https://status.cloud.google.com/
+- High connection reset frequency may indicate network issues or aggressive load balancers
+- Check for firewall rules that may be closing idle HTTP/2 connections
+
+---
+
 ## Data Issues
 
 ### "Cannot read range" or "Invalid range"
