@@ -1,3 +1,12 @@
+---
+title: Charts & Visualizations
+category: example
+last_updated: 2026-01-31
+description: Create professional charts and visualizations in Google Sheets using ServalSheets.
+version: 1.6.0
+tags: [sheets]
+---
+
 # Charts & Visualizations
 
 Create professional charts and visualizations in Google Sheets using ServalSheets.
@@ -5,6 +14,7 @@ Create professional charts and visualizations in Google Sheets using ServalSheet
 ## Overview
 
 This guide covers:
+
 - Creating charts (column, line, pie, scatter)
 - Customizing chart appearance
 - Positioning and sizing charts
@@ -22,6 +32,7 @@ This guide covers:
 ### Chart Components
 
 Every chart has:
+
 - **Data source**: Range of cells to visualize
 - **Chart type**: Column, line, pie, bar, scatter, etc.
 - **Title**: Optional chart title
@@ -52,10 +63,11 @@ Create a column chart in spreadsheet "1abc...xyz" using data from range A1:B13 w
 - Position at row 15, column 4
 ```
 
-**Behind the scenes**: ServalSheets uses `sheets_charts` tool with `create` action:
+**Behind the scenes**: ServalSheets uses `sheets_visualize` tool with `chart_create` action:
+
 ```json
 {
-  "tool": "sheets_charts",
+  "tool": "sheets_visualize",
   "action": "create",
   "spreadsheetId": "1abc...xyz",
   "sheetId": 0,
@@ -75,6 +87,7 @@ Create a column chart in spreadsheet "1abc...xyz" using data from range A1:B13 w
 ```
 
 **Data format**:
+
 ```
 | Month     | Sales |
 |-----------|-------|
@@ -104,6 +117,7 @@ Create a pie chart in spreadsheet "1abc...xyz" from range A1:B6 showing market s
 **Best for**: Part-to-whole relationships, percentages, proportions
 
 **Data format**:
+
 ```
 | Region        | Share |
 |---------------|-------|
@@ -149,6 +163,7 @@ Update chart with ID 123 in spreadsheet "1abc...xyz" to use:
 ```
 
 **Behind the scenes**:
+
 ```json
 {
   "action": "update",
@@ -186,6 +201,7 @@ Update chart 123 in spreadsheet "1abc...xyz" with:
 ```
 
 **Axis options**:
+
 - `title` - Axis label text
 - `format` - Number format pattern
 - `viewWindowMin` - Minimum value
@@ -232,12 +248,13 @@ Move chart 123 in spreadsheet "1abc...xyz" to position row 20, column 5
 ```
 
 **Position object**:
+
 ```json
 {
   "overlayPosition": {
     "anchorCell": {
       "sheetId": 0,
-      "rowIndex": 19,  // 0-indexed
+      "rowIndex": 19, // 0-indexed
       "columnIndex": 4
     }
   }
@@ -253,6 +270,7 @@ Resize chart 123 in spreadsheet "1abc...xyz" to 600x400 pixels
 ```
 
 **Size options**:
+
 ```json
 {
   "overlayPosition": {
@@ -265,10 +283,12 @@ Resize chart 123 in spreadsheet "1abc...xyz" to 600x400 pixels
 ### Embedded vs Sheet Object
 
 Charts can be:
+
 - **Embedded**: Overlay positioned on sheet
 - **Sheet object**: Separate chart sheet
 
 **Create chart sheet**:
+
 ```
 Create a new chart sheet in spreadsheet "1abc...xyz" with column chart from data A1:B10
 ```
@@ -386,6 +406,7 @@ Add sparkline formula to cell D2 in spreadsheet "1abc...xyz" charting values fro
 ## Chart Templates
 
 ### Sales Dashboard Chart
+
 ```
 Type: Combo chart
 Data: Monthly actual vs target
@@ -395,6 +416,7 @@ Size: 600x400px
 ```
 
 ### Performance Gauge
+
 ```
 Type: Pie chart (half donut)
 Data: Current vs remaining percentage
@@ -404,6 +426,7 @@ Size: 300x300px
 ```
 
 ### Trend Analysis Chart
+
 ```
 Type: Line chart with area fill
 Data: Time series over 12 months
@@ -413,6 +436,7 @@ Size: 800x400px
 ```
 
 ### Comparison Bar Chart
+
 ```
 Type: Horizontal bar chart
 Data: Category comparisons (5-10 items)
@@ -459,6 +483,7 @@ Size: 500x350px
 ## Common Patterns
 
 ### Dashboard Creation
+
 ```
 1. Design layout on paper
 2. Prepare data ranges
@@ -469,6 +494,7 @@ Size: 500x350px
 ```
 
 ### Report Automation
+
 ```
 1. Template spreadsheet with charts
 2. Update data ranges
@@ -478,6 +504,7 @@ Size: 500x350px
 ```
 
 ### Interactive Analysis
+
 ```
 1. Multiple views of same data
 2. Linked filters
@@ -519,6 +546,7 @@ Size: 500x350px
 ## Reference Files
 
 For advanced chart examples, see:
+
 - `advanced-examples.json` - Complex chart configurations
 - `analysis-examples.json` - Charts for data analysis
 - See JSON files in `/docs/examples/` directory

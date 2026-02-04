@@ -14,7 +14,7 @@ import type { CompleteResult } from '@modelcontextprotocol/sdk/types.js';
  *
  * IMPORTANT: These must match the z.literal('action') values in the schema files.
  * Source of truth: src/schemas/*.ts
- * Total: 272 actions across 21 tools (Tier 7: templates, bigquery, appsscript)
+ * Total: 293 actions across 21 tools (Tier 7: templates, bigquery, appsscript)
  * Note: sheets_analyze has 16 actions (comprehensive + targeted + progressive analyses)
  */
 export const TOOL_ACTIONS: Record<string, string[]> = {
@@ -165,6 +165,8 @@ export const TOOL_ACTIONS: Record<string, string[]> = {
     'get_sheet',
     'batch_delete_sheets',
     'batch_update_sheets',
+    'clear_sheet',
+    'move_sheet',
   ],
   sheets_data: [
     'read',

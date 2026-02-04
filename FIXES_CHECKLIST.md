@@ -64,8 +64,8 @@
 ### Verification
 
 - [x] `npm run check:drift` passes
-- [x] README shows "21 tools, 291 actions"
-- [x] SKILL guide shows "291 actions"
+- [x] README shows "21 tools, 293 actions"
+- [x] SKILL guide shows "293 actions"
 - [x] CI checks documentation on every commit
 
 **Estimated Effort**: 1 hour

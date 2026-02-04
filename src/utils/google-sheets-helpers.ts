@@ -276,3 +276,222 @@ export function extractSpreadsheetId(urlOrId: string): string {
 
   throw new Error(`Cannot extract spreadsheet ID from: ${urlOrId}`);
 }
+
+// ============================================================================
+// CHIP RUNS (Smart Chips API - June 2025)
+// ============================================================================
+
+/**
+ * Chip type extracted from chipRuns API response
+ *
+ * Note: Drive chips are implemented as rich_link chips with Drive URIs.
+ * The API doesn't have a separate driveItemProperties.
+ */
+export type ChipType = 'person' | 'drive' | 'rich_link' | 'unknown';
+
+/**
+ * Person chip display format
+ */
+export type PersonChipDisplayFormat = 'DEFAULT' | 'FULL' | 'NAME_ONLY';
+
+/**
+ * Parsed chip information
+ */
+export interface ParsedChip {
+  type: ChipType;
+  cell: string;
+  email?: string;
+  fileId?: string;
+  uri?: string;
+  displayText?: string;
+}
+
+/**
+ * Build a person chip using the chipRuns API
+ *
+ * @param email - Email address of the person
+ * @param displayFormat - How to display the chip (DEFAULT, FULL, NAME_ONLY)
+ * @returns CellData with chipRuns for person chip
+ *
+ * @see https://developers.google.com/workspace/sheets/api/guides/chips
+ */
+export function buildPersonChip(
+  email: string,
+  displayFormat: PersonChipDisplayFormat = 'DEFAULT'
+): sheets_v4.Schema$CellData {
+  return {
+    userEnteredValue: {
+      stringValue: `@${email}`, // @ symbol prefix for person chip
+    },
+    chipRuns: [
+      {
+        chip: {
+          personProperties: {
+            email,
+            displayFormat,
+          },
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Build a Drive file chip using the chipRuns API
+ *
+ * Note: Drive chips are implemented as richLinkProperties with a Drive URI.
+ * The API doesn't have a separate driveItemProperties.
+ *
+ * @param fileId - Google Drive file ID
+ * @param displayText - Optional custom display text (defaults to file title from API)
+ * @returns CellData with chipRuns for drive chip
+ *
+ * @see https://developers.google.com/workspace/sheets/api/guides/chips
+ */
+export function buildDriveChip(fileId: string, displayText?: string): sheets_v4.Schema$CellData {
+  const driveUri = `https://drive.google.com/file/d/${fileId}/view`;
+
+  // Validate URI length (Google API limit: 2000 bytes)
+  if (new TextEncoder().encode(driveUri).length > 2000) {
+    throw new Error('Drive URI exceeds 2000 bytes limit');
+  }
+
+  const defaultDisplay = `Drive File: ${fileId.slice(0, 8)}...`;
+  return {
+    userEnteredValue: {
+      stringValue: `@${displayText ?? defaultDisplay}`, // @ prefix required per Google Sheets API
+    },
+    chipRuns: [
+      {
+        chip: {
+          richLinkProperties: {
+            uri: driveUri,
+          },
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Build a rich link chip using the chipRuns API
+ *
+ * @param uri - URL for the rich link
+ * @param displayText - Optional custom display text (defaults to hostname)
+ * @returns CellData with chipRuns for rich link chip
+ *
+ * @see https://developers.google.com/workspace/sheets/api/guides/chips
+ */
+export function buildRichLinkChip(uri: string, displayText?: string): sheets_v4.Schema$CellData {
+  // Validate URI length (Google API limit: 2000 bytes)
+  if (new TextEncoder().encode(uri).length > 2000) {
+    throw new Error('URI exceeds 2000 bytes limit');
+  }
+
+  // Only Drive file links can be written as rich link chips
+  if (!uri.startsWith('https://drive.google.com/')) {
+    throw new Error('Only Google Drive links can be written as rich link chips');
+  }
+
+  const hostname = displayText ?? new URL(uri).hostname;
+  return {
+    userEnteredValue: {
+      stringValue: `@${hostname}`, // @ prefix required per Google Sheets API
+    },
+    chipRuns: [
+      {
+        chip: {
+          richLinkProperties: {
+            uri,
+          },
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Parse chip information from a cell's chipRuns
+ *
+ * Note: Drive chips are detected by checking if richLinkProperties.uri
+ * contains a Drive URL pattern.
+ *
+ * @param cell - CellData from Google Sheets API response
+ * @param cellA1 - A1 notation of the cell (e.g., "A1", "Sheet1!B2")
+ * @returns ParsedChip with type and properties, or null if no chip
+ *
+ * @see https://developers.google.com/workspace/sheets/api/guides/chips
+ */
+export function parseChipRuns(cell: sheets_v4.Schema$CellData, cellA1: string): ParsedChip | null {
+  const chipRuns = cell.chipRuns;
+  if (!chipRuns || chipRuns.length === 0) {
+    return null;
+  }
+
+  const displayText = cell.formattedValue ?? cell.userEnteredValue?.stringValue ?? '';
+
+  // Get the first chip (cells typically have one chip)
+  const chipRun = chipRuns[0];
+  const chip = chipRun?.chip;
+
+  if (!chip) {
+    return null;
+  }
+
+  // Person chip
+  if (chip.personProperties) {
+    return {
+      type: 'person',
+      cell: cellA1,
+      email: chip.personProperties.email ?? undefined,
+      displayText,
+    };
+  }
+
+  // Rich link chip (includes Drive files, YouTube, Maps, etc.)
+  if (chip.richLinkProperties) {
+    const uri = chip.richLinkProperties.uri ?? '';
+
+    // Detect Drive file chip by URI pattern
+    if (uri.includes('drive.google.com')) {
+      const fileIdMatch = uri.match(/\/d\/([^/]+)/);
+      const fileId = fileIdMatch?.[1];
+      return {
+        type: 'drive',
+        cell: cellA1,
+        fileId,
+        uri,
+        displayText,
+      };
+    }
+
+    // Other rich link
+    return {
+      type: 'rich_link',
+      cell: cellA1,
+      uri,
+      displayText,
+    };
+  }
+
+  // Unknown chip type
+  return {
+    type: 'unknown',
+    cell: cellA1,
+    displayText,
+  };
+}
+
+/**
+ * Filter chips by type
+ *
+ * @param chips - Array of parsed chips
+ * @param chipType - Type to filter by ('all' returns all chips)
+ * @returns Filtered array of chips
+ */
+export function filterChipsByType(chips: ParsedChip[], chipType: 'all' | ChipType): ParsedChip[] {
+  if (chipType === 'all') {
+    return chips;
+  }
+  return chips.filter((chip) => chip.type === chipType);
+}

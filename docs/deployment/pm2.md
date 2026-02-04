@@ -1,3 +1,12 @@
+---
+title: PM2 Deployment
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets using PM2 process manager for Node.js applications.
+version: 1.6.0
+tags: [deployment, docker, kubernetes]
+---
+
 # PM2 Deployment
 
 Deploy ServalSheets using PM2 process manager for Node.js applications.
@@ -5,6 +14,7 @@ Deploy ServalSheets using PM2 process manager for Node.js applications.
 ## Overview
 
 PM2 is a production process manager for Node.js applications with:
+
 - Built-in load balancer
 - Automatic restart on crash
 - Zero-downtime deployments
@@ -40,28 +50,30 @@ Create `ecosystem.config.js`:
 
 ```javascript
 module.exports = {
-  apps: [{
-    name: 'servalsheets',
-    script: 'servalsheets',
-    args: 'start --http',
-    instances: 2,
-    exec_mode: 'cluster',
-    env: {
-      NODE_ENV: 'production',
-      PORT: 3000,
-      GOOGLE_CLIENT_ID: 'your-client-id',
-      GOOGLE_CLIENT_SECRET: 'your-client-secret',
-      GOOGLE_REDIRECT_URI: 'http://localhost:3000/oauth/callback'
+  apps: [
+    {
+      name: 'servalsheets',
+      script: 'servalsheets',
+      args: 'start --http',
+      instances: 2,
+      exec_mode: 'cluster',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000,
+        GOOGLE_CLIENT_ID: 'your-client-id',
+        GOOGLE_CLIENT_SECRET: 'your-client-secret',
+        GOOGLE_REDIRECT_URI: 'http://localhost:3000/oauth/callback',
+      },
+      error_file: './logs/err.log',
+      out_file: './logs/out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      merge_logs: true,
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+      max_memory_restart: '500M',
     },
-    error_file: './logs/err.log',
-    out_file: './logs/out.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss',
-    merge_logs: true,
-    autorestart: true,
-    max_restarts: 10,
-    min_uptime: '10s',
-    max_memory_restart: '500M'
-  }]
+  ],
 };
 ```
 
@@ -371,12 +383,12 @@ certbot --nginx -d your-domain.com
 
 ## Comparison with Other Deployment Methods
 
-| Feature | PM2 | Docker | Kubernetes |
-|---------|-----|--------|------------|
-| Setup | Simple | Moderate | Complex |
-| Scaling | Manual | Manual | Auto |
-| Monitoring | Built-in | External | Built-in |
-| Best For | Single server | Containers | Large scale |
+| Feature    | PM2           | Docker     | Kubernetes  |
+| ---------- | ------------- | ---------- | ----------- |
+| Setup      | Simple        | Moderate   | Complex     |
+| Scaling    | Manual        | Manual     | Auto        |
+| Monitoring | Built-in      | External   | Built-in    |
+| Best For   | Single server | Containers | Large scale |
 
 ## Related Documentation
 
@@ -388,6 +400,7 @@ certbot --nginx -d your-domain.com
 ## Support
 
 For PM2-specific issues:
+
 - Check PM2 logs first
 - Verify ecosystem config
 - Review process status

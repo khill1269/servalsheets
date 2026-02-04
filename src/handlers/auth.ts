@@ -7,7 +7,7 @@
 import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import type { GoogleApiClient } from '../services/google-api.js';
-import { DEFAULT_SCOPES } from '../services/google-api.js';
+import { getRecommendedScopes } from '../config/oauth-scopes.js';
 import { EncryptedFileTokenStore } from '../services/token-store.js';
 import { getDefaultTokenStorePath } from '../utils/auth-paths.js';
 import { getOAuthEnvConfig } from '../utils/oauth-config.js';
@@ -206,7 +206,7 @@ export class AuthHandler {
       };
     }
 
-    const baseScopes = this.googleClient?.scopes ?? DEFAULT_SCOPES;
+    const baseScopes = this.googleClient?.scopes ?? Array.from(getRecommendedScopes());
     const requestedScopes = request.scopes?.length
       ? Array.from(new Set([...baseScopes, ...request.scopes]))
       : baseScopes;
@@ -305,6 +305,10 @@ export class AuthHandler {
         // Update Google client
         if (this.googleClient && tokens.access_token) {
           this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
+          // Update client scopes to match what was actually granted
+          if (tokens.scope) {
+            this.googleClient.setScopes(tokens.scope.split(' '));
+          }
         }
 
         // Start token manager for proactive refresh (Phase 1, Task 1.1)
@@ -416,6 +420,10 @@ export class AuthHandler {
 
     if (this.googleClient && tokens.access_token) {
       this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
+      // Update client scopes to match what was actually granted
+      if (tokens.scope) {
+        this.googleClient.setScopes(tokens.scope.split(' '));
+      }
     }
 
     // Start token manager for proactive refresh (Phase 1, Task 1.1)

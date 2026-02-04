@@ -1,7 +1,7 @@
 /**
  * Tool: sheets_collaborate
- * Consolidated collaboration operations: sharing, comments, and version control
- * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) = 28 actions
+ * Consolidated collaboration operations: sharing, comments, version control, and approvals
+ * Merges: sharing.ts (8 actions) + comments.ts (10 actions) + versions.ts (10 actions) + approvals (7 actions) = 35 actions
  */
 
 import { z } from 'zod';
@@ -76,15 +76,32 @@ const SnapshotSchema = z.object({
   size: z.coerce.number().int().optional(),
 });
 
+const ApprovalSchema = z.object({
+  approvalId: z.string(),
+  spreadsheetId: z.string(),
+  range: z.string(),
+  status: z.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  requester: z.object({
+    displayName: z.string(),
+    emailAddress: z.string().optional(),
+  }),
+  approvers: z.array(z.string()),
+  approvedBy: z.array(z.string()),
+  requiredApprovals: z.number().int(),
+  createdAt: z.string(),
+  expiresAt: z.string().optional(),
+  message: z.string().optional(),
+});
+
 // ========== INPUT SCHEMA ==========
-// Flattened union for MCP SDK compatibility (28 actions total)
+// Flattened union for MCP SDK compatibility (35 actions total)
 // The MCP SDK has a bug with z.discriminatedUnion() that causes it to return empty schemas
 // Workaround: Use a single object with all fields optional, validate with refine()
 
 export const SheetsCollaborateInputSchema = z.object({
   request: z
     .object({
-      // Required action discriminator (28 actions)
+      // Required action discriminator (35 actions)
       action: z
         .enum([
           // Sharing actions (8) - prefixed with 'share_'
@@ -118,8 +135,18 @@ export const SheetsCollaborateInputSchema = z.object({
           'version_delete_snapshot',
           'version_compare',
           'version_export',
+          // Approval actions (7) - prefixed with 'approval_'
+          'approval_create',
+          'approval_approve',
+          'approval_reject',
+          'approval_get_status',
+          'approval_list_pending',
+          'approval_delegate',
+          'approval_cancel',
         ])
-        .describe('The collaboration operation to perform (sharing, comments, or version control)'),
+        .describe(
+          'The collaboration operation to perform (sharing, comments, version control, or approvals)'
+        ),
 
       // Common field - spreadsheetId (required for all actions)
       spreadsheetId: SpreadsheetIdSchema.optional().describe(
@@ -292,6 +319,49 @@ export const SheetsCollaborateInputSchema = z.object({
         .default('xlsx')
         .describe('Export format (version_export only)'),
 
+      // ========== APPROVAL FIELDS ==========
+      // Fields for approval_create action
+      range: z
+        .string()
+        .optional()
+        .describe('Cell or range reference to protect (required for: approval_create)'),
+      approvers: z
+        .array(z.string().email())
+        .optional()
+        .describe('List of approver email addresses (required for: approval_create)'),
+      requiredApprovals: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .default(1)
+        .describe('Number of approvals required (approval_create only, default: 1)'),
+      message: z
+        .string()
+        .optional()
+        .describe('Message for approval request (approval_create only)'),
+      expirationDays: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Days until approval expires (approval_create only)'),
+
+      // Fields for approval operations
+      approvalId: z
+        .string()
+        .optional()
+        .describe(
+          'Approval ID to operate on (required for: approval_approve, approval_reject, approval_get_status, approval_delegate, approval_cancel)'
+        ),
+
+      // Fields for approval_delegate action
+      delegateTo: z
+        .string()
+        .email()
+        .optional()
+        .describe('Email address to delegate approval to (required for: approval_delegate)'),
+
       // Safety options for all mutation operations
       safety: SafetyOptionsSchema.optional().describe(
         'Safety options like dryRun (applies to all destructive operations)'
@@ -369,6 +439,21 @@ export const SheetsCollaborateInputSchema = z.object({
           case 'version_export':
             return !!data.spreadsheetId;
 
+          // Approval actions
+          case 'approval_create':
+            return (
+              !!data.spreadsheetId && !!data.range && !!data.approvers && data.approvers.length > 0
+            );
+          case 'approval_approve':
+          case 'approval_reject':
+          case 'approval_get_status':
+          case 'approval_cancel':
+            return !!data.spreadsheetId && !!data.approvalId;
+          case 'approval_list_pending':
+            return !!data.spreadsheetId;
+          case 'approval_delegate':
+            return !!data.spreadsheetId && !!data.approvalId && !!data.delegateTo;
+
           default:
             return false;
         }
@@ -409,6 +494,9 @@ const CollaborateResponseSchema = z.discriminatedUnion('success', [
       .optional(),
     exportUrl: z.string().optional(),
     exportData: z.string().optional(),
+    // Approval response fields
+    approval: ApprovalSchema.optional(),
+    approvals: z.array(ApprovalSchema).optional(),
     // Common response fields
     dryRun: z.boolean().optional(),
     mutation: MutationSummarySchema.optional(),
@@ -441,6 +529,7 @@ export type SheetsCollaborateOutput = z.infer<typeof SheetsCollaborateOutputSche
 export type CollaborateResponse = z.infer<typeof CollaborateResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type CollaborateRequest = SheetsCollaborateInput['request'];
+export type Approval = z.infer<typeof ApprovalSchema>;
 
 // ========== TYPE NARROWING HELPERS ==========
 // These provide type safety similar to discriminated union Extract<>
@@ -589,4 +678,42 @@ export type CollaborateVersionCompareInput = SheetsCollaborateInput['request'] &
 export type CollaborateVersionExportInput = SheetsCollaborateInput['request'] & {
   action: 'version_export';
   spreadsheetId: string;
+};
+
+// Approval action types (7)
+export type CollaborateApprovalCreateInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_create';
+  spreadsheetId: string;
+  range: string;
+  approvers: string[];
+};
+export type CollaborateApprovalApproveInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_approve';
+  spreadsheetId: string;
+  approvalId: string;
+};
+export type CollaborateApprovalRejectInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_reject';
+  spreadsheetId: string;
+  approvalId: string;
+};
+export type CollaborateApprovalGetStatusInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_get_status';
+  spreadsheetId: string;
+  approvalId: string;
+};
+export type CollaborateApprovalListPendingInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_list_pending';
+  spreadsheetId: string;
+};
+export type CollaborateApprovalDelegateInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_delegate';
+  spreadsheetId: string;
+  approvalId: string;
+  delegateTo: string;
+};
+export type CollaborateApprovalCancelInput = SheetsCollaborateInput['request'] & {
+  action: 'approval_cancel';
+  spreadsheetId: string;
+  approvalId: string;
 };

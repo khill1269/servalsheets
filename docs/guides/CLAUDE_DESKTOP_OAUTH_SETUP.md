@@ -1,3 +1,14 @@
+---
+title: Claude Desktop OAuth Setup (User Experience)
+category: guide
+last_updated: 2026-01-31
+description: This document describes the user experience when installing ServalSheets with OAuth in Claude Desktop.
+version: 1.6.0
+tags: [oauth, authentication, setup, configuration, sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Claude Desktop OAuth Setup (User Experience)
 
 This document describes the **user experience** when installing ServalSheets with OAuth in Claude Desktop.
@@ -9,16 +20,19 @@ This document describes the **user experience** when installing ServalSheets wit
 ### 1. First Installation
 
 User runs in terminal:
+
 ```bash
 cd ~/Documents/mcp-servers/servalsheets
 ./setup-oauth.sh
 ```
 
 The script asks for:
+
 1. **Google OAuth Client ID** (from Google Cloud Console)
 2. **Google OAuth Client Secret**
 
 Then automatically:
+
 - Creates `.env` file with credentials
 - Builds the project
 - Starts HTTP server in background
@@ -26,6 +40,7 @@ Then automatically:
 - Displays authorization link
 
 **Output**:
+
 ```
 ✓ Configuration saved
 ✓ Project built successfully
@@ -53,11 +68,13 @@ the authorization link. Click it to authorize!
 ### 2. First Time Using in Claude Desktop
 
 User opens Claude Desktop and types:
+
 ```
 "List all my Google Sheets"
 ```
 
 **Claude Desktop shows**:
+
 ```
 I need to authorize access to your Google Sheets first.
 
@@ -81,6 +98,7 @@ remember your credentials and work automatically.
 ### 3. User Clicks the Authorization Link
 
 **Browser opens to**:
+
 - Google's OAuth consent screen
 - Shows "ServalSheets wants to access your Google Sheets"
 - Lists permissions requested
@@ -88,6 +106,7 @@ remember your credentials and work automatically.
 **User clicks "Allow"**
 
 **Browser shows**:
+
 ```
 ✅ Authorization Successful!
 
@@ -102,11 +121,13 @@ ServalSheets is ready to use!
 ### 4. Back in Claude Desktop
 
 User types again:
+
 ```
 "List all my Google Sheets"
 ```
 
 **Now it works!** Claude responds:
+
 ```
 Here are your Google Sheets:
 
@@ -125,6 +146,7 @@ Would you like me to read data from any of these sheets?
 From now on, it **just works**! No more authorization needed.
 
 User can:
+
 - Read any of their sheets
 - Write data
 - Create new sheets
@@ -133,6 +155,7 @@ User can:
 - Everything!
 
 The credentials are:
+
 - ✅ Encrypted and stored securely
 - ✅ Auto-refreshed when they expire
 - ✅ Only accessible to ServalSheets on your machine
@@ -342,6 +365,7 @@ Create `~/Library/LaunchAgents/com.servalsheets.server.plist`:
 ```
 
 Then:
+
 ```bash
 # Load the service
 launchctl load ~/Library/LaunchAgents/com.servalsheets.server.plist
@@ -354,7 +378,7 @@ launchctl list | grep servalsheets
 
 ## Security Notes (For Users)
 
-### What gets stored on your computer:
+### What gets stored on your computer
 
 1. **`.env` file**: Your OAuth client credentials (ID and secret)
    - Location: Project directory
@@ -365,25 +389,28 @@ launchctl list | grep servalsheets
    - Encryption: AES-256-GCM
    - Permissions: Readable only by you
 
-### What ServalSheets can access:
+### What ServalSheets can access
 
 Only the Google Sheets you own or have been shared with you. ServalSheets:
+
 - ✅ Cannot access other users' sheets
 - ✅ Cannot access sheets you don't have permission for
 - ✅ Uses the same permissions as your Google account
 - ✅ Runs entirely on your local machine
 - ✅ No data sent to external servers (except Google's API)
 
-### Revoking access:
+### Revoking access
 
 At any time, you can revoke ServalSheets' access:
 
 **Option 1**: Via ServalSheets
+
 ```bash
 curl -X POST http://localhost:3000/auth/revoke
 ```
 
 **Option 2**: Via Google Account
+
 1. Go to https://myaccount.google.com/permissions
 2. Find "ServalSheets"
 3. Click "Remove Access"

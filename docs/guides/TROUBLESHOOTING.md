@@ -1,3 +1,14 @@
+---
+title: Troubleshooting Guide
+category: guide
+last_updated: 2026-02-03
+description: This guide helps diagnose and resolve common issues with ServalSheets.
+version: 1.6.0
+tags: [troubleshooting, sheets, docker]
+audience: user
+difficulty: intermediate
+---
+
 # Troubleshooting Guide
 
 This guide helps diagnose and resolve common issues with ServalSheets.
@@ -57,6 +68,16 @@ export LOG_FORMAT=json
 tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq .
 ```
 
+### VS Code MCP Diagnostics
+
+If you're working in VS Code, expose diagnostics to MCP clients:
+
+1. Open the **Problems** panel and confirm diagnostics are populated.
+2. Open Command Palette and run the MCP Diagnostics command.
+3. Start the diagnostics MCP server from the extension.
+4. Check **Output** for the server URL/port and confirm it's running.
+5. Verify diagnostics are visible in your MCP client or MCP Inspector.
+
 ---
 
 ## Authentication Issues
@@ -64,6 +85,7 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq .
 ### Issue: "Authentication failed"
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -74,6 +96,7 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq .
 ```
 
 **Causes**:
+
 1. No credentials configured
 2. Invalid credentials
 3. Expired OAuth token
@@ -147,6 +170,7 @@ export GOOGLE_ACCESS_TOKEN=ya29.new_token
 ### Issue: "Service account does not exist"
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -157,6 +181,7 @@ export GOOGLE_ACCESS_TOKEN=ya29.new_token
 ```
 
 **Causes**:
+
 - Service account was deleted in Google Cloud Console
 - Using wrong project
 - Service account disabled
@@ -183,6 +208,7 @@ cat ~/.config/google/servalsheets-sa.json | jq -r '.client_email'
 ### Issue: "Rate limit exceeded" (429 errors)
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -193,6 +219,7 @@ cat ~/.config/google/servalsheets-sa.json | jq -r '.client_email'
 ```
 
 **Causes**:
+
 - Too many API requests in short time
 - Rate limiter configured above actual quota
 - Multiple applications using same project
@@ -262,7 +289,7 @@ await read({ action: 'read', spreadsheetId: 'xxx', range: 'C1' });
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  ranges: ['A1', 'B1', 'C1']
+  ranges: ['A1', 'B1', 'C1'],
 });
 // 1 API call
 ```
@@ -286,6 +313,7 @@ await read({
 **Symptoms**: Quota errors right after starting ServalSheets
 
 **Causes**:
+
 - Rate limiter misconfigured (too high)
 - Burst of operations at startup
 - Previous quota exhaustion not yet recovered
@@ -310,6 +338,7 @@ export SERVALSHEETS_WRITES_PER_MINUTE=20
 ### Issue: "Permission denied" when accessing spreadsheet
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -320,6 +349,7 @@ export SERVALSHEETS_WRITES_PER_MINUTE=20
 ```
 
 **Causes**:
+
 - Spreadsheet not shared with service account
 - Using OAuth but not owner of spreadsheet
 - Insufficient permission level (Viewer instead of Editor)
@@ -370,6 +400,7 @@ curl "https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUq
 ### Issue: "Insufficient permissions" for specific action
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -380,6 +411,7 @@ curl "https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUq
 ```
 
 **Causes**:
+
 - Service account has Viewer permission (read-only)
 - OAuth token missing required scope
 - Protected range or sheet
@@ -407,6 +439,7 @@ curl "https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUq
 **Symptoms**: Slow response times, timeouts
 
 **Causes**:
+
 - Using FULL diff on large spreadsheets
 - Not using batch operations
 - Cache disabled or expired
@@ -422,14 +455,14 @@ curl "https://sheets.googleapis.com/v4/spreadsheets/1BxiMVs0XRA5nFMdKvBdBZjgmUUq
 await diff({
   action: 'diff',
   spreadsheetId: 'xxx',
-  diffTier: 'FULL'  // Slow for > 10k cells
+  diffTier: 'FULL', // Slow for > 10k cells
 });
 
 // Good: METADATA diff (fast)
 await diff({
   action: 'diff',
   spreadsheetId: 'xxx',
-  diffTier: 'METADATA'  // Always fast
+  diffTier: 'METADATA', // Always fast
 });
 ```
 
@@ -452,14 +485,14 @@ export SERVALSHEETS_CACHE_DATA_SIZE=2000
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'Sheet1!A1:ZZ100000'  // Huge range
+  range: 'Sheet1!A1:ZZ100000', // Huge range
 });
 
 // Good: Read only needed cells
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'Sheet1!A1:D100'  // Specific range
+  range: 'Sheet1!A1:D100', // Specific range
 });
 ```
 
@@ -492,6 +525,7 @@ time curl -s -o /dev/null -w "%{time_total}\n" \
 **Symptoms**: CPU at 100%, slow operations
 
 **Causes**:
+
 - Large diff operations
 - Complex formula calculations
 - Many concurrent operations
@@ -518,6 +552,7 @@ export SERVALSHEETS_MAX_CONCURRENT=5  # Default: 10
 **Symptoms**: Memory usage growing, eventual OOM crash
 
 **Causes**:
+
 - Loading large datasets into memory
 - Cache size too large
 - Memory leak (rare)
@@ -532,7 +567,7 @@ export SERVALSHEETS_MAX_CONCURRENT=5  # Default: 10
 const allData = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:Z100000'
+  range: 'A1:Z100000',
 });
 // Memory: ~100 MB
 
@@ -602,6 +637,7 @@ export NODE_OPTIONS="--max-old-space-size=512"  # 512 MB
 ### Issue: "Network timeout" or "ECONNREFUSED"
 
 **Symptoms**:
+
 ```json
 {
   "error": {
@@ -612,6 +648,7 @@ export NODE_OPTIONS="--max-old-space-size=512"  # 512 MB
 ```
 
 **Causes**:
+
 - No internet connection
 - Firewall blocking Google APIs
 - Proxy configuration issues
@@ -671,6 +708,7 @@ export NO_PROXY=localhost,127.0.0.1
 **Symptoms**: Writing data but not seeing changes in spreadsheet
 
 **Causes**:
+
 - Cache returning stale data
 - Wrong spreadsheet/sheet name
 - Protected range preventing writes
@@ -716,8 +754,8 @@ await write({
   range: 'A1:A10',
   values: [[1], [2], [3]],
   expectedState: {
-    checksums: { 'A1:A10': 'abc123' }
-  }
+    checksums: { 'A1:A10': 'abc123' },
+  },
 });
 // Will fail if data changed since last read
 ```
@@ -727,6 +765,7 @@ await write({
 **Symptoms**: Formula shows as text or doesn't calculate
 
 **Causes**:
+
 - Writing formula as string value instead of formula
 - Formula syntax error
 - Circular reference
@@ -739,7 +778,7 @@ await write({
   action: 'write',
   spreadsheetId: 'xxx',
   range: 'A1',
-  values: [['=SUM(B1:B10)']]  // Treated as text
+  values: [['=SUM(B1:B10)']], // Treated as text
 });
 
 // Good: Write with userEnteredValue
@@ -748,7 +787,7 @@ await write({
   spreadsheetId: 'xxx',
   range: 'A1',
   values: [['=SUM(B1:B10)']],
-  valueInputOption: 'USER_ENTERED'  // Parses as formula
+  valueInputOption: 'USER_ENTERED', // Parses as formula
 });
 ```
 
@@ -761,6 +800,7 @@ await write({
 **Symptoms**: No 🔨 icon (standard MCP indicator), tools not available
 
 **Causes**:
+
 - Config file missing or invalid
 - JSON syntax error in config
 - Wrong CLI path
@@ -822,6 +862,7 @@ open -a "Claude"
 **Symptoms**: No error, but tool doesn't work
 
 **Causes**:
+
 - MCP stdio communication error
 - ServalSheets crashed
 - Malformed tool input
@@ -868,6 +909,7 @@ tail -n 100 ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq 'select(.leve
 ```
 
 **Solutions**:
+
 - Verify spreadsheet ID is correct
 - Ensure spreadsheet not deleted
 - Check service account has access
@@ -884,6 +926,7 @@ tail -n 100 ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq 'select(.leve
 ```
 
 **Solutions**:
+
 - Fix range format: `Sheet1!A1:B10` (not `Sheet1!A1:B`)
 - Use valid A1 notation
 - Ensure sheet name exists
@@ -900,6 +943,7 @@ tail -n 100 ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq 'select(.leve
 ```
 
 **Solutions**:
+
 - This is a ServalSheets bug - report to developers
 - Workaround: Use simpler operation
 
@@ -915,6 +959,7 @@ tail -n 100 ~/Library/Logs/Claude/mcp-server-servalsheets.log | jq 'select(.leve
 ```
 
 **Solutions**:
+
 - Reduce batch size (< 10 MB)
 - Split large writes into multiple batches
 - Use effect scope limits to prevent this
@@ -974,19 +1019,20 @@ cat diagnostic-report.txt
 
 Common issues and quick fixes:
 
-| Issue | Quick Fix |
-|-------|-----------|
-| Authentication failed | Check credentials path, verify JSON format |
-| Rate limit exceeded | Reduce `SERVALSHEETS_*_PER_MINUTE` values |
-| Permission denied | Share spreadsheet with service account email |
-| Slow operations | Use METADATA diff, enable caching |
-| High memory | Use streaming, reduce cache size |
-| Network timeout | Check firewall, verify internet connection |
-| Not in Claude Desktop | Verify config JSON, check CLI path, restart |
+| Issue                 | Quick Fix                                    |
+| --------------------- | -------------------------------------------- |
+| Authentication failed | Check credentials path, verify JSON format   |
+| Rate limit exceeded   | Reduce `SERVALSHEETS_*_PER_MINUTE` values    |
+| Permission denied     | Share spreadsheet with service account email |
+| Slow operations       | Use METADATA diff, enable caching            |
+| High memory           | Use streaming, reduce cache size             |
+| Network timeout       | Check firewall, verify internet connection   |
+| Not in Claude Desktop | Verify config JSON, check CLI path, restart  |
 
 **Key Takeaway**: Enable debug logging (`LOG_LEVEL=debug`) to diagnose most issues. Check logs at `~/Library/Logs/Claude/mcp-server-servalsheets.log`.
 
 For more information:
+
 - Security: `SECURITY.md`
 - Performance: `PERFORMANCE.md`
 - Monitoring: `MONITORING.md`

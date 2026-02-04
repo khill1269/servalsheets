@@ -1,3 +1,12 @@
+---
+title: Integration Tests - Quick Start
+category: development
+last_updated: 2026-01-31
+description: Get integration tests running in 5 minutes!
+version: 1.6.0
+tags: [testing, sheets]
+---
+
 # Integration Tests - Quick Start
 
 Get integration tests running in 5 minutes!
@@ -35,9 +44,11 @@ Get integration tests running in 5 minutes!
 2. Create new spreadsheet
 3. Name it "ServalSheets Test Sheet"
 4. Note the ID from the URL:
+
    ```
    https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit
    ```
+
 5. Click "Share"
 6. Add the service account email from step 2
 7. Set permission to "Editor"
@@ -89,6 +100,7 @@ TEST_REAL_API=true npm test tests/integration/
 ### Still stuck?
 
 See full guides:
+
 - [Integration Test Setup](./INTEGRATION_TEST_SETUP.md) - Detailed setup instructions
 - [CI Setup](./CI_SETUP.md) - GitHub Actions configuration
 - [Test Helpers](./helpers/README.md) - Using credential loader in tests

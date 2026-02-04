@@ -397,6 +397,64 @@ export class DiffEngine {
   }
 
   /**
+   * Compare two spreadsheet states and return differences
+   * (Phase 4.2A - Fine-Grained Event Filtering)
+   *
+   * Alias for diff() for webhook event categorization
+   */
+  async compareStates(
+    before: SpreadsheetState,
+    after: SpreadsheetState,
+    options?: DiffOptions
+  ): Promise<DiffResult> {
+    return this.diff(before, after, options);
+  }
+
+  /**
+   * Detect sheet-level changes between two states
+   * (Phase 4.2A - Fine-Grained Event Filtering)
+   */
+  private detectSheetChanges(before: SpreadsheetState, after: SpreadsheetState) {
+    const beforeSheetMap = new Map(before.sheets.map((s) => [s.sheetId, s]));
+    const afterSheetMap = new Map(after.sheets.map((s) => [s.sheetId, s]));
+
+    const sheetsAdded: Array<{ sheetId: number; title: string }> = [];
+    const sheetsRemoved: Array<{ sheetId: number; title: string }> = [];
+    const sheetsRenamed: Array<{ sheetId: number; oldTitle: string; newTitle: string }> = [];
+
+    // Detect added sheets
+    for (const afterSheet of after.sheets) {
+      if (!beforeSheetMap.has(afterSheet.sheetId)) {
+        sheetsAdded.push({
+          sheetId: afterSheet.sheetId,
+          title: afterSheet.title,
+        });
+      }
+    }
+
+    // Detect removed and renamed sheets
+    for (const beforeSheet of before.sheets) {
+      const afterSheet = afterSheetMap.get(beforeSheet.sheetId);
+      if (!afterSheet) {
+        // Sheet was removed
+        sheetsRemoved.push({
+          sheetId: beforeSheet.sheetId,
+          title: beforeSheet.title,
+        });
+      } else if (beforeSheet.title !== afterSheet.title) {
+        // Sheet was renamed
+        sheetsRenamed.push({
+          sheetId: beforeSheet.sheetId,
+          oldTitle: beforeSheet.title,
+          newTitle: afterSheet.title,
+        });
+      }
+    }
+
+    return { sheetsAdded, sheetsRemoved, sheetsRenamed };
+  }
+
+  /**
    * Metadata-only diff (Tier 1)
    */
   private metadataDiff(before: SpreadsheetState, after: SpreadsheetState): DiffResult {
@@ -404,6 +462,8 @@ export class DiffEngine {
     const afterRows = after.sheets.reduce((sum, s) => sum + s.rowCount, 0);
     const beforeCols = before.sheets.reduce((sum, s) => sum + s.columnCount, 0);
     const afterCols = after.sheets.reduce((sum, s) => sum + s.columnCount, 0);
+
+    const sheetChanges = this.detectSheetChanges(before, after);
 
     return {
       tier: 'METADATA',
@@ -423,6 +483,7 @@ export class DiffEngine {
         rowsChanged: Math.abs(afterRows - beforeRows),
         estimatedCellsChanged: this.estimateChangedCells(before, after),
       },
+      sheetChanges,
     };
   }
 
@@ -490,6 +551,8 @@ export class DiffEngine {
       }
     }
 
+    const sheetChanges = this.detectSheetChanges(before, after);
+
     return {
       tier: 'SAMPLE',
       samples,
@@ -497,6 +560,7 @@ export class DiffEngine {
         rowsChanged: changedRows.size,
         cellsSampled,
       },
+      sheetChanges,
     };
   }
 
@@ -587,6 +651,8 @@ export class DiffEngine {
       }
     }
 
+    const sheetChanges = this.detectSheetChanges(before, after);
+
     return {
       tier: 'FULL',
       changes,
@@ -595,6 +661,7 @@ export class DiffEngine {
         cellsAdded,
         cellsRemoved,
       },
+      sheetChanges,
     };
   }
 

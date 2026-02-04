@@ -1,3 +1,14 @@
+---
+title: ServalSheets Test Account Setup Guide
+category: guide
+last_updated: 2026-01-31
+description: This guide explains how to prepare a test account for Anthropic Directory submission verification.
+version: 1.6.0
+tags: [testing, setup, configuration, sheets]
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets Test Account Setup Guide
 
 This guide explains how to prepare a test account for Anthropic Directory submission verification.
@@ -35,11 +46,13 @@ This guide explains how to prepare a test account for Anthropic Directory submis
 2. Click **Create Credentials > OAuth client ID**
 3. Select **Web application**
 4. Configure authorized redirect URIs:
+
    ```
    http://localhost:3000/callback
    http://localhost:6274/oauth/callback
    http://localhost:6274/oauth/callback/debug
    ```
+
 5. Download the JSON credentials file
 
 ## Step 4: Create Test Spreadsheets
@@ -77,14 +90,16 @@ Create the following test spreadsheets in Google Sheets:
 ### 4. Multi-Sheet Test (`ServalSheets-Test-MultiSheet`)
 
 **Sheet1: Sales**
-| Product | Q1 | Q2 | Q3 | Q4 |
-|---------|----|----|----|----|
+
+| Product  | Q1  | Q2  | Q3  | Q4  |
+| -------- | --- | --- | --- | --- |
 | Widget A | 100 | 120 | 150 | 180 |
-| Widget B | 80 | 90 | 110 | 130 |
+| Widget B | 80  | 90  | 110 | 130 |
 
 **Sheet2: Summary**
-| Metric | Value |
-|--------|-------|
+
+| Metric   | Value             |
+| -------- | ----------------- |
 | Total Q1 | =SUM(Sales!B2:B3) |
 | Total Q2 | =SUM(Sales!C2:C3) |
 

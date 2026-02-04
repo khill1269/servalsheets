@@ -1,3 +1,12 @@
+---
+title: AWS Deployment (Terraform)
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets on AWS using ECS Fargate with Terraform.
+version: 1.6.0
+tags: [deployment, sheets]
+---
+
 # AWS Deployment (Terraform)
 
 Deploy ServalSheets on AWS using ECS Fargate with Terraform.

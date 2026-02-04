@@ -32,6 +32,8 @@ import { ServiceError } from '../core/errors.js';
 import { TokenManager } from './token-manager.js';
 import { logHTTP2Capabilities, validateHTTP2Config } from '../utils/http2-detector.js';
 
+import { getConfiguredScopes, getRecommendedScopes } from '../config/oauth-scopes.js';
+
 export interface GoogleApiClientOptions {
   credentials?: {
     clientId: string;
@@ -42,7 +44,7 @@ export interface GoogleApiClientOptions {
   refreshToken?: string;
   serviceAccountKeyPath?: string;
   scopes?: string[];
-  /** Use elevated scopes (full drive access) - required for sharing/permissions */
+  /** @deprecated Use scopes array directly. This option is ignored. */
   elevatedAccess?: boolean;
   /** Retry/backoff options for API calls */
   retryOptions?: RetryOptions;
@@ -61,25 +63,17 @@ export interface GoogleApiClientOptions {
 export type GoogleAuthType = 'service_account' | 'oauth' | 'access_token' | 'application_default';
 
 /**
- * Default scopes - minimal permissions (drive.file only)
- * Use this for most operations
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
-export const DEFAULT_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive.file', // Only files created/opened by app
-];
+export const DEFAULT_SCOPES = Array.from(getRecommendedScopes());
 
 /**
- * Elevated scopes - full drive access
- * Required for: sharing, permissions, listing all files, ownership transfer
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
-export const ELEVATED_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive', // Full drive access
-];
+export const ELEVATED_SCOPES = Array.from(getRecommendedScopes());
 
 /**
- * Read-only scopes for analysis operations
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
 export const READONLY_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
@@ -87,38 +81,26 @@ export const READONLY_SCOPES = [
 ];
 
 /**
- * BigQuery scopes for Connected Sheets and direct BigQuery operations
- * Required for: sheets_bigquery tool operations
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
 export const BIGQUERY_SCOPES = [
-  'https://www.googleapis.com/auth/cloud-platform.read-only', // Read BigQuery data
-  'https://www.googleapis.com/auth/cloud-platform', // Full BigQuery access (for exports)
-  'https://www.googleapis.com/auth/bigquery', // BigQuery API access
+  'https://www.googleapis.com/auth/bigquery',
+  'https://www.googleapis.com/auth/cloud-platform',
 ];
 
 /**
- * Apps Script scopes for script management and execution
- * Required for: sheets_appsscript tool operations
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
 export const APPSSCRIPT_SCOPES = [
-  'https://www.googleapis.com/auth/script.projects', // Manage Apps Script projects
-  'https://www.googleapis.com/auth/script.deployments', // Manage deployments
-  'https://www.googleapis.com/auth/script.processes', // View script processes
+  'https://www.googleapis.com/auth/script.projects',
+  'https://www.googleapis.com/auth/script.deployments',
+  'https://www.googleapis.com/auth/script.processes',
 ];
 
 /**
- * Full scopes - all permissions for complete functionality
- * Required for: templates (appDataFolder), sharing, BigQuery, Apps Script
+ * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
  */
-export const FULL_SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/drive', // Full drive access (sharing, templates)
-  'https://www.googleapis.com/auth/drive.appdata', // App data folder for templates
-  'https://www.googleapis.com/auth/bigquery', // BigQuery access
-  'https://www.googleapis.com/auth/script.projects', // Apps Script projects
-  'https://www.googleapis.com/auth/script.deployments', // Apps Script deployments
-  'https://www.googleapis.com/auth/script.processes', // Apps Script processes
-];
+export const FULL_SCOPES = Array.from(getRecommendedScopes());
 
 /**
  * Create HTTP agents with connection pooling
@@ -177,9 +159,9 @@ export class GoogleApiClient {
         : options.accessToken
           ? 'access_token'
           : 'application_default';
-    // Determine scopes based on options - use DEFAULT_SCOPES by default for minimal permissions
-    // Users will be prompted for additional scopes via incremental consent when needed
-    this._scopes = options.scopes ?? (options.elevatedAccess ? ELEVATED_SCOPES : DEFAULT_SCOPES);
+    // Determine scopes based on options
+    // Default to configured scopes (usually FULL_ACCESS_SCOPES for best user experience)
+    this._scopes = options.scopes ?? Array.from(getConfiguredScopes());
     this.retryOptions = options.retryOptions;
     this.timeoutMs = options.timeoutMs;
     this.tokenStore = options.tokenStore;
@@ -449,6 +431,10 @@ export class GoogleApiClient {
 
     if (storedTokens) {
       this.auth.setCredentials(storedTokens);
+      // Restore scopes from stored tokens so incremental scope checks use granted scopes
+      if (storedTokens.scope) {
+        this._scopes = storedTokens.scope.split(' ');
+      }
     }
   }
 
@@ -628,6 +614,13 @@ export class GoogleApiClient {
   }
 
   /**
+   * Update the active scopes (called after OAuth login with granted scopes)
+   */
+  setScopes(scopes: string[]): void {
+    this._scopes = [...scopes];
+  }
+
+  /**
    * Get authentication type
    */
   get authType(): GoogleAuthType {
@@ -701,8 +694,9 @@ export class GoogleApiClient {
 
     try {
       // Make lightweight API call to validate token (only if expiry unknown)
+      // Use tokeninfo instead of userinfo.get() - works without openid scope
       const oauth2 = google.oauth2({ version: 'v2', auth: this.auth });
-      await oauth2.userinfo.get();
+      await oauth2.tokeninfo({ access_token: this.auth.credentials.access_token ?? undefined });
 
       // Cache the successful result
       this.lastValidationResult = { valid: true };

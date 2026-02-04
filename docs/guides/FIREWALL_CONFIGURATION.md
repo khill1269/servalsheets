@@ -1,3 +1,14 @@
+---
+title: ServalSheets Firewall Configuration Guide
+category: guide
+last_updated: 2026-01-31
+description: This guide explains how to configure firewall rules for ServalSheets when deploying behind a firewall or in a cloud environment.
+version: 1.6.0
+tags: [prometheus]
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets Firewall Configuration Guide
 
 This guide explains how to configure firewall rules for ServalSheets when deploying behind a firewall or in a cloud environment.

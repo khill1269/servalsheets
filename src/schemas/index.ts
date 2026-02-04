@@ -523,14 +523,8 @@ export const TOOL_REGISTRY = {
 export const TOOL_COUNT = 21;
 
 // Action count
-export const ACTION_COUNT = 272;
+export const ACTION_COUNT = 293;
 
-// Last updated: 2026-01-29
-// Breakdown:
-//   sheets_auth: 4, sheets_core: 17, sheets_data: 18, sheets_format: 21,
-//   sheets_dimensions: 28, sheets_visualize: 18, sheets_collaborate: 28,
-//   sheets_advanced: 23, sheets_transaction: 6, sheets_quality: 4,
-//   sheets_history: 7, sheets_confirm: 5, sheets_analyze: 16, sheets_fix: 1,
-//   sheets_composite: 10, sheets_session: 17, sheets_templates: 8,
-//   sheets_bigquery: 14, sheets_appsscript: 14, sheets_webhook: 6,
-//   sheets_dependencies: 7
+// Last updated: 2026-02-04
+// See ACTION_COUNTS in annotations.ts for per-tool breakdown
+// Sum: 293 actions across 21 tools

@@ -22,6 +22,16 @@ import {
   SafeOperationPromptArgsSchema,
   BulkImportPromptArgsSchema,
   UndoChangesPromptArgsSchema,
+  MasterClassDataQualityPromptArgsSchema,
+  MasterClassFormulasPromptArgsSchema,
+  MasterClassPerformancePromptArgsSchema,
+  ChallengeQualityDetectivePromptArgsSchema,
+  ChallengePerformanceProfilerPromptArgsSchema,
+  ScenarioMultiUserPromptArgsSchema,
+  AutoAnalyzePromptArgsSchema,
+  FullSetupPromptArgsSchema,
+  AuditSecurityPromptArgsSchema,
+  CompareSpreadsheetPromptArgsSchema,
 } from '../../schemas/prompts.js';
 
 // ============================================================================
@@ -53,7 +63,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 21 powerful tools and 272 actions.
+I'm your Google Sheets assistant with 21 powerful tools and 293 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`
@@ -158,14 +168,24 @@ Safety tips: Always read before modify, use dryRun for destructive ops.`,
               type: 'text' as const,
               text: `🔬 Analyzing: ${args['spreadsheetId']}
 
-Run comprehensive analysis:
-1. Metadata: sheets_core action "get"
-2. Data Quality: sheets_analyze action "analyze_quality"
-3. Structure: sheets_analyze action "analyze_structure"
-4. Formula Audit: sheets_analyze action "analyze_formulas"
-5. AI Insights: sheets_analyze action "analyze_data" (uses MCP Sampling)
+**CONTEXT GATHERING PHASE** (Ask user before proceeding):
+- What is this spreadsheet used for? (purpose helps focus analysis)
+- Are there specific concerns? (data quality, formulas, performance)
+- Which sheets should I prioritize? (or analyze all?)
+- Any recent changes that might have caused issues?
 
-Provide: quality score, issues found, recommended fixes.`,
+**ANALYSIS EXECUTION** (After gathering context):
+1. Metadata: sheets_core action "get" - understand structure
+2. Data Quality: sheets_analyze action "analyze_quality" - find issues
+3. Structure: sheets_analyze action "analyze_structure" - validate schema
+4. Formula Audit: sheets_analyze action "analyze_formulas" - check for errors
+5. AI Insights: sheets_analyze action "analyze_data" - intelligent patterns
+
+**DELIVER RESULTS**:
+- Quality score (0-100)
+- Issues found (categorized by severity)
+- Recommended fixes (prioritized by impact)
+- Next steps based on user's stated purpose`,
             },
           },
         ],
@@ -250,12 +270,27 @@ Final: Auto-resize, freeze header, add timestamp`,
               type: 'text' as const,
               text: `🧹 Cleaning data: ${args['spreadsheetId']}, range ${args['range']}
 
-Phases:
-1. Analysis: Run data quality check + AI analysis (sheets_analyze)
-2. Plan: Identify duplicates, empty cells, format issues
-3. Confirm: Present plan to user (sheets_confirm via Elicitation)
-4. Execute: Apply with auto-snapshot
-5. Validate: Compare before/after`,
+**CONTEXT GATHERING PHASE** (Ask user before proceeding):
+- What type of data is this? (contacts, sales, inventory, etc.)
+- What cleaning operations are most important?
+  □ Remove duplicates
+  □ Fix empty cells (delete, fill, or flag?)
+  □ Standardize formats (dates, phone numbers, currencies)
+  □ Trim whitespace
+  □ Fix capitalization
+- Should I preserve the original data? (create backup sheet?)
+- Any values that should NOT be modified?
+
+**CLEANING EXECUTION** (After gathering context):
+1. Analyze: Run data quality check (sheets_analyze action "analyze_quality")
+2. Plan: Identify issues based on user's priorities
+3. Preview: Show sample changes before applying
+4. Confirm: Request approval via sheets_confirm
+5. Execute: Apply changes with auto-snapshot for undo
+6. Validate: Report changes made with before/after comparison
+
+**SAFETY NOTE**: All destructive operations require confirmation.
+Original data preserved via snapshot for easy rollback.`,
             },
           },
         ],
@@ -319,33 +354,45 @@ Safety: Creates snapshots of both sheets before migration.`,
               text: `💰 Setting up ${budgetType} budget tracker
 ${spreadsheetId ? `Spreadsheet: ${spreadsheetId}` : 'Creating new spreadsheet'}
 
-Budget Setup:
-1. Create structure:
-   - Income sheet: Categories, amounts, dates
-   - Expenses sheet: Categories, amounts, dates
-   - Summary sheet: Totals, remaining, charts
+**CONTEXT GATHERING PHASE** (Ask user before creating):
+- What currency should I use? (USD, EUR, GBP, etc.)
+- What time period? (monthly, yearly, both?)
+- What income categories do you need?
+  □ Salary □ Investments □ Side income □ Other (specify)
+- What expense categories do you want?
+  □ Housing □ Utilities □ Food □ Transport □ Entertainment □ Savings □ Other (specify)
+- Do you want to track by date or just totals?
+- Should I include goal tracking? (savings targets, debt payoff)
+- Do you need multi-person support? (family budget)
 
-2. Add formulas:
+**BUDGET SETUP** (After gathering preferences):
+1. Create structure:
+   - Income sheet: User's categories, amounts, dates
+   - Expenses sheet: User's categories, amounts, dates
+   - Summary sheet: Totals, remaining, visualizations
+
+2. Add formulas (customized to user's needs):
    - SUMIF for category totals
-   - Date filters for monthly/yearly views
-   - Remaining budget calculations
+   - Date filters for selected time period
+   - Budget vs actual calculations
+   - Goals progress tracking (if requested)
 
 3. Format cells:
-   - Currency format for amounts
-   - Conditional formatting: red for overspent
-   - Freeze headers
+   - Currency format (user's selected currency)
+   - Conditional formatting: red for overspent, green for under
+   - Freeze headers, alternating row colors
 
 4. Add charts:
-   - Pie chart: Expense breakdown
-   - Line chart: Monthly trends
-   - Use sheets_analyze to suggest optimal chart types
+   - Pie chart: Expense breakdown by category
+   - Line chart: Monthly trends over time
+   - Progress bar: Goal tracking (if requested)
 
 5. Setup validation:
-   - Dropdowns for categories
+   - Dropdowns for user's categories
    - Date validation
-   - Positive number validation for income
+   - Positive number validation
 
-Final: Apply professional formatting, add instructions sheet.`,
+Final: Professional formatting + instructions sheet with examples.`,
             },
           },
         ],
@@ -2945,6 +2992,1655 @@ Assistant: [Reads analyze://results/analysis-1]
 • Access via standard MCP resource URIs
 
 Ready to leverage analysis history! 🔗`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  // === INTERACTIVE LEARNING PROMPTS (Phase 4: Optional Enhancements) ===
+
+  server.registerPrompt(
+    'masterclass_data_quality',
+    {
+      description: '📊 Interactive data quality analysis tutorial',
+      argsSchema: MasterClassDataQualityPromptArgsSchema,
+    },
+    async ({ spreadsheetId, level }) => {
+      const selectedLevel = level || 'beginner';
+      const spreadsheetContext = spreadsheetId
+        ? `\n\nPractice spreadsheet: ${spreadsheetId}`
+        : '\n\nCreate a test spreadsheet to practice';
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# 📊 Data Quality Master Class - ${selectedLevel.toUpperCase()} Level
+
+${
+  selectedLevel === 'beginner'
+    ? `
+## Module 1: Understanding Quality Scores
+
+### What is Data Quality?
+Data quality measures how reliable and usable your spreadsheet data is. ServalSheets analyzes 15 different quality dimensions:
+
+- **Completeness**: Are there missing values?
+- **Consistency**: Do similar cells have similar formats?
+- **Accuracy**: Are formulas error-free?
+- **Validity**: Do values make sense in context?
+
+### Quality Score Scale
+- **90-100%**: Excellent (production-ready)
+- **70-89%**: Good (minor issues)
+- **50-69%**: Fair (needs attention)
+- **Below 50%**: Poor (critical issues)
+
+## Your First Analysis
+
+**Step 1: Run a Scout Analysis**
+\`\`\`
+sheets_analyze action:"scout" spreadsheetId:"YOUR_ID"
+\`\`\`
+
+Scout mode is fast (~200ms) and gives you:
+- Overall quality score
+- Top 3 issues
+- Recommended next steps
+
+**Step 2: Interpret Results**
+If quality < 80%, run:
+\`\`\`
+sheets_analyze action:"comprehensive" spreadsheetId:"YOUR_ID"
+\`\`\`
+
+This reveals:
+- Detailed breakdown by issue type
+- Cell-level examples
+- Actionable fix suggestions
+`
+    : ''
+}${
+                selectedLevel === 'intermediate'
+                  ? `
+## Module 2: Advanced Quality Patterns
+
+### Pattern Detection
+Learn to identify common quality problems:
+
+**Pattern 1: Mixed Data Types**
+\`\`\`
+Column A: [123, "456", 789, "N/A"]
+Issue: Numbers mixed with text
+Impact: SUM() fails, charts break
+Fix: sheets_fix action:"fix_types"
+\`\`\`
+
+**Pattern 2: Inconsistent Formats**
+\`\`\`
+Date column: ["01/15/2024", "2024-01-16", "Jan 17, 2024"]
+Issue: Multiple date formats
+Impact: Sorting breaks, comparisons fail
+Fix: sheets_fix action:"standardize_formats"
+\`\`\`
+
+**Pattern 3: Formula Errors**
+\`\`\`
+#REF! errors: Broken cell references
+#DIV/0! errors: Division by zero
+#N/A errors: VLOOKUP failures
+\`\`\`
+
+## Your Challenge
+
+Run a comprehensive analysis and:
+1. Identify the TOP issue by impact
+2. Estimate fix time (use sheets_quality analyze_impact)
+3. Create a fix plan with preview mode
+4. Execute fixes
+5. Re-analyze to verify improvement
+`
+                  : ''
+              }${
+                selectedLevel === 'advanced'
+                  ? `
+## Module 3: Quality Monitoring & Automation
+
+### Building Quality Gates
+Prevent quality degradation with automated checks:
+
+**Strategy 1: Pre-write Validation**
+\`\`\`
+Before: sheets_data write
+Run: sheets_quality validate
+If quality drop > 15%: Alert user, cancel write
+\`\`\`
+
+**Strategy 2: Periodic Scout**
+\`\`\`
+sheets_session set_pending type:"quality_monitoring"
+Every 10 operations: sheets_analyze scout
+If quality < threshold: Trigger alert
+\`\`\`
+
+**Strategy 3: Historical Tracking**
+\`\`\`
+Store quality scores in sheets_session
+Track quality trends over time
+Alert if 3 consecutive drops
+\`\`\`
+
+## Production Pattern
+
+Implement this workflow:
+1. Baseline: Run comprehensive analysis at start
+2. Monitor: Scout every 10-15 operations
+3. Alert: Quality drop > 15% triggers warning
+4. Fix: Auto-suggest fixes with preview
+5. Verify: Re-analyze after fixes
+6. Learn: Track patterns in quality changes
+
+Try implementing this pattern on your spreadsheet!
+`
+                  : ''
+              }${spreadsheetContext}
+
+## 🎯 Common Mistakes to Avoid
+
+1. **Ignoring low-impact issues**: Fix high-impact issues first
+2. **Skipping preview mode**: Always preview fixes before applying
+3. **Not re-analyzing**: Verify quality improved after fixes
+4. **Treating all issues equally**: Prioritize by impact score
+
+## 📚 Next Steps
+
+- ${selectedLevel === 'beginner' ? 'Try Module 2 (intermediate level) when ready' : ''}
+- ${selectedLevel === 'intermediate' ? 'Try Module 3 (advanced level) when ready' : ''}
+- ${selectedLevel === 'advanced' ? 'Build a quality monitoring workflow' : ''}
+- Practice on real spreadsheets
+- Try challenge_quality_detective for a hands-on mystery
+
+Ready to analyze some data! 🔍`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'masterclass_formulas',
+    {
+      description: '📐 Formula optimization workshop',
+      argsSchema: MasterClassFormulasPromptArgsSchema,
+    },
+    async ({ topic }) => {
+      const selectedTopic = topic || 'performance';
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# 📐 Formula Optimization Workshop: ${selectedTopic.replace(/_/g, ' ').toUpperCase()}
+
+${
+  selectedTopic === 'performance'
+    ? `
+## Formula Performance Hierarchy
+
+**Fastest → Slowest:**
+1. ⚡ Static values (instant)
+2. ⚡ Simple arithmetic (+, -, *, /)
+3. ✅ Basic functions (SUM, AVERAGE, COUNT)
+4. ✅ Lookup functions (VLOOKUP, INDEX/MATCH)
+5. ⚠️ Array formulas (FILTER, SORT, UNIQUE)
+6. 🐌 Volatile functions (NOW, TODAY, RAND)
+7. 🐌 External data (IMPORTRANGE, GOOGLEFINANCE)
+8. 🐌 Apps Script custom functions
+
+## Example: Slow vs Fast
+
+**Slow (500ms):**
+\`\`\`
+=ARRAYFORMULA(IF(A2:A1000<>"", VLOOKUP(A2:A1000, Sheet2!A:B, 2, FALSE), ""))
+\`\`\`
+Problem: ARRAYFORMULA evaluates row-by-row
+
+**Fast (50ms):**
+\`\`\`
+=QUERY(Sheet2!A:B, "SELECT B WHERE A = '"&A2&"'")
+\`\`\`
+Why: QUERY is optimized by Google
+
+## Your Challenge
+
+Find a slow formula in your spreadsheet:
+1. Use sheets_analyze analyze_performance
+2. Identify formulas taking >100ms
+3. Rewrite using QUERY or INDEX/MATCH
+4. Measure improvement
+`
+    : ''
+}${
+                selectedTopic === 'array_formulas'
+                  ? `
+## Array Formula Best Practices
+
+**When to Use Array Formulas:**
+- ✅ Data changes frequently (auto-updates)
+- ✅ Multiple conditions needed
+- ✅ Result needs to expand dynamically
+- ✅ Working with <10K rows
+
+**When to Avoid:**
+- ❌ >50K rows (use helper columns)
+- ❌ Volatile functions inside (NOW, RAND)
+- ❌ Complex nested logic (hard to debug)
+
+## Optimization Examples
+
+**Example 1: Conditional Formatting**
+Slow:
+\`\`\`
+=ARRAYFORMULA(IF(B2:B>100, "High", IF(B2:B>50, "Medium", "Low")))
+\`\`\`
+
+Fast:
+\`\`\`
+=ARRAYFORMULA(IFS(B2:B>100, "High", B2:B>50, "Medium", B2:B>0, "Low", TRUE, ""))
+\`\`\`
+IFS is faster than nested IF
+
+**Example 2: Lookup with Default**
+Slow:
+\`\`\`
+=ARRAYFORMULA(IF(A2:A<>"", IFERROR(VLOOKUP(A2:A, Sheet2!A:B, 2, FALSE), "Not Found"), ""))
+\`\`\`
+
+Fast:
+\`\`\`
+=ARRAYFORMULA(IFNA(VLOOKUP(A2:A, Sheet2!A:B, 2, FALSE), "Not Found"))
+\`\`\`
+IFNA is faster than IFERROR for VLOOKUP
+`
+                  : ''
+              }${
+                selectedTopic === 'volatile_functions'
+                  ? `
+## Volatile Function Management
+
+### The Problem
+Volatile functions recalculate on EVERY sheet edit:
+- NOW() - Current date/time
+- TODAY() - Current date
+- RAND() / RANDBETWEEN() - Random numbers
+- INDIRECT() - Dynamic cell references
+
+**Impact:** Slows down the ENTIRE sheet for ALL users
+
+### The Solution
+
+**Pattern 1: Centralize Volatility**
+Bad:
+\`\`\`
+A1: =NOW()
+A2: =NOW()
+A3: =NOW()
+\`\`\`
+(Recalculates 3 times per edit)
+
+Good:
+\`\`\`
+A1: =NOW()
+A2: =A1
+A3: =A1
+\`\`\`
+(Recalculates once per edit)
+
+**Pattern 2: Named Range**
+1. Create named range "CurrentDate" pointing to A1
+2. Put =NOW() in A1
+3. Use =CurrentDate everywhere else
+
+**Pattern 3: Apps Script Alternative**
+For time-based updates:
+\`\`\`
+sheets_appsscript action:"time_trigger"
+  script: "Update timestamp cell every 5 minutes"
+\`\`\`
+
+## Your Task
+
+Audit your spreadsheet:
+1. sheets_analyze analyze_performance checkVolatility:true
+2. Count volatile functions
+3. Refactor if count >10
+4. Measure before/after performance
+`
+                  : ''
+              }${
+                selectedTopic === 'lookup_optimization'
+                  ? `
+## Lookup Formula Optimization
+
+### VLOOKUP vs INDEX/MATCH vs XLOOKUP
+
+**VLOOKUP:**
+- ✅ Simple syntax
+- ✅ Fast for small data (<1K rows)
+- ❌ Only searches left-to-right
+- ❌ Breaks if columns change
+
+**INDEX/MATCH:**
+- ✅ Searches any direction
+- ✅ Faster on large data (>10K rows)
+- ✅ Flexible (doesn't break on column changes)
+- ❌ More complex syntax
+
+**XLOOKUP (newer):**
+- ✅ Most powerful
+- ✅ Best syntax
+- ❌ Not available in all sheets
+
+### Performance Comparison
+
+**10K rows benchmark:**
+- VLOOKUP: ~200ms
+- INDEX/MATCH: ~50ms
+- QUERY: ~30ms
+
+## Examples
+
+**VLOOKUP:**
+\`\`\`
+=VLOOKUP(A2, Sheet2!A:B, 2, FALSE)
+\`\`\`
+
+**INDEX/MATCH (4x faster):**
+\`\`\`
+=INDEX(Sheet2!B:B, MATCH(A2, Sheet2!A:A, 0))
+\`\`\`
+
+**QUERY (6x faster):**
+\`\`\`
+=QUERY(Sheet2!A:B, "SELECT B WHERE A = '"&A2&"'", 0)
+\`\`\`
+
+## Your Challenge
+
+Convert VLOOKUPs to INDEX/MATCH:
+1. Find VLOOKUPs: sheets_analyze audit_formulas
+2. Rewrite top 5 slowest ones
+3. Benchmark improvement
+`
+                  : ''
+              }${
+                selectedTopic === 'error_handling'
+                  ? `
+## Formula Error Handling
+
+### Common Errors
+- #REF! - Broken cell reference
+- #DIV/0! - Division by zero
+- #N/A - VLOOKUP/MATCH not found
+- #VALUE! - Wrong data type
+- #NAME? - Unknown function name
+
+### Error Handling Strategies
+
+**Strategy 1: IFERROR (Universal)**
+\`\`\`
+=IFERROR(formula, "fallback_value")
+\`\`\`
+Catches all errors, returns fallback
+
+**Strategy 2: IFNA (Lookup-Specific)**
+\`\`\`
+=IFNA(VLOOKUP(...), "Not Found")
+\`\`\`
+Only catches #N/A, faster than IFERROR
+
+**Strategy 3: IF + ISERROR (Conditional)**
+\`\`\`
+=IF(ISERROR(formula), "handle_error", formula)
+\`\`\`
+Different handling for error vs success
+
+**Strategy 4: Defensive Formulas**
+\`\`\`
+=IF(B2=0, 0, A2/B2)  // Prevent #DIV/0!
+=IF(ISBLANK(A2), "", VLOOKUP(...))  // Prevent #N/A
+\`\`\`
+
+## Best Practices
+
+1. **Production formulas**: Always use error handling
+2. **Debugging**: Remove error handling temporarily
+3. **Performance**: Use IFNA for lookups (faster than IFERROR)
+4. **User experience**: Return meaningful error messages
+
+## Your Task
+
+1. sheets_analyze audit_formulas
+2. Find formulas without error handling
+3. Add appropriate error handling
+4. Test edge cases
+`
+                  : ''
+              }
+
+## 🎓 Pro Tips
+
+- Use sheets_dependencies analyze_impact before changing formulas
+- Test formulas on small data first
+- Document complex formulas with comments
+- Version control via sheets_collaborate snapshots
+
+## 📚 Next Topics
+
+${topic ? '- Try a different topic: performance, array_formulas, volatile_functions, lookup_optimization, error_handling' : '- Specify a topic to dive deeper'}
+
+Ready to optimize! ⚡`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'masterclass_performance',
+    {
+      description: '⚡ Performance tuning lab',
+      argsSchema: MasterClassPerformancePromptArgsSchema,
+    },
+    async ({ spreadsheetId, focusArea }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# ⚡ Performance Tuning Lab
+
+**Target Spreadsheet:** ${spreadsheetId}
+
+## Step 1: Baseline Measurement
+
+Let's measure current performance:
+
+\`\`\`
+sheets_analyze action:"analyze_performance"
+  spreadsheetId:"${spreadsheetId}"
+  checkFormulas:true
+  checkVolatility:true
+\`\`\`
+
+This will report:
+- Volatile function count
+- Formula complexity scores
+- Circular references
+- Recommended optimizations
+
+${
+  focusArea === 'read_ops'
+    ? `
+## Focus: Read Operation Performance
+
+### Symptoms
+- Reads taking >2 seconds
+- Timeout errors
+- High latency on large ranges
+
+### Diagnosis Tree
+
+**Check 1: Range Size**
+Reading >1K rows? → Use batch_read instead of multiple reads
+
+**Check 2: Value Rendering**
+Reading formatted values? → Use valueRenderOption: UNFORMATTED_VALUE (3x faster)
+
+**Check 3: Multiple Sheets**
+Reading from multiple sheets? → Use batch_get (parallel fetching)
+
+**Check 4: Column Selection**
+Need only specific columns? → Use column ranges (A:A, C:C) not full rows
+
+### Optimization Examples
+
+**Before (Slow - 5 API calls, ~2.5s):**
+\`\`\`
+for (let i = 0; i < 5; i++) {
+  await sheets_data.read(range: \`Sheet\${i}!A1:Z100\`)
+}
+\`\`\`
+
+**After (Fast - 1 API call, ~500ms):**
+\`\`\`
+sheets_data action:"batch_read"
+  ranges:["Sheet0!A1:Z100", "Sheet1!A1:Z100", ..., "Sheet4!A1:Z100"]
+\`\`\`
+
+**Even Faster (1 API call, ~300ms):**
+\`\`\`
+sheets_data action:"batch_read"
+  ranges:[...]
+  valueRenderOption:"UNFORMATTED_VALUE"
+\`\`\`
+
+### Your Task
+1. Identify slow reads in your usage
+2. Convert to batch_read
+3. Benchmark improvement
+`
+    : ''
+}${
+                focusArea === 'write_ops'
+                  ? `
+## Focus: Write Operation Performance
+
+### Symptoms
+- Writes taking >5 seconds
+- Rate limit errors (429)
+- High quota usage
+
+### Diagnosis Tree
+
+**Check 1: Write Count**
+Writing <100 cells? → Direct sheets_data write (optimal)
+Writing 100-1000 cells? → Use batch_write (70% faster)
+Writing >1000 cells? → Use sheets_transaction (80% quota savings)
+
+**Check 2: Formula Handling**
+Writing formulas? → Set formulas separately (faster than mixed values)
+
+### Quota Impact Comparison
+
+**Naive Approach (500 individual writes):**
+- API calls: 500
+- Quota used: ~500 units
+- Time: ~250 seconds (30 req/min rate limit)
+
+**Transaction Approach:**
+- API calls: 3 (begin, commit with 500 operations, end)
+- Quota used: ~100 units (80% savings)
+- Time: ~3 seconds
+
+**Recommendation:** Use sheets_transaction for ANY sequential write >50 cells
+
+### Your Task
+1. Estimate your typical write volume
+2. If >50 cells, switch to transactions
+3. Measure quota and time savings
+`
+                  : ''
+              }${
+                focusArea === 'formulas'
+                  ? `
+## Focus: Formula Performance
+
+### Symptoms
+- Sheet freezes on edit
+- "Calculating..." appears frequently
+- Lag when typing
+
+### Diagnosis Tree
+
+**Check 1: Volatile Functions**
+Count volatile functions (NOW, TODAY, RAND)
+- If >10: Consolidate to 1 cell, reference elsewhere
+
+**Check 2: Array Formulas**
+ARRAYFORMULA on >10K rows?
+- Replace with helper columns
+- Or use QUERY instead
+
+**Check 3: Circular References**
+Check iterative calculation settings
+- sheets_dependencies detect_cycles
+
+**Check 4: External Data**
+IMPORTRANGE or GOOGLEFINANCE?
+- Cache results, refresh periodically
+- Use sheets_appsscript for scheduled updates
+
+**Check 5: Complex Nesting**
+Formulas with >5 levels of nesting?
+- Break into intermediate steps
+- Use helper columns
+
+### Detection Command
+
+\`\`\`
+sheets_analyze action:"analyze_performance"
+  spreadsheetId:"${spreadsheetId}"
+  checkFormulas:true
+  checkVolatility:true
+\`\`\`
+
+Returns:
+- volatileFunctionCount: (red flag if >10)
+- circularReferences: []
+- formulaComplexity: "high"
+- recommendations: [...]
+
+### Your Task
+1. Run analysis command
+2. Address top 3 recommendations
+3. Re-analyze to verify improvement
+`
+                  : ''
+              }${
+                focusArea === 'concurrent_users'
+                  ? `
+## Focus: Concurrent User Performance
+
+### Symptoms
+- Multiple users editing causes lag
+- Formula recalculation delays
+- Save conflicts
+
+### Diagnosis Tree
+
+**Check 1: User Count**
+>10 simultaneous editors? → Expect natural lag (Google limitation)
+
+**Check 2: Protected Ranges**
+Protected range count >50? → Reduce protection granularity
+
+**Check 3: Real-time Formulas**
+IMPORTRANGE or GOOGLEFINANCE in many cells?
+- Replace with periodic refreshes (sheets_appsscript triggers)
+
+**Check 4: Conditional Formatting**
+Rules covering >100K cells? → Simplify rule scope
+
+### Mitigation Pattern
+
+**Instead of: Real-time IMPORTRANGE**
+\`\`\`
+=IMPORTRANGE("other-sheet", "A1:Z1000")
+\`\`\`
+(Recalculates on every edit)
+
+**Use: Periodic refresh**
+\`\`\`
+sheets_appsscript action:"time_trigger"
+  interval:"5 minutes"
+  operation:"refresh_external_data"
+\`\`\`
+(Updates every 5 minutes)
+
+### Your Task
+1. Identify concurrent usage patterns
+2. Implement periodic refresh for external data
+3. Optimize protected ranges
+4. Test with multiple users
+`
+                  : ''
+              }
+
+## Step 2: Apply Optimizations
+
+Based on the analysis results, I'll guide you through each optimization with:
+- Expected improvement (e.g., "40% faster", "70% quota savings")
+- Implementation steps
+- Before/after measurements
+
+## Step 3: Verify Improvements
+
+After optimizations:
+
+\`\`\`
+sheets_analyze action:"analyze_performance"
+  spreadsheetId:"${spreadsheetId}"
+  checkFormulas:true
+  checkVolatility:true
+\`\`\`
+
+Compare:
+- Operation times (should be 30-50% faster)
+- Volatile function count (should be <10)
+- Formula complexity (should be "low" or "medium")
+
+## 🎯 Performance Targets
+
+- Read operations: <500ms
+- Write operations: <2s for <1000 cells
+- Formula recalculation: <1s
+- Volatile functions: <5 per sheet
+
+## 📚 Next Steps
+
+${focusArea ? '- Try another focus area: read_ops, write_ops, formulas, concurrent_users' : '- Specify a focus area for targeted optimization'}
+- Implement monitoring (sheets_session alerts)
+- Set up performance regression tests
+
+Ready to optimize! Let me know which area you'd like to focus on first. ⚡`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'challenge_quality_detective',
+    {
+      description: '🔍 Diagnose data quality issues from symptoms',
+      argsSchema: ChallengeQualityDetectivePromptArgsSchema,
+    },
+    async ({ spreadsheetId }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# 🔍 Quality Detective Challenge
+
+**Case File:** ${spreadsheetId}
+
+## Your Mission
+
+You've been called in to diagnose a spreadsheet with quality issues. Users are reporting problems, but don't know the root causes.
+
+## Investigation Process
+
+**Step 1: Gather Evidence**
+\`\`\`
+sheets_analyze action:"scout"
+  spreadsheetId:"${spreadsheetId}"
+\`\`\`
+
+Quick overview (~200ms):
+- Overall quality score
+- Top 3 issues by impact
+- Recommended next steps
+
+**Step 2: Deep Dive**
+If quality <80%, run comprehensive analysis:
+\`\`\`
+sheets_analyze action:"comprehensive"
+  spreadsheetId:"${spreadsheetId}"
+\`\`\`
+
+Detailed breakdown:
+- All 15 quality dimensions
+- Cell-level examples
+- Root cause identification
+
+**Step 3: Diagnose Root Causes**
+
+Common quality patterns:
+- **Mixed data types**: Numbers stored as text
+- **Inconsistent formats**: Multiple date formats
+- **Formula errors**: #REF!, #DIV/0!, #N/A
+- **Duplicate rows**: Exact or fuzzy duplicates
+- **Outliers**: Values outside normal range
+- **Missing values**: Empty cells in critical columns
+
+**Step 4: Prioritize Fixes**
+
+Use impact score to prioritize:
+\`\`\`
+sheets_quality action:"analyze_impact"
+  spreadsheetId:"${spreadsheetId}"
+\`\`\`
+
+Returns:
+- Estimated fix time
+- Quality improvement projection
+- Dependency analysis
+
+**Step 5: Preview Solutions**
+\`\`\`
+sheets_fix action:"preview"
+  spreadsheetId:"${spreadsheetId}"
+  issueType:"mixed_types"
+\`\`\`
+
+See exact changes before applying
+
+**Step 6: Execute Fixes**
+\`\`\`
+sheets_fix action:"fix_all"
+  spreadsheetId:"${spreadsheetId}"
+  preview:false
+\`\`\`
+
+Apply all high-impact fixes
+
+**Step 7: Verify Improvement**
+\`\`\`
+sheets_analyze action:"scout"
+  spreadsheetId:"${spreadsheetId}"
+\`\`\`
+
+Confirm quality score improved
+
+## Scoring Rubric
+
+- **30 points**: Correct root cause diagnosis
+- **30 points**: Optimal tool selection for fixes
+- **30 points**: Complete resolution (quality >80%)
+- **10 points**: Efficient approach (<5 operations)
+
+## 🎯 Detective Tips
+
+1. Start with scout for quick triage
+2. Use comprehensive only if needed (slower)
+3. Check analyze_impact before fixing (prioritize high-impact)
+4. Always preview fixes first (avoid surprises)
+5. Re-analyze after fixes (verify improvement)
+
+## 🚨 Common Mistakes
+
+- ❌ Fixing low-impact issues first
+- ❌ Skipping preview mode
+- ❌ Not re-analyzing after fixes
+- ❌ Treating all issues equally
+
+## Ready to Investigate?
+
+Run your first command and tell me what you find. I'll guide you through the diagnosis process and reveal the actual issues after you've made your assessment.
+
+Good luck, detective! 🕵️`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'challenge_performance_profiler',
+    {
+      description: '⚡ Identify and fix performance bottlenecks',
+      argsSchema: ChallengePerformanceProfilerPromptArgsSchema,
+    },
+    async ({ spreadsheetId }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# ⚡ Performance Profiler Challenge
+
+**Target Spreadsheet:** ${spreadsheetId}
+
+## The Situation
+
+Users are complaining that the spreadsheet is slow:
+- Operations take >5 seconds
+- Typing has noticeable lag
+- Multiple users experience freezes
+
+Your job: Profile, diagnose, and fix performance issues.
+
+## Challenge Goal
+
+**Target Improvements:**
+- Reduce operation time by >40%
+- Reduce formula recalculation time by >50%
+- Achieve quality score >80%
+
+**Time Limit:** 15 minutes
+
+## Profiling Checklist
+
+**⬜ Step 1: Baseline Measurement**
+\`\`\`
+sheets_analyze action:"analyze_performance"
+  spreadsheetId:"${spreadsheetId}"
+  checkFormulas:true
+  checkVolatility:true
+\`\`\`
+
+Record:
+- Current operation time: ___ms
+- Volatile function count: ___
+- Formula complexity: ___
+- Quality score: ___%
+
+**⬜ Step 2: Identify Top 3 Bottlenecks**
+
+Analyze results and rank:
+1. Bottleneck #1: ___ (estimated impact: __%)
+2. Bottleneck #2: ___ (estimated impact: __%)
+3. Bottleneck #3: ___ (estimated impact: __%)
+
+Common bottlenecks:
+- Too many volatile functions (NOW, RAND)
+- Slow array formulas on large data
+- IMPORTRANGE in many cells
+- >50 protected ranges
+- Complex nested formulas (>5 levels)
+
+**⬜ Step 3: Propose Optimization Strategy**
+
+For each bottleneck, propose:
+- Specific optimization approach
+- Expected improvement (%)
+- Implementation complexity (low/medium/high)
+- Tools needed (sheets_fix, sheets_advanced, sheets_appsscript)
+
+**⬜ Step 4: Implement Optimizations**
+
+Execute your strategy:
+- Always preview before applying
+- Implement highest-impact optimizations first
+- Test after each change
+
+**⬜ Step 5: Measure Improvements**
+
+Re-run performance analysis:
+\`\`\`
+sheets_analyze action:"analyze_performance"
+  spreadsheetId:"${spreadsheetId}"
+  checkFormulas:true
+  checkVolatility:true
+\`\`\`
+
+Calculate improvements:
+- Operation time improvement: ___%
+- Formula recalc improvement: ___%
+- Quality improvement: ___pts
+
+## Optimization Techniques
+
+**Technique 1: Consolidate Volatile Functions**
+Before: =NOW() in 50 cells
+After: =NOW() in 1 cell, reference elsewhere
+Improvement: ~98% reduction in recalculations
+
+**Technique 2: Replace ARRAYFORMULA with QUERY**
+Before: =ARRAYFORMULA(VLOOKUP(...))
+After: =QUERY(...)
+Improvement: ~6x faster
+
+**Technique 3: Add Named Ranges**
+Before: Direct cell references (break on column insert)
+After: Named ranges (stable, faster lookup)
+Improvement: ~20% faster formula evaluation
+
+**Technique 4: Batch Operations**
+Before: Multiple individual writes
+After: sheets_transaction
+Improvement: ~80% quota savings, ~90% time savings
+
+**Technique 5: Helper Columns**
+Before: Complex nested formulas
+After: Intermediate calculations in helper columns
+Improvement: ~50% faster, easier to debug
+
+## Scoring
+
+**Bonus Points:**
+- >60% improvement across all metrics: +20 pts
+- <3 operations to achieve goal: +10 pts
+- Zero quality degradation: +5 pts
+
+## 🎯 Profiler Tips
+
+1. Use analyze_performance first (don't guess)
+2. Focus on high-impact optimizations
+3. Measure after EACH change (track progress)
+4. Don't over-optimize (diminishing returns)
+5. Balance performance vs maintainability
+
+## 🚨 Common Pitfalls
+
+- ❌ Optimizing low-impact areas
+- ❌ Breaking formulas while optimizing
+- ❌ Not testing after each change
+- ❌ Over-complicating solutions
+
+## Ready to Profile?
+
+Run your baseline measurement and tell me what you find. I'll track your progress and reveal optimization opportunities.
+
+Timer starts now! ⏱️`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'scenario_multi_user',
+    {
+      description: '👥 Resolve concurrent editing conflicts',
+      argsSchema: ScenarioMultiUserPromptArgsSchema,
+    },
+    async ({ spreadsheetId, scenario }) => {
+      const selectedScenario = scenario || 'conflict_resolution';
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `# 👥 Multi-User Collaboration Scenario
+
+**Spreadsheet:** ${spreadsheetId}
+**Scenario:** ${selectedScenario.replace(/_/g, ' ').toUpperCase()}
+
+${
+  selectedScenario === 'conflict_resolution'
+    ? `
+## Situation
+
+You manage a sales tracking spreadsheet used by 12 team members simultaneously. Recent issues:
+
+1. Sales reps accidentally overwriting each other's data
+2. Manager-only summary formulas being deleted
+3. No way to see who changed what
+4. Can't revert incorrect changes
+
+## Stakeholders
+
+**Sales Reps (10 users)**
+- Need: Add their own sales data
+- Problem: Can't tell if they're overwriting someone else's entry
+- Frustration: "I spent 30 minutes entering data and someone deleted it"
+
+**Sales Manager (1 user)**
+- Need: Protected summary section with formulas
+- Problem: Reps accidentally edit summary formulas
+- Frustration: "I have to fix broken formulas every day"
+
+**Admin (1 user)**
+- Need: Full control + audit trail
+- Problem: No visibility into who changed what
+- Frustration: "I can't find who deleted important data"
+
+## Your Task
+
+Design a solution that:
+1. Prevents accidental overwrites
+2. Protects manager formulas
+3. Maintains audit trail
+4. Allows easy rollback
+
+## Available Tools
+
+**Option 1: Protected Ranges**
+\`\`\`
+sheets_advanced action:"add_protected_range"
+  spreadsheetId:"${spreadsheetId}"
+  range:"Summary!A1:Z100"
+  editors:["manager@company.com"]
+\`\`\`
+
+**Option 2: Version Snapshots**
+\`\`\`
+sheets_collaborate action:"create_snapshot"
+  spreadsheetId:"${spreadsheetId}"
+  description:"Before daily edit session"
+\`\`\`
+
+**Option 3: Change Notifications**
+\`\`\`
+sheets_webhook action:"register"
+  spreadsheetId:"${spreadsheetId}"
+  events:["SHEET_MODIFIED"]
+  handler:"notify_admin"
+\`\`\`
+
+**Option 4: Confirmation Workflows**
+\`\`\`
+sheets_confirm action:"require_confirmation"
+  operation:"delete_rows"
+  minimumRows:5
+\`\`\`
+
+## Solution Requirements
+
+**Must have:**
+- Row-level protection (each rep owns their rows)
+- Summary section fully protected
+- Automatic daily snapshots
+- Change notification to admin
+
+**Nice to have:**
+- Visual indicators of protected cells
+- Undo history (last 10 changes)
+- Conflict detection warnings
+
+## Your Deliverable
+
+1. **Architecture Diagram** (text format showing layers)
+2. **Implementation Plan** (step-by-step with tool calls)
+3. **Trade-offs** (pros/cons of your approach)
+4. **Rollback Strategy** (how to revert if issues arise)
+
+## Example Architecture
+
+\`\`\`
+Layer 1: Base Protection
+├─ Protect Summary!A1:Z100 (Manager only)
+├─ Protect Headers Row 1 (Admin only)
+└─ Sales Data Rows 2-1000 (Any authenticated user)
+
+Layer 2: Row Ownership
+├─ Each rep assigned specific rows
+├─ Can edit only their rows
+└─ Read-only access to others' rows
+
+Layer 3: Audit & Rollback
+├─ Daily snapshots (keep 30 days)
+├─ Webhook notifications on delete >5 rows
+└─ Version history tracking
+
+Layer 4: User Experience
+├─ Color-code rows by owner
+├─ Add "Owner" column
+└─ Confirmation on bulk delete
+\`\`\`
+
+Start designing your solution!
+`
+    : ''
+}${
+                selectedScenario === 'protection_strategy'
+                  ? `
+## Situation
+
+A financial planning spreadsheet contains:
+- Public sections (everyone can edit)
+- Team sections (specific teams only)
+- Executive sections (C-suite only)
+- Formula sections (read-only for all)
+
+Currently: No protection, frequent accidental edits, formulas broken weekly.
+
+## Requirements
+
+**Public Sections:**
+- Input forms (rows 5-100)
+- Anyone can add data
+- Cannot delete others' data
+
+**Team Sections:**
+- Marketing data (rows 200-300, marketing team only)
+- Sales data (rows 400-500, sales team only)
+- Engineering data (rows 600-700, engineering team only)
+
+**Executive Sections:**
+- Budget summary (rows 900-950, C-suite only)
+- Financial projections (rows 1000-1050, CFO only)
+
+**Formula Sections:**
+- Summary calculations (columns Z-AE, read-only)
+- Validation formulas (column AZ, read-only)
+
+## Your Task
+
+Design granular protection strategy:
+1. Map all protection zones
+2. Assign editor groups
+3. Implement protection rules
+4. Test access levels
+
+## Implementation Pattern
+
+\`\`\`
+# Step 1: Public Input Protection
+sheets_advanced action:"add_protected_range"
+  range:"A5:Y100"
+  warningOnly:true
+  description:"Public input area"
+
+# Step 2: Team-Specific Protection
+sheets_advanced action:"add_protected_range"
+  range:"A200:Y300"
+  editors:["marketing@company.com", "marketing-team@company.com"]
+  description:"Marketing team data"
+
+# Step 3: Executive Protection
+sheets_advanced action:"add_protected_range"
+  range:"A900:Y950"
+  editors:["ceo@company.com", "cfo@company.com", "coo@company.com"]
+  description:"Executive summary"
+
+# Step 4: Formula Protection
+sheets_advanced action:"add_protected_range"
+  range:"Z:AE"
+  description:"Calculation formulas - READ ONLY"
+\`\`\`
+
+Design your comprehensive protection strategy!
+`
+                  : ''
+              }${
+                selectedScenario === 'version_control'
+                  ? `
+## Situation
+
+A project tracking spreadsheet is updated by multiple team members throughout the day:
+
+**Current Problems:**
+1. No way to see what changed between morning and evening
+2. Can't revert to "last known good state"
+3. No approval process for major changes
+4. Lost data from accidental bulk deletes
+
+**Requirements:**
+1. Automatic snapshots every 4 hours
+2. Manual snapshots before major changes
+3. Easy comparison between versions
+4. One-click rollback to any snapshot
+5. Approval workflow for changes affecting >100 cells
+
+## Your Task
+
+Implement version control system:
+1. Snapshot schedule
+2. Comparison mechanism
+3. Rollback procedure
+4. Approval workflow
+
+## Implementation Pattern
+
+**Pattern 1: Scheduled Snapshots**
+\`\`\`
+sheets_appsscript action:"time_trigger"
+  interval:"4 hours"
+  operation:"create_snapshot"
+  spreadsheetId:"${spreadsheetId}"
+\`\`\`
+
+**Pattern 2: Pre-Change Snapshot**
+\`\`\`
+# Before any major operation
+sheets_collaborate action:"create_snapshot"
+  description:"Before data import - \${new Date()}"
+
+# Perform operation
+sheets_data action:"write" ...
+
+# Verify
+sheets_analyze action:"scout"
+
+# Rollback if needed
+if (quality_dropped) {
+  sheets_collaborate action:"restore_snapshot"
+  snapshotId:"latest"
+}
+\`\`\`
+
+**Pattern 3: Version Comparison**
+\`\`\`
+sheets_collaborate action:"compare_versions"
+  baseSnapshot:"morning-snapshot"
+  targetSnapshot:"current"
+
+Returns:
+- Cells changed: 247
+- Rows added: 12
+- Rows deleted: 3
+- Formulas modified: 8
+\`\`\`
+
+**Pattern 4: Approval Workflow**
+\`\`\`
+sheets_confirm action:"require_approval"
+  threshold:100
+  approvers:["manager@company.com"]
+  message:"Change affects \${cellCount} cells. Manager approval required."
+\`\`\`
+
+Build your version control workflow!
+`
+                  : ''
+              }
+
+## 🎯 Success Criteria
+
+Your solution should:
+✅ Solve the stated problem completely
+✅ Be implementable with available tools
+✅ Consider all stakeholder needs
+✅ Include rollback/recovery plan
+✅ Be maintainable long-term
+
+## 📊 Evaluation
+
+I'll assess your solution on:
+- **Completeness**: Addresses all requirements (40pts)
+- **Feasibility**: Can be implemented with ServalSheets (30pts)
+- **Trade-offs**: Acknowledges pros/cons (20pts)
+- **Rollback**: Clear recovery strategy (10pts)
+
+## 💡 Collaboration Tips
+
+1. Start with stakeholder analysis (who needs what)
+2. Map protection zones before implementing
+3. Test with sample users (different roles)
+4. Document for future maintainers
+5. Plan for edge cases (what if...)
+
+Present your solution and I'll provide feedback on feasibility and improvements! 👥`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  // === CONTEXT-AWARE AND CHAINED WORKFLOW PROMPTS (Phase 3: Improvement Plan) ===
+
+  server.registerPrompt(
+    'auto_analyze',
+    {
+      description:
+        '🔮 Auto-detect spreadsheet type and suggest best workflows, resources, and prompts',
+      argsSchema: AutoAnalyzePromptArgsSchema,
+    },
+    async ({ spreadsheetId }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔮 Auto-Analyzing spreadsheet: ${spreadsheetId}
+
+## Analysis Workflow
+
+1. **Get Metadata**
+   - sheets_core action "get" to retrieve spreadsheet metadata
+   - Examine sheet names and structure
+
+2. **Analyze Structure**
+   - sheets_analyze action "analyze_structure" for detailed analysis
+   - Identify column headers and data patterns
+
+3. **Detect Spreadsheet Type**
+   Based on detected patterns, classify as one of:
+   - **Budget**: Has "income", "expense", "balance", "category" columns
+   - **CRM**: Has "name", "email", "phone", "company", "deal" columns
+   - **Inventory**: Has "SKU", "quantity", "price", "stock", "reorder" columns
+   - **Project**: Has "task", "status", "due date", "assignee", "milestone" columns
+   - **Sales**: Has "customer", "product", "amount", "date", "stage" columns
+   - **Marketing**: Has "campaign", "channel", "spend", "impressions", "conversions" columns
+
+## After Detection, Recommend
+
+### Knowledge Resources
+Based on the detected type, suggest the 3 most relevant:
+- knowledge:// resources (templates, formulas, schemas)
+
+### Best Prompts
+Suggest prompts that match the spreadsheet type:
+- For Budget: setup_budget, performance_audit
+- For CRM: setup_collaboration, diagnose_errors
+- For Inventory: bulk_import, transform_data
+- For Project: create_report, setup_collaboration
+- For Sales: create_visualization, performance_audit
+- For Marketing: create_report, clean_data
+
+### Optimal Tool Sequences
+Provide a recommended workflow based on common patterns:
+- Read → Analyze → Recommend → Apply
+
+## Output Format
+
+Provide your findings in this format:
+1. **Detected Type**: [Type with confidence %]
+2. **Key Columns**: [List of detected headers]
+3. **Recommended Knowledge**: [3 resource URIs]
+4. **Suggested Prompts**: [3 prompt names]
+5. **Next Steps**: [Recommended action sequence]`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'full_setup',
+    {
+      description: '🚀 Complete spreadsheet setup: create, format, populate, and share',
+      argsSchema: FullSetupPromptArgsSchema,
+    },
+    async ({ type, name, collaborators }) => {
+      const typeTemplates: Record<string, { knowledge: string; formulas: string }> = {
+        budget: { knowledge: 'templates/finance', formulas: 'formulas/financial' },
+        crm: { knowledge: 'templates/crm', formulas: 'formulas/lookup' },
+        inventory: { knowledge: 'templates/inventory', formulas: 'formulas/lookup' },
+        project: { knowledge: 'templates/project', formulas: 'formulas/datetime' },
+        sales: { knowledge: 'templates/sales', formulas: 'formulas/financial' },
+        marketing: { knowledge: 'templates/marketing', formulas: 'formulas/advanced' },
+      };
+
+      const defaultTemplate = { knowledge: 'templates/finance', formulas: 'formulas/financial' };
+      const template = typeTemplates[type as keyof typeof typeTemplates] ?? defaultTemplate;
+      const knowledgePath = template.knowledge;
+      const formulasPath = template.formulas;
+      const collaboratorList = collaborators?.length
+        ? collaborators.join(', ')
+        : '(none specified)';
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🚀 Full Setup: Creating ${type.toUpperCase()} spreadsheet "${name}"
+
+## 5-Step Workflow
+
+### Step 1: Create Spreadsheet
+- Use sheets_core action "create" with title "${name}"
+- Remember the spreadsheetId for subsequent steps
+
+### Step 2: Apply Template
+- Read template from knowledge:///${knowledgePath}.json
+- Use sheets_composite action "setup_sheet" with the schema
+- This creates all necessary sheets and headers
+
+### Step 3: Add Formulas
+- Read formulas from knowledge:///${formulasPath}.json
+- Apply relevant formulas to calculation columns
+- Focus on:
+  - Summary calculations
+  - Conditional aggregations
+  - Cross-reference lookups
+
+### Step 4: Format
+- Use sheets_format action "apply_preset" for headers
+- Add conditional formatting for key metrics:
+  - Green for positive values
+  - Red for negative values
+  - Yellow for warnings
+- Auto-fit columns using sheets_dimensions
+
+### Step 5: Share
+- Collaborators: ${collaboratorList}
+${
+  collaborators?.length
+    ? `- Use sheets_collaborate action "share_add" for each collaborator
+- Set appropriate permissions based on role`
+    : '- Skip sharing (no collaborators specified)'
+}
+
+## Safety Measures
+- Use sheets_confirm before any destructive operations
+- Create snapshot after setup complete using sheets_history action "create_snapshot"
+- Verify all formulas work correctly
+
+## Resources to Reference
+- Template: knowledge:///${knowledgePath}.json
+- Formulas: knowledge:///${formulasPath}.json
+- Guide: servalsheets://guides/batching-strategies
+
+Ready to execute this setup workflow? I'll guide you through each step.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'audit_security',
+    {
+      description: '🔒 Security and permissions audit for a spreadsheet',
+      argsSchema: AuditSecurityPromptArgsSchema,
+    },
+    async ({ spreadsheetId }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔒 Security Audit for Spreadsheet: ${spreadsheetId}
+
+## Audit Checklist
+
+### 1. Permissions Review
+- Use sheets_collaborate action "share_list" to get current permissions
+- Analyze:
+  - [ ] Who has Owner access?
+  - [ ] Who has Editor access?
+  - [ ] Who has Viewer access?
+  - [ ] Are there any link-shared permissions?
+  - [ ] Are there any domain-wide permissions?
+
+### 2. Protection Analysis
+- Use sheets_advanced action "protection_list" to check protections
+- Review:
+  - [ ] Which sheets are protected?
+  - [ ] Which ranges are protected?
+  - [ ] Who can edit protected areas?
+  - [ ] Are there any unprotected sensitive areas?
+
+### 3. Data Sensitivity Check
+- Use sheets_analyze action "analyze_structure" for content analysis
+- Flag potential PII:
+  - [ ] Email addresses
+  - [ ] Phone numbers
+  - [ ] Social security numbers
+  - [ ] Financial account numbers
+  - [ ] Addresses
+
+### 4. History and Audit Trail
+- Use sheets_collaborate action "version_list" to check revision history
+- Verify:
+  - [ ] Is revision history enabled?
+  - [ ] Who made recent changes?
+  - [ ] Are there any suspicious modifications?
+
+## Security Recommendations
+
+Based on findings, suggest:
+1. **Permission adjustments** (who should have access)
+2. **Protection additions** (what should be protected)
+3. **Data handling** (PII masking or removal)
+4. **Audit improvements** (notification setup)
+
+## Reference
+- Guide: knowledge:///masterclass/security-compliance-master.json
+- Patterns: servalsheets://decisions/tool-selection
+
+Please proceed with this security audit and provide a comprehensive report.`,
+            },
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerPrompt(
+    'compare_spreadsheets',
+    {
+      description: '🔍 Compare and diff two spreadsheets',
+      argsSchema: CompareSpreadsheetPromptArgsSchema,
+    },
+    async ({ spreadsheetId1, spreadsheetId2 }) => {
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `🔍 Comparing Spreadsheets
+
+**Spreadsheet A:** ${spreadsheetId1}
+**Spreadsheet B:** ${spreadsheetId2}
+
+## Comparison Workflow
+
+### Step 1: Get Metadata
+- Use sheets_core action "get" on both spreadsheets
+- Compare:
+  - [ ] Spreadsheet titles
+  - [ ] Sheet names and count
+  - [ ] Last modified dates
+
+### Step 2: Compare Structure
+- Use sheets_analyze action "analyze_structure" on both
+- Compare:
+  - [ ] Column headers
+  - [ ] Data types per column
+  - [ ] Row counts
+  - [ ] Named ranges
+
+### Step 3: Compare Data
+For each matching sheet:
+- Use sheets_data action "batch_read" to get data ranges
+- Compare:
+  - [ ] Cell values (identify differences)
+  - [ ] Formulas (identify formula changes)
+  - [ ] Formatting differences (if visible)
+
+### Step 4: Identify Differences
+
+Output a comparison report:
+
+\`\`\`
+COMPARISON REPORT
+=================
+
+Structural Differences:
+- Sheets only in A: [list]
+- Sheets only in B: [list]
+- Column differences: [details]
+
+Data Differences:
+- Modified cells: [count]
+- Added rows: [count in A] vs [count in B]
+- Deleted rows: [comparison]
+
+Formula Changes:
+- [Cell]: [Old Formula] → [New Formula]
+
+Summary:
+- Overall similarity: [percentage]
+- Key changes: [summary]
+\`\`\`
+
+## Use Cases
+- Version comparison (before/after changes)
+- Template vs instance comparison
+- Data migration validation
+- Parallel edit reconciliation
+
+Please proceed with this comparison and provide a detailed diff report.`,
             },
           },
         ],

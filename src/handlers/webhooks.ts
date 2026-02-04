@@ -291,6 +291,23 @@ export class WebhookHandler {
       const totalFailures = webhooks.reduce((sum, w) => sum + (w?.failureCount || 0), 0);
       const activeWebhooks = webhooks.filter((w) => w?.active).length;
 
+      // Phase 4.2A: Get event type breakdown for specific webhook
+      let eventTypeBreakdown;
+      if (input.webhookId) {
+        const eventStats = await manager.getEventStats(input.webhookId);
+        if (eventStats) {
+          eventTypeBreakdown = Object.entries(eventStats).map(([eventType, counts]) => ({
+            eventType,
+            detectedCount: counts.detected,
+            deliveredCount: counts.delivered,
+            filteringEfficiency:
+              counts.detected > 0
+                ? ((counts.detected - counts.delivered) / counts.detected) * 100
+                : 0,
+          }));
+        }
+      }
+
       const stats = {
         totalWebhooks: webhooks.length,
         activeWebhooks,
@@ -299,6 +316,7 @@ export class WebhookHandler {
         failedDeliveries: totalFailures,
         pendingDeliveries: queueStats.pendingCount,
         averageDeliveryTimeMs: 0, // Would need to track delivery times
+        eventTypeBreakdown, // Phase 4.2A: Event type stats (only for specific webhook)
         webhookStats: input.webhookId
           ? undefined
           : webhooks.map((w) => ({

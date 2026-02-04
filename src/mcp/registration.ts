@@ -13,7 +13,10 @@ export { TOOL_DEFINITIONS } from './registration/tool-definitions.js';
 
 export {
   prepareSchemaForRegistration,
+  prepareSchemaForRegistrationCached,
   verifySchemaIfNeeded,
+  getCachedPreparedSchema,
+  getPreparedSchemaCacheSize,
 } from './registration/schema-helpers.js';
 
 export {

@@ -1,3 +1,12 @@
+---
+title: Docker Deployment
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets using Docker for quick setup and easy management.
+version: 1.6.0
+tags: [deployment, docker, kubernetes]
+---
+
 # Docker Deployment
 
 Deploy ServalSheets using Docker for quick setup and easy management.

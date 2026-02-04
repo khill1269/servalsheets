@@ -1,3 +1,11 @@
+---
+title: Formatting Guide
+category: example
+last_updated: 2026-01-31
+description: Master cell formatting, number formats, colors, and text styling in ServalSheets.
+version: 1.6.0
+---
+
 # Formatting Guide
 
 Master cell formatting, number formats, colors, and text styling in ServalSheets.
@@ -5,6 +13,7 @@ Master cell formatting, number formats, colors, and text styling in ServalSheets
 ## Overview
 
 This guide covers:
+
 - Cell formatting (colors, borders, alignment)
 - Number formats (currency, percentages, dates)
 - Text styling (bold, italic, fonts)
@@ -27,10 +36,11 @@ This guide covers:
 Format cell A1 in spreadsheet "1abc...xyz" with light blue background
 ```
 
-**Behind the scenes**: ServalSheets uses the `sheets_formatting` tool with `set_format` action:
+**Behind the scenes**: ServalSheets uses the `sheets_format` tool with `set_format` action:
+
 ```json
 {
-  "tool": "sheets_formatting",
+  "tool": "sheets_format",
   "action": "set_format",
   "spreadsheetId": "1abc...xyz",
   "range": "A1",
@@ -55,6 +65,7 @@ Format range A1:A10 in spreadsheet "1abc...xyz" with dark red text
 ```
 
 **Common colors**:
+
 - Red: `{"red": 1.0, "green": 0.0, "blue": 0.0}`
 - Green: `{"red": 0.0, "green": 1.0, "blue": 0.0}`
 - Blue: `{"red": 0.0, "green": 0.0, "blue": 1.0}`
@@ -70,12 +81,14 @@ Add a solid black border around range A1:D10 in spreadsheet "1abc...xyz"
 ```
 
 **Border styles**:
+
 - `SOLID` - Single solid line
 - `DOTTED` - Dotted line
 - `DASHED` - Dashed line
 - `DOUBLE` - Double line
 
 **Border positions**:
+
 - `top`, `bottom`, `left`, `right` - Outer edges
 - `innerHorizontal`, `innerVertical` - Internal grid
 
@@ -99,6 +112,7 @@ Enable text wrapping for cells A1:A20 in spreadsheet "1abc...xyz"
 ```
 
 **Wrap strategies**:
+
 - `OVERFLOW_CELL` - Text overflows into adjacent cells (default)
 - `WRAP` - Text wraps within the cell
 - `CLIP` - Text is clipped at cell boundary
@@ -114,6 +128,7 @@ Format range B2:B10 in spreadsheet "1abc...xyz" as USD currency
 ```
 
 **Behind the scenes**:
+
 ```json
 {
   "format": {
@@ -126,6 +141,7 @@ Format range B2:B10 in spreadsheet "1abc...xyz" as USD currency
 ```
 
 **Currency patterns**:
+
 - US Dollar: `$#,##0.00`
 - Euro: `€#,##0.00`
 - British Pound: `£#,##0.00`
@@ -152,12 +168,14 @@ Format range D2:D10 in spreadsheet "1abc...xyz" as dates in MM/DD/YYYY format
 ```
 
 **Common date patterns**:
+
 - `MM/DD/YYYY` - 01/30/2026
 - `YYYY-MM-DD` - 2026-01-30
 - `DD-MMM-YYYY` - 30-Jan-2026
 - `MMMM D, YYYY` - January 30, 2026
 
 **Time patterns**:
+
 - `HH:MM:SS` - 14:30:45
 - `HH:MM AM/PM` - 02:30 PM
 - `HH:MM:SS.000` - 14:30:45.123
@@ -171,6 +189,7 @@ Format range E2:E10 in spreadsheet "1abc...xyz" with pattern "#,##0.000"
 ```
 
 **Pattern components**:
+
 - `#` - Optional digit
 - `0` - Required digit (shows zero if empty)
 - `,` - Thousands separator
@@ -191,6 +210,7 @@ Make range A1:E1 in spreadsheet "1abc...xyz" bold
 ```
 
 **Text styles**:
+
 - Bold: `"bold": true`
 - Italic: `"italic": true`
 - Underline: `"underline": true`
@@ -205,6 +225,7 @@ Format range A1:E1 in spreadsheet "1abc...xyz" with Arial font at 12pt size
 ```
 
 **Common fonts**:
+
 - Arial
 - Times New Roman
 - Courier New
@@ -349,24 +370,28 @@ Apply alternating row colors to range A1:E20 in spreadsheet "1abc...xyz":
 ## Format Templates
 
 ### Professional Header Style
+
 ```
 Format: Bold, 12pt, dark blue background, white text, center aligned
 Use for: Table headers, section titles
 ```
 
 ### Currency Table Style
+
 ```
 Format: Currency pattern, right aligned, alternating row colors
 Use for: Financial data, budgets, pricing tables
 ```
 
 ### Status Indicator Style
+
 ```
 Format: Conditional formatting (Green=Active, Yellow=Pending, Red=Error)
 Use for: Status columns, health indicators
 ```
 
 ### Date Column Style
+
 ```
 Format: YYYY-MM-DD pattern, center aligned, light blue background
 Use for: Date tracking, timelines, schedules
@@ -398,6 +423,7 @@ Use for: Date tracking, timelines, schedules
 ## Common Patterns
 
 ### Financial Report Formatting
+
 ```
 1. Header row: Bold, colored background
 2. Data rows: Currency format, right aligned
@@ -406,6 +432,7 @@ Use for: Date tracking, timelines, schedules
 ```
 
 ### Dashboard Formatting
+
 ```
 1. KPI cells: Large font, center aligned, colored background
 2. Conditional formats for thresholds
@@ -414,6 +441,7 @@ Use for: Date tracking, timelines, schedules
 ```
 
 ### Data Entry Form Formatting
+
 ```
 1. Label columns: Bold, light background
 2. Input columns: White background, data validation
@@ -448,6 +476,7 @@ Use for: Date tracking, timelines, schedules
 ## Reference Files
 
 For advanced formatting examples, see:
+
 - `format-examples.json` - Complete formatting specifications
 - `advanced-examples.json` - Complex formatting patterns
 - `dimensions-examples.json` - Row/column dimension examples

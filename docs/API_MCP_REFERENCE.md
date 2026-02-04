@@ -1,8 +1,17 @@
+---
+title: 'ServalSheets: Google Sheets API v4 & MCP Protocol Reference'
+category: general
+last_updated: 2026-01-31
+description: Comprehensive reference for Google Sheets API v4 and MCP protocol integration
+version: 1.6.0
+tags: [api, mcp, sheets]
+---
+
 # ServalSheets: Google Sheets API v4 & MCP Protocol Reference
 
-**Version**: 1.4.0
+**Version**: 1.6.0
 **MCP Protocol**: 2025-11-25
-**Last Updated**: 2026-01-17
+**Last Updated**: 2026-01-31
 
 This document provides the authoritative reference for how ServalSheets integrates with Google Sheets API v4 and implements the MCP protocol, based on comprehensive codebase analysis.
 
@@ -55,11 +64,13 @@ static addNamedRange(
 ```
 
 **✅ DO:**
+
 - Use static factory methods from `RequestBuilder`
 - Return `WrappedRequest` with both request and metadata
 - Use `sheets_v4.Schema$*` types from googleapis
 
 **❌ DON'T:**
+
 - Manually construct request objects
 - Use JSON.stringify in request building
 - Create custom type definitions
@@ -87,6 +98,7 @@ const response = await sheetsApi.spreadsheets.batchUpdate({
 ```
 
 **Key Requirements:**
+
 - ✅ 9MB payload limit enforced (MAX_PAYLOAD_SIZE)
 - ✅ Groups requests by spreadsheetId
 - ✅ Validates before execution
@@ -115,11 +127,13 @@ const response = await this.sheetsApi.spreadsheets.batchUpdate({
 ```
 
 **✅ DO:**
+
 - Pass `requestBody` as direct object
 - Use helper functions (`toGridRange`, `parseRange`)
 - Extract response metadata immediately
 
 **❌ DON'T:**
+
 - JSON.stringify the requestBody
 - Construct GridRange objects manually
 - Skip response parsing
@@ -194,6 +208,7 @@ static parseBatchUpdateResponse(
 ```
 
 **Phase 3 Optimization**: This eliminates the compensatory diff pattern:
+
 - **OLD**: 3 API calls (before-capture → mutation → after-capture)
 - **NEW**: 1 API call (mutation → parse response metadata)
 - **Savings**: 66% reduction in API calls
@@ -246,12 +261,14 @@ Google Sheets API errors are mapped to structured error codes:
 ```
 
 **✅ DO:**
+
 - Use structured error codes from `ErrorCode` enum
 - Set `retryable` flag appropriately
 - Provide `retryAfterMs` for rate limits
 - Log all errors with context
 
 **❌ DON'T:**
+
 - Return generic "Error" objects
 - Silent fallbacks (return `{}` without logging)
 - Skip the retryable flag
@@ -281,13 +298,15 @@ export const SheetsAuthInputSchema = z.discriminatedUnion('action', [
 ```
 
 **Problem**: When handlers receive input, they expect:
+
 ```typescript
-input.action // Direct access
+input.action; // Direct access
 ```
 
 But MCP protocol expects:
+
 ```typescript
-input.request.action // Wrapped access
+input.request.action; // Wrapped access
 ```
 
 #### Required Implementation (CORRECT)
@@ -302,7 +321,7 @@ export const SheetsAuthInputSchema = z.object({
     LoginActionSchema,
     CallbackActionSchema,
     LogoutActionSchema,
-  ])
+  ]),
 });
 
 // Output schema (discriminated on success)
@@ -316,12 +335,13 @@ export const SheetsAuthOutputSchema = z.object({
     z.object({
       success: z.literal(false),
       error: ErrorDetailSchema,
-    })
-  ])
+    }),
+  ]),
 });
 ```
 
 **Handler Update Required**:
+
 ```typescript
 // Current (incorrect)
 async handle(input: SheetsAuthInput): Promise<SheetsAuthOutput> {
@@ -366,10 +386,12 @@ function buildToolResponse(result: unknown): CallToolResult {
 
   // MCP 2025-11-25 compliant format
   return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(structuredContent, null, 2)
-    }],
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(structuredContent, null, 2),
+      },
+    ],
     structuredContent: structuredContent,
     isError: isErrorResponse ? true : undefined,
   };
@@ -377,6 +399,7 @@ function buildToolResponse(result: unknown): CallToolResult {
 ```
 
 **Requirements**:
+
 - ✅ `content` array with text block containing JSON string
 - ✅ `structuredContent` matching the outputSchema
 - ✅ `isError: true` only on errors (undefined on success)
@@ -412,11 +435,13 @@ private registerTools(): void {
 ```
 
 **✅ DO:**
+
 - Keep Zod schemas as-is for registration
 - Let SDK handle JSON Schema conversion
 - Use `prepareSchemaForRegistration()` wrapper
 
 **❌ DON'T:**
+
 - Manually convert to JSON Schema before registration
 - Pass JSON Schema objects (causes "safeParseAsync is not a function")
 
@@ -442,7 +467,7 @@ export const ToolNameInputSchema = z.object({
       action: z.literal('another_action'),
       // ...
     }),
-  ])
+  ]),
 });
 
 export type ToolNameInput = z.infer<typeof ToolNameInputSchema>;
@@ -499,6 +524,7 @@ const ErrorDetailSchema = z.object({
 ### Example 1: Simple Read Operation
 
 **Input**:
+
 ```json
 {
   "request": {
@@ -510,6 +536,7 @@ const ErrorDetailSchema = z.object({
 ```
 
 **Google API Call**:
+
 ```typescript
 await sheetsApi.spreadsheets.values.get({
   spreadsheetId: '1BxiMVs0XRA5nFMdKUqnKDh9...',
@@ -518,6 +545,7 @@ await sheetsApi.spreadsheets.values.get({
 ```
 
 **Output (Success)**:
+
 ```json
 {
   "response": {
@@ -526,7 +554,7 @@ await sheetsApi.spreadsheets.values.get({
     "range": "Sheet1!A1:B10",
     "values": [
       ["Name", "Age"],
-      ["Alice", "30"],
+      ["Alice", "30"]
       // ...
     ],
     "rowCount": 10,
@@ -536,6 +564,7 @@ await sheetsApi.spreadsheets.values.get({
 ```
 
 **Output (Error)**:
+
 ```json
 {
   "response": {
@@ -552,6 +581,7 @@ await sheetsApi.spreadsheets.values.get({
 ### Example 2: Mutation with Response Metadata
 
 **Input**:
+
 ```json
 {
   "request": {
@@ -565,23 +595,27 @@ await sheetsApi.spreadsheets.values.get({
 ```
 
 **Google API Call**:
+
 ```typescript
 await sheetsApi.spreadsheets.batchUpdate({
   spreadsheetId: '1BxiMVs0XRA5nFMdKUqnKDh9...',
   requestBody: {
-    requests: [{
-      findReplace: {
-        find: 'old_value',
-        replacement: 'new_value',
-        matchCase: true,
-        allSheets: true,
-      }
-    }]
-  }
+    requests: [
+      {
+        findReplace: {
+          find: 'old_value',
+          replacement: 'new_value',
+          matchCase: true,
+          allSheets: true,
+        },
+      },
+    ],
+  },
 });
 ```
 
 **Google API Response**:
+
 ```typescript
 {
   spreadsheetId: '1BxiMVs0XRA5nFMdKUqnKDh9...',
@@ -598,6 +632,7 @@ await sheetsApi.spreadsheets.batchUpdate({
 ```
 
 **Parsed Output**:
+
 ```json
 {
   "response": {
@@ -618,6 +653,7 @@ await sheetsApi.spreadsheets.batchUpdate({
 ### Pitfall 1: Manual GridRange Construction
 
 **❌ WRONG**:
+
 ```typescript
 const gridRange = {
   sheetId: 123,
@@ -629,6 +665,7 @@ const gridRange = {
 ```
 
 **✅ CORRECT**:
+
 ```typescript
 const gridRange = await this.toGridRange(spreadsheetId, 'Sheet1!A1:E10');
 // Or
@@ -638,6 +675,7 @@ const gridRange = parseRange('Sheet1!A1:E10', sheetId);
 ### Pitfall 2: RGB Color Values (0-255 vs 0-1)
 
 **❌ WRONG**:
+
 ```typescript
 backgroundColor: {
   red: 255,    // Google API expects 0-1, not 0-255!
@@ -647,6 +685,7 @@ backgroundColor: {
 ```
 
 **✅ CORRECT**:
+
 ```typescript
 backgroundColor: {
   red: 1.0,    // 255/255 = 1.0
@@ -661,14 +700,16 @@ backgroundColor: normalizeRgb(255, 128, 0)
 ### Pitfall 3: Missing Payload Size Check
 
 **❌ WRONG**:
+
 ```typescript
 await sheetsApi.spreadsheets.batchUpdate({
   spreadsheetId,
-  requestBody: { requests } // No size check!
+  requestBody: { requests }, // No size check!
 });
 ```
 
 **✅ CORRECT**:
+
 ```typescript
 const payloadSize = JSON.stringify({ requests }).length;
 if (payloadSize > 9_000_000) {
@@ -684,6 +725,7 @@ await sheetsApi.spreadsheets.batchUpdate({
 ### Pitfall 4: Silent Fallbacks
 
 **❌ WRONG**:
+
 ```typescript
 async handle(input) {
   if (!input.spreadsheetId) {
@@ -693,6 +735,7 @@ async handle(input) {
 ```
 
 **✅ CORRECT**:
+
 ```typescript
 async handle(input) {
   if (!input.spreadsheetId) {
@@ -713,11 +756,13 @@ async handle(input) {
 ### Pitfall 5: Not Wrapping Schema Requests
 
 **❌ CURRENT (NEEDS FIX)**:
+
 ```typescript
 export const ToolInputSchema = z.discriminatedUnion('action', [...]);
 ```
 
 **✅ REQUIRED**:
+
 ```typescript
 export const ToolInputSchema = z.object({
   request: z.discriminatedUnion('action', [...])
@@ -769,7 +814,8 @@ Use `npm run validate:compliance` to check all 21 tools for:
 npm run validate:compliance
 ```
 
-Checks all 21 tools and 272 actions for:
+Checks all 21 tools and 293 actions for:
+
 - Schema structure compliance
 - Google API pattern adherence
 - Handler implementation quality
@@ -782,6 +828,7 @@ npm run check:drift
 ```
 
 Verifies synchronization between:
+
 - `package.json` tool/action counts
 - `src/schemas/index.ts` constants
 - `src/schemas/annotations.ts` per-tool breakdown
@@ -795,6 +842,7 @@ npm run check:silent-fallbacks
 ```
 
 Finds instances of `return {}` or `return undefined` without:
+
 - Proper error logging
 - `// OK: Explicit empty` comment
 
@@ -805,6 +853,7 @@ npm run verify
 ```
 
 Runs all checks:
+
 - TypeScript compilation (strict mode)
 - ESLint (code quality)
 - Vitest (1700+ tests)
@@ -817,44 +866,45 @@ Runs all checks:
 
 ## Quick Reference: File Locations
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| Request builders | `src/core/request-builder.ts` | Type-safe Google API request construction |
-| Response parser | `src/core/response-parser.ts` | Extract metadata from API responses |
-| Batch compiler | `src/core/batch-compiler.ts` | Group requests, validate payload, execute |
-| Tool definitions | `src/mcp/registration/tool-definitions.ts` | MCP tool registration |
-| Tool handlers | `src/mcp/registration/tool-handlers.ts` | Handler routing & response building |
-| Schema validation | `src/utils/schema-compat.ts` | Zod ↔ JSON Schema compatibility |
-| Compliance validator | `scripts/validate-api-mcp-compliance.ts` | Automated validation script |
+| Component            | File                                       | Purpose                                   |
+| -------------------- | ------------------------------------------ | ----------------------------------------- |
+| Request builders     | `src/core/request-builder.ts`              | Type-safe Google API request construction |
+| Response parser      | `src/core/response-parser.ts`              | Extract metadata from API responses       |
+| Batch compiler       | `src/core/batch-compiler.ts`               | Group requests, validate payload, execute |
+| Tool definitions     | `src/mcp/registration/tool-definitions.ts` | MCP tool registration                     |
+| Tool handlers        | `src/mcp/registration/tool-handlers.ts`    | Handler routing & response building       |
+| Schema validation    | `src/utils/schema-compat.ts`               | Zod ↔ JSON Schema compatibility           |
+| Compliance validator | `scripts/validate-api-mcp-compliance.ts`   | Automated validation script               |
 
-| Tool Schema | Handler | Actions |
-|-------------|---------|---------|
-| `src/schemas/auth.ts` | `src/handlers/auth.ts` | 4 |
-| `src/schemas/core.ts` | `src/handlers/core.ts` | 15 |
-| `src/schemas/data.ts` | `src/handlers/data.ts` | 20 |
-| `src/schemas/format.ts` | `src/handlers/format.ts` | 18 |
-| `src/schemas/dimensions.ts` | `src/handlers/dimensions.ts` | 39 |
-| `src/schemas/visualize.ts` | `src/handlers/visualize.ts` | 16 |
-| `src/schemas/collaborate.ts` | `src/handlers/collaborate.ts` | 28 |
-| `src/schemas/advanced.ts` | `src/handlers/advanced.ts` | 19 |
-| `src/schemas/transaction.ts` | `src/handlers/transaction.ts` | 6 |
-| `src/schemas/quality.ts` | `src/handlers/quality.ts` | 4 |
-| `src/schemas/history.ts` | `src/handlers/history.ts` | 7 |
-| `src/schemas/confirm.ts` | `src/handlers/confirm.ts` | 2 |
-| `src/schemas/analyze.ts` | `src/handlers/analyze.ts` | 11 |
-| `src/schemas/fix.ts` | `src/handlers/fix.ts` | 1 |
-| `src/schemas/composite.ts` | `src/handlers/composite.ts` | 4 |
-| `src/schemas/session.ts` | `src/handlers/session.ts` | 13 |
+| Tool Schema                  | Handler                       | Actions |
+| ---------------------------- | ----------------------------- | ------- |
+| `src/schemas/auth.ts`        | `src/handlers/auth.ts`        | 4       |
+| `src/schemas/core.ts`        | `src/handlers/core.ts`        | 15      |
+| `src/schemas/data.ts`        | `src/handlers/data.ts`        | 20      |
+| `src/schemas/format.ts`      | `src/handlers/format.ts`      | 18      |
+| `src/schemas/dimensions.ts`  | `src/handlers/dimensions.ts`  | 39      |
+| `src/schemas/visualize.ts`   | `src/handlers/visualize.ts`   | 16      |
+| `src/schemas/collaborate.ts` | `src/handlers/collaborate.ts` | 28      |
+| `src/schemas/advanced.ts`    | `src/handlers/advanced.ts`    | 19      |
+| `src/schemas/transaction.ts` | `src/handlers/transaction.ts` | 6       |
+| `src/schemas/quality.ts`     | `src/handlers/quality.ts`     | 4       |
+| `src/schemas/history.ts`     | `src/handlers/history.ts`     | 7       |
+| `src/schemas/confirm.ts`     | `src/handlers/confirm.ts`     | 2       |
+| `src/schemas/analyze.ts`     | `src/handlers/analyze.ts`     | 11      |
+| `src/schemas/fix.ts`         | `src/handlers/fix.ts`         | 1       |
+| `src/schemas/composite.ts`   | `src/handlers/composite.ts`   | 4       |
+| `src/schemas/session.ts`     | `src/handlers/session.ts`     | 13      |
 
-**Total**: 21 tools, 272 actions
+**Total**: 21 tools, 293 actions
 
 ---
 
 ## Summary
 
-This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 272 actions.
+This reference provides the complete pattern for implementing Google Sheets API v4 integration with MCP protocol compliance. Use the validation tools to catch issues early and follow the patterns shown here for consistent, reliable implementation across all 293 actions.
 
 **Next Steps**:
+
 1. Run `npm run validate:compliance` to find current issues
 2. Fix schema structure (wrap in request/response envelopes)
 3. Update handlers to extract request envelope

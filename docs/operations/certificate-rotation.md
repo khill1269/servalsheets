@@ -1,3 +1,13 @@
+---
+title: TLS/SSL Certificate Rotation
+category: runbook
+last_updated: 2026-01-31
+description: Procedures for rotating TLS/SSL certificates with zero downtime. Covers self-signed, Let's Encrypt, and commercial certificate authorities.
+version: 1.6.0
+tags: [prometheus, docker, kubernetes]
+estimated_time: 15-30 minutes
+---
+
 # TLS/SSL Certificate Rotation
 
 ## Overview
@@ -9,16 +19,19 @@ Procedures for rotating TLS/SSL certificates with zero downtime. Covers self-sig
 ## Certificate Types
 
 ### 1. Self-Signed (Development Only)
+
 - ⚠️ **Not for production** - browsers show warnings
 - Use for local testing only
 - Free, instant, no verification
 
 ### 2. Let's Encrypt (Recommended for Production)
+
 - ✅ Free, automated, trusted by all browsers
 - 90-day expiration (auto-renewal recommended)
 - Rate limits apply
 
 ### 3. Commercial CA (DigiCert, GlobalSign, etc.)
+
 - Enterprise validation options
 - Extended validation (EV) certificates
 - 1-2 year validity
@@ -242,8 +255,8 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "443:443"
-      - "80:80"
+      - '443:443'
+      - '80:80'
     volumes:
       # Mount certificates
       - ./certs/fullchain.pem:/etc/nginx/ssl/cert.pem:ro
@@ -302,23 +315,23 @@ metadata:
   name: servalsheets
   namespace: servalsheets
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: 'letsencrypt-prod'
 spec:
   tls:
-  - hosts:
-    - servalsheets.example.com
-    secretName: servalsheets-tls
+    - hosts:
+        - servalsheets.example.com
+      secretName: servalsheets-tls
   rules:
-  - host: servalsheets.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: servalsheets
-            port:
-              number: 80
+    - host: servalsheets.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: servalsheets
+                port:
+                  number: 80
 ```
 
 ### Automated Renewal with cert-manager
@@ -397,20 +410,20 @@ kind: Ingress
 metadata:
   name: servalsheets
   annotations:
-    networking.gke.io/managed-certificates: "servalsheets-cert"
-    kubernetes.io/ingress.class: "gce"
+    networking.gke.io/managed-certificates: 'servalsheets-cert'
+    kubernetes.io/ingress.class: 'gce'
 spec:
   rules:
-  - host: servalsheets.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: servalsheets
-            port:
-              number: 80
+    - host: servalsheets.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: servalsheets
+                port:
+                  number: 80
 ```
 
 GCP automatically provisions and renews Let's Encrypt certificates!
@@ -461,6 +474,7 @@ systemctl reload haproxy
 **Problem**: Certificate shows as "Not Secure" in browser
 
 **Check**:
+
 ```bash
 # Verify certificate is valid
 openssl s_client -connect servalsheets.example.com:443 -servername servalsheets.example.com | grep "Verify return code"
@@ -478,6 +492,7 @@ echo | openssl s_client -connect servalsheets.example.com:443 -showcerts
 **Problem**: "Certificate expired" error
 
 **Solution**:
+
 ```bash
 # Check expiration
 echo | openssl s_client -connect servalsheets.example.com:443 2>/dev/null | openssl x509 -noout -dates
@@ -494,6 +509,7 @@ echo | openssl s_client -connect servalsheets.example.com:443 2>/dev/null | open
 **Problem**: Mixed content warnings
 
 **Solution**:
+
 ```bash
 # Ensure all resources loaded over HTTPS
 # Check nginx config:
@@ -552,22 +568,22 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; prelo
 ```yaml
 # prometheus-rules.yaml
 groups:
-- name: certificate_alerts
-  rules:
-  - alert: CertificateExpiringSoon
-    expr: ssl_certificate_expiry_seconds < 604800  # 7 days
-    labels:
-      severity: warning
-    annotations:
-      summary: "SSL certificate expiring soon"
-      description: "Certificate for servalsheets.example.com expires in {{ $value | humanizeDuration }}"
+  - name: certificate_alerts
+    rules:
+      - alert: CertificateExpiringSoon
+        expr: ssl_certificate_expiry_seconds < 604800 # 7 days
+        labels:
+          severity: warning
+        annotations:
+          summary: 'SSL certificate expiring soon'
+          description: 'Certificate for servalsheets.example.com expires in {{ $value | humanizeDuration }}'
 
-  - alert: CertificateExpired
-    expr: ssl_certificate_expiry_seconds < 0
-    labels:
-      severity: critical
-    annotations:
-      summary: "SSL certificate EXPIRED"
+      - alert: CertificateExpired
+        expr: ssl_certificate_expiry_seconds < 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'SSL certificate EXPIRED'
 ```
 
 ---
@@ -575,6 +591,7 @@ groups:
 ## Summary Checklist
 
 ### Before Rotation
+
 - [ ] Check current certificate expiration
 - [ ] Generate or obtain new certificate
 - [ ] Test new certificate in staging
@@ -582,6 +599,7 @@ groups:
 - [ ] Backup current certificates
 
 ### During Rotation
+
 - [ ] Install new certificate
 - [ ] Update server configuration
 - [ ] Test configuration (nginx -t)
@@ -589,6 +607,7 @@ groups:
 - [ ] Verify new certificate serving
 
 ### After Rotation
+
 - [ ] Test HTTPS connectivity
 - [ ] Verify certificate in browser
 - [ ] Check SSL Labs rating
@@ -596,6 +615,7 @@ groups:
 - [ ] Document rotation date
 
 ### Ongoing
+
 - [ ] Monitor certificate expiration
 - [ ] Set up automated renewal
 - [ ] Review security configuration quarterly

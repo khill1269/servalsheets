@@ -1,13 +1,22 @@
+---
+title: Action Naming Standard
+category: general
+last_updated: 2026-01-31
+description: Standardized action naming conventions for all ServalSheets tools
+version: 1.6.0
+tags: [development, standards]
+---
+
 # Action Naming Standard
 
 **Status**: Defined (Phase 4 - Infrastructure Complete)
-**Compliance**: 100% (207/272 actions)
+**Compliance**: 100% (207/293 actions)
 **Version**: 1.0
 **Date**: 2026-01-15
 
 ## Overview
 
-ServalSheets uses a standardized action naming convention across all 272 actions in 21 tools. This document defines the standard and documents the naming rules used across the current tool set.
+ServalSheets uses a standardized action naming convention across all 293 actions in 21 tools. This document defines the standard and documents the naming rules used across the current tool set.
 
 ## Naming Rules
 
@@ -18,6 +27,7 @@ ServalSheets uses a standardized action naming convention across all 272 actions
 ```
 
 **Components**:
+
 - `domain`: OPTIONAL for tool-level actions, REQUIRED for sub-domain actions
 - `verb`: REQUIRED (standardized verbs below)
 - `object`: OPTIONAL for simple operations, REQUIRED for complex operations
@@ -25,15 +35,19 @@ ServalSheets uses a standardized action naming convention across all 272 actions
 ### Rule 2: Standardized Verbs
 
 **CRUD Operations**:
+
 - `get`, `create`, `update`, `delete`, `list`
 
 **Modification Operations**:
+
 - `add`, `remove`, `set`, `clear`, `insert`, `move`, `resize`, `hide`, `show`
 
 **Analysis Operations**:
+
 - `analyze`, `suggest`, `generate`, `detect`, `validate`
 
 **Special Operations**:
+
 - `undo`, `redo`, `revert`, `rollback`, `commit`
 
 ### Rule 3: Tool-Level Actions (No Domain Prefix)
@@ -41,6 +55,7 @@ ServalSheets uses a standardized action naming convention across all 272 actions
 Tools with a single focus don't need domain prefixes:
 
 **Examples**:
+
 - `sheets_core`: `get`, `create`, `copy`, `delete`, `list` (operates on spreadsheets)
 - `sheets_data`: `read`, `write`, `append`, `clear` (operates on cell data)
 - `sheets_auth`: `status`, `login`, `logout` (auth operations)
@@ -52,6 +67,7 @@ Tools with a single focus don't need domain prefixes:
 Tools with multiple sub-domains MUST use prefixes for clarity:
 
 **Examples**:
+
 - `sheets_visualize`: `chart_*`, `pivot_*` (2 sub-domains)
 - `sheets_collaborate`: `share_*`, `comment_*`, `version_*` (3 sub-domains)
 - `sheets_format`: `rule_*` for conditional formatting/validation (sub-domain)
@@ -71,6 +87,7 @@ Use consistent verbs for different analysis types:
 ### Rule 6: Consistency
 
 **DO**: Use snake_case consistently
+
 ```
 ✅ chart_create
 ✅ analyze_data
@@ -78,6 +95,7 @@ Use consistent verbs for different analysis types:
 ```
 
 **DON'T**: Mix casing or use inconsistent verb placement
+
 ```
 ❌ createChart (camelCase)
 ❌ ChartCreate (PascalCase)
@@ -88,16 +106,18 @@ Use consistent verbs for different analysis types:
 
 All actions in the current 16-tool/207-action set adhere to the naming rules below.
 
-**Overall**: 207/272 actions (100%)
+**Overall**: 207/293 actions (100%)
 
 **Rationale**: Other actions follow `chart_create`, `chart_update` pattern. Consistency requires `chart_suggest`.
 
 **sheets_format** - Standardize suggest action:
+
 ```
 suggest_format → format_suggest
 ```
 
 **sheets_analyze** - Align with sheets_analyze:
+
 ```
 suggest_chart → chart_suggest
 generate_formula → formula_generate
@@ -108,6 +128,7 @@ generate_formula → formula_generate
 ### Phase 1: Alias Infrastructure (✅ Complete)
 
 Created backward-compatible alias system:
+
 - File: `src/schemas/action-aliases.ts`
 - Provides `resolveActionName()`, `isDeprecatedAction()`, `getCanonicalActionName()`
 - Both old and new names will work
@@ -116,6 +137,7 @@ Created backward-compatible alias system:
 ### Phase 2: Schema Updates (Future)
 
 When updating schemas:
+
 1. Add new canonical names to `z.enum([...])`
 2. Keep old names temporarily for compatibility
 3. Add `.transform()` to normalize to canonical name
@@ -134,6 +156,7 @@ Update handlers to use canonical names internally while accepting both.
 ### Phase 5: Deprecation (v2.0 - Breaking)
 
 In next major version:
+
 - Remove old action names from enums
 - Remove alias mappings
 - Update error messages to suggest canonical names
@@ -151,6 +174,7 @@ In next major version:
 ### When to Implement?
 
 Implement full migration when ANY of:
+
 - Planning v2.0 release with other breaking changes
 - User feedback indicates naming confusion
 - Adding new tools that would benefit from consistency

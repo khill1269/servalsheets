@@ -1,3 +1,13 @@
+---
+title: Scaling Guide
+category: runbook
+last_updated: 2026-01-31
+description: ServalSheets scaling strategies for handling increased load. Covers vertical scaling (bigger instances) and horizontal scaling (more instances).
+version: 1.6.0
+tags: [sheets, docker, kubernetes]
+estimated_time: 15-30 minutes
+---
+
 # Scaling Guide
 
 ## Overview
@@ -11,6 +21,7 @@ ServalSheets scaling strategies for handling increased load. Covers vertical sca
 ### Indicators
 
 **Scale UP when:**
+
 - CPU usage consistently > 70%
 - Memory usage consistently > 80%
 - Request latency > 1 second (p95)
@@ -18,6 +29,7 @@ ServalSheets scaling strategies for handling increased load. Covers vertical sca
 - Error rate increasing
 
 **Scale DOWN when:**
+
 - CPU usage consistently < 20%
 - Memory usage consistently < 40%
 - Cost optimization needed
@@ -41,12 +53,14 @@ ServalSheets scaling strategies for handling increased load. Covers vertical sca
 ## Vertical Scaling
 
 ### Advantages
+
 ✅ Simple - no architecture changes
 ✅ Lower latency - no network hops
 ✅ Easier to debug
 ✅ State remains in-memory
 
 ### Disadvantages
+
 ❌ Limited by hardware
 ❌ Downtime during scaling
 ❌ Single point of failure
@@ -64,8 +78,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'      # Increase from 2.0
-          memory: 8G       # Increase from 4G
+          cpus: '4.0' # Increase from 2.0
+          memory: 8G # Increase from 4G
         reservations:
           cpus: '2.0'
           memory: 4G
@@ -84,14 +98,14 @@ spec:
   template:
     spec:
       containers:
-      - name: servalsheets
-        resources:
-          requests:
-            memory: "4Gi"    # Increase from 2Gi
-            cpu: "2000m"     # Increase from 1000m
-          limits:
-            memory: "8Gi"    # Increase from 4Gi
-            cpu: "4000m"     # Increase from 2000m
+        - name: servalsheets
+          resources:
+            requests:
+              memory: '4Gi' # Increase from 2Gi
+              cpu: '2000m' # Increase from 1000m
+            limits:
+              memory: '8Gi' # Increase from 4Gi
+              cpu: '4000m' # Increase from 2000m
 ```
 
 ```bash
@@ -123,12 +137,14 @@ gcloud compute instances start servalsheets-1
 ## Horizontal Scaling
 
 ### Advantages
+
 ✅ Better availability (no single point of failure)
 ✅ Zero-downtime scaling
 ✅ Cost-effective for high scale
 ✅ Geographic distribution possible
 
 ### Disadvantages
+
 ❌ Requires Redis for shared state
 ❌ More complex architecture
 ❌ Load balancer needed
@@ -223,10 +239,10 @@ spec:
   selector:
     app: servalsheets
   ports:
-  - port: 80
-    targetPort: 3000
+    - port: 80
+      targetPort: 3000
   type: ClusterIP
-  sessionAffinity: None  # No sticky sessions needed (Redis handles state)
+  sessionAffinity: None # No sticky sessions needed (Redis handles state)
 
 ---
 # k8s/ingress.yaml
@@ -235,22 +251,22 @@ kind: Ingress
 metadata:
   name: servalsheets
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-body-size: '10m'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
 spec:
   rules:
-  - host: servalsheets.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: servalsheets
-            port:
-              number: 80
+    - host: servalsheets.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: servalsheets
+                port:
+                  number: 80
 ```
 
 #### AWS Application Load Balancer
@@ -288,6 +304,7 @@ aws elbv2 create-load-balancer \
 #### Manual Scaling
 
 **Docker Compose:**
+
 ```bash
 # Scale to 3 instances
 docker-compose up -d --scale servalsheets=3
@@ -297,6 +314,7 @@ docker-compose ps
 ```
 
 **Kubernetes:**
+
 ```bash
 # Scale to 5 replicas
 kubectl scale deployment servalsheets --replicas=5
@@ -306,6 +324,7 @@ kubectl get pods -l app=servalsheets
 ```
 
 **AWS Auto Scaling Group:**
+
 ```bash
 # Update desired capacity
 aws autoscaling set-desired-capacity \
@@ -337,31 +356,31 @@ spec:
   minReplicas: 3
   maxReplicas: 20
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
   behavior:
     scaleDown:
-      stabilizationWindowSeconds: 300  # Wait 5 min before scaling down
+      stabilizationWindowSeconds: 300 # Wait 5 min before scaling down
       policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60  # Max 50% scale down per minute
+        - type: Percent
+          value: 50
+          periodSeconds: 60 # Max 50% scale down per minute
     scaleUp:
       stabilizationWindowSeconds: 60
       policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 60  # Max 100% scale up per minute
+        - type: Percent
+          value: 100
+          periodSeconds: 60 # Max 100% scale up per minute
 ```
 
 ```bash
@@ -448,6 +467,7 @@ redis-cli --cluster create \
 ```
 
 **Update application:**
+
 ```bash
 # Use Redis Cluster connection string
 export REDIS_URL="redis://redis-1:6379,redis-2:6379,redis-3:6379"
@@ -458,6 +478,7 @@ export REDIS_URL="redis://redis-1:6379,redis-2:6379,redis-3:6379"
 ## Google Sheets API Quota Scaling
 
 ### Default Quotas
+
 - Read requests: 300/min per user
 - Write requests: 60/min per user
 
@@ -469,12 +490,12 @@ export REDIS_URL="redis://redis-1:6379,redis-2:6379,redis-3:6379"
 
 ### Recommended Quotas for Scale
 
-| Load Level | Read/min | Write/min |
-|------------|----------|-----------|
-| Small (1-10 users) | 300 | 60 |
-| Medium (10-100 users) | 3,000 | 600 |
-| Large (100-1000 users) | 30,000 | 6,000 |
-| Enterprise (1000+ users) | 300,000 | 60,000 |
+| Load Level               | Read/min | Write/min |
+| ------------------------ | -------- | --------- |
+| Small (1-10 users)       | 300      | 60        |
+| Medium (10-100 users)    | 3,000    | 600       |
+| Large (100-1000 users)   | 30,000   | 6,000     |
+| Enterprise (1000+ users) | 300,000  | 60,000    |
 
 ### Quota Monitoring
 
@@ -492,6 +513,7 @@ export REDIS_URL="redis://redis-1:6379,redis-2:6379,redis-3:6379"
 ### Baseline Metrics
 
 **Single instance capacity** (default t3.medium / 2 CPU / 4GB RAM):
+
 - Concurrent users: ~50
 - Requests/second: ~100
 - Active sessions: ~500
@@ -531,15 +553,15 @@ import { check, sleep } from 'k6';
 
 export const options = {
   stages: [
-    { duration: '2m', target: 50 },   // Ramp up to 50 users
-    { duration: '5m', target: 50 },   // Stay at 50 users
-    { duration: '2m', target: 100 },  // Ramp up to 100 users
-    { duration: '5m', target: 100 },  // Stay at 100 users
-    { duration: '2m', target: 0 },    // Ramp down
+    { duration: '2m', target: 50 }, // Ramp up to 50 users
+    { duration: '5m', target: 50 }, // Stay at 50 users
+    { duration: '2m', target: 100 }, // Ramp up to 100 users
+    { duration: '5m', target: 100 }, // Stay at 100 users
+    { duration: '2m', target: 0 }, // Ramp down
   ],
   thresholds: {
-    http_req_duration: ['p(95)<1000'],  // 95% under 1s
-    http_req_failed: ['rate<0.01'],     // Error rate < 1%
+    http_req_duration: ['p(95)<1000'], // 95% under 1s
+    http_req_failed: ['rate<0.01'], // Error rate < 1%
   },
 };
 
@@ -583,10 +605,10 @@ spec:
       nodeSelector:
         node.kubernetes.io/instance-type: spot
       tolerations:
-      - key: "spot"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+        - key: 'spot'
+          operator: 'Equal'
+          value: 'true'
+          effect: 'NoSchedule'
 ```
 
 **GCP Preemptible VMs** (up to 80% cheaper):
@@ -596,10 +618,11 @@ spec:
   template:
     spec:
       nodeSelector:
-        cloud.google.com/gke-preemptible: "true"
+        cloud.google.com/gke-preemptible: 'true'
 ```
 
 ⚠️ **Warning**: Spot instances can be terminated with 30 seconds notice. Always run:
+
 - Minimum 3 instances
 - Mix of spot and on-demand
 - Graceful shutdown handling
@@ -609,6 +632,7 @@ spec:
 ## Checklist
 
 ### Before Scaling
+
 - [ ] Redis configured and tested
 - [ ] Load balancer set up
 - [ ] Health checks working
@@ -617,6 +641,7 @@ spec:
 - [ ] Test in staging first
 
 ### After Scaling
+
 - [ ] Verify all instances healthy
 - [ ] Check load distribution
 - [ ] Monitor for errors
@@ -631,6 +656,7 @@ spec:
 **Problem**: New instances not receiving traffic
 
 **Solution**:
+
 ```bash
 # Check load balancer health checks
 curl http://instance-ip:3000/health
@@ -646,6 +672,7 @@ nginx -t
 **Problem**: Sessions not shared across instances
 
 **Solution**:
+
 ```bash
 # Verify REDIS_URL is set on all instances
 echo $REDIS_URL
@@ -660,6 +687,7 @@ redis-cli KEYS "servalsheets:session:*"
 **Problem**: Uneven load distribution
 
 **Solution**:
+
 - Use `least_conn` instead of `round_robin` in nginx
 - Check if some instances are slower (resource constrained)
 - Verify health checks are working properly

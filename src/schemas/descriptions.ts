@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 21 tools, 272 actions
+ * Total: 21 tools, 293 actions
  *
  * PREREQUISITES documented for each tool to prevent wrong-order calls.
  */

@@ -260,12 +260,21 @@ export const TOOL_MODE: ToolMode = (() => {
  * - Claude must read schema resource before calling complex tools
  * - Server instructions guide this behavior
  *
- * Set via SERVAL_DEFER_SCHEMAS=true environment variable.
- *
- * Recommended Claude Desktop configuration:
- *   "SERVAL_DEFER_SCHEMAS": "true"
+ * Auto-detection:
+ * - STDIO transport (default): auto-enabled (Claude Desktop optimization)
+ * - HTTP transport (--http flag): disabled by default
+ * - Override: SERVAL_DEFER_SCHEMAS=true|false always takes precedence
  */
-export const DEFER_SCHEMAS = process.env['SERVAL_DEFER_SCHEMAS'] === 'true';
+function resolveDeferSchemas(): boolean {
+  const envVal = process.env['SERVAL_DEFER_SCHEMAS'];
+  // Explicit env var takes precedence
+  if (envVal === 'true') return true;
+  if (envVal === 'false') return false;
+  // Auto-detect: enable for STDIO (default), disable for HTTP
+  const isHttp = process.argv.includes('--http');
+  return !isHttp;
+}
+export const DEFER_SCHEMAS = resolveDeferSchemas();
 
 /**
  * Deferred description loading mode

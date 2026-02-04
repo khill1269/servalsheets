@@ -1,3 +1,13 @@
+---
+title: MCP Resources
+category: reference
+last_updated: 2026-01-31
+description: ServalSheets exposes resources through the Model Context Protocol (MCP) for LLM context enrichment.
+version: 1.6.0
+tags: [sheets]
+stability: stable
+---
+
 # MCP Resources
 
 ServalSheets exposes resources through the Model Context Protocol (MCP) for LLM context enrichment.
@@ -5,6 +15,7 @@ ServalSheets exposes resources through the Model Context Protocol (MCP) for LLM 
 ## Overview
 
 MCP resources provide:
+
 - Structured data access for LLMs
 - Dynamic content retrieval
 - URI-based resource identification
@@ -19,11 +30,13 @@ Access embedded documentation and API reference.
 **URI Pattern**: `knowledge://servalsheets/{category}/{topic}`
 
 **Categories**:
+
 - `api/` - Google Sheets API patterns
 - `formulas/` - Function reference
 - `patterns/` - Common patterns
 
 **Examples**:
+
 ```
 knowledge://servalsheets/api/batch-operations
 knowledge://servalsheets/api/charts
@@ -39,11 +52,12 @@ Access tool schemas and action definitions.
 **URI Pattern**: `schema://servalsheets/{tool}`
 
 **Available schemas**:
+
 - `schema://servalsheets/sheets_data`
-- `schema://servalsheets/sheets_structure`
-- `schema://servalsheets/sheets_formatting`
-- `schema://servalsheets/sheets_charts`
-- `schema://servalsheets/sheets_analysis`
+- `schema://servalsheets/sheets_core`
+- `schema://servalsheets/sheets_format`
+- `schema://servalsheets/sheets_visualize`
+- `schema://servalsheets/sheets_analyze`
 
 **Returns**: JSON schema for tool actions and parameters
 
@@ -54,6 +68,7 @@ Access confirmation requirements for destructive operations.
 **URI Pattern**: `confirmation://servalsheets/{action-type}`
 
 **Confirmation types**:
+
 - `destructive` - Delete, clear operations
 - `bulk` - Large-scale changes
 - `structural` - Schema modifications
@@ -67,6 +82,7 @@ Access operation history and audit logs.
 **URI Pattern**: `history://servalsheets/{spreadsheet-id}`
 
 **Examples**:
+
 ```
 history://servalsheets/1abc...xyz
 history://servalsheets/1abc...xyz?since=2026-01-01
@@ -114,6 +130,7 @@ Access performance and usage metrics.
 **URI Pattern**: `metrics://servalsheets/{metric-type}`
 
 **Metric types**:
+
 - `performance` - Response times, throughput
 - `quota` - API quota usage
 - `errors` - Error rates and types
@@ -126,6 +143,7 @@ Access spreadsheet templates.
 **URI Pattern**: `template://servalsheets/{template-name}`
 
 **Templates**:
+
 - Budget tracking
 - Project management
 - Inventory tracking
@@ -150,11 +168,13 @@ Read resource: knowledge://servalsheets/api/charts
 Some tools automatically load relevant resources:
 
 **Example**: Creating a chart
+
 ```
 Create column chart in spreadsheet "1abc...xyz"
 ```
 
 **Behind the scenes**:
+
 1. ServalSheets loads `knowledge://servalsheets/api/charts`
 2. Includes chart patterns in LLM context
 3. Suggests optimal configuration
@@ -185,7 +205,7 @@ Each resource includes:
     "updated": "2026-01-30T00:00:00Z",
     "related": [
       "knowledge://servalsheets/api/data-validation",
-      "schema://servalsheets/sheets_charts"
+      "schema://servalsheets/sheets_visualize"
     ]
   }
 }
@@ -198,6 +218,7 @@ Each resource includes:
 Resources that require spreadsheet context:
 
 **Schema resource for specific spreadsheet**:
+
 ```
 schema://servalsheets/{spreadsheet-id}/structure
 ```
@@ -205,6 +226,7 @@ schema://servalsheets/{spreadsheet-id}/structure
 **Returns**: Sheet names, ranges, named ranges
 
 **Quality resource**:
+
 ```
 quality://servalsheets/{spreadsheet-id}?range=Sheet1!A1:E100
 ```
@@ -216,6 +238,7 @@ quality://servalsheets/{spreadsheet-id}?range=Sheet1!A1:E100
 Add query parameters to filter:
 
 **History with filters**:
+
 ```
 history://servalsheets/{spreadsheet-id}?
   since=2026-01-01&
@@ -225,6 +248,7 @@ history://servalsheets/{spreadsheet-id}?
 ```
 
 **Metrics with timeframe**:
+
 ```
 metrics://servalsheets/performance?
   start=2026-01-01&
@@ -263,6 +287,7 @@ Search resources for: "conditional formatting"
 ### Client-Side Caching
 
 Resources are cached by MCP clients:
+
 - **Duration**: Varies by resource type
 - **Knowledge**: 24 hours
 - **Schema**: Until server restart
@@ -272,6 +297,7 @@ Resources are cached by MCP clients:
 ### Server-Side Caching
 
 ServalSheets caches resource generation:
+
 - Static resources (knowledge, schema): Indefinite
 - Dynamic resources (history, metrics): Time-limited
 - Invalidation on relevant changes
@@ -304,6 +330,7 @@ ServalSheets caches resource generation:
 ### Access Control
 
 Resources respect spreadsheet permissions:
+
 - **Public resources**: Knowledge, schemas, templates
 - **Protected resources**: History, metrics (require auth)
 - **Private resources**: Spreadsheet-specific data
@@ -311,6 +338,7 @@ Resources respect spreadsheet permissions:
 ### Sensitive Data
 
 Resources never expose:
+
 - OAuth tokens or credentials
 - Personal user information
 - Proprietary formulas or algorithms
@@ -386,6 +414,7 @@ schema://servalsheets/sheets_data?version=1.6.0
 ```
 
 **Version strategies**:
+
 - API documentation: Google Sheets API version
 - Schemas: ServalSheets version
 - Knowledge: Content version (semantic)
@@ -398,10 +427,7 @@ schema://servalsheets/sheets_data?version=1.6.0
 // Automatically include relevant resources
 const context = await enrichContext({
   action: 'create_chart',
-  resources: [
-    'knowledge://servalsheets/api/charts',
-    'schema://servalsheets/sheets_charts'
-  ]
+  resources: ['knowledge://servalsheets/api/charts', 'schema://servalsheets/sheets_visualize'],
 });
 ```
 
@@ -411,7 +437,7 @@ const context = await enrichContext({
 // Generate documentation from resources
 const docs = await generateDocs({
   source: 'schema://servalsheets/sheets_data',
-  format: 'markdown'
+  format: 'markdown',
 });
 ```
 
@@ -419,9 +445,7 @@ const docs = await generateDocs({
 
 ```typescript
 // Monitor spreadsheet quality
-const quality = await getResource(
-  `quality://servalsheets/${spreadsheetId}`
-);
+const quality = await getResource(`quality://servalsheets/${spreadsheetId}`);
 if (quality.score < 70) {
   console.warn('Quality degraded', quality.issues);
 }
@@ -437,6 +461,7 @@ if (quality.score < 70) {
 ## Support
 
 For resource-related questions:
+
 - Check resource documentation first
 - List available resources to discover
 - Open GitHub issue for missing resources

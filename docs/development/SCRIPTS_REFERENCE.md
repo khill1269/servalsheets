@@ -1,3 +1,12 @@
+---
+title: ServalSheets - Scripts Reference
+category: development
+last_updated: 2026-01-31
+description: 'Last Updated: 2026-01-12'
+version: 1.6.0
+tags: [prometheus]
+---
+
 # ServalSheets - Scripts Reference
 
 **Last Updated:** 2026-01-12
@@ -7,17 +16,17 @@
 
 ## 🎯 Quick Reference
 
-| Script | Purpose | Usage | Part of Verify |
-|--------|---------|-------|----------------|
-| `generate-metadata.ts` | Generate tool/action counts | `npm run gen:metadata` | Via `check:drift` |
-| `check-metadata-drift.sh` | Verify metadata sync | `npm run check:drift` | ✅ Yes |
-| `no-placeholders.sh` | Check for TODO/FIXME | `npm run check:placeholders` | ✅ Yes |
-| `check-silent-fallbacks.sh` | Find silent returns | `npm run check:silent-fallbacks` | ✅ Yes |
-| `check-debug-prints.sh` | Find console.log | `npm run check:debug-prints` | ✅ Yes |
-| `check-commit-size.sh` | Warn on large commits | `npm run check:commit-size` | ❌ No |
-| `show-tools-list-schemas.ts` | Display tool schemas | `npm run show:tools` | ❌ No |
-| `show-metrics.ts` | Display Prometheus metrics | `npm run metrics` | ❌ No |
-| `export-openapi.ts` | Generate OpenAPI spec | `npm run export-openapi` | ❌ No |
+| Script                       | Purpose                     | Usage                            | Part of Verify    |
+| ---------------------------- | --------------------------- | -------------------------------- | ----------------- |
+| `generate-metadata.ts`       | Generate tool/action counts | `npm run gen:metadata`           | Via `check:drift` |
+| `check-metadata-drift.sh`    | Verify metadata sync        | `npm run check:drift`            | ✅ Yes            |
+| `no-placeholders.sh`         | Check for TODO/FIXME        | `npm run check:placeholders`     | ✅ Yes            |
+| `check-silent-fallbacks.sh`  | Find silent returns         | `npm run check:silent-fallbacks` | ✅ Yes            |
+| `check-debug-prints.sh`      | Find console.log            | `npm run check:debug-prints`     | ✅ Yes            |
+| `check-commit-size.sh`       | Warn on large commits       | `npm run check:commit-size`      | ❌ No             |
+| `show-tools-list-schemas.ts` | Display tool schemas        | `npm run show:tools`             | ❌ No             |
+| `show-metrics.ts`            | Display Prometheus metrics  | `npm run metrics`                | ❌ No             |
+| `export-openapi.ts`          | Generate OpenAPI spec       | `npm run export-openapi`         | ❌ No             |
 
 ---
 
@@ -28,13 +37,16 @@
 **Purpose:** Single source of truth for tool/action metadata generation
 
 **What it does:**
+
 1. Parses all `src/schemas/*.ts` files using TypeScript AST
 2. Extracts action arrays from `z.enum([...])` or `z.literal('action')`
 3. Updates 5 generated files with correct counts
 
 **Input (Source of Truth):**
+
 - `src/schemas/*.ts` (all current tool schemas)
 - Looks for:
+
   ```typescript
   action: z.enum(['action1', 'action2', ...])
   // OR
@@ -42,18 +54,21 @@
   ```
 
 **Output (Generated - DO NOT edit manually):**
-- `package.json` - Updates description with `"21 tools, 272 actions"`
+
+- `package.json` - Updates description with `"21 tools, 293 actions"`
 - `src/schemas/index.ts` - Updates `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - Updates `ACTION_COUNTS` object
 - `src/mcp/completions.ts` - Updates `TOOL_ACTIONS` object
 - `server.json` - Regenerates full MCP server metadata
 
 **Special Cases Handled:**
+
 - `fix.ts` - Single action tool (no enum)
 - `analyze.ts` - 11 actions (comprehensive, analyze_data, suggest_visualization, generate_formula, detect_patterns, analyze_structure, analyze_quality, analyze_performance, analyze_formulas, query_natural_language, explain_analysis)
 - `confirm.ts` - 2 actions (request, get_stats)
 
 **Usage:**
+
 ```bash
 # After modifying any schema file
 npm run gen:metadata
@@ -62,7 +77,7 @@ npm run gen:metadata
 # 📊 Analyzing 16 schema files...
 #   📝 advanced.ts → 19 actions [add_named_range, update_named_range, ...]
 #   ...
-# ✅ Total: 21 tools, 272 actions
+# ✅ Total: 21 tools, 293 actions
 # ✅ Updated src/schemas/index.ts constants
 # ✅ Updated src/schemas/annotations.ts ACTION_COUNTS
 # ✅ Updated src/mcp/completions.ts TOOL_ACTIONS
@@ -70,6 +85,7 @@ npm run gen:metadata
 ```
 
 **Algorithm Details:**
+
 - Uses TypeScript Compiler API (`ts.createSourceFile()`)
 - Traverses AST to find `z.enum()` and `z.literal()` calls
 - Handles method chaining (`.describe()`, `.optional()`, etc.)
@@ -86,11 +102,13 @@ npm run gen:metadata
 **Purpose:** Verify metadata is synchronized across all 5 generated files
 
 **What it does:**
+
 1. Runs `generate-metadata.ts` in dry-run mode
 2. Compares output against current file contents
 3. Reports any drift (files out of sync)
 
 **Checks:**
+
 - ✅ `package.json` - Description matches tool/action counts
 - ✅ `src/schemas/index.ts` - Constants match
 - ✅ `src/schemas/annotations.ts` - ACTION_COUNTS matches
@@ -98,6 +116,7 @@ npm run gen:metadata
 - ✅ `server.json` - Full metadata matches
 
 **Usage:**
+
 ```bash
 npm run check:drift
 
@@ -106,7 +125,7 @@ npm run check:drift
 
 # Failure output:
 # ❌ Metadata drift detected in 2 files:
-#   - package.json (expected 272 actions, found 53)
+#   - package.json (expected 293 actions, found 53)
 #   - src/schemas/index.ts (expected ACTION_COUNT = 207, found 53)
 # Run 'npm run gen:metadata' to fix
 ```
@@ -114,6 +133,7 @@ npm run check:drift
 **Part of:** `npm run verify` pipeline (critical check)
 
 **Exit codes:**
+
 - `0` - No drift
 - `1` - Drift detected
 
@@ -126,6 +146,7 @@ npm run check:drift
 **Purpose:** Ensure no TODO/FIXME/HACK markers in `src/`
 
 **What it checks:**
+
 - `TODO` - Incomplete work
 - `FIXME` - Known bugs
 - `XXX` - Urgent attention needed
@@ -137,11 +158,13 @@ npm run check:drift
 - `NotImplementedError` - Error for unimplemented features
 
 **Exclusions:** (allowed in comments/docs)
+
 - `tests/` directory
 - `docs/` directory
 - `*.md` files
 
 **Usage:**
+
 ```bash
 npm run check:placeholders
 
@@ -167,11 +190,13 @@ npm run check:placeholders
 **Purpose:** Find `return {}` or `return undefined` without logging
 
 **What it checks:**
+
 - `return {}` without preceding `logger.warn()` or `logger.error()`
 - `return undefined` without logging
 - Empty returns that could hide errors
 
 **Allowed patterns:**
+
 ```typescript
 // ✅ Good - logged
 logger.warn('Empty result', { reason: '...' });
@@ -182,6 +207,7 @@ return {};
 ```
 
 **Usage:**
+
 ```bash
 npm run check:silent-fallbacks
 
@@ -205,16 +231,19 @@ npm run check:silent-fallbacks
 **Purpose:** Find `console.log` in handlers (should use `logger` instead)
 
 **What it checks:**
+
 - `console.log()`
 - `console.warn()`
 - `console.error()`
 - `console.debug()`
 
 **Allowed:**
+
 - `tests/` directory (test output is fine)
 - `scripts/` directory (script output is fine)
 
 **Usage:**
+
 ```bash
 npm run check:debug-prints
 
@@ -239,12 +268,14 @@ npm run check:debug-prints
 **Purpose:** Display JSON schemas returned by `tools/list` MCP call
 
 **What it shows:**
+
 - Tool names
 - Input schemas (JSON Schema format)
 - Output schemas
 - Annotations (hints)
 
 **Usage:**
+
 ```bash
 npm run show:tools
 
@@ -266,6 +297,7 @@ npm run show:tools
 **Purpose:** Display current Prometheus metrics
 
 **What it shows:**
+
 - `tool_calls_total` - Counter per tool
 - `tool_call_duration_seconds` - Histogram
 - `queue_size` - Current queue depth
@@ -273,6 +305,7 @@ npm run show:tools
 - `api_calls_total` - Google API calls
 
 **Usage:**
+
 ```bash
 npm run metrics
 
@@ -299,10 +332,12 @@ npm run metrics
 **Purpose:** Generate OpenAPI 3.1 specification from Zod schemas
 
 **What it generates:**
+
 - `docs/openapi.json` - Full OpenAPI spec
 - `docs/openapi.yaml` - YAML format (optional)
 
 **Usage:**
+
 ```bash
 # JSON format (default)
 npm run export-openapi
@@ -324,12 +359,14 @@ npm run export-openapi:yaml
 **Purpose:** Warn if commit touches >3 `src/` files (per CLAUDE.md Rule #4)
 
 **What it checks:**
+
 - Number of modified files in `src/`
 - Excludes generated files (package.json, server.json, etc.)
 - Warns if >3 files
 - Fails if >10 files
 
 **Usage:**
+
 ```bash
 npm run check:commit-size
 
@@ -358,11 +395,13 @@ npm run check:commit-size
 **Purpose:** Compare fast validators vs full Zod validation performance
 
 **What it measures:**
+
 - Fast validator speed (µs)
 - Full Zod validation speed (ms)
 - Speedup ratio
 
 **Usage:**
+
 ```bash
 tsx scripts/benchmark-validators.ts
 
@@ -381,6 +420,7 @@ tsx scripts/benchmark-validators.ts
 **Purpose:** Measure handler execution time for all tools
 
 **Usage:**
+
 ```bash
 tsx scripts/benchmark-handlers.ts
 
@@ -398,6 +438,7 @@ tsx scripts/benchmark-handlers.ts
 **Purpose:** Compare batched vs unbatched API call performance
 
 **Usage:**
+
 ```bash
 tsx scripts/benchmark-optimizations.ts
 
@@ -416,6 +457,7 @@ tsx scripts/benchmark-optimizations.ts
 **Purpose:** Run all diagnostic scripts and collect output
 
 **What it runs:**
+
 1. `npm run check:drift`
 2. `npm run check:placeholders`
 3. `npm run check:silent-fallbacks`
@@ -424,6 +466,7 @@ tsx scripts/benchmark-optimizations.ts
 6. `npm test`
 
 **Usage:**
+
 ```bash
 bash scripts/diagnose-all.sh > diagnosis.txt
 
@@ -441,11 +484,13 @@ bash scripts/diagnose-all.sh > diagnosis.txt
 **Purpose:** Run OAuth auth flow and generate Claude Desktop config for local testing
 
 **What it does:**
+
 1. Runs `dist/cli/auth-setup.js` (browser OAuth)
 2. Writes `claude_desktop_config.json` pointing to `dist/cli.js`
 3. Verifies tokens and config files
 
 **Usage:**
+
 ```bash
 ./setup-oauth.sh
 ```
@@ -457,6 +502,7 @@ bash scripts/diagnose-all.sh > diagnosis.txt
 ### Verification Pipeline (`npm run verify`)
 
 **Order of execution:**
+
 ```
 1. check:drift          (metadata sync)
 2. check:placeholders   (no TODOs)
@@ -489,15 +535,15 @@ git commit -m "feat: add new action to sheets_data"
 
 ## 📚 Script Categories Summary
 
-| Category | Scripts | Purpose |
-|----------|---------|---------|
-| **Metadata** | `generate-metadata.ts`, `check-metadata-drift.sh` | Keep tool/action counts synchronized |
-| **Quality** | `no-placeholders.sh`, `check-silent-fallbacks.sh`, `check-debug-prints.sh` | Enforce code quality standards |
-| **Diagnostics** | `show-tools-list-schemas.ts`, `show-metrics.ts`, `diagnose-all.sh` | Debugging and inspection |
-| **Benchmarks** | `benchmark-*.ts` | Performance measurement |
-| **Development** | `check-commit-size.sh`, `quick-test.sh` | Developer workflow aids |
-| **Integration** | `setup-oauth.sh`, `setup-vscode.sh` | Setup and configuration |
-| **Export** | `export-openapi.ts` | Documentation generation |
+| Category        | Scripts                                                                    | Purpose                              |
+| --------------- | -------------------------------------------------------------------------- | ------------------------------------ |
+| **Metadata**    | `generate-metadata.ts`, `check-metadata-drift.sh`                          | Keep tool/action counts synchronized |
+| **Quality**     | `no-placeholders.sh`, `check-silent-fallbacks.sh`, `check-debug-prints.sh` | Enforce code quality standards       |
+| **Diagnostics** | `show-tools-list-schemas.ts`, `show-metrics.ts`, `diagnose-all.sh`         | Debugging and inspection             |
+| **Benchmarks**  | `benchmark-*.ts`                                                           | Performance measurement              |
+| **Development** | `check-commit-size.sh`, `quick-test.sh`                                    | Developer workflow aids              |
+| **Integration** | `setup-oauth.sh`, `setup-vscode.sh`                                        | Setup and configuration              |
+| **Export**      | `export-openapi.ts`                                                        | Documentation generation             |
 
 ---
 
@@ -511,6 +557,7 @@ git commit -m "feat: add new action to sheets_data"
 4. **Check PROJECT_STATUS.md** for current verification status before running
 
 **Common mistakes:**
+
 - ❌ Manually updating `ACTION_COUNT` → ✅ Run `npm run gen:metadata`
 - ❌ Skipping verification → ✅ Always run `npm run verify`
 - ❌ Leaving TODOs in src/ → ✅ Remove or move to issues

@@ -1,3 +1,11 @@
+---
+title: Changelog
+category: general
+last_updated: 2026-01-31
+description: 'This file is a documentation wrapper. For the complete changelog, see:'
+version: 1.6.0
+---
+
 # Changelog
 
 **This file is a documentation wrapper. For the complete changelog, see:**

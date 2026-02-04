@@ -7,78 +7,7 @@
  * @module utils/memoization
  */
 
-/**
- * Memoization cache entry
- */
-interface CacheEntry<T> {
-  value: T;
-  timestamp: number;
-  hits: number;
-}
-
-/**
- * Simple LRU cache for memoization
- */
-class LRUCache<K, V> {
-  private cache = new Map<K, CacheEntry<V>>();
-  private maxSize: number;
-  private ttl: number;
-
-  constructor(maxSize: number = 100, ttl: number = 60000) {
-    this.maxSize = maxSize;
-    this.ttl = ttl;
-  }
-
-  get(key: K): V | undefined {
-    const entry = this.cache.get(key);
-    // OK: Explicit empty - cache miss is expected behavior
-    if (!entry) return undefined;
-
-    // Check if expired
-    if (Date.now() - entry.timestamp > this.ttl) {
-      this.cache.delete(key);
-      // OK: Explicit empty - expired entries return undefined
-      return undefined;
-    }
-
-    // Update hits and move to end (most recently used)
-    entry.hits++;
-    this.cache.delete(key);
-    this.cache.set(key, entry);
-
-    return entry.value;
-  }
-
-  set(key: K, value: V): void {
-    // Evict least recently used if at capacity
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value as K;
-      this.cache.delete(firstKey);
-    }
-
-    this.cache.set(key, {
-      value,
-      timestamp: Date.now(),
-      hits: 0,
-    });
-  }
-
-  clear(): void {
-    this.cache.clear();
-  }
-
-  get size(): number {
-    return this.cache.size;
-  }
-
-  getStats(): { size: number; totalHits: number } {
-    let totalHits = 0;
-    for (const entry of this.cache.values()) {
-      totalHits += entry.hits;
-    }
-    return { size: this.cache.size, totalHits };
-  }
-}
+import { LRUCache } from './cache.js';
 
 /**
  * Memoize a function with a single argument
@@ -107,11 +36,11 @@ export function memoize<T, R>(
   fn: (arg: T) => R,
   options: { maxSize?: number; ttl?: number; keyFn?: (arg: T) => string } = {}
 ): ((arg: T) => R) & {
-  cache: { clear: () => void; stats: () => { size: number; totalHits: number } };
+  cache: { clear: () => void; stats: () => { size: number; hits?: number } };
 } {
   const { maxSize = 100, ttl = 60000, keyFn = (arg: T) => JSON.stringify(arg) } = options;
 
-  const cache = new LRUCache<string, R>(maxSize, ttl);
+  const cache = new LRUCache<string, R>({ maxSize, ttl, trackHits: true });
 
   const memoized = (arg: T): R => {
     const key = keyFn(arg);
@@ -153,11 +82,11 @@ export function memoizeMulti<Args extends unknown[], R>(
   fn: (...args: Args) => R,
   options: { maxSize?: number; ttl?: number; keyFn?: (...args: Args) => string } = {}
 ): ((...args: Args) => R) & {
-  cache: { clear: () => void; stats: () => { size: number; totalHits: number } };
+  cache: { clear: () => void; stats: () => { size: number; hits?: number } };
 } {
   const { maxSize = 100, ttl = 60000, keyFn = (...args: Args) => JSON.stringify(args) } = options;
 
-  const cache = new LRUCache<string, R>(maxSize, ttl);
+  const cache = new LRUCache<string, R>({ maxSize, ttl, trackHits: true });
 
   const memoized = (...args: Args): R => {
     const key = keyFn(...args);
@@ -292,12 +221,13 @@ export function memoizeWithStats<T, R>(
 
   const wrapper = (arg: T): R => {
     const stats = memoized.cache.stats();
-    const prevHits = stats.totalHits;
+    const prevHits = stats.hits ?? 0;
 
     const result = memoized(arg);
 
     const newStats = memoized.cache.stats();
-    if (newStats.totalHits > prevHits) {
+    const currentHits = newStats.hits ?? 0;
+    if (currentHits > prevHits) {
       hits++;
     } else {
       misses++;

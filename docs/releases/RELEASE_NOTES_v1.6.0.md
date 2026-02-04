@@ -1,3 +1,12 @@
+---
+title: ServalSheets v1.6.0 Release Notes
+category: general
+last_updated: 2026-01-31
+description: 'Release Date: 2026-01-04'
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets v1.6.0 Release Notes
 
 **Release Date:** 2026-01-04
@@ -5,11 +14,12 @@
 
 ## Overview
 
-Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency tracking, and enhanced rate limiting based on Google Sheets API best practices. This release focuses on production observability and performance without breaking changes.
+Version 1.6.0 adds bandwidth optimization, payload monitoring, batch efficiency tracking, and enhanced rate limiting based on Google Sheets API best practices. This release focuses on production observability and performance without breaking changes.
 
 ## New Features
 
 ### 1. HTTP Compression Middleware
+
 - **Impact:** 60-80% reduction in HTTP/SSE response sizes
 - **Implementation:** gzip compression with 1KB threshold
 - **Configuration:** Automatic, respects `x-no-compression` header
@@ -18,6 +28,7 @@ Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency 
   - `package.json` - Added `compression` dependency
 
 ### 2. Payload Size Monitoring
+
 - **Purpose:** Enforce Google Sheets API payload size limits
 - **Thresholds:**
   - Warning: 2MB (Google recommended maximum)
@@ -28,6 +39,7 @@ Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency 
   - `src/core/batch-compiler.ts` - Integration
 
 ### 3. Batch Efficiency Analysis
+
 - **Purpose:** Optimize batch operation efficiency
 - **Metrics:**
   - Intents per spreadsheet ratio
@@ -40,6 +52,7 @@ Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency 
   - `src/startup/lifecycle.ts` - Stats export
 
 ### 4. Dynamic Rate Limiting
+
 - **Purpose:** Automatic adaptation to API rate limits
 - **Behavior:**
   - Detects 429 (rate limit) errors
@@ -51,6 +64,7 @@ Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency 
   - `src/core/batch-compiler.ts` - 429 error handling
 
 ### 5. Test Coverage Thresholds
+
 - **Purpose:** Maintain code quality standards
 - **Thresholds:**
   - Lines: 75%
@@ -63,14 +77,16 @@ Version 1.1.1 adds bandwidth optimization, payload monitoring, batch efficiency 
 ## Environment Variable Updates
 
 ### Fixed Inconsistencies
+
 The following environment variables were using incorrect names in `.env.example`:
 
-| Old Name (Wrong) | New Name (Correct) | Used In |
-|------------------|-------------------|---------|
-| `TRACING_ENABLED` | `OTEL_ENABLED` | `src/startup/lifecycle.ts:178` |
-| `DEDUP_ENABLED` | `DEDUPLICATION_ENABLED` | `src/startup/lifecycle.ts:472` |
+| Old Name (Wrong)  | New Name (Correct)      | Used In                        |
+| ----------------- | ----------------------- | ------------------------------ |
+| `TRACING_ENABLED` | `OTEL_ENABLED`          | `src/startup/lifecycle.ts:178` |
+| `DEDUP_ENABLED`   | `DEDUPLICATION_ENABLED` | `src/startup/lifecycle.ts:472` |
 
 ### New Variables Added
+
 ```bash
 # Token encryption (required in production)
 ENCRYPTION_KEY=<64-char-hex>
@@ -89,13 +105,15 @@ OTEL_LOG_SPANS=true
 ## Documentation Updates
 
 ### Updated Files
+
 1. **CHANGELOG.md** - Complete v1.6.0 release notes
 2. **README.md** - Updated version, features, configuration sections
 3. **.env.example** - Fixed inconsistencies, added new variables
-4. **package.json** - Version bump to 1.1.1
+4. **package.json** - Version bump to 1.6.0
 5. **install-claude-desktop.sh** - Enhanced with interactive configuration
 
 ### New README Sections
+
 - **Observability**: Complete guide to tracing, monitoring, and statistics
 - **Rate Limiting**: Environment variable configuration (was marked "coming soon")
 - **Automatic Monitoring**: Description of built-in monitoring capabilities
@@ -105,17 +123,20 @@ OTEL_LOG_SPANS=true
 The `install-claude-desktop.sh` script now includes:
 
 ### Interactive Configuration
+
 1. **Log Level**: Choose from debug, info, warn, error
 2. **OpenTelemetry Tracing**: Enable/disable with span logging option
 3. **Rate Limiting**: Customize reads/writes per minute
 
 ### Enhanced Output
+
 - Version banner showing v1.6.0
 - Feature highlights at startup
 - Active features confirmation at completion
 - Documentation links for all resources
 
 ### Example Usage
+
 ```bash
 ./install-claude-desktop.sh
 
@@ -129,14 +150,16 @@ The `install-claude-desktop.sh` script now includes:
 
 ## Migration Guide
 
-### From v1.6.0 to v1.6.0
+### From v1.5.0 to v1.6.0
 
 **No Breaking Changes** - This is a minor version bump with additive features only.
 
-#### Steps:
+#### Steps
+
 1. Update package:
+
    ```bash
-   npm install servalsheets@1.1.1
+   npm install servalsheets@1.6.0
    # or
    git pull
    npm install
@@ -144,6 +167,7 @@ The `install-claude-desktop.sh` script now includes:
    ```
 
 2. (Optional) Fix environment variables if you were using:
+
    ```bash
    # Change these in your .env or config:
    TRACING_ENABLED → OTEL_ENABLED
@@ -151,6 +175,7 @@ The `install-claude-desktop.sh` script now includes:
    ```
 
 3. (Optional) Enable new features:
+
    ```bash
    # Add to your environment:
    export RATE_LIMIT_READS_PER_MINUTE=300
@@ -160,6 +185,7 @@ The `install-claude-desktop.sh` script now includes:
    ```
 
 4. Restart server:
+
    ```bash
    # Claude Desktop: Quit (⌘+Q) and reopen
    # HTTP Server: Restart process
@@ -168,6 +194,7 @@ The `install-claude-desktop.sh` script now includes:
 ## Performance Impact
 
 ### Bandwidth Savings
+
 - **HTTP Compression**: 60-80% reduction in response sizes
 - **Typical Impact**:
   - 100KB JSON response → ~20KB compressed
@@ -175,11 +202,13 @@ The `install-claude-desktop.sh` script now includes:
   - Reduced bandwidth costs
 
 ### API Efficiency
+
 - **Payload Monitoring**: Prevents oversized requests before sending
 - **Batch Efficiency**: Identifies sub-optimal batching patterns
 - **Dynamic Rate Limiting**: Prevents cascading 429 errors
 
 ### Observability
+
 - **Zero Overhead**: Monitoring only runs during operations
 - **Memory Impact**: <1MB for history tracking
 - **CPU Impact**: Negligible (<0.1% for JSON.stringify)
@@ -187,6 +216,7 @@ The `install-claude-desktop.sh` script now includes:
 ## Monitoring & Statistics
 
 ### Available Statistics Methods
+
 All accessible via `src/startup/lifecycle.ts`:
 
 ```typescript
@@ -195,7 +225,7 @@ import {
   getDeduplicationStats,
   getBatchEfficiencyStats_,
   getTracingStats,
-  getConnectionStats
+  getConnectionStats,
 } from './startup/lifecycle.js';
 
 // Cache performance
@@ -222,6 +252,7 @@ const health = getConnectionStats();
 ## Testing
 
 ### Build Verification
+
 ```bash
 npm run build
 # ✓ No TypeScript errors
@@ -229,6 +260,7 @@ npm run build
 ```
 
 ### Test Coverage
+
 ```bash
 npm run test:coverage
 # ✓ Minimum thresholds enforced
@@ -295,6 +327,7 @@ New Files (5):
 ## Credits
 
 Developed and tested on:
+
 - Node.js: v22.x LTS
 - TypeScript: 5.7.3
 - MCP SDK: 1.0.4
@@ -303,4 +336,4 @@ Developed and tested on:
 ---
 
 **Full Changelog**: See [CHANGELOG.md](./CHANGELOG.md)
-**Previous Release**: [v1.6.0](./CHANGELOG.md#110---2026-01-03)
+**Previous Release**: [v1.5.0](./CHANGELOG.md#150---2026-01-03)

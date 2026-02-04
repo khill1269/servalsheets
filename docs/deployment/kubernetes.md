@@ -1,3 +1,12 @@
+---
+title: Kubernetes Deployment
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets on Kubernetes for production-grade scalability and reliability.
+version: 1.6.0
+tags: [deployment, prometheus, grafana, kubernetes]
+---
+
 # Kubernetes Deployment
 
 Deploy ServalSheets on Kubernetes for production-grade scalability and reliability.

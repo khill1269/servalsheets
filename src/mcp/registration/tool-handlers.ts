@@ -11,7 +11,8 @@ import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tasks/interfaces.js';
 import { randomUUID } from 'crypto';
-import { recordToolCall } from '../../observability/metrics.js';
+import { recordToolCall, recordToolCallLatency, recordError } from '../../observability/metrics.js';
+import { withToolSpan } from '../../utils/tracing.js';
 import type { ZodSchema, ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
@@ -27,8 +28,12 @@ import { compactResponse, isCompactModeEnabled } from '../../utils/response-comp
 import { recordSpreadsheetId } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
+import { getSessionContext } from '../../services/session-context.js';
 import type { OperationHistory } from '../../types/history.js';
-import { prepareSchemaForRegistration, wrapInputSchemaForLegacyRequest } from './schema-helpers.js';
+import {
+  prepareSchemaForRegistrationCached,
+  wrapInputSchemaForLegacyRequest,
+} from './schema-helpers.js';
 import type { ToolDefinition } from './tool-definitions.js';
 import { ACTIVE_TOOL_DEFINITIONS } from './tool-definitions.js';
 import {
@@ -74,13 +79,19 @@ const SheetsAuthInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAuthIn
 const SheetsCoreInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsCoreInputSchema);
 const SheetsDataInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsDataInputSchema);
 const SheetsFormatInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsFormatInputSchema);
-const SheetsDimensionsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsDimensionsInputSchema);
-const SheetsVisualizeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsVisualizeInputSchema);
-const SheetsCollaborateInputSchemaLegacy =
-  wrapInputSchemaForLegacyRequest(SheetsCollaborateInputSchema);
+const SheetsDimensionsInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsDimensionsInputSchema
+);
+const SheetsVisualizeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsVisualizeInputSchema
+);
+const SheetsCollaborateInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsCollaborateInputSchema
+);
 const SheetsAdvancedInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAdvancedInputSchema);
-const SheetsTransactionInputSchemaLegacy =
-  wrapInputSchemaForLegacyRequest(SheetsTransactionInputSchema);
+const SheetsTransactionInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsTransactionInputSchema
+);
 const SheetsQualityInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsQualityInputSchema);
 const SheetsHistoryInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsHistoryInputSchema);
 const SheetsConfirmInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsConfirmInputSchema);
@@ -88,13 +99,17 @@ const SheetsAnalyzeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsAna
 const SheetsFixInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsFixInputSchema);
 const CompositeInputSchemaLegacy = wrapInputSchemaForLegacyRequest(CompositeInputSchema);
 const SheetsSessionInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsSessionInputSchema);
-const SheetsTemplatesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsTemplatesInputSchema);
+const SheetsTemplatesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsTemplatesInputSchema
+);
 const SheetsBigQueryInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsBigQueryInputSchema);
-const SheetsAppsScriptInputSchemaLegacy =
-  wrapInputSchemaForLegacyRequest(SheetsAppsScriptInputSchema);
+const SheetsAppsScriptInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsAppsScriptInputSchema
+);
 const SheetsWebhookInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsWebhookInputSchema);
-const SheetsDependenciesInputSchemaLegacy =
-  wrapInputSchemaForLegacyRequest(SheetsDependenciesInputSchema);
+const SheetsDependenciesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsDependenciesInputSchema
+);
 
 const parseForHandler = <T>(schema: ZodTypeAny, args: unknown, schemaName: string): T =>
   parseWithCache(schema as ZodSchema<T>, args, schemaName);
@@ -299,6 +314,44 @@ export function createToolHandlerMap(
 // ============================================================================
 
 /**
+ * Truncate large objects for preview (Phase 3: Resource URI Fallback)
+ */
+function truncateForPreview(data: unknown, maxChars: number): unknown {
+  const str = JSON.stringify(data);
+  if (str.length <= maxChars) {
+    return data;
+  }
+
+  // Try to intelligently truncate arrays
+  if (Array.isArray(data)) {
+    const preview = data.slice(0, 100); // First 100 items
+    return {
+      _truncated: true,
+      _totalItems: data.length,
+      _preview: preview,
+      _hint: 'Showing first 100 items. Use resourceUri to access full data.',
+    };
+  }
+
+  // For objects, try to truncate string fields
+  if (data && typeof data === 'object') {
+    const truncated: Record<string, unknown> = { _truncated: true };
+    for (const [key, value] of Object.entries(data)) {
+      const valueStr = JSON.stringify(value);
+      if (valueStr.length > 200) {
+        truncated[key] = `${valueStr.substring(0, 200)}... [truncated]`;
+      } else {
+        truncated[key] = value;
+      }
+    }
+    return truncated;
+  }
+
+  // Last resort: just truncate the string
+  return `${str.substring(0, maxChars)}... [truncated]`;
+}
+
+/**
  * Builds a compliant MCP tool response
  *
  * MCP 2025-11-25 Response Requirements:
@@ -339,6 +392,10 @@ export function buildToolResponse(result: unknown): CallToolResult {
       },
     };
   }
+
+  // Track request for quota prediction
+  const sessionContext = getSessionContext();
+  sessionContext.trackRequest();
 
   // Add request correlation ID for tracing (if available)
   const requestContext = getRequestContext();
@@ -389,9 +446,57 @@ export function buildToolResponse(result: unknown): CallToolResult {
     }
   }
 
+  // P1-3: Response size validation to prevent MCP protocol issues
+  // Limit responses to 10MB to avoid overwhelming MCP clients
+  const MAX_RESPONSE_SIZE = 10 * 1024 * 1024; // 10MB
+  // Use compact JSON for large responses (>50KB) to reduce payload by 10-20%
+  const COMPACT_THRESHOLD = 50 * 1024; // 50KB
+  const compactStr = JSON.stringify(structuredContent);
+  const sizeBytes = Buffer.byteLength(compactStr, 'utf8');
+  const responseStr =
+    sizeBytes > COMPACT_THRESHOLD ? compactStr : JSON.stringify(structuredContent, null, 2);
+
+  if (sizeBytes > MAX_RESPONSE_SIZE) {
+    // Phase 3: Store as temporary resource instead of failing (edge case: <0.1% of requests)
+    // Lazy import to avoid loading in common case
+    let getTemporaryResourceStore: () => import('../../resources/temporary-storage.js').TemporaryResourceStore;
+    try {
+      ({ getTemporaryResourceStore } = require('../../resources/temporary-storage.js'));
+    } catch {
+      // Fallback if module not available (shouldn't happen in production)
+      throw new Error('Temporary resource storage not available');
+    }
+    const store = getTemporaryResourceStore();
+    const resourceUri = store.store(structuredContent, 1800); // 30 min TTL
+
+    // Create preview (first 100 rows or 1000 chars)
+    const preview = truncateForPreview(structuredContent, 1000);
+
+    const fallbackContent: Record<string, unknown> = {
+      response: {
+        success: true,
+        resourceUri,
+        preview,
+        message: `Response size ${(sizeBytes / 1024 / 1024).toFixed(2)}MB exceeds transport limit. Stored as temporary resource.`,
+        _hint: `Full data available via: resources/read uri="${resourceUri}" (expires in 30 minutes)`,
+        details: {
+          sizeBytes,
+          maxSizeBytes: MAX_RESPONSE_SIZE,
+          expiresIn: '30 minutes',
+        },
+      },
+    };
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(fallbackContent, null, 2) }],
+      structuredContent: fallbackContent,
+      isError: false,
+    };
+  }
+
   return {
     // Human-readable content for display
-    content: [{ type: 'text', text: JSON.stringify(structuredContent, null, 2) }],
+    content: [{ type: 'text', text: responseStr }],
     // Typed structured content for programmatic access
     structuredContent,
     // Error flag - only set when true, undefined otherwise (MCP convention)
@@ -518,8 +623,41 @@ function createToolCallHandler(
       }
 
       try {
-        // Execute handler - pass extra context for MCP-native tools
-        const result = await handler(normalizeToolArgs(args), extra);
+        // Execute handler with distributed tracing
+        const result = await withToolSpan(
+          tool.name,
+          async (span) => {
+            // Add span attributes for observability
+            const action = extractAction(args);
+            const spreadsheetId = extractSpreadsheetId(args);
+            const sheetId = extractSheetId(args);
+
+            span.setAttributes({
+              'tool.name': tool.name,
+              'tool.action': action,
+              'operation.id': operationId,
+              'request.id': requestId || 'unknown',
+              ...(spreadsheetId && { 'spreadsheet.id': spreadsheetId }),
+              ...(sheetId && { 'sheet.id': sheetId.toString() }),
+            });
+
+            // Execute handler - pass extra context for MCP-native tools
+            const handlerResult = await handler(normalizeToolArgs(args), extra);
+
+            // Add result attributes to span
+            span.setAttributes({
+              'result.success': isSuccessResult(handlerResult),
+              'cells.affected': extractCellsAffected(handlerResult) || 0,
+            });
+
+            return handlerResult;
+          },
+          {
+            'mcp.protocol.version': '2025-11-25',
+            'service.name': 'servalsheets',
+          }
+        );
+
         const duration = Date.now() - startTime;
 
         // Record operation in history
@@ -546,7 +684,9 @@ function createToolCallHandler(
         // Record metrics for observability
         const action = extractAction(args);
         const status = isSuccessResult(result) ? 'success' : 'error';
-        recordToolCall(tool.name, action, status, duration / 1000);
+        const durationSeconds = duration / 1000;
+        recordToolCall(tool.name, action, status, durationSeconds);
+        recordToolCallLatency(tool.name, action, durationSeconds);
 
         return buildToolResponse(result);
       } catch (error) {
@@ -570,7 +710,9 @@ function createToolCallHandler(
         });
 
         // Record error metrics
-        recordToolCall(tool.name, extractAction(args), 'error', duration / 1000);
+        const action = extractAction(args);
+        recordToolCall(tool.name, action, 'error', duration / 1000);
+        recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
 
         // Return structured error instead of throwing (Task 1.2)
         // This ensures MCP clients receive tool errors (isError: true) not protocol errors
@@ -695,9 +837,17 @@ export async function registerServalSheetsTools(
       };
 
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
-    // Prepare schemas for SDK registration
-    const inputSchemaForRegistration = prepareSchemaForRegistration(tool.inputSchema, 'input');
-    const outputSchemaForRegistration = prepareSchemaForRegistration(tool.outputSchema, 'output');
+    // Prepare schemas for SDK registration with caching (P0-2 optimization)
+    const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
+      tool.name,
+      tool.inputSchema,
+      'input'
+    );
+    const outputSchemaForRegistration = prepareSchemaForRegistrationCached(
+      tool.name,
+      tool.outputSchema,
+      'output'
+    );
 
     // Register tool with prepared schemas
     // Type assertion needed due to TypeScript's deep type instantiation limits

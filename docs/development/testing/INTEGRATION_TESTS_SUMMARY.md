@@ -1,3 +1,12 @@
+---
+title: Integration Test Infrastructure - Setup Summary
+category: development
+last_updated: 2026-01-31
+description: This document summarizes the integration test infrastructure that has been set up for ServalSheets.
+version: 1.6.0
+tags: [testing, sheets]
+---
+
 # Integration Test Infrastructure - Setup Summary
 
 This document summarizes the integration test infrastructure that has been set up for ServalSheets.
@@ -13,16 +22,20 @@ This document summarizes the integration test infrastructure that has been set u
 ### Configuration Files
 
 #### `/tests/config/test-credentials.example.json`
+
 Example configuration file showing the required structure for test credentials. This is the template that developers copy and fill in with their actual credentials.
 
 **Key features:**
+
 - Complete service account JSON structure
 - Test spreadsheet configuration
 - Optional test configuration (timeouts, retries, cleanup)
 - Git-tracked for reference
 
 #### `/tests/config/README.md`
+
 Documentation for the config directory explaining:
+
 - What each file is for
 - How to set up credentials
 - Configuration schema
@@ -31,7 +44,9 @@ Documentation for the config directory explaining:
 ### Documentation Files
 
 #### `/tests/INTEGRATION_TEST_SETUP.md` (6.8 KB)
+
 **Comprehensive setup guide** covering:
+
 1. Creating a Google Cloud project
 2. Enabling Google Sheets API
 3. Creating a service account
@@ -45,7 +60,9 @@ Documentation for the config directory explaining:
 11. What the tests cover
 
 #### `/tests/CI_SETUP.md` (11 KB)
+
 **CI/CD integration guide** with:
+
 1. GitHub Actions setup (detailed examples)
 2. GitLab CI configuration
 3. CircleCI configuration
@@ -56,7 +73,9 @@ Documentation for the config directory explaining:
 8. Required secrets summary
 
 #### `/tests/QUICK_START.md` (2.5 KB)
+
 **Fast-track setup guide** for developers who want to:
+
 - Get running in 5 minutes
 - Minimal explanations, maximum efficiency
 - Step-by-step with time estimates
@@ -65,9 +84,11 @@ Documentation for the config directory explaining:
 ### Code Files
 
 #### `/tests/helpers/credential-loader.ts` (5.3 KB)
+
 **Utility module** for loading and validating test credentials with:
 
 **Key functions:**
+
 - `shouldRunIntegrationTests()` - Check if integration tests should run
 - `loadTestCredentials()` - Load credentials from multiple sources (priority order)
 - `checkCredentialsOrSkip()` - Load credentials or throw helpful error
@@ -75,6 +96,7 @@ Documentation for the config directory explaining:
 - `getMissingCredentialsMessage()` - Formatted setup instructions
 
 **Features:**
+
 - Multiple credential sources (environment, config file, Google default)
 - Priority ordering for credential loading
 - Detailed error messages with setup instructions
@@ -82,7 +104,9 @@ Documentation for the config directory explaining:
 - Comprehensive validation
 
 #### `/tests/helpers/README.md` (Updated)
+
 Added documentation for the credential loader utility, including:
+
 - Usage examples
 - Function descriptions
 - Integration test patterns
@@ -90,14 +114,18 @@ Added documentation for the credential loader utility, including:
 ### Updated Files
 
 #### `/tests/integration/values.integration.test.ts` (Updated)
+
 Updated to use the new credential loader:
+
 - Imports `shouldRunIntegrationTests()` and `checkCredentialsOrSkip()`
 - Loads credentials in `beforeAll()`
 - Displays helpful information when running
 - Proper error handling with setup instructions
 
 #### `/.gitignore` (Updated)
+
 Added patterns to protect credentials:
+
 ```
 .env.test
 !tests/config/test-credentials.example.json
@@ -105,7 +133,9 @@ tests/config/test-credentials.json
 ```
 
 #### `/package.json` (Updated)
+
 Added new npm script:
+
 ```json
 "test:integration": "TEST_REAL_API=true vitest tests/integration/"
 ```
@@ -160,6 +190,7 @@ When credentials are missing or invalid, tests provide a helpful message:
 ### For Local Development
 
 1. **One-time setup** (5-10 minutes):
+
    ```bash
    # Copy example config
    cp tests/config/test-credentials.example.json tests/config/test-credentials.json
@@ -168,11 +199,13 @@ When credentials are missing or invalid, tests provide a helpful message:
    ```
 
 2. **Run integration tests**:
+
    ```bash
    npm run test:integration
    ```
 
    Or manually:
+
    ```bash
    TEST_REAL_API=true npm test tests/integration/
    ```
@@ -226,17 +259,20 @@ When credentials are missing or invalid, tests provide a helpful message:
 
 The infrastructure is complete. To enable integration tests:
 
-### For Developers:
+### For Developers
+
 1. Follow `/tests/QUICK_START.md` (5 minutes)
 2. Run `npm run test:integration`
 3. See tests pass against real API
 
-### For CI/CD:
+### For CI/CD
+
 1. Follow `/tests/CI_SETUP.md`
 2. Add secrets to GitHub/GitLab/etc
 3. Tests run automatically
 
-### For Contributors:
+### For Contributors
+
 1. Read `/tests/helpers/README.md`
 2. Use `credential-loader.ts` in new integration tests
 3. Follow the established patterns
@@ -283,12 +319,14 @@ tests/
 ## Testing the Setup
 
 All tests pass without credentials:
+
 ```bash
 npm test
 # ✓ 217 passed | 23 skipped
 ```
 
 With credentials configured:
+
 ```bash
 npm run test:integration
 # ✓ All 23 integration tests run
@@ -305,6 +343,7 @@ npm run test:integration
 ## Support
 
 If issues arise:
+
 1. Check the troubleshooting sections in documentation
 2. Verify credential configuration
 3. Review Google Cloud Console for API errors

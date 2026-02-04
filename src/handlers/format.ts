@@ -1281,14 +1281,61 @@ Always return valid JSON in the exact format requested.`,
   private async handleListDataValidations(
     input: FormatRequest & { action: 'list_data_validations' }
   ): Promise<FormatResponse> {
+    // Get sheet metadata to check size
+    const metaResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets(properties(sheetId,gridProperties))',
+    });
+
+    const sheet = metaResponse.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    if (!sheet?.properties?.gridProperties) {
+      return this.error({
+        code: 'SHEET_NOT_FOUND',
+        message: `Sheet with ID ${input.sheetId} not found`,
+        retryable: false,
+      });
+    }
+
+    const rowCount = sheet.properties.gridProperties.rowCount ?? 1000;
+    const colCount = sheet.properties.gridProperties.columnCount ?? 26;
+    const totalCells = rowCount * colCount;
+
+    // Require range parameter for large sheets to prevent timeout
+    if (!input.range && totalCells > 10000) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Sheet has ${totalCells.toLocaleString()} cells (${rowCount}×${colCount}). Provide 'range' parameter to prevent timeout.`,
+        resolution: `Specify a range parameter to limit scan area (e.g., range: "A1:Z100"). For best performance, use ranges <10K cells.`,
+        retryable: false,
+      });
+    }
+
+    // Build range for API call - convert RangeInput to A1 notation
+    let rangeStr: string | undefined;
+    if (input.range) {
+      if (typeof input.range === 'string') {
+        rangeStr = input.range;
+      } else if ('a1' in input.range) {
+        rangeStr = input.range.a1;
+      } else if ('namedRange' in input.range) {
+        rangeStr = input.range.namedRange;
+      } else {
+        // For grid/semantic ranges, use a reasonable default
+        rangeStr = 'A1:ZZ1000';
+      }
+    }
+
+    const ranges = rangeStr ? [rangeStr] : []; // Empty = entire sheet
+
+    // Fetch grid data with field mask to only get data validations
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
-      ranges: [],
+      ranges,
       includeGridData: true,
       fields: 'sheets.data.rowData.values.dataValidation,sheets.properties.sheetId',
     });
 
-    const sheet = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
+    const sheetData = response.data.sheets?.find((s) => s.properties?.sheetId === input.sheetId);
     const allValidations: Array<{
       range: {
         sheetId: number;
@@ -1301,13 +1348,25 @@ Always return valid JSON in the exact format requested.`,
     }> = [];
 
     // Extract validations from grid data
-    sheet?.data?.forEach((data) => {
+    sheetData?.data?.forEach((data) => {
+      const startRowIndex = data.startRow ?? 0;
+      const startColumnIndex = data.startColumn ?? 0;
+
       data.rowData?.forEach((row, rowIdx) => {
         row.values?.forEach((cell, colIdx) => {
           if (cell.dataValidation?.condition) {
             const condType = cell.dataValidation.condition.type as ConditionType;
+            const absoluteRow = startRowIndex + rowIdx;
+            const absoluteCol = startColumnIndex + colIdx;
+
             allValidations.push({
-              range: buildGridRangeInput(input.sheetId!, rowIdx, rowIdx + 1, colIdx, colIdx + 1),
+              range: buildGridRangeInput(
+                input.sheetId!,
+                absoluteRow,
+                absoluteRow + 1,
+                absoluteCol,
+                absoluteCol + 1
+              ),
               condition: {
                 type: condType,
                 values: cell.dataValidation.condition.values?.map((v) => v.userEnteredValue ?? ''),
@@ -1328,8 +1387,9 @@ Always return valid JSON in the exact format requested.`,
       validations,
       totalCount,
       truncated,
+      ...(input.range && { scannedRange: ranges[0] }),
       ...(truncated && {
-        suggestion: `Found ${totalCount} validation rules. Showing first ${limit}. Consider using a specific range instead of entire sheet.`,
+        suggestion: `Found ${totalCount} validation rules. Showing first ${limit}. Consider using a smaller range to see specific validations.`,
       }),
     });
   }

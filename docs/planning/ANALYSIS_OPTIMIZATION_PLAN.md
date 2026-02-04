@@ -1,3 +1,12 @@
+---
+title: ServalSheets Analysis Optimization Plan
+category: general
+last_updated: 2026-01-31
+description: 'Goal: Transform ServalSheets into the most LLM-ergonomic, intelligent, and efficient MCP server for Google Sheets operations.'
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets Analysis Optimization Plan
 
 ## Vision: The Ultimate MCP Server for Google Sheets
@@ -10,19 +19,20 @@
 
 ### Strengths (Keep & Enhance)
 
-| Feature | Location | Assessment |
-|---------|----------|------------|
-| **Tiered Retrieval** | `src/analysis/tiered-retrieval.ts` | Excellent - 4-tier progressive fetching with caching |
-| **Smart Routing** | `src/analysis/router.ts` | Good - Fast/AI/Streaming path selection |
-| **MCP Sampling** | `src/mcp/sampling.ts` | Excellent - AI-powered analysis via client LLM |
-| **MCP Elicitation** | `src/mcp/elicitation.ts` | Good - User input forms, wizard support |
-| **Comprehensive Analysis** | `src/analysis/comprehensive.ts` | Good foundation - needs progressive enhancement |
-| **Tool Coverage** | 21 tools, 272 actions | Comprehensive Google Sheets API coverage |
-| **Task Support** | Background task execution | Good for long-running operations |
+| Feature                    | Location                           | Assessment                                           |
+| -------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| **Tiered Retrieval**       | `src/analysis/tiered-retrieval.ts` | Excellent - 4-tier progressive fetching with caching |
+| **Smart Routing**          | `src/analysis/router.ts`           | Good - Fast/AI/Streaming path selection              |
+| **MCP Sampling**           | `src/mcp/sampling.ts`              | Excellent - AI-powered analysis via client LLM       |
+| **MCP Elicitation**        | `src/mcp/elicitation.ts`           | Good - User input forms, wizard support              |
+| **Comprehensive Analysis** | `src/analysis/comprehensive.ts`    | Good foundation - needs progressive enhancement      |
+| **Tool Coverage**          | 21 tools, 293 actions              | Comprehensive Google Sheets API coverage             |
+| **Task Support**           | Background task execution          | Good for long-running operations                     |
 
 ### Problems Identified
 
 #### 1. Analysis Flow Issues
+
 ```
 CURRENT:                           IDEAL:
 ┌─────────────────────┐            ┌─────────────────────┐
@@ -47,17 +57,20 @@ CURRENT:                           IDEAL:
 ```
 
 #### 2. Response Structure Issues
+
 - **No universal `nextActions`** - LLM doesn't know what to do next
 - **Buried critical info** - Important findings lost in verbosity
 - **No impact estimation** - Can't prioritize fixes
 - **Inconsistent shapes** - Different actions return different structures
 
 #### 3. Tool Organization Issues
+
 - **21 tools is overwhelming** - LLM struggles with tool selection
 - **No clear entry point** - Where should analysis start?
 - **Missing workflow guidance** - Multi-step operations unclear
 
 #### 4. Session/State Issues
+
 - **Mostly stateless** - Re-analyzes unchanged data
 - **No analysis memory** - Previous findings not retained
 - **No incremental updates** - Full re-analysis every time
@@ -67,9 +80,11 @@ CURRENT:                           IDEAL:
 ## Part 2: Design Principles
 
 ### 1. Scout First, Act Later
+
 > Never fetch data you don't need. Always start with metadata. Let LLM decide what to explore.
 
 ### 2. Progressive Depth
+
 ```
 Level 0: Existence   → "Does this spreadsheet exist?" (~50ms)
 Level 1: Metadata    → "What sheets/columns exist?" (~200ms)
@@ -79,12 +94,15 @@ Level 4: Full        → "Give me everything" (~5-30s)
 ```
 
 ### 3. Action-Oriented Responses
+
 > Every response MUST include `nextActions` with executable parameters.
 
 ### 4. Intelligent Defaults
+
 > Auto-detect intent, smart sampling, skip irrelevant analyses, remember preferences.
 
 ### 5. Consistent Mental Model
+
 > One primary entry point, clear escalation path, predictable behavior.
 
 ---
@@ -107,35 +125,52 @@ const PlanActionSchema = CommonFieldsSchema.extend({
   action: z.literal('plan').describe('Create AI-assisted analysis plan'),
   spreadsheetId: SpreadsheetIdSchema,
   scoutResult: z.record(z.unknown()).optional().describe('Result from scout action'),
-  intent: z.enum([
-    'optimize',    // Performance, formulas, structure
-    'clean',       // Quality, duplicates, missing values
-    'visualize',   // Patterns, chart recommendations
-    'understand',  // Structure, relationships, summary
-    'audit',       // Everything, comprehensive
-    'auto',        // Detect intent from context
-  ]).default('auto'),
-  constraints: z.object({
-    maxDuration: z.number().optional().describe('Max analysis time in ms'),
-    maxApiCalls: z.number().optional().describe('Max Google API calls'),
-    focusSheets: z.array(z.number()).optional().describe('Only analyze these sheets'),
-    focusColumns: z.array(z.string()).optional().describe('Only analyze these columns'),
-    skipAnalyses: z.array(z.string()).optional().describe('Skip these analysis types'),
-  }).optional(),
+  intent: z
+    .enum([
+      'optimize', // Performance, formulas, structure
+      'clean', // Quality, duplicates, missing values
+      'visualize', // Patterns, chart recommendations
+      'understand', // Structure, relationships, summary
+      'audit', // Everything, comprehensive
+      'auto', // Detect intent from context
+    ])
+    .default('auto'),
+  constraints: z
+    .object({
+      maxDuration: z.number().optional().describe('Max analysis time in ms'),
+      maxApiCalls: z.number().optional().describe('Max Google API calls'),
+      focusSheets: z.array(z.number()).optional().describe('Only analyze these sheets'),
+      focusColumns: z.array(z.string()).optional().describe('Only analyze these columns'),
+      skipAnalyses: z.array(z.string()).optional().describe('Skip these analysis types'),
+    })
+    .optional(),
 });
 
 const ExecutePlanActionSchema = CommonFieldsSchema.extend({
   action: z.literal('execute_plan').describe('Execute planned analysis steps'),
   spreadsheetId: SpreadsheetIdSchema,
   plan: z.object({
-    steps: z.array(z.object({
-      type: z.enum(['quality', 'formulas', 'patterns', 'performance', 'structure', 'visualizations']),
-      priority: z.number().min(1).max(10),
-      sheets: z.array(z.number()).optional(),
-      options: z.record(z.unknown()).optional(),
-    })),
+    steps: z.array(
+      z.object({
+        type: z.enum([
+          'quality',
+          'formulas',
+          'patterns',
+          'performance',
+          'structure',
+          'visualizations',
+        ]),
+        priority: z.number().min(1).max(10),
+        sheets: z.array(z.number()).optional(),
+        options: z.record(z.unknown()).optional(),
+      })
+    ),
   }),
-  executeAll: z.boolean().optional().default(true).describe('Execute all steps (false = step by step)'),
+  executeAll: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Execute all steps (false = step by step)'),
 });
 
 // ===== PHASE 2: DRILL DOWN =====
@@ -181,11 +216,11 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
   spreadsheetId: SpreadsheetIdSchema,
   findings: z.record(z.unknown()).optional().describe('Previous analysis findings'),
   intent: z.enum([
-    'fix_critical',   // Only critical issues
-    'fix_all',        // All fixable issues
-    'optimize',       // Performance improvements
-    'visualize',      // Create recommended charts
-    'format',         // Apply formatting suggestions
+    'fix_critical', // Only critical issues
+    'fix_all', // All fixable issues
+    'optimize', // Performance improvements
+    'visualize', // Create recommended charts
+    'format', // Apply formatting suggestions
   ]),
   preview: z.boolean().optional().default(true).describe('Preview mode (dry run)'),
   maxActions: z.number().optional().default(10),
@@ -215,12 +250,14 @@ export const ExecutableActionSchema = z.object({
   description: z.string().max(200).describe('What this does'),
 
   // Impact assessment
-  impact: z.object({
-    metric: z.string().describe('What improves'),
-    before: z.union([z.number(), z.string()]).optional(),
-    after: z.union([z.number(), z.string()]).optional(),
-    change: z.string().describe('e.g., "+15%", "fixes 23 issues"'),
-  }).optional(),
+  impact: z
+    .object({
+      metric: z.string().describe('What improves'),
+      before: z.union([z.number(), z.string()]).optional(),
+      after: z.union([z.number(), z.string()]).optional(),
+      change: z.string().describe('e.g., "+15%", "fixes 23 issues"'),
+    })
+    .optional(),
 
   // Risk assessment
   risk: z.enum(['none', 'low', 'medium', 'high']),
@@ -247,17 +284,21 @@ export const DrillDownOptionSchema = z.object({
  * EVERY analysis response MUST include this
  */
 export const NextActionsSchema = z.object({
-  recommended: ExecutableActionSchema.nullable()
-    .describe('Single best next action (null if nothing to do)'),
-  alternatives: z.array(ExecutableActionSchema).max(5)
-    .describe('Other good options'),
-  drillDown: z.array(DrillDownOptionSchema).max(5).optional()
-    .describe('Areas to explore deeper'),
-  clarifications: z.array(z.object({
-    question: z.string(),
-    options: z.array(z.string()).optional(),
-    default: z.string().optional(),
-  })).optional().describe('Questions for user'),
+  recommended: ExecutableActionSchema.nullable().describe(
+    'Single best next action (null if nothing to do)'
+  ),
+  alternatives: z.array(ExecutableActionSchema).max(5).describe('Other good options'),
+  drillDown: z.array(DrillDownOptionSchema).max(5).optional().describe('Areas to explore deeper'),
+  clarifications: z
+    .array(
+      z.object({
+        question: z.string(),
+        options: z.array(z.string()).optional(),
+        default: z.string().optional(),
+      })
+    )
+    .optional()
+    .describe('Questions for user'),
 });
 
 /**
@@ -279,20 +320,24 @@ export const AnalysisResponseWrapperSchema = z.object({
   next: NextActionsSchema,
 
   // Session context for multi-step
-  session: z.object({
-    analysisId: z.string().describe('ID to reference this analysis'),
-    canResume: z.boolean(),
-    expiresAt: z.number().optional(),
-  }).optional(),
+  session: z
+    .object({
+      analysisId: z.string().describe('ID to reference this analysis'),
+      canResume: z.boolean(),
+      expiresAt: z.number().optional(),
+    })
+    .optional(),
 
   // Metadata
-  _meta: z.object({
-    duration: z.number(),
-    apiCalls: z.number(),
-    tier: z.number().min(1).max(4),
-    cached: z.boolean(),
-    truncated: z.boolean(),
-  }).optional(),
+  _meta: z
+    .object({
+      duration: z.number(),
+      apiCalls: z.number(),
+      tier: z.number().min(1).max(4),
+      cached: z.boolean(),
+      truncated: z.boolean(),
+    })
+    .optional(),
 });
 ```
 
@@ -335,7 +380,7 @@ interface ScoutResponse {
       hasFilters: boolean;
       hasProtection: boolean;
       isEmpty: boolean;
-      isLarge: boolean;  // >10K rows
+      isLarge: boolean; // >10K rows
     };
   }>;
 
@@ -352,7 +397,7 @@ interface ScoutResponse {
   quickIndicators: {
     emptySheets: number;
     largeSheets: number;
-    potentialIssues: string[];  // e.g., "Sheet2 has no data", "10+ sheets detected"
+    potentialIssues: string[]; // e.g., "Sheet2 has no data", "10+ sheets detected"
   };
 
   // CRITICAL: What analyses are suggested
@@ -375,7 +420,7 @@ interface ScoutResponse {
 
   _meta: {
     duration: number;
-    apiCalls: 1;  // Scout should be single API call
+    apiCalls: 1; // Scout should be single API call
     tier: 1;
     cached: boolean;
   };
@@ -457,9 +502,11 @@ interface PlanResponse {
 ## Part 4: Implementation Phases
 
 ### Phase 1: Foundation (Scout & Response Shape)
+
 **Priority: CRITICAL | Effort: Medium | Impact: HIGH**
 
 #### 1.1 Add `scout` action
+
 - [ ] Create `src/analysis/scout.ts`
 - [ ] Single API call for metadata
 - [ ] Detect column types from header row
@@ -468,20 +515,24 @@ interface PlanResponse {
 - [ ] Auto-detect intent
 
 #### 1.2 Add `NextActions` to all responses
+
 - [ ] Add `NextActionsSchema` to `shared.ts`
 - [ ] Add `ExecutableActionSchema` to `shared.ts`
 - [ ] Modify `comprehensive` response to include `next`
 - [ ] Modify all `analyze_*` actions to include `next`
 
 #### 1.3 Add universal response wrapper
+
 - [ ] Create `AnalysisResponseWrapperSchema`
 - [ ] Update handler to use wrapper
 - [ ] Ensure `summary.headline` is always <100 chars
 
 ### Phase 2: Planning (Intent & Plan)
+
 **Priority: HIGH | Effort: Medium | Impact: HIGH**
 
 #### 2.1 Add `plan` action
+
 - [ ] Create `src/analysis/planner.ts`
 - [ ] Use MCP Sampling for intelligent planning
 - [ ] Generate ordered steps based on scout results
@@ -489,33 +540,40 @@ interface PlanResponse {
 - [ ] Support constraints (max time, focused sheets)
 
 #### 2.2 Add intent detection
+
 - [ ] Analyze scout results for signals
 - [ ] Detect intent: optimize/clean/visualize/understand/audit
 - [ ] Confidence scoring
 
 #### 2.3 Modify `comprehensive` for intent
+
 - [ ] Add `intent` parameter
 - [ ] Add `depth` parameter (metadata/sample/full)
 - [ ] Add `focus` parameter (sheets/columns/analyses)
 - [ ] Respect constraints
 
 ### Phase 3: Drill Down
+
 **Priority: MEDIUM | Effort: Medium | Impact: MEDIUM**
 
 #### 3.1 Add `drill_down` action
+
 - [ ] Target types: issue, sheet, column, formula, anomaly
 - [ ] Include context around findings
 - [ ] Support depth control
 
 #### 3.2 Issue tracking
+
 - [ ] Assign IDs to issues
 - [ ] Store issue context for drill down
 - [ ] Link related issues
 
 ### Phase 4: Action Generation
+
 **Priority: HIGH | Effort: High | Impact: HIGH**
 
 #### 4.1 Add `generate_actions` action
+
 - [ ] Create `src/analysis/action-generator.ts`
 - [ ] Convert findings to executable actions
 - [ ] Calculate impact estimates
@@ -523,28 +581,34 @@ interface PlanResponse {
 - [ ] Preview mode (dry run)
 
 #### 4.2 Impact estimation
+
 - [ ] Before/after score prediction
 - [ ] Risk assessment
 - [ ] Execution order optimization
 
 ### Phase 5: Session & State
+
 **Priority: MEDIUM | Effort: High | Impact: MEDIUM**
 
 #### 5.1 Analysis session management
+
 - [ ] Store scout results in session
 - [ ] Store plan in session
 - [ ] Store findings for drill down
 - [ ] TTL management
 
 #### 5.2 Incremental analysis
+
 - [ ] Track what was analyzed
 - [ ] Only re-analyze changed areas
 - [ ] Delta reporting
 
 ### Phase 6: Tool Consolidation (Optional)
+
 **Priority: LOW | Effort: High | Impact: MEDIUM**
 
 #### 6.1 Smart router entry point
+
 - [ ] Single `sheets` tool with intelligent routing
 - [ ] Auto-detect intent from natural language
 - [ ] Route to appropriate handler
@@ -554,6 +618,7 @@ interface PlanResponse {
 ## Part 5: File Changes Summary
 
 ### New Files to Create
+
 ```
 src/analysis/scout.ts           # Scout implementation
 src/analysis/planner.ts         # Plan generation with MCP Sampling
@@ -562,6 +627,7 @@ src/analysis/intent-detector.ts  # Auto-detect user intent
 ```
 
 ### Files to Modify
+
 ```
 src/schemas/analyze.ts          # Add new actions (scout, plan, execute_plan, drill_down, generate_actions)
 src/schemas/shared.ts           # Add ExecutableAction, NextActions, DrillDownOption schemas
@@ -575,18 +641,21 @@ src/analysis/router.ts          # Update routing for new actions
 ## Part 6: Success Metrics
 
 ### LLM Ergonomics
+
 - [ ] Scout response <500 tokens
 - [ ] Every response has clear `next.recommended`
 - [ ] Action params are 100% ready to execute
 - [ ] No ambiguity in tool selection
 
 ### Performance
+
 - [ ] Scout: <300ms p95
 - [ ] Plan: <500ms p95 (with caching)
 - [ ] Comprehensive quick scan: <5s for <10 sheets
 - [ ] Reduced redundant API calls by 50%
 
 ### Developer Experience
+
 - [ ] Clear workflow documentation
 - [ ] Example conversations in tests
 - [ ] Consistent response shapes across all actions
@@ -596,6 +665,7 @@ src/analysis/router.ts          # Update routing for new actions
 ## Part 7: Example Workflow
 
 ### Before (Current)
+
 ```
 User: "Analyze my spreadsheet"
 LLM: calls sheets_analyze:comprehensive
@@ -607,6 +677,7 @@ LLM: Re-reads response, manually extracts issues
 ```
 
 ### After (Optimized)
+
 ```
 User: "Analyze my spreadsheet"
 LLM: calls sheets_analyze:scout
@@ -631,6 +702,7 @@ LLM: calls sheets_fix (with exact params from next.recommended)
 ## Part 8: Quick Wins (Implement First)
 
 ### 1. Add `intent` to comprehensive (1 hour)
+
 ```typescript
 // In ComprehensiveActionSchema
 intent: z.enum(['quick', 'optimize', 'clean', 'visualize', 'understand', 'audit'])
@@ -638,6 +710,7 @@ intent: z.enum(['quick', 'optimize', 'clean', 'visualize', 'understand', 'audit'
 ```
 
 ### 2. Add `next` to comprehensive response (2 hours)
+
 ```typescript
 // In comprehensive result
 next: {
@@ -653,6 +726,7 @@ next: {
 ```
 
 ### 3. Add `scout` action (4 hours)
+
 - Single API call
 - Column type detection
 - Quick indicators
@@ -663,11 +737,15 @@ next: {
 ## Appendix: Response Token Optimization
 
 ### Current comprehensive response: ~5,000-50,000 tokens
+
 ### Target scout response: ~200-500 tokens
+
 ### Target plan response: ~300-800 tokens
+
 ### Target execute_plan step response: ~500-2,000 tokens
 
-### Verbosity levels:
+### Verbosity levels
+
 - `minimal`: Only summary + next (for chained operations)
 - `standard`: Summary + key findings + next (default)
 - `detailed`: Everything including raw data samples

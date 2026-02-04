@@ -4,26 +4,19 @@
  * @purpose Persistent file-based cache for Google API Discovery schemas to reduce Discovery API calls and improve startup (30-day TTL)
  * @category Performance
  * @usage Use for schema validation and API discovery; caches sheets/drive schemas locally, automatic invalidation after 30 days
- * @dependencies fs (node:fs), path, logger, DiscoverySchema
+ * @dependencies fs (node:fs/promises), path, logger, DiscoverySchema
  * @stateful Yes - maintains file-based cache in ~/.servalsheets/cache/, tracks schema age and hit/miss stats
  * @singleton Yes - one instance per process to coordinate cache access
  *
  * @example
  * const cache = new SchemaCache({ cacheDir: '~/.servalsheets/cache', ttlDays: 30 });
- * const schema = cache.get('sheets', 'v4'); // Returns cached or null
- * cache.set('sheets', 'v4', discoveredSchema);
- * cache.cleanup(); // Remove expired schemas
+ * const schema = await cache.get('sheets', 'v4'); // Returns cached or null
+ * await cache.set('sheets', 'v4', discoveredSchema);
+ * await cache.cleanup(); // Remove expired schemas
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  unlinkSync,
-  statSync,
-} from 'node:fs';
+import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '../utils/logger.js';
 import type { DiscoverySchema } from './discovery-client.js';
@@ -55,16 +48,24 @@ export interface SchemaCacheConfig {
 export class SchemaCache {
   private readonly cacheDir: string;
   private readonly defaultTTL: number;
+  private initialized: boolean = false;
 
   constructor(config: SchemaCacheConfig = {}) {
     this.cacheDir = config.cacheDir ?? '.discovery-cache';
     this.defaultTTL = config.defaultTTL ?? 24 * 60 * 60 * 1000; // 24 hours
+  }
 
-    // Create cache directory if it doesn't exist
+  /**
+   * Ensure cache directory exists (lazy initialization)
+   */
+  private async ensureCacheDir(): Promise<void> {
+    if (this.initialized) return;
+
     if (!existsSync(this.cacheDir)) {
-      mkdirSync(this.cacheDir, { recursive: true });
+      await fs.mkdir(this.cacheDir, { recursive: true });
       logger.info('Created schema cache directory', { cacheDir: this.cacheDir });
     }
+    this.initialized = true;
   }
 
   /**
@@ -79,7 +80,7 @@ export class SchemaCache {
     }
 
     try {
-      const content = readFileSync(cacheFile, 'utf-8');
+      const content = await fs.readFile(cacheFile, 'utf-8');
       const cached = JSON.parse(content) as CachedSchema;
 
       // Check if expired
@@ -90,7 +91,7 @@ export class SchemaCache {
           expiresAt: new Date(cached.expiresAt).toISOString(),
         });
         // Clean up expired cache
-        this.invalidate(api, version);
+        await this.invalidate(api, version);
         return null;
       }
 
@@ -117,6 +118,8 @@ export class SchemaCache {
    * Store schema in cache
    */
   async set(api: string, version: string, schema: DiscoverySchema, ttl?: number): Promise<void> {
+    await this.ensureCacheDir();
+
     const cacheFile = this.getCacheFilePath(api, version);
     const now = Date.now();
     const cacheTTL = ttl ?? this.defaultTTL;
@@ -130,7 +133,7 @@ export class SchemaCache {
     };
 
     try {
-      writeFileSync(cacheFile, JSON.stringify(cached, null, 2), 'utf-8');
+      await fs.writeFile(cacheFile, JSON.stringify(cached, null, 2), 'utf-8');
       logger.info('Cached schema', {
         api,
         version,
@@ -155,7 +158,7 @@ export class SchemaCache {
 
     if (existsSync(cacheFile)) {
       try {
-        unlinkSync(cacheFile);
+        await fs.unlink(cacheFile);
         logger.info('Invalidated cached schema', { api, version });
       } catch (error: unknown) {
         const err = error as { message?: string };
@@ -177,12 +180,12 @@ export class SchemaCache {
     }
 
     try {
-      const files = readdirSync(this.cacheDir);
+      const files = await fs.readdir(this.cacheDir);
       let deleted = 0;
 
       for (const file of files) {
         if (file.endsWith('.json')) {
-          unlinkSync(join(this.cacheDir, file));
+          await fs.unlink(join(this.cacheDir, file));
           deleted++;
         }
       }
@@ -208,7 +211,7 @@ export class SchemaCache {
     let cleaned = 0;
 
     try {
-      const files = readdirSync(this.cacheDir);
+      const files = await fs.readdir(this.cacheDir);
 
       for (const file of files) {
         if (!file.endsWith('.json')) {
@@ -218,11 +221,11 @@ export class SchemaCache {
         const filePath = join(this.cacheDir, file);
 
         try {
-          const content = readFileSync(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, 'utf-8');
           const cached = JSON.parse(content) as CachedSchema;
 
           if (now > cached.expiresAt) {
-            unlinkSync(filePath);
+            await fs.unlink(filePath);
             cleaned++;
           }
         } catch {
@@ -270,7 +273,7 @@ export class SchemaCache {
     let expiredEntries = 0;
 
     try {
-      const files = readdirSync(this.cacheDir);
+      const files = await fs.readdir(this.cacheDir);
 
       for (const file of files) {
         if (!file.endsWith('.json')) {
@@ -280,10 +283,10 @@ export class SchemaCache {
         const filePath = join(this.cacheDir, file);
 
         try {
-          const stats = statSync(filePath);
+          const stats = await fs.stat(filePath);
           totalSize += stats.size;
 
-          const content = readFileSync(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, 'utf-8');
           const cached = JSON.parse(content) as CachedSchema;
 
           entries++;
@@ -344,7 +347,7 @@ export class SchemaCache {
     }> = [];
 
     try {
-      const files = readdirSync(this.cacheDir);
+      const files = await fs.readdir(this.cacheDir);
 
       for (const file of files) {
         if (!file.endsWith('.json')) {
@@ -354,7 +357,7 @@ export class SchemaCache {
         const filePath = join(this.cacheDir, file);
 
         try {
-          const content = readFileSync(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, 'utf-8');
           const schema = JSON.parse(content) as CachedSchema;
 
           cached.push({

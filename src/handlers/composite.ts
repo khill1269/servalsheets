@@ -40,9 +40,11 @@ import type {
   CompositeCloneStructureInput,
 } from '../schemas/composite.js';
 import type { Intent } from '../core/intent.js';
-import { getRequestLogger } from '../utils/request-context.js';
+import { getRequestLogger, sendProgress } from '../utils/request-context.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { getEnv } from '../config/env.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
+import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
 
 // ============================================================================
 // Handler
@@ -71,12 +73,54 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     this.compositeService = new CompositeOperationsService(sheetsApi, this.sheetResolver);
   }
 
+  /**
+   * Validate scopes for an operation
+   * Returns error response if scopes are insufficient, null if valid
+   */
+  private validateScopes(operation: string): CompositeOutput | null {
+    const validator = new ScopeValidator({
+      scopes: this.context.auth?.scopes ?? [],
+    });
+
+    try {
+      validator.validateOperation(operation);
+      return null; // Scopes are valid
+    } catch (error) {
+      if (error instanceof IncrementalScopeRequiredError) {
+        return {
+          response: this.error({
+            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            message: error.message,
+            category: 'auth',
+            retryable: true,
+            retryStrategy: 'reauthorize',
+            details: {
+              operation: error.operation,
+              requiredScopes: error.requiredScopes,
+              currentScopes: error.currentScopes,
+              missingScopes: error.missingScopes,
+              authorizationUrl: error.authorizationUrl,
+            },
+          }),
+        };
+      }
+      throw error; // Re-throw non-scope errors
+    }
+  }
+
   async handle(input: CompositeInput): Promise<CompositeOutput> {
     const req = unwrapRequest<CompositeInput['request']>(input);
     const logger = getRequestLogger();
     // Track spreadsheetId if present (import_xlsx creates a new spreadsheet, so it doesn't have one)
     if ('spreadsheetId' in req) {
       this.trackSpreadsheetId(req.spreadsheetId);
+    }
+
+    // Phase 0: Validate scopes for the operation
+    const operation = `sheets_composite.${req.action}`;
+    const scopeError = this.validateScopes(operation);
+    if (scopeError) {
+      return scopeError;
     }
 
     try {
@@ -161,6 +205,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleImportCsv(
     input: CompositeImportCsvInput
   ): Promise<CompositeOutput['response']> {
+    // Send progress notification for long-running import
+    const env = getEnv();
+    if (env.ENABLE_GRANULAR_PROGRESS) {
+      await sendProgress(0, 2, 'Starting CSV import...');
+    }
+
     const result: CsvImportResult = await this.compositeService.importCsv({
       spreadsheetId: input.spreadsheetId,
       sheet:
@@ -179,6 +229,11 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     });
 
     const cellsAffected = result.rowsImported * result.columnsImported;
+
+    if (env.ENABLE_GRANULAR_PROGRESS) {
+      await sendProgress(2, 2, `Imported ${result.rowsImported} rows`);
+    }
+
     return this.success('import_csv', {
       ...result,
       mutation: {
@@ -389,6 +444,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       input.safety
     );
 
+    // Send progress notification for long-running dedupe
+    const env = getEnv();
+    if (env.ENABLE_GRANULAR_PROGRESS) {
+      await sendProgress(0, 2, `Deduplicating ${previewResult.totalRows} rows...`);
+    }
+
     // Execute the actual deduplication
     const result: DeduplicateResult = await this.compositeService.deduplicate({
       spreadsheetId: input.spreadsheetId,
@@ -397,6 +458,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       keep: input.keep,
       preview: false,
     });
+
+    if (env.ENABLE_GRANULAR_PROGRESS) {
+      await sendProgress(2, 2, `Removed ${result.rowsDeleted} duplicate rows`);
+    }
 
     return {
       success: true as const,
@@ -638,41 +703,55 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleSetupSheet(
     input: CompositeSetupSheetInput
   ): Promise<CompositeOutput['response']> {
-    const requests: sheets_v4.Schema$Request[] = [];
+    // Check if sheet already exists
+    const existingSheets = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties(sheetId,title)',
+    });
+    const existing = existingSheets.data.sheets?.find(
+      (s) => s.properties?.title === input.sheetName
+    );
 
-    // 1. Add new sheet
-    requests.push({
-      addSheet: {
-        properties: {
-          title: input.sheetName,
-          gridProperties: {
-            rowCount: 1000,
-            columnCount: input.headers.length,
-            frozenRowCount: input.freezeHeaderRow ? 1 : 0,
+    let sheetId: number;
+
+    if (existing?.properties?.sheetId !== undefined && existing.properties.sheetId !== null) {
+      // Sheet already exists - use it
+      sheetId = existing.properties.sheetId;
+    } else {
+      // Add new sheet
+      const requests: sheets_v4.Schema$Request[] = [
+        {
+          addSheet: {
+            properties: {
+              title: input.sheetName,
+              gridProperties: {
+                rowCount: 1000,
+                columnCount: input.headers.length,
+                frozenRowCount: input.freezeHeaderRow ? 1 : 0,
+              },
+            },
           },
         },
-      },
-    });
+      ];
 
-    // Execute first batch to get sheet ID
-    const addSheetResponse = await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: { requests },
-    });
+      const addSheetResponse = await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: { requests },
+      });
 
-    const newSheetId = addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId;
-    if (newSheetId === undefined || newSheetId === null) {
-      return {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to create sheet - no sheet ID returned',
-          retryable: true,
-        },
-      };
+      const newSheetId = addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId;
+      if (newSheetId === undefined || newSheetId === null) {
+        return {
+          success: false,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Failed to create sheet - no sheet ID returned',
+            retryable: true,
+          },
+        };
+      }
+      sheetId = newSheetId;
     }
-    // Assert type after null check
-    const sheetId: number = newSheetId;
 
     // 2. Write headers
     await this.sheetsApi.spreadsheets.values.update({

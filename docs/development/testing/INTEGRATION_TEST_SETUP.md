@@ -1,3 +1,12 @@
+---
+title: Integration Test Setup Guide
+category: development
+last_updated: 2026-01-31
+description: This guide explains how to set up and run integration tests for ServalSheets that connect to the real Google Sheets API.
+version: 1.6.0
+tags: [testing, setup, configuration, sheets]
+---
+
 # Integration Test Setup Guide
 
 This guide explains how to set up and run integration tests for ServalSheets that connect to the real Google Sheets API.
@@ -5,6 +14,7 @@ This guide explains how to set up and run integration tests for ServalSheets tha
 ## Overview
 
 ServalSheets has 23 integration tests that verify real API interactions. These tests are skipped by default because they require:
+
 - A Google Cloud project with the Sheets API enabled
 - A service account with credentials
 - A test spreadsheet shared with the service account
@@ -61,9 +71,11 @@ ServalSheets has 23 integration tests that verify real API interactions. These t
 2. Create a new spreadsheet
 3. Name it "ServalSheets Test Sheet" (or any name you prefer)
 4. Note the spreadsheet ID from the URL:
+
    ```
    https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_HERE/edit
    ```
+
 5. Create a sheet named "IntegrationTest" (or the tests will create it)
 
 ### 6. Share Spreadsheet with Service Account
@@ -82,6 +94,7 @@ You have two options for configuring credentials:
 #### Option A: Using Configuration File (Recommended for Local Development)
 
 1. Copy the example configuration:
+
    ```bash
    cp tests/config/test-credentials.example.json tests/config/test-credentials.json
    ```
@@ -91,6 +104,7 @@ You have two options for configuring credentials:
 3. Replace the `serviceAccount` section with the contents from your downloaded JSON file
 
 4. Update the `testSpreadsheet` section:
+
    ```json
    {
      "testSpreadsheet": {
@@ -143,14 +157,14 @@ The test configuration file supports these options:
     // Full service account JSON from Google Cloud
   },
   "testSpreadsheet": {
-    "id": "spreadsheet-id",      // Required: The ID of your test spreadsheet
-    "name": "Display Name",       // Optional: Human-readable name
-    "url": "full-url"            // Optional: Full URL for reference
+    "id": "spreadsheet-id", // Required: The ID of your test spreadsheet
+    "name": "Display Name", // Optional: Human-readable name
+    "url": "full-url" // Optional: Full URL for reference
   },
   "testConfig": {
-    "timeoutMs": 30000,          // Optional: Test timeout in milliseconds
-    "retryAttempts": 3,          // Optional: Number of retry attempts for flaky API calls
-    "cleanupAfterTests": true    // Optional: Clean up test data after running
+    "timeoutMs": 30000, // Optional: Test timeout in milliseconds
+    "retryAttempts": 3, // Optional: Number of retry attempts for flaky API calls
+    "cleanupAfterTests": true // Optional: Clean up test data after running
   }
 }
 ```
@@ -218,6 +232,7 @@ The integration tests verify:
 ## Need Help?
 
 If you encounter issues:
+
 1. Check the troubleshooting section above
 2. Review test output for specific error messages
 3. Verify your Google Cloud project setup

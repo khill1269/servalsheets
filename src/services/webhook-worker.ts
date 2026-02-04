@@ -17,6 +17,7 @@ import { createHmac } from 'crypto';
 import { logger } from '../utils/logger.js';
 import { getWebhookQueue, type WebhookDeliveryJob } from './webhook-queue.js';
 import { getWebhookManager } from './webhook-manager.js';
+import { recordWebhookDelivery } from '../observability/metrics.js';
 
 /**
  * Webhook worker configuration
@@ -172,6 +173,10 @@ export class WebhookWorker {
         clearTimeout(timeoutId);
 
         const duration = Date.now() - startTime;
+        const durationSeconds = duration / 1000;
+
+        // Extract spreadsheetId from payload
+        const spreadsheetId = (job.payload['spreadsheetId'] as string) ?? 'unknown';
 
         if (response.ok) {
           // Success
@@ -180,7 +185,16 @@ export class WebhookWorker {
 
           // Update webhook stats
           const manager = getWebhookManager();
-          await manager.recordDelivery(job.webhookId, true);
+          await manager.recordDelivery(job.webhookId, true, duration);
+
+          // Record metrics
+          recordWebhookDelivery(
+            job.webhookId,
+            spreadsheetId,
+            job.eventType,
+            'success',
+            durationSeconds
+          );
 
           logger.info('Webhook delivered successfully', {
             workerId,
@@ -200,7 +214,16 @@ export class WebhookWorker {
 
           // Update webhook stats
           const manager = getWebhookManager();
-          await manager.recordDelivery(job.webhookId, false);
+          await manager.recordDelivery(job.webhookId, false, duration);
+
+          // Record metrics
+          recordWebhookDelivery(
+            job.webhookId,
+            spreadsheetId,
+            job.eventType,
+            'failure',
+            durationSeconds
+          );
 
           logger.warn('Webhook delivery failed', {
             workerId,
@@ -217,13 +240,27 @@ export class WebhookWorker {
 
         // Network or timeout error
         const error = fetchError instanceof Error ? fetchError.message : 'Unknown fetch error';
+        const duration = Date.now() - startTime;
+        const durationSeconds = duration / 1000;
+
+        // Extract spreadsheetId from payload
+        const spreadsheetId = (job.payload['spreadsheetId'] as string) ?? 'unknown';
 
         const queue = getWebhookQueue();
         await queue.markFailure(job, error);
 
         // Update webhook stats
         const manager = getWebhookManager();
-        await manager.recordDelivery(job.webhookId, false);
+        await manager.recordDelivery(job.webhookId, false, duration);
+
+        // Record metrics
+        recordWebhookDelivery(
+          job.webhookId,
+          spreadsheetId,
+          job.eventType,
+          'failure',
+          durationSeconds
+        );
 
         logger.warn('Webhook delivery failed (network error)', {
           workerId,

@@ -70,7 +70,7 @@ const CommonFieldsSchema = z.object({
 // ============================================================================
 
 const ReadActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('read'),
+  action: z.literal('read').describe('Read cell values from a range'),
   range: RangeInputSchema.describe('Range to read in A1 notation or semantic'),
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
@@ -97,7 +97,9 @@ const ReadActionSchema = CommonFieldsSchema.extend({
 });
 
 const WriteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('write'),
+  action: z
+    .literal('write')
+    .describe('Write values to a specific range (overwrites existing data)'),
   range: RangeInputSchema.describe('Range to write to in A1 notation or semantic'),
   values: ValuesArraySchema.describe('2D array of cell values (rows × columns)'),
   valueInputOption: ValueInputOptionSchema.optional()
@@ -112,7 +114,7 @@ const WriteActionSchema = CommonFieldsSchema.extend({
 });
 
 const AppendActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('append'),
+  action: z.literal('append').describe('Append rows after the last row of data in a range'),
   range: RangeInputSchema.optional().describe('Range to append to (ignored if tableId provided)'),
   tableId: z.string().optional().describe('Table ID to append to (preferred for table ranges)'),
   values: ValuesArraySchema.describe('2D array of cell values to append'),
@@ -133,7 +135,7 @@ const AppendActionSchema = CommonFieldsSchema.extend({
 });
 
 const ClearActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('clear'),
+  action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
   range: RangeInputSchema.describe('Range to clear'),
   previewMode: z
     .boolean()
@@ -167,7 +169,7 @@ const BatchWriteEntrySchema = z
   });
 
 const BatchReadActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('batch_read'),
+  action: z.literal('batch_read').describe('Read multiple ranges in a single API call'),
   ranges: z
     .array(RangeInputSchema)
     .min(1)
@@ -206,7 +208,7 @@ const BatchReadActionSchema = CommonFieldsSchema.extend({
 });
 
 const BatchWriteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('batch_write'),
+  action: z.literal('batch_write').describe('Write to multiple ranges in a single API call'),
   data: z
     .array(BatchWriteEntrySchema)
     .min(1)
@@ -230,7 +232,7 @@ const BatchWriteActionSchema = CommonFieldsSchema.extend({
 });
 
 const BatchClearActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('batch_clear'),
+  action: z.literal('batch_clear').describe('Clear multiple ranges in a single API call'),
   ranges: z
     .array(RangeInputSchema)
     .min(1)
@@ -264,7 +266,9 @@ const BatchClearActionSchema = CommonFieldsSchema.extend({
 });
 
 const FindReplaceActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('find_replace'),
+  action: z
+    .literal('find_replace')
+    .describe('Find text/patterns and optionally replace across cells'),
   find: z.string().describe('Text or pattern to find'),
   replacement: z
     .string()
@@ -317,7 +321,7 @@ const FindReplaceActionSchema = CommonFieldsSchema.extend({
 // ============================================================================
 
 const AddNoteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('add_note'),
+  action: z.literal('add_note').describe('Add or update a note on a cell'),
   cell: z
     .string()
     .describe(
@@ -334,12 +338,12 @@ const AddNoteActionSchema = CommonFieldsSchema.extend({
 });
 
 const GetNoteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('get_note'),
+  action: z.literal('get_note').describe('Get the note text from a cell'),
   cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
 });
 
 const ClearNoteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('clear_note'),
+  action: z.literal('clear_note').describe('Remove a note from a cell'),
   cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
 });
 
@@ -347,7 +351,7 @@ const ClearNoteActionSchema = CommonFieldsSchema.extend({
 // Use sheets_format.set_data_validation and sheets_format.clear_data_validation instead
 
 const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('set_hyperlink'),
+  action: z.literal('set_hyperlink').describe('Add a clickable hyperlink to a cell'),
   cell: z.string().describe('Cell reference in A1 notation'),
   url: z
     .string()
@@ -368,12 +372,12 @@ const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
 });
 
 const ClearHyperlinkActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('clear_hyperlink'),
+  action: z.literal('clear_hyperlink').describe('Remove a hyperlink from a cell'),
   cell: z.string().describe('Cell reference in A1 notation'),
 });
 
 const MergeCellsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('merge_cells'),
+  action: z.literal('merge_cells').describe('Merge a range of cells into one'),
   range: RangeInputSchema.describe('Range to merge'),
   mergeType: z
     .enum(['MERGE_ALL', 'MERGE_COLUMNS', 'MERGE_ROWS'])
@@ -383,17 +387,17 @@ const MergeCellsActionSchema = CommonFieldsSchema.extend({
 });
 
 const UnmergeCellsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('unmerge_cells'),
+  action: z.literal('unmerge_cells').describe('Unmerge previously merged cells'),
   range: RangeInputSchema.describe('Range to unmerge'),
 });
 
 const GetMergesActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('get_merges'),
+  action: z.literal('get_merges').describe('List all merged cell ranges in a sheet'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to query for merged cells'),
 });
 
 const CutPasteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('cut_paste'),
+  action: z.literal('cut_paste').describe('Cut cells from source and paste to destination'),
   source: RangeInputSchema.describe('Source range to cut from'),
   destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
   pasteType: z
@@ -404,7 +408,7 @@ const CutPasteActionSchema = CommonFieldsSchema.extend({
 });
 
 const CopyPasteActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('copy_paste'),
+  action: z.literal('copy_paste').describe('Copy cells from source and paste to destination'),
   source: RangeInputSchema.describe('Source range to copy from'),
   destination: z.string().describe('Destination cell in A1 notation (top-left of paste area)'),
   pasteType: z

@@ -198,6 +198,25 @@ export const FIELD_MASKS = {
    * Size: ~5-50KB
    */
   DEVELOPER_METADATA: 'developerMetadata',
+
+  // =========================================================================
+  // SMART CHIPS (GA: June 17, 2025)
+  // =========================================================================
+
+  /**
+   * Cell data with smart chips (chipRuns)
+   * Use for: Reading cells that contain person chips, drive chips, or rich link chips
+   * Size: ~10-100KB depending on range
+   * @see https://developers.google.com/workspace/sheets/api/guides/chips
+   */
+  CELL_DATA_WITH_CHIPS: 'userEnteredValue,effectiveValue,effectiveFormat,chipRuns',
+
+  /**
+   * Values read with chipRuns included
+   * Use for: Reading data with chip information
+   * Size: Varies with range size
+   */
+  VALUES_READ_WITH_CHIPS: 'values(userEnteredValue,effectiveValue,chipRuns)',
 } as const;
 
 /**

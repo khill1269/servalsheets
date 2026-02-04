@@ -1,3 +1,12 @@
+---
+title: 'Ultimate Analysis Tool: Implementation Checklist'
+category: development
+last_updated: 2026-01-31
+description: 'Goal: Build the prime example of MCP tool implementation following all best practices'
+version: 1.6.0
+tags: [sheets]
+---
+
 # Ultimate Analysis Tool: Implementation Checklist
 
 **Goal:** Build the prime example of MCP tool implementation following all best practices
@@ -12,20 +21,22 @@
 ## References
 
 ### Official Documentation
+
 - [MCP 2025-11-25 Specification](https://modelcontextprotocol.io/specification/2025-11-25)
 - [MCP Best Practices](https://modelcontextprotocol.info/docs/best-practices/)
 - [Google Sheets API v4](https://developers.google.com/sheets/api/reference/rest)
 - [Zod v4 Documentation](https://zod.dev/)
 
 ### Key Dependencies
+
 ```json
 {
-  "@modelcontextprotocol/sdk": "^1.25.2",  // MCP protocol implementation
-  "zod": "4.3.5",                           // Schema validation (v4 strict mode)
-  "googleapis": "^170.0.0",                 // Google Sheets API client
-  "winston": "^3.17.0",                     // Structured logging
-  "lru-cache": "^11.0.0",                   // In-memory caching
-  "p-queue": "^9.0.1"                       // Request queuing
+  "@modelcontextprotocol/sdk": "^1.25.2", // MCP protocol implementation
+  "zod": "4.3.5", // Schema validation (v4 strict mode)
+  "googleapis": "^170.0.0", // Google Sheets API client
+  "winston": "^3.17.0", // Structured logging
+  "lru-cache": "^11.0.0", // In-memory caching
+  "p-queue": "^9.0.1" // Request queuing
 }
 ```
 
@@ -36,7 +47,9 @@
 ### 1. TypeScript Compilation Fixes (P0 - Critical)
 
 #### 1.1 Fix `src/analysis/tiered-retrieval.ts` Type Errors
+
 - [ ] **Line 44, 66, 81**: Fix tier property type conflicts
+
   ```typescript
   // Current: tier: 1 | 2 | 3 | 4 (literal types incompatible)
   // Fix: Use discriminated union or make tier a branded type
@@ -46,6 +59,7 @@
   ```
 
 - [ ] **Lines 171, 274, 352, 416**: Fix cache.set() signature
+
   ```typescript
   // Current: cache.set(key, value, { ttl: number })
   // Check: src/utils/hot-cache.ts interface
@@ -53,6 +67,7 @@
   ```
 
 - [ ] **Line 251**: Fix pivotTable property access
+
   ```typescript
   // Current: rm.pivotTable (doesn't exist on Schema$DimensionProperties)
   // Fix: Check Google API types for correct pivot detection
@@ -60,13 +75,16 @@
   ```
 
 #### 1.2 Fix `src/handlers/analyze.ts` Type Errors
+
 - [ ] **Line 99**: Update action switch case
+
   ```typescript
   // Remove: case "analyze"
   // Add: case "analyze_data"
   ```
 
 - [ ] **Lines 141, 273**: Fix range type incompatibility
+
   ```typescript
   // Current: RangeInput union type not compatible with RangeRefSchema
   // Fix: Add type guard or conversion function
@@ -74,32 +92,41 @@
   ```
 
 - [ ] **Lines 162, 291**: Fix 'unknown' to 'string' type assertions
+
   ```typescript
   // Add type guard before assignment
-  if (typeof value === 'string') { rangeStr = value; }
+  if (typeof value === 'string') {
+    rangeStr = value;
+  }
   ```
 
 - [ ] **Line 347**: Update action switch case
+
   ```typescript
   // Remove: case "suggest_chart"
   // Add: case "suggest_visualization"
   ```
 
 - [ ] **Lines 463, 468, 482**: Remove get_stats action entirely
+
   ```typescript
   // Remove get_stats case - not part of consolidated tool
   // Remove stats property from response type
   ```
 
 #### 1.3 Fix `src/schemas/analyze.ts` Type Errors
+
 - [ ] **Line 264**: Fix RangeInputSchema.optional() call
+
   ```typescript
   // Check: Does RangeInputSchema have .optional() method?
   // Fix: Use z.union([RangeInputSchema, z.undefined()]) if needed
   ```
 
 #### 1.4 Fix `src/schemas/index.ts` Duplicate Export
+
 - [ ] **Line 47**: Resolve DetectPatternsInput export conflict
+
   ```typescript
   // analysis.ts exports: DetectPatternsInput
   // analyze.ts exports: DetectPatternsInput (NEW)
@@ -109,6 +136,7 @@
   ```
 
 #### 1.5 Fix Other TypeScript Errors
+
 - [ ] **src/constants/extraction-fields.ts:550**: Fix index signature access
 - [ ] **src/services/sheet-extractor.ts**: Multiple null/undefined handling issues
   - Lines 359, 481-487, 710, 727, 741, 746, 751, 756, 761, 766
@@ -122,7 +150,9 @@
 ### 2. Handler Implementation (P0 - Critical)
 
 #### 2.1 Update `src/handlers/analyze.ts`
+
 - [ ] **Import new infrastructure**
+
   ```typescript
   import { AnalysisRouter, createRouter, type RouterCapabilities } from '../analysis/router.js';
   import { TieredRetrieval, createTieredRetrieval } from '../analysis/tiered-retrieval.js';
@@ -130,6 +160,7 @@
   ```
 
 - [ ] **Initialize router and tiered retrieval in constructor**
+
   ```typescript
   private router: AnalysisRouter;
   private tieredRetrieval: TieredRetrieval;
@@ -163,6 +194,7 @@
   - [ ] `handleExplainAnalysis()` - AI-powered explanation via Sampling
 
 - [ ] **Implement routing logic in handle() method**
+
   ```typescript
   async handle(input: SheetsAnalyzeInput): Promise<SheetsAnalyzeOutput> {
     // 1. Get metadata for routing decision
@@ -193,7 +225,9 @@
   ```
 
 #### 2.2 Update `src/handlers/analysis.ts` (DEPRECATED)
+
 - [ ] **Add deprecation warnings to all responses**
+
   ```typescript
   private addDeprecationWarning(response: AnalysisResponse): AnalysisResponse {
     if (response.success) {
@@ -212,6 +246,7 @@
   ```
 
 - [ ] **Update executeAction() to inject warnings**
+
   ```typescript
   private async executeAction(request: SheetsAnalysisInput): Promise<AnalysisResponse> {
     const response = await this.executeActionInternal(request);
@@ -220,6 +255,7 @@
   ```
 
 #### 2.3 Create Missing Handlers (P1 - High Priority)
+
 - [ ] **`src/analysis/category-extractor.ts`** (800 lines, Phase 2)
   - 43-category systematic extraction
   - Sample-based (95% accuracy) + full-data mode
@@ -246,7 +282,9 @@
 ### 3. MCP Protocol Compliance (P0 - Critical)
 
 #### 3.1 Tool Registration
+
 - [ ] **Update `src/mcp/registration/tool-definitions.ts`**
+
   ```typescript
   // Remove sheets_analyze from toolDefinitions array (keep for 90 days)
   // Update sheets_analyze definition:
@@ -267,13 +305,16 @@
   ```
 
 #### 3.2 Annotations Compliance
+
 - [x] **readOnlyHint**: false (creates charts/pivots)
 - [x] **destructiveHint**: false (creation is non-destructive)
 - [x] **idempotentHint**: false (AI responses vary)
 - [x] **openWorldHint**: true (Google API + MCP Sampling)
 
 #### 3.3 Input Schema Validation
+
 - [ ] **Verify Zod v4 strict mode compatibility**
+
   ```bash
   # Check all schemas use strict validation
   grep -r "z.object" src/schemas/analyze.ts
@@ -281,19 +322,23 @@
   ```
 
 - [ ] **Add comprehensive .refine() validations**
+
   ```typescript
   // Already implemented: action-specific required field checks
   // TODO: Add cross-field validation (e.g., chartType requires range)
   ```
 
 #### 3.4 Output Schema Validation
+
 - [ ] **Ensure discriminated unions for success/error**
+
   ```typescript
   // ✅ Already implemented:
   const AnalyzeResponseSchema = z.discriminatedUnion("success", [...]);
   ```
 
 - [ ] **Add response shape validation in handler**
+
   ```typescript
   // Before returning, validate against output schema
   const validated = SheetsAnalyzeOutputSchema.parse({ response });
@@ -301,14 +346,18 @@
   ```
 
 #### 3.5 Task Support (Phase 3)
+
 - [ ] **Enable taskSupport: 'optional'** in tool definition
 - [ ] **Implement task creation for streaming path**
+
   ```typescript
   // In executeStreamingPath():
   const taskId = await this.context.taskServer.createTask({
     type: 'analysis',
     name: `Analyzing ${metadata.title}`,
-    progressCallback: (progress) => { /* ... */ }
+    progressCallback: (progress) => {
+      /* ... */
+    },
   });
   ```
 
@@ -316,19 +365,23 @@
 - [ ] **Add cancellation support**
 
 #### 3.6 Sampling Integration
+
 - [x] **Import sampling functions** (already done)
 - [ ] **Verify sampling availability checks**
+
   ```typescript
   if (!this.context.samplingServer) {
     return this.error({
       code: 'FEATURE_UNAVAILABLE',
-      message: 'AI features require sampling capability'
+      message: 'AI features require sampling capability',
     });
   }
   ```
 
 #### 3.7 Logging Integration
+
 - [ ] **Use structured logging (winston)**
+
   ```typescript
   import { logger } from '../utils/logger.js';
   import { getRequestLogger } from '../utils/request-context.js';
@@ -338,11 +391,12 @@
   reqLogger.info('Analysis started', {
     action: input.action,
     path: decision.path,
-    cellCount: metadata.sheets[0].rowCount * metadata.sheets[0].columnCount
+    cellCount: metadata.sheets[0].rowCount * metadata.sheets[0].columnCount,
   });
   ```
 
 **Verification Commands:**
+
 ```bash
 npm run test:contracts          # Schema contract tests
 npm run inspect                 # MCP Inspector validation
@@ -353,13 +407,15 @@ npm run inspect                 # MCP Inspector validation
 ### 4. Google Sheets API Integration (P0 - Critical)
 
 #### 4.1 Tiered Retrieval Field Optimization
+
 - [ ] **Verify field masks for each tier**
+
   ```typescript
   // Tier 1 (Metadata): ~2KB response
-  fields: 'spreadsheetId,properties.title,sheets.properties'
+  fields: 'spreadsheetId,properties.title,sheets.properties';
 
   // Tier 2 (Structure): ~20KB response
-  fields: 'sheets(properties,merges,conditionalFormats,protectedRanges,basicFilter,charts)'
+  fields: 'sheets(properties,merges,conditionalFormats,protectedRanges,basicFilter,charts)';
 
   // Tier 3 (Sample): ~100KB response
   // Use values.get() with range: A1:ZZ100
@@ -369,19 +425,23 @@ npm run inspect                 # MCP Inspector validation
   ```
 
 - [ ] **Test response sizes match expectations**
+
   ```bash
   # Add integration test
   npm run test:integration -- tiered-retrieval.test.ts
   ```
 
 #### 4.2 API Error Handling
+
 - [ ] **Implement retry logic for transient errors**
+
   ```typescript
   // Already exists in google-api.ts
   // Verify: 3 retries, exponential backoff, circuit breaker
   ```
 
 - [ ] **Handle quota exhaustion gracefully**
+
   ```typescript
   catch (error) {
     if (error.code === 429 || error.message.includes('quota')) {
@@ -396,7 +456,9 @@ npm run inspect                 # MCP Inspector validation
   ```
 
 #### 4.3 Chart Creation Integration
+
 - [ ] **Verify all 9 chart types supported**
+
   ```typescript
   // Google Sheets API chart types:
   // LINE, AREA, COLUMN, BAR, SCATTER, PIE, COMBO, HISTOGRAM, CANDLESTICK,
@@ -404,28 +466,34 @@ npm run inspect                 # MCP Inspector validation
   ```
 
 - [ ] **Test chart creation via batchUpdate**
+
   ```bash
   npm run test:integration -- chart-creation.test.ts
   ```
 
 #### 4.4 Pivot Table Creation Integration
+
 - [ ] **Implement pivot creation via updateCells**
+
   ```typescript
   // Use sheets.batchUpdate with updateCells request
   // Set pivotTable field in GridData
   ```
 
 - [ ] **Test pivot table creation**
+
   ```bash
   npm run test:integration -- pivot-creation.test.ts
   ```
 
 #### 4.5 Connection Pooling Verification
+
 - [x] **Verify HTTP/2 enabled** (already configured)
 - [x] **Verify 50 socket pool** (already configured)
 - [x] **Verify LIFO scheduling** (already configured)
 
 **Verification Commands:**
+
 ```bash
 npm run test:integration:real  # Real API integration tests (requires credentials)
 ```
@@ -435,7 +503,9 @@ npm run test:integration:real  # Real API integration tests (requires credential
 ### 5. Testing (P1 - High Priority)
 
 #### 5.1 Unit Tests
+
 - [ ] **`tests/analysis/helpers.test.ts`** (NEW)
+
   ```typescript
   describe('Analysis Helpers', () => {
     describe('pearson()', () => {
@@ -451,6 +521,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 - [ ] **`tests/analysis/router.test.ts`** (NEW)
+
   ```typescript
   describe('AnalysisRouter', () => {
     it('routes small datasets to fast path', () => { ... });
@@ -462,6 +533,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 - [ ] **`tests/analysis/tiered-retrieval.test.ts`** (NEW)
+
   ```typescript
   describe('TieredRetrieval', () => {
     describe('getMetadata()', () => {
@@ -473,7 +545,9 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 #### 5.2 Handler Tests
+
 - [ ] **Update `tests/handlers/analyze.test.ts`**
+
   ```typescript
   describe('AnalyzeHandler', () => {
     describe('analyze_data action', () => {
@@ -492,6 +566,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 - [ ] **Add deprecation tests for analysis.ts**
+
   ```typescript
   describe('AnalysisHandler (DEPRECATED)', () => {
     it('includes deprecation warning in all responses', () => {
@@ -503,6 +578,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 #### 5.3 Integration Tests
+
 - [ ] **`tests/integration/analysis-routing.test.ts`** (NEW)
   - Test fast path execution
   - Test AI path execution (with mocked Sampling)
@@ -514,7 +590,9 @@ npm run test:integration:real  # Real API integration tests (requires credential
   - Verify cache hits on repeated calls
 
 #### 5.4 Contract Tests
+
 - [ ] **Update `tests/contracts/schema-contracts.test.ts`**
+
   ```typescript
   // Update to reference new consolidated schema
   const analyzeSchema = SheetsAnalyzeInputSchema;
@@ -526,7 +604,9 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 #### 5.5 Snapshot Tests
+
 - [ ] **Create `tests/snapshots/analyze-responses.snapshot.test.ts`**
+
   ```typescript
   // Snapshot test for each action's response format
   describe('Analyze Response Snapshots', () => {
@@ -539,6 +619,7 @@ npm run test:integration:real  # Real API integration tests (requires credential
   ```
 
 **Verification Commands:**
+
 ```bash
 npm run test:unit              # Unit tests
 npm run test:handlers          # Handler tests
@@ -554,15 +635,20 @@ npm run test:coverage          # Coverage report (aim for >80%)
 ### 6. Documentation (P1 - High Priority)
 
 #### 6.1 Tool Documentation
+
 - [ ] **Create `docs/tools/sheets_analyze.md`**
+
   ```markdown
   # sheets_analyze: Ultimate Data Analysis Tool
 
   ## Overview
+
   Consolidated analysis tool with intelligent routing...
 
   ## Actions (10)
+
   ### 1. analyze_data
+
   - **Purpose**: Smart analysis with automatic routing
   - **Input**: `{ action: "analyze_data", spreadsheetId, ... }`
   - **Output**: Analysis results with execution path
@@ -572,6 +658,7 @@ npm run test:coverage          # Coverage report (aim for >80%)
     - Streaming: >50K cells, chunked processing
 
   ### 2. suggest_visualization
+
   ...
   ```
 
@@ -581,7 +668,9 @@ npm run test:coverage          # Coverage report (aim for >80%)
   - Performance optimization tips
 
 #### 6.2 API Reference
+
 - [ ] **Generate TypeDoc documentation**
+
   ```bash
   npm run docs
   # Verify docs/api/ contains:
@@ -592,8 +681,10 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ```
 
 #### 6.3 Code Comments
+
 - [ ] **Add JSDoc to all public methods**
-  ```typescript
+
+  ````typescript
   /**
    * Analyze data with intelligent routing
    *
@@ -614,41 +705,49 @@ npm run test:coverage          # Coverage report (aim for >80%)
    * });
    * ```
    */
-  ```
+  ````
 
 #### 6.4 Migration Guide
+
 - [ ] **Create `docs/migration/ANALYSIS_TOOL_MIGRATION.md`**
-  ```markdown
+
+  ````markdown
   # Migrating from sheets_analyze to sheets_analyze
 
   ## Action Mapping
-  | Old (sheets_analyze) | New (sheets_analyze) | Notes |
-  |-----------------------|----------------------|-------|
-  | data_quality | analyze_quality | Same functionality |
-  | formula_audit | analyze_quality | Merged into quality checks |
-  | statistics | analyze_data | Use with analysisTypes |
-  | suggest_chart | suggest_visualization | Now includes pivots |
+
+  | Old (sheets_analyze) | New (sheets_analyze)  | Notes                      |
+  | -------------------- | --------------------- | -------------------------- |
+  | data_quality         | analyze_quality       | Same functionality         |
+  | formula_audit        | analyze_quality       | Merged into quality checks |
+  | statistics           | analyze_data          | Use with analysisTypes     |
+  | suggest_chart        | suggest_visualization | Now includes pivots        |
+
   ...
 
   ## Code Examples
+
   ### Before (sheets_analyze)
+
   \```typescript
   const result = await client.callTool('sheets_analyze', {
-    action: 'analyze_quality',
-    spreadsheetId: '...'
+  action: 'analyze_quality',
+  spreadsheetId: '...'
   });
   \```
 
   ### After (sheets_analyze)
+
   \```typescript
   const result = await client.callTool('sheets_analyze', {
-    action: 'analyze_quality',
-    spreadsheetId: '...'
+  action: 'analyze_quality',
+  spreadsheetId: '...'
   });
   \```
-  ```
+  ````
 
 #### 6.5 Architecture Documentation
+
 - [ ] **Update `docs/architecture/ANALYSIS_ARCHITECTURE.md`**
   - Router decision tree diagram
   - Tiered retrieval flow diagram
@@ -662,7 +761,9 @@ npm run test:coverage          # Coverage report (aim for >80%)
 ### 7. Performance & Optimization (P2 - Medium Priority)
 
 #### 7.1 Caching Strategy
+
 - [ ] **Verify cache TTLs per tier**
+
   ```typescript
   // Tier 1: 5min (metadata rarely changes)
   // Tier 2: 3min (structure changes occasionally)
@@ -671,26 +772,31 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ```
 
 - [ ] **Add cache metrics tracking**
+
   ```typescript
   // Track hit rate per tier
   metrics.cacheHitRate.labels({ tier: '1' }).inc();
   ```
 
 #### 7.2 Request Batching
+
 - [x] **Verify adaptive batch windows** (already implemented)
 - [ ] **Add analysis-specific batching**
+
   ```typescript
   // Batch multiple small analysis requests
   // Combine into single API call when possible
   ```
 
 #### 7.3 Memory Management
+
 - [ ] **Implement streaming for large datasets**
   - Phase 3: src/analysis/streaming.ts
   - Chunked processing for >50K rows
   - Memory limit: <500MB per analysis
 
 - [ ] **Add heap monitoring**
+
   ```typescript
   import { heapMonitor } from '../utils/heap-monitor.js';
 
@@ -701,7 +807,9 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ```
 
 #### 7.4 Benchmarking
+
 - [ ] **Create benchmark suite**
+
   ```bash
   npm run test:benchmarks -- analysis
 
@@ -714,6 +822,7 @@ npm run test:coverage          # Coverage report (aim for >80%)
   ```
 
 **Verification Commands:**
+
 ```bash
 npm run test:benchmarks
 npm run metrics                 # View cache hit rates
@@ -724,8 +833,10 @@ npm run metrics                 # View cache hit rates
 ### 8. Security & Safety (P1 - High Priority)
 
 #### 8.1 Input Validation
+
 - [x] **Zod schema validation** (already implemented)
 - [ ] **Add sanitization for user-provided strings**
+
   ```typescript
   // Sanitize formula descriptions before sending to AI
   const sanitized = input.description
@@ -735,7 +846,9 @@ npm run metrics                 # View cache hit rates
   ```
 
 #### 8.2 Rate Limiting
+
 - [ ] **Add per-action rate limits**
+
   ```typescript
   // Expensive AI actions: 10 req/min
   // Fast path: 60 req/min
@@ -743,7 +856,9 @@ npm run metrics                 # View cache hit rates
   ```
 
 #### 8.3 Resource Limits
+
 - [ ] **Enforce maximum analysis size**
+
   ```typescript
   const MAX_CELLS_FAST_PATH = 10_000;
   const MAX_CELLS_AI_PATH = 50_000;
@@ -752,13 +867,15 @@ npm run metrics                 # View cache hit rates
   if (cellCount > MAX_CELLS_STREAMING) {
     return this.error({
       code: 'TOO_LARGE',
-      message: 'Dataset exceeds maximum size for analysis'
+      message: 'Dataset exceeds maximum size for analysis',
     });
   }
   ```
 
 #### 8.4 Confirmation Requirements
+
 - [ ] **Require confirmation for auto-create actions**
+
   ```typescript
   // create_recommended_chart and create_recommended_pivot
   // Should use MCP Elicitation (SEP-1036) for confirmation
@@ -767,13 +884,15 @@ npm run metrics                 # View cache hit rates
     return await this.elicitConfirmation({
       action: 'create_recommended_chart',
       preview: chartRecommendation,
-      question: 'Create this chart in your spreadsheet?'
+      question: 'Create this chart in your spreadsheet?',
     });
   }
   ```
 
 #### 8.5 Error Handling
+
 - [ ] **Never expose internal errors**
+
   ```typescript
   catch (error) {
     logger.error('Analysis failed', { error, input });
@@ -794,7 +913,9 @@ npm run metrics                 # View cache hit rates
 ### 9. Monitoring & Observability (P2 - Medium Priority)
 
 #### 9.1 Metrics
+
 - [ ] **Add analysis-specific metrics**
+
   ```typescript
   // Counter: Total analyses by action
   analysisCount.labels({ action: 'analyze_data' }).inc();
@@ -807,19 +928,23 @@ npm run metrics                 # View cache hit rates
   ```
 
 #### 9.2 Structured Logging
+
 - [ ] **Log all analysis operations**
+
   ```typescript
   logger.info('Analysis completed', {
     action: input.action,
     path: decision.path,
     duration: Date.now() - startTime,
     cellCount: cellCount,
-    success: true
+    success: true,
   });
   ```
 
 #### 9.3 Tracing
+
 - [ ] **Add request context tracking**
+
   ```typescript
   // Already implemented in request-context.ts
   // Verify all log statements include request ID
@@ -832,8 +957,10 @@ npm run metrics                 # View cache hit rates
 ### 10. CI/CD Integration (P1 - High Priority)
 
 #### 10.1 Pre-commit Hooks
+
 - [x] **Husky setup** (already configured)
 - [ ] **Add analysis-specific checks**
+
   ```bash
   # .husky/pre-commit
   npm run typecheck
@@ -842,7 +969,9 @@ npm run metrics                 # View cache hit rates
   ```
 
 #### 10.2 GitHub Actions
+
 - [ ] **Update CI workflow**
+
   ```yaml
   # .github/workflows/ci.yml
   - name: Test Analysis Tool
@@ -853,6 +982,7 @@ npm run metrics                 # View cache hit rates
   ```
 
 #### 10.3 Release Checklist
+
 - [ ] **Phase 1 Release Criteria**
   - [ ] All TypeScript errors resolved
   - [ ] All unit tests passing
@@ -863,6 +993,7 @@ npm run metrics                 # View cache hit rates
   - [ ] Deprecation warnings active
 
 **Verification Commands:**
+
 ```bash
 npm run verify                  # Full verification pipeline
 npm run ci                      # Complete CI check
@@ -873,6 +1004,7 @@ npm run ci                      # Complete CI check
 ## Phase 2: Advanced Features (NEXT)
 
 ### 11. Category Extraction (P1)
+
 - [ ] Create `src/analysis/category-extractor.ts`
 - [ ] Implement 43-category systematic extraction
 - [ ] Add sample-based extraction (95% accuracy)
@@ -880,6 +1012,7 @@ npm run ci                      # Complete CI check
 - [ ] Test against golden datasets
 
 ### 12. Recommendation Engine (P1)
+
 - [ ] Create `src/analysis/recommender.ts`
 - [ ] Implement ChartRecommender
 - [ ] Implement PivotRecommender
@@ -887,6 +1020,7 @@ npm run ci                      # Complete CI check
 - [ ] Add confidence scoring
 
 ### 13. Auto-Creation Flow (P1)
+
 - [ ] Create `src/analysis/auto-creator.ts`
 - [ ] Integrate with charts handler
 - [ ] Integrate with pivot handler
@@ -898,6 +1032,7 @@ npm run ci                      # Complete CI check
 ## Phase 3: Streaming & Tasks (FUTURE)
 
 ### 14. Task Integration (P1)
+
 - [ ] Enable taskSupport: 'optional'
 - [ ] Create `src/analysis/streaming.ts`
 - [ ] Implement chunked processing
@@ -905,6 +1040,7 @@ npm run ci                      # Complete CI check
 - [ ] Add cancellation support
 
 ### 15. Redis Integration (P2)
+
 - [ ] Wire Redis for tier 3/4 caching
 - [ ] Implement multi-layer fallback
 - [ ] Add cache warming
@@ -915,18 +1051,21 @@ npm run ci                      # Complete CI check
 ## Best Practices Checklist
 
 ### TypeScript
+
 - [x] Strict mode enabled
 - [ ] No `any` types (use `unknown` + guards)
 - [ ] Comprehensive type exports
 - [ ] JSDoc on all public APIs
 
 ### Zod v4
+
 - [x] Strict validation (no .passthrough())
 - [x] Discriminated unions for variants
 - [x] .refine() for cross-field validation
 - [ ] Branded types where appropriate
 
 ### MCP Protocol
+
 - [x] All annotations specified
 - [x] Input/output schemas validated
 - [ ] Task support configured
@@ -934,6 +1073,7 @@ npm run ci                      # Complete CI check
 - [ ] Elicitation integration (Phase 2)
 
 ### Google API
+
 - [x] Field masking for optimization
 - [x] Connection pooling (50 sockets)
 - [x] HTTP/2 enabled
@@ -941,19 +1081,22 @@ npm run ci                      # Complete CI check
 - [ ] Quota monitoring
 
 ### Error Handling
+
 - [x] Structured error codes
 - [x] Retryable flag set correctly
 - [ ] Never expose internal errors
 - [x] Comprehensive error types
 
 ### Testing
-- [ ] >80% code coverage
+
+- [ ] > 80% code coverage
 - [ ] Unit + integration tests
 - [ ] Contract tests
 - [ ] Snapshot tests
 - [ ] Benchmarks
 
 ### Documentation
+
 - [ ] Tool usage guide
 - [ ] API reference (TypeDoc)
 - [ ] Migration guide
@@ -965,6 +1108,7 @@ npm run ci                      # Complete CI check
 ## Success Metrics
 
 ### Performance
+
 - [ ] Fast path: <2s for 10K cells
 - [ ] AI path: <15s for any size
 - [ ] Streaming: Handle 1M+ cells
@@ -972,6 +1116,7 @@ npm run ci                      # Complete CI check
 - [ ] API call reduction: >50%
 
 ### Quality
+
 - [ ] TypeScript compilation: 0 errors
 - [ ] Test coverage: >80%
 - [ ] All tests passing
@@ -979,6 +1124,7 @@ npm run ci                      # Complete CI check
 - [ ] ESLint: 0 errors
 
 ### User Experience
+
 - [ ] Clear error messages
 - [ ] Helpful descriptions
 - [ ] Intuitive action names
@@ -1001,6 +1147,7 @@ npm run ci                      # Complete CI check
 **Phase 1 Progress: 40%**
 
 ### Completed ✅
+
 - Schema consolidation (analyze.ts)
 - Schema deprecation (analysis.ts)
 - Helper functions extraction (helpers.ts)
@@ -1010,10 +1157,12 @@ npm run ci                      # Complete CI check
 - Metadata generation
 
 ### In Progress 🚧
+
 - TypeScript compilation fixes (60% complete)
 - Handler implementation (10% complete)
 
 ### Not Started ❌
+
 - Testing suite
 - Documentation
 - MCP protocol full compliance
@@ -1021,6 +1170,7 @@ npm run ci                      # Complete CI check
 - Security hardening
 
 **Next Steps:**
+
 1. Fix all TypeScript compilation errors
 2. Implement all 10 action handlers
 3. Write comprehensive test suite

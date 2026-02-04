@@ -1,3 +1,11 @@
+---
+title: Demo GIFs
+category: general
+last_updated: 2026-01-31
+description: This directory contains demo GIF animations for ServalSheets.
+version: 1.6.0
+---
+
 # Demo GIFs
 
 This directory contains demo GIF animations for ServalSheets.

@@ -141,6 +141,52 @@ const QueryActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(10000)
     .describe('Maximum rows to return'),
+  // Query control parameters (P1-2: BigQuery query controls)
+  timeoutMs: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(600000)
+    .optional()
+    .describe('Query timeout in milliseconds (1s - 10min, default: 10s)'),
+  maximumBytesBilled: z
+    .string()
+    .optional()
+    .describe('Maximum bytes billed for cost control (e.g., "1000000000" for 1GB)'),
+  dryRun: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Validate query without execution (returns cost estimate)'),
+  useQueryCache: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Use cached results if available (default: true)'),
+  location: z
+    .string()
+    .optional()
+    .describe('Dataset location for query execution (e.g., "US", "EU")'),
+  parameters: z
+    .array(
+      z.object({
+        name: z.string().describe('Parameter name'),
+        parameterType: z
+          .object({
+            type: z
+              .enum(['STRING', 'INT64', 'FLOAT64', 'BOOL', 'TIMESTAMP', 'DATE', 'ARRAY', 'STRUCT'])
+              .describe('Parameter data type'),
+          })
+          .describe('Parameter type specification'),
+        parameterValue: z
+          .object({
+            value: z.union([z.string(), z.number(), z.boolean()]).describe('Parameter value'),
+          })
+          .describe('Parameter value'),
+      })
+    )
+    .optional()
+    .describe('Named query parameters for parameterized queries (prevents SQL injection)'),
 });
 
 const PreviewActionSchema = z.object({
@@ -160,6 +206,21 @@ const PreviewActionSchema = z.object({
     .optional()
     .default('standard')
     .describe('Response detail level'),
+  // Query control parameters (for preview)
+  timeoutMs: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(60000)
+    .optional()
+    .describe('Query timeout in milliseconds (1s - 1min)'),
+  dryRun: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Validate query without execution (returns cost estimate)'),
+  useQueryCache: z.boolean().optional().default(true).describe('Use cached results if available'),
+  location: z.string().optional().describe('Dataset location (e.g., "US", "EU")'),
 });
 
 const RefreshActionSchema = CommonFieldsSchema.extend({
@@ -272,6 +333,45 @@ const ImportFromBigQueryActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(10000)
     .describe('Maximum rows'),
+  // Query control parameters (P1-2)
+  timeoutMs: z.coerce
+    .number()
+    .int()
+    .min(1000)
+    .max(600000)
+    .optional()
+    .describe('Query timeout in milliseconds (1s - 10min)'),
+  maximumBytesBilled: z
+    .string()
+    .optional()
+    .describe('Maximum bytes billed for cost control (e.g., "1000000000" for 1GB)'),
+  dryRun: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Validate query without execution (returns cost estimate)'),
+  useQueryCache: z.boolean().optional().default(true).describe('Use cached results if available'),
+  location: z.string().optional().describe('Dataset location (e.g., "US", "EU")'),
+  parameters: z
+    .array(
+      z.object({
+        name: z.string().describe('Parameter name'),
+        parameterType: z
+          .object({
+            type: z
+              .enum(['STRING', 'INT64', 'FLOAT64', 'BOOL', 'TIMESTAMP', 'DATE', 'ARRAY', 'STRUCT'])
+              .describe('Parameter data type'),
+          })
+          .describe('Parameter type specification'),
+        parameterValue: z
+          .object({
+            value: z.union([z.string(), z.number(), z.boolean()]).describe('Parameter value'),
+          })
+          .describe('Parameter value'),
+      })
+    )
+    .optional()
+    .describe('Named query parameters for parameterized queries (prevents SQL injection)'),
 });
 
 // ============================================================================

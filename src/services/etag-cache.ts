@@ -1,18 +1,23 @@
 /**
  * ServalSheets - ETag Cache Service
  *
- * Implements Google API ETag caching for conditional requests.
+ * Implements Google API ETag caching for conditional requests with optional Redis L2 cache.
  * Reduces bandwidth and quota usage with 304 Not Modified responses.
  *
  * Benefits:
  * - 304 responses don't count against quota
  * - Saves bandwidth (no response body)
  * - Faster response times
+ * - L1 (memory) + L2 (Redis) for distributed caching across replicas
  *
  * @category Services
  */
 
 import { logger } from '../utils/logger.js';
+
+// Use generic Redis client type to avoid complex type compatibility issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RedisClient = any;
 
 /**
  * Cached ETag entry
@@ -33,21 +38,37 @@ interface CacheKey {
   params?: Record<string, unknown>;
 }
 
+const REDIS_KEY_PREFIX = 'servalsheets:etag:';
+const REDIS_TTL_SECONDS = 600; // 10 minutes (longer than L1)
+
 /**
  * ETag Cache Service
  *
  * Caches ETags from Google API responses to enable conditional requests.
  * Uses If-None-Match header to get 304 Not Modified when data hasn't changed.
+ *
+ * Architecture:
+ * - L1 (memory): Fast, 5min TTL, limited to 1000 entries
+ * - L2 (Redis): Distributed, 10min TTL, survives pod restarts
  */
 export class ETagCache {
   private cache: Map<string, ETagEntry>;
   private readonly maxAge: number; // milliseconds
   private readonly maxSize: number;
+  private readonly redis?: RedisClient;
 
-  constructor(options: { maxAge?: number; maxSize?: number } = {}) {
+  constructor(options: { maxAge?: number; maxSize?: number; redis?: RedisClient } = {}) {
     this.cache = new Map();
     this.maxAge = options.maxAge ?? 5 * 60 * 1000; // 5 minutes default
     this.maxSize = options.maxSize ?? 1000; // Max 1000 entries
+    this.redis = options.redis;
+
+    if (this.redis) {
+      logger.info('ETag cache initialized with Redis L2', {
+        l1Ttl: this.maxAge / 1000,
+        l2Ttl: REDIS_TTL_SECONDS,
+      });
+    }
   }
 
   /**
@@ -113,41 +134,65 @@ export class ETagCache {
    * Returns cached response data if:
    * - Entry exists and is not expired
    * - Entry has cached data
+   *
+   * Checks L1 (memory) first, then L2 (Redis) on miss
    */
-  getCachedData(key: CacheKey): unknown | null {
+  async getCachedData(key: CacheKey): Promise<unknown | null> {
     const cacheKey = this.getCacheKey(key);
+
+    // Check L1 cache (memory) first
     const entry = this.cache.get(cacheKey);
-
-    if (!entry || !entry.cachedData) {
-      return null;
-    }
-
-    // Check if expired
-    const age = Date.now() - entry.cachedAt;
-    if (age > this.maxAge) {
+    if (entry && entry.cachedData) {
+      const age = Date.now() - entry.cachedAt;
+      if (age <= this.maxAge) {
+        logger.debug('ETag data cache hit (L1)', { key: cacheKey });
+        return entry.cachedData;
+      }
+      // Expired in L1
       this.cache.delete(cacheKey);
-      return null;
     }
 
-    return entry.cachedData;
+    // Check L2 cache (Redis) if available
+    if (this.redis) {
+      try {
+        const redisKey = `${REDIS_KEY_PREFIX}${cacheKey}`;
+        const cached = await this.redis.get(redisKey);
+        if (cached) {
+          const parsed: ETagEntry = JSON.parse(cached);
+          // Update L1 cache from L2
+          this.cache.set(cacheKey, parsed);
+          logger.debug('ETag data cache hit (L2 Redis)', { key: cacheKey });
+          return parsed.cachedData;
+        }
+      } catch (error) {
+        logger.warn('Failed to get ETag from Redis', {
+          key: cacheKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return null;
   }
 
   /**
    * Store ETag from response
    *
    * Extracts ETag from response headers and stores it for future requests.
+   * Writes to both L1 (memory) and L2 (Redis) if available.
    *
    * @param key - Request parameters
    * @param etag - ETag from response headers
    * @param data - Optional response data to cache
    */
-  setETag(key: CacheKey, etag: string, data?: unknown): void {
+  async setETag(key: CacheKey, etag: string, data?: unknown): Promise<void> {
     if (!etag) {
       logger.warn('Attempted to cache empty ETag', { key });
       return;
     }
 
     const cacheKey = this.getCacheKey(key);
+    const now = Date.now();
 
     // Enforce max size (LRU-style: delete oldest if at capacity)
     if (this.cache.size >= this.maxSize && !this.cache.has(cacheKey)) {
@@ -158,27 +203,65 @@ export class ETagCache {
       }
     }
 
-    this.cache.set(cacheKey, {
+    const entry: ETagEntry = {
       etag,
-      cachedAt: Date.now(),
+      cachedAt: now,
       cachedData: data,
-    });
+    };
 
-    logger.debug('ETag cached', {
-      key: cacheKey,
-      etag: etag.substring(0, 16),
-      hasCachedData: !!data,
-    });
+    // Store in L1 cache (memory)
+    this.cache.set(cacheKey, entry);
+
+    // Store in L2 cache (Redis) for distributed access
+    if (this.redis && data) {
+      try {
+        const redisKey = `${REDIS_KEY_PREFIX}${cacheKey}`;
+        await this.redis.setEx(redisKey, REDIS_TTL_SECONDS, JSON.stringify(entry));
+        logger.debug('ETag cached (L1+L2)', {
+          key: cacheKey,
+          etag: etag.substring(0, 16),
+          ttl: REDIS_TTL_SECONDS,
+        });
+      } catch (error) {
+        logger.warn('Failed to cache ETag in Redis', {
+          key: cacheKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } else {
+      logger.debug('ETag cached (L1 only)', {
+        key: cacheKey,
+        etag: etag.substring(0, 16),
+        hasCachedData: !!data,
+      });
+    }
   }
 
   /**
    * Invalidate cache entry (e.g., after mutation)
    *
+   * Clears from both L1 (memory) and L2 (Redis)
+   *
    * @param key - Request parameters to invalidate
    */
-  invalidate(key: CacheKey): void {
+  async invalidate(key: CacheKey): Promise<void> {
     const cacheKey = this.getCacheKey(key);
+
+    // Invalidate L1 (memory)
     const deleted = this.cache.delete(cacheKey);
+
+    // Invalidate L2 (Redis)
+    if (this.redis) {
+      try {
+        const redisKey = `${REDIS_KEY_PREFIX}${cacheKey}`;
+        await this.redis.del(redisKey);
+      } catch (error) {
+        logger.warn('Failed to invalidate ETag from Redis', {
+          key: cacheKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
 
     if (deleted) {
       logger.debug('ETag invalidated', { key: cacheKey });
@@ -189,13 +272,36 @@ export class ETagCache {
    * Invalidate all entries for a spreadsheet
    *
    * Called after mutations to ensure fresh data on next read.
+   * Clears from both L1 (memory) and L2 (Redis)
    */
-  invalidateSpreadsheet(spreadsheetId: string): void {
+  async invalidateSpreadsheet(spreadsheetId: string): Promise<void> {
     let count = 0;
+
+    // Invalidate L1 (memory)
     for (const [key] of this.cache) {
       if (key.startsWith(`${spreadsheetId}:`)) {
         this.cache.delete(key);
         count++;
+      }
+    }
+
+    // Invalidate L2 (Redis)
+    if (this.redis) {
+      try {
+        const pattern = `${REDIS_KEY_PREFIX}${spreadsheetId}:*`;
+        const keys = await this.redis.keys(pattern);
+        if (keys.length > 0) {
+          await this.redis.del(...keys);
+          logger.debug('Invalidated spreadsheet ETags from Redis', {
+            spreadsheetId,
+            redisCount: keys.length,
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to invalidate spreadsheet ETags from Redis', {
+          spreadsheetId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -219,6 +325,7 @@ export class ETagCache {
     size: number;
     maxSize: number;
     maxAge: number;
+    redisAvailable: boolean;
     entries: Array<{ key: string; age: number }>;
   } {
     const now = Date.now();
@@ -231,6 +338,7 @@ export class ETagCache {
       size: this.cache.size,
       maxSize: this.maxSize,
       maxAge: this.maxAge,
+      redisAvailable: !!this.redis,
       entries,
     };
   }
@@ -247,8 +355,24 @@ export function getETagCache(): ETagCache {
     instance = new ETagCache({
       maxAge: 5 * 60 * 1000, // 5 minutes
       maxSize: 1000, // 1000 entries
+      // Redis initialized via initETagCache() if needed
     });
   }
+  return instance;
+}
+
+/**
+ * Initialize ETag cache with Redis support
+ *
+ * Call this during server startup to enable distributed caching.
+ * Must be called before getETagCache() to take effect.
+ */
+export function initETagCache(redis?: RedisClient): ETagCache {
+  instance = new ETagCache({
+    maxAge: 5 * 60 * 1000, // 5 minutes
+    maxSize: 1000, // 1000 entries
+    redis,
+  });
   return instance;
 }
 

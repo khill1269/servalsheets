@@ -1,3 +1,12 @@
+---
+title: Basic Read/Write Operations
+category: example
+last_updated: 2026-01-31
+description: Learn fundamental spreadsheet operations with ServalSheets.
+version: 1.6.0
+tags: [sheets]
+---
+
 # Basic Read/Write Operations
 
 Learn fundamental spreadsheet operations with ServalSheets.
@@ -5,6 +14,7 @@ Learn fundamental spreadsheet operations with ServalSheets.
 ## Overview
 
 This guide covers:
+
 - Reading data from spreadsheets
 - Writing values to cells and ranges
 - Appending data to sheets
@@ -38,6 +48,7 @@ Read values from range A1:B10 in spreadsheet "1abc...xyz"
 ```
 
 **Behind the scenes**: ServalSheets uses the `sheets_data` tool with `read` action:
+
 ```json
 {
   "tool": "sheets_data",
@@ -86,6 +97,7 @@ Write the following data to range A1:C2 in spreadsheet "1abc...xyz":
 ```
 
 **Behind the scenes**:
+
 ```json
 {
   "tool": "sheets_data",
@@ -108,6 +120,7 @@ Write formula =SUM(A1:A10) to cell B1 in spreadsheet "1abc...xyz", preserving th
 ```
 
 **Value input options**:
+
 - `RAW` - Values are stored as-is (default)
 - `USER_ENTERED` - Values are parsed as if typed by user (enables formulas)
 
@@ -193,6 +206,7 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 ## Range Notation
 
 ### A1 Notation
+
 - Single cell: `A1`
 - Range: `A1:B10`
 - Entire column: `A:A`
@@ -200,6 +214,7 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 - Open-ended: `A1:B` (A1 to last row in column B)
 
 ### Sheet-qualified Ranges
+
 - Specific sheet: `Sheet1!A1:B10`
 - Sheet with spaces: `'My Sheet'!A1:B10`
 - Named range: Use the name directly
@@ -230,6 +245,7 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 ## Common Patterns
 
 ### Data Import Pattern
+
 ```
 1. Read existing data
 2. Validate new data format
@@ -238,6 +254,7 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 ```
 
 ### Data Export Pattern
+
 ```
 1. Read target range
 2. Format data for export
@@ -246,6 +263,7 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 ```
 
 ### Incremental Update Pattern
+
 ```
 1. Read current values
 2. Calculate changes needed
@@ -258,18 +276,22 @@ Clear all data from Sheet1 in spreadsheet "1abc...xyz"
 ### Common Errors
 
 **PERMISSION_DENIED**
+
 - Cause: Insufficient OAuth scopes
 - Solution: Re-authenticate with required scopes
 
 **INVALID_RANGE**
+
 - Cause: Malformed range notation
 - Solution: Verify A1 notation syntax
 
 **SPREADSHEET_NOT_FOUND**
+
 - Cause: Invalid spreadsheet ID or no access
 - Solution: Verify ID and sharing permissions
 
 **RATE_LIMIT_EXCEEDED**
+
 - Cause: Too many requests in short time
 - Solution: Implement exponential backoff
 

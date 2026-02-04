@@ -28,6 +28,22 @@ export interface TruncationMetadata {
 const ESSENTIAL_FIELDS = ['success', 'action', 'message', 'error', 'authenticated'];
 
 /**
+ * Fields that MUST pass through untouched (never truncated/stringified).
+ * These are schema-required object fields that break output validation if converted to strings.
+ */
+const PRESERVED_FIELDS = new Set([
+  'spreadsheet', // sheets_core: get, create, copy
+  'spreadsheets', // sheets_core: batch_get
+  'comprehensiveMetadata', // sheets_core: get_comprehensive
+  'formula', // sheets_analyze: generate_formula
+  'scout', // sheets_analyze: scout
+  'plan', // sheets_analyze: plan
+  'operations', // sheets_fix: fix preview
+  'pivotTable', // sheets_visualize: pivot_create
+  'filter', // sheets_dimensions: get_basic_filter (nested range object)
+]);
+
+/**
  * Fields included only if they don't exceed size limits
  *
  * These fields are preserved (with truncation for large arrays) rather than stripped.
@@ -47,7 +63,6 @@ const CONDITIONAL_FIELDS = [
   'namedRanges', // sheets_advanced: list_named_ranges
   'protectedRanges', // sheets_advanced: list_protected_ranges
   'filterViews', // sheets_dimensions: list_filter_views
-  'filter', // sheets_dimensions: get_basic_filter
   'valueRanges', // sheets_data: batch_read
   'templates', // sheets_templates: list
   'webhooks', // sheets_webhook: list
@@ -60,6 +75,10 @@ const CONDITIONAL_FIELDS = [
   'processes', // sheets_appsscript: list_processes
   // Suggestion/recommendation response fields (BUG FIX 0.4)
   'suggestions', // sheets_visualize: suggest_chart, suggest_pivot
+  // smart_append response fields
+  'columnsMatched', // sheets_composite: smart_append
+  'columnsCreated', // sheets_composite: smart_append
+  'columnsSkipped', // sheets_composite: smart_append
 ];
 
 /**
@@ -164,6 +183,7 @@ function compactInner(
   options?: { verbosity?: string }
 ): Record<string, unknown> {
   const compact: Record<string, unknown> = {};
+  const truncatedFields: string[] = [];
 
   // Always include essential fields
   for (const field of ESSENTIAL_FIELDS) {
@@ -175,7 +195,30 @@ function compactInner(
   // Include conditional fields with size limits
   for (const field of CONDITIONAL_FIELDS) {
     if (field in response) {
-      compact[field] = truncateValue(response[field], field, options);
+      const original = response[field];
+      const compacted = truncateValue(original, field, options);
+      compact[field] = compacted;
+
+      // Track if this field was truncated
+      if (compacted !== original && typeof compacted === 'object' && compacted !== null) {
+        const meta = (compacted as Record<string, unknown>)['_truncated'];
+        if (meta === true) {
+          const total =
+            (compacted as Record<string, unknown>)['totalRows'] ??
+            ((compacted as Record<string, unknown>)['_meta']
+              ? ((compacted as Record<string, unknown>)['_meta'] as Record<string, unknown>)?.[
+                  'totalCount'
+                ]
+              : undefined);
+          truncatedFields.push(total ? `${field}(${total} total)` : field);
+        }
+      } else if (
+        Array.isArray(original) &&
+        Array.isArray(compacted) &&
+        compacted.length < original.length
+      ) {
+        truncatedFields.push(`${field}(${original.length} total, showing ${compacted.length})`);
+      }
     }
   }
 
@@ -184,6 +227,12 @@ function compactInner(
     if (STRIPPED_FIELDS.includes(key)) continue;
     if (ESSENTIAL_FIELDS.includes(key)) continue;
     if (CONDITIONAL_FIELDS.includes(key)) continue;
+
+    // Preserved fields pass through untouched (schema-required objects)
+    if (PRESERVED_FIELDS.has(key)) {
+      compact[key] = value;
+      continue;
+    }
 
     // Include if it's a simple value
     if (isSimpleValue(value)) {
@@ -198,6 +247,26 @@ function compactInner(
         compact[key] = '[object truncated]';
       }
     }
+  }
+
+  // Add _hint when data was truncated so Claude knows what happened
+  if (truncatedFields.length > 0) {
+    const hasNextCursor = typeof compact['nextCursor'] === 'string';
+    const cursorHint = hasNextCursor
+      ? ` Next page: add cursor:"${compact['nextCursor']}" to your request.`
+      : '';
+    compact['_hint'] =
+      `Data truncated: ${truncatedFields.join(', ')}. Use verbosity:"detailed" for full data.${cursorHint}`;
+  }
+
+  // Add pagination hint even when no truncation occurred
+  if (
+    !compact['_hint'] &&
+    compact['hasMore'] === true &&
+    typeof compact['nextCursor'] === 'string'
+  ) {
+    compact['_hint'] =
+      `More data available. Next page: add cursor:"${compact['nextCursor']}" to your request.`;
   }
 
   return compact;

@@ -1,3 +1,13 @@
+---
+title: ServalSheets Metrics Reference
+category: runbook
+last_updated: 2026-01-31
+description: Complete reference for all Prometheus metrics exposed by ServalSheets MCP Server.
+version: 1.6.0
+tags: [prometheus, grafana]
+estimated_time: 15-30 minutes
+---
+
 # ServalSheets Metrics Reference
 
 Complete reference for all Prometheus metrics exposed by ServalSheets MCP Server.
@@ -17,6 +27,7 @@ curl http://localhost:3000/metrics
 ### Tool Call Metrics
 
 #### `servalsheets_tool_calls_total` (Counter)
+
 Total number of tool calls by tool, action, and status.
 
 **Labels**: `tool`, `action`, `status` (success/error)
@@ -31,6 +42,7 @@ rate(servalsheets_tool_calls_total{status="error"}[5m])
 ```
 
 #### `servalsheets_tool_call_duration_seconds` (Histogram)
+
 Tool call duration distribution in seconds.
 
 **Labels**: `tool`, `action`
@@ -43,6 +55,7 @@ histogram_quantile(0.95, rate(servalsheets_tool_call_duration_seconds_bucket[5m]
 ```
 
 #### `servalsheets_tool_call_latency_summary` (Summary) 🆕
+
 Tool call latency with pre-computed percentiles (more efficient than histogram).
 
 **Labels**: `tool`, `action`
@@ -57,6 +70,7 @@ servalsheets_tool_call_latency_summary{tool="sheets",action="read",quantile="0.9
 ### Error Metrics
 
 #### `servalsheets_errors_by_type_total` (Counter) 🆕
+
 Total errors categorized by error type, tool, and action.
 
 **Labels**: `error_type`, `tool`, `action`
@@ -71,6 +85,7 @@ topk(5, sum by (error_type) (rate(servalsheets_errors_by_type_total[5m])))
 ```
 
 **Common Error Types**:
+
 - `ValidationError` - Input validation failures
 - `AuthenticationError` - Auth failures
 - `RateLimitError` - API rate limits hit
@@ -80,6 +95,7 @@ topk(5, sum by (error_type) (rate(servalsheets_errors_by_type_total[5m])))
 ### Google API Metrics
 
 #### `servalsheets_google_api_calls_total` (Counter)
+
 Total Google API calls by method and status.
 
 **Labels**: `method`, `status` (success/error)
@@ -94,6 +110,7 @@ rate(servalsheets_google_api_calls_total{status="error"}[5m])
 ```
 
 #### `servalsheets_google_api_duration_seconds` (Histogram)
+
 Google API call duration distribution.
 
 **Labels**: `method`
@@ -108,6 +125,7 @@ rate(servalsheets_google_api_duration_seconds_sum[5m]) / rate(servalsheets_googl
 ### Circuit Breaker Metrics
 
 #### `servalsheets_circuit_breaker_state` (Gauge)
+
 Circuit breaker state (0=closed, 1=half_open, 2=open).
 
 **Labels**: `circuit`
@@ -124,6 +142,7 @@ servalsheets_circuit_breaker_state == 2
 ### Cache Metrics
 
 #### `servalsheets_cache_hits_total` (Counter)
+
 Total cache hits by namespace.
 
 **Labels**: `namespace`
@@ -135,6 +154,7 @@ rate(servalsheets_cache_hits_total[5m]) / (rate(servalsheets_cache_hits_total[5m
 ```
 
 #### `servalsheets_cache_misses_total` (Counter)
+
 Total cache misses by namespace.
 
 **Labels**: `namespace`
@@ -146,6 +166,7 @@ rate(servalsheets_cache_misses_total[5m])
 ```
 
 #### `servalsheets_cache_size_bytes` (Gauge)
+
 Current cache size in bytes by namespace.
 
 **Labels**: `namespace`
@@ -157,6 +178,7 @@ sum(servalsheets_cache_size_bytes)
 ```
 
 #### `servalsheets_cache_evictions_total` (Counter) 🆕
+
 Total cache entries evicted by reason.
 
 **Labels**: `reason`
@@ -168,6 +190,7 @@ rate(servalsheets_cache_evictions_total[5m])
 ```
 
 **Common Reasons**:
+
 - `size_limit` - Cache size exceeded
 - `ttl_expired` - Entry TTL expired
 - `manual` - Manual eviction
@@ -175,6 +198,7 @@ rate(servalsheets_cache_evictions_total[5m])
 ### Queue Metrics
 
 #### `servalsheets_queue_size` (Gauge)
+
 Current request queue size.
 
 **Helper**: `updateQueueMetrics(size, pending)`
@@ -188,6 +212,7 @@ servalsheets_queue_size > 100
 ```
 
 #### `servalsheets_queue_pending` (Gauge)
+
 Current pending requests in queue.
 
 **Helper**: `updateQueueMetrics(size, pending)`
@@ -198,6 +223,7 @@ servalsheets_queue_pending
 ```
 
 #### `servalsheets_request_queue_depth` (Gauge) 🆕
+
 Current number of requests in queue (unified metric).
 
 **Helper**: `updateRequestQueueDepth(depth)`
@@ -213,6 +239,7 @@ avg_over_time(servalsheets_request_queue_depth[5m])
 ### Session Metrics
 
 #### `servalsheets_sessions_total` (Gauge)
+
 Total active OAuth sessions.
 
 ```promql
@@ -226,6 +253,7 @@ servalsheets_sessions_total > 1000
 ### Batch Operation Metrics
 
 #### `servalsheets_batch_requests_total` (Counter)
+
 Total batch requests by operation type.
 
 **Labels**: `operation`
@@ -237,6 +265,7 @@ rate(servalsheets_batch_requests_total[5m])
 ```
 
 #### `servalsheets_batch_size` (Histogram)
+
 Batch size distribution by operation type.
 
 **Labels**: `operation`
@@ -252,6 +281,7 @@ histogram_quantile(0.95, rate(servalsheets_batch_size_bucket[5m]))
 ```
 
 #### `servalsheets_batch_efficiency_ratio` (Gauge) 🆕
+
 Ratio of operations batched vs individual calls (0-1).
 
 **Labels**: `operation_type`
@@ -404,6 +434,7 @@ sum by (tool) (rate(servalsheets_tool_calls_total[5m]))
 Example dashboard queries for visualization:
 
 ### Performance Panel
+
 ```promql
 # Latency percentiles
 servalsheets_tool_call_latency_summary{tool="sheets"}
@@ -413,6 +444,7 @@ rate(servalsheets_tool_calls_total[5m])
 ```
 
 ### Errors Panel
+
 ```promql
 # Error rate by type
 sum by (error_type) (rate(servalsheets_errors_by_type_total[5m]))
@@ -422,6 +454,7 @@ sum by (tool) (rate(servalsheets_errors_by_type_total[5m]))
 ```
 
 ### Efficiency Panel
+
 ```promql
 # Cache hit rate
 rate(servalsheets_cache_hits_total[5m]) /
@@ -432,6 +465,7 @@ avg(servalsheets_batch_efficiency_ratio) by (operation_type)
 ```
 
 ### Capacity Panel
+
 ```promql
 # Queue depth
 servalsheets_request_queue_depth
@@ -456,11 +490,7 @@ app.get('/metrics', metricsHandler);
 ### Tool Call Wrapper
 
 ```typescript
-import {
-  recordToolCall,
-  recordToolCallLatency,
-  recordError
-} from './observability/metrics.js';
+import { recordToolCall, recordToolCallLatency, recordError } from './observability/metrics.js';
 
 async function handleTool(tool: string, action: string, params: unknown) {
   const start = Date.now();
@@ -486,10 +516,7 @@ async function handleTool(tool: string, action: string, params: unknown) {
 ### Cache Integration
 
 ```typescript
-import {
-  updateCacheMetrics,
-  recordCacheEviction
-} from './observability/metrics.js';
+import { updateCacheMetrics, recordCacheEviction } from './observability/metrics.js';
 
 cache.on('get', (key, value) => {
   const hit = value !== undefined;
@@ -504,10 +531,7 @@ cache.on('evict', (key, reason) => {
 ### Queue Integration
 
 ```typescript
-import {
-  updateQueueMetrics,
-  updateRequestQueueDepth
-} from './observability/metrics.js';
+import { updateQueueMetrics, updateRequestQueueDepth } from './observability/metrics.js';
 
 queue.on('change', () => {
   updateQueueMetrics(queue.size, queue.pending);
@@ -518,10 +542,7 @@ queue.on('change', () => {
 ### Batch Operation Tracking
 
 ```typescript
-import {
-  recordBatchOperation,
-  updateBatchEfficiency
-} from './observability/metrics.js';
+import { recordBatchOperation, updateBatchEfficiency } from './observability/metrics.js';
 
 function executeBatch(operation: string, items: unknown[]) {
   recordBatchOperation(operation, items.length);

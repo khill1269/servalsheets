@@ -5,23 +5,25 @@
  * Handles webhook lifecycle: registration, renewal, and cleanup.
  *
  * Architecture:
- * - Registers with Google Sheets API (watch) for push notifications
+ * - Registers via Google Drive API (files.watch) for push notifications
  * - Stores webhook metadata in Redis
  * - Monitors expiration and auto-renews webhooks
  * - Provides CRUD operations for webhook management
  *
- * Google Sheets Watch API:
- * - POST /v4/spreadsheets/{spreadsheetId}:watch
+ * Google Drive API Watch (files.watch):
+ * - POST /v3/files/{fileId}/watch
  * - Sends push notifications to registered webhook URL
- * - Max expiration: 30 days
+ * - Max expiration: 1 day (86400000ms)
  * - Returns: resourceId, channelId, expiration
  *
+ * @see https://developers.google.com/workspace/drive/api/guides/push
  * @category Services
  */
 
 import { randomUUID } from 'crypto';
 import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
+import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import type {
   WebhookEventType,
   WebhookInfo,
@@ -51,6 +53,7 @@ interface WebhookRecord {
   failureCount: number;
   lastDelivery?: number;
   lastFailure?: number;
+  deliveryTimings?: number[]; // Circular buffer of last 100 delivery times (ms)
 }
 
 /**
@@ -62,11 +65,16 @@ export class WebhookManager {
   private redis: RedisClient | null;
   private googleApi: GoogleApiClient;
   private webhookEndpoint: string;
+  public diffEngine: DiffEngine; // Phase 4.2A: For event categorization
 
   constructor(redis: RedisClient | null, googleApi: GoogleApiClient, webhookEndpoint: string) {
     this.redis = redis;
     this.googleApi = googleApi;
     this.webhookEndpoint = webhookEndpoint;
+    this.diffEngine = new DiffEngine({
+      sheetsApi: googleApi.sheets,
+      defaultTier: 'SAMPLE', // Use SAMPLE tier for webhook diffs (good balance)
+    });
 
     logger.info('Webhook manager initialized', {
       redisAvailable: redis !== null,
@@ -84,18 +92,56 @@ export class WebhookManager {
 
     const webhookId = `webhook_${randomUUID()}`;
     const channelId = `channel_${randomUUID()}`;
-    const expiresAt = Date.now() + input.expirationMs;
+
+    // Clamp expiration to Drive API limit (1 day for files.watch)
+    const MAX_EXPIRATION_MS = 86400000; // 1 day
+    const requestedExpiration = input.expirationMs;
+    const clampedExpiration = Math.min(requestedExpiration, MAX_EXPIRATION_MS);
+    const expiresAt = Date.now() + clampedExpiration;
+
+    if (requestedExpiration > MAX_EXPIRATION_MS) {
+      logger.warn('Webhook expiration clamped to Drive API limit', {
+        requested: requestedExpiration,
+        clamped: clampedExpiration,
+        requestedDays: requestedExpiration / 86400000,
+        clampedDays: clampedExpiration / 86400000,
+      });
+    }
 
     try {
-      // Register with Google Sheets Watch API
-      // Note: Google Sheets API v4 does not currently support watch/push notifications.
-      // In production, you would use Google Drive API watch or polling-based change detection.
-      logger.warn('Google Sheets Watch API unavailable - using mock registration', {
-        spreadsheetId: input.spreadsheetId,
-        webhookId,
+      // Register with Google Drive API watch
+      // Note: Sheets API v4 doesn't support push notifications, but Drive API v3 does
+      // We watch the spreadsheet file for changes via Drive API
+      const watchResponse = await this.googleApi.drive.files.watch({
+        fileId: input.spreadsheetId,
+        requestBody: {
+          id: channelId,
+          type: 'web_hook',
+          address: this.webhookEndpoint,
+          token: webhookId, // For correlation in callback
+          expiration: expiresAt.toString(),
+        },
       });
 
-      const resourceId = `resource_${randomUUID()}`;
+      if (!watchResponse.data.resourceId) {
+        throw new Error('Drive API watch response missing resourceId');
+      }
+
+      const resourceId = watchResponse.data.resourceId;
+
+      // Log if API returned shorter expiration than requested
+      if (watchResponse.data.expiration) {
+        const apiExpiration = parseInt(watchResponse.data.expiration, 10);
+        if (apiExpiration < expiresAt) {
+          logger.warn('Drive API returned shorter expiration than requested', {
+            requestedExpiration: expiresAt,
+            apiExpiration,
+            requestedDays: (expiresAt - Date.now()) / 86400000,
+            apiDays: (apiExpiration - Date.now()) / 86400000,
+            difference: (expiresAt - apiExpiration) / 1000 / 60, // minutes
+          });
+        }
+      }
 
       // Store webhook record in Redis
       const record: WebhookRecord = {
@@ -111,6 +157,7 @@ export class WebhookManager {
         secret: input.secret,
         deliveryCount: 0,
         failureCount: 0,
+        deliveryTimings: [],
       };
 
       await this.redis.set(`webhook:${webhookId}`, JSON.stringify(record), {
@@ -168,12 +215,29 @@ export class WebhookManager {
 
       const record: WebhookRecord = JSON.parse(recordStr as string);
 
-      // Stop Google Watch API channel (if applicable)
-      logger.info('Unregistering webhook', {
+      // Stop Google Drive API watch channel
+      logger.info('Stopping Drive API watch channel', {
         webhookId,
         spreadsheetId: record.spreadsheetId,
         channelId: record.channelId,
+        resourceId: record.resourceId,
       });
+
+      try {
+        await this.googleApi.drive.channels.stop({
+          requestBody: {
+            id: record.channelId,
+            resourceId: record.resourceId,
+          },
+        });
+        logger.info('Drive API watch channel stopped', { channelId: record.channelId });
+      } catch (error) {
+        // Channel might already be expired or invalid - log but don't fail
+        logger.warn('Failed to stop Drive API watch channel (might be already expired)', {
+          channelId: record.channelId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
 
       // Remove from Redis
       await this.redis.del(`webhook:${webhookId}`);
@@ -255,7 +319,7 @@ export class WebhookManager {
   /**
    * Update webhook delivery stats
    */
-  async recordDelivery(webhookId: string, success: boolean): Promise<void> {
+  async recordDelivery(webhookId: string, success: boolean, durationMs?: number): Promise<void> {
     if (!this.redis) {
       return;
     }
@@ -277,6 +341,17 @@ export class WebhookManager {
         record.lastFailure = Date.now();
       }
 
+      // Update delivery timings (circular buffer, last 100)
+      if (durationMs !== undefined) {
+        if (!record.deliveryTimings) {
+          record.deliveryTimings = [];
+        }
+        record.deliveryTimings.push(durationMs);
+        if (record.deliveryTimings.length > 100) {
+          record.deliveryTimings.shift();
+        }
+      }
+
       await this.redis.set(`webhook:${webhookId}`, JSON.stringify(record), {
         EXAT: Math.floor(record.expiresAt / 1000),
       });
@@ -289,6 +364,67 @@ export class WebhookManager {
       });
     } catch (error) {
       logger.error('Failed to record webhook delivery', { webhookId, error });
+    }
+  }
+
+  /**
+   * Record event type stats for filtering efficiency tracking
+   * Phase 4.2A: Track detected vs delivered events per type
+   */
+  async recordEventStats(
+    webhookId: string,
+    detectedEvents: Array<import('../schemas/webhook.js').WebhookEventType>,
+    deliveredEvents: Array<import('../schemas/webhook.js').WebhookEventType>
+  ): Promise<void> {
+    if (!this.redis) {
+      return;
+    }
+
+    try {
+      const key = `webhook:events:${webhookId}`;
+      const existingStr = await this.redis.get(key);
+      const existing = existingStr ? JSON.parse(existingStr as string) : {};
+
+      // Track counts per event type
+      for (const eventType of detectedEvents) {
+        if (!existing[eventType]) {
+          existing[eventType] = { detected: 0, delivered: 0 };
+        }
+        existing[eventType].detected++;
+      }
+
+      for (const eventType of deliveredEvents) {
+        if (!existing[eventType]) {
+          existing[eventType] = { detected: 0, delivered: 0 };
+        }
+        existing[eventType].delivered++;
+      }
+
+      // Store with 7 day TTL (same as webhook expiration)
+      await this.redis.set(key, JSON.stringify(existing), { EX: 604800 });
+    } catch (error) {
+      logger.error('Failed to record event stats', { webhookId, error });
+    }
+  }
+
+  /**
+   * Get event type statistics for a webhook
+   * Phase 4.2A: Returns breakdown of detected vs delivered events
+   */
+  async getEventStats(
+    webhookId: string
+  ): Promise<Record<string, { detected: number; delivered: number }> | null> {
+    if (!this.redis) {
+      return null;
+    }
+
+    try {
+      const key = `webhook:events:${webhookId}`;
+      const statsStr = await this.redis.get(key);
+      return statsStr ? JSON.parse(statsStr as string) : null;
+    } catch (error) {
+      logger.error('Failed to get event stats', { webhookId, error });
+      return null;
     }
   }
 
@@ -330,9 +466,131 @@ export class WebhookManager {
   }
 
   /**
+   * Renew expiring watch channels
+   * Phase 1: Proactive channel renewal before expiration
+   *
+   * Drive API channels expire after max 1 day (files) or 7 days (changes API).
+   * This method renews channels that are within the renewal window.
+   *
+   * @param renewalWindowMs - Renew channels expiring within this window (default: 2 hours)
+   * @returns Number of channels renewed
+   */
+  async renewExpiringChannels(renewalWindowMs: number = 2 * 60 * 60 * 1000): Promise<number> {
+    if (!this.redis) {
+      return 0;
+    }
+
+    try {
+      const now = Date.now();
+      const renewalThreshold = now + renewalWindowMs;
+      const keys = await this.redis.keys('webhook:*');
+      let renewedCount = 0;
+
+      for (const key of keys as string[]) {
+        const recordStr = await this.redis.get(key);
+        if (!recordStr) {
+          continue;
+        }
+
+        const record: WebhookRecord = JSON.parse(recordStr as string);
+
+        // Renew if expiring within the renewal window and still active
+        if (record.active && record.expiresAt < renewalThreshold && record.expiresAt > now) {
+          logger.info('Renewing expiring webhook channel', {
+            webhookId: record.webhookId,
+            spreadsheetId: record.spreadsheetId,
+            expiresAt: new Date(record.expiresAt).toISOString(),
+          });
+
+          try {
+            // Stop old channel
+            await this.googleApi.drive.channels.stop({
+              requestBody: {
+                id: record.channelId,
+                resourceId: record.resourceId,
+              },
+            });
+
+            // Create new channel with new expiration
+            const newChannelId = `channel_${randomUUID()}`;
+            const newExpiresAt = Date.now() + 24 * 60 * 60 * 1000; // 1 day (Drive API file watch max)
+
+            const watchResponse = await this.googleApi.drive.files.watch({
+              fileId: record.spreadsheetId,
+              requestBody: {
+                id: newChannelId,
+                type: 'web_hook',
+                address: this.webhookEndpoint,
+                token: record.webhookId,
+                expiration: newExpiresAt.toString(),
+              },
+            });
+
+            if (!watchResponse.data.resourceId) {
+              throw new Error('Drive API watch response missing resourceId');
+            }
+
+            // Update record with new channel info
+            record.channelId = newChannelId;
+            record.resourceId = watchResponse.data.resourceId;
+            record.expiresAt = newExpiresAt;
+
+            await this.redis.set(`webhook:${record.webhookId}`, JSON.stringify(record), {
+              EXAT: Math.floor(newExpiresAt / 1000),
+            });
+
+            renewedCount++;
+            logger.info('Webhook channel renewed', {
+              webhookId: record.webhookId,
+              newChannelId,
+              newExpiresAt: new Date(newExpiresAt).toISOString(),
+            });
+          } catch (error) {
+            logger.error('Failed to renew webhook channel', {
+              webhookId: record.webhookId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            // Mark webhook as inactive if renewal fails
+            record.active = false;
+            await this.redis.set(`webhook:${record.webhookId}`, JSON.stringify(record), {
+              EXAT: Math.floor(record.expiresAt / 1000),
+            });
+          }
+        }
+      }
+
+      if (renewedCount > 0) {
+        logger.info('Renewed expiring webhook channels', { count: renewedCount });
+      }
+
+      return renewedCount;
+    } catch (error) {
+      logger.error('Failed to renew expiring channels', { error });
+      return 0;
+    }
+  }
+
+  /**
    * Convert webhook record to info format
    */
   private recordToInfo(record: WebhookRecord): WebhookInfo {
+    // Calculate percentiles from delivery timings
+    let avgDeliveryTimeMs: number | undefined;
+    let p95DeliveryTimeMs: number | undefined;
+    let p99DeliveryTimeMs: number | undefined;
+
+    if (record.deliveryTimings && record.deliveryTimings.length > 0) {
+      const sorted = [...record.deliveryTimings].sort((a, b) => a - b);
+      const sum = sorted.reduce((a, b) => a + b, 0);
+      avgDeliveryTimeMs = sum / sorted.length;
+
+      const p95Index = Math.floor(sorted.length * 0.95);
+      p95DeliveryTimeMs = sorted[p95Index] ?? sorted[sorted.length - 1];
+
+      const p99Index = Math.floor(sorted.length * 0.99);
+      p99DeliveryTimeMs = sorted[p99Index] ?? sorted[sorted.length - 1];
+    }
+
     return {
       webhookId: record.webhookId,
       spreadsheetId: record.spreadsheetId,
@@ -347,7 +605,85 @@ export class WebhookManager {
       failureCount: record.failureCount,
       lastDelivery: record.lastDelivery ? new Date(record.lastDelivery).toISOString() : undefined,
       lastFailure: record.lastFailure ? new Date(record.lastFailure).toISOString() : undefined,
+      avgDeliveryTimeMs,
+      p95DeliveryTimeMs,
+      p99DeliveryTimeMs,
     };
+  }
+
+  /**
+   * Cache spreadsheet state for diff comparison
+   * (Phase 4.2A - Fine-Grained Event Filtering)
+   */
+  async cacheState(spreadsheetId: string, state: SpreadsheetState): Promise<void> {
+    if (!this.redis) {
+      logger.debug('State caching skipped: Redis not available');
+      return;
+    }
+
+    const key = `webhook:state:${spreadsheetId}`;
+    try {
+      await this.redis.set(key, JSON.stringify(state), {
+        EX: 3600, // 1 hour TTL
+      });
+      logger.debug('Spreadsheet state cached', { spreadsheetId, key });
+    } catch (error) {
+      logger.warn('Failed to cache spreadsheet state', {
+        spreadsheetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Retrieve cached spreadsheet state
+   * (Phase 4.2A - Fine-Grained Event Filtering)
+   */
+  async getCachedState(spreadsheetId: string): Promise<SpreadsheetState | null> {
+    if (!this.redis) {
+      logger.debug('State retrieval skipped: Redis not available');
+      return null;
+    }
+
+    const key = `webhook:state:${spreadsheetId}`;
+    try {
+      const cached = await this.redis.get(key);
+      if (!cached) {
+        logger.debug('No cached state found', { spreadsheetId, key });
+        return null;
+      }
+
+      const state = JSON.parse(cached) as SpreadsheetState;
+      logger.debug('Spreadsheet state retrieved from cache', { spreadsheetId, key });
+      return state;
+    } catch (error) {
+      logger.warn('Failed to retrieve cached spreadsheet state', {
+        spreadsheetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Cleanup cached state for a spreadsheet
+   * (Phase 4.2A - Fine-Grained Event Filtering)
+   */
+  async cleanupStateCache(spreadsheetId: string): Promise<void> {
+    if (!this.redis) {
+      return;
+    }
+
+    const key = `webhook:state:${spreadsheetId}`;
+    try {
+      await this.redis.del(key);
+      logger.debug('Spreadsheet state cache cleaned up', { spreadsheetId, key });
+    } catch (error) {
+      logger.warn('Failed to cleanup spreadsheet state cache', {
+        spreadsheetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 

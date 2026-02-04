@@ -1,3 +1,13 @@
+---
+title: Welcome to ServalSheets! 🎉
+category: guide
+last_updated: 2026-01-31
+description: You've successfully installed ServalSheets. Here's how to get started in Claude Desktop.
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # Welcome to ServalSheets! 🎉
 
 You've successfully installed ServalSheets. Here's how to get started in Claude Desktop.
@@ -5,11 +15,13 @@ You've successfully installed ServalSheets. Here's how to get started in Claude 
 ## Your First 5 Minutes
 
 ### Step 1: Restart Claude Desktop
+
 1. Quit Claude Desktop completely (⌘+Q)
 2. Reopen Claude Desktop
 3. Look for the 🔨 icon in the bottom-right corner (custom ServalSheets icon may not appear yet)
 
 ### Step 2: Say Hello
+
 Type this in Claude Desktop:
 
 ```
@@ -17,11 +29,13 @@ Type this in Claude Desktop:
 ```
 
 This will give you an interactive introduction to ServalSheets showing you:
+
 - What ServalSheets can do
 - How to use it safely
 - Tips for best results
 
 ### Step 3: Test Your Setup
+
 Type:
 
 ```
@@ -31,6 +45,7 @@ Type:
 This will verify your Google authentication is working by testing with a public spreadsheet.
 
 ### Step 4: Try Your First Operation
+
 Type:
 
 ```
@@ -38,6 +53,7 @@ Type:
 ```
 
 Claude will guide you through:
+
 - Reading data from a spreadsheet
 - Analyzing data quality
 - Getting statistics
@@ -48,6 +64,7 @@ Claude will guide you through:
 These are called **prompts** - they're pre-built conversation starters that guide you through common tasks.
 
 **Available prompts:**
+
 - `/welcome` - Introduction and overview
 - `/test_connection` - Verify setup works
 - `/first_operation` - Guided first operation
@@ -59,16 +76,19 @@ These are called **prompts** - they're pre-built conversation starters that guid
 ## Quick Examples
 
 ### Example 1: Read Data
+
 ```
 Read cells A1:D10 from spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 ```
 
 ### Example 2: Analyze Quality
+
 ```
 Analyze the data quality in spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 ```
 
 ### Example 3: Create a Chart
+
 ```
 Create a bar chart from the data in spreadsheet: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 Show monthly sales from range A1:B12
@@ -86,33 +106,39 @@ ServalSheets is built with safety in mind:
 ## Using Your Own Spreadsheets
 
 ### With Service Account
+
 1. Open your Google Sheet
 2. Click "Share"
 3. Add your service account email (from your JSON file)
 4. Grant "Editor" permission
 
 ### With OAuth Token
+
 You automatically have access to your own spreadsheets!
 
 ## What Can ServalSheets Do?
 
 ### 📊 Data Operations
+
 - Read and write cell values
 - Batch operations for efficiency
 - Find columns by header name (semantic ranges)
 
 ### 🔍 Analysis
+
 - Data quality checks
 - Statistics and correlations
 - Formula auditing
 - Duplicate detection
 
 ### 🎨 Formatting
+
 - Cell formatting (colors, fonts, numbers)
 - Conditional formatting rules
 - Charts and visualizations
 
 ### 🚀 Advanced
+
 - Version history and restore
 - Sharing and permissions
 - Comments and notes
@@ -135,6 +161,7 @@ You automatically have access to your own spreadsheets!
 ## Test Spreadsheet
 
 For testing, use this public spreadsheet:
+
 - **ID**: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 - **URL**: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
 

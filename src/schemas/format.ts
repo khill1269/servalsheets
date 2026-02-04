@@ -387,8 +387,11 @@ const ClearDataValidationActionSchema = CommonFieldsSchema.extend({
 });
 
 const ListDataValidationsActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('list_data_validations').describe('List all data validations on a sheet'),
+  action: z.literal('list_data_validations').describe('List data validations on a sheet or range'),
   sheetId: SheetIdSchema.describe('Numeric sheet ID to list validations from'),
+  range: RangeInputSchema.optional().describe(
+    'Optional range to limit validation scan (e.g., "A1:Z100"). REQUIRED for sheets >10K cells to prevent timeout. If omitted, scans entire sheet (may timeout on large sheets).'
+  ),
 });
 
 const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({

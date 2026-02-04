@@ -39,7 +39,7 @@ export const WebhookEventTypeSchema = z.enum([
  * Webhook registration input
  */
 export const WebhookRegisterInputSchema = z.object({
-  action: z.literal('register'),
+  action: z.literal('register').describe('Register a webhook to receive change notifications'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
   webhookUrl: z.string().url('Must be a valid HTTPS URL').startsWith('https://'),
   eventTypes: z.array(WebhookEventTypeSchema).min(1, 'At least one event type required'),
@@ -62,7 +62,7 @@ export const WebhookRegisterInputSchema = z.object({
  * Webhook unregister input
  */
 export const WebhookUnregisterInputSchema = z.object({
-  action: z.literal('unregister'),
+  action: z.literal('unregister').describe('Unregister an existing webhook'),
   webhookId: z.string().min(1, 'Webhook ID required'),
 });
 
@@ -70,7 +70,7 @@ export const WebhookUnregisterInputSchema = z.object({
  * Webhook list input
  */
 export const WebhookListInputSchema = z.object({
-  action: z.literal('list'),
+  action: z.literal('list').describe('List all registered webhooks'),
   spreadsheetId: z.string().optional().describe('Filter by spreadsheet ID'),
   active: z.boolean().optional().describe('Filter by active status'),
 });
@@ -79,7 +79,7 @@ export const WebhookListInputSchema = z.object({
  * Webhook get input
  */
 export const WebhookGetInputSchema = z.object({
-  action: z.literal('get'),
+  action: z.literal('get').describe('Get details of a specific webhook'),
   webhookId: z.string().min(1, 'Webhook ID required'),
 });
 
@@ -87,7 +87,7 @@ export const WebhookGetInputSchema = z.object({
  * Webhook test input (sends test payload)
  */
 export const WebhookTestInputSchema = z.object({
-  action: z.literal('test'),
+  action: z.literal('test').describe('Send a test payload to a webhook endpoint'),
   webhookId: z.string().min(1, 'Webhook ID required'),
 });
 
@@ -95,7 +95,7 @@ export const WebhookTestInputSchema = z.object({
  * Webhook stats input
  */
 export const WebhookStatsInputSchema = z.object({
-  action: z.literal('get_stats'),
+  action: z.literal('get_stats').describe('Get delivery statistics for webhooks'),
   webhookId: z.string().optional().describe('Get stats for specific webhook'),
 });
 

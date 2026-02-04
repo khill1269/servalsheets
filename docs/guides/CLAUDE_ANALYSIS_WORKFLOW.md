@@ -1,3 +1,14 @@
+---
+title: Claude Sheet Analysis Workflow Guide
+category: guide
+last_updated: 2026-01-31
+description: '> Purpose: This guide shows how Claude should analyze Google Sheets before taking actions, ensuring safe operations and optimal tool usage patterns.'
+version: 1.6.0
+tags: [sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Claude Sheet Analysis Workflow Guide
 
 > **Purpose**: This guide shows how Claude should analyze Google Sheets before taking actions, ensuring safe operations and optimal tool usage patterns.
@@ -68,13 +79,13 @@
 { "action": "status" }  // → sheets_auth
 
 // Step 2: Get spreadsheet context
-{ 
-  "action": "get", 
-  "spreadsheetId": "1ABC..." 
+{
+  "action": "get",
+  "spreadsheetId": "1ABC..."
 }  // → sheets_core
 
 // Step 3: Analyze data quality
-{ 
+{
   "action": "analyze_quality",
   "spreadsheetId": "1ABC...",
   "range": { "a1": "Sheet1!A1:Z100" }
@@ -278,15 +289,15 @@ sheets_data → {
 
 ### When to Require Confirmation
 
-| Operation Type | Cells Affected | Confirmation Required |
-|---------------|----------------|----------------------|
-| Read | Any | ❌ No |
-| Write | < 10 | ❌ No (but recommend dry-run) |
-| Write | 10-100 | ⚠️ Recommended |
-| Write | > 100 | ✅ **Required** |
-| Delete rows/columns | Any | ✅ **Required** |
-| Delete sheet | Any | ✅ **Required** |
-| Change sharing | Any | ✅ **Required** |
+| Operation Type      | Cells Affected | Confirmation Required         |
+| ------------------- | -------------- | ----------------------------- |
+| Read                | Any            | ❌ No                         |
+| Write               | < 10           | ❌ No (but recommend dry-run) |
+| Write               | 10-100         | ⚠️ Recommended                |
+| Write               | > 100          | ✅ **Required**               |
+| Delete rows/columns | Any            | ✅ **Required**               |
+| Delete sheet        | Any            | ✅ **Required**               |
+| Change sharing      | Any            | ✅ **Required**               |
 
 ### Confirmation Flow (MCP Elicitation)
 
@@ -378,14 +389,14 @@ sheets_collaborate → {
 
 ### Common Errors and Recovery
 
-| Error Code | Cause | Recovery Action |
-|-----------|-------|-----------------|
-| `TOKEN_NOT_FOUND` | First time use | `sheets_auth action="login"` |
-| `AUTH_EXPIRED` | Token expired | Auto-refreshes, or re-login |
-| `PERMISSION_DENIED` | No access to sheet | Request owner to share |
-| `RANGE_NOT_FOUND` | Invalid range/sheet name | Use `sheets_core action="list"` to verify |
-| `QUOTA_EXCEEDED` | Too many API calls | Wait 60s, use batch operations |
-| `VALIDATION_FAILED` | Invalid input format | Check schema requirements |
+| Error Code          | Cause                    | Recovery Action                           |
+| ------------------- | ------------------------ | ----------------------------------------- |
+| `TOKEN_NOT_FOUND`   | First time use           | `sheets_auth action="login"`              |
+| `AUTH_EXPIRED`      | Token expired            | Auto-refreshes, or re-login               |
+| `PERMISSION_DENIED` | No access to sheet       | Request owner to share                    |
+| `RANGE_NOT_FOUND`   | Invalid range/sheet name | Use `sheets_core action="list"` to verify |
+| `QUOTA_EXCEEDED`    | Too many API calls       | Wait 60s, use batch operations            |
+| `VALIDATION_FAILED` | Invalid input format     | Check schema requirements                 |
 
 ### Recovery Workflow
 
@@ -507,24 +518,24 @@ Error detected
 
 ## Quick Reference: Tool → Action Mapping
 
-| Tool | Primary Actions | Use Case |
-|------|----------------|----------|
-| `sheets_auth` | status, login, logout | Authentication |
-| `sheets_core` | get, create, add_sheet, delete_sheet | Spreadsheet & sheet management |
-| `sheets_data` | read, write, append, find_replace | Cell values, notes, links |
-| `sheets_format` | set_format, set_number_format, rule_add_conditional_format | Formatting & validation |
-| `sheets_dimensions` | insert_rows, delete_rows, resize_columns, sort_range | Row/column operations |
-| `sheets_visualize` | chart_create, chart_update, pivot_create | Charts & pivots |
-| `sheets_collaborate` | share_add, comment_add, version_list_revisions | Sharing, comments, versions |
-| `sheets_advanced` | add_named_range, add_protected_range, set_metadata | Named ranges & protection |
-| `sheets_transaction` | begin, queue, commit | Atomic batch operations |
-| `sheets_quality` | validate, detect_conflicts, analyze_impact | Validation & impact |
-| `sheets_history` | list, undo, revert_to | Operation history |
-| `sheets_confirm` | request, get_stats | User confirmation UI |
-| `sheets_analyze` | comprehensive, analyze_data, suggest_visualization | Analysis & AI insights |
-| `sheets_fix` | fix | Automated fixes |
-| `sheets_composite` | import_csv, smart_append, bulk_update | Composite operations |
-| `sheets_session` | set_active, get_context, find_by_reference | Session context |
+| Tool                 | Primary Actions                                            | Use Case                       |
+| -------------------- | ---------------------------------------------------------- | ------------------------------ |
+| `sheets_auth`        | status, login, logout                                      | Authentication                 |
+| `sheets_core`        | get, create, add_sheet, delete_sheet                       | Spreadsheet & sheet management |
+| `sheets_data`        | read, write, append, find_replace                          | Cell values, notes, links      |
+| `sheets_format`      | set_format, set_number_format, rule_add_conditional_format | Formatting & validation        |
+| `sheets_dimensions`  | insert_rows, delete_rows, resize_columns, sort_range       | Row/column operations          |
+| `sheets_visualize`   | chart_create, chart_update, pivot_create                   | Charts & pivots                |
+| `sheets_collaborate` | share_add, comment_add, version_list_revisions             | Sharing, comments, versions    |
+| `sheets_advanced`    | add_named_range, add_protected_range, set_metadata         | Named ranges & protection      |
+| `sheets_transaction` | begin, queue, commit                                       | Atomic batch operations        |
+| `sheets_quality`     | validate, detect_conflicts, analyze_impact                 | Validation & impact            |
+| `sheets_history`     | list, undo, revert_to                                      | Operation history              |
+| `sheets_confirm`     | request, get_stats                                         | User confirmation UI           |
+| `sheets_analyze`     | comprehensive, analyze_data, suggest_visualization         | Analysis & AI insights         |
+| `sheets_fix`         | fix                                                        | Automated fixes                |
+| `sheets_composite`   | import_csv, smart_append, bulk_update                      | Composite operations           |
+| `sheets_session`     | set_active, get_context, find_by_reference                 | Session context                |
 
 ---
 
@@ -542,5 +553,5 @@ Error detected
 
 ---
 
-*Last Updated: 2026-01-16*
-*ServalSheets Version: 1.4.0*
+_Last Updated: 2026-01-16_
+_ServalSheets Version: 1.4.0_

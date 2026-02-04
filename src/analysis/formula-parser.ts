@@ -17,6 +17,13 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { getWorkerPool } from '../services/worker-pool.js';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Cell reference types
@@ -246,6 +253,38 @@ export function parseFormula(formula: string): ParsedFormula {
 }
 
 /**
+ * Parse formula using worker thread (async, non-blocking)
+ *
+ * Offloads regex-heavy parsing to worker thread to prevent event loop blocking.
+ * Falls back to synchronous parsing if worker pool not available.
+ *
+ * @param formula - Google Sheets formula
+ * @returns Parsed formula with references and functions
+ *
+ * @example
+ * ```typescript
+ * // Parse in worker thread (non-blocking)
+ * const parsed = await parseFormulaAsync('=SUM(A1:B10)');
+ * ```
+ */
+export async function parseFormulaAsync(formula: string): Promise<ParsedFormula> {
+  try {
+    const pool = getWorkerPool();
+
+    // Register worker script if not already registered
+    const workerScriptPath = resolve(__dirname, '../workers/formula-parser-worker.js');
+    pool.registerWorker('parse-formula', workerScriptPath);
+
+    // Execute in worker thread
+    return await pool.execute<{ formula: string }, ParsedFormula>('parse-formula', { formula });
+  } catch (error) {
+    // Fall back to synchronous parsing on error
+    logger.warn('Worker pool unavailable, using synchronous formula parsing', { error });
+    return parseFormula(formula);
+  }
+}
+
+/**
  * Extract cell references only (no functions or named ranges)
  *
  * @param formula - Google Sheets formula
@@ -253,6 +292,17 @@ export function parseFormula(formula: string): ParsedFormula {
  */
 export function extractCellReferences(formula: string): CellReference[] {
   return parseFormula(formula).references;
+}
+
+/**
+ * Extract cell references using worker thread (async)
+ *
+ * @param formula - Google Sheets formula
+ * @returns Array of cell references
+ */
+export async function extractCellReferencesAsync(formula: string): Promise<CellReference[]> {
+  const parsed = await parseFormulaAsync(formula);
+  return parsed.references;
 }
 
 /**

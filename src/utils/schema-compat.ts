@@ -165,7 +165,7 @@ export const USE_SCHEMA_REFS = process.env['SERVAL_SCHEMA_REFS'] === 'true';
  *
  * @param schema - Any Zod schema
  * @param options - Conversion options (currently unused, kept for API compatibility)
- * @returns JSON Schema object (without $schema property)
+ * @returns JSON Schema object with $schema dialect identifier
  */
 export function zodSchemaToJsonSchema(
   schema: ZodTypeAny,
@@ -186,10 +186,9 @@ export function zodSchemaToJsonSchema(
     };
     const jsonSchema = z.toJSONSchema(schema, jsonSchemaOptions);
 
-    // Remove $schema property (MCP doesn't need it)
+    // Keep $schema property for MCP 2025-11-25 compliance (JSON Schema 2020-12)
     if (typeof jsonSchema === 'object' && jsonSchema !== null) {
-      const { $schema: _$schema, ...rest } = jsonSchema as Record<string, unknown>;
-      return rest;
+      return jsonSchema as Record<string, unknown>;
     }
 
     // Unexpected format from Zod

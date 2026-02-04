@@ -1,3 +1,13 @@
+---
+title: Caching Patterns Guide
+category: guide
+last_updated: 2026-01-31
+description: Quick Reference for AI Agents
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # Caching Patterns Guide
 
 **Quick Reference for AI Agents**
@@ -8,11 +18,11 @@ Learn how to leverage ServalSheets' intelligent caching system to reduce API cal
 
 ServalSheets caches three types of data:
 
-| Cache Type | TTL | Max Size | Use Case |
-|------------|-----|----------|----------|
-| **Metadata** | 5 minutes | 100 spreadsheets | Spreadsheet structure, sheet lists |
-| **Cell Data** | 1 minute | 1000 ranges | Cell values, formulas |
-| **Schemas** | 10 minutes | 50 spreadsheets | Column schemas, data types |
+| Cache Type    | TTL        | Max Size         | Use Case                           |
+| ------------- | ---------- | ---------------- | ---------------------------------- |
+| **Metadata**  | 5 minutes  | 100 spreadsheets | Spreadsheet structure, sheet lists |
+| **Cell Data** | 1 minute   | 1000 ranges      | Cell values, formulas              |
+| **Schemas**   | 10 minutes | 50 spreadsheets  | Column schemas, data types         |
 
 ## How Caching Works
 
@@ -25,7 +35,7 @@ ServalSheets generates cache keys automatically:
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:B10'
+  range: 'A1:B10',
 });
 // Cache key: "read:xxx:A1:B10"
 // Subsequent reads with same params = cache hit (0 API calls)
@@ -59,14 +69,14 @@ await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:B10' });
 // First call: Cache miss (1 API call)
 const sheets1 = await list_sheets({
   action: 'list_sheets',
-  spreadsheetId: 'xxx'
+  spreadsheetId: 'xxx',
 });
 // Cache: metadata:xxx stored (TTL: 5 min)
 
 // Subsequent calls within 5 min: Cache hit (0 API calls)
 const sheets2 = await list_sheets({
   action: 'list_sheets',
-  spreadsheetId: 'xxx'
+  spreadsheetId: 'xxx',
 });
 // Cache hit: Returns cached metadata
 ```
@@ -82,7 +92,7 @@ const sheets2 = await list_sheets({
 const data = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:Z100'
+  range: 'A1:Z100',
 });
 // Cache: read:xxx:A1:Z100 stored (TTL: 1 min)
 
@@ -93,7 +103,7 @@ const analysis = analyzeData(data.values);
 const verification = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:Z100'
+  range: 'A1:Z100',
 });
 // Cache hit: Returns same data (within 1 min TTL)
 ```
@@ -109,7 +119,7 @@ const verification = await read({
 await analyze_data({
   action: 'analyze_data',
   spreadsheetId: 'xxx',
-  sheetName: 'Data'
+  sheetName: 'Data',
 });
 // Cache: schema:xxx:Data stored (TTL: 10 min)
 
@@ -117,7 +127,7 @@ await analyze_data({
 await detect_issues({
   action: 'detect_issues',
   spreadsheetId: 'xxx',
-  sheetName: 'Data'
+  sheetName: 'Data',
 });
 // Cache hit: Schema not refetched
 ```
@@ -138,11 +148,13 @@ export SERVALSHEETS_CACHE_SCHEMA_TTL=600000     // 10 minutes
 ```
 
 **Benefits**:
+
 - Fewer API calls
 - Faster response times
 - Lower quota usage
 
 **Risks**:
+
 - Stale data if external changes occur
 - Memory usage increases
 
@@ -158,11 +170,13 @@ export SERVALSHEETS_CACHE_SCHEMA_TTL=120000     // 2 minutes
 ```
 
 **Benefits**:
+
 - Fresher data
 - Lower memory usage
 - Fewer cache invalidation issues
 
 **Risks**:
+
 - More API calls
 - Higher quota usage
 
@@ -193,14 +207,14 @@ ServalSheets provides cache control actions:
 // Clear all caches for a spreadsheet
 await session_clear_cache({
   action: 'session_clear_cache',
-  spreadsheetId: 'xxx'
+  spreadsheetId: 'xxx',
 });
 
 // Clear specific operation caches
 await session_clear_cache({
   action: 'session_clear_cache',
   spreadsheetId: 'xxx',
-  cacheTypes: ['metadata', 'cellData']
+  cacheTypes: ['metadata', 'cellData'],
 });
 ```
 
@@ -212,19 +226,20 @@ await session_clear_cache({
 4. **Memory Pressure**: Free up cache memory
 
 **Example:**
+
 ```typescript
 // User reports data looks wrong
 // Force fresh fetch by clearing cache
 await session_clear_cache({
   action: 'session_clear_cache',
-  spreadsheetId: 'xxx'
+  spreadsheetId: 'xxx',
 });
 
 // Next read will hit API (not cache)
 const freshData = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:Z100'
+  range: 'A1:Z100',
 });
 ```
 
@@ -232,19 +247,19 @@ const freshData = await read({
 
 ### API Call Reduction
 
-| Workflow | Without Cache | With Cache | Savings |
-|----------|---------------|------------|---------|
-| 10 metadata queries | 10 API calls | 1 API call | 90% |
-| 5 identical reads | 5 API calls | 1 API call | 80% |
-| Schema + 3 operations | 4 API calls | 1 API call | 75% |
+| Workflow              | Without Cache | With Cache | Savings |
+| --------------------- | ------------- | ---------- | ------- |
+| 10 metadata queries   | 10 API calls  | 1 API call | 90%     |
+| 5 identical reads     | 5 API calls   | 1 API call | 80%     |
+| Schema + 3 operations | 4 API calls   | 1 API call | 75%     |
 
 ### Latency Improvement
 
-| Operation | Without Cache | With Cache | Improvement |
-|-----------|---------------|------------|-------------|
-| Metadata fetch | ~100ms | ~1ms | 100x faster |
-| Cell read (hit) | ~100ms | ~1ms | 100x faster |
-| Schema fetch | ~120ms | ~2ms | 60x faster |
+| Operation       | Without Cache | With Cache | Improvement |
+| --------------- | ------------- | ---------- | ----------- |
+| Metadata fetch  | ~100ms        | ~1ms       | 100x faster |
+| Cell read (hit) | ~100ms        | ~1ms       | 100x faster |
+| Schema fetch    | ~120ms        | ~2ms       | 60x faster  |
 
 ## Caching Best Practices
 
@@ -259,7 +274,7 @@ async function analyzeSpreadsheet(spreadsheetId: string) {
   const metadata = await get({
     action: 'get',
     spreadsheetId,
-    includeGridData: false
+    includeGridData: false,
   });
 
   // Subsequent operations: Cache hits (0 API calls)
@@ -296,14 +311,14 @@ async function processMultipleSheets(spreadsheetId: string, sheetNames: string[]
   // Get metadata once: 1 API call
   const sheets = await list_sheets({
     action: 'list_sheets',
-    spreadsheetId
+    spreadsheetId,
   });
   // Cache: metadata:xxx stored (TTL: 5 min)
 
   // Process each sheet using cached metadata: 0 extra API calls
   for (const sheetName of sheetNames) {
     // getSheetId uses cached metadata (no API call)
-    const sheetId = sheets.find(s => s.properties.title === sheetName)?.properties.sheetId;
+    const sheetId = sheets.find((s) => s.properties.title === sheetName)?.properties.sheetId;
     await processSheet(spreadsheetId, sheetId);
   }
 }
@@ -324,7 +339,6 @@ const result = processData(data.values);
 // If you need to re-read (within TTL), it's cached
 const verification = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:Z100' });
 // Cache hit (0 API calls)
-
 
 // ❌ BAD: Interleaved reads and writes (cache-unfriendly)
 for (let i = 1; i <= 100; i++) {
@@ -380,11 +394,11 @@ npm start
 
 ### Cache Hit Rate Targets
 
-| Workload Type | Target Hit Rate | Notes |
-|---------------|-----------------|-------|
-| Read-heavy (analysis) | >80% | Aggressive caching |
-| Mixed (read + write) | 50-70% | Balanced caching |
-| Write-heavy (data entry) | <30% | Conservative caching |
+| Workload Type            | Target Hit Rate | Notes                |
+| ------------------------ | --------------- | -------------------- |
+| Read-heavy (analysis)    | >80%            | Aggressive caching   |
+| Mixed (read + write)     | 50-70%          | Balanced caching     |
+| Write-heavy (data entry) | <30%            | Conservative caching |
 
 ## Cache Anti-Patterns
 
@@ -431,17 +445,20 @@ await makeFinancialDecision(freshBalance);
 ## Summary
 
 ### Cache Benefits
+
 - **80-90% API call reduction** for read-heavy workloads
 - **100x latency improvement** for cache hits
 - **Lower quota usage** and higher throughput
 
 ### When to Use Aggressive Caching
+
 - Read-heavy workflows (analysis, reporting)
 - Infrequently changing data
 - Multiple operations on same spreadsheet
 - Quota-constrained environments
 
 ### When to Use Conservative Caching
+
 - Write-heavy workflows (data entry)
 - Frequently changing data
 - Real-time requirements
@@ -449,13 +466,13 @@ await makeFinancialDecision(freshBalance);
 
 ### Quick Reference
 
-| Scenario | Cache Strategy | TTL Recommendation |
-|----------|----------------|-------------------|
-| Static reference data | Aggressive | 10+ minutes |
-| Dashboard/reporting | Aggressive | 5-10 minutes |
-| Data analysis | Moderate | 1-5 minutes |
-| Collaborative editing | Conservative | 30-60 seconds |
-| Real-time data entry | Minimal | 15-30 seconds |
+| Scenario              | Cache Strategy | TTL Recommendation |
+| --------------------- | -------------- | ------------------ |
+| Static reference data | Aggressive     | 10+ minutes        |
+| Dashboard/reporting   | Aggressive     | 5-10 minutes       |
+| Data analysis         | Moderate       | 1-5 minutes        |
+| Collaborative editing | Conservative   | 30-60 seconds      |
+| Real-time data entry  | Minimal        | 15-30 seconds      |
 
 ## Related Resources
 

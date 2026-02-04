@@ -35,10 +35,12 @@ import type {
   CoreGetSheetInput,
   CoreBatchDeleteSheetsInput,
   CoreBatchUpdateSheetsInput,
+  CoreClearSheetInput,
+  CoreMoveSheetInput,
 } from '../schemas/index.js';
 import { cacheManager, createCacheKey } from '../utils/cache-manager.js';
 import { CACHE_TTL_SPREADSHEET } from '../config/constants.js';
-import { ScopeValidator } from '../security/incremental-scope.js';
+import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
@@ -51,6 +53,81 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     super('sheets_core', context);
     this.sheetsApi = sheetsApi;
     this.driveApi = driveApi;
+  }
+
+  /**
+   * Execute an API call with request deduplication
+   * Prevents duplicate concurrent and sequential requests within TTL
+   * Expected savings: 30-50% API call reduction
+   */
+  private async deduplicatedApiCall<T>(cacheKey: string, apiCall: () => Promise<T>): Promise<T> {
+    const deduplicator = this.context.requestDeduplicator;
+    if (deduplicator) {
+      return deduplicator.deduplicate(cacheKey, apiCall);
+    }
+    return apiCall();
+  }
+
+  /**
+   * Validate scopes for an operation
+   * Returns error response if scopes are insufficient, null if valid
+   */
+  private validateScopes(operation: string): SheetsCoreOutput | null {
+    const validator = new ScopeValidator({
+      scopes: this.context.auth?.scopes ?? [],
+    });
+
+    try {
+      validator.validateOperation(operation);
+      return null; // Scopes are valid
+    } catch (error) {
+      if (error instanceof IncrementalScopeRequiredError) {
+        return {
+          response: this.error({
+            code: 'INCREMENTAL_SCOPE_REQUIRED',
+            message: error.message,
+            category: 'auth',
+            retryable: true,
+            retryStrategy: 'reauthorize',
+            details: {
+              operation: error.operation,
+              requiredScopes: error.requiredScopes,
+              currentScopes: error.currentScopes,
+              missingScopes: error.missingScopes,
+              authorizationUrl: error.authorizationUrl,
+            },
+          }),
+        };
+      }
+      throw error; // Re-throw non-scope errors
+    }
+  }
+
+  /**
+   * Encode sheet-level pagination state to cursor (Phase 1.2: get_comprehensive pagination)
+   */
+  private encodeSheetPaginationCursor(state: { sheetIndex: number; maxSheets: number }): string {
+    return Buffer.from(JSON.stringify(state)).toString('base64');
+  }
+
+  /**
+   * Decode sheet-level pagination cursor to state (Phase 1.2: get_comprehensive pagination)
+   */
+  private decodeSheetPaginationCursor(
+    cursor?: string
+  ): { sheetIndex: number; maxSheets: number } | null {
+    if (!cursor) return null;
+    try {
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const state = JSON.parse(decoded);
+      // Validate state structure
+      if (typeof state.sheetIndex !== 'number' || typeof state.maxSheets !== 'number') {
+        return null;
+      }
+      return state;
+    } catch {
+      return null;
+    }
   }
 
   async handle(input: SheetsCoreInput): Promise<SheetsCoreOutput> {
@@ -66,12 +143,21 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       // Infer missing parameters from context
       const req = this.inferRequestParameters(rawReq) as CoreRequest;
 
+      // Phase 0: Validate scopes for the operation
+      const operation = `sheets_core.${req.action}`;
+      const scopeError = this.validateScopes(operation);
+      if (scopeError) {
+        return scopeError;
+      }
+
       // Set verbosity early to skip metadata generation for minimal mode (saves ~400-800 tokens)
       const verbosity = req.verbosity ?? 'standard';
       this.setVerbosity(verbosity);
 
       let response: CoreResponse;
-      switch (req.action) {
+      // Cast to string to allow handler-level aliases (rename_sheet, hide_sheet, etc.)
+      // These aliases are intentionally more permissive than the schema
+      switch (req.action as string) {
         // Spreadsheet actions (8)
         case 'get':
           response = await this.handleGet(req as CoreGetInput);
@@ -129,10 +215,45 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           response = await this.handleBatchUpdateSheets(req as CoreBatchUpdateSheetsInput);
           break;
 
+        // New actions (Issue fix - missing functionality)
+        case 'clear_sheet':
+          response = await this.handleClearSheet(req as CoreClearSheetInput);
+          break;
+        case 'move_sheet':
+          response = await this.handleMoveSheet(req as CoreMoveSheetInput);
+          break;
+
+        // ACTION ALIASES - Common variations that map to existing actions
+        // These prevent "Unknown action" errors when LLMs guess action names
+        case 'rename_sheet':
+          // Alias for update_sheet - just changes title
+          response = await this.handleUpdateSheet(req as CoreUpdateSheetInput);
+          break;
+        case 'hide_sheet':
+          // Alias for update_sheet with hidden:true
+          response = await this.handleUpdateSheet({ ...req, hidden: true } as CoreUpdateSheetInput);
+          break;
+        case 'show_sheet':
+        case 'unhide_sheet':
+          // Alias for update_sheet with hidden:false
+          response = await this.handleUpdateSheet({
+            ...req,
+            hidden: false,
+          } as CoreUpdateSheetInput);
+          break;
+        case 'copy_to':
+          // Alias for copy_sheet_to
+          response = await this.handleCopySheetTo(req as CoreCopySheetToInput);
+          break;
+        case 'update_sheet_properties':
+          // Alias for update_properties (spreadsheet-level)
+          response = await this.handleUpdateProperties(req as CoreUpdatePropertiesInput);
+          break;
+
         default:
           response = this.error({
             code: 'INVALID_PARAMS',
-            message: `Unknown action: ${(req as { action: string }).action}`,
+            message: `Unknown action: ${(req as { action: string }).action}. Available actions: get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, clear_sheet, move_sheet, batch_delete_sheets, batch_update_sheets`,
             retryable: false,
           });
       }
@@ -323,7 +444,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     const data =
       cached ??
       (await (async () => {
-        const response = await this.sheetsApi.spreadsheets.get(params);
+        // Use request deduplication for API call
+        const dedupKey = `spreadsheet:get:${input.spreadsheetId}:${params.fields ?? 'all'}`;
+        const response = await this.deduplicatedApiCall(dedupKey, () =>
+          this.sheetsApi.spreadsheets.get(params)
+        );
         const result = response.data;
         // Cache the result
         cacheManager.set(cacheKey, result, {
@@ -711,6 +836,44 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   private async handleGetComprehensive(input: CoreGetComprehensiveInput): Promise<CoreResponse> {
     const startTime = Date.now();
 
+    // Phase 1.2: Sheet-level pagination support
+    const paginationState = this.decodeSheetPaginationCursor(input.cursor) || {
+      sheetIndex: 0,
+      maxSheets: input.maxSheets ?? 10,
+    };
+
+    // First, get all sheet metadata (lightweight operation)
+    const metaResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields:
+        'spreadsheetId,properties,spreadsheetUrl,namedRanges,sheets.properties(title,sheetId)',
+    });
+
+    const allSheets = metaResponse.data.sheets ?? [];
+    const totalSheets = allSheets.length;
+
+    // Validate pagination cursor
+    if (paginationState.sheetIndex < 0 || paginationState.sheetIndex > totalSheets) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Invalid pagination cursor: sheet index out of bounds',
+        retryable: false,
+        details: { cursor: input.cursor, sheetIndex: paginationState.sheetIndex, totalSheets },
+      });
+    }
+
+    // Determine which sheets to include in this page
+    const startIndex = paginationState.sheetIndex;
+    const endIndex = Math.min(startIndex + paginationState.maxSheets, totalSheets);
+    const sheetsToFetch = allSheets.slice(startIndex, endIndex);
+    const hasMore = endIndex < totalSheets;
+    const nextCursor = hasMore
+      ? this.encodeSheetPaginationCursor({
+          sheetIndex: endIndex,
+          maxSheets: paginationState.maxSheets,
+        })
+      : undefined;
+
     // Build comprehensive fields string
     const baseFields = [
       'spreadsheetId',
@@ -727,16 +890,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     const fields = baseFields.join(',');
 
-    // Build ranges for sampling if includeGridData
+    // Build ranges for sampling if includeGridData (only for sheets in this page)
     let ranges: string[] | undefined;
     if (input.includeGridData) {
-      // Generate sample ranges (first N rows per sheet)
-      const metaResponse = await this.sheetsApi.spreadsheets.get({
-        spreadsheetId: input.spreadsheetId,
-        fields: 'sheets.properties(title,sheetId)',
-      });
-
-      ranges = (metaResponse.data.sheets ?? [])
+      ranges = sheetsToFetch
         .map((s) => {
           const title = s.properties?.title;
           if (!title) return null;
@@ -748,11 +905,13 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         .filter((r): r is string => r !== null);
     }
 
-    // Check cache first
+    // Check cache first (include pagination state in cache key)
     const cacheKey = createCacheKey('spreadsheet:comprehensive', {
       spreadsheetId: input.spreadsheetId,
       includeGridData: input.includeGridData ?? false,
       maxRows: input.maxRowsPerSheet ?? 100,
+      sheetIndex: startIndex,
+      maxSheets: paginationState.maxSheets,
     });
     const cached = cacheManager.get<sheets_v4.Schema$Spreadsheet>(cacheKey, 'spreadsheet');
 
@@ -781,14 +940,28 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         return result;
       })());
 
-    // Calculate stats
-    const sheetsCount = data.sheets?.length ?? 0;
+    // Phase 2: Send progress notification after fetching data (HTTP only, throttled to 1/sec)
+    await this.sendProgress(
+      endIndex,
+      totalSheets,
+      `Fetched ${endIndex - startIndex} sheets (${startIndex + 1}-${endIndex} of ${totalSheets})`
+    );
+
+    // Filter sheets to only include the paginated subset
+    const paginatedSheets = data.sheets?.slice(startIndex, endIndex) ?? [];
+
+    // Calculate stats (only for sheets in this page)
+    const sheetsCount = paginatedSheets.length;
     const namedRangesCount = data.namedRanges?.length ?? 0;
-    const totalCharts = data.sheets?.reduce((sum, s) => sum + (s.charts?.length ?? 0), 0) ?? 0;
-    const totalConditionalFormats =
-      data.sheets?.reduce((sum, s) => sum + (s.conditionalFormats?.length ?? 0), 0) ?? 0;
-    const totalProtectedRanges =
-      data.sheets?.reduce((sum, s) => sum + (s.protectedRanges?.length ?? 0), 0) ?? 0;
+    const totalCharts = paginatedSheets.reduce((sum, s) => sum + (s.charts?.length ?? 0), 0);
+    const totalConditionalFormats = paginatedSheets.reduce(
+      (sum, s) => sum + (s.conditionalFormats?.length ?? 0),
+      0
+    );
+    const totalProtectedRanges = paginatedSheets.reduce(
+      (sum, s) => sum + (s.protectedRanges?.length ?? 0),
+      0
+    );
 
     // Validate response data
     if (!data.spreadsheetId) {
@@ -806,7 +979,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         spreadsheetId: data.spreadsheetId,
         properties: data.properties as Record<string, unknown>,
         namedRanges: data.namedRanges as Array<Record<string, unknown>>,
-        sheets: data.sheets?.map((s) => ({
+        sheets: paginatedSheets.map((s) => ({
           properties: s.properties as Record<string, unknown>,
           conditionalFormats: s.conditionalFormats as Array<Record<string, unknown>>,
           protectedRanges: s.protectedRanges as Array<Record<string, unknown>>,
@@ -824,6 +997,17 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           totalProtectedRanges,
           cacheHit: !!cached,
           fetchTime: Date.now() - startTime,
+        },
+        // Phase 1.2: Pagination metadata
+        pagination: {
+          hasMore,
+          nextCursor,
+          totalSheets,
+          currentPage: {
+            startIndex,
+            endIndex,
+            count: sheetsCount,
+          },
         },
       },
     });
@@ -1223,10 +1407,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * List all sheets/tabs in a spreadsheet
    */
   private async handleListSheets(input: CoreListSheetsInput): Promise<CoreResponse> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
-    });
+    // Use request deduplication
+    const dedupKey = `spreadsheet:get:${input.spreadsheetId}:sheets.properties`;
+    const response = await this.deduplicatedApiCall(dedupKey, () =>
+      this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.properties',
+      })
+    );
 
     const sheets: SheetInfo[] = (response.data.sheets ?? []).map((s) => ({
       sheetId: s.properties?.sheetId ?? 0,
@@ -1246,10 +1434,14 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
    * Supports lookup by sheetId (numeric) or sheetName (string)
    */
   private async handleGetSheet(input: CoreGetSheetInput): Promise<CoreResponse> {
-    const response = await this.sheetsApi.spreadsheets.get({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'sheets.properties',
-    });
+    // Use request deduplication
+    const dedupKey = `spreadsheet:get:${input.spreadsheetId}:sheets.properties`;
+    const response = await this.deduplicatedApiCall(dedupKey, () =>
+      this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.properties',
+      })
+    );
 
     // Find sheet by sheetId or sheetName
     let sheetData: sheets_v4.Schema$Sheet | undefined;
@@ -1463,6 +1655,209 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     return this.success('batch_update_sheets', {
       updatedCount: input.updates.length,
       message: `Updated ${input.updates.length} sheet(s)`,
+    });
+  }
+
+  // ===================================================================
+  // NEW ACTIONS (Issue fix - missing functionality)
+  // ===================================================================
+
+  /**
+   * Clear all content from a sheet while preserving the sheet itself
+   * This is a common operation that was missing from the API
+   */
+  private async handleClearSheet(input: CoreClearSheetInput): Promise<CoreResponse> {
+    // Resolve sheet ID from name if needed
+    let resolvedSheetId = input.sheetId;
+
+    if (resolvedSheetId === undefined && input.sheetName) {
+      const lookupResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      });
+
+      const matchingSheet = lookupResponse.data.sheets?.find(
+        (s) => s.properties?.title?.toLowerCase() === input.sheetName!.toLowerCase()
+      );
+
+      if (!matchingSheet?.properties?.sheetId) {
+        return this.error(
+          createNotFoundError({
+            resourceType: 'sheet',
+            resourceId: `sheetName: "${input.sheetName}"`,
+            searchSuggestion: `Available sheets: ${lookupResponse.data.sheets?.map((s) => s.properties?.title).join(', ')}`,
+            parentResourceId: input.spreadsheetId,
+          })
+        );
+      }
+
+      resolvedSheetId = matchingSheet.properties.sheetId;
+    }
+
+    if (resolvedSheetId === undefined) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Either sheetId (number) or sheetName (string) is required',
+        retryable: false,
+      });
+    }
+
+    // Get sheet title for the range
+    const sheetInfo = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties(sheetId,title,gridProperties)',
+    });
+
+    const targetSheet = sheetInfo.data.sheets?.find(
+      (s) => s.properties?.sheetId === resolvedSheetId
+    );
+
+    if (!targetSheet?.properties?.title) {
+      return this.error(
+        createNotFoundError({
+          resourceType: 'sheet',
+          resourceId: `sheetId: ${resolvedSheetId}`,
+          parentResourceId: input.spreadsheetId,
+        })
+      );
+    }
+
+    const sheetTitle = targetSheet.properties.title;
+    const _escapedTitle = sheetTitle.replace(/'/g, "''"); // Reserved for future use in A1 notation
+
+    // Determine what to clear based on options
+    const clearValues = input.clearValues !== false; // default true
+    const clearFormats = input.clearFormats === true; // default false
+    const clearNotes = input.clearNotes === true; // default false
+
+    const requests: sheets_v4.Schema$Request[] = [];
+
+    if (clearValues) {
+      // Clear all values using updateCells with empty userEnteredValue
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: resolvedSheetId,
+          },
+          fields: 'userEnteredValue',
+        },
+      });
+    }
+
+    if (clearFormats) {
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: resolvedSheetId,
+          },
+          fields: 'userEnteredFormat',
+        },
+      });
+    }
+
+    if (clearNotes) {
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: resolvedSheetId,
+          },
+          fields: 'note',
+        },
+      });
+    }
+
+    if (requests.length === 0) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Nothing to clear. Set at least one of: clearValues, clearFormats, clearNotes',
+        retryable: false,
+      });
+    }
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: { requests },
+    });
+
+    return this.success('clear_sheet', {
+      sheetId: resolvedSheetId,
+      sheetTitle,
+      cleared: {
+        values: clearValues,
+        formats: clearFormats,
+        notes: clearNotes,
+      },
+    });
+  }
+
+  /**
+   * Move a sheet to a new position (index) within the spreadsheet
+   */
+  private async handleMoveSheet(input: CoreMoveSheetInput): Promise<CoreResponse> {
+    // Resolve sheet ID from name if needed
+    let resolvedSheetId = input.sheetId;
+
+    if (resolvedSheetId === undefined && input.sheetName) {
+      const lookupResponse = await this.sheetsApi.spreadsheets.get({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'sheets.properties(sheetId,title,index)',
+      });
+
+      const matchingSheet = lookupResponse.data.sheets?.find(
+        (s) => s.properties?.title?.toLowerCase() === input.sheetName!.toLowerCase()
+      );
+
+      if (!matchingSheet?.properties?.sheetId) {
+        return this.error(
+          createNotFoundError({
+            resourceType: 'sheet',
+            resourceId: `sheetName: "${input.sheetName}"`,
+            searchSuggestion: `Available sheets: ${lookupResponse.data.sheets?.map((s) => s.properties?.title).join(', ')}`,
+            parentResourceId: input.spreadsheetId,
+          })
+        );
+      }
+
+      resolvedSheetId = matchingSheet.properties.sheetId;
+    }
+
+    if (resolvedSheetId === undefined) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Either sheetId (number) or sheetName (string) is required',
+        retryable: false,
+      });
+    }
+
+    if (input.newIndex === undefined) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'newIndex is required - the 0-based position to move the sheet to',
+        retryable: false,
+      });
+    }
+
+    // Move the sheet by updating its index property
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: resolvedSheetId,
+                index: input.newIndex,
+              },
+              fields: 'index',
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('move_sheet', {
+      sheetId: resolvedSheetId,
+      newIndex: input.newIndex,
     });
   }
 }

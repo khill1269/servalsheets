@@ -23,6 +23,7 @@ import {
 import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getBatchEfficiencyStats } from '../utils/batch-efficiency.js';
+import { getWebhookManager, getWebhookWorker } from '../services/index.js';
 
 // Shutdown timeout (10 seconds)
 const SHUTDOWN_TIMEOUT = 10000;
@@ -234,6 +235,87 @@ export function initializeConnectionHealth(config?: ConnectionHealthConfig): voi
 }
 
 /**
+ * Initialize webhook infrastructure (Phase 1: Drive API Push Notifications)
+ *
+ * Starts webhook worker and channel renewal tasks if Redis is available.
+ * Requires REDIS_URL and WEBHOOK_ENDPOINT to be configured.
+ *
+ * @returns Promise<void>
+ */
+async function initializeWebhookInfrastructure(): Promise<void> {
+  const redisUrl = process.env['REDIS_URL'];
+  const webhookEndpoint = process.env['WEBHOOK_ENDPOINT'];
+
+  if (!redisUrl) {
+    logger.info('Webhook infrastructure skipped: REDIS_URL not configured');
+    return;
+  }
+
+  if (!webhookEndpoint) {
+    logger.info('Webhook infrastructure skipped: WEBHOOK_ENDPOINT not configured');
+    return;
+  }
+
+  try {
+    logger.info('Initializing webhook infrastructure...', {
+      webhookEndpoint,
+      workerConcurrency: process.env['WEBHOOK_WORKER_CONCURRENCY'],
+      maxAttempts: process.env['WEBHOOK_MAX_ATTEMPTS'],
+    });
+
+    // Get or create webhook worker
+    const worker = getWebhookWorker();
+    if (worker) {
+      await worker.start();
+      logger.info('Webhook worker started');
+    } else {
+      logger.warn('Webhook worker not initialized - ensure initWebhookWorker() was called');
+    }
+
+    // Start channel renewal task (runs every hour)
+    const renewalInterval = setInterval(
+      async () => {
+        const webhookManager = getWebhookManager();
+        if (webhookManager) {
+          try {
+            const renewed = await webhookManager.renewExpiringChannels();
+            if (renewed > 0) {
+              logger.info('Webhook channels renewed', { count: renewed });
+            }
+          } catch (error) {
+            logger.error('Channel renewal task failed', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      },
+      60 * 60 * 1000
+    ); // 1 hour
+
+    logger.info('Webhook channel renewal task started (1 hour interval)');
+
+    // Register shutdown callback for webhook worker
+    onShutdown(async () => {
+      logger.debug('Stopping webhook worker...');
+      clearInterval(renewalInterval);
+      const worker = getWebhookWorker();
+      if (worker) {
+        await worker.stop();
+        logger.debug('Webhook worker stopped');
+      }
+    });
+
+    logger.info('Webhook infrastructure initialized');
+  } catch (error) {
+    logger.error('Failed to initialize webhook infrastructure', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    // Don't throw - webhook infrastructure is optional
+  }
+}
+
+/**
  * Start all background tasks and validate configuration
  */
 export async function startBackgroundTasks(options?: {
@@ -299,6 +381,9 @@ export async function startBackgroundTasks(options?: {
     });
     requestDeduplicator.destroy();
   });
+
+  // Phase 1: Initialize webhook worker and channel renewal (if Redis available)
+  await initializeWebhookInfrastructure();
 
   logger.info('Background tasks started');
 }

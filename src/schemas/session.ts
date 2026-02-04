@@ -164,6 +164,61 @@ const ResetActionSchema = CommonFieldsSchema.extend({
   action: z.literal('reset').describe('Reset session context to initial state'),
 });
 
+const GetAlertsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_alerts').describe('Get alerts for proactive monitoring'),
+  onlyUnacknowledged: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe('Only return unacknowledged alerts (default: true)'),
+  severity: z
+    .enum(['low', 'medium', 'high', 'critical'])
+    .optional()
+    .describe('Filter by severity level'),
+});
+
+const AcknowledgeAlertActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('acknowledge_alert').describe('Acknowledge an alert'),
+  alertId: z.string().describe('Alert ID to acknowledge'),
+});
+
+const ClearAlertsActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('clear_alerts').describe('Clear all alerts'),
+});
+
+// User profile actions
+const SetUserIdActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_user_id').describe('Set current user ID and load their profile'),
+  userId: z.string().describe('User identifier'),
+});
+
+const GetProfileActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_profile').describe('Get current user profile'),
+});
+
+const UpdateProfilePreferencesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_profile_preferences').describe('Update user profile preferences'),
+  preferences: z.record(z.string(), z.unknown()).describe('Preferences to update'),
+});
+
+const RecordSuccessfulFormulaActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('record_successful_formula')
+    .describe('Record a successful formula for learning'),
+  formula: z.string().describe('Formula that worked well'),
+  useCase: z.string().describe('What the formula was used for'),
+});
+
+const RejectSuggestionActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('reject_suggestion').describe('Record that user rejected a suggestion'),
+  suggestion: z.string().describe('Suggestion that was rejected'),
+});
+
+const GetTopFormulasActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('get_top_formulas').describe('Get top successful formulas for user'),
+  limit: z.number().int().positive().optional().describe('Number of formulas to return'),
+});
+
 // ============================================================================
 // Combined Input Schema
 // ============================================================================
@@ -196,6 +251,15 @@ export const SheetsSessionInputSchema = z.object({
     ListCheckpointsActionSchema,
     DeleteCheckpointActionSchema,
     ResetActionSchema,
+    GetAlertsActionSchema,
+    AcknowledgeAlertActionSchema,
+    ClearAlertsActionSchema,
+    SetUserIdActionSchema,
+    GetProfileActionSchema,
+    UpdateProfilePreferencesActionSchema,
+    RecordSuccessfulFormulaActionSchema,
+    RejectSuggestionActionSchema,
+    GetTopFormulasActionSchema,
   ]),
 });
 
@@ -268,6 +332,15 @@ const SessionActionSchema = z.enum([
   'list_checkpoints',
   'delete_checkpoint',
   'reset',
+  'get_alerts',
+  'acknowledge_alert',
+  'clear_alerts',
+  'set_user_id',
+  'get_profile',
+  'update_profile_preferences',
+  'record_successful_formula',
+  'reject_suggestion',
+  'get_top_formulas',
 ]);
 
 // Success responses
@@ -313,6 +386,50 @@ const SessionSuccessSchema = z.object({
     )
     .optional(),
   deleted: z.boolean().optional(),
+  // Alert fields
+  alerts: z
+    .array(
+      z.object({
+        id: z.string(),
+        severity: z.enum(['low', 'medium', 'high', 'critical']),
+        message: z.string(),
+        timestamp: z.coerce.number(),
+        spreadsheetId: z.string().optional(),
+        actionable: z
+          .object({
+            tool: z.string(),
+            action: z.string(),
+            params: z.record(z.string(), z.unknown()),
+          })
+          .optional(),
+        acknowledged: z.boolean(),
+      })
+    )
+    .optional(),
+  count: z.coerce.number().optional(),
+  hasCritical: z.boolean().optional(),
+  alertId: z.string().optional(),
+  // User profile fields
+  userId: z.string().optional(),
+  profile: z
+    .object({
+      userId: z.string(),
+      preferences: z.record(z.string(), z.unknown()),
+      learnings: z.record(z.string(), z.unknown()),
+      history: z.record(z.string(), z.unknown()),
+      lastUpdated: z.number(),
+    })
+    .nullable()
+    .optional(),
+  formulas: z
+    .array(
+      z.object({
+        formula: z.string(),
+        useCase: z.string(),
+        successCount: z.number(),
+      })
+    )
+    .optional(),
 });
 
 // Error response
@@ -379,4 +496,59 @@ This tool tracks what we're working with so Claude can understand natural refere
 4. User says "undo": find_by_reference → Find operation to undo
 
 **Best Practice:**
-Call get_context when unsure what user means - it provides suggestions!`;
+Call get_context when unsure what user means - it provides suggestions!
+
+**Multi-turn Requirement Gathering:**
+Use the collaborative workflow pattern for natural language requests:
+
+1. **Start gathering**: \`set_pending\` with \`type:"requirement_gathering"\` to track Q&A state
+   Example: \`{"action":"set_pending","type":"requirement_gathering","step":1,"totalSteps":3,"context":{"userIntent":"create report","gathered":{},"stillNeeded":["spreadsheet","metrics"]}}\`
+
+2. **Update as you learn**: Add to \`context.gathered\` as user answers questions
+   Example: \`{"action":"set_pending","step":2,"context":{"gathered":{"spreadsheetId":"1ABC"},"stillNeeded":["metrics"]}}\`
+
+3. **Plan ready**: Switch to \`type:"awaiting_approval"\` when you have enough context
+   Example: \`{"action":"set_pending","type":"awaiting_approval","context":{"plan":{"steps":[...]}}}\`
+
+4. **Execute**: After approval, perform operations and use \`record_operation\` for each step
+   Example: \`{"action":"record_operation","tool":"sheets_data","toolAction":"write","description":"Wrote report data",...}\`
+
+5. **Complete**: Clear the pending state when done
+   Example: \`{"action":"clear_pending"}\`
+
+**Pending Operation Types:**
+- \`requirement_gathering\`: Collecting context through multi-turn Q&A
+- \`awaiting_approval\`: Plan is ready, waiting for user confirmation
+- \`executing\`: Operation in progress (multi-step workflow)
+- \`suspended\`: Temporarily paused (e.g., waiting for external data)
+
+**Context Structure for Requirement Gathering:**
+\`\`\`json
+{
+  "userIntent": "Brief description of what user wants",
+  "gathered": {
+    "spreadsheetId": "1ABC...",
+    "timeframe": "Q1 2024",
+    "metrics": ["revenue", "growth"]
+  },
+  "stillNeeded": ["format", "visualization"],
+  "plan": {
+    "steps": ["1. Read data", "2. Calculate", "3. Write"],
+    "safetyMeasures": {"dryRun": false, "snapshot": true},
+    "estimatedImpact": {"cellsAffected": 200}
+  }
+}
+\`\`\`
+
+**Example Full Workflow:**
+\`\`\`
+User: "Create a sales report"
+→ set_pending (type: requirement_gathering, stillNeeded: ["spreadsheet", "timeframe", "metrics"])
+User: "Use spreadsheet 1ABC, Q1 2024"
+→ set_pending (update gathered, stillNeeded: ["metrics"])
+User: "Total revenue by region"
+→ set_pending (type: awaiting_approval, include plan)
+User: "Go ahead"
+→ Execute operations with record_operation for each step
+→ clear_pending when complete
+\`\`\``;

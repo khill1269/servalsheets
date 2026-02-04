@@ -24,7 +24,7 @@ import type { sheets_v4 } from 'googleapis';
 import { BaseHandler, type HandlerContext, unwrapRequest } from './base.js';
 import type { Intent } from '../core/intent.js';
 import type { SheetsDataInput, SheetsDataOutput, DataResponse } from '../schemas/data.js';
-import { getEnv } from '../config/env.js';
+import { getEnv, getBackgroundAnalysisConfig } from '../config/env.js';
 import { getETagCache } from '../services/etag-cache.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
@@ -40,6 +40,7 @@ import {
   validateValuesBatchPayload,
   type PayloadSizeResult,
 } from '../utils/payload-validator.js';
+import { sendProgress } from '../utils/request-context.js';
 import {
   buildA1Notation,
   buildGridRangeInput,
@@ -75,6 +76,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       enablePayloadValidation: env.ENABLE_PAYLOAD_VALIDATION,
     };
     // No circuit breaker registration - direct API calls only
+  }
+
+  /**
+   * Execute an API call with request deduplication
+   * Prevents duplicate concurrent and sequential requests within TTL
+   * Expected savings: 30-50% API call reduction
+   */
+  private async deduplicatedApiCall<T>(cacheKey: string, apiCall: () => Promise<T>): Promise<T> {
+    const deduplicator = this.context.requestDeduplicator;
+    if (deduplicator) {
+      return deduplicator.deduplicate(cacheKey, apiCall);
+    }
+    return apiCall();
   }
 
   /**
@@ -240,6 +254,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
    * Route action to appropriate handler method - direct dispatch, no sub-handlers
    */
   private async executeAction(request: DataRequest): Promise<DataResponse> {
+    // Handler supports aliases (set_note→add_note, merge→merge_cells, etc.)
+    // Use 'as any' on alias cases since they don't match schema types
     switch (request.action) {
       // Values operations
       case 'read':
@@ -280,12 +296,35 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         return this.handleCutPaste(request);
       case 'copy_paste':
         return this.handleCopyPaste(request);
-      default:
+
+      default: {
+        // ACTION ALIASES - Common variations that map to existing actions
+        // These prevent "Unknown action" errors when LLMs guess action names
+        const action = (request as { action: string }).action;
+        if (action === 'set_note' || action === 'notes') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return this.handleAddNote(request as any);
+        }
+        if (action === 'add_hyperlink' || action === 'hyperlink' || action === 'hyperlinks') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return this.handleSetHyperlink(request as any);
+        }
+        if (action === 'merge') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return this.handleMergeCells(request as any);
+        }
+        if (action === 'unmerge') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return this.handleUnmergeCells(request as any);
+        }
+
+        // Unknown action - return error
         return this.error({
           code: 'INVALID_PARAMS',
-          message: `Unknown action: ${(request as { action: string }).action}`,
+          message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste`,
           retryable: false,
         });
+      }
     }
   }
 
@@ -435,6 +474,41 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     return Buffer.from(String(offset)).toString('base64');
   }
 
+  /**
+   * Encode multi-range pagination state to cursor
+   */
+  private encodeMultiRangeCursor(state: {
+    rangeIndex: number;
+    offsetInRange: number;
+    pageSize: number;
+  }): string {
+    return Buffer.from(JSON.stringify(state)).toString('base64');
+  }
+
+  /**
+   * Decode multi-range pagination cursor to state
+   */
+  private decodeMultiRangeCursor(
+    cursor?: string
+  ): { rangeIndex: number; offsetInRange: number; pageSize: number } | null {
+    if (!cursor) return null;
+    try {
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const state = JSON.parse(decoded);
+      // Validate state structure
+      if (
+        typeof state.rangeIndex !== 'number' ||
+        typeof state.offsetInRange !== 'number' ||
+        typeof state.pageSize !== 'number'
+      ) {
+        return null;
+      }
+      return state;
+    } catch {
+      return null;
+    }
+  }
+
   private buildPaginationPlan(options: {
     range: string;
     cursor?: string;
@@ -515,6 +589,77 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       hasMore,
       nextCursor,
       totalRows,
+    };
+  }
+
+  /**
+   * Build pagination plan for multiple ranges (Phase 1.1: Multi-range batch_read pagination)
+   */
+  private async buildMultiRangePaginationPlan(options: {
+    spreadsheetId: string;
+    ranges: RangeInput[];
+    cursor?: string;
+    pageSize?: number;
+  }): Promise<
+    | {
+        rangesToFetch: RangeInput[];
+        rangeIndices: number[];
+        hasMore: boolean;
+        nextCursor?: string;
+        totalRanges: number;
+      }
+    | { error: DataResponse }
+  > {
+    const { ranges, cursor, pageSize = 5 } = options;
+
+    // Decode cursor to get current position
+    const state = this.decodeMultiRangeCursor(cursor) || {
+      rangeIndex: 0,
+      offsetInRange: 0,
+      pageSize,
+    };
+
+    // Validate range index
+    if (state.rangeIndex < 0 || state.rangeIndex >= ranges.length) {
+      return {
+        error: this.error({
+          code: 'INVALID_PARAMS',
+          message: 'Invalid pagination cursor: range index out of bounds',
+          retryable: false,
+          details: { cursor, rangeIndex: state.rangeIndex, totalRanges: ranges.length },
+        }),
+      };
+    }
+
+    // Collect ranges for this page
+    const rangesToFetch: RangeInput[] = [];
+    const rangeIndices: number[] = [];
+    let currentRangeIndex = state.rangeIndex;
+    let remainingPageSize = state.pageSize;
+
+    while (currentRangeIndex < ranges.length && remainingPageSize > 0) {
+      rangesToFetch.push(ranges[currentRangeIndex]!);
+      rangeIndices.push(currentRangeIndex);
+      remainingPageSize--;
+      currentRangeIndex++;
+    }
+
+    // Determine if there are more ranges
+    const hasMore = currentRangeIndex < ranges.length;
+    const nextCursor = hasMore
+      ? this.encodeMultiRangeCursor({
+          rangeIndex: currentRangeIndex,
+          offsetInRange: 0,
+          pageSize: state.pageSize,
+        })
+      : undefined;
+
+    return {
+      rangesToFetch,
+      rangeIndices,
+      hasMore,
+      nextCursor,
+      totalRanges: ranges.length,
     };
   }
 
@@ -656,38 +801,69 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         result['nextCursor'] = paginationPlan.nextCursor;
         result['hasMore'] = paginationPlan.hasMore;
         result['totalRows'] = paginationPlan.totalRows;
+        if (paginationPlan.hasMore && paginationPlan.nextCursor) {
+          result['_paginationHint'] =
+            `Showing page of ${paginationPlan.totalRows} total rows. ` +
+            `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
+        }
       }
       return this.success('read', result);
     }
 
     // Cache miss - fetch from API
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId: input.spreadsheetId,
-      range: readRange,
-      valueRenderOption: input.valueRenderOption,
-      majorDimension: input.majorDimension,
-      fields: 'range,majorDimension,values',
-    });
+    // Use RequestMerger if enabled (merges overlapping reads within 50ms window)
+    const env = getEnv();
+    let responseData: sheets_v4.Schema$ValueRange;
+
+    if (this.context.requestMerger && env.ENABLE_REQUEST_MERGING) {
+      responseData = await this.context.requestMerger.mergeRead(
+        this.sheetsApi,
+        input.spreadsheetId,
+        readRange,
+        {
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+        }
+      );
+    } else {
+      // Use request deduplication to prevent duplicate API calls
+      const dedupKey = `values:get:${input.spreadsheetId}:${readRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
+      const response = await this.deduplicatedApiCall(dedupKey, () =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: input.spreadsheetId,
+          range: readRange,
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+          fields: 'range,majorDimension,values',
+        })
+      );
+      responseData = response.data;
+    }
 
     // Cache the response
-    etagCache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    etagCache.setETag(cacheKey, `cached-${Date.now()}`, responseData);
 
     // Record access pattern for predictive prefetching (Phase 3)
     this.recordAccessAndTriggerPrefetch(input.spreadsheetId, readRange, 'read');
 
-    const values = (response.data.values ?? []) as ValuesArray;
+    const values = (responseData.values ?? []) as ValuesArray;
     const result: Record<string, unknown> = {
       values,
-      range: response.data.range ?? readRange,
+      range: responseData.range ?? readRange,
     };
 
-    if (response.data.majorDimension) {
-      result['majorDimension'] = response.data.majorDimension;
+    if (responseData.majorDimension) {
+      result['majorDimension'] = responseData.majorDimension;
     }
     if (paginationPlan) {
       result['nextCursor'] = paginationPlan.nextCursor;
       result['hasMore'] = paginationPlan.hasMore;
       result['totalRows'] = paginationPlan.totalRows;
+      if (paginationPlan.hasMore && paginationPlan.nextCursor) {
+        result['_paginationHint'] =
+          `Showing page of ${paginationPlan.totalRows} total rows. ` +
+          `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
+      }
     }
 
     return this.success('read', result);
@@ -763,11 +939,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         };
 
         // Trigger background quality analysis (Phase 4: Optional Enhancement)
+        const analysisConfig = getBackgroundAnalysisConfig();
         const cellsAffected = (responseData['updatedCells'] as number | undefined) ?? cellCount;
-        if (cellsAffected >= 10) {
+        if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
           const analyzer = getBackgroundAnalyzer();
           analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, this.sheetsApi, {
-            qualityThreshold: 65,
+            qualityThreshold: 70,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
           });
         }
 
@@ -791,14 +970,17 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call (fallback or when batching unavailable)
-    const response = await this.sheetsApi.spreadsheets.values.update({
-      spreadsheetId: input.spreadsheetId,
-      range,
-      valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-      includeValuesInResponse: input.includeValuesInResponse ?? false,
-      requestBody: { values: input.values },
-      fields: 'spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange',
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('values.update', () =>
+      this.sheetsApi.spreadsheets.values.update({
+        spreadsheetId: input.spreadsheetId,
+        range,
+        valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+        includeValuesInResponse: input.includeValuesInResponse ?? false,
+        requestBody: { values: input.values },
+        fields: 'spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange',
+      })
+    );
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
@@ -811,11 +993,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     };
 
     // Trigger background quality analysis (Phase 4: Optional Enhancement)
+    const analysisConfig = getBackgroundAnalysisConfig();
     const cellsAffected = response.data.updatedCells ?? 0;
-    if (cellsAffected >= 10) {
+    if (analysisConfig.enabled && cellsAffected >= analysisConfig.minCells) {
       const analyzer = getBackgroundAnalyzer();
       analyzer.analyzeInBackground(input.spreadsheetId, range, cellsAffected, this.sheetsApi, {
-        qualityThreshold: 65,
+        qualityThreshold: 70,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
       });
     }
 
@@ -919,6 +1104,23 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             _batched: true,
           };
 
+          // Trigger background quality analysis
+          const analysisConfig = getBackgroundAnalysisConfig();
+          if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
+            const analyzer = getBackgroundAnalyzer();
+            analyzer.analyzeInBackground(
+              input.spreadsheetId,
+              range ?? 'A1',
+              cellCount,
+              this.sheetsApi,
+              {
+                qualityThreshold: 70,
+                minCellsChanged: analysisConfig.minCells,
+                debounceMs: analysisConfig.debounceMs,
+              }
+            );
+          }
+
           const warnings = this.buildPayloadWarnings('append', payloadValidation);
           const meta = warnings
             ? {
@@ -971,6 +1173,23 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         ...(range ? { updatedRange: range } : {}),
       };
 
+      // Trigger background quality analysis
+      const analysisConfig = getBackgroundAnalysisConfig();
+      if (analysisConfig.enabled && cellCount >= analysisConfig.minCells) {
+        const analyzer = getBackgroundAnalyzer();
+        analyzer.analyzeInBackground(
+          input.spreadsheetId,
+          range ?? 'A1',
+          cellCount,
+          this.sheetsApi,
+          {
+            qualityThreshold: 70,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
+          }
+        );
+      }
+
       const warnings = this.buildPayloadWarnings('append', payloadValidation);
       const meta = warnings
         ? {
@@ -1020,6 +1239,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           _batched: true,
         };
 
+        // Trigger background quality analysis
+        const analysisConfig = getBackgroundAnalysisConfig();
+        const affectedCells = (updates?.updatedCells as number | undefined) ?? cellCount;
+        if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
+          const analyzer = getBackgroundAnalyzer();
+          analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, this.sheetsApi, {
+            qualityThreshold: 70,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
+          });
+        }
+
         const warnings = this.buildPayloadWarnings('append', payloadValidation);
         const meta = warnings
           ? {
@@ -1039,15 +1270,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call (fallback)
-    const response = await this.sheetsApi.spreadsheets.values.append({
-      spreadsheetId: input.spreadsheetId,
-      range,
-      valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-      insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
-      requestBody: { values: input.values },
-      fields:
-        'spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)',
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('values.append', () =>
+      this.sheetsApi.spreadsheets.values.append({
+        spreadsheetId: input.spreadsheetId,
+        range,
+        valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+        insertDataOption: input.insertDataOption ?? 'INSERT_ROWS',
+        requestBody: { values: input.values },
+        fields:
+          'spreadsheetId,updates(spreadsheetId,updatedCells,updatedRows,updatedColumns,updatedRange)',
+      })
+    );
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
@@ -1060,6 +1294,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       updatedColumns: updates?.updatedColumns ?? 0,
       updatedRange: updates?.updatedRange ?? range,
     };
+
+    // Trigger background quality analysis
+    const analysisConfig = getBackgroundAnalysisConfig();
+    const affectedCells = updates?.updatedCells ?? 0;
+    if (analysisConfig.enabled && affectedCells >= analysisConfig.minCells) {
+      const analyzer = getBackgroundAnalyzer();
+      analyzer.analyzeInBackground(input.spreadsheetId, range, affectedCells, this.sheetsApi, {
+        qualityThreshold: 70,
+        minCellsChanged: analysisConfig.minCells,
+        debounceMs: analysisConfig.debounceMs,
+      });
+    }
 
     const warnings = this.buildPayloadWarnings('append', payloadValidation);
     const meta = warnings
@@ -1093,14 +1339,37 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call - no confirmation, no snapshot (simplified for reliability)
-    const response = await this.sheetsApi.spreadsheets.values.clear({
-      spreadsheetId: input.spreadsheetId,
-      range,
-      fields: 'clearedRange',
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('values.clear', () =>
+      this.sheetsApi.spreadsheets.values.clear({
+        spreadsheetId: input.spreadsheetId,
+        range,
+        fields: 'clearedRange',
+      })
+    );
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+    // Trigger background quality analysis
+    // Clear is a destructive operation that warrants quality monitoring
+    const analysisConfig = getBackgroundAnalysisConfig();
+    if (analysisConfig.enabled) {
+      // Estimate cells affected from range (conservative estimate)
+      const clearedRange = response.data.clearedRange ?? range;
+      const analyzer = getBackgroundAnalyzer();
+      analyzer.analyzeInBackground(
+        input.spreadsheetId,
+        clearedRange,
+        100, // Conservative estimate for cleared cells
+        this.sheetsApi,
+        {
+          qualityThreshold: 70,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
+        }
+      );
+    }
 
     return this.success('clear', {
       updatedRange: response.data.clearedRange ?? range,
@@ -1121,50 +1390,73 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           retryable: false,
         });
       }
-      if (!input.ranges || input.ranges.length !== 1) {
+      if (!input.ranges || input.ranges.length === 0) {
         return this.error({
           code: 'INVALID_PARAMS',
-          message: 'Pagination in batch_read requires exactly one range',
+          message: 'Pagination in batch_read requires at least one range',
           retryable: false,
         });
       }
 
-      const singleRange = await this.resolveRangeToA1(input.spreadsheetId, input.ranges![0] as any);
-      const paginationPlan = this.buildPaginationPlan({
-        range: singleRange,
+      // Phase 1.1: Multi-range pagination support
+      const paginationPlan = await this.buildMultiRangePaginationPlan({
+        spreadsheetId: input.spreadsheetId,
+        ranges: input.ranges,
         cursor: input.cursor,
         pageSize: input.pageSize,
-        streaming: false, // batch_read doesn't support streaming (only 'read' action does)
       });
-      if (paginationPlan && 'error' in paginationPlan) {
+
+      if ('error' in paginationPlan) {
         return paginationPlan.error;
       }
-      const readRange = paginationPlan?.range ?? singleRange;
 
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: input.spreadsheetId,
-        range: readRange,
-        valueRenderOption: input.valueRenderOption,
-        majorDimension: input.majorDimension,
-        fields: 'range,majorDimension,values',
-      });
+      // Fetch the ranges for this page
+      const valueRanges: Array<{ range: string; values: ValuesArray }> = [];
+
+      for (let i = 0; i < paginationPlan.rangesToFetch.length; i++) {
+        const range = paginationPlan.rangesToFetch[i]!;
+
+        // Phase 2: Send progress notification (HTTP only, throttled to 1/sec)
+        await this.sendProgress(
+          i + 1,
+          paginationPlan.totalRanges,
+          `Reading range ${i + 1}/${paginationPlan.rangesToFetch.length} in current page`
+        );
+
+        const resolvedRange = await this.resolveRangeToA1(input.spreadsheetId, range as any);
+        const dedupKey = `values:get:${input.spreadsheetId}:${resolvedRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
+
+        const response = await this.deduplicatedApiCall(dedupKey, () =>
+          this.sheetsApi.spreadsheets.values.get({
+            spreadsheetId: input.spreadsheetId,
+            range: resolvedRange,
+            valueRenderOption: input.valueRenderOption,
+            majorDimension: input.majorDimension,
+            fields: 'range,majorDimension,values',
+          })
+        );
+
+        valueRanges.push({
+          range: response.data.range ?? resolvedRange,
+          values: (response.data.values ?? []) as ValuesArray,
+        });
+      }
 
       const responseData: Record<string, unknown> = {
-        valueRanges: [
-          {
-            range: response.data.range ?? readRange,
-            values: (response.data.values ?? []) as ValuesArray,
-          },
-        ],
+        valueRanges,
+        nextCursor: paginationPlan.nextCursor,
+        hasMore: paginationPlan.hasMore,
+        totalRanges: paginationPlan.totalRanges,
+        currentPage: {
+          rangeIndices: paginationPlan.rangeIndices,
+          rangeCount: paginationPlan.rangesToFetch.length,
+        },
       };
 
-      if (response.data.majorDimension) {
-        responseData['majorDimension'] = response.data.majorDimension;
-      }
-      if (paginationPlan) {
-        responseData['nextCursor'] = paginationPlan.nextCursor;
-        responseData['hasMore'] = paginationPlan.hasMore;
-        responseData['totalRows'] = paginationPlan.totalRows;
+      if (paginationPlan.hasMore && paginationPlan.nextCursor) {
+        responseData['_paginationHint'] =
+          `Showing ${paginationPlan.rangesToFetch.length} of ${paginationPlan.totalRanges} ranges. ` +
+          `To fetch next page, repeat this call with cursor:"${paginationPlan.nextCursor}"`;
       }
 
       return this.success('batch_read', responseData);
@@ -1231,14 +1523,60 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       }
     }
 
-    // Direct API call - no chunking with dynamic imports, just simple batch
-    const response = await this.sheetsApi.spreadsheets.values.batchGet({
-      spreadsheetId: input.spreadsheetId,
-      ranges,
-      valueRenderOption: input.valueRenderOption,
-      majorDimension: input.majorDimension,
-      fields: 'valueRanges(range,values)',
-    });
+    // Check if ParallelExecutor should be used for large batch operations
+    const env = getEnv();
+    const useParallel =
+      this.context.parallelExecutor &&
+      env.ENABLE_PARALLEL_EXECUTOR &&
+      ranges.length > env.PARALLEL_EXECUTOR_THRESHOLD;
+
+    let valueRanges: sheets_v4.Schema$ValueRange[];
+
+    if (useParallel) {
+      // Use ParallelExecutor for large batch operations (40% faster)
+      // Each task uses request deduplication
+      const tasks = ranges.map((range, i) => ({
+        id: `batch-read-${i}`,
+        fn: async () => {
+          const dedupKey = `values:get:${input.spreadsheetId}:${range}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
+          const res = await this.deduplicatedApiCall(dedupKey, () =>
+            this.sheetsApi.spreadsheets.values.get({
+              spreadsheetId: input.spreadsheetId,
+              range,
+              valueRenderOption: input.valueRenderOption,
+              majorDimension: input.majorDimension,
+              fields: 'range,values',
+            })
+          );
+          return res.data;
+        },
+        priority: 1,
+      }));
+
+      // Send granular progress if enabled
+      const onProgress = env.ENABLE_GRANULAR_PROGRESS
+        ? async (progress: { completed: number; total: number }) => {
+            await sendProgress(
+              progress.completed,
+              progress.total,
+              `Reading ${progress.completed}/${progress.total} ranges`
+            );
+          }
+        : undefined;
+
+      const results = await this.context.parallelExecutor!.executeAllSuccessful(tasks, onProgress);
+      valueRanges = results;
+    } else {
+      // Direct API call - use native batchGet for smaller batches
+      const response = await this.sheetsApi.spreadsheets.values.batchGet({
+        spreadsheetId: input.spreadsheetId,
+        ranges,
+        valueRenderOption: input.valueRenderOption,
+        majorDimension: input.majorDimension,
+        fields: 'valueRanges(range,values)',
+      });
+      valueRanges = response.data.valueRanges ?? [];
+    }
 
     // Record access patterns for predictive prefetching (Phase 3)
     for (const range of ranges) {
@@ -1246,7 +1584,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     return this.success('batch_read', {
-      valueRanges: (response.data.valueRanges ?? []).map((vr: sheets_v4.Schema$ValueRange) => ({
+      valueRanges: valueRanges.map((vr: sheets_v4.Schema$ValueRange) => ({
         range: vr.range ?? '',
         values: (vr.values ?? []) as ValuesArray,
       })),
@@ -1372,15 +1710,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call - no progress reporting with dynamic imports
-    const response = await this.sheetsApi.spreadsheets.values.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
-      requestBody: {
-        valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
-        includeValuesInResponse: input.includeValuesInResponse ?? false,
-        data,
-      },
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('values.batchUpdate', () =>
+      this.sheetsApi.spreadsheets.values.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
+        requestBody: {
+          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+          includeValuesInResponse: input.includeValuesInResponse ?? false,
+          data,
+        },
+      })
+    );
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
@@ -1476,11 +1817,14 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call - no confirmation, no snapshot (simplified for reliability)
-    const response = await this.sheetsApi.spreadsheets.values.batchClear({
-      spreadsheetId: input.spreadsheetId,
-      fields: 'clearedRanges',
-      requestBody: { ranges },
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('values.batchClear', () =>
+      this.sheetsApi.spreadsheets.values.batchClear({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'clearedRanges',
+        requestBody: { ranges },
+      })
+    );
 
     // Invalidate ETag cache after mutation
     getETagCache().invalidateSpreadsheet(input.spreadsheetId);
@@ -1499,13 +1843,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
     // FIND-ONLY MODE: No replacement provided
     if (input.replacement === undefined || input.replacement === null) {
-      // Direct API call
-      const response = await this.sheetsApi.spreadsheets.values.get({
-        spreadsheetId: input.spreadsheetId,
-        range: resolvedRange ?? 'A:ZZ',
-        valueRenderOption: input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE',
-        fields: 'range,values',
-      });
+      // Use request deduplication for read
+      const searchRange = resolvedRange ?? 'A:ZZ';
+      const renderOption = input.includeFormulas ? 'FORMULA' : 'FORMATTED_VALUE';
+      const dedupKey = `values:get:${input.spreadsheetId}:${searchRange}:${renderOption}:ROWS`;
+      const response = await this.deduplicatedApiCall(dedupKey, () =>
+        this.sheetsApi.spreadsheets.values.get({
+          spreadsheetId: input.spreadsheetId,
+          range: searchRange,
+          valueRenderOption: renderOption,
+          fields: 'range,values',
+        })
+      );
 
       const values = response.data.values ?? [];
       const matches: Array<{
@@ -1578,16 +1927,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     }
 
     // Direct API call
-    const response = await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            findReplace: findReplaceRequest,
-          },
-        ],
-      },
-    });
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    const response = await this.withCircuitBreaker('batchUpdate.findReplace', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              findReplace: findReplaceRequest,
+            },
+          ],
+        },
+      })
+    );
 
     const reply = response.data.replies?.[0]?.findReplace;
     const replacementsCount = reply?.occurrencesChanged ?? 0;
@@ -1686,28 +2038,31 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       : `=HYPERLINK("${safeUrl}")`;
 
     // Direct API call
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            updateCells: {
-              range: toGridRange(gridRange),
-              rows: [
-                {
-                  values: [
-                    {
-                      userEnteredValue: { formulaValue: formula },
-                    },
-                  ],
-                },
-              ],
-              fields: 'userEnteredValue',
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.setHyperlink', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateCells: {
+                range: toGridRange(gridRange),
+                rows: [
+                  {
+                    values: [
+                      {
+                        userEnteredValue: { formulaValue: formula },
+                      },
+                    ],
+                  },
+                ],
+                fields: 'userEnteredValue',
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('set_hyperlink', {});
   }
@@ -1717,36 +2072,42 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   ): Promise<DataResponse> {
     const gridRange = await this.cellToGridRange(input.spreadsheetId, input.cell);
 
-    // Direct API call
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId: input.spreadsheetId,
-      range: input.cell,
-      valueRenderOption: 'FORMATTED_VALUE',
-    });
+    // Use request deduplication for read
+    const dedupKey = `values:get:${input.spreadsheetId}:${input.cell}:FORMATTED_VALUE:ROWS`;
+    const response = await this.deduplicatedApiCall(dedupKey, () =>
+      this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: input.cell,
+        valueRenderOption: 'FORMATTED_VALUE',
+      })
+    );
     const currentValue = response.data.values?.[0]?.[0] ?? '';
 
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            updateCells: {
-              range: toGridRange(gridRange),
-              rows: [
-                {
-                  values: [
-                    {
-                      userEnteredValue: { stringValue: String(currentValue) },
-                    },
-                  ],
-                },
-              ],
-              fields: 'userEnteredValue',
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.clearHyperlink', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateCells: {
+                range: toGridRange(gridRange),
+                rows: [
+                  {
+                    values: [
+                      {
+                        userEnteredValue: { stringValue: String(currentValue) },
+                      },
+                    ],
+                  },
+                ],
+                fields: 'userEnteredValue',
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('clear_hyperlink', {});
   }
@@ -1758,19 +2119,22 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
     // Direct API call
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            mergeCells: {
-              range: toGridRange(gridRange),
-              mergeType: input.mergeType ?? 'MERGE_ALL',
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.mergeCells', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              mergeCells: {
+                range: toGridRange(gridRange),
+                mergeType: input.mergeType ?? 'MERGE_ALL',
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('merge_cells', {});
   }
@@ -1782,18 +2146,21 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
 
     // Direct API call
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            unmergeCells: {
-              range: toGridRange(gridRange),
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.unmergeCells', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              unmergeCells: {
+                range: toGridRange(gridRange),
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('unmerge_cells', {});
   }
@@ -1844,24 +2211,27 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       : sourceRange.sheetId;
 
     // Direct API call - no confirmation, no snapshot (simplified for reliability)
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            cutPaste: {
-              source: toGridRange(sourceRange),
-              destination: {
-                sheetId: destinationSheetId,
-                rowIndex: destParsed.row,
-                columnIndex: destParsed.col,
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.cutPaste', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              cutPaste: {
+                source: toGridRange(sourceRange),
+                destination: {
+                  sheetId: destinationSheetId,
+                  rowIndex: destParsed.row,
+                  columnIndex: destParsed.col,
+                },
+                pasteType: input.pasteType ?? 'PASTE_NORMAL',
               },
-              pasteType: input.pasteType ?? 'PASTE_NORMAL',
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('cut_paste', {});
   }
@@ -1880,28 +2250,31 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const sourceCols = (sourceRange.endColumnIndex ?? 0) - (sourceRange.startColumnIndex ?? 0);
 
     // Direct API call
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            copyPaste: {
-              source: toGridRange(sourceRange),
-              destination: toGridRange(
-                buildGridRangeInput(
-                  destinationSheetId,
-                  destParsed.row,
-                  destParsed.row + sourceRows,
-                  destParsed.col,
-                  destParsed.col + sourceCols
-                )
-              ),
-              pasteType: input.pasteType ?? 'PASTE_NORMAL',
+    // Protected with circuit breaker to prevent cascade failures during API degradation
+    await this.withCircuitBreaker('batchUpdate.copyPaste', () =>
+      this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              copyPaste: {
+                source: toGridRange(sourceRange),
+                destination: toGridRange(
+                  buildGridRangeInput(
+                    destinationSheetId,
+                    destParsed.row,
+                    destParsed.row + sourceRows,
+                    destParsed.col,
+                    destParsed.col + sourceCols
+                  )
+                ),
+                pasteType: input.pasteType ?? 'PASTE_NORMAL',
+              },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      })
+    );
 
     return this.success('copy_paste', {});
   }

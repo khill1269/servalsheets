@@ -65,6 +65,8 @@ import {
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
+import { getBackgroundAnalysisConfig } from '../config/env.js';
 
 type ApiFilterCriteria = sheets_v4.Schema$FilterCriteria;
 
@@ -383,6 +385,25 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
+    // Trigger background quality analysis after destructive operation
+    const analysisConfig = getBackgroundAnalysisConfig();
+    if (analysisConfig.enabled && count >= analysisConfig.minCells) {
+      const analyzer = getBackgroundAnalyzer();
+      // Estimate affected cells (conservative: rows * 26 columns OR columns * 1000 rows)
+      const estimatedCells = isRows ? count * 26 : count * 1000;
+      analyzer.analyzeInBackground(
+        input.spreadsheetId,
+        'A1', // Full sheet analysis since dimensions changed
+        estimatedCells,
+        this.sheetsApi,
+        {
+          qualityThreshold: 70,
+          minCellsChanged: analysisConfig.minCells,
+          debounceMs: analysisConfig.debounceMs,
+        }
+      );
+    }
+
     // Build response with snapshot info if created
     const meta = this.generateMeta(
       'delete',
@@ -681,9 +702,15 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       });
 
       if (!currentFilterResponse.success || !currentFilterResponse.filter) {
-        throw new Error(
-          'Cannot update filter criteria: No basic filter exists on this sheet. Use set_basic_filter without columnIndex to create a filter first.'
-        );
+        return this.error({
+          code: 'FAILED_PRECONDITION',
+          message: 'Cannot update filter criteria: No basic filter exists on this sheet',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+          resolution:
+            'Create a filter first using set_basic_filter without columnIndex, then add criteria',
+        });
       }
 
       // Merge new criteria for the specific column

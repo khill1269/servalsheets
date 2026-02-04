@@ -7,6 +7,7 @@
 
 import { type ErrorDetail } from '../schemas/shared.js';
 import { redactObject } from './redact.js';
+import { getErrorPatternLearner } from '../services/error-pattern-learner.js';
 
 /**
  * Enriched error with additional debugging context
@@ -633,6 +634,14 @@ export function enrichErrorWithContext(
     baseError = error;
   }
 
+  // Record error pattern for learning (Phase 4: Optional Enhancement)
+  const learner = getErrorPatternLearner();
+  learner.recordError(baseError.code, baseError.message, {
+    tool: baseError.details?.['tool'] as string | undefined,
+    action: baseError.details?.['action'] as string | undefined,
+    spreadsheetId: baseError.details?.['spreadsheetId'] as string | undefined,
+  });
+
   // Capture stack trace
   const stackTrace = error instanceof Error ? error.stack : new Error('Stack trace capture').stack;
 
@@ -872,5 +881,76 @@ export function createZodValidationError(
     resolutionSteps,
     category: 'client',
     severity: 'medium',
+  };
+}
+
+/**
+ * Create an incremental scope consent error with authorization URL
+ * Used when an operation requires additional OAuth scopes that haven't been granted yet
+ */
+export function createIncrementalScopeError(params: {
+  operation: string;
+  missingScopes: string[];
+  currentScopes: string[];
+  authorizationUrl: string;
+  category: string;
+}): ErrorDetail {
+  const { operation, missingScopes, currentScopes, authorizationUrl, category } = params;
+
+  // Human-readable scope descriptions
+  const scopeDescriptions = missingScopes.map((scope) => {
+    if (scope.includes('drive.appdata')) {
+      return 'Access app data folder (for templates)';
+    }
+    if (scope.includes('drive.file')) {
+      return 'Create and access your own files';
+    }
+    if (scope === 'https://www.googleapis.com/auth/drive') {
+      return 'Full drive access (for sharing and permissions)';
+    }
+    if (scope.includes('drive.readonly')) {
+      return 'Read-only drive access';
+    }
+    if (scope.includes('bigquery')) {
+      return 'Access BigQuery for data import/export';
+    }
+    if (scope.includes('script.projects')) {
+      return 'Manage Apps Script projects';
+    }
+    if (scope.includes('spreadsheets.readonly')) {
+      return 'Read-only spreadsheet access';
+    }
+    if (scope.includes('spreadsheets')) {
+      return 'Read and write spreadsheets';
+    }
+    return scope; // Fallback to full scope URL
+  });
+
+  const resolutionSteps = [
+    `1. Click the authorization link: ${authorizationUrl}`,
+    `2. Grant the following permissions:`,
+    ...scopeDescriptions.map((desc) => `   - ${desc}`),
+    `3. Complete the authorization flow`,
+    `4. Retry the operation`,
+  ];
+
+  return {
+    code: 'INCREMENTAL_SCOPE_REQUIRED',
+    message: `Operation "${operation}" requires additional permissions. Missing: ${missingScopes.join(', ')}`,
+    category: 'auth',
+    severity: 'medium',
+    retryable: true,
+    retryStrategy: 'reauthorize',
+    resolution: `Grant additional permissions by visiting: ${authorizationUrl}`,
+    resolutionSteps,
+    suggestedTools: ['sheets_auth'],
+    details: {
+      operation,
+      category,
+      missingScopes,
+      currentScopes,
+      authorizationUrl,
+      include_granted_scopes: true, // Indicate this is incremental consent
+    },
   };
 }

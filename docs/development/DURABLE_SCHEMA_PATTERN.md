@@ -1,3 +1,11 @@
+---
+title: Durable MCP Schema Pattern
+category: development
+last_updated: 2026-01-31
+description: 'Root Cause: MCP SDK''s normalizeObjectSchema() expects top-level z.object() schemas. Root-level discriminated unions cause empty schemas {"type":"object"}'
+version: 1.6.0
+---
+
 # Durable MCP Schema Pattern
 
 ## Problem Statement
@@ -5,6 +13,7 @@
 **Root Cause**: MCP SDK's `normalizeObjectSchema()` expects top-level `z.object()` schemas. Root-level discriminated unions cause empty schemas `{"type":"object","properties":{}}` in tools/list.
 
 **Previous Approach (BRITTLE)**:
+
 - Custom `zodToJsonSchemaCompat()` (historical; sdk-patch removed)
 - Runtime schema transformation at registration
 - Breaks with MCP SDK upgrades
@@ -12,6 +21,7 @@
 - Requires ongoing maintenance
 
 **New Approach (DURABLE)**:
+
 - All schemas are top-level `z.object()`
 - Unions nested inside `request` property
 - Works natively with MCP SDK - no patching
@@ -22,6 +32,7 @@
 ## Pattern Implementation
 
 ### Old Pattern (Brittle)
+
 ```typescript
 // ❌ ROOT-LEVEL DISCRIMINATED UNION (breaks MCP SDK)
 export const SheetsValuesInputSchema = z.discriminatedUnion('action', [
@@ -39,6 +50,7 @@ export const SheetsValuesOutputSchema = z.discriminatedUnion('success', [
 **Result**: MCP SDK serializes as `{"type":"object","properties":{}}` ❌
 
 ### New Pattern (Durable)
+
 ```typescript
 // ✅ TOP-LEVEL z.object() WITH NESTED UNION
 const ValuesActionSchema = z.discriminatedUnion('action', [
@@ -76,6 +88,7 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
 Handlers must unwrap/wrap the request/response envelopes:
 
 ### Before
+
 ```typescript
 async handle(input: SheetsValuesInput): Promise<SheetsValuesOutput> {
   switch (input.action) {
@@ -95,6 +108,7 @@ private async handleRead(
 ```
 
 ### After
+
 ```typescript
 async handle(input: SheetsValuesInput): Promise<SheetsValuesOutput> {
   // UNWRAP request from envelope
@@ -128,6 +142,7 @@ protected createIntents(input: SheetsValuesInput): Intent[] {
 ```
 
 **Key Changes**:
+
 1. `handle()`: Unwrap `input.request` → pass to handlers → wrap `response`
 2. Private handler methods: Use `ValuesAction` / `ValuesResponse` types
 3. `createIntents()`: Unwrap `input.request` at the start
@@ -189,15 +204,17 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
 
 ## Migration Steps
 
-### For Each Schema File:
+### For Each Schema File
 
 1. **Rename discriminated union to intermediate const**
+
    ```typescript
    // Old: export const SheetsXInputSchema = z.discriminatedUnion(...)
    // New: const XActionSchema = z.discriminatedUnion(...)
    ```
 
 2. **Wrap input in top-level z.object()**
+
    ```typescript
    export const SheetsXInputSchema = z.object({
      request: XActionSchema,
@@ -205,6 +222,7 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
    ```
 
 3. **Wrap output in top-level z.object()**
+
    ```typescript
    const XResponseSchema = z.discriminatedUnion('success', [...]);
    export const SheetsXOutputSchema = z.object({
@@ -213,17 +231,20 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
    ```
 
 4. **Export action/response types**
+
    ```typescript
    export type XAction = z.infer<typeof XActionSchema>;
    export type XResponse = z.infer<typeof XResponseSchema>;
    ```
 
 5. **Update handler imports**
+
    ```typescript
    import type { SheetsXInput, SheetsXOutput, XAction, XResponse } from '../schemas/index.js';
    ```
 
 6. **Update handler.handle() method**
+
    ```typescript
    async handle(input: SheetsXInput): Promise<SheetsXOutput> {
      const req = input.request;
@@ -234,6 +255,7 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
    ```
 
 7. **Update private handler methods**
+
    ```typescript
    private async handleRead(input: Extract<XAction, { action: 'read' }>): Promise<XResponse> {
      // ...
@@ -241,6 +263,7 @@ export type ValuesResponse = z.infer<typeof ValuesResponseSchema>;
    ```
 
 8. **Update createIntents() if present**
+
    ```typescript
    protected createIntents(input: SheetsXInput): Intent[] {
      const req = input.request;
@@ -260,6 +283,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 ```
 
 **Expected Output**:
+
 ```json
 {
   "type": "object",
@@ -276,8 +300,9 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 ```
 
 **NOT**:
+
 ```json
-{"type": "object", "properties": {}}  // ❌ Empty schema (old pattern)
+{ "type": "object", "properties": {} } // ❌ Empty schema (old pattern)
 ```
 
 ---
@@ -285,16 +310,19 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 ## Benefits
 
 ### ✅ Durability
+
 - **Native MCP SDK support**: No custom transformation code
 - **SDK upgrade-proof**: Pattern works with any MCP SDK version
 - **Type-safe**: Full TypeScript inference maintained
 
 ### ✅ Simplicity
+
 - **Removed 252 lines of workaround code** (sdk-patch)
 - **Standard Zod**: No custom schema utilities
 - **Clear pattern**: Top-level object → easy to understand
 
 ### ✅ Maintainability
+
 - **No workarounds to update**: Changes stay in schema definitions
 - **Standard handler pattern**: Unwrap → process → wrap
 - **Future-proof**: Stable foundation for new tools
@@ -304,6 +332,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 ## Files to Update
 
 ### Schemas (15 files)
+
 1. ✅ `src/schemas/values.ts` - **COMPLETE** (reference implementation)
 2. ⏳ `src/schemas/spreadsheet.ts`
 3. ⏳ `src/schemas/sheet.ts`
@@ -321,6 +350,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 15. ⏳ `src/schemas/advanced.ts`
 
 ### Handlers (15 files)
+
 1. ✅ `src/handlers/values.ts` - **COMPLETE**
 2. ⏳ `src/handlers/spreadsheet.ts`
 3. ⏳ `src/handlers/sheet.ts`
@@ -338,6 +368,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 15. ⏳ `src/handlers/advanced.ts`
 
 ### Cleanup
+
 - ✅ Removed `src/utils/sdk-patch.ts` workaround
 - ✅ No custom transformation in server/registration
 
@@ -346,6 +377,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/cli.js 2>/dev/
 ## Testing Strategy
 
 ### Unit Tests
+
 ```typescript
 describe('Schema Serialization', () => {
   it('should have top-level object with request property', () => {
@@ -366,6 +398,7 @@ describe('Schema Serialization', () => {
 ```
 
 ### Integration Test
+
 ```typescript
 describe('MCP tools/list', () => {
   it('should return non-empty schemas for all tools', async () => {
@@ -384,10 +417,12 @@ describe('MCP tools/list', () => {
 ## Performance Impact
 
 **Before**: Custom transformation at registration
+
 - Transformation overhead: ~1-2ms per tool × 15 = 15-30ms startup
 - Memory: 252 lines of code + transformation logic
 
 **After**: Native Zod → JSON Schema
+
 - No transformation overhead: 0ms
 - Memory: Only schema definitions
 
@@ -398,21 +433,25 @@ describe('MCP tools/list', () => {
 ## Rollout Strategy
 
 ### Phase 1: Proof of Concept ✅
+
 - Implement pattern for `values.ts` (most complex tool)
 - Verify handler adaptation works
 - Test with MCP protocol
 
 ### Phase 2: Batch Migration
+
 - Apply pattern to remaining 14 schemas
 - Use automation script (see below)
 - Update handlers systematically
 
 ### Phase 3: Cleanup ✅
+
 - Removed sdk-patch workaround
 - Removed custom transformation hooks
 - Updated tests/docs
 
 ### Phase 4: Verification
+
 - Run full test suite
 - Test tools/list with all 21 tools
 - Verify no empty schemas
@@ -430,6 +469,7 @@ See `scripts/migrate-schema-pattern.sh` for automated migration tooling.
 **Pattern**: Wrap discriminated unions in top-level `z.object({ request: Union })`
 
 **Benefits**:
+
 - ✅ Native MCP SDK compatibility
 - ✅ No custom patching code
 - ✅ SDK upgrade-proof

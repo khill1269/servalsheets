@@ -1,3 +1,13 @@
+---
+title: ServalSheets - Confirmation & Elicitation Guide
+category: guide
+last_updated: 2026-01-31
+description: 'ServalSheets provides multiple layers of guidance for Claude to know when and how to confirm:'
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets - Confirmation & Elicitation Guide
 
 ## How Claude Does More Confirmations
@@ -26,7 +36,10 @@ A comprehensive JSON guide Claude can reference:
 {
   "ALWAYS_CONFIRM": {
     "operations": [
-      { "trigger": "Deleting a sheet", "reason": "Entire sheet with all data will be permanently lost" },
+      {
+        "trigger": "Deleting a sheet",
+        "reason": "Entire sheet with all data will be permanently lost"
+      },
       { "trigger": "Deleting more than 10 rows", "threshold": 10 },
       { "trigger": "Clearing more than 100 cells", "threshold": 100 },
       { "trigger": "Writing to more than 500 cells", "threshold": 500 },
@@ -44,24 +57,25 @@ A comprehensive JSON guide Claude can reference:
 Programmatic decision-making for when to confirm:
 
 ```typescript
-import { shouldConfirm, analyzeOperation } from "./confirmation-policy.js";
+import { shouldConfirm, analyzeOperation } from './confirmation-policy.js';
 
 // Check if operation needs confirmation
 const decision = shouldConfirm({
-  tool: "sheets_dimensions",
-  action: "delete_rows",
+  tool: 'sheets_dimensions',
+  action: 'delete_rows',
   rowCount: 25,
 });
 // Returns: { confirm: true, reason: "Deleting 25 rows", suggestSnapshot: true }
 ```
 
-### Thresholds:
-| Category | Low Risk | Medium | High | Critical |
-|----------|----------|--------|------|----------|
-| Cells | <50 | 50-100 | 100-500 | >1000 |
-| Rows Delete | <10 | - | >10 | - |
-| Columns Delete | <3 | - | >3 | - |
-| Operations | <3 | - | ≥3 | - |
+### Thresholds
+
+| Category       | Low Risk | Medium | High    | Critical |
+| -------------- | -------- | ------ | ------- | -------- |
+| Cells          | <50      | 50-100 | 100-500 | >1000    |
+| Rows Delete    | <10      | -      | >10     | -        |
+| Columns Delete | <3       | -      | >3      | -        |
+| Operations     | <3       | -      | ≥3      | -        |
 
 ---
 
@@ -76,6 +90,7 @@ sheets:///confirmation/check/{tool}/{action} → Check specific operation
 ```
 
 Example:
+
 ```
 GET sheets:///confirmation/check/dimensions/delete_rows
 → { "shouldConfirm": true, "reason": "Destructive operation", "suggestSnapshot": true }
@@ -88,14 +103,18 @@ GET sheets:///confirmation/check/dimensions/delete_rows
 Two new prompts for Claude to understand confirmation:
 
 ### `when_to_confirm`
+
 Complete guide with all rules:
+
 - 🔴 ALWAYS CONFIRM list
-- 🟡 SUGGEST CONFIRMATION list  
+- 🟡 SUGGEST CONFIRMATION list
 - ✅ NO CONFIRMATION NEEDED list
 - How to use sheets_confirm
 
 ### `confirmation_examples`
+
 Good vs bad examples:
+
 - Delete rows: Show which ones first
 - Clear column: Warn about cell count
 - Simple update: Just do it (don't over-confirm)
@@ -134,6 +153,7 @@ The formal MCP Elicitation tool:
 ```
 
 User sees an interactive UI:
+
 ```
 ┌─────────────────────────────────────────┐
 │ Plan: Delete Empty Rows                 │
@@ -155,7 +175,7 @@ Claude learns user's confirmation preference:
 
 ```typescript
 // User says "just do it" repeatedly
-session.learnPreference("skipConfirmation", true);
+session.learnPreference('skipConfirmation', true);
 
 // Later, check preference
 const prefs = session.getPreferences();
@@ -163,6 +183,7 @@ const prefs = session.getPreferences();
 ```
 
 Preference levels:
+
 - `"always"` - Confirm everything
 - `"destructive"` - Only destructive ops (default)
 - `"never"` - User said "just do it"
@@ -205,12 +226,12 @@ Every write operation supports safety flags:
 
 ## Files Created
 
-| File | Purpose |
-|------|---------|
-| `src/services/confirmation-policy.ts` | Programmatic confirmation decisions |
-| `src/knowledge/confirmation-guide.json` | Knowledge base for Claude |
-| `src/resources/confirmation.ts` | MCP Resources for checking |
-| Prompts: `when_to_confirm`, `confirmation_examples` | Guidance prompts |
+| File                                                | Purpose                             |
+| --------------------------------------------------- | ----------------------------------- |
+| `src/services/confirmation-policy.ts`               | Programmatic confirmation decisions |
+| `src/knowledge/confirmation-guide.json`             | Knowledge base for Claude           |
+| `src/resources/confirmation.ts`                     | MCP Resources for checking          |
+| Prompts: `when_to_confirm`, `confirmation_examples` | Guidance prompts                    |
 
 ---
 

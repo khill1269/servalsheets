@@ -1,3 +1,12 @@
+---
+title: ServalSheets Test Patterns
+category: development
+last_updated: 2026-01-31
+description: 'Created: 2026-01-09'
+version: 1.6.0
+tags: [testing, sheets]
+---
+
 # ServalSheets Test Patterns
 
 **Created**: 2026-01-09
@@ -24,6 +33,7 @@
 **Problem**: OAuth2Client must be mocked as a proper class, not with `vi.fn()`.
 
 **Solution**:
+
 ```typescript
 // Define mock class inside vi.mock() factory to avoid hoisting issues
 vi.mock('googleapis', () => {
@@ -31,11 +41,21 @@ vi.mock('googleapis', () => {
     credentials: any = {};
 
     generateAuthUrl = vi.fn().mockReturnValue('https://accounts.google.com/...');
-    getToken = vi.fn().mockResolvedValue({ tokens: { /*...*/ } });
-    setCredentials = vi.fn((tokens: any) => { this.credentials = tokens; });
+    getToken = vi.fn().mockResolvedValue({
+      tokens: {
+        /*...*/
+      },
+    });
+    setCredentials = vi.fn((tokens: any) => {
+      this.credentials = tokens;
+    });
     revokeToken = vi.fn().mockResolvedValue({ success: true });
     getAccessToken = vi.fn().mockResolvedValue({ token: 'mock-token' });
-    refreshAccessToken = vi.fn().mockResolvedValue({ credentials: { /*...*/ } });
+    refreshAccessToken = vi.fn().mockResolvedValue({
+      credentials: {
+        /*...*/
+      },
+    });
   }
 
   return {
@@ -73,6 +93,7 @@ const createMockSheetsApi = () => ({
 ```
 
 **Setup in beforeEach**:
+
 ```typescript
 let mockApi: ReturnType<typeof createMockSheetsApi>;
 
@@ -82,7 +103,12 @@ beforeEach(() => {
 
   // Set up default successful responses
   mockApi.spreadsheets.values.get.mockResolvedValue({
-    data: { values: [['A', 'B'], ['1', '2']] },
+    data: {
+      values: [
+        ['A', 'B'],
+        ['1', '2'],
+      ],
+    },
   });
 });
 ```
@@ -96,6 +122,7 @@ beforeEach(() => {
 **Solution**: Add reset function with environment guard.
 
 **In service file** (`src/services/capability-cache.ts`):
+
 ```typescript
 export function resetCapabilityCacheService(): void {
   if (process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true') {
@@ -106,16 +133,18 @@ export function resetCapabilityCacheService(): void {
 ```
 
 **In test file**:
+
 ```typescript
 import { resetCapabilityCacheService } from '../../src/services/capability-cache.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resetCapabilityCacheService();  // Reset singleton
+  resetCapabilityCacheService(); // Reset singleton
 });
 ```
 
 **Centralized helper**: `tests/helpers/singleton-reset.ts`
+
 ```typescript
 import { resetAllSingletons, resetSingleton } from '../helpers/singleton-reset.js';
 
@@ -132,26 +161,26 @@ beforeEach(() => {
 
 **Singleton services that require reset**:
 
-| Service | Reset Function |
-| --- | --- |
-| access-pattern-tracker | `resetAccessPatternTracker()` |
-| batching-system | `resetBatchingSystem()` |
-| capability-cache | `resetCapabilityCacheService()` |
-| composite-operations | `resetCompositeOperations()` |
-| confirm-service | `resetConfirmationService()` |
-| conflict-detector | `resetConflictDetector()` |
-| context-manager | `resetContextManager()` |
-| history-service | `resetHistoryService()` |
-| impact-analyzer | `resetImpactAnalyzer()` |
-| metrics | `resetMetricsService()` |
-| parallel-executor | `resetParallelExecutor()` |
-| prefetch-predictor | `resetPrefetchPredictor()` |
-| prefetching-system | `resetPrefetchingSystem()` |
-| sampling-analysis | `resetSamplingAnalysisService()` |
-| sheet-resolver | `resetSheetResolver()` |
-| token-manager | `resetTokenManager()` |
-| transaction-manager | `resetTransactionManager()` |
-| validation-engine | `resetValidationEngine()` |
+| Service                | Reset Function                   |
+| ---------------------- | -------------------------------- |
+| access-pattern-tracker | `resetAccessPatternTracker()`    |
+| batching-system        | `resetBatchingSystem()`          |
+| capability-cache       | `resetCapabilityCacheService()`  |
+| composite-operations   | `resetCompositeOperations()`     |
+| confirm-service        | `resetConfirmationService()`     |
+| conflict-detector      | `resetConflictDetector()`        |
+| context-manager        | `resetContextManager()`          |
+| history-service        | `resetHistoryService()`          |
+| impact-analyzer        | `resetImpactAnalyzer()`          |
+| metrics                | `resetMetricsService()`          |
+| parallel-executor      | `resetParallelExecutor()`        |
+| prefetch-predictor     | `resetPrefetchPredictor()`       |
+| prefetching-system     | `resetPrefetchingSystem()`       |
+| sampling-analysis      | `resetSamplingAnalysisService()` |
+| sheet-resolver         | `resetSheetResolver()`           |
+| token-manager          | `resetTokenManager()`            |
+| transaction-manager    | `resetTransactionManager()`      |
+| validation-engine      | `resetValidationEngine()`        |
 
 ---
 
@@ -174,6 +203,7 @@ vi.mock('../../src/services/capability-cache.js', async () => {
 ```
 
 **Override in specific tests**:
+
 ```typescript
 it('should handle sampling capability not available', async () => {
   const { getCapabilitiesWithCache } = await import('../../src/services/capability-cache.js');
@@ -202,11 +232,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Import test helpers
 
 // Mock setup (vi.mock calls must be at module level)
-vi.mock('module-to-mock', () => ({ /* mock implementation */ }));
+vi.mock('module-to-mock', () => ({
+  /* mock implementation */
+}));
 
 // Mock factory functions
-const createMockApi = () => ({ /* mock API */ });
-const createMockContext = (): HandlerContext => ({ /* mock context */ });
+const createMockApi = () => ({
+  /* mock API */
+});
+const createMockContext = (): HandlerContext => ({
+  /* mock context */
+});
 
 describe('[HandlerName]', () => {
   let handler: HandlerType;
@@ -229,7 +265,11 @@ describe('[HandlerName]', () => {
   describe('[action name]', () => {
     it('should [expected behavior]', async () => {
       // Arrange: Set up test data and mocks
-      mockApi.someMethod.mockResolvedValue({ data: { /* ... */ } });
+      mockApi.someMethod.mockResolvedValue({
+        data: {
+          /* ... */
+        },
+      });
 
       // Act: Execute the handler
       const result = await handler.handle({
@@ -256,22 +296,25 @@ describe('[HandlerName]', () => {
 **Problem**: Discriminated unions require `as const` assertions.
 
 **Bad** (Type inference fails):
+
 ```typescript
 const input = {
-  action: 'fix',  // ❌ Type inferred as string, not literal 'fix'
+  action: 'fix', // ❌ Type inferred as string, not literal 'fix'
   spreadsheetId: 'test',
 };
 ```
 
 **Good** (Explicit literal types):
+
 ```typescript
 const input = {
-  action: 'fix' as const,  // ✅ Literal type 'fix'
+  action: 'fix' as const, // ✅ Literal type 'fix'
   spreadsheetId: 'test',
 };
 ```
 
 **Best** (Use factory functions):
+
 ```typescript
 import { createValuesReadInput } from '../helpers/input-factories.js';
 
@@ -344,16 +387,19 @@ Use snapshots when you want to lock the output shape for handlers with
 complex responses.
 
 ### When to Use
+
 - Handler output stability for high-traffic tools
 - Error response formats
 - Complex nested response objects
 
 ### When Not to Use
+
 - Highly dynamic fields (timestamps, UUIDs)
 - Very large payloads (hard to review)
 - Rapidly changing prototypes
 
 ### Basic Pattern
+
 ```typescript
 it('matches snapshot for successful response', async () => {
   const result = await handler.handle(input);
@@ -362,6 +408,7 @@ it('matches snapshot for successful response', async () => {
 ```
 
 ### Masking Dynamic Fields
+
 ```typescript
 const snapshot = {
   ...result.response,
@@ -372,11 +419,13 @@ expect(snapshot).toMatchSnapshot();
 ```
 
 ### Updating Snapshots
+
 ```bash
 npm run test:snapshots:update
 ```
 
 Review changes with:
+
 ```bash
 git diff tests/**/__snapshots__
 ```
@@ -388,6 +437,7 @@ git diff tests/**/__snapshots__
 For full guidance and working examples, see `tests/TEST_DATA.md`.
 
 Quick reference:
+
 - Input factories: `tests/helpers/input-factories.ts`
 - API mocks: `tests/helpers/google-api-mocks.ts`
 - OAuth mocks: `tests/helpers/oauth-mocks.ts`
@@ -404,9 +454,7 @@ Quick reference:
 ```typescript
 it('should handle API errors gracefully', async () => {
   // Arrange: Mock API to reject with error
-  mockApi.spreadsheets.values.get.mockRejectedValue(
-    new Error('API Error: 404 Not Found')
-  );
+  mockApi.spreadsheets.values.get.mockRejectedValue(new Error('API Error: 404 Not Found'));
 
   // Act
   const result = await handler.handle(input);
@@ -441,6 +489,7 @@ it('should validate required parameters', async () => {
 **Issue**: `normalizeObjectSchema()` returns empty schemas for `z.discriminatedUnion()`.
 
 **Impact**:
+
 - Tool discovery (`tools/list`) returns empty `inputSchema.properties`
 - Tool invocation still works correctly (validation functions properly)
 
@@ -479,7 +528,9 @@ vi.mock('module', () => ({ Class: MockClass }));
 
 // ✅ GOOD: Define inline
 vi.mock('module', () => {
-  class MockClass { /* ... */ }
+  class MockClass {
+    /* ... */
+  }
   return { Class: MockClass };
 });
 ```
@@ -493,6 +544,7 @@ vi.mock('module', () => {
 **Issue**: Using `vi.fn()` as a class constructor triggers Vitest warning.
 
 **Error Message**:
+
 ```
 [vitest] The vi.fn() mock did not use 'function' or 'class' in its implementation
 ```

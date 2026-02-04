@@ -157,7 +157,7 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     },
     async collaborate() {
       const { CollaborateHandler } = await import('./collaborate.js');
-      return new CollaborateHandler(options.context, options.driveApi);
+      return new CollaborateHandler(options.context, options.driveApi, options.sheetsApi);
     },
     // Tier 7 Enterprise handlers
     async templates() {

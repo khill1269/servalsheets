@@ -12,6 +12,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { randomUUID, randomBytes, createHash } from 'crypto';
+import { fileURLToPath } from 'url';
+import { resolve } from 'path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -56,6 +58,7 @@ import {
   registerReferenceResources,
   registerSchemaResources,
 } from './resources/index.js';
+import { getTraceAggregator } from './services/trace-aggregator.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
@@ -164,6 +167,7 @@ async function createMcpServerInstance(
       parallelExecutor,
       prefetchPredictor,
       accessPatternTracker,
+      queryOptimizer,
     } = await initializePerformanceOptimizations(googleClient.sheets);
 
     const context: HandlerContext = {
@@ -193,6 +197,7 @@ async function createMcpServerInstance(
       parallelExecutor, // Phase 2: Parallel batch execution (40% faster batch ops)
       prefetchPredictor, // Phase 3: Predictive prefetching (200-500ms latency reduction)
       accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
+      queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
       snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
       auth: {
         hasElevatedAccess: googleClient.hasElevatedAccess,
@@ -213,7 +218,7 @@ async function createMcpServerInstance(
   await registerServalSheetsTools(mcpServer, handlers, { googleClient });
   registerServalSheetsResources(mcpServer, googleClient);
   registerServalSheetsPrompts(mcpServer);
-  registerKnowledgeResources(mcpServer);
+  await registerKnowledgeResources(mcpServer);
 
   // Register operation history resources
   registerHistoryResources(mcpServer);
@@ -967,7 +972,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Search traces with filters
   app.get('/traces', (req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1021,7 +1026,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Get recent traces
   app.get('/traces/recent', (req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1049,7 +1054,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Get slowest traces
   app.get('/traces/slow', (req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1077,7 +1082,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Get error traces
   app.get('/traces/errors', (req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1105,7 +1110,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Get trace statistics
   app.get('/traces/stats', (_req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1157,7 +1162,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Get specific trace by request ID
   app.get('/traces/:requestId', (req: Request, res: Response) => {
     try {
-      const { getTraceAggregator } = require('./services/trace-aggregator.js');
+      // Uses static import at top of file
       const aggregator = getTraceAggregator();
 
       if (!aggregator.isEnabled()) {
@@ -1169,7 +1174,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         return;
       }
 
-      const { requestId } = req.params;
+      const requestId = req.params['requestId'] as string;
       const trace = aggregator.getTrace(requestId);
 
       if (!trace) {
@@ -1957,6 +1962,30 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         return;
       }
 
+      // Validate channelId and resourceId match stored values (security check against spoofing)
+      if (webhook.channelId !== channelId || webhook.resourceId !== resourceId) {
+        logger.warn('Webhook validation failed - ID mismatch', {
+          webhookId: channelToken,
+          headerChannelId: channelId,
+          storedChannelId: webhook.channelId,
+          headerResourceId: resourceId,
+          storedResourceId: webhook.resourceId,
+        });
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Unauthorized webhook - ID mismatch',
+          },
+        });
+        return;
+      }
+
+      logger.info('Webhook validation passed', {
+        webhookId: channelToken,
+        channelId,
+        resourceId,
+      });
+
       // Phase 4.2A: Use DiffEngine to detect and categorize changes
       let detectedEventTypes: Array<import('./schemas/webhook.js').WebhookEventType> = [];
       let changeDetails: import('./schemas/webhook.js').WebhookPayload['changeDetails'] = undefined;
@@ -2260,8 +2289,16 @@ export async function startRemoteServer(options: { port?: number } = {}): Promis
   await server.start();
 }
 
+const isDirectEntry = (() => {
+  try {
+    return fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? '');
+  } catch {
+    return false;
+  }
+})();
+
 // CLI entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectEntry) {
   (async () => {
     try {
       // Log environment configuration

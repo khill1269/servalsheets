@@ -1,6 +1,17 @@
+---
+title: High Error Rate Runbook
+category: runbook
+last_updated: 2026-01-31
+description: '- Severity: Critical'
+version: 1.6.0
+tags: [sheets, docker]
+estimated_time: 15-30 minutes
+---
+
 # High Error Rate Runbook
 
 ## Alert Details
+
 - **Severity**: Critical
 - **Component**: API
 - **Trigger**: Error rate > 5% for 2 minutes
@@ -9,6 +20,7 @@
 ## Symptoms
 
 ### User-Visible
+
 - Operations failing with error responses
 - Timeouts on requests
 - Inconsistent behavior
@@ -16,6 +28,7 @@
 - Data not updating
 
 ### System Symptoms
+
 - High error counter in metrics
 - Error logs increasing
 - Circuit breakers may be opening
@@ -105,26 +118,31 @@ tail -100 /var/log/servalsheets/app.log | \
 ## Common Causes
 
 ### 1. Google API Issues (40%)
+
 - **Symptoms**: High `GoogleAPIErrorRate` alert also firing
 - **Check**: Google API status dashboard
 - **Errors**: 429 Rate Limit, 503 Service Unavailable
 
 ### 2. Authentication Failures (30%)
+
 - **Symptoms**: `HighAuthenticationFailureRate` alert firing
 - **Check**: OAuth token expiration, credential validity
 - **Errors**: 401 Unauthorized, 403 Forbidden
 
 ### 3. Permission Issues (15%)
+
 - **Symptoms**: Specific spreadsheets failing consistently
 - **Check**: Service account permissions, spreadsheet sharing
 - **Errors**: 403 Permission Denied
 
 ### 4. Rate Limiting (10%)
+
 - **Symptoms**: `APIQuotaNearLimit` alert firing
 - **Check**: Current quota usage
 - **Errors**: 429 Too Many Requests
 
 ### 5. Code Bugs/Regressions (5%)
+
 - **Symptoms**: Started after recent deployment
 - **Check**: Recent commits, new code paths
 - **Errors**: Various, check error types
@@ -244,15 +262,12 @@ git show <commit-hash>
 // Add retry logic for transient errors
 import { retry } from '@/utils/retry';
 
-const result = await retry(
-  async () => await googleSheetsAPI.spreadsheets.get({ spreadsheetId }),
-  {
-    maxAttempts: 3,
-    delayMs: 1000,
-    backoff: 'exponential',
-    retryableErrors: ['RATE_LIMIT_EXCEEDED', 'SERVICE_UNAVAILABLE'],
-  }
-);
+const result = await retry(async () => await googleSheetsAPI.spreadsheets.get({ spreadsheetId }), {
+  maxAttempts: 3,
+  delayMs: 1000,
+  backoff: 'exponential',
+  retryableErrors: ['RATE_LIMIT_EXCEEDED', 'SERVICE_UNAVAILABLE'],
+});
 ```
 
 #### 2. Add Circuit Breaker

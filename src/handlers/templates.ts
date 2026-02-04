@@ -37,6 +37,7 @@ import type {
 } from '../schemas/index.js';
 import { TemplateStore } from '../services/template-store.js';
 import { logger } from '../utils/logger.js';
+import { ScopeValidator, IncrementalScopeRequiredError } from '../security/incremental-scope.js';
 
 export class SheetsTemplatesHandler extends BaseHandler<
   SheetsTemplatesInput,
@@ -117,9 +118,45 @@ export class SheetsTemplatesHandler extends BaseHandler<
   }
 
   /**
+   * Validate scopes for an operation
+   * Returns error response if scopes are insufficient, null if valid
+   */
+  private validateScopes(operation: string): TemplatesResponse | null {
+    const validator = new ScopeValidator({
+      scopes: this.context.auth?.scopes ?? [],
+    });
+
+    try {
+      validator.validateOperation(operation);
+      return null; // Scopes are valid
+    } catch (error) {
+      if (error instanceof IncrementalScopeRequiredError) {
+        return this.error({
+          code: 'INCREMENTAL_SCOPE_REQUIRED',
+          message: error.message,
+          category: 'auth',
+          retryable: true,
+          details: {
+            operation: error.operation,
+            requiredScopes: error.requiredScopes,
+            currentScopes: error.currentScopes,
+            missingScopes: error.missingScopes,
+            authorizationUrl: error.authorizationUrl,
+          },
+        });
+      }
+      throw error; // Re-throw non-scope errors
+    }
+  }
+
+  /**
    * List all templates
    */
   private async handleList(req: TemplatesListInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access
+    const scopeError = this.validateScopes('sheets_templates.list');
+    if (scopeError) return scopeError;
+
     try {
       const userTemplates = await this.templateStore.list(req.category);
 
@@ -163,6 +200,12 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Get template details
    */
   private async handleGet(req: TemplatesGetInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access (only for user templates)
+    if (!req.templateId.startsWith('builtin:')) {
+      const scopeError = this.validateScopes('sheets_templates.get');
+      if (scopeError) return scopeError;
+    }
+
     try {
       // Check if it's a builtin template
       if (req.templateId.startsWith('builtin:')) {
@@ -211,6 +254,10 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Create template from spreadsheet
    */
   private async handleCreate(req: TemplatesCreateInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access (CRITICAL - write operation)
+    const scopeError = this.validateScopes('sheets_templates.create');
+    if (scopeError) return scopeError;
+
     try {
       // Get spreadsheet metadata
       const spreadsheet = await this.sheetsApi.spreadsheets.get({
@@ -258,6 +305,12 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Apply template to create new spreadsheet
    */
   private async handleApply(req: TemplatesApplyInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access (only for user templates)
+    if (!req.templateId.startsWith('builtin:')) {
+      const scopeError = this.validateScopes('sheets_templates.apply');
+      if (scopeError) return scopeError;
+    }
+
     try {
       // Get template (user or builtin)
       let templateData: {
@@ -444,6 +497,10 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Update template
    */
   private async handleUpdate(req: TemplatesUpdateInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access
+    const scopeError = this.validateScopes('sheets_templates.update');
+    if (scopeError) return scopeError;
+
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
@@ -477,6 +534,10 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Delete template
    */
   private async handleDelete(req: TemplatesDeleteInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access
+    const scopeError = this.validateScopes('sheets_templates.delete');
+    if (scopeError) return scopeError;
+
     try {
       if (req.templateId.startsWith('builtin:')) {
         return this.error({
@@ -503,6 +564,12 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Preview template structure
    */
   private async handlePreview(req: TemplatesPreviewInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access (only for user templates)
+    if (!req.templateId.startsWith('builtin:')) {
+      const scopeError = this.validateScopes('sheets_templates.preview');
+      if (scopeError) return scopeError;
+    }
+
     try {
       // Get template (user or builtin)
       let templateData: {
@@ -566,6 +633,10 @@ export class SheetsTemplatesHandler extends BaseHandler<
    * Import builtin template to user's collection
    */
   private async handleImportBuiltin(req: TemplatesImportBuiltinInput): Promise<TemplatesResponse> {
+    // Validate scopes before Drive API access (imports to user's Drive)
+    const scopeError = this.validateScopes('sheets_templates.import_builtin');
+    if (scopeError) return scopeError;
+
     try {
       const builtin = await this.templateStore.getBuiltinTemplate(req.builtinName);
       if (!builtin) {

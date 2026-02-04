@@ -1,3 +1,13 @@
+---
+title: JWT Secret Rotation
+category: runbook
+last_updated: 2026-01-31
+description: ServalSheets supports JWT secret rotation for zero-downtime secret updates. This allows you to rotate JWT signing secrets without invalidating existing sessions.
+version: 1.6.0
+tags: [docker, kubernetes]
+estimated_time: 15-30 minutes
+---
+
 # JWT Secret Rotation
 
 ## Overview
@@ -53,6 +63,7 @@ kubectl rollout restart deployment/servalsheets
 ```
 
 **What happens now:**
+
 - ✅ New tokens are signed with `NEW_SECRET_HERE`
 - ✅ Old tokens signed with `OLD_SECRET_HERE` still validate
 - ✅ Zero downtime, no user impact
@@ -136,19 +147,19 @@ metadata:
   name: servalsheets-jwt-rotation
 spec:
   # Run every 90 days (recommended rotation schedule)
-  schedule: "0 2 1 */3 *"
+  schedule: '0 2 1 */3 *'
   jobTemplate:
     spec:
       template:
         spec:
           containers:
-          - name: rotate-jwt
-            image: servalsheets/secret-rotator:latest
-            env:
-            - name: SECRET_NAME
-              value: servalsheets-jwt-secret
-            - name: DEPLOYMENT_NAME
-              value: servalsheets
+            - name: rotate-jwt
+              image: servalsheets/secret-rotator:latest
+              env:
+                - name: SECRET_NAME
+                  value: servalsheets-jwt-secret
+                - name: DEPLOYMENT_NAME
+                  value: servalsheets
           restartPolicy: OnFailure
 ```
 
@@ -176,6 +187,7 @@ docker-compose restart servalsheets
 ```
 
 **Impact:**
+
 - ❌ All existing JWT tokens immediately invalid
 - ❌ All users must re-authenticate
 - ✅ Compromised secret no longer accepted
@@ -195,6 +207,7 @@ grep "JWT secrets loaded" /var/log/servalsheets.log
 ```
 
 Example output:
+
 ```
 JWT secrets loaded: 2 (primary + 1 for rotation)
 ```
@@ -242,12 +255,14 @@ echo "my-secret-key"
 ### 3. Secret Storage
 
 **Never:**
+
 - ❌ Commit secrets to version control
 - ❌ Store secrets in plaintext files
 - ❌ Share secrets via email or chat
 - ❌ Log or print secrets
 
 **Instead:**
+
 - ✅ Use environment variables
 - ✅ Use secret management systems (Vault, AWS Secrets Manager, Azure Key Vault)
 - ✅ Restrict access to secrets (principle of least privilege)
@@ -268,6 +283,7 @@ echo "my-secret-key"
 ### 5. Coordinate with Deployment Windows
 
 **Best times to rotate:**
+
 - ✅ During maintenance windows
 - ✅ Low-traffic periods (e.g., weekends, off-peak hours)
 - ✅ After recent deployments have stabilized
@@ -276,12 +292,14 @@ echo "my-secret-key"
 ### 6. Monitor After Rotation
 
 **Watch for:**
+
 - Authentication error rates
 - Token validation failures
 - Server restart success
 - User session issues
 
 **Set alerts for:**
+
 - Spike in 401 Unauthorized responses
 - JWT validation errors in logs
 - Increased re-authentication requests
@@ -295,6 +313,7 @@ echo "my-secret-key"
 **Cause**: Old secret removed too soon (before tokens expired)
 
 **Solution**:
+
 1. Re-add old secret to JWT_SECRET list
 2. Restart server
 3. Wait full TTL period before removing again
@@ -304,6 +323,7 @@ echo "my-secret-key"
 **Cause**: New secret not in primary position (first in list)
 
 **Solution**:
+
 ```bash
 # Wrong order (old secret is first)
 JWT_SECRET=OLD_SECRET,NEW_SECRET  # ❌
@@ -317,6 +337,7 @@ JWT_SECRET=NEW_SECRET,OLD_SECRET  # ✅
 **Cause**: Invalid secret format or typo
 
 **Solution**:
+
 1. Verify secret is 64 hex characters (32 bytes)
 2. Check for typos or special characters
 3. Ensure proper comma separation (no spaces)
@@ -369,6 +390,7 @@ kubectl --context=eu-west-1 rollout restart deployment/servalsheets
 ## Summary Checklist
 
 Before starting rotation:
+
 - [ ] New secret generated securely (`openssl rand -hex 32`)
 - [ ] Staging environment tested
 - [ ] Deployment window scheduled
@@ -377,6 +399,7 @@ Before starting rotation:
 - [ ] Team notified of rotation schedule
 
 During rotation:
+
 - [ ] New secret added in primary position
 - [ ] All instances restarted successfully
 - [ ] Authentication working with new tokens
@@ -384,6 +407,7 @@ During rotation:
 - [ ] No errors in logs
 
 After TTL expiration:
+
 - [ ] Full TTL period + safety buffer elapsed
 - [ ] Old secret removed from configuration
 - [ ] Final restart completed

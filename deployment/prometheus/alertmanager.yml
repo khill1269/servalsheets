@@ -6,7 +6,8 @@ global:
   resolve_timeout: 5m
 
   # Slack webhook URL (can be overridden per receiver)
-  slack_api_url: '<YOUR_SLACK_WEBHOOK_URL>'
+  # Set via environment variable SLACK_WEBHOOK_URL
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
 
 # Main routing tree
 route:
@@ -85,7 +86,8 @@ receivers:
   # ========================================
   - name: 'pagerduty-critical'
     pagerduty_configs:
-      - service_key: '<YOUR_PAGERDUTY_INTEGRATION_KEY>'
+      # Set via environment variable PAGERDUTY_SERVICE_KEY
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
         description: '{{ .CommonAnnotations.summary }}'
         severity: '{{ .GroupLabels.severity }}'
         client: 'ServalSheets Monitoring'

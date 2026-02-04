@@ -1,3 +1,14 @@
+---
+title: Adaptive Batch Window User Guide
+category: guide
+last_updated: 2026-01-31
+description: The adaptive batch window is enabled by default in ServalSheets. No configuration is required to benefit from it.
+version: 1.6.0
+tags: [sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Adaptive Batch Window User Guide
 
 ## Quick Start
@@ -33,13 +44,13 @@ Adjust the adaptive window behavior for specific needs:
 const batchingSystem = new BatchingSystem(sheetsApi, {
   adaptiveWindow: true,
   adaptiveConfig: {
-    minWindowMs: 20,      // Minimum wait time (default: 20ms)
-    maxWindowMs: 200,     // Maximum wait time (default: 200ms)
-    initialWindowMs: 50,  // Starting wait time (default: 50ms)
-    lowThreshold: 3,      // Increase window if fewer operations (default: 3)
-    highThreshold: 50,    // Decrease window if more operations (default: 50)
-    increaseRate: 1.2,    // Window growth rate (default: 1.2x)
-    decreaseRate: 0.8,    // Window shrink rate (default: 0.8x)
+    minWindowMs: 20, // Minimum wait time (default: 20ms)
+    maxWindowMs: 200, // Maximum wait time (default: 200ms)
+    initialWindowMs: 50, // Starting wait time (default: 50ms)
+    lowThreshold: 3, // Increase window if fewer operations (default: 3)
+    highThreshold: 50, // Decrease window if more operations (default: 50)
+    increaseRate: 1.2, // Window growth rate (default: 1.2x)
+    decreaseRate: 0.8, // Window shrink rate (default: 0.8x)
   },
 });
 ```
@@ -50,8 +61,8 @@ If you prefer fixed timing:
 
 ```typescript
 const batchingSystem = new BatchingSystem(sheetsApi, {
-  adaptiveWindow: false,  // Use fixed window
-  windowMs: 50,           // Fixed wait time in milliseconds
+  adaptiveWindow: false, // Use fixed window
+  windowMs: 50, // Fixed wait time in milliseconds
 });
 ```
 
@@ -158,14 +169,17 @@ Result:     Window stays stable in sweet spot
 ## Performance Impact
 
 ### Steady Low Traffic
+
 - **Improvement**: +66.7% batch size, -40.0% API calls
 - **Why**: Longer windows allow sparse operations to batch together
 
 ### Steady High Traffic
+
 - **Improvement**: ~0% (matches fixed window)
 - **Why**: Queue fills quickly regardless of window size
 
 ### Variable Traffic
+
 - **Improvement**: -10.0% API calls
 - **Why**: Adapts to changing patterns automatically
 
@@ -174,6 +188,7 @@ Result:     Window stays stable in sweet spot
 ### Issue: Adaptive window not adjusting
 
 **Check 1**: Verify adaptive mode is enabled
+
 ```typescript
 const stats = batchingSystem.getStats();
 if (!stats.currentWindowMs) {
@@ -182,12 +197,14 @@ if (!stats.currentWindowMs) {
 ```
 
 **Check 2**: Ensure sufficient traffic variation
+
 - Need traffic above and below thresholds to see adjustments
 - Single-operation batches won't show much adaptation
 
 ### Issue: Too much latency
 
 **Solution**: Lower the window bounds
+
 ```typescript
 {
   adaptiveConfig: {
@@ -199,6 +216,7 @@ if (!stats.currentWindowMs) {
 ### Issue: Too many API calls
 
 **Solution**: Raise the minimum window
+
 ```typescript
 {
   adaptiveConfig: {
@@ -214,6 +232,7 @@ if (!stats.currentWindowMs) {
 2. **Monitor before tuning**: Check `currentWindowMs` and `avgWindowMs` in stats before adjusting
 
 3. **Test changes**: Use the benchmark script to verify custom configurations:
+
    ```bash
    npx tsx scripts/benchmark-adaptive-window.ts
    ```
@@ -259,14 +278,14 @@ class AdaptiveBatchWindow {
 
 ```typescript
 interface BatchingSystemOptions {
-  adaptiveWindow?: boolean;           // Enable adaptive window (default: true)
+  adaptiveWindow?: boolean; // Enable adaptive window (default: true)
   adaptiveConfig?: AdaptiveBatchWindowConfig;
   // ... other options
 }
 
 interface BatchingStats {
-  currentWindowMs?: number;  // Current window size (only with adaptive)
-  avgWindowMs?: number;      // Average window size over history
+  currentWindowMs?: number; // Current window size (only with adaptive)
+  avgWindowMs?: number; // Average window size over history
   // ... other stats
 }
 ```

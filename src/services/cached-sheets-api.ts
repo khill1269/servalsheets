@@ -70,7 +70,9 @@ export class CachedSheetsApi {
     };
 
     // Check cache first
-    const cached = this.cache.getCachedData(cacheKey) as sheets_v4.Schema$Spreadsheet | null;
+    const cached = (await this.cache.getCachedData(
+      cacheKey
+    )) as sheets_v4.Schema$Spreadsheet | null;
     if (cached) {
       this.stats.cacheHits++;
       logger.debug('Cache hit for spreadsheet metadata', {
@@ -90,7 +92,7 @@ export class CachedSheetsApi {
     });
 
     // Cache the response
-    this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
     return response.data;
   }
@@ -122,7 +124,7 @@ export class CachedSheetsApi {
     };
 
     // Check cache first
-    const cached = this.cache.getCachedData(cacheKey) as sheets_v4.Schema$ValueRange | null;
+    const cached = (await this.cache.getCachedData(cacheKey)) as sheets_v4.Schema$ValueRange | null;
     if (cached) {
       this.stats.cacheHits++;
       logger.debug('Cache hit for values', {
@@ -144,7 +146,7 @@ export class CachedSheetsApi {
     });
 
     // Cache the response
-    this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
     return response.data;
   }
@@ -171,9 +173,9 @@ export class CachedSheetsApi {
     };
 
     // Check cache first
-    const cached = this.cache.getCachedData(
+    const cached = (await this.cache.getCachedData(
       cacheKey
-    ) as sheets_v4.Schema$BatchGetValuesResponse | null;
+    )) as sheets_v4.Schema$BatchGetValuesResponse | null;
     if (cached) {
       this.stats.cacheHits++;
       logger.debug('Cache hit for batchGet', {
@@ -195,7 +197,7 @@ export class CachedSheetsApi {
     });
 
     // Cache the response
-    this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
     return response.data;
   }
@@ -206,8 +208,8 @@ export class CachedSheetsApi {
    * Call this after any mutation (write, update, delete) to ensure
    * subsequent reads get fresh data.
    */
-  invalidateSpreadsheet(spreadsheetId: string): void {
-    this.cache.invalidateSpreadsheet(spreadsheetId);
+  async invalidateSpreadsheet(spreadsheetId: string): Promise<void> {
+    await this.cache.invalidateSpreadsheet(spreadsheetId);
     logger.debug('Cache invalidated after mutation', { spreadsheetId });
   }
 

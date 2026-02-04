@@ -1,3 +1,12 @@
+---
+title: HTTP Transport Authentication
+category: general
+last_updated: 2026-01-31
+description: 'ServalSheets HTTP transport supports two authentication modes:'
+version: 1.6.0
+tags: [security, sheets]
+---
+
 # HTTP Transport Authentication
 
 ## Security Model
@@ -13,6 +22,7 @@ Authorization: Bearer <google-oauth-access-token>
 ```
 
 **Security constraints:**
+
 1. **Localhost binding (default)**: Server binds to `127.0.0.1` by default
 2. **HTTPS enforcement**: Production mode requires HTTPS connections
 3. **CORS restrictions**: Only Claude domains allowed by default
@@ -36,8 +46,8 @@ createHttpServer({
     googleClientSecret: 'google-client-secret',
     accessTokenTtl: 3600,
     refreshTokenTtl: 604800,
-  }
-})
+  },
+});
 ```
 
 ## Security Analysis: Token Passthrough
@@ -52,6 +62,7 @@ MCP specification states that tokens should be issued FOR the MCP server, not pa
 ## Recommendations for Deployment
 
 ### Local Development (Default)
+
 - Token passthrough mode is safe
 - Server binds to localhost only
 - No additional configuration needed
@@ -59,21 +70,25 @@ MCP specification states that tokens should be issued FOR the MCP server, not pa
 ### Production Deployment
 
 1. **Enable OAuth mode** for public deployments:
+
    ```bash
    ENABLE_OAUTH=true
    ```
 
 2. **Bind to external interface** only with OAuth:
+
    ```bash
    HOST=0.0.0.0  # Only set with OAuth enabled
    ```
 
 3. **Always use HTTPS**:
+
    ```bash
    NODE_ENV=production  # Enforces HTTPS
    ```
 
 4. **Configure allowed CORS origins**:
+
    ```bash
    CORS_ORIGINS=https://claude.ai,https://your-domain.com
    ```
@@ -111,5 +126,6 @@ Two levels of rate limiting protect the service:
 ## Protocol Version Security
 
 The server validates MCP protocol versions on MCP endpoints:
+
 - Returns HTTP 400 for unsupported protocol versions
 - Non-MCP endpoints (health, metrics) are not version-checked

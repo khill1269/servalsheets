@@ -1,3 +1,12 @@
+---
+title: ServalSheets Documentation Index
+category: development
+last_updated: 2026-02-03
+description: Complete documentation for ServalSheets v1.6.0
+version: 1.6.0
+tags: [prometheus, grafana, docker, kubernetes]
+---
+
 # ServalSheets Documentation Index
 
 **Complete documentation for ServalSheets v1.6.0**
@@ -10,12 +19,12 @@ Welcome to the ServalSheets documentation! This index helps you find the right g
 
 Start here if you're new to ServalSheets:
 
-| Document | Time | Purpose |
-|----------|------|---------|
-| **[USAGE_GUIDE.md](../guides/USAGE_GUIDE.md)** | 20 min | Complete usage guide - read this first! |
-| **[FIRST_TIME_USER.md](../guides/FIRST_TIME_USER.md)** | 5 min | Quick 5-minute start guide |
-| **[QUICKSTART_CREDENTIALS.md](../guides/QUICKSTART_CREDENTIALS.md)** | 10 min | How to get Google credentials |
-| **[CLAUDE_DESKTOP_SETUP.md](../guides/CLAUDE_DESKTOP_SETUP.md)** | 15 min | Detailed Claude Desktop setup |
+| Document                                                             | Time   | Purpose                                 |
+| -------------------------------------------------------------------- | ------ | --------------------------------------- |
+| **[USAGE_GUIDE.md](../guides/USAGE_GUIDE.md)**                       | 20 min | Complete usage guide - read this first! |
+| **[FIRST_TIME_USER.md](../guides/FIRST_TIME_USER.md)**               | 5 min  | Quick 5-minute start guide              |
+| **[QUICKSTART_CREDENTIALS.md](../guides/QUICKSTART_CREDENTIALS.md)** | 10 min | How to get Google credentials           |
+| **[CLAUDE_DESKTOP_SETUP.md](../guides/CLAUDE_DESKTOP_SETUP.md)**     | 15 min | Detailed Claude Desktop setup           |
 
 **Recommended path**: FIRST_TIME_USER.md → QUICKSTART_CREDENTIALS.md → CLAUDE_DESKTOP_SETUP.md → USAGE_GUIDE.md
 
@@ -25,11 +34,12 @@ Start here if you're new to ServalSheets:
 
 Essential reference documentation:
 
-| Document | Purpose | Audience |
-|----------|---------|----------|
-| **[README.md](../../README.md)** | Overview, quick start, API reference | All users |
-| **[CHANGELOG.md](../../CHANGELOG.md)** | Version history and breaking changes | All users |
-| **[PROMPTS_GUIDE.md](../guides/PROMPTS_GUIDE.md)** | 7 interactive prompts for Claude Desktop | Claude Desktop users |
+| Document                                                         | Purpose                                   | Audience             |
+| ---------------------------------------------------------------- | ----------------------------------------- | -------------------- |
+| **[README.md](../../README.md)**                                 | Overview, quick start, API reference      | All users            |
+| **[CHANGELOG.md](../../CHANGELOG.md)**                           | Version history and breaking changes      | All users            |
+| **[PROMPTS_GUIDE.md](../guides/PROMPTS_GUIDE.md)**               | 7 interactive prompts for Claude Desktop  | Claude Desktop users |
+| **[SUBMISSION_CHECKLIST.md](../guides/SUBMISSION_CHECKLIST.md)** | Remote MCP submission readiness checklist | Developers/Ops       |
 
 ---
 
@@ -37,11 +47,11 @@ Essential reference documentation:
 
 Documentation for AI assistants like Claude:
 
-| Document | Purpose | Audience |
-|----------|---------|----------|
+| Document                           | Purpose                                   | Audience                          |
+| ---------------------------------- | ----------------------------------------- | --------------------------------- |
 | **[SKILL.md](../guides/SKILL.md)** | How to use ServalSheets tools effectively | AI assistants (Claude, GPT, etc.) |
 
-**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 21 tools and 272 actions. It includes best practices, safety guidelines, and common patterns.
+**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 21 tools and 293 actions. It includes best practices, safety guidelines, and common patterns.
 
 ---
 
@@ -51,11 +61,12 @@ Comprehensive guides for production deployments:
 
 ### Security
 
-| Document | Lines | Topics Covered |
-|----------|-------|----------------|
+| Document                             | Lines | Topics Covered                                                                     |
+| ------------------------------------ | ----- | ---------------------------------------------------------------------------------- |
 | **[SECURITY.md](../../SECURITY.md)** | 3,482 | Token storage, authentication methods, key rotation, incident response, compliance |
 
 **Key topics**:
+
 - AES-256-GCM token encryption
 - Service Account vs OAuth security
 - Production deployment checklist
@@ -65,11 +76,12 @@ Comprehensive guides for production deployments:
 
 ### Performance
 
-| Document | Lines | Topics Covered |
-|----------|-------|----------------|
+| Document                               | Lines | Topics Covered                                                                      |
+| -------------------------------------- | ----- | ----------------------------------------------------------------------------------- |
 | **[PERFORMANCE.md](./PERFORMANCE.md)** | 2,856 | Diff tiers, batch operations, rate limiting, caching, memory management, benchmarks |
 
 **Key topics**:
+
 - Diff tier selection (METADATA/SAMPLE/FULL)
 - Batch operations (10-20x speedup)
 - Rate limiting strategies
@@ -79,11 +91,12 @@ Comprehensive guides for production deployments:
 
 ### Monitoring
 
-| Document | Lines | Topics Covered |
-|----------|-------|----------------|
+| Document                             | Lines | Topics Covered                                                        |
+| ------------------------------------ | ----- | --------------------------------------------------------------------- |
 | **[MONITORING.md](./MONITORING.md)** | 4,123 | Structured logging, metrics, health checks, APM, alerting, dashboards |
 
 **Key topics**:
+
 - Structured JSON logging
 - Prometheus metrics integration
 - Health checks (liveness/readiness/startup)
@@ -93,11 +106,12 @@ Comprehensive guides for production deployments:
 
 ### Deployment
 
-| Document | Lines | Topics Covered |
-|----------|-------|----------------|
+| Document                             | Lines | Topics Covered                                                                       |
+| ------------------------------------ | ----- | ------------------------------------------------------------------------------------ |
 | **[DEPLOYMENT.md](./DEPLOYMENT.md)** | 5,234 | Docker, Kubernetes, systemd, PM2, cloud platforms, load balancing, disaster recovery |
 
 **Key topics**:
+
 - Docker deployment (Dockerfile + docker-compose)
 - Kubernetes manifests (complete setup with HPA)
 - systemd service configuration
@@ -108,11 +122,12 @@ Comprehensive guides for production deployments:
 
 ### Troubleshooting
 
-| Document | Lines | Topics Covered |
-|----------|-------|----------------|
+| Document                                       | Lines | Topics Covered                                                                            |
+| ---------------------------------------------- | ----- | ----------------------------------------------------------------------------------------- |
 | **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | 3,892 | Authentication, rate limiting, permissions, performance, memory, network, MCP integration |
 
 **Key topics**:
+
 - Quick diagnostics procedures
 - Authentication issues (failed auth, expired tokens)
 - Rate limiting and quota errors
@@ -128,12 +143,12 @@ Comprehensive guides for production deployments:
 
 Documentation for developers and contributors:
 
-| Document | Purpose | Audience |
-|----------|---------|----------|
-| **[TESTING.md](./TESTING.md)** | How to test locally before deployment | Developers |
-| **[IMPLEMENTATION_GUARDRAILS.md](./IMPLEMENTATION_GUARDRAILS.md)** | Architecture and implementation phases | Contributors |
-| **[MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)** | Requirements checklist | Contributors |
-| **[SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)** | Source-of-truth references | Contributors |
+| Document                                                                                | Purpose                                | Audience     |
+| --------------------------------------------------------------------------------------- | -------------------------------------- | ------------ |
+| **[TESTING.md](./TESTING.md)**                                                          | How to test locally before deployment  | Developers   |
+| **[IMPLEMENTATION_GUARDRAILS.md](./IMPLEMENTATION_GUARDRAILS.md)**                      | Architecture and implementation phases | Contributors |
+| **[MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)** | Requirements checklist                 | Contributors |
+| **[SOURCE_OF_TRUTH.md](./SOURCE_OF_TRUTH.md)**                                          | Source-of-truth references             | Contributors |
 
 ---
 
@@ -141,12 +156,12 @@ Documentation for developers and contributors:
 
 Comprehensive analysis and audit reports:
 
-| Document | Lines | Purpose |
-|----------|-------|---------|
+| Document                                                                   | Lines  | Purpose                                                       |
+| -------------------------------------------------------------------------- | ------ | ------------------------------------------------------------- |
 | **[COMPREHENSIVE_ANALYSIS_REPORT.md](./COMPREHENSIVE_ANALYSIS_REPORT.md)** | 60,903 | Full source code analysis (97/100 production-readiness score) |
-| **[DOCUMENTATION_IMPROVEMENTS.md](./DOCUMENTATION_IMPROVEMENTS.md)** | 11,899 | Documentation improvements summary |
-| **[PROJECT_AUDIT_REPORT.md](./PROJECT_AUDIT_REPORT.md)** | Latest | Complete project audit with critical findings |
-| **[VERIFICATION_REPORT.md](./VERIFICATION_REPORT.md)** | 8,318 | Verification and compliance report |
+| **[DOCUMENTATION_IMPROVEMENTS.md](./DOCUMENTATION_IMPROVEMENTS.md)**       | 11,899 | Documentation improvements summary                            |
+| **[PROJECT_AUDIT_REPORT.md](./PROJECT_AUDIT_REPORT.md)**                   | Latest | Complete project audit with critical findings                 |
+| **[VERIFICATION_REPORT.md](./VERIFICATION_REPORT.md)**                     | 8,318  | Verification and compliance report                            |
 
 ---
 
@@ -270,14 +285,14 @@ A: See [TROUBLESHOOTING.md#rate-limiting-and-quotas](./TROUBLESHOOTING.md#rate-l
 
 ### Total Documentation
 
-| Category | Files | Lines | Purpose |
-|----------|-------|-------|---------|
-| **Getting Started** | 4 | ~28,000 | New user onboarding |
-| **Core Docs** | 3 | ~20,000 | Essential reference |
-| **Production Guides** | 5 | ~20,000 | Enterprise deployment |
-| **Development** | 4 | ~50,000 | Developers & contributors |
-| **Analysis** | 4 | ~80,000 | Reports & audits |
-| **Total** | **20** | **~200,000** | **Complete coverage** |
+| Category              | Files  | Lines        | Purpose                   |
+| --------------------- | ------ | ------------ | ------------------------- |
+| **Getting Started**   | 4      | ~28,000      | New user onboarding       |
+| **Core Docs**         | 3      | ~20,000      | Essential reference       |
+| **Production Guides** | 5      | ~20,000      | Enterprise deployment     |
+| **Development**       | 4      | ~50,000      | Developers & contributors |
+| **Analysis**          | 4      | ~80,000      | Reports & audits          |
+| **Total**             | **20** | **~200,000** | **Complete coverage**     |
 
 ### Documentation Quality
 
@@ -285,15 +300,15 @@ A: See [TROUBLESHOOTING.md#rate-limiting-and-quotas](./TROUBLESHOOTING.md#rate-l
 - ✅ **Actionable**: Copy-paste examples throughout
 - ✅ **Cross-referenced**: Documents link to each other
 - ✅ **Production-tested**: Based on 16,851 lines of analyzed code
-- ✅ **Up-to-date**: Version 1.0.0, MCP 2025-11-25 protocol
+- ✅ **Up-to-date**: Version 1.6.0, MCP 2025-11-25 protocol
 
 ---
 
 ## 🔄 Documentation Version
 
-**Version**: 1.0.0
+**Version**: 1.6.0
 **Protocol**: MCP 2025-11-25
-**Last Updated**: 2026-01-03
+**Last Updated**: 2026-01-30
 **Status**: Production-ready
 
 ---

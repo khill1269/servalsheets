@@ -8,7 +8,8 @@
  * @module utils/checkpoint
  */
 
-import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { logger } from './logger.js';
 
@@ -52,10 +53,10 @@ function getCheckpointDir(): string {
   return process.env['CHECKPOINT_DIR'] || DEFAULT_CHECKPOINT_DIR;
 }
 
-function ensureCheckpointDir(): void {
+async function ensureCheckpointDir(): Promise<void> {
   const dir = getCheckpointDir();
   if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+    await fs.mkdir(dir, { recursive: true });
     logger.info('Created checkpoint directory', { dir });
   }
 }
@@ -68,12 +69,12 @@ export function isCheckpointsEnabled(): boolean {
 // CHECKPOINT OPERATIONS
 // ============================================================================
 
-export function saveCheckpoint(checkpoint: Checkpoint): string {
+export async function saveCheckpoint(checkpoint: Checkpoint): Promise<string> {
   if (!isCheckpointsEnabled()) {
     throw new Error('Checkpoints disabled. Set ENABLE_CHECKPOINTS=true');
   }
 
-  ensureCheckpointDir();
+  await ensureCheckpointDir();
 
   const filename = `${checkpoint.sessionId}-${checkpoint.timestamp}${CHECKPOINT_FILE_EXTENSION}`;
   const filepath = join(getCheckpointDir(), filename);
@@ -83,21 +84,21 @@ export function saveCheckpoint(checkpoint: Checkpoint): string {
     createdAt: new Date(checkpoint.timestamp).toISOString(),
   };
 
-  writeFileSync(filepath, JSON.stringify(checkpointWithMeta, null, 2));
+  await fs.writeFile(filepath, JSON.stringify(checkpointWithMeta, null, 2));
 
   logger.info('Checkpoint saved', {
     sessionId: checkpoint.sessionId,
     completedSteps: checkpoint.completedSteps,
   });
 
-  cleanupOldCheckpoints(checkpoint.sessionId);
+  await cleanupOldCheckpoints(checkpoint.sessionId);
   return filepath;
 }
 
-export function loadCheckpoint(sessionId: string): Checkpoint | null {
+export async function loadCheckpoint(sessionId: string): Promise<Checkpoint | null> {
   if (!isCheckpointsEnabled()) return null;
 
-  const checkpoints = listCheckpointsForSession(sessionId);
+  const checkpoints = await listCheckpointsForSession(sessionId);
   if (checkpoints.length === 0) return null;
 
   const sorted = checkpoints.sort((a, b) => b.timestamp - a.timestamp);
@@ -108,7 +109,7 @@ export function loadCheckpoint(sessionId: string): Checkpoint | null {
   );
 
   try {
-    const data = readFileSync(filepath, 'utf-8');
+    const data = await fs.readFile(filepath, 'utf-8');
     return JSON.parse(data) as Checkpoint;
   } catch (error) {
     logger.error('Failed to load checkpoint', { sessionId, error });
@@ -116,7 +117,10 @@ export function loadCheckpoint(sessionId: string): Checkpoint | null {
   }
 }
 
-export function loadCheckpointByTimestamp(sessionId: string, timestamp: number): Checkpoint | null {
+export async function loadCheckpointByTimestamp(
+  sessionId: string,
+  timestamp: number
+): Promise<Checkpoint | null> {
   if (!isCheckpointsEnabled()) return null;
 
   const filepath = join(
@@ -127,7 +131,7 @@ export function loadCheckpointByTimestamp(sessionId: string, timestamp: number):
   if (!existsSync(filepath)) return null;
 
   try {
-    const data = readFileSync(filepath, 'utf-8');
+    const data = await fs.readFile(filepath, 'utf-8');
     return JSON.parse(data) as Checkpoint;
   } catch (error) {
     logger.error('Failed to load checkpoint', { sessionId, timestamp, error });
@@ -135,65 +139,71 @@ export function loadCheckpointByTimestamp(sessionId: string, timestamp: number):
   }
 }
 
-export function listCheckpointsForSession(sessionId: string): CheckpointSummary[] {
+export async function listCheckpointsForSession(sessionId: string): Promise<CheckpointSummary[]> {
   if (!isCheckpointsEnabled()) return [];
 
-  ensureCheckpointDir();
+  await ensureCheckpointDir();
   const dir = getCheckpointDir();
 
   try {
-    const files = readdirSync(dir).filter(
+    const allFiles = await fs.readdir(dir);
+    const files = allFiles.filter(
       (f) => f.startsWith(sessionId) && f.endsWith(CHECKPOINT_FILE_EXTENSION)
     );
 
-    return files
-      .map((filename) => {
-        const filepath = join(dir, filename);
-        const data = JSON.parse(readFileSync(filepath, 'utf-8')) as Checkpoint;
-        return {
-          sessionId: data.sessionId,
-          timestamp: data.timestamp,
-          createdAt: data.createdAt,
-          description: data.description,
-          completedSteps: data.completedSteps,
-          spreadsheetTitle: data.spreadsheetTitle,
-        };
-      })
-      .sort((a, b) => b.timestamp - a.timestamp);
+    const summaries: CheckpointSummary[] = [];
+    for (const filename of files) {
+      const filepath = join(dir, filename);
+      const content = await fs.readFile(filepath, 'utf-8');
+      const data = JSON.parse(content) as Checkpoint;
+      summaries.push({
+        sessionId: data.sessionId,
+        timestamp: data.timestamp,
+        createdAt: data.createdAt,
+        description: data.description,
+        completedSteps: data.completedSteps,
+        spreadsheetTitle: data.spreadsheetTitle,
+      });
+    }
+
+    return summaries.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     return [];
   }
 }
 
-export function listAllCheckpoints(): CheckpointSummary[] {
+export async function listAllCheckpoints(): Promise<CheckpointSummary[]> {
   if (!isCheckpointsEnabled()) return [];
 
-  ensureCheckpointDir();
+  await ensureCheckpointDir();
   const dir = getCheckpointDir();
 
   try {
-    const files = readdirSync(dir).filter((f) => f.endsWith(CHECKPOINT_FILE_EXTENSION));
+    const allFiles = await fs.readdir(dir);
+    const files = allFiles.filter((f) => f.endsWith(CHECKPOINT_FILE_EXTENSION));
 
-    return files
-      .map((filename) => {
-        const filepath = join(dir, filename);
-        const data = JSON.parse(readFileSync(filepath, 'utf-8')) as Checkpoint;
-        return {
-          sessionId: data.sessionId,
-          timestamp: data.timestamp,
-          createdAt: data.createdAt,
-          description: data.description,
-          completedSteps: data.completedSteps,
-          spreadsheetTitle: data.spreadsheetTitle,
-        };
-      })
-      .sort((a, b) => b.timestamp - a.timestamp);
+    const summaries: CheckpointSummary[] = [];
+    for (const filename of files) {
+      const filepath = join(dir, filename);
+      const content = await fs.readFile(filepath, 'utf-8');
+      const data = JSON.parse(content) as Checkpoint;
+      summaries.push({
+        sessionId: data.sessionId,
+        timestamp: data.timestamp,
+        createdAt: data.createdAt,
+        description: data.description,
+        completedSteps: data.completedSteps,
+        spreadsheetTitle: data.spreadsheetTitle,
+      });
+    }
+
+    return summaries.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     return [];
   }
 }
 
-export function deleteCheckpoint(sessionId: string, timestamp?: number): boolean {
+export async function deleteCheckpoint(sessionId: string, timestamp?: number): Promise<boolean> {
   if (!isCheckpointsEnabled()) return false;
 
   const dir = getCheckpointDir();
@@ -201,27 +211,32 @@ export function deleteCheckpoint(sessionId: string, timestamp?: number): boolean
   if (timestamp) {
     const filepath = join(dir, `${sessionId}-${timestamp}${CHECKPOINT_FILE_EXTENSION}`);
     if (existsSync(filepath)) {
-      unlinkSync(filepath);
+      await fs.unlink(filepath);
       return true;
     }
     return false;
   }
 
   // Delete all for session
-  const files = readdirSync(dir).filter(
+  const allFiles = await fs.readdir(dir);
+  const files = allFiles.filter(
     (f) => f.startsWith(sessionId) && f.endsWith(CHECKPOINT_FILE_EXTENSION)
   );
 
-  files.forEach((f) => unlinkSync(join(dir, f)));
+  for (const f of files) {
+    await fs.unlink(join(dir, f));
+  }
   return files.length > 0;
 }
 
-function cleanupOldCheckpoints(sessionId: string): void {
-  const checkpoints = listCheckpointsForSession(sessionId);
+async function cleanupOldCheckpoints(sessionId: string): Promise<void> {
+  const checkpoints = await listCheckpointsForSession(sessionId);
 
   if (checkpoints.length > MAX_CHECKPOINTS_PER_SESSION) {
     const toDelete = checkpoints.slice(MAX_CHECKPOINTS_PER_SESSION);
-    toDelete.forEach((cp) => deleteCheckpoint(sessionId, cp.timestamp));
+    for (const cp of toDelete) {
+      await deleteCheckpoint(sessionId, cp.timestamp);
+    }
     logger.debug('Cleaned up old checkpoints', {
       sessionId,
       deleted: toDelete.length,

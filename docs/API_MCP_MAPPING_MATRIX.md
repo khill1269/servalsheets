@@ -1,3 +1,12 @@
+---
+title: Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping
+category: general
+last_updated: 2026-01-31
+description: Complete API-to-MCP mapping reference for Google Sheets operations
+version: 1.6.0
+tags: [api, mcp, sheets]
+---
+
 # Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping
 
 ## Quick Reference Matrix
@@ -209,7 +218,7 @@
 │                                                                                  │
 │  DECLARED CAPABILITIES                                                           │
 │  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ tools ...................... ✅ 21 tools, 272 actions                 │     │
+│  │ tools ...................... ✅ 21 tools, 293 actions                 │     │
 │  │ resources .................. ✅ URI templates + knowledge             │     │
 │  │ prompts .................... ✅ 6 guided workflows                    │     │
 │  │ completions ................ ✅ Argument autocompletion               │     │
@@ -289,7 +298,7 @@ ServalSheets v1.6.0 MCP Server
 ├── sheets_composite (4 actions) ────────── High-level Operations
 └── sheets_session (13 actions) ─────────── Context Management
     ═══════════════════════════════════════
-    Total: 21 tools, 272 actions
+    Total: 21 tools, 293 actions
 ```
 
 ## Verification Commands

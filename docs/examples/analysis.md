@@ -1,3 +1,12 @@
+---
+title: Data Analysis Workflows
+category: example
+last_updated: 2026-01-31
+description: Master data analysis techniques in Google Sheets using ServalSheets.
+version: 1.6.0
+tags: [sheets]
+---
+
 # Data Analysis Workflows
 
 Master data analysis techniques in Google Sheets using ServalSheets.
@@ -5,6 +14,7 @@ Master data analysis techniques in Google Sheets using ServalSheets.
 ## Overview
 
 This guide covers:
+
 - Formula analysis and optimization
 - Data quality assessment
 - Pattern detection
@@ -20,16 +30,17 @@ This guide covers:
 
 ## Analysis Tools
 
-ServalSheets provides comprehensive analysis through the `sheets_analysis` tool with multiple specialized actions.
+ServalSheets provides comprehensive analysis through the `sheets_analyze` tool with multiple specialized actions.
 
 ### Tool Actions
 
-- `analyze_comprehensive` - Full spreadsheet analysis
+- `comprehensive` - Full spreadsheet analysis
 - `analyze_formulas` - Formula-specific analysis
 - `analyze_quality` - Data quality assessment
 - `analyze_performance` - Performance bottlenecks
 - `analyze_structure` - Sheet structure review
-- `analyze_dependencies` - Cell dependency tracking
+
+**Note:** Cell dependency tracking is available via the `sheets_dependencies` tool.
 
 ## Comprehensive Analysis
 
@@ -41,9 +52,10 @@ ServalSheets provides comprehensive analysis through the `sheets_analysis` tool 
 Perform comprehensive analysis on spreadsheet "1abc...xyz"
 ```
 
-**Behind the scenes**: ServalSheets uses `sheets_analysis` tool with `analyze_comprehensive` action
+**Behind the scenes**: ServalSheets uses `sheets_analyze` tool with `comprehensive` action
 
 **Analysis includes**:
+
 - Formula complexity and errors
 - Data quality metrics
 - Performance bottlenecks
@@ -52,6 +64,7 @@ Perform comprehensive analysis on spreadsheet "1abc...xyz"
 - Optimization suggestions
 
 **Sample response**:
+
 ```json
 {
   "analysisId": "analysis-123",
@@ -103,6 +116,7 @@ Analyze all formulas in spreadsheet "1abc...xyz" and identify errors
 ```
 
 **Error types detected**:
+
 - `#DIV/0!` - Division by zero
 - `#N/A` - Value not available
 - `#REF!` - Invalid cell reference
@@ -120,6 +134,7 @@ Find complex formulas in spreadsheet "1abc...xyz" that may impact performance
 ```
 
 **Complexity indicators**:
+
 - Nested function depth
 - Array formula size
 - Volatile function usage
@@ -135,6 +150,7 @@ Analyze spreadsheet "1abc...xyz" for circular reference dependencies
 ```
 
 **Response includes**:
+
 - Cells involved in circular reference
 - Reference chain path
 - Severity assessment
@@ -149,6 +165,7 @@ Identify volatile functions in spreadsheet "1abc...xyz"
 ```
 
 **Volatile functions**:
+
 - `NOW()` - Current timestamp
 - `TODAY()` - Current date
 - `RAND()` - Random number
@@ -169,6 +186,7 @@ Analyze data quality in range A1:E1000 in spreadsheet "1abc...xyz" and identify 
 ```
 
 **Analysis includes**:
+
 - Empty cell locations
 - Percentage of completeness
 - Pattern of missing data
@@ -183,6 +201,7 @@ Identify duplicate rows in range A1:D100 in spreadsheet "1abc...xyz"
 ```
 
 **Duplicate handling**:
+
 - Exact duplicates
 - Fuzzy matches (similar but not identical)
 - Key-based duplicates (specific columns)
@@ -197,6 +216,7 @@ Analyze data type consistency in range A1:E100 in spreadsheet "1abc...xyz"
 ```
 
 **Checks**:
+
 - Mixed numbers and text
 - Date format inconsistencies
 - Currency format variations
@@ -211,6 +231,7 @@ Identify outliers in numeric columns B1:D100 in spreadsheet "1abc...xyz"
 ```
 
 **Methods**:
+
 - Standard deviation (σ) analysis
 - Interquartile range (IQR)
 - Z-score calculation
@@ -227,6 +248,7 @@ Analyze performance bottlenecks in spreadsheet "1abc...xyz"
 ```
 
 **Bottleneck indicators**:
+
 - Large array formulas
 - Excessive VLOOKUP calls
 - Complex nested IFs
@@ -242,6 +264,7 @@ Analyze spreadsheet "1abc...xyz" and provide optimization suggestions
 ```
 
 **Common suggestions**:
+
 1. Replace VLOOKUP with INDEX/MATCH
 2. Use helper columns instead of complex nesting
 3. Avoid volatile functions in large ranges
@@ -257,6 +280,7 @@ Analyze memory usage in spreadsheet "1abc...xyz"
 ```
 
 **Metrics**:
+
 - Total cell count
 - Formula cell percentage
 - Formatting complexity
@@ -274,6 +298,7 @@ Analyze sheet structure in spreadsheet "1abc...xyz"
 ```
 
 **Analysis includes**:
+
 - Sheet count and purposes
 - Named range usage
 - Data validation rules
@@ -289,12 +314,14 @@ Analyze dependencies for cell B10 in spreadsheet "1abc...xyz"
 ```
 
 **Dependency types**:
+
 - **Precedents**: Cells that B10 depends on
 - **Dependents**: Cells that depend on B10
 - **Cross-sheet**: Dependencies across sheets
 - **Circular**: Circular dependency chains
 
 **Visual representation**:
+
 ```
 A1 → B5 → B10 → C20
      ↓      ↑
@@ -310,6 +337,7 @@ Analyze named ranges in spreadsheet "1abc...xyz"
 ```
 
 **Checks**:
+
 - Unused named ranges
 - Overlapping ranges
 - Invalid references
@@ -326,6 +354,7 @@ Analyze data patterns in range A1:A100 in spreadsheet "1abc...xyz"
 ```
 
 **Pattern types**:
+
 - Linear trends
 - Seasonal patterns
 - Cyclical behavior
@@ -341,6 +370,7 @@ Identify common formula patterns in spreadsheet "1abc...xyz"
 ```
 
 **Use cases**:
+
 - Template extraction
 - Best practice identification
 - Consistency checking
@@ -355,6 +385,7 @@ Analyze usage patterns in spreadsheet "1abc...xyz"
 ```
 
 **Patterns include**:
+
 - Frequently accessed ranges
 - Common operations
 - Edit hot spots
@@ -449,12 +480,14 @@ Analyze usage patterns in spreadsheet "1abc...xyz"
 ### Health Score
 
 **Range**: 0-100
+
 - **90-100**: Excellent health
 - **70-89**: Good, minor issues
 - **50-69**: Fair, needs attention
 - **Below 50**: Poor, urgent fixes needed
 
 **Factors**:
+
 - Error count and severity
 - Performance bottlenecks
 - Data quality issues
@@ -464,12 +497,14 @@ Analyze usage patterns in spreadsheet "1abc...xyz"
 ### Performance Score
 
 **Range**: 0-100
+
 - **90-100**: Optimal performance
 - **70-89**: Good performance
 - **50-69**: Noticeable lag
 - **Below 50**: Significant performance issues
 
 **Factors**:
+
 - Calculation time
 - Formula efficiency
 - Memory usage
@@ -479,12 +514,14 @@ Analyze usage patterns in spreadsheet "1abc...xyz"
 ### Quality Score
 
 **Range**: 0-100
+
 - **90-100**: High quality data
 - **70-89**: Good with minor gaps
 - **50-69**: Moderate quality issues
 - **Below 50**: Poor data quality
 
 **Factors**:
+
 - Completeness percentage
 - Duplicate count
 - Type consistency
@@ -565,6 +602,7 @@ Perform analysis on all budget spreadsheets for Q1 2026 and generate:
 ## Reference Files
 
 For detailed analysis examples, see:
+
 - `analysis-examples.json` - Complete analysis workflows
 - `advanced-examples.json` - Complex analysis patterns
 - `error-handling-examples.json` - Error analysis examples

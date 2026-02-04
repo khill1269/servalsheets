@@ -1,3 +1,12 @@
+---
+title: MCP 2025-11-25 Compliance Checklist
+category: general
+last_updated: 2026-01-31
+description: > ServalSheets MCP Protocol Compliance Audit & Testing Guide
+version: 1.6.0
+tags: [mcp]
+---
+
 # MCP 2025-11-25 Compliance Checklist
 
 > ServalSheets MCP Protocol Compliance Audit & Testing Guide
@@ -75,7 +84,7 @@ npx @anthropic/mcp-inspector --stdio "node dist/cli.js"
 | Feature                         | Status | File                                 | Test Command          |
 | ------------------------------- | ------ | ------------------------------------ | --------------------- |
 | completions capability declared | ✅     | `src/mcp/features-2025-11-25.ts:272` | Manual                |
-| 272 action completions          | ✅     | `src/mcp/completions.ts`             | `npm run check:drift` |
+| 291 action completions          | ✅     | `src/mcp/completions.ts`             | `npm run check:drift` |
 | Spreadsheet ID completion       | ✅     | `src/mcp/completions.ts`             | Manual                |
 | Range completion                | ✅     | `src/mcp/completions.ts`             | Manual                |
 

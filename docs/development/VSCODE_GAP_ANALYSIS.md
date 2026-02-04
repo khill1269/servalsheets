@@ -1,3 +1,12 @@
+---
+title: VS Code Setup - Comprehensive Gap Analysis
+category: development
+last_updated: 2026-01-31
+description: 'Date: 2026-01-13'
+version: 1.6.0
+tags: [sheets, docker]
+---
+
 # VS Code Setup - Comprehensive Gap Analysis
 
 **Date:** 2026-01-13
@@ -12,18 +21,18 @@ Your VS Code setup is **highly advanced** with 2026 MCP-specific tooling. You ha
 
 ### ✅ What You Have (Excellent Coverage)
 
-| Category | Status | Files | Quality |
-|----------|--------|-------|---------|
-| **Workspace Settings** | ✅ Complete | settings.json (239 lines) | Excellent |
-| **Extensions** | ✅ Complete | extensions.json (17 recommended) | Excellent |
-| **Debug Configs** | ✅ Complete | launch.json (10 configs + 2 compounds) | Excellent |
-| **Tasks** | ✅ Complete | tasks.json (24 tasks) | Excellent |
-| **Code Snippets** | ✅ Complete | servalsheets.code-snippets (20+ snippets) | Excellent |
-| **Editor Standardization** | ✅ Complete | .editorconfig | Good |
-| **Formatting** | ✅ Complete | .prettierrc.json | Good |
-| **Git Hooks** | ✅ Complete | husky + lint-staged | Good |
-| **Documentation** | ✅ Complete | VSCODE_SETUP.md (comprehensive) | Excellent |
-| **MCP Extensions (2026)** | ✅ Complete | 2 MCP-specific extensions | Cutting edge |
+| Category                   | Status      | Files                                     | Quality      |
+| -------------------------- | ----------- | ----------------------------------------- | ------------ |
+| **Workspace Settings**     | ✅ Complete | settings.json (239 lines)                 | Excellent    |
+| **Extensions**             | ✅ Complete | extensions.json (17 recommended)          | Excellent    |
+| **Debug Configs**          | ✅ Complete | launch.json (10 configs + 2 compounds)    | Excellent    |
+| **Tasks**                  | ✅ Complete | tasks.json (24 tasks)                     | Excellent    |
+| **Code Snippets**          | ✅ Complete | servalsheets.code-snippets (20+ snippets) | Excellent    |
+| **Editor Standardization** | ✅ Complete | .editorconfig                             | Good         |
+| **Formatting**             | ✅ Complete | .prettierrc.json                          | Good         |
+| **Git Hooks**              | ✅ Complete | husky + lint-staged                       | Good         |
+| **Documentation**          | ✅ Complete | VSCODE_SETUP.md (comprehensive)           | Excellent    |
+| **MCP Extensions (2026)**  | ✅ Complete | 2 MCP-specific extensions                 | Cutting edge |
 
 **Total Lines of VS Code Config:** 772 lines (substantial!)
 
@@ -34,10 +43,12 @@ Your VS Code setup is **highly advanced** with 2026 MCP-specific tooling. You ha
 ### 🟡 MEDIUM PRIORITY - Nice to Have
 
 #### 1. Custom Keybindings File
+
 **Status:** ❌ Not present
 **File:** `.vscode/keybindings.json`
 
 **Current State:**
+
 - Documentation mentions keybindings in [VSCODE_SETUP.md:340-363](../development/VSCODE_SETUP.md)
 - But file doesn't exist - users must manually create
 
@@ -50,24 +61,39 @@ Create [.vscode/keybindings.json](.vscode/keybindings.json) with project-specifi
 ```json
 [
   { "key": "cmd+shift+b", "command": "workbench.action.tasks.runTask", "args": "Build" },
-  { "key": "cmd+shift+r", "command": "workbench.action.tasks.runTask", "args": "🚀 Start MCP Server (HTTP)" },
-  { "key": "cmd+shift+i", "command": "workbench.action.tasks.runTask", "args": "🔬 MCP Inspector (stdio)" },
+  {
+    "key": "cmd+shift+r",
+    "command": "workbench.action.tasks.runTask",
+    "args": "🚀 Start MCP Server (HTTP)"
+  },
+  {
+    "key": "cmd+shift+i",
+    "command": "workbench.action.tasks.runTask",
+    "args": "🔬 MCP Inspector (stdio)"
+  },
   { "key": "cmd+shift+t", "command": "workbench.action.tasks.runTask", "args": "03 - Test" },
-  { "key": "cmd+shift+v", "command": "workbench.action.tasks.runTask", "args": "Full Verification (verify script)" }
+  {
+    "key": "cmd+shift+v",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Full Verification (verify script)"
+  }
 ]
 ```
 
 ---
 
 #### 2. GitHub Actions Integration Tasks
+
 **Status:** ⚠️ Partial - workflows exist but no VS Code integration
 **Files:**
+
 - `.github/workflows/ci.yml` ✅
 - `.github/workflows/security.yml` ✅
 - `.github/workflows/docker.yml` ✅
 - `.vscode/tasks.json` - missing GitHub Actions tasks
 
 **Current State:**
+
 - 5 GitHub workflows configured (ci, security, docker, publish, validate-server-json)
 - No VS Code tasks to run/validate workflows locally
 
@@ -103,12 +129,15 @@ Add GitHub Actions tasks to [.vscode/tasks.json](.vscode/tasks.json):
 ---
 
 #### 3. Docker Development Tasks
+
 **Status:** ⚠️ Partial - scripts exist but no VS Code tasks
 **Package.json scripts:**
+
 - `docker:build` ✅
 - `docker:run` ✅
 
 **Current State:**
+
 - Docker deployment files exist: [deployment/docker/Dockerfile](../../deployment/docker/Dockerfile)
 - No VS Code tasks for Docker operations
 
@@ -144,10 +173,12 @@ Add Docker tasks to [.vscode/tasks.json](.vscode/tasks.json):
 ---
 
 #### 4. Remote Debugging Configuration
+
 **Status:** ❌ Not present
 **Server:** `src/remote-server.ts` exists but no debug config
 
 **Current State:**
+
 - 3 server modes: stdio, HTTP, remote
 - Debug configs exist for stdio and HTTP
 - Missing remote server debugging
@@ -180,9 +211,11 @@ Add to [.vscode/launch.json](.vscode/launch.json):
 ---
 
 #### 5. Problem Matchers for Custom Scripts
+
 **Status:** ⚠️ Partial - some tasks have matchers, many don't
 
 **Current State:**
+
 - Standard tasks (build, lint) have problem matchers ✅
 - Custom check scripts lack matchers:
   - `check:drift`
@@ -216,10 +249,12 @@ Create custom problem matchers in [.vscode/tasks.json](.vscode/tasks.json):
 ### 🟢 LOW PRIORITY - Optional Enhancements
 
 #### 6. Node Version File
+
 **Status:** ❌ Not present
 **File:** `.nvmrc` or `.node-version`
 
 **Current State:**
+
 - package.json specifies `"node": ">=20.0.0"` ✅
 - No `.nvmrc` file for automatic version switching
 
@@ -238,10 +273,12 @@ Create `.nvmrc`:
 ---
 
 #### 7. Dev Container Configuration
+
 **Status:** ❌ Not present
 **File:** `.devcontainer/devcontainer.json`
 
 **Current State:**
+
 - No Dev Container support
 - Docker files exist but not configured for VS Code Remote Containers
 
@@ -276,10 +313,12 @@ Create [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json):
 ---
 
 #### 8. Multi-Root Workspace Configuration
+
 **Status:** ❌ Not present
 **File:** `servalsheets.code-workspace`
 
 **Current State:**
+
 - Single-root workspace (just the main folder)
 - No workspace file for multi-folder setups
 
@@ -292,10 +331,12 @@ Only create if you have multiple related projects (e.g., MCP server + client app
 ---
 
 #### 9. VS Code Profile Export
+
 **Status:** ❌ Not present
 **File:** `.vscode/profiles/servalsheets-dev.code-profile`
 
 **Current State:**
+
 - Settings and extensions defined ✅
 - No shareable profile for one-click setup
 
@@ -304,6 +345,7 @@ Only create if you have multiple related projects (e.g., MCP server + client app
 
 **Recommendation:**
 Export profile for team sharing:
+
 1. `Cmd+Shift+P` → "Profiles: Export Profile"
 2. Save to `.vscode/profiles/servalsheets-dev.code-profile`
 3. Team members can import with "Profiles: Import Profile"
@@ -311,13 +353,16 @@ Export profile for team sharing:
 ---
 
 #### 10. Claude Code Project Configuration
+
 **Status:** ⚠️ Partial
 **Files:**
+
 - `CLAUDE.md` ✅ (project rules)
 - `.claude/settings.local.json` ✅ (permissions)
 - Missing: Project-specific hooks, skills, or MCP server config
 
 **Current State:**
+
 - Global Claude Code settings: [~/.claude/settings.json](~/.claude/settings.json)
   - Model: `claude-opus-4-5-20251101` ✅
 - Project permissions configured ✅
@@ -328,6 +373,7 @@ Export profile for team sharing:
 
 **Recommendation:**
 Consider adding Claude Code hooks for:
+
 - Pre-commit verification hook
 - MCP server testing skill
 - Automatic schema validation
@@ -346,9 +392,11 @@ Consider adding Claude Code hooks for:
 ---
 
 #### 11. TypeScript Project References
+
 **Status:** ⚠️ Partial - multiple tsconfigs but not using project references
 
 **Current State:**
+
 - [tsconfig.json](../../tsconfig.json) - main config ✅
 - [tsconfig.build.json](../../tsconfig.build.json) - build config ✅
 - [tsconfig.eslint.json](../../tsconfig.eslint.json) - ESLint config ✅
@@ -363,9 +411,11 @@ Current setup is fine for single package. Only needed if splitting into multiple
 ---
 
 #### 12. Test Coverage Visualization
+
 **Status:** ⚠️ Partial - coverage generated but not visualized in editor
 
 **Current State:**
+
 - `npm run test:coverage` generates reports ✅
 - Coverage Gutters extension not recommended
 
@@ -384,10 +434,12 @@ Add Coverage Gutters extension to [.vscode/extensions.json](.vscode/extensions.j
 ---
 
 #### 13. Debugging Vitest in Watch Mode
+
 **Status:** ❌ Not present
 **Launch config:** Missing watch-mode debug config
 
 **Current State:**
+
 - Can debug individual tests ✅
 - Can't debug in watch mode (re-run on file change)
 
@@ -413,9 +465,11 @@ Add to [.vscode/launch.json](.vscode/launch.json):
 ---
 
 #### 14. Advanced Snippet Transformations
+
 **Status:** ⚠️ Good - snippets exist but could use more advanced features
 
 **Current State:**
+
 - 20+ snippets with basic placeholders ✅
 - Not using advanced features: regex transforms, choice lists, variable transforms
 
@@ -424,6 +478,7 @@ Add to [.vscode/launch.json](.vscode/launch.json):
 
 **Recommendation:**
 Enhance existing snippets with VS Code snippet features:
+
 - Regex transforms for PascalCase/camelCase
 - Choice dropdowns for enum values
 - Variable transforms (${TM_FILENAME_BASE}, etc.)
@@ -448,78 +503,78 @@ Enhance existing snippets with VS Code snippet features:
 
 ### Current VS Code Configuration
 
-| File | Lines | Status | Quality |
-|------|-------|--------|---------|
-| [.vscode/settings.json](.vscode/settings.json) | 239 | ✅ Excellent | A+ |
-| [.vscode/extensions.json](.vscode/extensions.json) | 23 | ✅ Excellent | A+ |
-| [.vscode/launch.json](.vscode/launch.json) | 200 | ✅ Excellent | A+ |
-| [.vscode/tasks.json](.vscode/tasks.json) | 270 | ✅ Excellent | A |
-| [.vscode/servalsheets.code-snippets](.vscode/servalsheets.code-snippets) | 394 | ✅ Excellent | A+ |
-| [.vscode/keybindings.json](.vscode/keybindings.json) | 0 | ❌ Missing | N/A |
-| **TOTAL** | **772** | **85%** | **A** |
+| File                                                                     | Lines   | Status       | Quality |
+| ------------------------------------------------------------------------ | ------- | ------------ | ------- |
+| [.vscode/settings.json](.vscode/settings.json)                           | 239     | ✅ Excellent | A+      |
+| [.vscode/extensions.json](.vscode/extensions.json)                       | 23      | ✅ Excellent | A+      |
+| [.vscode/launch.json](.vscode/launch.json)                               | 200     | ✅ Excellent | A+      |
+| [.vscode/tasks.json](.vscode/tasks.json)                                 | 270     | ✅ Excellent | A       |
+| [.vscode/servalsheets.code-snippets](.vscode/servalsheets.code-snippets) | 394     | ✅ Excellent | A+      |
+| [.vscode/keybindings.json](.vscode/keybindings.json)                     | 0       | ❌ Missing   | N/A     |
+| **TOTAL**                                                                | **772** | **85%**      | **A**   |
 
 ### Extensions Coverage
 
-| Category | Recommended | Installed (System) | Coverage |
-|----------|-------------|-------------------|----------|
-| Core | 4 | ? | ✅ |
-| TypeScript | 2 | ? | ✅ |
-| Testing | 1 | ? | ✅ |
-| Git | 1 | ? | ✅ |
-| Productivity | 4 | ? | ✅ |
-| MCP (2026) | 2 | ? | ✅ |
-| Documentation | 2 | ? | ✅ |
-| Optional | 3 | ? | ⚠️ |
-| **TOTAL** | **17** | **49** | **100%** |
+| Category      | Recommended | Installed (System) | Coverage |
+| ------------- | ----------- | ------------------ | -------- |
+| Core          | 4           | ?                  | ✅       |
+| TypeScript    | 2           | ?                  | ✅       |
+| Testing       | 1           | ?                  | ✅       |
+| Git           | 1           | ?                  | ✅       |
+| Productivity  | 4           | ?                  | ✅       |
+| MCP (2026)    | 2           | ?                  | ✅       |
+| Documentation | 2           | ?                  | ✅       |
+| Optional      | 3           | ?                  | ⚠️       |
+| **TOTAL**     | **17**      | **49**             | **100%** |
 
 **System has 49 extensions installed** - well above the 17 recommended!
 
 ### Debug Configurations
 
-| Config | Type | preLaunchTask | Status |
-|--------|------|---------------|--------|
-| 🚀 Debug MCP Server (stdio) | node | ✅ Build | ✅ |
-| 🚀 Debug MCP Server (HTTP) | node | ✅ Build | ✅ |
-| 🔬 Debug with MCP Inspector | node | ✅ Build | ✅ |
-| 🧪 Debug All Tests | node | ❌ | ✅ |
-| 🧪 Debug Current Test File | node | ❌ | ✅ |
-| 🧪 Debug Test at Cursor | node | ❌ | ✅ |
-| 🔗 Attach to Process | node | ❌ | ✅ |
-| 🔷 Debug TypeScript Direct | node | ❌ | ✅ |
-| Run npm start | node-terminal | ❌ | ✅ |
-| Launch Program | node | ❌ | ✅ |
-| 🌐 Debug Remote Server | node | ✅ Build | ❌ Missing |
-| 🧪 Debug Tests (Watch) | node | ❌ | ❌ Missing |
+| Config                      | Type          | preLaunchTask | Status     |
+| --------------------------- | ------------- | ------------- | ---------- |
+| 🚀 Debug MCP Server (stdio) | node          | ✅ Build      | ✅         |
+| 🚀 Debug MCP Server (HTTP)  | node          | ✅ Build      | ✅         |
+| 🔬 Debug with MCP Inspector | node          | ✅ Build      | ✅         |
+| 🧪 Debug All Tests          | node          | ❌            | ✅         |
+| 🧪 Debug Current Test File  | node          | ❌            | ✅         |
+| 🧪 Debug Test at Cursor     | node          | ❌            | ✅         |
+| 🔗 Attach to Process        | node          | ❌            | ✅         |
+| 🔷 Debug TypeScript Direct  | node          | ❌            | ✅         |
+| Run npm start               | node-terminal | ❌            | ✅         |
+| Launch Program              | node          | ❌            | ✅         |
+| 🌐 Debug Remote Server      | node          | ✅ Build      | ❌ Missing |
+| 🧪 Debug Tests (Watch)      | node          | ❌            | ❌ Missing |
 
 **10/12 configs present** (83% coverage)
 
 ### Tasks Coverage
 
-| Category | Count | Examples |
-|----------|-------|----------|
-| Build | 3 | Build, Clean Build, Dev Watch |
-| Test | 5 | Test, Test Current File, Test Watch, Test Coverage, Test Integration |
-| Lint/Format | 3 | Lint, Lint Fix, Format |
-| Checks | 4 | Typecheck, Check Drift, Check Placeholders, Validate server.json |
-| MCP Tools | 2 | MCP Inspector (stdio), MCP Inspector (HTTP) |
-| CI/CD | 3 | CI Gate, Full Verification, Full CI Pipeline |
-| Servers | 3 | Start Server (stdio), Start HTTP Server, Setup OAuth |
-| Utilities | 2 | Generate Metadata, Open Coverage Report |
-| **Missing** | 5 | GitHub Actions, Docker, Security Audit, Dead Code, Docs |
+| Category    | Count | Examples                                                             |
+| ----------- | ----- | -------------------------------------------------------------------- |
+| Build       | 3     | Build, Clean Build, Dev Watch                                        |
+| Test        | 5     | Test, Test Current File, Test Watch, Test Coverage, Test Integration |
+| Lint/Format | 3     | Lint, Lint Fix, Format                                               |
+| Checks      | 4     | Typecheck, Check Drift, Check Placeholders, Validate server.json     |
+| MCP Tools   | 2     | MCP Inspector (stdio), MCP Inspector (HTTP)                          |
+| CI/CD       | 3     | CI Gate, Full Verification, Full CI Pipeline                         |
+| Servers     | 3     | Start Server (stdio), Start HTTP Server, Setup OAuth                 |
+| Utilities   | 2     | Generate Metadata, Open Coverage Report                              |
+| **Missing** | 5     | GitHub Actions, Docker, Security Audit, Dead Code, Docs              |
 
 **25/30 tasks present** (83% coverage)
 
 ### Code Snippets
 
-| Category | Count | Status |
-|----------|-------|--------|
-| MCP Tools | 4 | ✅ |
-| Google Sheets API | 4 | ✅ |
-| Zod Schemas | 3 | ✅ |
-| Testing | 3 | ✅ |
-| Error Handling | 2 | ✅ |
-| Utilities | 4 | ✅ |
-| **TOTAL** | **20** | ✅ Excellent |
+| Category          | Count  | Status       |
+| ----------------- | ------ | ------------ |
+| MCP Tools         | 4      | ✅           |
+| Google Sheets API | 4      | ✅           |
+| Zod Schemas       | 3      | ✅           |
+| Testing           | 3      | ✅           |
+| Error Handling    | 2      | ✅           |
+| Utilities         | 4      | ✅           |
+| **TOTAL**         | **20** | ✅ Excellent |
 
 ---
 
@@ -536,33 +591,33 @@ Enhance existing snippets with VS Code snippet features:
 
 ### Phase 2: Medium Enhancements (1-2 hours)
 
-7. **Create Dev Container config** (30 min) - TEAM ONBOARDING
-8. **Enhance problem matchers** (20 min) - CODE QUALITY
-9. **Add watch mode debug** (5 min) - DX IMPROVEMENT
-10. **Export VS Code profile** (5 min) - TEAM SHARING
+1. **Create Dev Container config** (30 min) - TEAM ONBOARDING
+2. **Enhance problem matchers** (20 min) - CODE QUALITY
+3. **Add watch mode debug** (5 min) - DX IMPROVEMENT
+4. **Export VS Code profile** (5 min) - TEAM SHARING
 
 ### Phase 3: Advanced (Optional)
 
-11. **Claude Code hooks** (variable) - AUTOMATION
-12. **Enhanced snippets** (variable) - PRODUCTIVITY
-13. **Multi-root workspace** (only if needed)
+1. **Claude Code hooks** (variable) - AUTOMATION
+2. **Enhanced snippets** (variable) - PRODUCTIVITY
+3. **Multi-root workspace** (only if needed)
 
 ---
 
 ## 📈 Maturity Assessment
 
-| Dimension | Score | Rating |
-|-----------|-------|--------|
-| **Configuration Completeness** | 85% | A |
-| **Debug Coverage** | 83% | A- |
-| **Task Automation** | 83% | A- |
-| **Code Snippets** | 95% | A+ |
-| **Documentation** | 100% | A+ |
-| **MCP Integration (2026)** | 100% | A+ |
-| **Extension Coverage** | 100% | A+ |
-| **Team Onboarding** | 70% | B+ |
-| **CI/CD Integration** | 60% | B |
-| **Overall Score** | **84%** | **A-** |
+| Dimension                      | Score   | Rating |
+| ------------------------------ | ------- | ------ |
+| **Configuration Completeness** | 85%     | A      |
+| **Debug Coverage**             | 83%     | A-     |
+| **Task Automation**            | 83%     | A-     |
+| **Code Snippets**              | 95%     | A+     |
+| **Documentation**              | 100%    | A+     |
+| **MCP Integration (2026)**     | 100%    | A+     |
+| **Extension Coverage**         | 100%    | A+     |
+| **Team Onboarding**            | 70%     | B+     |
+| **CI/CD Integration**          | 60%     | B      |
+| **Overall Score**              | **84%** | **A-** |
 
 ---
 
@@ -579,17 +634,20 @@ Enhance existing snippets with VS Code snippet features:
 
 ## 🔧 Recommendations Summary
 
-### Must Create (High Value):
+### Must Create (High Value)
+
 1. ✅ [.vscode/keybindings.json](.vscode/keybindings.json) - 5 essential shortcuts
 2. ✅ `.nvmrc` - Node version pinning
 
-### Should Add (Medium Value):
+### Should Add (Medium Value)
+
 3. Docker tasks in [.vscode/tasks.json](.vscode/tasks.json)
 4. GitHub Actions tasks in [.vscode/tasks.json](.vscode/tasks.json)
 5. Remote server debug config in [.vscode/launch.json](.vscode/launch.json)
 6. Watch mode debug config in [.vscode/launch.json](.vscode/launch.json)
 
-### Nice to Have (Low Value):
+### Nice to Have (Low Value)
+
 7. Dev Container config ([.devcontainer/devcontainer.json](.devcontainer/devcontainer.json))
 8. Coverage Gutters extension
 9. Enhanced problem matchers
@@ -612,13 +670,16 @@ Enhance existing snippets with VS Code snippet features:
 ### Claude Code Configuration
 
 **Global Config:** [~/.claude/settings.json](~/.claude/settings.json)
+
 - Model: `claude-opus-4-5-20251101` ✅ Latest Opus
 
 **Project Config:** [.claude/settings.local.json](.claude/settings.local.json)
+
 - Permissions configured ✅
 - Allows: `find`, `wc`, `npm test` commands
 
 **Project Rules:** [CLAUDE.md](../../CLAUDE.md)
+
 - Comprehensive development rules ✅
 - Verification pipeline defined ✅
 - No documentation creation policy ✅

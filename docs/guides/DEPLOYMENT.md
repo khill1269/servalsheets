@@ -1,3 +1,14 @@
+---
+title: Deployment Guide
+category: guide
+last_updated: 2026-01-31
+description: This guide covers deploying ServalSheets in production environments.
+version: 1.6.0
+tags: [deployment, prometheus, docker, kubernetes]
+audience: user
+difficulty: intermediate
+---
+
 # Deployment Guide
 
 This guide covers deploying ServalSheets in production environments.
@@ -19,14 +30,14 @@ This guide covers deploying ServalSheets in production environments.
 
 ServalSheets can be deployed in multiple ways:
 
-| Method | Use Case | Complexity |
-|--------|----------|------------|
-| Docker | Containerized apps | Low |
-| Kubernetes | Orchestrated clusters | High |
-| systemd | Linux servers | Low |
-| PM2 | Node.js apps | Low |
-| AWS ECS | AWS environment | Medium |
-| Google Cloud Run | Serverless | Low |
+| Method           | Use Case              | Complexity |
+| ---------------- | --------------------- | ---------- |
+| Docker           | Containerized apps    | Low        |
+| Kubernetes       | Orchestrated clusters | High       |
+| systemd          | Linux servers         | Low        |
+| PM2              | Node.js apps          | Low        |
+| AWS ECS          | AWS environment       | Medium     |
+| Google Cloud Run | Serverless            | Low        |
 
 ### Deployment Checklist
 
@@ -135,8 +146,8 @@ services:
 
     # Ports
     ports:
-      - "3000:3000"   # HTTP server
-      - "9090:9090"   # Metrics
+      - '3000:3000' # HTTP server
+      - '9090:9090' # Metrics
 
     # Resource limits
     deploy:
@@ -150,7 +161,8 @@ services:
 
     # Health check
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health/ready"]
+      test:
+        ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/health/ready']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -160,8 +172,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
 # Secrets
 secrets:
@@ -242,15 +254,15 @@ metadata:
   name: servalsheets-config
   namespace: servalsheets
 data:
-  NODE_ENV: "production"
-  LOG_LEVEL: "info"
-  LOG_FORMAT: "json"
-  SERVALSHEETS_READS_PER_MINUTE: "300"
-  SERVALSHEETS_WRITES_PER_MINUTE: "60"
-  SERVALSHEETS_CACHE_METADATA_TTL: "600000"
-  SERVALSHEETS_CACHE_DATA_TTL: "120000"
-  SERVALSHEETS_MAX_CELLS: "100000"
-  SERVALSHEETS_MAX_SHEETS: "20"
+  NODE_ENV: 'production'
+  LOG_LEVEL: 'info'
+  LOG_FORMAT: 'json'
+  SERVALSHEETS_READS_PER_MINUTE: '300'
+  SERVALSHEETS_WRITES_PER_MINUTE: '60'
+  SERVALSHEETS_CACHE_METADATA_TTL: '600000'
+  SERVALSHEETS_CACHE_DATA_TTL: '120000'
+  SERVALSHEETS_MAX_CELLS: '100000'
+  SERVALSHEETS_MAX_SHEETS: '20'
 ```
 
 ### Secret
@@ -279,7 +291,7 @@ stringData:
     }
 
   # Token store encryption key
-  token-store-key: "8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"
+  token-store-key: '8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1'
 ```
 
 ### Deployment
@@ -311,9 +323,9 @@ spec:
       labels:
         app: servalsheets
       annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
-        prometheus.io/path: "/metrics"
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9090'
+        prometheus.io/path: '/metrics'
 
     spec:
       # Service account for pod
@@ -326,104 +338,104 @@ spec:
         fsGroup: 1001
 
       containers:
-      - name: servalsheets
-        image: servalsheets:1.0.0
-        imagePullPolicy: IfNotPresent
+        - name: servalsheets
+          image: servalsheets:1.0.0
+          imagePullPolicy: IfNotPresent
 
-        # Ports
-        ports:
-        - name: http
-          containerPort: 3000
-          protocol: TCP
-        - name: metrics
-          containerPort: 9090
-          protocol: TCP
+          # Ports
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
 
-        # Environment from ConfigMap
-        envFrom:
-        - configMapRef:
-            name: servalsheets-config
+          # Environment from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: servalsheets-config
 
-        # Environment from Secret
-        env:
-        - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: /secrets/service-account.json
-        - name: GOOGLE_TOKEN_STORE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: servalsheets-secret
-              key: token-store-key
+          # Environment from Secret
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/service-account.json
+            - name: GOOGLE_TOKEN_STORE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: servalsheets-secret
+                  key: token-store-key
 
-        # Volume mounts
-        volumeMounts:
-        - name: secrets
-          mountPath: /secrets
-          readOnly: true
-        - name: data
-          mountPath: /app/data
+          # Volume mounts
+          volumeMounts:
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+            - name: data
+              mountPath: /app/data
 
-        # Resource limits
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+          # Resource limits
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '250m'
+            limits:
+              memory: '512Mi'
+              cpu: '500m'
 
-        # Probes
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+          # Probes
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
 
-        startupProbe:
-          httpGet:
-            path: /health/startup
-            port: 3000
-          initialDelaySeconds: 0
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 30
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
 
       # Volumes
       volumes:
-      - name: secrets
-        secret:
-          secretName: servalsheets-secret
-          items:
-          - key: service-account.json
-            path: service-account.json
-      - name: data
-        persistentVolumeClaim:
-          claimName: servalsheets-data
+        - name: secrets
+          secret:
+            secretName: servalsheets-secret
+            items:
+              - key: service-account.json
+                path: service-account.json
+        - name: data
+          persistentVolumeClaim:
+            claimName: servalsheets-data
 
       # Affinity (spread pods across nodes)
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                  - servalsheets
-              topologyKey: kubernetes.io/hostname
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - servalsheets
+                topologyKey: kubernetes.io/hostname
 ```
 
 ### Service
@@ -440,14 +452,14 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - name: http
-    port: 80
-    targetPort: 3000
-    protocol: TCP
-  - name: metrics
-    port: 9090
-    targetPort: 9090
-    protocol: TCP
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
   selector:
     app: servalsheets
 ```
@@ -462,25 +474,25 @@ metadata:
   name: servalsheets
   namespace: servalsheets
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    cert-manager.io/cluster-issuer: 'letsencrypt-prod'
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - servalsheets.example.com
-    secretName: servalsheets-tls
+    - hosts:
+        - servalsheets.example.com
+      secretName: servalsheets-tls
   rules:
-  - host: servalsheets.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: servalsheets
-            port:
-              number: 80
+    - host: servalsheets.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: servalsheets
+                port:
+                  number: 80
 ```
 
 ### PersistentVolumeClaim
@@ -494,7 +506,7 @@ metadata:
   namespace: servalsheets
 spec:
   accessModes:
-  - ReadWriteOnce
+    - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
@@ -518,31 +530,31 @@ spec:
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 30
+        - type: Percent
+          value: 100
+          periodSeconds: 30
 ```
 
 ### Deploy to Kubernetes
@@ -674,12 +686,14 @@ Recommended staged rollout for new data paths:
 4. **Full rollout (100%)** once metrics are stable for 24–48h
 
 Key metrics to monitor:
+
 - `sheets_data.batch_*` error rates
 - Payload warning counts (`PAYLOAD_TOO_LARGE`, warning logs)
 - Append/write latency p95/p99
 - Quota limit hits (429s)
 
 Rollback:
+
 - Disable flags in environment and restart service
 - Revert to range-based operations (no DataFilters, no tableId appends)
 
@@ -727,64 +741,66 @@ sudo journalctl -u servalsheets -f
 ```javascript
 // ecosystem.config.js
 module.exports = {
-  apps: [{
-    name: 'servalsheets',
-    script: './dist/cli.js',
+  apps: [
+    {
+      name: 'servalsheets',
+      script: './dist/cli.js',
 
-    // Instances
-    instances: 4,
-    exec_mode: 'cluster',
+      // Instances
+      instances: 4,
+      exec_mode: 'cluster',
 
-    // Environment
-    env: {
-      NODE_ENV: 'production',
-      LOG_LEVEL: 'info',
-      LOG_FORMAT: 'json',
+      // Environment
+      env: {
+        NODE_ENV: 'production',
+        LOG_LEVEL: 'info',
+        LOG_FORMAT: 'json',
 
-      // Rate limiting
-      SERVALSHEETS_READS_PER_MINUTE: 300,
-      SERVALSHEETS_WRITES_PER_MINUTE: 60,
+        // Rate limiting
+        SERVALSHEETS_READS_PER_MINUTE: 300,
+        SERVALSHEETS_WRITES_PER_MINUTE: 60,
 
-      // Caching
-      SERVALSHEETS_CACHE_METADATA_TTL: 600000,
-      SERVALSHEETS_CACHE_DATA_TTL: 120000,
+        // Caching
+        SERVALSHEETS_CACHE_METADATA_TTL: 600000,
+        SERVALSHEETS_CACHE_DATA_TTL: 120000,
 
-      // Effect limits
-      SERVALSHEETS_MAX_CELLS: 100000,
-      SERVALSHEETS_MAX_SHEETS: 20,
+        // Effect limits
+        SERVALSHEETS_MAX_CELLS: 100000,
+        SERVALSHEETS_MAX_SHEETS: 20,
 
-      // Authentication
-      GOOGLE_APPLICATION_CREDENTIALS: '/path/to/service-account.json',
+        // Authentication
+        GOOGLE_APPLICATION_CREDENTIALS: '/path/to/service-account.json',
 
-      // Token store
-      GOOGLE_TOKEN_STORE_PATH: '/path/to/tokens.enc',
-      GOOGLE_TOKEN_STORE_KEY: '8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1',
+        // Token store
+        GOOGLE_TOKEN_STORE_PATH: '/path/to/tokens.enc',
+        GOOGLE_TOKEN_STORE_KEY: '8f3b2c1a9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1',
+      },
+
+      // Logging
+      log_file: './logs/combined.log',
+      out_file: './logs/out.log',
+      error_file: './logs/error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+
+      // Restart policy
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '10s',
+
+      // Resource limits
+      max_memory_restart: '500M',
+
+      // Watch (development only)
+      watch: false,
+      ignore_watch: ['node_modules', 'logs', 'data'],
+
+      // Graceful shutdown
+      kill_timeout: 5000,
+      wait_ready: true,
+      listen_timeout: 3000,
     },
-
-    // Logging
-    log_file: './logs/combined.log',
-    out_file: './logs/out.log',
-    error_file: './logs/error.log',
-    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    merge_logs: true,
-
-    // Restart policy
-    autorestart: true,
-    max_restarts: 10,
-    min_uptime: '10s',
-
-    // Resource limits
-    max_memory_restart: '500M',
-
-    // Watch (development only)
-    watch: false,
-    ignore_watch: ['node_modules', 'logs', 'data'],
-
-    // Graceful shutdown
-    kill_timeout: 5000,
-    wait_ready: true,
-    listen_timeout: 3000,
-  }],
+  ],
 
   // Deployment
   deploy: {
@@ -794,7 +810,8 @@ module.exports = {
       ref: 'origin/main',
       repo: 'git@github.com:user/servalsheets.git',
       path: '/opt/servalsheets',
-      'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy':
+        'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
     },
   },
 };
@@ -864,45 +881,52 @@ pm2 link <secret> <public>
   "memory": "1024",
   "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
   "taskRoleArn": "arn:aws:iam::123456789012:role/servalsheets-task-role",
-  "containerDefinitions": [{
-    "name": "servalsheets",
-    "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/servalsheets:1.0.0",
-    "essential": true,
-    "portMappings": [{
-      "containerPort": 3000,
-      "protocol": "tcp"
-    }],
-    "environment": [
-      { "name": "NODE_ENV", "value": "production" },
-      { "name": "LOG_LEVEL", "value": "info" },
-      { "name": "SERVALSHEETS_READS_PER_MINUTE", "value": "300" }
-    ],
-    "secrets": [
-      {
-        "name": "GOOGLE_APPLICATION_CREDENTIALS",
-        "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/service-account"
+  "containerDefinitions": [
+    {
+      "name": "servalsheets",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/servalsheets:1.0.0",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "LOG_LEVEL", "value": "info" },
+        { "name": "SERVALSHEETS_READS_PER_MINUTE", "value": "300" }
+      ],
+      "secrets": [
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/service-account"
+        },
+        {
+          "name": "GOOGLE_TOKEN_STORE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/token-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/servalsheets",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
       },
-      {
-        "name": "GOOGLE_TOKEN_STORE_KEY",
-        "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:servalsheets/token-key"
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "wget --quiet --tries=1 --spider http://localhost:3000/health/ready || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
       }
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/ecs/servalsheets",
-        "awslogs-region": "us-east-1",
-        "awslogs-stream-prefix": "ecs"
-      }
-    },
-    "healthCheck": {
-      "command": ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/health/ready || exit 1"],
-      "interval": 30,
-      "timeout": 5,
-      "retries": 3,
-      "startPeriod": 10
     }
-  }]
+  ]
 }
 ```
 
@@ -918,52 +942,52 @@ spec:
   template:
     metadata:
       annotations:
-        autoscaling.knative.dev/minScale: "1"
-        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '10'
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300
       serviceAccountName: servalsheets@project-id.iam.gserviceaccount.com
 
       containers:
-      - image: gcr.io/project-id/servalsheets:1.0.0
-        ports:
-        - containerPort: 3000
+        - image: gcr.io/project-id/servalsheets:1.0.0
+          ports:
+            - containerPort: 3000
 
-        env:
-        - name: NODE_ENV
-          value: production
-        - name: LOG_LEVEL
-          value: info
-        - name: SERVALSHEETS_READS_PER_MINUTE
-          value: "300"
-        - name: GOOGLE_APPLICATION_CREDENTIALS
-          value: /secrets/service-account.json
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: LOG_LEVEL
+              value: info
+            - name: SERVALSHEETS_READS_PER_MINUTE
+              value: '300'
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /secrets/service-account.json
 
-        volumeMounts:
-        - name: service-account
-          mountPath: /secrets
-          readOnly: true
+          volumeMounts:
+            - name: service-account
+              mountPath: /secrets
+              readOnly: true
 
-        resources:
-          limits:
-            memory: 512Mi
-            cpu: "1000m"
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: '1000m'
 
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: 3000
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3000
 
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 3000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
 
       volumes:
-      - name: service-account
-        secret:
-          secretName: servalsheets-service-account
+        - name: service-account
+          secret:
+            secretName: servalsheets-service-account
 ```
 
 ### Deploy to Cloud Run
@@ -1139,13 +1163,13 @@ sudo systemctl start servalsheets
 
 ServalSheets supports multiple deployment methods:
 
-| Method | Best For | Pros | Cons |
-|--------|----------|------|------|
-| Docker | Containerized apps | Simple, portable | Requires Docker |
-| Kubernetes | Large-scale | Auto-scaling, resilient | Complex setup |
-| systemd | Linux servers | Native, efficient | Linux only |
-| PM2 | Node.js apps | Easy, monitoring | Single server |
-| Cloud Run | Serverless | Auto-scaling, cheap | Cold starts |
+| Method     | Best For           | Pros                    | Cons            |
+| ---------- | ------------------ | ----------------------- | --------------- |
+| Docker     | Containerized apps | Simple, portable        | Requires Docker |
+| Kubernetes | Large-scale        | Auto-scaling, resilient | Complex setup   |
+| systemd    | Linux servers      | Native, efficient       | Linux only      |
+| PM2        | Node.js apps       | Easy, monitoring        | Single server   |
+| Cloud Run  | Serverless         | Auto-scaling, cheap     | Cold starts     |
 
 **Key Takeaway**: Choose deployment method based on your infrastructure, scale requirements, and operational expertise.
 

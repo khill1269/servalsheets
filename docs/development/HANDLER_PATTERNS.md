@@ -1,8 +1,17 @@
+---
+title: ServalSheets Handler Implementation Guide
+category: development
+last_updated: 2026-01-31
+description: '> Version: 1.0.0'
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets Handler Implementation Guide
 
 > **Version:** 1.0.0
 > **Architecture:** Action-based discriminated unions
-> **Tools:** 21 tools with 272 actions
+> **Tools:** 21 tools with 293 actions
 
 ---
 
@@ -53,20 +62,24 @@
 
 ```typescript
 // 1. Tool Registration (index.ts)
-mcp.registerTool('sheets_data', {
-  description: 'Read, write, append, clear cell values',
-  inputSchema: zodToJsonSchema(SheetsValuesInputSchema),
-  outputSchema: zodToJsonSchema(SheetsValuesOutputSchema),
-  annotations: {
-    title: 'Sheets Values',
-    readOnlyHint: false,
-    destructiveHint: true,
-    idempotentHint: false,
-    openWorldHint: true,
+mcp.registerTool(
+  'sheets_data',
+  {
+    description: 'Read, write, append, clear cell values',
+    inputSchema: zodToJsonSchema(SheetsValuesInputSchema),
+    outputSchema: zodToJsonSchema(SheetsValuesOutputSchema),
+    annotations: {
+      title: 'Sheets Values',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
   },
-}, async (args, extra) => {
-  return valuesHandler.handle(args, extra);
-});
+  async (args, extra) => {
+    return valuesHandler.handle(args, extra);
+  }
+);
 ```
 
 ---
@@ -82,7 +95,7 @@ import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types';
 export abstract class BaseHandler<TInput, TOutput> {
   constructor(
     protected readonly sheetsService: SheetsService,
-    protected readonly snapshotService?: SnapshotService,
+    protected readonly snapshotService?: SnapshotService
   ) {}
 
   abstract handle(input: TInput, extra: RequestHandlerExtra): Promise<CallToolResult>;
@@ -136,7 +149,6 @@ export abstract class BaseHandler<TInput, TOutput> {
 ```typescript
 // src/handlers/values.ts
 export class SheetsValuesHandler extends BaseHandler<SheetsValuesInput, any> {
-  
   async handle(input: SheetsValuesInput, extra: Extra): Promise<CallToolResult> {
     const handlers: Record<string, () => Promise<CallToolResult>> = {
       read: () => this.handleRead(input, extra),
@@ -158,15 +170,11 @@ export class SheetsValuesHandler extends BaseHandler<SheetsValuesInput, any> {
 
   private async handleRead(input: ReadInput, extra: Extra): Promise<CallToolResult> {
     const range = this.resolveRange(input.range);
-    
-    const result = await this.sheetsService.readValues(
-      input.spreadsheetId,
-      range,
-      {
-        valueRenderOption: input.valueRenderOption,
-        dateTimeRenderOption: input.dateTimeRenderOption,
-      }
-    );
+
+    const result = await this.sheetsService.readValues(input.spreadsheetId, range, {
+      valueRenderOption: input.valueRenderOption,
+      dateTimeRenderOption: input.dateTimeRenderOption,
+    });
 
     return this.success('read', {
       values: result.values || [],
@@ -178,23 +186,30 @@ export class SheetsValuesHandler extends BaseHandler<SheetsValuesInput, any> {
 
   private async handleWrite(input: WriteInput, extra: Extra): Promise<CallToolResult> {
     const range = this.resolveRange(input.range);
-    
+
     // Safety: Dry run
     if (input.safety?.dryRun) {
-      return this.success('write', {
-        wouldUpdate: {
-          range,
-          cellCount: input.values.length * (input.values[0]?.length || 0),
+      return this.success(
+        'write',
+        {
+          wouldUpdate: {
+            range,
+            cellCount: input.values.length * (input.values[0]?.length || 0),
+          },
         },
-      }, undefined, true);
+        undefined,
+        true
+      );
     }
 
     // Safety: Effect scope
     if (input.safety?.effectScope) {
       const cellCount = input.values.length * (input.values[0]?.length || 0);
       if (cellCount > (input.safety.effectScope.maxCellsAffected || 50000)) {
-        return this.error('EFFECT_SCOPE_EXCEEDED', 
-          `Would affect ${cellCount} cells, exceeds limit`);
+        return this.error(
+          'EFFECT_SCOPE_EXCEEDED',
+          `Would affect ${cellCount} cells, exceeds limit`
+        );
       }
     }
 
@@ -211,15 +226,19 @@ export class SheetsValuesHandler extends BaseHandler<SheetsValuesInput, any> {
       input.valueInputOption || 'USER_ENTERED'
     );
 
-    return this.success('write', {
-      updatedRange: result.updatedRange,
-      updatedCells: result.updatedCells,
-    }, { type: 'write', range: result.updatedRange, snapshotId });
+    return this.success(
+      'write',
+      {
+        updatedRange: result.updatedRange,
+        updatedCells: result.updatedCells,
+      },
+      { type: 'write', range: result.updatedRange, snapshotId }
+    );
   }
 
   private handleError(err: any): CallToolResult {
     const code = err.code || err.response?.status;
-    
+
     const errorMap: Record<number, [string, string]> = {
       400: ['INVALID_REQUEST', 'Check parameters'],
       401: ['UNAUTHORIZED', 'Re-authenticate'],
@@ -251,10 +270,13 @@ export class SheetsService {
     this.sheets = google.sheets({ version: 'v4', auth });
   }
 
-  async getSpreadsheet(spreadsheetId: string, options?: {
-    includeGridData?: boolean;
-    fields?: string;
-  }): Promise<sheets_v4.Schema$Spreadsheet> {
+  async getSpreadsheet(
+    spreadsheetId: string,
+    options?: {
+      includeGridData?: boolean;
+      fields?: string;
+    }
+  ): Promise<sheets_v4.Schema$Spreadsheet> {
     const response = await this.sheets.spreadsheets.get({
       spreadsheetId,
       includeGridData: options?.includeGridData,
@@ -263,10 +285,14 @@ export class SheetsService {
     return response.data;
   }
 
-  async readValues(spreadsheetId: string, range: string, options?: {
-    valueRenderOption?: string;
-    dateTimeRenderOption?: string;
-  }): Promise<sheets_v4.Schema$ValueRange> {
+  async readValues(
+    spreadsheetId: string,
+    range: string,
+    options?: {
+      valueRenderOption?: string;
+      dateTimeRenderOption?: string;
+    }
+  ): Promise<sheets_v4.Schema$ValueRange> {
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
@@ -313,7 +339,7 @@ export class SnapshotService {
 
   async createSnapshot(spreadsheetId: string, range?: string): Promise<string> {
     const snapshotId = `snap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const values = range
       ? await this.sheetsService.readValues(spreadsheetId, range, { valueRenderOption: 'FORMULA' })
       : null;
@@ -364,7 +390,7 @@ export class SnapshotService {
   isError: false,
 }
 
-// Error response  
+// Error response
 {
   content: [{ type: 'text', text: 'Error [NOT_FOUND]: Spreadsheet not found' }],
   structuredContent: {
@@ -430,14 +456,18 @@ export async function applySafetyRails(
 ```typescript
 // src/handlers/format.ts
 export class SheetsFormatHandler extends BaseHandler<SheetsFormatInput, any> {
-  
   async handle(input: SheetsFormatInput, extra: Extra): Promise<CallToolResult> {
     switch (input.action) {
-      case 'apply': return this.handleApply(input, extra);
-      case 'borders': return this.handleBorders(input, extra);
-      case 'number_format': return this.handleNumberFormat(input, extra);
-      case 'apply_preset': return this.handleApplyPreset(input, extra);
-      default: return this.error('INVALID_ACTION', `Unknown: ${input.action}`);
+      case 'apply':
+        return this.handleApply(input, extra);
+      case 'borders':
+        return this.handleBorders(input, extra);
+      case 'number_format':
+        return this.handleNumberFormat(input, extra);
+      case 'apply_preset':
+        return this.handleApplyPreset(input, extra);
+      default:
+        return this.error('INVALID_ACTION', `Unknown: ${input.action}`);
     }
   }
 
@@ -458,13 +488,15 @@ export class SheetsFormatHandler extends BaseHandler<SheetsFormatInput, any> {
       fields.push('textFormat');
     }
 
-    await this.sheetsService.batchUpdate(input.spreadsheetId, [{
-      repeatCell: {
-        range: gridRange,
-        cell: { userEnteredFormat: cellFormat },
-        fields: `userEnteredFormat(${fields.join(',')})`,
+    await this.sheetsService.batchUpdate(input.spreadsheetId, [
+      {
+        repeatCell: {
+          range: gridRange,
+          cell: { userEnteredFormat: cellFormat },
+          fields: `userEnteredFormat(${fields.join(',')})`,
+        },
       },
-    }]);
+    ]);
 
     return this.success('apply', { formattedRange: range, appliedFormats: fields });
   }
@@ -488,14 +520,15 @@ export class SheetsFormatHandler extends BaseHandler<SheetsFormatInput, any> {
 ```typescript
 // src/handlers/charts.ts
 export class SheetsChartsHandler extends BaseHandler<SheetsChartsInput, any> {
-  
   private async handleCreate(input: CreateChartInput): Promise<CallToolResult> {
     const chartSpec = this.buildChartSpec(input);
     const position = this.buildPosition(input.position, input.sheetId);
 
-    const response = await this.sheetsService.batchUpdate(input.spreadsheetId, [{
-      addChart: { chart: { spec: chartSpec, position } },
-    }]);
+    const response = await this.sheetsService.batchUpdate(input.spreadsheetId, [
+      {
+        addChart: { chart: { spec: chartSpec, position } },
+      },
+    ]);
 
     const chartId = response.replies?.[0]?.addChart?.chart?.chartId;
     return this.success('create', { chartId, chartType: input.chartType, title: input.title });
@@ -509,11 +542,28 @@ export class SheetsChartsHandler extends BaseHandler<SheetsChartsInput, any> {
         chartType: input.chartType,
         legendPosition: input.legend || 'BOTTOM_LEGEND',
         headerCount: input.headerCount || 1,
-        domains: [{ domain: { sourceRange: { sources: [/*...*/] } } }],
-        series: input.series?.map(s => ({
-          series: { sourceRange: { sources: [/*...*/] } },
-          targetAxis: s.targetAxis || 'LEFT_AXIS',
-        })) || [],
+        domains: [
+          {
+            domain: {
+              sourceRange: {
+                sources: [
+                  /*...*/
+                ],
+              },
+            },
+          },
+        ],
+        series:
+          input.series?.map((s) => ({
+            series: {
+              sourceRange: {
+                sources: [
+                  /*...*/
+                ],
+              },
+            },
+            targetAxis: s.targetAxis || 'LEFT_AXIS',
+          })) || [],
       },
     };
   }
@@ -527,19 +577,19 @@ export class SheetsChartsHandler extends BaseHandler<SheetsChartsInput, any> {
 ```typescript
 // src/handlers/analysis.ts
 export class SheetsAnalysisHandler extends BaseHandler<SheetsAnalysisInput, any> {
-  
   private async handleScout(input: ScoutInput): Promise<CallToolResult> {
     const metadata = await this.sheetsService.getSpreadsheet(input.spreadsheetId, {
       fields: 'properties,sheets(properties,charts,conditionalFormats)',
     });
 
-    const sheets = metadata.sheets?.map(sheet => ({
-      sheetId: sheet.properties?.sheetId,
-      title: sheet.properties?.title,
-      rowCount: sheet.properties?.gridProperties?.rowCount,
-      columnCount: sheet.properties?.gridProperties?.columnCount,
-      chartCount: sheet.charts?.length || 0,
-    })) || [];
+    const sheets =
+      metadata.sheets?.map((sheet) => ({
+        sheetId: sheet.properties?.sheetId,
+        title: sheet.properties?.title,
+        rowCount: sheet.properties?.gridProperties?.rowCount,
+        columnCount: sheet.properties?.gridProperties?.columnCount,
+        chartCount: sheet.charts?.length || 0,
+      })) || [];
 
     return this.success('scout', {
       spreadsheetId: input.spreadsheetId,
@@ -556,7 +606,7 @@ export class SheetsAnalysisHandler extends BaseHandler<SheetsAnalysisInput, any>
       { valueRenderOption: 'UNFORMATTED_VALUE' }
     );
 
-    const numbers = data.values?.flat().filter(v => typeof v === 'number') as number[];
+    const numbers = data.values?.flat().filter((v) => typeof v === 'number') as number[];
     const sorted = [...numbers].sort((a, b) => a - b);
     const sum = numbers.reduce((a, b) => a + b, 0);
     const mean = sum / numbers.length;
@@ -616,4 +666,4 @@ async function importAndVisualize(client: McpClient, csvData: string[][]): Promi
 
 ---
 
-*This guide provides patterns for implementing MCP tool handlers with Google Sheets.*
+_This guide provides patterns for implementing MCP tool handlers with Google Sheets._

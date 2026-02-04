@@ -1,3 +1,14 @@
+---
+title: OAuth User Authentication Setup
+category: guide
+last_updated: 2026-01-31
+description: This guide sets up ServalSheets to prompt you for Google login instead of using a service account.
+version: 1.6.0
+tags: [oauth, authentication, setup, configuration, sheets]
+audience: user
+difficulty: intermediate
+---
+
 # OAuth User Authentication Setup
 
 This guide sets up ServalSheets to **prompt you for Google login** instead of using a service account.
@@ -79,6 +90,7 @@ npm run start:http
 ```
 
 You should see:
+
 ```
 ServalSheets HTTP Server starting...
 OAuth provider initialized
@@ -93,6 +105,7 @@ Authorization URL: http://localhost:3000/authorize
 **Option A: Browser Authorization (Easiest)**
 
 1. Open in your browser:
+
    ```
    http://localhost:3000/authorize?redirect_uri=http://localhost:3000/callback
    ```
@@ -118,11 +131,13 @@ open "http://localhost:3000/authorize?redirect_uri=http://localhost:3000/callbac
 ### Step 5: Update Claude Desktop Configuration
 
 Edit Claude Desktop config:
+
 ```bash
 nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 Change from stdio to HTTP transport:
+
 ```json
 {
   "mcpServers": {
@@ -137,6 +152,7 @@ Change from stdio to HTTP transport:
 ```
 
 **Or use the automated script**:
+
 ```bash
 ./setup-oauth.sh
 ```
@@ -160,6 +176,7 @@ Look for the 🔨 icon in the bottom-right corner (custom ServalSheets icon may 
 ## Testing
 
 ### Test 1: Check Server Health
+
 ```bash
 curl http://localhost:3000/health
 ```
@@ -167,6 +184,7 @@ curl http://localhost:3000/health
 Expected: `{"status":"ok","version":"1.1.0"}`
 
 ### Test 2: Check Authorization Status
+
 ```bash
 curl http://localhost:3000/auth/status
 ```
@@ -176,11 +194,13 @@ Expected: `{"authenticated":true,"email":"your@email.com"}`
 ### Test 3: Use in Claude Desktop
 
 In Claude Desktop, try:
+
 ```
 "List all my Google Sheets"
 ```
 
 Or:
+
 ```
 "Read the first 10 rows from this spreadsheet: [spreadsheet-url]"
 ```
@@ -190,18 +210,21 @@ Or:
 ## How It Works
 
 ### Authorization Flow
+
 1. **First time**: You're prompted to log in with Google
 2. **Tokens saved**: Access and refresh tokens stored encrypted locally
 3. **Automatic refresh**: Tokens renewed automatically when expired
 4. **Works with your sheets**: Access any sheet you own or have access to
 
 ### Token Storage
+
 - Location: `~/.servalsheets/tokens.encrypted`
 - Encryption: AES-256-GCM
 - Encryption key: Stored in `SESSION_SECRET` environment variable
 - Auto-refresh: Yes
 
 ### Security
+
 - ✅ OAuth 2.1 compliant
 - ✅ State parameter (CSRF protection)
 - ✅ Encrypted token storage
@@ -213,23 +236,28 @@ Or:
 ## Troubleshooting
 
 ### "Redirect URI mismatch"
+
 - Ensure redirect URI in Google Console exactly matches: `http://localhost:3000/callback`
 - Check `.env` file has correct `OAUTH_REDIRECT_URI`
 
 ### "Access blocked: This app's request is invalid"
+
 - You need to add your email as a test user in OAuth consent screen
 - Or publish the app (not recommended for personal use)
 
 ### "Server not responding"
+
 - Check server is running: `curl http://localhost:3000/health`
 - Check port 3000 isn't in use: `lsof -i :3000`
 - Check logs in terminal where you ran `npm run start:http`
 
 ### "Tokens expired" or "401 Unauthorized"
+
 - Re-authorize: Visit `http://localhost:3000/authorize?redirect_uri=http://localhost:3000/callback`
 - Check `SESSION_SECRET` hasn't changed in `.env`
 
 ### Claude Desktop not connecting
+
 - Verify config file: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json`
 - Ensure server is running on port 3000
 - Check Claude Desktop logs: `~/Library/Logs/Claude/`
@@ -238,14 +266,14 @@ Or:
 
 ## Advantages Over Service Account
 
-| Feature | OAuth (User Auth) | Service Account |
-|---------|------------------|-----------------|
-| **Setup** | Browser login | Download JSON, share sheets |
-| **Access** | Your sheets automatically | Must share each sheet |
-| **Permissions** | Same as your account | Limited to shared sheets |
-| **User Experience** | Familiar Google login | Technical setup |
-| **Token Refresh** | Automatic | N/A |
-| **Revocation** | Google Account settings | Delete JSON file |
+| Feature             | OAuth (User Auth)         | Service Account             |
+| ------------------- | ------------------------- | --------------------------- |
+| **Setup**           | Browser login             | Download JSON, share sheets |
+| **Access**          | Your sheets automatically | Must share each sheet       |
+| **Permissions**     | Same as your account      | Limited to shared sheets    |
+| **User Experience** | Familiar Google login     | Technical setup             |
+| **Token Refresh**   | Automatic                 | N/A                         |
+| **Revocation**      | Google Account settings   | Delete JSON file            |
 
 ---
 
@@ -254,6 +282,7 @@ Or:
 For production deployment, see [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md).
 
 Key differences:
+
 - Use HTTPS with valid SSL certificate
 - Update redirect URI to production domain
 - Set `NODE_ENV=production`
@@ -290,6 +319,7 @@ curl http://localhost:3000/health
 ## Next Steps
 
 Once authorized:
+
 1. ✅ Access any of your Google Sheets
 2. ✅ Read and write data
 3. ✅ Create new sheets
@@ -302,6 +332,7 @@ Once authorized:
 ---
 
 **Need Help?**
+
 - Check logs: Terminal where server is running
 - Server logs: `~/Library/Logs/Claude/mcp-server-servalsheets.log`
 - Troubleshooting: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)

@@ -1,3 +1,14 @@
+---
+title: 'Quick Start: Get Google Credentials'
+category: guide
+last_updated: 2026-01-31
+description: 'You need Google credentials to test ServalSheets. Here are two options:'
+version: 1.6.0
+tags: [sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Quick Start: Get Google Credentials
 
 You need Google credentials to test ServalSheets. Here are two options:
@@ -27,6 +38,7 @@ You need Google credentials to test ServalSheets. Here are two options:
    - Copy the **"Access token"** (starts with `ya29.`)
 
 6. Use this token in Claude Desktop config:
+
    ```json
    {
      "mcpServers": {
@@ -101,6 +113,7 @@ cat ~/.config/google/servalsheets-sa.json | grep client_email
 ```
 
 Should output something like:
+
 ```
 "client_email": "servalsheets-mcp@your-project.iam.gserviceaccount.com"
 ```
@@ -125,13 +138,13 @@ Should output something like:
 
 ## Which Should I Use?
 
-| Factor | OAuth Token | Service Account |
-|--------|-------------|-----------------|
-| **Setup Time** | 2 minutes | 10 minutes |
-| **Lifetime** | 1 hour | Forever |
-| **Best For** | Quick testing | Production use |
+| Factor               | OAuth Token            | Service Account         |
+| -------------------- | ---------------------- | ----------------------- |
+| **Setup Time**       | 2 minutes              | 10 minutes              |
+| **Lifetime**         | 1 hour                 | Forever                 |
+| **Best For**         | Quick testing          | Production use          |
 | **Sharing Required** | No (uses your account) | Yes (must share sheets) |
-| **Recommended** | Testing today | Long-term use |
+| **Recommended**      | Testing today          | Long-term use           |
 
 ## Quick Testing Flow
 
@@ -161,11 +174,13 @@ After getting credentials:
 ## Troubleshooting
 
 ### "Access token expired"
+
 - OAuth tokens only last 1 hour
 - Generate a new token from OAuth Playground
 - Or switch to service account for permanent access
 
 ### "Permission denied"
+
 - **For OAuth**: You automatically have access to your own sheets
 - **For Service Account**: Must share sheet with service account email
   1. Open sheet in browser
@@ -174,6 +189,7 @@ After getting credentials:
   4. Grant "Editor" permission
 
 ### "APIs not enabled"
+
 - Go to Google Cloud Console
 - Enable both:
   - Google Sheets API
@@ -182,5 +198,6 @@ After getting credentials:
 ## Test Spreadsheet
 
 You can test with this public spreadsheet (no sharing needed):
+
 - ID: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 - URL: https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms

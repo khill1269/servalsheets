@@ -1,26 +1,36 @@
+---
+title: sheets_data
+category: reference
+last_updated: 2026-01-31
+description: Core data operations for reading and writing spreadsheet data.
+version: 1.6.0
+tags: [sheets]
+stability: stable
+---
+
 # sheets_data
 
 Core data operations for reading and writing spreadsheet data.
 
 ## Actions
 
-| Action         | Description               |
-| -------------- | ------------------------- |
-| `read`         | Read values from a range  |
-| `write`        | Write values to a range   |
-| `append`       | Append rows to a sheet or table |
-| `clear`        | Clear values from a range |
-| `batch_read`   | Read multiple ranges or dataFilters |
+| Action         | Description                             |
+| -------------- | --------------------------------------- |
+| `read`         | Read values from a range                |
+| `write`        | Write values to a range                 |
+| `append`       | Append rows to a sheet or table         |
+| `clear`        | Clear values from a range               |
+| `batch_read`   | Read multiple ranges or dataFilters     |
 | `batch_write`  | Write to multiple ranges or dataFilters |
-| `batch_clear`  | Clear multiple ranges or dataFilters |
-| `get_values`   | Get formatted values      |
-| `get_formulas` | Get cell formulas         |
-| `update_cells` | Update specific cells     |
-| `copy_range`   | Copy range to destination |
-| `cut_range`    | Cut range to destination  |
-| `fill_range`   | Auto-fill a range         |
-| `sort_range`   | Sort data in range        |
-| `randomize`    | Randomize row order       |
+| `batch_clear`  | Clear multiple ranges or dataFilters    |
+| `get_values`   | Get formatted values                    |
+| `get_formulas` | Get cell formulas                       |
+| `update_cells` | Update specific cells                   |
+| `copy_range`   | Copy range to destination               |
+| `cut_range`    | Cut range to destination                |
+| `fill_range`   | Auto-fill a range                       |
+| `sort_range`   | Sort data in range                      |
+| `randomize`    | Randomize row order                     |
 
 ## read
 
@@ -28,16 +38,16 @@ Read values from a spreadsheet range.
 
 ### Parameters
 
-| Parameter              | Type   | Required | Description                   |
-| ---------------------- | ------ | -------- | ----------------------------- |
-| `spreadsheetId`        | string | ✅       | Spreadsheet ID                |
-| `range`                | string | ✅       | A1 notation or named range    |
-| `valueRenderOption`    | string |          | How values should be rendered |
-| `dateTimeRenderOption` | string |          | How dates should be rendered  |
-| `streaming`            | boolean |         | Enable automatic pagination for large reads |
-| `chunkSize`            | number |         | Rows per page when streaming (default: 1000) |
-| `cursor`               | string |          | Opaque pagination cursor from previous response |
-| `pageSize`             | number |          | Max rows per page (capped to keep payloads small; internal ~10k-cell heuristic) |
+| Parameter              | Type    | Required | Description                                                                     |
+| ---------------------- | ------- | -------- | ------------------------------------------------------------------------------- |
+| `spreadsheetId`        | string  | ✅       | Spreadsheet ID                                                                  |
+| `range`                | string  | ✅       | A1 notation or named range                                                      |
+| `valueRenderOption`    | string  |          | How values should be rendered                                                   |
+| `dateTimeRenderOption` | string  |          | How dates should be rendered                                                    |
+| `streaming`            | boolean |          | Enable automatic pagination for large reads                                     |
+| `chunkSize`            | number  |          | Rows per page when streaming (default: 1000)                                    |
+| `cursor`               | string  |          | Opaque pagination cursor from previous response                                 |
+| `pageSize`             | number  |          | Max rows per page (capped to keep payloads small; internal ~10k-cell heuristic) |
 
 ### Value Render Options
 
@@ -154,14 +164,14 @@ Append rows to the end of data in a sheet.
 
 ### Parameters
 
-| Parameter          | Type      | Required | Description                     |
-| ------------------ | --------- | -------- | ------------------------------- |
-| `spreadsheetId`    | string    | ✅       | Spreadsheet ID                  |
-| `range`            | string    | ✅*      | Range to search for table (required unless `tableId` is provided) |
-| `tableId`          | string    | ✅*      | Table ID to append to (preferred for tables; required if `range` omitted) |
-| `values`           | array[][] | ✅       | Rows to append                  |
-| `valueInputOption` | string    |          | How input should be interpreted |
-| `insertDataOption` | string    |          | How data is inserted            |
+| Parameter          | Type      | Required | Description                                                               |
+| ------------------ | --------- | -------- | ------------------------------------------------------------------------- |
+| `spreadsheetId`    | string    | ✅       | Spreadsheet ID                                                            |
+| `range`            | string    | ✅\*     | Range to search for table (required unless `tableId` is provided)         |
+| `tableId`          | string    | ✅\*     | Table ID to append to (preferred for tables; required if `range` omitted) |
+| `values`           | array[][] | ✅       | Rows to append                                                            |
+| `valueInputOption` | string    |          | How input should be interpreted                                           |
+| `insertDataOption` | string    |          | How data is inserted                                                      |
 
 ### Insert Data Options
 
@@ -251,7 +261,10 @@ Batch operations can use either `ranges` or `dataFilters` (choose one).
   "data": [
     {
       "dataFilter": { "a1Range": "Sheet1!A1:B2" },
-      "values": [["Name", "Score"], ["Alice", 95]]
+      "values": [
+        ["Name", "Score"],
+        ["Alice", 95]
+      ]
     }
   ]
 }
@@ -292,6 +305,6 @@ Supported patterns:
 
 ## Related
 
-- [sheets_formatting](/reference/tools/sheets_formatting) - Cell formatting
-- [sheets_structure](/reference/tools/sheets_structure) - Row/column operations
+- [sheets_format](/reference/tools/sheets_format) - Cell formatting
+- [sheets_core](/reference/tools/sheets_core) - Row/column operations
 - [Examples](/examples/basic) - Basic usage examples

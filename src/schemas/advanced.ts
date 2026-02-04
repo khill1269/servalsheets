@@ -7,7 +7,7 @@
  * Protected Ranges (4): add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
  * Metadata (3): set_metadata, get_metadata, delete_metadata
  * Banding (4): add_banding, update_banding, delete_banding, list_banding
- * Tables (3): create_table, delete_table, list_tables
+ * Tables (6): create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties
  * Smart Chips (4): add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
  */
 
@@ -234,7 +234,21 @@ const ListBandingActionSchema = CommonFieldsSchema.extend({
 const CreateTableActionSchema = CommonFieldsSchema.extend({
   action: z.literal('create_table').describe('Create a table (structured data range)'),
   range: RangeInputSchema.describe('Range for the table'),
+  tableName: z
+    .string()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe('Optional table name for easier identification'),
   hasHeaders: z.boolean().optional().default(true).describe('First row contains headers'),
+  headerRowCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(1)
+    .describe('Number of header rows (default: 1)'),
 });
 
 const DeleteTableActionSchema = CommonFieldsSchema.extend({
@@ -246,6 +260,54 @@ const ListTablesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('list_tables').describe('List all tables'),
 });
 
+const UpdateTableActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('update_table').describe('Update table range or properties'),
+  tableId: z.string().describe('Table ID'),
+  range: RangeInputSchema.optional().describe('New range for the table (optional)'),
+});
+
+const RenameTableColumnActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('rename_table_column').describe('Rename a table column'),
+  tableId: z.string().describe('Table ID'),
+  columnIndex: z.number().int().min(0).describe('Column index (0-based)'),
+  newName: z.string().min(1).describe('New column name'),
+});
+
+const SetTableColumnPropertiesActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('set_table_column_properties').describe('Set table column properties'),
+  tableId: z.string().describe('Table ID'),
+  columnIndex: z.number().int().min(0).describe('Column index (0-based)'),
+  columnType: z
+    .enum(['TEXT', 'NUMBER', 'DATE', 'BOOLEAN', 'CURRENCY', 'DROPDOWN'])
+    .optional()
+    .describe('Column type for the table'),
+  dropdownValues: z
+    .array(z.string())
+    .optional()
+    .describe('Static list of dropdown values (for DROPDOWN column type)'),
+  dropdownRange: z
+    .string()
+    .optional()
+    .describe('Range reference for dropdown values (e.g., "Sheet1!A1:A10")'),
+  dropdownAllowCustom: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Allow custom values not in the dropdown list'),
+  dropdownShowDropdown: z.boolean().optional().default(true).describe('Show dropdown UI in cells'),
+}).refine(
+  (data) => {
+    // If columnType is DROPDOWN, require either dropdownValues or dropdownRange
+    if (data.columnType === 'DROPDOWN') {
+      return data.dropdownValues !== undefined || data.dropdownRange !== undefined;
+    }
+    return true;
+  },
+  {
+    message: 'DROPDOWN column type requires either dropdownValues or dropdownRange',
+  }
+);
+
 // ============================================================================
 // Smart Chips Action Schemas (4 actions) - NEW June 2025
 // ============================================================================
@@ -255,10 +317,10 @@ const AddPersonChipActionSchema = CommonFieldsSchema.extend({
   range: RangeInputSchema.describe('Cell to add the chip to'),
   email: z.string().email().describe('Email address of the person to mention'),
   displayFormat: z
-    .enum(['SHORT', 'FULL'])
+    .enum(['DEFAULT', 'FULL', 'NAME_ONLY'])
     .optional()
-    .default('SHORT')
-    .describe('Display format: SHORT (name only) or FULL (name and email)'),
+    .default('DEFAULT')
+    .describe('Display format: DEFAULT (name), FULL (name and email), NAME_ONLY (first name)'),
 });
 
 const AddDriveChipActionSchema = CommonFieldsSchema.extend({
@@ -321,10 +383,13 @@ export const SheetsAdvancedInputSchema = z.object({
     UpdateBandingActionSchema,
     DeleteBandingActionSchema,
     ListBandingActionSchema,
-    // Tables (3)
+    // Tables (6)
     CreateTableActionSchema,
     DeleteTableActionSchema,
     ListTablesActionSchema,
+    UpdateTableActionSchema,
+    RenameTableColumnActionSchema,
+    SetTableColumnPropertiesActionSchema,
     // Smart Chips (4) - NEW June 2025
     AddPersonChipActionSchema,
     AddDriveChipActionSchema,
@@ -383,15 +448,20 @@ const AdvancedResponseSchema = z.discriminatedUnion('success', [
     table: z
       .object({
         tableId: z.string(),
+        tableName: z.string().optional(),
         range: GridRangeSchema,
         hasHeaders: z.boolean(),
+        headerRowCount: z.number().int().optional(),
       })
       .optional(),
     tables: z
       .array(
         z.object({
           tableId: z.string(),
+          tableName: z.string().optional(),
           range: GridRangeSchema,
+          columnCount: z.number().int().optional(),
+          rowCount: z.number().int().optional(),
         })
       )
       .optional(),
@@ -549,6 +619,26 @@ export type AdvancedDeleteTableInput = SheetsAdvancedInput['request'] & {
 export type AdvancedListTablesInput = SheetsAdvancedInput['request'] & {
   action: 'list_tables';
   spreadsheetId: string;
+};
+export type AdvancedUpdateTableInput = SheetsAdvancedInput['request'] & {
+  action: 'update_table';
+  spreadsheetId: string;
+  tableId: string;
+  range?: z.infer<typeof RangeInputSchema>;
+};
+export type AdvancedRenameTableColumnInput = SheetsAdvancedInput['request'] & {
+  action: 'rename_table_column';
+  spreadsheetId: string;
+  tableId: string;
+  columnIndex: number;
+  newName: string;
+};
+export type AdvancedSetTableColumnPropertiesInput = SheetsAdvancedInput['request'] & {
+  action: 'set_table_column_properties';
+  spreadsheetId: string;
+  tableId: string;
+  columnIndex: number;
+  columnType?: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'CURRENCY' | 'DROPDOWN';
 };
 
 // Smart Chips (June 2025 API)

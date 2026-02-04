@@ -1,3 +1,12 @@
+---
+title: Deployment Overview
+category: general
+last_updated: 2026-01-31
+description: ServalSheets supports multiple deployment options from development to enterprise production.
+version: 1.6.0
+tags: [deployment, sheets, prometheus, docker, kubernetes]
+---
+
 # Deployment Overview
 
 ServalSheets supports multiple deployment options from development to enterprise production.
@@ -70,15 +79,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ## Environment Variables
 
-| Variable                         | Required | Description                      |
-| -------------------------------- | -------- | -------------------------------- |
-| `NODE_ENV`                       | ✅       | `production` or `development`    |
-| `HTTP_PORT`                      | ✅       | HTTP server port (default: 3000) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | ✅\*     | Path to service account JSON     |
-| `OAUTH_CLIENT_ID`                | OAuth    | Google OAuth client ID           |
-| `OAUTH_CLIENT_SECRET`            | OAuth    | Google OAuth client secret       |
-| `SESSION_SECRET`                 | OAuth    | Session encryption secret        |
-| `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error` |
+| Variable                         | Required | Description                                              |
+| -------------------------------- | -------- | -------------------------------------------------------- |
+| `NODE_ENV`                       | ✅       | `production` or `development`                            |
+| `HTTP_PORT`                      | ✅       | HTTP server port (default: 3000)                         |
+| `GOOGLE_APPLICATION_CREDENTIALS` | ✅\*     | Path to service account JSON                             |
+| `OAUTH_CLIENT_ID`                | OAuth    | Google OAuth client ID                                   |
+| `OAUTH_CLIENT_SECRET`            | OAuth    | Google OAuth client secret                               |
+| `SESSION_SECRET`                 | OAuth    | Session encryption secret                                |
+| `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error`                         |
 | `REDIS_URL`                      |          | Redis URL for HA sessions + Streamable HTTP resumability |
 
 ## Health Checks

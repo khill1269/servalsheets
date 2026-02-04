@@ -1,3 +1,12 @@
+---
+title: 🔬 ServalSheets v1.6.0 - Advanced Testing & Tracing Strategy
+category: development
+last_updated: 2026-01-31
+description: "Think Outside the Box" - Comprehensive Testing Plan
+version: 1.6.0
+tags: [testing, sheets, prometheus, docker]
+---
+
 # 🔬 ServalSheets v1.6.0 - Advanced Testing & Tracing Strategy
 
 **"Think Outside the Box" - Comprehensive Testing Plan**
@@ -13,6 +22,7 @@ This document outlines advanced testing strategies beyond standard unit/integrat
 **Goal**: Trace a request from Claude Desktop → MCP Server → Google Sheets API and back
 
 **Implementation**:
+
 ```typescript
 // Enable full request tracing
 LOG_LEVEL=debug \
@@ -22,6 +32,7 @@ npm run start:stdio
 ```
 
 **What to trace**:
+
 1. ✅ MCP JSON-RPC request received
 2. ✅ Schema validation (Zod)
 3. ✅ Handler invocation
@@ -31,6 +42,7 @@ npm run start:stdio
 7. ✅ Total latency at each step
 
 **Test cases**:
+
 - [ ] Simple read operation (sheets_data get)
 - [ ] Complex write with batching (sheets_data update_batch)
 - [ ] Long-running task with cancellation
@@ -40,6 +52,7 @@ npm run start:stdio
 ### OpenTelemetry Integration Test
 
 **Create test harness**:
+
 ```bash
 # Test with Jaeger or Zipkin
 docker run -d --name jaeger \
@@ -53,6 +66,7 @@ npm run start:stdio
 ```
 
 **Verify**:
+
 - [ ] Spans created for each operation
 - [ ] Parent-child relationships correct
 - [ ] Attributes populated (tool name, args, etc.)
@@ -65,6 +79,7 @@ npm run start:stdio
 ### Data Extremes
 
 **Test with**:
+
 ```typescript
 // Test cases to create:
 1. Empty spreadsheet (0 rows, 0 columns)
@@ -80,6 +95,7 @@ npm run start:stdio
 ```
 
 **Automated test**:
+
 ```bash
 # Create test script
 cat > tests/extreme/edge-cases.test.ts << 'TEST'
@@ -114,19 +130,22 @@ TEST
 ### Concurrency Testing
 
 **Test parallel requests**:
+
 ```typescript
 // Simulate 100 concurrent requests
 async function concurrencyTest() {
-  const requests = Array(100).fill(null).map((_, i) => 
-    callTool('sheets_data', {
-      action: 'get',
-      spreadsheetId: testId,
-      range: `A${i}:Z${i}`
-    })
-  );
-  
+  const requests = Array(100)
+    .fill(null)
+    .map((_, i) =>
+      callTool('sheets_data', {
+        action: 'get',
+        spreadsheetId: testId,
+        range: `A${i}:Z${i}`,
+      })
+    );
+
   const results = await Promise.allSettled(requests);
-  
+
   // Verify:
   // 1. No race conditions
   // 2. Rate limiting works
@@ -143,6 +162,7 @@ async function concurrencyTest() {
 ### Fault Injection
 
 **Create chaos test suite**:
+
 ```typescript
 // Test network failures
 describe('Chaos: Network', () => {
@@ -152,7 +172,7 @@ describe('Chaos: Network', () => {
       .get(/.*/)
       .delayConnection(30000)
       .reply(200, {});
-    
+
     // Should timeout and retry
     await expect(callTool('sheets_data', {...}))
       .rejects.toThrow('timeout');
@@ -170,7 +190,7 @@ describe('Chaos: Network', () => {
       })
       .get(/.*/)
       .reply(200, validResponse);
-    
+
     // Should retry and eventually succeed
     const result = await callTool('sheets_data', {...});
     expect(attempts).toBe(3);
@@ -212,11 +232,12 @@ describe('Chaos: Cascading Failures', () => {
 ### Penetration Testing
 
 **Test vectors**:
+
 ```typescript
 // 1. Authentication bypass attempts
 test('rejects requests without credentials', async () => {
-  const server = createServer({ 
-    googleClient: null // No credentials 
+  const server = createServer({
+    googleClient: null // No credentials
   });
   await expect(callTool('sheets_data', {...}))
     .rejects.toThrow('Authentication required');
@@ -248,10 +269,10 @@ test('prevents path traversal in spreadsheet IDs', async () => {
 // 5. DoS via resource exhaustion
 test('limits concurrent task creation', async () => {
   // Attempt to create 10,000 tasks
-  const tasks = Array(10000).fill(null).map(() => 
+  const tasks = Array(10000).fill(null).map(() =>
     createTask('sheets_analyze', {...})
   );
-  
+
   // Should rate limit after threshold
   const results = await Promise.allSettled(tasks);
   const rejected = results.filter(r => r.status === 'rejected');
@@ -262,7 +283,7 @@ test('limits concurrent task creation', async () => {
 test('does not log sensitive data', async () => {
   const logSpy = jest.spyOn(console, 'error');
   await sheets_auth.setup({ accessToken: 'secret123' });
-  
+
   // Verify token not in logs
   const logs = logSpy.mock.calls.flat().join(' ');
   expect(logs).not.toContain('secret123');
@@ -272,6 +293,7 @@ test('does not log sensitive data', async () => {
 ### OAuth Flow Security
 
 **Test suite**:
+
 ```bash
 # Run OAuth security tests
 npm run test:oauth-security
@@ -292,51 +314,53 @@ npm run test:oauth-security
 ### Load Testing
 
 **Artillery.io config**:
+
 ```yaml
 # load-test.yml
 config:
-  target: "http://localhost:3000"
+  target: 'http://localhost:3000'
   phases:
     - duration: 60
-      arrivalRate: 10  # 10 requests/sec
-      name: "Warm up"
+      arrivalRate: 10 # 10 requests/sec
+      name: 'Warm up'
     - duration: 300
-      arrivalRate: 50  # 50 requests/sec
-      name: "Sustained load"
+      arrivalRate: 50 # 50 requests/sec
+      name: 'Sustained load'
     - duration: 120
       arrivalRate: 100 # 100 requests/sec
-      name: "Spike test"
+      name: 'Spike test'
 
 scenarios:
-  - name: "Read operations"
+  - name: 'Read operations'
     flow:
       - post:
-          url: "/mcp"
+          url: '/mcp'
           json:
-            method: "tools/call"
+            method: 'tools/call'
             params:
-              name: "sheets_data"
+              name: 'sheets_data'
               arguments:
-                action: "get"
-                spreadsheetId: "{{ spreadsheetId }}"
-                range: "A1:Z100"
-          
-  - name: "Write operations"
+                action: 'get'
+                spreadsheetId: '{{ spreadsheetId }}'
+                range: 'A1:Z100'
+
+  - name: 'Write operations'
     flow:
       - post:
-          url: "/mcp"
+          url: '/mcp'
           json:
-            method: "tools/call"
+            method: 'tools/call'
             params:
-              name: "sheets_data"
+              name: 'sheets_data'
               arguments:
-                action: "update"
-                spreadsheetId: "{{ spreadsheetId }}"
-                range: "A1"
-                values: [["test"]]
+                action: 'update'
+                spreadsheetId: '{{ spreadsheetId }}'
+                range: 'A1'
+                values: [['test']]
 ```
 
 **Run tests**:
+
 ```bash
 # Install Artillery
 npm install -g artillery
@@ -355,25 +379,26 @@ artillery run load-test.yml
 ### Stress Testing
 
 **Find breaking points**:
+
 ```typescript
 // Gradually increase load until failure
 async function stressTest() {
   let requestsPerSecond = 1;
   let failed = false;
-  
+
   while (!failed && requestsPerSecond < 1000) {
     console.log(`Testing at ${requestsPerSecond} req/s`);
-    
+
     const results = await runLoadTest({
       duration: 60,
-      rps: requestsPerSecond
+      rps: requestsPerSecond,
     });
-    
+
     if (results.errorRate > 0.05 || results.p99 > 5000) {
       console.log(`Breaking point: ${requestsPerSecond} req/s`);
       failed = true;
     }
-    
+
     requestsPerSecond *= 2;
   }
 }
@@ -386,8 +411,10 @@ async function stressTest() {
 ### Claude Desktop Integration
 
 **Manual test scenarios**:
+
 ```markdown
 ## Scenario 1: New User Onboarding
+
 1. Fresh Claude Desktop install
 2. Add ServalSheets config
 3. Restart Claude Desktop
@@ -397,8 +424,10 @@ async function stressTest() {
 7. Verify: Authentication prompt or spreadsheet list
 
 ## Scenario 2: Complex Workflow
+
 User: "Create a sales dashboard"
 Expected flow:
+
 1. Claude asks for spreadsheet ID or offers to create new
 2. Creates spreadsheet with sheets_core
 3. Adds sheets (Data, Dashboard)
@@ -410,6 +439,7 @@ Expected flow:
 9. Shows preview
 
 Verify at each step:
+
 - [ ] Proper tool selection
 - [ ] Confirmation dialogs appear
 - [ ] Data correctly written
@@ -417,8 +447,10 @@ Verify at each step:
 - [ ] No errors in Claude Desktop console
 
 ## Scenario 3: Error Recovery
+
 User: "Update cell A1 in spreadsheet invalid-id"
 Expected flow:
+
 1. Tool call with invalid ID
 2. Error returned with helpful message
 3. Claude explains error to user
@@ -426,13 +458,16 @@ Expected flow:
 5. Retry succeeds
 
 Verify:
+
 - [ ] Error message is user-friendly
 - [ ] Claude understands the error
 - [ ] Recovery path is clear
 
 ## Scenario 4: Task Cancellation
+
 User: "Analyze this huge dataset" → cancels mid-analysis
 Expected flow:
+
 1. sheets_analyze starts
 2. User cancels operation
 3. Task receives cancellation signal
@@ -441,6 +476,7 @@ Expected flow:
 6. Claude reports cancellation to user
 
 Verify:
+
 - [ ] Cancellation detected quickly (< 1s)
 - [ ] No orphaned tasks
 - [ ] Memory released
@@ -450,6 +486,7 @@ Verify:
 ### Documentation Testing
 
 **Follow your own docs**:
+
 ```bash
 # Test README.md instructions literally
 # Start from scratch, no assumptions
@@ -488,6 +525,7 @@ JSON
 ### Google API Quota Testing
 
 **Test scenarios**:
+
 ```typescript
 describe('API Quota Handling', () => {
   test('handles quota exceeded gracefully', async () => {
@@ -501,9 +539,9 @@ describe('API Quota Handling', () => {
           status: 'RESOURCE_EXHAUSTED'
         }
       });
-    
+
     const result = await sheets_data.get({...});
-    
+
     // Should return helpful error
     expect(result.success).toBe(false);
     expect(result.error.message).toContain('quota');
@@ -512,7 +550,7 @@ describe('API Quota Handling', () => {
 
   test('implements exponential backoff', async () => {
     const timestamps = [];
-    
+
     // Mock 3 rate limit responses
     nock('https://sheets.googleapis.com')
       .get(/.*/)
@@ -523,11 +561,11 @@ describe('API Quota Handling', () => {
       })
       .get(/.*/)
       .reply(200, validResponse);
-    
+
     await sheets_data.get({...});
-    
+
     // Verify backoff intervals increase exponentially
-    const intervals = timestamps.slice(1).map((t, i) => 
+    const intervals = timestamps.slice(1).map((t, i) =>
       t - timestamps[i]
     );
     expect(intervals[1]).toBeGreaterThan(intervals[0] * 1.5);
@@ -535,17 +573,17 @@ describe('API Quota Handling', () => {
 
   test('respects Retry-After header', async () => {
     const retryAfter = 5; // seconds
-    
+
     nock('https://sheets.googleapis.com')
       .get(/.*/)
       .reply(429, { error: 'Rate limit' }, {
         'Retry-After': String(retryAfter)
       });
-    
+
     const startTime = Date.now();
     await sheets_data.get({...});
     const elapsed = (Date.now() - startTime) / 1000;
-    
+
     // Should wait at least retryAfter seconds
     expect(elapsed).toBeGreaterThanOrEqual(retryAfter);
   });
@@ -555,29 +593,28 @@ describe('API Quota Handling', () => {
 ### Rate Limiter Stress Test
 
 **Test internal rate limiter**:
+
 ```typescript
 test('rate limiter handles burst traffic', async () => {
   const limiter = new RateLimiter({
     tokensPerInterval: 100,
-    interval: 'second'
+    interval: 'second',
   });
-  
+
   // Send 1000 requests instantly
-  const requests = Array(1000).fill(null).map(() => 
-    limiter.removeTokens(1)
-  );
-  
+  const requests = Array(1000)
+    .fill(null)
+    .map(() => limiter.removeTokens(1));
+
   const results = await Promise.allSettled(requests);
-  
+
   // First 100 should succeed immediately
   // Rest should be throttled
-  const immediate = results.slice(0, 100)
-    .every(r => r.status === 'fulfilled');
+  const immediate = results.slice(0, 100).every((r) => r.status === 'fulfilled');
   expect(immediate).toBe(true);
-  
+
   // Eventually all should succeed
-  const allSucceeded = results
-    .every(r => r.status === 'fulfilled');
+  const allSucceeded = results.every((r) => r.status === 'fulfilled');
   expect(allSucceeded).toBe(true);
 });
 ```
@@ -589,6 +626,7 @@ test('rate limiter handles burst traffic', async () => {
 ### Cross-Version Compatibility
 
 **Test with different Claude versions**:
+
 ```bash
 # Test matrix
 CLAUDE_VERSIONS=(
@@ -608,6 +646,7 @@ done
 ### MCP SDK Version Compatibility
 
 **Test with multiple SDK versions**:
+
 ```json
 // package.json variants
 {
@@ -630,6 +669,7 @@ done
 ### Google API Version Compatibility
 
 **Test with different googleapis versions**:
+
 ```bash
 # Test with older version
 npm install googleapis@168.0.0
@@ -651,28 +691,29 @@ npm test
 ### Structured Logging Test
 
 **Verify log structure**:
+
 ```typescript
 test('logs are properly structured', () => {
   const logCapture = captureStderr();
-  
+
   // Trigger various operations
   callTool('sheets_data', {...});
-  
+
   const logs = logCapture.getLogs();
-  
+
   // Every log should be valid JSON
   logs.forEach(log => {
     const parsed = JSON.parse(log);
-    
+
     // Required fields
     expect(parsed).toHaveProperty('level');
     expect(parsed).toHaveProperty('timestamp');
     expect(parsed).toHaveProperty('message');
-    
+
     // Context fields
     expect(parsed).toHaveProperty('service', 'servalsheets');
     expect(parsed).toHaveProperty('version', '1.3.0');
-    
+
     // Request tracing
     if (parsed.requestId) {
       expect(parsed.requestId).toMatch(/^[a-f0-9-]{36}$/);
@@ -684,17 +725,18 @@ test('logs are properly structured', () => {
 ### Metrics Validation
 
 **Test Prometheus metrics**:
+
 ```typescript
 test('exposes Prometheus metrics', async () => {
   const response = await fetch('http://localhost:3000/metrics');
   const metrics = await response.text();
-  
+
   // Required metrics
   expect(metrics).toContain('servalsheets_requests_total');
   expect(metrics).toContain('servalsheets_request_duration_seconds');
   expect(metrics).toContain('servalsheets_errors_total');
   expect(metrics).toContain('servalsheets_active_tasks');
-  
+
   // Parse and validate
   const parsed = parsePrometheusMetrics(metrics);
   expect(parsed.servalsheets_requests_total).toBeGreaterThan(0);
@@ -708,6 +750,7 @@ test('exposes Prometheus metrics', async () => {
 ### 24-Hour Soak Test
 
 **Long-running stability test**:
+
 ```bash
 #!/bin/bash
 # Run for 24 hours
@@ -722,32 +765,32 @@ START_TIME=$(date +%s)
 
 while true; do
   ELAPSED=$(($(date +%s) - START_TIME))
-  
+
   if [ $ELAPSED -gt 86400 ]; then
     echo "24 hours complete!"
     break
   fi
-  
+
   # Make random request
   curl -X POST http://localhost:3000/mcp \
     -H "Content-Type: application/json" \
     -d '{"method":"tools/list"}' \
     > /dev/null 2>&1
-  
+
   sleep 0.1  # 10 req/s
-  
+
   # Check health every hour
   if [ $((ELAPSED % 3600)) -eq 0 ]; then
     echo "Hour $((ELAPSED / 3600)): Checking health..."
-    
+
     # Memory usage
     MEM=$(ps aux | grep node | awk '{print $6}' | head -1)
     echo "  Memory: $MEM KB"
-    
+
     # Open files
     FILES=$(lsof -p $(pgrep -f servalsheets) | wc -l)
     echo "  Open files: $FILES"
-    
+
     # Response time
     TIME=$(curl -w "%{time_total}" -X POST http://localhost:3000/mcp \
       -H "Content-Type: application/json" \
@@ -761,24 +804,25 @@ done
 ### Graceful Shutdown Test
 
 **Test cleanup**:
+
 ```typescript
 test('gracefully shuts down', async () => {
   const server = await createServer({...});
-  
+
   // Start some operations
   const task1 = callTool('sheets_analyze', {...});
   const task2 = callTool('sheets_data', {...});
-  
+
   // Send SIGTERM
   process.kill(server.pid, 'SIGTERM');
-  
+
   // Should:
   // 1. Stop accepting new requests
   // 2. Complete in-flight requests
   // 3. Cancel long-running tasks
   // 4. Close connections
   // 5. Exit within timeout
-  
+
   await expect(waitForExit(server, 30000))
     .resolves.toBe(0);
 });
@@ -791,6 +835,7 @@ test('gracefully shuts down', async () => {
 ### Weekly Chaos Tests
 
 **Automated chaos schedule**:
+
 ```bash
 # Monday: Network chaos
 npm run chaos:network
@@ -836,12 +881,13 @@ npm run chaos:security
 ### Continuous Testing
 
 **Run these regularly**:
+
 ```bash
 # Daily
 npm run test:smoke           # Quick sanity check
 npm run test:integration     # Full integration suite
 
-# Weekly  
+# Weekly
 npm run test:chaos          # Chaos engineering
 npm run test:load           # Performance testing
 npm run test:security       # Security scan
@@ -858,6 +904,7 @@ npm run test:soak          # 24-hour stability
 ### Full Stack Trace
 
 **Enable maximum verbosity**:
+
 ```bash
 # Environment setup for deep tracing
 export LOG_LEVEL=silly
@@ -873,6 +920,7 @@ npm run start:stdio 2>&1 | tee trace.log
 ```
 
 **Analyze trace**:
+
 ```bash
 # Extract timing data
 grep "duration" trace.log | \
@@ -892,6 +940,7 @@ grep "Google API" trace.log | wc -l  # Count API calls
 ## CONCLUSION
 
 This advanced testing strategy ensures ServalSheets is:
+
 - ✅ Production-ready under all conditions
 - ✅ Resilient to failures
 - ✅ Secure against attacks
@@ -901,6 +950,7 @@ This advanced testing strategy ensures ServalSheets is:
 - ✅ User-friendly in real scenarios
 
 **Next Steps**:
+
 1. Implement priority tests (security, chaos, real-world)
 2. Automate testing pipeline
 3. Schedule regular chaos tests

@@ -1,3 +1,12 @@
+---
+title: OAuth Authentication Flow
+category: example
+last_updated: 2026-01-31
+description: Complete guide to setting up and using OAuth authentication with ServalSheets.
+version: 1.6.0
+tags: [oauth, authentication, sheets, docker]
+---
+
 # OAuth Authentication Flow
 
 Complete guide to setting up and using OAuth authentication with ServalSheets.
@@ -5,6 +14,7 @@ Complete guide to setting up and using OAuth authentication with ServalSheets.
 ## Overview
 
 This guide covers:
+
 - OAuth 2.0 setup and configuration
 - Authentication flow walkthrough
 - Token management
@@ -81,6 +91,7 @@ export GOOGLE_REDIRECT_URI="http://localhost:3000/oauth/callback"
 **Option 2: Configuration File**
 
 Create `.env` file:
+
 ```env
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
@@ -90,6 +101,7 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/callback
 **Option 3: Credentials File**
 
 Place downloaded `credentials.json` in ServalSheets config directory:
+
 ```bash
 mkdir -p ~/.config/servalsheets
 mv ~/Downloads/credentials.json ~/.config/servalsheets/
@@ -106,6 +118,7 @@ Start OAuth flow for ServalSheets
 ```
 
 **What happens**:
+
 1. ServalSheets generates authorization URL
 2. Opens browser to Google consent screen
 3. User sees requested permissions
@@ -119,6 +132,7 @@ Exchange code for tokens
 ```
 
 **What happens**:
+
 1. Google redirects to your redirect URI
 2. Authorization code in URL parameters
 3. ServalSheets exchanges code for tokens
@@ -137,6 +151,7 @@ Exchange code for tokens
 ```
 
 **Storage locations**:
+
 - Desktop: `~/.config/servalsheets/tokens.json`
 - Docker: `/app/config/tokens.json`
 - Custom: Set via `TOKEN_STORAGE_PATH`
@@ -148,6 +163,7 @@ Read spreadsheet "1abc...xyz" using stored authentication
 ```
 
 **Behind the scenes**:
+
 ```http
 GET /v4/spreadsheets/1abc...xyz
 Authorization: Bearer ya29.a0AfH6SMBx...
@@ -156,12 +172,14 @@ Authorization: Bearer ya29.a0AfH6SMBx...
 ### Web Application Flow
 
 **Differences from desktop**:
+
 1. Redirect URI must be HTTPS (except localhost)
 2. State parameter for CSRF protection
 3. Token storage in secure session/database
 4. User-specific token management
 
 **Flow diagram**:
+
 ```
 User → Your App → Google Auth → User Consents
   ↓                                     ↓
@@ -175,18 +193,21 @@ API Calls with Token
 ### Available Scopes
 
 **Read-only**: `https://www.googleapis.com/auth/spreadsheets.readonly`
+
 - Read spreadsheet data
 - Read spreadsheet metadata
 - List spreadsheets
 - **Cannot**: Write, update, or delete
 
 **Full access**: `https://www.googleapis.com/auth/spreadsheets`
+
 - All read-only permissions
 - Write/update data
 - Create/delete spreadsheets
 - Manage permissions
 
 **Drive access**: `https://www.googleapis.com/auth/drive.file`
+
 - Access to spreadsheets created by app
 - Create new spreadsheets
 - Share spreadsheets
@@ -206,6 +227,7 @@ export GOOGLE_SCOPES="https://www.googleapis.com/auth/spreadsheets"
 ```
 
 **Multiple scopes** (space-separated):
+
 ```bash
 export GOOGLE_SCOPES="https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file"
 ```
@@ -237,6 +259,7 @@ ServalSheets automatically refreshes expired tokens:
 ```
 
 **Manual refresh**:
+
 ```
 Refresh OAuth tokens for ServalSheets
 ```
@@ -244,6 +267,7 @@ Refresh OAuth tokens for ServalSheets
 ### Token Revocation
 
 **User-initiated** (in Google Account settings):
+
 ```
 1. Go to myaccount.google.com/permissions
 2. Find your application
@@ -251,6 +275,7 @@ Refresh OAuth tokens for ServalSheets
 ```
 
 **Programmatic revocation**:
+
 ```
 Revoke OAuth tokens for ServalSheets
 ```
@@ -262,6 +287,7 @@ Revoke OAuth tokens for ServalSheets
 ### Credential Protection
 
 1. **Never commit credentials** to version control
+
    ```gitignore
    .env
    credentials.json
@@ -302,30 +328,38 @@ Revoke OAuth tokens for ServalSheets
 ### Common Issues
 
 **"Redirect URI mismatch"**
+
 ```
 Error: redirect_uri_mismatch
 ```
+
 **Cause**: Redirect URI doesn't match configured URI
 **Solution**: Check exact match including protocol, host, port, path
 
 **"Access denied"**
+
 ```
 Error: access_denied
 ```
+
 **Cause**: User clicked "Deny" or lacks permissions
 **Solution**: User must grant consent; check scope requirements
 
 **"Invalid grant"**
+
 ```
 Error: invalid_grant
 ```
+
 **Cause**: Refresh token expired or revoked
 **Solution**: User must re-authenticate
 
 **"Insufficient permissions"**
+
 ```
 Error: insufficientPermissions
 ```
+
 **Cause**: Scope doesn't cover requested operation
 **Solution**: Request broader scope and re-authenticate
 
@@ -334,12 +368,14 @@ Error: insufficientPermissions
 **Symptoms**: Repeated authentication prompts
 
 **Checks**:
+
 1. Refresh token stored correctly?
 2. Token file readable?
 3. Token hasn't been revoked?
 4. Client credentials match?
 
 **Fix**: Delete tokens and re-authenticate
+
 ```bash
 rm ~/.config/servalsheets/tokens.json
 # Run ServalSheets - will prompt for new authentication
@@ -348,6 +384,7 @@ rm ~/.config/servalsheets/tokens.json
 ### Verification Steps
 
 **Check credentials**:
+
 ```bash
 echo $GOOGLE_CLIENT_ID
 echo $GOOGLE_REDIRECT_URI
@@ -355,12 +392,14 @@ echo $GOOGLE_REDIRECT_URI
 ```
 
 **Verify token**:
+
 ```bash
 cat ~/.config/servalsheets/tokens.json | jq .
 # Should show access_token, refresh_token, expiry_date
 ```
 
 **Test authentication**:
+
 ```
 List my spreadsheets using ServalSheets
 ```
@@ -387,6 +426,7 @@ List my spreadsheets using ServalSheets
 **When to use**: Server-to-server, no user interaction
 
 **Setup**:
+
 ```
 1. Create service account in GCP
 2. Download JSON key file
@@ -401,6 +441,7 @@ List my spreadsheets using ServalSheets
 **For G Suite/Workspace admins**: Grant service account access to all users' spreadsheets
 
 **Setup**:
+
 ```
 1. Create service account with domain-wide delegation
 2. Admin grants delegation in Workspace console
@@ -461,6 +502,7 @@ List my spreadsheets using ServalSheets
 ## Reference Files
 
 For detailed OAuth examples, see:
+
 - `oauth-flow-examples.json` - Complete OAuth workflows
 - `error-handling-examples.json` - Authentication error handling
 - `advanced-examples.json` - Advanced OAuth patterns

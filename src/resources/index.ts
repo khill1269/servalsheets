@@ -9,7 +9,17 @@
  * - Removed: planning://, insights:// (replaced by MCP-native patterns)
  */
 
-export { registerKnowledgeResources, listKnowledgeResources } from './knowledge.js';
+export {
+  registerKnowledgeResources,
+  listKnowledgeResources,
+  registerKnowledgeIndexResource,
+} from './knowledge.js';
+export { registerKnowledgeSearchResource } from './knowledge-search.js';
+export {
+  registerDeferredKnowledgeResources,
+  getKnowledgeCacheStats,
+  clearKnowledgeCache,
+} from './knowledge-deferred.js';
 export { registerHistoryResources } from './history.js';
 export { registerCacheResources } from './cache.js';
 export { registerTransactionResources } from './transaction.js';
@@ -39,6 +49,9 @@ export { registerDecisionResources, readDecisionResource } from './decisions.js'
 // Examples library resources
 export { registerExamplesResources, readExamplesResource } from './examples.js';
 
+// Temporary resource storage (Phase 3: Resource URI Fallback)
+export { getTemporaryResourceStore, TemporaryResourceStore } from './temporary-storage.js';
+
 // Workflow patterns resources (UASEV+R protocol demonstrations)
 export { registerPatternResources, readPatternResource } from './patterns.js';
 
@@ -50,3 +63,9 @@ export { registerSchemaResources, readSchemaResource, getToolSchema } from './sc
 
 // Discovery resources for API health monitoring (Phase 4)
 export { registerDiscoveryResources } from './discovery.js';
+
+// Master index resource (servalsheets://index)
+export { registerMasterIndexResource } from './master-index.js';
+
+// Resource change notifications (MCP notifications/resources/list_changed)
+export { resourceNotifications, initializeResourceNotifications } from './notifications.js';

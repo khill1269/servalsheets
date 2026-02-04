@@ -21,6 +21,11 @@ import {
   parseA1Notation,
   toGridRange,
   type GridRangeInput,
+  buildPersonChip,
+  buildDriveChip,
+  buildRichLinkChip,
+  parseChipRuns,
+  type PersonChipDisplayFormat,
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
@@ -99,6 +104,15 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         case 'list_tables':
           response = await this.handleListTables(req);
           break;
+        case 'update_table':
+          response = await this.handleUpdateTable(req);
+          break;
+        case 'rename_table_column':
+          response = await this.handleRenameTableColumn(req);
+          break;
+        case 'set_table_column_properties':
+          response = await this.handleSetTableColumnProperties(req);
+          break;
         // Smart Chips (June 2025 API)
         case 'add_person_chip':
           response = await this.handleAddPersonChip(req);
@@ -173,6 +187,9 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         create_table: null,
         delete_table: null,
         list_tables: null,
+        update_table: null,
+        rename_table_column: null,
+        set_table_column_properties: null,
         // Smart Chips
         add_person_chip: 'SET_VALUES',
         add_drive_chip: 'SET_VALUES',
@@ -831,20 +848,24 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
 
     let columnProperties: sheets_v4.Schema$TableColumnProperties[] | undefined;
     const hasHeaders = req.hasHeaders ?? true;
+    const headerRowCount = req.headerRowCount ?? 1;
 
     if (hasHeaders) {
+      // Read header rows (default: 1 row, configurable up to 10)
       const headerRange = buildA1Notation(
         parsed.sheetName,
         parsed.startCol,
         parsed.startRow,
         parsed.endCol,
-        parsed.startRow + 1
+        parsed.startRow + headerRowCount
       );
       const headerResponse = await this.sheetsApi.spreadsheets.values.get({
         spreadsheetId: req.spreadsheetId!,
         range: headerRange,
         valueRenderOption: 'FORMATTED_VALUE',
       });
+
+      // Use first header row for column names
       const headerValues = headerResponse.data.values?.[0] ?? [];
       const columnCount = Math.max(parsed.endCol - parsed.startCol, headerValues.length);
       columnProperties = Array.from({ length: columnCount }, (_, index) => ({
@@ -875,8 +896,10 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       table: table
         ? {
             tableId: table.tableId ?? '',
+            tableName: req.tableName, // Store for client-side reference
             range: this.toGridRangeOutput(table.range ?? { sheetId }),
             hasHeaders,
+            headerRowCount,
           }
         : undefined,
     });
@@ -922,20 +945,279 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId!,
-      fields: 'sheets.tables,sheets.properties.sheetId',
+      // Request full table metadata including range and column properties
+      fields: 'sheets.tables(tableId,range,columnProperties),sheets.properties.sheetId',
     });
 
     const tables: NonNullable<AdvancedSuccess['tables']> = [];
     for (const sheet of response.data.sheets ?? []) {
       for (const table of sheet.tables ?? []) {
+        const range = table.range;
+        const columnCount = table.columnProperties?.length ?? 0;
+        const rowCount = range ? (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0) : 0;
+
         tables.push({
           tableId: table.tableId ?? '',
-          range: this.toGridRangeOutput(table.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
+          tableName: undefined, // Google API doesn't provide table name yet (April 2025)
+          range: this.toGridRangeOutput(range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
+          columnCount,
+          rowCount,
         });
       }
     }
 
     return this.success('list_tables', { tables });
+  }
+
+  private async handleUpdateTable(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'update_table' }>
+  ): Promise<AdvancedResponse> {
+    if (req.safety?.dryRun) {
+      return this.success('update_table', {}, undefined, true);
+    }
+
+    // Build update request
+    const updates: sheets_v4.Schema$Request[] = [];
+
+    if (req.range) {
+      const rangeA1 = await this.resolveRange(req.spreadsheetId!, req.range);
+      const parsed = parseA1Notation(rangeA1);
+      const sheetId = await this.getSheetId(req.spreadsheetId!, parsed.sheetName, this.sheetsApi);
+      const gridRange: GridRangeInput = {
+        sheetId,
+        startRowIndex: parsed.startRow,
+        endRowIndex: parsed.endRow,
+        startColumnIndex: parsed.startCol,
+        endColumnIndex: parsed.endCol,
+      };
+
+      updates.push({
+        updateTable: {
+          table: {
+            tableId: req.tableId,
+            range: toGridRange(gridRange),
+          },
+          fields: 'range',
+        },
+      });
+    }
+
+    if (updates.length > 0) {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: req.spreadsheetId!,
+        requestBody: { requests: updates },
+      });
+    }
+
+    return this.success('update_table', {});
+  }
+
+  private async handleRenameTableColumn(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'rename_table_column' }>
+  ): Promise<AdvancedResponse> {
+    if (req.safety?.dryRun) {
+      return this.success('rename_table_column', {}, undefined, true);
+    }
+
+    // Get the table to access its column properties
+    const response = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.tables',
+    });
+
+    let targetTable: sheets_v4.Schema$Table | undefined;
+    for (const sheet of response.data.sheets ?? []) {
+      for (const table of sheet.tables ?? []) {
+        if (table.tableId === req.tableId) {
+          targetTable = table;
+          break;
+        }
+      }
+      if (targetTable) break;
+    }
+
+    if (!targetTable) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `Table with ID '${req.tableId}' not found`,
+        category: 'client',
+        retryable: false,
+        details: { tableId: req.tableId },
+      });
+    }
+
+    // Update column properties
+    const columnProperties = targetTable.columnProperties ?? [];
+    if (req.columnIndex >= columnProperties.length) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
+        category: 'client',
+        retryable: false,
+        details: { columnIndex: req.columnIndex, columnCount: columnProperties.length },
+      });
+    }
+
+    // Create updated column properties array
+    const updatedColumnProperties = [...columnProperties];
+    updatedColumnProperties[req.columnIndex] = {
+      ...updatedColumnProperties[req.columnIndex],
+      columnName: req.newName,
+    };
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests: [
+          {
+            updateTable: {
+              table: {
+                tableId: req.tableId,
+                columnProperties: updatedColumnProperties,
+              },
+              fields: 'columnProperties',
+            },
+          },
+        ],
+      },
+    });
+
+    return this.success('rename_table_column', {});
+  }
+
+  private async handleSetTableColumnProperties(
+    req: Extract<SheetsAdvancedInput['request'], { action: 'set_table_column_properties' }>
+  ): Promise<AdvancedResponse> {
+    if (req.safety?.dryRun) {
+      return this.success('set_table_column_properties', {}, undefined, true);
+    }
+
+    // Get the table to access its column properties
+    const response = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: req.spreadsheetId!,
+      fields: 'sheets.tables',
+    });
+
+    let targetTable: sheets_v4.Schema$Table | undefined;
+    for (const sheet of response.data.sheets ?? []) {
+      for (const table of sheet.tables ?? []) {
+        if (table.tableId === req.tableId) {
+          targetTable = table;
+          break;
+        }
+      }
+      if (targetTable) break;
+    }
+
+    if (!targetTable) {
+      return this.error({
+        code: 'NOT_FOUND',
+        message: `Table with ID '${req.tableId}' not found`,
+        category: 'client',
+        retryable: false,
+        details: { tableId: req.tableId },
+      });
+    }
+
+    // Update column properties
+    const columnProperties = targetTable.columnProperties ?? [];
+    if (req.columnIndex >= columnProperties.length) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
+        category: 'client',
+        retryable: false,
+        details: { columnIndex: req.columnIndex, columnCount: columnProperties.length },
+      });
+    }
+
+    // Create updated column properties array
+    const updatedColumnProperties = [...columnProperties];
+    if (req.columnType) {
+      updatedColumnProperties[req.columnIndex] = {
+        ...updatedColumnProperties[req.columnIndex],
+        columnType: req.columnType,
+      };
+    }
+
+    const requests: sheets_v4.Schema$Request[] = [
+      {
+        updateTable: {
+          table: {
+            tableId: req.tableId,
+            columnProperties: updatedColumnProperties,
+          },
+          fields: 'columnProperties',
+        },
+      },
+    ];
+
+    // If column type is DROPDOWN, add data validation
+    if (req.columnType === 'DROPDOWN') {
+      // Compute the column data range from table range
+      const tableRange = targetTable.range;
+      if (!tableRange) {
+        return this.error({
+          code: 'FAILED_PRECONDITION',
+          message: 'Table does not have a valid range',
+          category: 'server',
+          retryable: false,
+          details: { tableId: req.tableId },
+        });
+      }
+
+      // Calculate the column range
+      const startColumnIndex = (tableRange.startColumnIndex ?? 0) + req.columnIndex;
+      const endColumnIndex = startColumnIndex + 1;
+
+      // Build data validation rule
+      const condition: sheets_v4.Schema$BooleanCondition = {
+        type: req.dropdownRange ? 'ONE_OF_RANGE' : 'ONE_OF_LIST',
+      };
+
+      if (req.dropdownRange) {
+        // Range-based dropdown
+        condition.values = [
+          {
+            userEnteredValue: `=${req.dropdownRange}`,
+          },
+        ];
+      } else if (req.dropdownValues) {
+        // Static list dropdown
+        condition.values = req.dropdownValues.map((value) => ({
+          userEnteredValue: value,
+        }));
+      }
+
+      const validationRule: sheets_v4.Schema$DataValidationRule = {
+        condition,
+        showCustomUi: req.dropdownShowDropdown,
+        strict: !req.dropdownAllowCustom,
+      };
+
+      // Add setDataValidation request
+      requests.push({
+        setDataValidation: {
+          range: {
+            sheetId: tableRange.sheetId,
+            startRowIndex: (tableRange.startRowIndex ?? 0) + 1, // Skip header row
+            endRowIndex: tableRange.endRowIndex,
+            startColumnIndex,
+            endColumnIndex,
+          },
+          rule: validationRule,
+        },
+      });
+    }
+
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: req.spreadsheetId!,
+      requestBody: {
+        requests,
+      },
+    });
+
+    return this.success('set_table_column_properties', {});
   }
 
   // ============================================================
@@ -946,9 +1228,10 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_person_chip' }>
   ): Promise<AdvancedResponse> {
     const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
-    const displayText = req.displayFormat === 'FULL' ? req.email : req.email.split('@')[0];
 
-    // Use updateCells with richTextValue to insert a person chip
+    // Build person chip using chipRuns API (June 2025)
+    const cellData = buildPersonChip(req.email, req.displayFormat as PersonChipDisplayFormat);
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -956,28 +1239,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           {
             updateCells: {
               range: toGridRange(gridRange),
-              rows: [
-                {
-                  values: [
-                    {
-                      userEnteredValue: {
-                        stringValue: displayText,
-                      },
-                      textFormatRuns: [
-                        {
-                          startIndex: 0,
-                          format: {
-                            link: {
-                              uri: `mailto:${req.email}`,
-                            },
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-              fields: 'userEnteredValue,textFormatRuns',
+              rows: [{ values: [cellData] }],
+              fields: 'userEnteredValue,chipRuns',
             },
           },
         ],
@@ -997,7 +1260,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         type: 'person' as const,
         cell: cellA1,
         email: req.email,
-        displayText,
+        displayText: cellData.userEnteredValue?.stringValue ?? req.email,
       },
     });
   }
@@ -1005,11 +1268,28 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddDriveChip(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_drive_chip' }>
   ): Promise<AdvancedResponse> {
+    // Validate Drive scope (P3-5: Drive file access required for Drive chips)
+    const hasDriveScope = this.context.auth?.scopes?.includes(
+      'https://www.googleapis.com/auth/drive.file'
+    );
+    if (!hasDriveScope) {
+      return this.error({
+        code: 'INCREMENTAL_SCOPE_REQUIRED',
+        message: 'Drive file access required. Please grant drive.file scope to write Drive chips.',
+        retryable: true,
+        details: {
+          requiredScope: 'https://www.googleapis.com/auth/drive.file',
+          currentScopes: this.context.auth?.scopes ?? [],
+        },
+      });
+    }
+
     const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
-    const displayText = req.displayText ?? `Drive File: ${req.fileId.slice(0, 8)}...`;
+
+    // Build Drive chip using chipRuns API (June 2025)
+    const cellData = buildDriveChip(req.fileId, req.displayText);
     const driveUri = `https://drive.google.com/file/d/${req.fileId}/view`;
 
-    // Use updateCells with richTextValue to insert a drive file chip
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -1017,28 +1297,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           {
             updateCells: {
               range: toGridRange(gridRange),
-              rows: [
-                {
-                  values: [
-                    {
-                      userEnteredValue: {
-                        stringValue: displayText,
-                      },
-                      textFormatRuns: [
-                        {
-                          startIndex: 0,
-                          format: {
-                            link: {
-                              uri: driveUri,
-                            },
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-              fields: 'userEnteredValue,textFormatRuns',
+              rows: [{ values: [cellData] }],
+              fields: 'userEnteredValue,chipRuns',
             },
           },
         ],
@@ -1059,7 +1319,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         cell: cellA1,
         fileId: req.fileId,
         uri: driveUri,
-        displayText,
+        displayText: cellData.userEnteredValue?.stringValue ?? req.fileId,
       },
     });
   }
@@ -1067,10 +1327,28 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddRichLinkChip(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_rich_link_chip' }>
   ): Promise<AdvancedResponse> {
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
-    const displayText = req.displayText ?? new URL(req.uri).hostname;
+    // Validate Drive scope (P3-5: Drive file access required for rich link chips)
+    const hasDriveScope = this.context.auth?.scopes?.includes(
+      'https://www.googleapis.com/auth/drive.file'
+    );
+    if (!hasDriveScope) {
+      return this.error({
+        code: 'INCREMENTAL_SCOPE_REQUIRED',
+        message:
+          'Drive file access required. Please grant drive.file scope to write rich link chips.',
+        retryable: true,
+        details: {
+          requiredScope: 'https://www.googleapis.com/auth/drive.file',
+          currentScopes: this.context.auth?.scopes ?? [],
+        },
+      });
+    }
 
-    // Use updateCells with richTextValue to insert a rich link chip
+    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+
+    // Build rich link chip using chipRuns API (June 2025)
+    const cellData = buildRichLinkChip(req.uri, req.displayText);
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
       requestBody: {
@@ -1078,28 +1356,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           {
             updateCells: {
               range: toGridRange(gridRange),
-              rows: [
-                {
-                  values: [
-                    {
-                      userEnteredValue: {
-                        stringValue: displayText,
-                      },
-                      textFormatRuns: [
-                        {
-                          startIndex: 0,
-                          format: {
-                            link: {
-                              uri: req.uri,
-                            },
-                          },
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-              fields: 'userEnteredValue,textFormatRuns',
+              rows: [{ values: [cellData] }],
+              fields: 'userEnteredValue,chipRuns',
             },
           },
         ],
@@ -1119,7 +1377,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         type: 'rich_link' as const,
         cell: cellA1,
         uri: req.uri,
-        displayText,
+        displayText: cellData.userEnteredValue?.stringValue ?? req.uri,
       },
     });
   }
@@ -1127,11 +1385,20 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleListChips(
     req: Extract<SheetsAdvancedInput['request'], { action: 'list_chips' }>
   ): Promise<AdvancedResponse> {
-    // Get cell data with textFormatRuns to find chips (links)
+    // Validate spreadsheet size before loading grid data
+    const sizeError = await this.validateGridDataSize(
+      req.spreadsheetId!,
+      this.sheetsApi,
+      req.sheetId
+    );
+    if (sizeError) return sizeError as AdvancedResponse;
+
+    // Get cell data with chipRuns using optimized field mask
+    // Note: includeGridData is expensive but required for chipRuns
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId!,
       includeGridData: true,
-      fields: 'sheets.data.rowData.values(userEnteredValue,textFormatRuns)',
+      fields: 'sheets(properties.sheetId,data.rowData.values(chipRuns,formattedValue))',
     });
 
     const chips: Array<{
@@ -1155,40 +1422,33 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           const row = gridData.rowData?.[rowIdx];
           for (let colIdx = 0; colIdx < (row?.values?.length ?? 0); colIdx++) {
             const cell = row?.values?.[colIdx];
-            const runs = cell?.textFormatRuns;
 
-            if (runs && runs.length > 0) {
-              for (const run of runs) {
-                const uri = run.format?.link?.uri;
-                if (!uri) continue;
+            const cellA1 = buildA1Notation(
+              '',
+              startCol + colIdx,
+              startRow + rowIdx,
+              startCol + colIdx + 1,
+              startRow + rowIdx + 1
+            );
 
-                const cellA1 = buildA1Notation(
-                  '',
-                  startCol + colIdx,
-                  startRow + rowIdx,
-                  startCol + colIdx + 1,
-                  startRow + rowIdx + 1
-                );
-                const displayText = cell?.userEnteredValue?.stringValue ?? '';
+            // Parse chip using chipRuns API
+            const parsedChip = parseChipRuns(cell ?? {}, cellA1);
+            if (!parsedChip) continue;
 
-                // Detect chip type from URI
-                if (uri.startsWith('mailto:')) {
-                  const email = uri.replace('mailto:', '');
-                  if (req.chipType === 'all' || req.chipType === 'person') {
-                    chips.push({ type: 'person', cell: cellA1, email, displayText });
-                  }
-                } else if (uri.includes('drive.google.com')) {
-                  const fileIdMatch = uri.match(/\/d\/([^/]+)/);
-                  const fileId = fileIdMatch?.[1];
-                  if (req.chipType === 'all' || req.chipType === 'drive') {
-                    chips.push({ type: 'drive', cell: cellA1, fileId, uri, displayText });
-                  }
-                } else {
-                  if (req.chipType === 'all' || req.chipType === 'rich_link') {
-                    chips.push({ type: 'rich_link', cell: cellA1, uri, displayText });
-                  }
+            // Filter by type
+            if (req.chipType !== 'all' && parsedChip.type !== req.chipType) continue;
+
+            // Only include person, drive, and rich_link chips (exclude unknown)
+            if (
+              parsedChip.type === 'person' ||
+              parsedChip.type === 'drive' ||
+              parsedChip.type === 'rich_link'
+            ) {
+              chips.push(
+                parsedChip as typeof parsedChip & {
+                  type: 'person' | 'drive' | 'rich_link';
                 }
-              }
+              );
             }
           }
         }

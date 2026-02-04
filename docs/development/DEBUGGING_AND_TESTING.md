@@ -1,3 +1,12 @@
+---
+title: Debugging and Testing ServalSheets
+category: development
+last_updated: 2026-01-31
+description: This document describes tools and techniques for debugging and testing the ServalSheets MCP server.
+version: 1.6.0
+tags: [testing, sheets]
+---
+
 # Debugging and Testing ServalSheets
 
 This document describes tools and techniques for debugging and testing the ServalSheets MCP server.
@@ -27,16 +36,19 @@ npx @modelcontextprotocol/inspector
 ### Usage with ServalSheets
 
 1. **Build the server first:**
+
    ```bash
    npm run build
    ```
 
 2. **Launch MCP Inspector:**
+
    ```bash
    npx @modelcontextprotocol/inspector inspector.json
    ```
 
 3. **Or specify the server directly:**
+
    ```bash
    npx @modelcontextprotocol/inspector
    # Then connect to: node dist/index.js
@@ -79,6 +91,7 @@ curl http://localhost:3000/health/live
 ```
 
 **Returns:**
+
 ```json
 {
   "status": "healthy",
@@ -110,6 +123,7 @@ curl http://localhost:3000/health/ready
 ```
 
 **Returns:**
+
 ```json
 {
   "status": "healthy",
@@ -150,6 +164,7 @@ curl http://localhost:3000/health/ready
 ```
 
 **Status Codes:**
+
 - `200`: Healthy or degraded (can serve requests)
 - `503`: Unhealthy (not ready for traffic)
 
@@ -165,6 +180,7 @@ resource://cache://stats
 ```
 
 **Provides:**
+
 - Total cache entries and size
 - Hit rate and miss rate
 - Namespace breakdown
@@ -177,6 +193,7 @@ resource://cache://deduplication
 ```
 
 **Provides:**
+
 - Total requests vs actual API calls
 - Deduplication rate and savings
 - Result cache hit rate
@@ -189,6 +206,7 @@ resource://metrics://performance
 ```
 
 **Provides:**
+
 - Operation counts and latencies
 - Circuit breaker status
 - Rate limit tracking
@@ -201,6 +219,7 @@ resource://conflict://active
 ```
 
 **Provides:**
+
 - Currently detected conflicts
 - Conflict severity and resolution status
 - Affected operations
@@ -296,10 +315,10 @@ Monitor circuit breaker status via performance metrics resource or logs:
 // Check circuit breaker stats in code
 const stats = circuitBreaker.getStats();
 console.log({
-  state: stats.state,              // 'closed' | 'open' | 'half_open'
+  state: stats.state, // 'closed' | 'open' | 'half_open'
   failureCount: stats.failureCount,
   fallbackUsageCount: stats.fallbackUsageCount,
-  registeredFallbacks: stats.registeredFallbacks
+  registeredFallbacks: stats.registeredFallbacks,
 });
 ```
 
@@ -363,6 +382,7 @@ resource://cache://stats | jq '.stats.totalSizeFormatted'
 For production environments:
 
 1. **Enable structured logging:**
+
    ```bash
    export LOG_FORMAT=json
    export LOG_LEVEL=info
@@ -385,14 +405,14 @@ For production environments:
 
 ## Troubleshooting Guide
 
-| Issue | Diagnostic | Solution |
-|-------|-----------|----------|
-| Server won't start | Check `LOG_LEVEL=debug` output | Verify credentials, dependencies |
-| Authentication fails | `curl /health/ready` check auth | Verify GOOGLE_APPLICATION_CREDENTIALS |
-| High latency | Check `resource://metrics://performance` | Enable caching, review circuit breaker |
-| Low cache hit rate | Check `resource://cache://stats` | Increase TTL, review cache strategy |
-| Circuit breaker opens | Check logs for repeated failures | Investigate API errors, rate limits |
-| Memory issues | Check `/health/live` memory usage | Reduce cache size, check for leaks |
+| Issue                 | Diagnostic                               | Solution                               |
+| --------------------- | ---------------------------------------- | -------------------------------------- |
+| Server won't start    | Check `LOG_LEVEL=debug` output           | Verify credentials, dependencies       |
+| Authentication fails  | `curl /health/ready` check auth          | Verify GOOGLE_APPLICATION_CREDENTIALS  |
+| High latency          | Check `resource://metrics://performance` | Enable caching, review circuit breaker |
+| Low cache hit rate    | Check `resource://cache://stats`         | Increase TTL, review cache strategy    |
+| Circuit breaker opens | Check logs for repeated failures         | Investigate API errors, rate limits    |
+| Memory issues         | Check `/health/live` memory usage        | Reduce cache size, check for leaks     |
 
 ## Further Resources
 

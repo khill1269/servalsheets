@@ -1,3 +1,12 @@
+---
+title: Implementation Guardrails for Tier 7 Enterprise Tools
+category: development
+last_updated: 2026-01-31
+description: 'Purpose: Strict checklist to prevent coding errors and debugging cycles.'
+version: 1.6.0
+tags: [sheets]
+---
+
 # Implementation Guardrails for Tier 7 Enterprise Tools
 
 **Purpose:** Strict checklist to prevent coding errors and debugging cycles.
@@ -142,18 +151,18 @@ export type {ToolName}Action1Input = Sheets{ToolName}Input['request'] & {
 
 ### 1.3 Naming Conventions
 
-| Element | Pattern | Example |
-|---------|---------|---------|
-| Action schema | `{Action}ActionSchema` | `QueryActionSchema` |
-| Request union | `{ToolName}RequestSchema` | `BigQueryRequestSchema` |
-| Input schema | `Sheets{ToolName}InputSchema` | `SheetsBigQueryInputSchema` |
-| Output schema | `Sheets{ToolName}OutputSchema` | `SheetsBigQueryOutputSchema` |
-| Response union | `{ToolName}ResponseSchema` | `BigQueryResponseSchema` |
-| Annotations | `SHEETS_{TOOLNAME}_ANNOTATIONS` | `SHEETS_BIGQUERY_ANNOTATIONS` |
-| Input type | `Sheets{ToolName}Input` | `SheetsBigQueryInput` |
-| Output type | `Sheets{ToolName}Output` | `SheetsBigQueryOutput` |
-| Response type | `{ToolName}Response` | `BigQueryResponse` |
-| Request type | `{ToolName}Request` | `BigQueryRequest` |
+| Element        | Pattern                         | Example                       |
+| -------------- | ------------------------------- | ----------------------------- |
+| Action schema  | `{Action}ActionSchema`          | `QueryActionSchema`           |
+| Request union  | `{ToolName}RequestSchema`       | `BigQueryRequestSchema`       |
+| Input schema   | `Sheets{ToolName}InputSchema`   | `SheetsBigQueryInputSchema`   |
+| Output schema  | `Sheets{ToolName}OutputSchema`  | `SheetsBigQueryOutputSchema`  |
+| Response union | `{ToolName}ResponseSchema`      | `BigQueryResponseSchema`      |
+| Annotations    | `SHEETS_{TOOLNAME}_ANNOTATIONS` | `SHEETS_BIGQUERY_ANNOTATIONS` |
+| Input type     | `Sheets{ToolName}Input`         | `SheetsBigQueryInput`         |
+| Output type    | `Sheets{ToolName}Output`        | `SheetsBigQueryOutput`        |
+| Response type  | `{ToolName}Response`            | `BigQueryResponse`            |
+| Request type   | `{ToolName}Request`             | `BigQueryRequest`             |
 
 ---
 
@@ -292,14 +301,14 @@ export class Sheets{ToolName}Handler extends BaseHandler<
 
 ### 2.3 Common Handler Mistakes to Avoid
 
-| Mistake | Correct Pattern |
-|---------|-----------------|
-| `return response` | `return { response }` |
-| `super('bigquery', ...)` | `super('sheets_bigquery', ...)` |
-| `import from '../schemas/bigquery.js'` | `import from '../schemas/index.js'` |
-| `this.success({ data })` | `this.success('action_name', { data })` |
-| Missing `unwrapRequest()` | Always unwrap input first |
-| Missing action in switch | All schema actions must be handled |
+| Mistake                                | Correct Pattern                         |
+| -------------------------------------- | --------------------------------------- |
+| `return response`                      | `return { response }`                   |
+| `super('bigquery', ...)`               | `super('sheets_bigquery', ...)`         |
+| `import from '../schemas/bigquery.js'` | `import from '../schemas/index.js'`     |
+| `this.success({ data })`               | `this.success('action_name', { data })` |
+| Missing `unwrapRequest()`              | Always unwrap input first               |
+| Missing action in switch               | All schema actions must be handled      |
 
 ---
 
@@ -574,15 +583,15 @@ For each new tool, create/modify these files in order:
 
 ## Common Errors and Fixes
 
-| Error Message | Likely Cause | Fix |
-|---------------|--------------|-----|
-| `Cannot find module './shared'` | Missing .js extension | Use `'./shared.js'` |
-| `'X' is not exported from...` | Wrong export name | Check exact naming in source |
-| `Property 'action' does not exist` | Missing unwrapRequest | Add `unwrapRequest()` call |
-| `Type 'X' is not assignable` | Return type mismatch | Check schema output matches handler return |
-| `Unknown action: X` | Action not in switch | Add case for every action |
-| `INVALID_PARAMS` at runtime | Discriminated union mismatch | Check `z.literal()` matches exactly |
-| Tests fail with "request" | Old test format | Tests must use `{ request: {...} }` wrapper |
+| Error Message                      | Likely Cause                 | Fix                                         |
+| ---------------------------------- | ---------------------------- | ------------------------------------------- |
+| `Cannot find module './shared'`    | Missing .js extension        | Use `'./shared.js'`                         |
+| `'X' is not exported from...`      | Wrong export name            | Check exact naming in source                |
+| `Property 'action' does not exist` | Missing unwrapRequest        | Add `unwrapRequest()` call                  |
+| `Type 'X' is not assignable`       | Return type mismatch         | Check schema output matches handler return  |
+| `Unknown action: X`                | Action not in switch         | Add case for every action                   |
+| `INVALID_PARAMS` at runtime        | Discriminated union mismatch | Check `z.literal()` matches exactly         |
+| Tests fail with "request"          | Old test format              | Tests must use `{ request: {...} }` wrapper |
 
 ---
 
@@ -641,6 +650,7 @@ frozenRowCount: sheet.properties?.gridProperties?.frozenRowCount ?? undefined,
 **Problem:** New tool handlers don't work because they're not registered in fast-handler-map.ts.
 
 **Fix:** After creating the handler, add an entry to:
+
 - `src/mcp/registration/fast-handler-map.ts` - Handler dispatch map
 - `src/schemas/fast-validators.ts` - Fast validator function
 
@@ -663,6 +673,7 @@ sheets_{toolname}: async (args) => {
 **Problem:** Creating utility methods that already exist in BaseHandler causes TypeScript errors.
 
 **Fix:** Before implementing helper methods, check BaseHandler for existing utilities:
+
 - `letterToColumn(letter)` - Convert column letter to index
 - `columnToLetter(column)` - Convert index to column letter
 - `success(action, data)` - Create success response
@@ -676,6 +687,7 @@ sheets_{toolname}: async (args) => {
 **Problem:** Code passes linting but fails formatting check.
 
 **Fix:** After creating new files, run:
+
 ```bash
 npx prettier --write src/handlers/{toolname}.ts src/schemas/{toolname}.ts src/services/{service}.ts
 ```
@@ -687,9 +699,10 @@ npx prettier --write src/handlers/{toolname}.ts src/schemas/{toolname}.ts src/se
 **Problem:** `npm run gen:metadata` reports success but TOOL_COUNT/ACTION_COUNT not updated in index.ts.
 
 **Fix:** Manually verify and update the constants in `src/schemas/index.ts`:
+
 ```typescript
 // Verify these match actual counts
-export const TOOL_COUNT = X;  // Must match number of tools
+export const TOOL_COUNT = X; // Must match number of tools
 export const ACTION_COUNT = Y; // Must match sum of all actions
 ```
 
@@ -700,6 +713,7 @@ export const ACTION_COUNT = Y; // Must match sum of all actions
 **Problem:** Contract tests expect old tool/action counts after adding new tool.
 
 **Fix:** Update these test files after adding a new tool:
+
 1. `tests/contracts/schema-contracts.test.ts` - Update TOOL_SCHEMAS array and expected counts
 2. `tests/schemas/fast-validators.test.ts` - Update "should have validator for all N tools" test
 
@@ -710,6 +724,7 @@ export const ACTION_COUNT = Y; // Must match sum of all actions
 **Problem:** Handler instantiation fails because factory doesn't know about new handler.
 
 **Fix:** Add to `src/handlers/index.ts`:
+
 1. Export type: `export type { Sheets{ToolName}Handler } from './{toolname}.js';`
 2. Add to Handlers interface
 3. Add loader function in `createHandlers()`
@@ -721,31 +736,21 @@ export const ACTION_COUNT = Y; // Must match sum of all actions
 For each new tool, create/modify these files IN THIS EXACT ORDER:
 
 **Phase A: Schema (must be first)**
+
 1. [ ] `src/schemas/{toolname}.ts` - Schema file
 2. [ ] `src/schemas/index.ts` - Add export and TOOL_REGISTRY entry
 3. [ ] `src/schemas/descriptions.ts` - Add TOOL_DESCRIPTIONS entry
 4. [ ] `src/mcp/completions.ts` - Add TOOL_ACTIONS entry
 
-**Phase B: Fast Validators**
-5. [ ] `src/schemas/fast-validators.ts` - Add ACTIONS set and validator function
+**Phase B: Fast Validators** 5. [ ] `src/schemas/fast-validators.ts` - Add ACTIONS set and validator function
 
-**Phase C: Handler**
-6. [ ] `src/handlers/{toolname}.ts` - Handler file (use BaseHandler utilities)
-7. [ ] `src/handlers/index.ts` - Add export AND Handlers interface AND createHandlers loader
+**Phase C: Handler** 6. [ ] `src/handlers/{toolname}.ts` - Handler file (use BaseHandler utilities) 7. [ ] `src/handlers/index.ts` - Add export AND Handlers interface AND createHandlers loader
 
-**Phase D: Registration**
-8. [ ] `src/mcp/registration/tool-definitions.ts` - Add tool definition
-9. [ ] `src/mcp/registration/fast-handler-map.ts` - Add handler dispatch entry
+**Phase D: Registration** 8. [ ] `src/mcp/registration/tool-definitions.ts` - Add tool definition 9. [ ] `src/mcp/registration/fast-handler-map.ts` - Add handler dispatch entry
 
-**Phase E: Tests**
-10. [ ] `tests/contracts/schema-contracts.test.ts` - Add to VALID_INPUTS, TOOL_SCHEMAS, update counts
-11. [ ] `tests/schemas/fast-validators.test.ts` - Add tool to registry test
+**Phase E: Tests** 10. [ ] `tests/contracts/schema-contracts.test.ts` - Add to VALID_INPUTS, TOOL_SCHEMAS, update counts 11. [ ] `tests/schemas/fast-validators.test.ts` - Add tool to registry test
 
-**Phase F: Metadata & Verification**
-12. [ ] Run `npm run gen:metadata`
-13. [ ] Manually verify `src/schemas/index.ts` TOOL_COUNT and ACTION_COUNT are correct
-14. [ ] Run `npx prettier --write` on all new files
-15. [ ] Run `npm run verify`
+**Phase F: Metadata & Verification** 12. [ ] Run `npm run gen:metadata` 13. [ ] Manually verify `src/schemas/index.ts` TOOL_COUNT and ACTION_COUNT are correct 14. [ ] Run `npx prettier --write` on all new files 15. [ ] Run `npm run verify`
 
 ---
 

@@ -93,8 +93,10 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'set_active',
             spreadsheet: context,
+            summary: session.getContextSummary(),
             ...(title === undefined && {
-              note: 'Title was auto-generated from spreadsheetId. Provide title for better natural language references.',
+              message:
+                'Title was auto-generated from spreadsheetId. Provide title for better natural language references.',
             }),
           },
         };
@@ -107,6 +109,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             action: 'get_active',
             spreadsheet: session.getActiveSpreadsheet(),
             recentSpreadsheets: session.getRecentSpreadsheets(),
+            summary: session.getContextSummary(),
           },
         };
       }
@@ -314,7 +317,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           preferences: session.getPreferences() as unknown as Record<string, unknown>,
         };
 
-        const filepath = saveCheckpoint(checkpoint);
+        const filepath = await saveCheckpoint(checkpoint);
 
         return {
           response: {
@@ -350,8 +353,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
 
         const { sessionId, timestamp } = req;
         const checkpoint = timestamp
-          ? loadCheckpointByTimestamp(sessionId!, timestamp)
-          : loadCheckpoint(sessionId!);
+          ? await loadCheckpointByTimestamp(sessionId!, timestamp)
+          : await loadCheckpoint(sessionId!);
 
         if (!checkpoint) {
           return {
@@ -407,7 +410,9 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         }
 
         const { sessionId } = req;
-        const checkpoints = sessionId ? listCheckpointsForSession(sessionId) : listAllCheckpoints();
+        const checkpoints = sessionId
+          ? await listCheckpointsForSession(sessionId)
+          : await listAllCheckpoints();
 
         return {
           response: {
@@ -433,7 +438,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
         }
 
         const { sessionId, timestamp } = req;
-        const deleted = deleteCheckpoint(sessionId!, timestamp);
+        const deleted = await deleteCheckpoint(sessionId!, timestamp);
 
         return {
           response: {
@@ -454,6 +459,124 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'reset',
             message: 'Session context cleared. Ready for a fresh start!',
+          },
+        };
+      }
+
+      case 'get_alerts': {
+        const { onlyUnacknowledged, severity } = req;
+
+        const alerts = session.getAlerts({
+          onlyUnacknowledged: onlyUnacknowledged ?? true,
+          severity,
+        });
+
+        return {
+          response: {
+            success: true,
+            action: 'get_alerts' as const,
+            alerts,
+            count: alerts.length,
+            hasCritical: alerts.some((a) => a.severity === 'critical'),
+          },
+        };
+      }
+
+      case 'acknowledge_alert': {
+        const { alertId } = req;
+        const acknowledged = session.acknowledgeAlert(alertId!);
+        if (!acknowledged) {
+          throw new ValidationError(`Alert not found: ${alertId}`, 'alertId');
+        }
+        return {
+          response: {
+            success: true,
+            action: 'acknowledge_alert' as const,
+            alertId: alertId!,
+            message: 'Alert acknowledged',
+          },
+        };
+      }
+
+      case 'clear_alerts': {
+        session.clearAlerts();
+        return {
+          response: {
+            success: true,
+            action: 'clear_alerts' as const,
+            message: 'All alerts cleared',
+          },
+        };
+      }
+
+      case 'set_user_id': {
+        const { userId } = req as { userId: string };
+        await session.setUserId(userId);
+        return {
+          response: {
+            success: true,
+            action: 'set_user_id' as const,
+            userId,
+            message: 'User profile loaded',
+          },
+        };
+      }
+
+      case 'get_profile': {
+        const profile = await session.getUserProfile();
+        return {
+          response: {
+            success: true,
+            action: 'get_profile' as const,
+            profile,
+          },
+        };
+      }
+
+      case 'update_profile_preferences': {
+        const { preferences } = req as { preferences: Record<string, unknown> };
+        await session.updateUserPreferences(preferences);
+        return {
+          response: {
+            success: true,
+            action: 'update_profile_preferences' as const,
+            message: 'Preferences updated',
+          },
+        };
+      }
+
+      case 'record_successful_formula': {
+        const { formula, useCase } = req as { formula: string; useCase: string };
+        await session.recordSuccessfulFormula(formula, useCase);
+        return {
+          response: {
+            success: true,
+            action: 'record_successful_formula' as const,
+            message: 'Formula recorded',
+          },
+        };
+      }
+
+      case 'reject_suggestion': {
+        const { suggestion } = req as { suggestion: string };
+        await session.rejectSuggestion(suggestion);
+        return {
+          response: {
+            success: true,
+            action: 'reject_suggestion' as const,
+            message: 'Suggestion rejected and recorded',
+          },
+        };
+      }
+
+      case 'get_top_formulas': {
+        const { limit } = req as { limit?: number };
+        const formulas = await session.getTopFormulas(limit);
+        return {
+          response: {
+            success: true,
+            action: 'get_top_formulas' as const,
+            formulas,
           },
         };
       }

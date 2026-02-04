@@ -24,7 +24,7 @@ AI-powered Google Sheets assistant that runs inside Google Sheets, powered by th
     ┌──────────▼──────────────────────┐
     │  ServalSheets MCP Server        │
     │  (localhost:3000 or production) │
-    │  - 21 tools, 272 actions        │
+    │  - 21 tools, 293 actions        │
     │  - Billing integration          │
     └─────────────────────────────────┘
 ```
@@ -44,6 +44,7 @@ AI-powered Google Sheets assistant that runs inside Google Sheets, powered by th
 1. **Google Account** - For Apps Script development
 2. **Node.js 18+** - For running ServalSheets server
 3. **clasp** - Google's CLI for Apps Script
+
    ```bash
    npm install -g @google/clasp
    ```
@@ -202,7 +203,7 @@ The add-on exposes these MCP tools:
 | sheets_format    | set_format, set_background, set_borders          | "Format as currency" |
 | sheets_core      | get, list_sheets, add_sheet                      | "List all sheets"    |
 
-Full tool list: 21 tools with 272 actions (see [../README.md](../README.md))
+Full tool list: 21 tools with 293 actions (see [../README.md](../README.md))
 
 ## Development Workflow
 
@@ -270,6 +271,7 @@ npm run start:http
 
 1. Check firewall settings
 2. Try using ngrok to expose localhost:
+
    ```bash
    ngrok http 3000
    # Use the ngrok URL in Code.gs
@@ -320,6 +322,7 @@ clasp push --force
    - Submit for review (7-14 days)
 
 4. **Update Production URL**:
+
    ```javascript
    // In Code.gs, change:
    API_URL: 'https://api.servalsheets.com';

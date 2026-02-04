@@ -1,9 +1,20 @@
+---
+title: 'Agent 1: Core Functional Analysis (Categories 1-21)'
+category: general
+last_updated: 2026-01-31
+description: Analyze ServalSheets' core functional features, API compliance, and foundational technical architecture.
+version: 1.6.0
+tags: [sheets]
+---
+
 # Agent 1: Core Functional Analysis (Categories 1-21)
 
 ## Mission
+
 Analyze ServalSheets' core functional features, API compliance, and foundational technical architecture.
 
 ## Scope
+
 **Categories:** 1-21
 **Expected Time:** 15-20 minutes
 **Output:** `analysis-output/category-reports/agent1-functional.md`
@@ -11,6 +22,7 @@ Analyze ServalSheets' core functional features, API compliance, and foundational
 ## Categories to Analyze
 
 ### Part 1: Functional Features (1-12)
+
 1. Authentication & Authorization
 2. Core Data Operations (Values & Cells)
 3. Formatting & Styling
@@ -25,12 +37,14 @@ Analyze ServalSheets' core functional features, API compliance, and foundational
 12. Security & Oversight
 
 ### Part 2: API & Protocol (13-16)
+
 13. MCP 2025-11-25 Specification Compliance
 14. Google Sheets API v4 Coverage
 15. Google Drive API v3 Integration
 16. Google BigQuery / Connected Sheets Integration
 
 ### Part 3: Technical Foundation (17-21)
+
 17. Zod Schema Architecture
 18. TypeScript Excellence
 19. Node.js Best Practices
@@ -38,6 +52,7 @@ Analyze ServalSheets' core functional features, API compliance, and foundational
 21. MCP Tool Registration
 
 ## Evidence Files to Review
+
 ```
 analysis-output/evidence/package.json
 analysis-output/evidence/deps.json
@@ -47,6 +62,7 @@ analysis-output/evidence/typecheck.log
 ```
 
 ## Key Files to Analyze
+
 ```
 src/handlers/*.ts (all 21+ handler files)
 src/schemas/*.ts (all 25+ schema files)
@@ -78,55 +94,65 @@ For each category:
    - Documentation (clarity and accuracy)
 
 3. **Document:**
+
    ```markdown
    ## Category N: [Name]
 
    **Score:** X/10
 
    ### Evidence
+
    - [File references with line numbers]
    - [Test results]
    - [Command outputs]
 
    ### Strengths
+
    - What's implemented well
 
    ### Gaps
+
    - What's missing or needs improvement
 
    ### Issues
+
    - **[ISSUE-ID]** (P0/P1/P2/P3): Description
    ```
 
 ## Specific Focus Areas
 
 ### Authentication (Category 1)
+
 - Verify OAuth 2.1 with PKCE implementation
 - Check token encryption (AES-256-GCM)
 - Validate 4 auth actions: status, login, callback, logout
 - Files: `src/handlers/auth.ts`, `src/services/token-manager.ts`
 
 ### Core Data Operations (Category 2)
+
 - Count actual actions in sheets_data tool
 - Verify batching system implementation
 - Check cache TTL and invalidation
 - Files: `src/handlers/values.ts`, `src/services/batching-system.ts`
 
 ### MCP 2025-11-25 Compliance (Category 13)
+
 - Verify SDK version (target: 1.3.0+)
 - Check all 5 primitives: tools, resources, prompts, completions, logging
 - Verify SEP-1686 (Tasks), SEP-1036 (Elicitation), SEP-1577 (Sampling)
 - Files: `src/mcp/features-2025-11-25.ts`, `package.json`
 
 ### Google Sheets API v4 Coverage (Category 14)
+
 - Count supported batchUpdate request types
 - Verify batch operations (batchGet, batchUpdate)
 - Check field mask usage
 - Files: `src/services/google-api.ts`, all handlers
 
 ### Tool Registration (Category 21)
+
 - Count registered tools (target: 27)
-- Verify action counts (target: 272)
+- Verify action counts (target: 291)
 - Check annotations on all tools
 - Files: `src/mcp/registration.ts`, `server.json`
 
@@ -167,10 +193,10 @@ Use this structure:
 
 ## Category Scores
 
-| Category | Score | Status | Key Gap |
-|----------|-------|--------|---------|
-| 1. Authentication | X/10 | ✅/⚠️/❌ | ... |
-| ... | ... | ... | ... |
+| Category          | Score | Status   | Key Gap |
+| ----------------- | ----- | -------- | ------- |
+| 1. Authentication | X/10  | ✅/⚠️/❌ | ...     |
+| ...               | ...   | ...      | ...     |
 
 ---
 
@@ -191,7 +217,7 @@ Use this structure:
 
 1. **FUNC-001** (P0): ...
 2. **SEC-001** (P0): ...
-...
+   ...
 
 ---
 

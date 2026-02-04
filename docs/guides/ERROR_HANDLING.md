@@ -1,10 +1,23 @@
+---
+title: Error Handling Guide
+category: guide
+last_updated: 2026-01-31
+description: Comprehensive guide to error handling patterns and best practices in ServalSheets.
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # Error Handling Guide
 
 Comprehensive guide to error handling patterns and best practices in ServalSheets.
 
+> **Quick Reference:** For a condensed AI agent-focused error recovery guide, see [Error Recovery Guide](error-recovery.md).
+
 ## Overview
 
 Proper error handling is critical for production deployments. This guide covers:
+
 - Error types and classifications
 - Structured error responses
 - Recovery strategies
@@ -16,23 +29,27 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Error Severity Levels
 
 **CRITICAL**: System cannot function, immediate action required
+
 - Authentication failures blocking all operations
 - Database connection failures
 - Configuration errors preventing startup
 
 **ERROR**: Operation failed, requires attention
+
 - API request failures
 - Permission denied errors
 - Invalid input data
 - Resource not found
 
 **WARNING**: Operation completed with issues
+
 - Rate limit approaching
 - Deprecated API usage
 - Performance degradation
 - Partial failures in batch operations
 
 **INFO**: Informational messages
+
 - Successful operations
 - State changes
 - Configuration updates
@@ -42,6 +59,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Authentication Errors
 
 **TOKEN_EXPIRED**
+
 ```json
 {
   "error": {
@@ -56,6 +74,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Automatically refresh using refresh token
 
 **INVALID_CREDENTIALS**
+
 ```json
 {
   "error": {
@@ -72,6 +91,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Permission Errors
 
 **PERMISSION_DENIED**
+
 ```json
 {
   "error": {
@@ -86,6 +106,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Request additional OAuth scopes
 
 **PROTECTED_RANGE**
+
 ```json
 {
   "error": {
@@ -102,6 +123,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Rate Limit Errors
 
 **RATE_LIMIT_EXCEEDED**
+
 ```json
 {
   "error": {
@@ -117,6 +139,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Implement exponential backoff, wait retryAfter seconds
 
 **QUOTA_EXCEEDED**
+
 ```json
 {
   "error": {
@@ -134,6 +157,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Validation Errors
 
 **INVALID_RANGE**
+
 ```json
 {
   "error": {
@@ -149,6 +173,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Fix range notation
 
 **INVALID_INPUT**
+
 ```json
 {
   "error": {
@@ -166,6 +191,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Resource Errors
 
 **SPREADSHEET_NOT_FOUND**
+
 ```json
 {
   "error": {
@@ -180,6 +206,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Verify spreadsheet ID and permissions
 
 **SHEET_NOT_FOUND**
+
 ```json
 {
   "error": {
@@ -197,6 +224,7 @@ Proper error handling is critical for production deployments. This guide covers:
 ### Network Errors
 
 **NETWORK_ERROR**
+
 ```json
 {
   "error": {
@@ -211,6 +239,7 @@ Proper error handling is critical for production deployments. This guide covers:
 **Recovery**: Retry with exponential backoff
 
 **TIMEOUT**
+
 ```json
 {
   "error": {
@@ -295,6 +324,7 @@ async function retryWithBackoff<T>(
 ```
 
 **Use for**:
+
 - Network errors
 - Rate limit errors (with retryAfter)
 - Temporary server errors (5xx)
@@ -321,13 +351,14 @@ async function batchRead(ranges: string[]) {
   return {
     results,
     errors,
-    successCount: results.filter(r => r.success).length,
-    totalCount: ranges.length
+    successCount: results.filter((r) => r.success).length,
+    totalCount: ranges.length,
   };
 }
 ```
 
 **Use for**:
+
 - Batch operations
 - Non-critical data fetching
 - Progressive enhancement
@@ -383,6 +414,7 @@ class CircuitBreaker {
 ```
 
 **Use for**:
+
 - External API calls
 - Database operations
 - Rate-limited services
@@ -398,19 +430,19 @@ logger.error('Operation failed', {
   error: {
     code: error.code,
     message: error.message,
-    stack: error.stack
+    stack: error.stack,
   },
   context: {
     operation: 'read',
     spreadsheetId: '1abc...xyz',
     range: 'Sheet1!A1:B10',
-    user: 'user@example.com'
+    user: 'user@example.com',
   },
   metadata: {
     requestId: 'req-12345',
     timestamp: new Date().toISOString(),
-    environment: 'production'
-  }
+    environment: 'production',
+  },
 });
 ```
 
@@ -422,17 +454,18 @@ Track error rates and types:
 metrics.increment('errors.total', {
   error_code: error.code,
   severity: error.severity,
-  retryable: String(error.retryable)
+  retryable: String(error.retryable),
 });
 
 metrics.gauge('errors.rate', errorRate, {
-  window: '5m'
+  window: '5m',
 });
 ```
 
 ### Alerting Thresholds
 
 Configure alerts for:
+
 - Error rate > 5% of requests
 - Critical errors occur
 - Rate limit exceeded repeatedly
@@ -450,7 +483,7 @@ try {
 } catch (error) {
   logger.error('Read operation failed', {
     error,
-    context: { spreadsheetId, range }
+    context: { spreadsheetId, range },
   });
 
   if (isRetryable(error)) {
@@ -462,8 +495,8 @@ try {
     error: {
       code: error.code,
       message: error.message,
-      retryable: false
-    }
+      retryable: false,
+    },
   };
 }
 ```
@@ -473,10 +506,7 @@ try {
 Isolate failures to prevent propagation:
 
 ```typescript
-async function safeExecute<T>(
-  operation: () => Promise<T>,
-  fallback: T
-): Promise<T> {
+async function safeExecute<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
   try {
     return await operation();
   } catch (error) {
@@ -506,7 +536,7 @@ function validateInput(data: unknown): void {
 
   // Validate rectangular array
   const width = data[0].length;
-  if (!data.every(row => row.length === width)) {
+  if (!data.every((row) => row.length === width)) {
     throw new ValidationError('Data must be rectangular');
   }
 }
@@ -546,9 +576,10 @@ function validateInput(data: unknown): void {
 describe('Error handling', () => {
   it('should retry on rate limit', async () => {
     const mockApi = {
-      read: jest.fn()
+      read: jest
+        .fn()
         .mockRejectedValueOnce(new RateLimitError())
-        .mockResolvedValueOnce({ data: [] })
+        .mockResolvedValueOnce({ data: [] }),
     };
 
     const result = await retryWithBackoff(() => mockApi.read());
@@ -558,12 +589,10 @@ describe('Error handling', () => {
 
   it('should not retry non-retryable errors', async () => {
     const mockApi = {
-      read: jest.fn()
-        .mockRejectedValue(new PermissionDeniedError())
+      read: jest.fn().mockRejectedValue(new PermissionDeniedError()),
     };
 
-    await expect(retryWithBackoff(() => mockApi.read()))
-      .rejects.toThrow(PermissionDeniedError);
+    await expect(retryWithBackoff(() => mockApi.read())).rejects.toThrow(PermissionDeniedError);
     expect(mockApi.read).toHaveBeenCalledTimes(1);
   });
 });

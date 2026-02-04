@@ -20,6 +20,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 import type { WebhookEventType } from '../schemas/webhook.js';
+import { updateWebhookQueueDepth } from '../observability/metrics.js';
 
 // Use any for Redis client to avoid type conflicts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +102,9 @@ export class WebhookQueue {
       // Add to pending queue
       await this.redis.rPush('webhook:queue:pending', JSON.stringify(fullJob));
 
+      // Update queue depth metrics
+      await this.updateQueueMetrics();
+
       logger.debug('Webhook delivery enqueued', {
         deliveryId,
         webhookId: job.webhookId,
@@ -140,6 +144,9 @@ export class WebhookQueue {
       }
 
       const job: WebhookDeliveryJob = JSON.parse(result.element as string);
+
+      // Update queue depth metrics
+      await this.updateQueueMetrics();
 
       logger.debug('Webhook delivery dequeued', {
         deliveryId: job.deliveryId,
@@ -235,6 +242,9 @@ export class WebhookQueue {
           })
         );
 
+        // Update queue depth metrics
+        await this.updateQueueMetrics();
+
         logger.warn('Webhook delivery moved to DLQ after max attempts', {
           deliveryId: job.deliveryId,
           webhookId: job.webhookId,
@@ -257,6 +267,9 @@ export class WebhookQueue {
 
         // Set TTL on retry queue (2x the retry delay to handle clock skew)
         await this.redis.expire(retryKey, Math.ceil((retryDelay * 2) / 1000));
+
+        // Update queue depth metrics
+        await this.updateQueueMetrics();
 
         logger.info('Webhook delivery scheduled for retry', {
           deliveryId: job.deliveryId,
@@ -309,6 +322,34 @@ export class WebhookQueue {
     } catch (error) {
       logger.error('Failed to get queue stats', { error });
       return { pendingCount: 0, retryCount: 0, dlqCount: 0 };
+    }
+  }
+
+  /**
+   * Update queue depth metrics
+   */
+  private async updateQueueMetrics(): Promise<void> {
+    if (!this.redis) {
+      return;
+    }
+
+    try {
+      const pendingCount = (await this.redis.lLen('webhook:queue:pending')) as number;
+      const dlqCount = (await this.redis.lLen('webhook:queue:dlq')) as number;
+
+      // Count retry queue entries
+      const retryKeys = await this.redis.keys('webhook:queue:retry:*');
+      let retryCount = 0;
+      for (const key of retryKeys as string[]) {
+        const count = await this.redis.lLen(key);
+        retryCount += count as number;
+      }
+
+      updateWebhookQueueDepth('pending', pendingCount);
+      updateWebhookQueueDepth('retry', retryCount);
+      updateWebhookQueueDepth('dlq', dlqCount);
+    } catch (error) {
+      logger.error('Failed to update queue metrics', { error });
     }
   }
 

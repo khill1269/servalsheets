@@ -1,3 +1,13 @@
+---
+title: Backup and Restore Procedures
+category: runbook
+last_updated: 2026-01-31
+description: ServalSheets backup and restore procedures for production deployments. This guide covers data persistence, session state, and configuration backups.
+version: 1.6.0
+tags: [prometheus, docker, kubernetes]
+estimated_time: 15-30 minutes
+---
+
 # Backup and Restore Procedures
 
 ## Overview
@@ -9,21 +19,25 @@ ServalSheets backup and restore procedures for production deployments. This guid
 ## What to Backup
 
 ### 1. **Configuration Files**
+
 - `.env` - Environment variables (secrets!)
 - `credentials.json` - Google OAuth credentials
 - Service account keys (if applicable)
 
 ### 2. **Session Data** (if using Redis)
+
 - Redis database dump
 - OAuth session state
 - Task state
 
 ### 3. **Encrypted Token Store** (if using file-based storage)
+
 - Location: Configured via `GOOGLE_TOKEN_STORE_PATH`
 - Contains: Encrypted Google OAuth tokens
 - **Critical**: Also backup `TOKEN_STORE_KEY` (from `.env`)
 
 ### 4. **Logs** (optional, for audit/forensics)
+
 - Application logs
 - Access logs
 - Error logs
@@ -112,6 +126,7 @@ cp /var/lib/redis/appendonly.aof /backup/servalsheets/redis/appendonly-$(date +%
 #### Redis Cloud/Managed Service
 
 If using Redis Cloud, AWS ElastiCache, or Azure Cache:
+
 - Configure automatic snapshots in cloud console
 - Recommended: Daily snapshots with 7-day retention
 - Test restore procedures quarterly
@@ -159,16 +174,16 @@ metadata:
   name: servalsheets-daily
   namespace: velero
 spec:
-  schedule: "0 2 * * *"
+  schedule: '0 2 * * *'
   template:
     includedNamespaces:
-    - servalsheets
+      - servalsheets
     includedResources:
-    - '*'
+      - '*'
     storageLocation: default
     volumeSnapshotLocations:
-    - default
-    ttl: 720h  # 30 days
+      - default
+    ttl: 720h # 30 days
 ```
 
 ```bash
@@ -247,6 +262,7 @@ echo "Configuration restored. Verify secrets before starting server."
 ```
 
 **Post-Restore Steps:**
+
 1. Verify `.env` contains correct values
 2. Test credentials with: `npm run auth`
 3. Restart server
@@ -398,6 +414,7 @@ echo "Docker volumes restored"
 **Target**: 24 hours (daily backups)
 
 For critical deployments, reduce RPO with:
+
 - Redis AOF with `appendfsync everysec`
 - Hourly configuration backups
 - Continuous replication to standby region
@@ -407,27 +424,32 @@ For critical deployments, reduce RPO with:
 ### Full System Restore (Step-by-Step)
 
 1. **Provision New Infrastructure** (if needed)
+
    ```bash
    terraform apply -var="environment=production"
    # or provision manually
    ```
 
 2. **Restore Configuration**
+
    ```bash
    ./restore-config.sh /backup/latest.tar.gz.gpg
    ```
 
 3. **Restore Redis**
+
    ```bash
    ./restore-redis.sh /backup/redis/dump-latest.rdb
    ```
 
 4. **Restore Token Store**
+
    ```bash
    ./restore-token-store.sh /backup/tokens/token-store-latest.enc
    ```
 
 5. **Start Services**
+
    ```bash
    docker-compose up -d
    # or: kubectl apply -f k8s/
@@ -435,18 +457,21 @@ For critical deployments, reduce RPO with:
    ```
 
 6. **Verify**
+
    ```bash
    curl http://localhost:3000/health
    # Should return: {"status": "healthy"}
    ```
 
 7. **Test OAuth Flow**
+
    ```bash
    # Test authentication
    curl http://localhost:3000/.well-known/oauth-authorization-server
    ```
 
 8. **Monitor for Issues**
+
    ```bash
    # Watch logs
    docker-compose logs -f
@@ -506,13 +531,13 @@ terraform destroy -var="environment=test" -auto-approve
 
 ### Recommended Retention
 
-| Backup Type | Frequency | Retention |
-|-------------|-----------|-----------|
-| Configuration | Daily | 30 days |
-| Redis Snapshots | Daily | 7 days |
-| Token Store | Daily | 30 days |
-| Full System | Weekly | 90 days |
-| Pre-Deployment | On deploy | 1 year |
+| Backup Type     | Frequency | Retention |
+| --------------- | --------- | --------- |
+| Configuration   | Daily     | 30 days   |
+| Redis Snapshots | Daily     | 7 days    |
+| Token Store     | Daily     | 30 days   |
+| Full System     | Weekly    | 90 days   |
+| Pre-Deployment  | On deploy | 1 year    |
 
 ### Automated Cleanup
 
@@ -541,6 +566,7 @@ echo "Old backups cleaned up"
 ### Encryption
 
 **Always encrypt backups containing:**
+
 - `.env` files (contain secrets!)
 - `credentials.json`
 - Token store files
@@ -577,24 +603,24 @@ gpg --decrypt backup.tar.gz.gpg | tar xzf -
 ```yaml
 # prometheus-rules.yaml
 groups:
-- name: backup_alerts
-  rules:
-  - alert: BackupFailed
-    expr: time() - servalsheets_last_backup_timestamp > 86400
-    for: 1h
-    labels:
-      severity: critical
-    annotations:
-      summary: "ServalSheets backup failed or is stale"
-      description: "No successful backup in the last 24 hours"
+  - name: backup_alerts
+    rules:
+      - alert: BackupFailed
+        expr: time() - servalsheets_last_backup_timestamp > 86400
+        for: 1h
+        labels:
+          severity: critical
+        annotations:
+          summary: 'ServalSheets backup failed or is stale'
+          description: 'No successful backup in the last 24 hours'
 
-  - alert: BackupSizeTooSmall
-    expr: servalsheets_backup_size_bytes < 1000000
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Backup size suspiciously small"
+      - alert: BackupSizeTooSmall
+        expr: servalsheets_backup_size_bytes < 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Backup size suspiciously small'
 ```
 
 ---
@@ -606,6 +632,7 @@ groups:
 **Problem**: Redis backup fails with "Can't save in background: fork: Cannot allocate memory"
 
 **Solution**:
+
 ```bash
 # Temporarily increase vm.overcommit_memory
 sysctl vm.overcommit_memory=1
@@ -617,6 +644,7 @@ redis-cli CONFIG SET save ""
 **Problem**: Token store restore results in "Invalid encryption key"
 
 **Solution**:
+
 - Verify `TOKEN_STORE_KEY` in `.env` matches the key used when backup was created
 - Check for whitespace or hidden characters in key
 - Regenerate tokens if key is permanently lost
@@ -626,6 +654,7 @@ redis-cli CONFIG SET save ""
 **Problem**: After restore, sessions are lost
 
 **Solution**:
+
 - This is expected if Redis backup is older than session TTL (default 24h)
 - Users will need to re-authenticate
 - To minimize impact, schedule restores during low-traffic periods
@@ -633,6 +662,7 @@ redis-cli CONFIG SET save ""
 **Problem**: OAuth flow fails after configuration restore
 
 **Solution**:
+
 - Verify `credentials.json` is correct
 - Check redirect URIs in Google Console match configuration
 - Test with: `npm run auth`
@@ -642,20 +672,24 @@ redis-cli CONFIG SET save ""
 ## Summary Checklist
 
 ### Daily (Automated)
+
 - [ ] Configuration backup
 - [ ] Redis snapshot
 - [ ] Token store backup
 
 ### Weekly (Automated)
+
 - [ ] Full system backup
 - [ ] Backup verification in test environment
 
 ### Monthly (Manual)
+
 - [ ] Review backup retention policy
 - [ ] Check backup storage capacity
 - [ ] Verify backup encryption keys are secure
 
 ### Quarterly (Manual)
+
 - [ ] Full disaster recovery test
 - [ ] Update backup procedures documentation
 - [ ] Review and update RTO/RPO targets

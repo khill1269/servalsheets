@@ -207,10 +207,14 @@ export const SPREADSHEET_ID_REGEX = /^[a-zA-Z0-9-_]+$/;
 
 /**
  * Regular expression for valid URL (HTTP/HTTPS)
- * Supports standard URL format with protocol, domain, and optional path/query/fragment
+ * Supports:
+ * - Standard domain URLs: http://example.com
+ * - localhost: http://localhost:3000
+ * - IP addresses: http://127.0.0.1:3000
+ * - Paths, query strings, and fragments
  */
 export const URL_REGEX =
-  /^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)$/;
+  /^https?:\/\/(?:(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}|localhost|(?:\d{1,3}\.){3}\d{1,3})(?::\d{1,5})?(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)$/;
 
 // ============================================================================
 // EXPORTED VALIDATION OBJECT

@@ -1,3 +1,12 @@
+---
+title: VS Code Setup Guide for ServalSheets
+category: development
+last_updated: 2026-01-31
+description: 'Last Updated: 2026-01-13'
+version: 1.6.0
+tags: [setup, configuration, sheets]
+---
+
 # VS Code Setup Guide for ServalSheets
 
 **Last Updated:** 2026-01-13
@@ -24,11 +33,13 @@ Complete guide for setting up Visual Studio Code for ServalSheets MCP developmen
 ## Quick Start
 
 If you've cloned the repository, VS Code should automatically:
+
 1. Detect workspace settings ([.vscode/settings.json](.vscode/settings.json))
 2. Prompt to install recommended extensions ([.vscode/extensions.json](.vscode/extensions.json))
 3. Configure TypeScript, ESLint, Prettier, and Vitest
 
 **First-time setup:**
+
 ```bash
 # 1. Open project in VS Code
 code .
@@ -52,6 +63,7 @@ bash scripts/setup-vscode.sh
 ```
 
 **What it does:**
+
 - ✅ Installs 17 recommended extensions (including 2026 MCP tools)
 - ✅ Creates [.vscode/settings.json](.vscode/settings.json) with workspace config
 - ✅ Creates [.vscode/extensions.json](.vscode/extensions.json) with recommendations
@@ -60,6 +72,7 @@ bash scripts/setup-vscode.sh
 - ✅ Verifies installation
 
 **After running:**
+
 ```bash
 # Reload VS Code
 # Press Cmd+Shift+P → "Developer: Reload Window"
@@ -114,35 +127,45 @@ This ensures you're using the project's TypeScript (not VS Code's bundled versio
 
 ### 🔴 Critical Extensions
 
-| Extension | Purpose | Why Critical |
-|-----------|---------|--------------|
-| **ESLint** | Linting | Catch errors before runtime |
-| **Prettier** | Formatting | Consistent code style |
-| **Error Lens** | Inline errors | See errors without hovering |
-| **Vitest Explorer** | Test runner | Visual test execution with UI |
+| Extension           | Purpose       | Why Critical                  |
+| ------------------- | ------------- | ----------------------------- |
+| **ESLint**          | Linting       | Catch errors before runtime   |
+| **Prettier**        | Formatting    | Consistent code style         |
+| **Error Lens**      | Inline errors | See errors without hovering   |
+| **Vitest Explorer** | Test runner   | Visual test execution with UI |
 
 ### 🟡 TypeScript Enhancements
 
-| Extension | Feature |
-|-----------|---------|
-| **Pretty TS Errors** | Human-readable TypeScript errors |
+| Extension               | Feature                          |
+| ----------------------- | -------------------------------- |
+| **Pretty TS Errors**    | Human-readable TypeScript errors |
 | **TS Error Translator** | Plain English error explanations |
 
 ### 🟢 MCP Development (2026)
 
-| Extension | Feature |
-|-----------|---------|
+| Extension                     | Feature                                          |
+| ----------------------------- | ------------------------------------------------ |
 | **MCP Diagnostics Extension** | Exposes VS Code diagnostics to AI agents via MCP |
-| **Diagnostics MCP Server** | HTTP-based MCP server for real-time diagnostics |
+| **Diagnostics MCP Server**    | HTTP-based MCP server for real-time diagnostics  |
+
+### MCP Diagnostics Workflow
+
+Use this workflow to ensure VS Code diagnostics are available to MCP clients:
+
+1. Open the **Problems** panel and confirm diagnostics are populated.
+2. Open the Command Palette and search for the diagnostics extension commands (try `Diagnostics MCP` or `MCP Diagnostics`).
+3. Start the diagnostics MCP server from the command provided by the extension.
+4. Check **Output** for the server URL/port and confirm it is running.
+5. (Optional) Connect with MCP Inspector or your MCP client config to verify diagnostics are surfaced.
 
 ### 📦 Productivity
 
-| Extension | Feature |
-|-----------|---------|
-| **GitLens** | Git blame, history, compare |
-| **TODO Tree** | Find all TODOs in project |
-| **Import Cost** | Show package import sizes inline |
-| **Code Spell Checker** | Catch typos in strings/comments |
+| Extension              | Feature                          |
+| ---------------------- | -------------------------------- |
+| **GitLens**            | Git blame, history, compare      |
+| **TODO Tree**          | Find all TODOs in project        |
+| **Import Cost**        | Show package import sizes inline |
+| **Code Spell Checker** | Catch typos in strings/comments  |
 
 ---
 
@@ -170,26 +193,29 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
 
 #### 🧪 Test Debugging
 
-4. **Debug All Tests** - Run all Vitest tests with debugger
-5. **Debug Current Test File** - Debug only the open test file
-6. **Debug Test at Cursor** - Debug specific test (select test name, then debug)
+1. **Debug All Tests** - Run all Vitest tests with debugger
+2. **Debug Current Test File** - Debug only the open test file
+3. **Debug Test at Cursor** - Debug specific test (select test name, then debug)
 
 #### 🔗 Advanced
 
-7. **Attach to Process** - Attach to running Node process on port 9229
-8. **Debug TypeScript Direct** - Debug TypeScript files directly with `tsx`
+1. **Attach to Process** - Attach to running Node process on port 9229
+2. **Debug TypeScript Direct** - Debug TypeScript files directly with `tsx`
 
 ### Quick Debugging Tips
 
 **Set breakpoints:**
+
 - Click in gutter next to line number (or press `F9`)
 - Red dot appears when breakpoint is set
 
 **Debug current file:**
+
 - Open test file
 - Press `F5` → Select "Debug Current Test File"
 
 **Use MCP Inspector:**
+
 - Press `Cmd+Shift+P` → "Tasks: Run Task" → "🔬 MCP Inspector (stdio)"
 - Browser opens at `http://localhost:6274`
 - Test tools interactively
@@ -201,11 +227,13 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
 ### Run Tests from VS Code
 
 **Option 1: Vitest Explorer (GUI)**
+
 1. Open **Testing** panel (beaker icon in left sidebar)
 2. Click play button next to test/file/folder
 3. See results inline with ✓ or ✗
 
 **Option 2: Tasks**
+
 - `Cmd+Shift+P` → "Tasks: Run Task"
 - Select:
   - "03 - Test" - Run all tests
@@ -214,6 +242,7 @@ Press `F5` or open **Run and Debug** panel to see all configurations:
   - "Test Coverage" - Generate coverage report
 
 **Option 3: Keyboard**
+
 - `Cmd+Shift+T` - Run all tests (if keybinding configured)
 
 ### View Coverage
@@ -236,15 +265,16 @@ Type these prefixes and press `Tab` to expand:
 
 ### MCP Tool Development
 
-| Prefix | Expands To |
-|--------|-----------|
-| `mcp-tool` | Full MCP tool handler with action pattern |
-| `mcp-annot` | MCP tool annotations (readOnlyHint, etc.) |
-| `mcp-resource` | MCP resource handler template |
-| `mcp-prompt` | MCP prompt template |
-| `mcp-error` | Throw MCP error with context |
+| Prefix         | Expands To                                |
+| -------------- | ----------------------------------------- |
+| `mcp-tool`     | Full MCP tool handler with action pattern |
+| `mcp-annot`    | MCP tool annotations (readOnlyHint, etc.) |
+| `mcp-resource` | MCP resource handler template             |
+| `mcp-prompt`   | MCP prompt template                       |
+| `mcp-error`    | Throw MCP error with context              |
 
 **Example:**
+
 ```typescript
 // Type "mcp-tool" and press Tab
 import { z } from 'zod';
@@ -259,37 +289,37 @@ export const toolNameSchema = z.object({
 
 ### Google Sheets API
 
-| Prefix | Expands To |
-|--------|-----------|
-| `sheets-batch` | batchUpdate request |
-| `sheets-get` | spreadsheets.values.get |
+| Prefix          | Expands To                 |
+| --------------- | -------------------------- |
+| `sheets-batch`  | batchUpdate request        |
+| `sheets-get`    | spreadsheets.values.get    |
 | `sheets-update` | spreadsheets.values.update |
 | `sheets-append` | spreadsheets.values.append |
 
 ### Zod Schemas
 
-| Prefix | Expands To |
-|--------|-----------|
-| `zod-obj` | Object schema with type export |
+| Prefix      | Expands To                      |
+| ----------- | ------------------------------- |
+| `zod-obj`   | Object schema with type export  |
 | `zod-union` | Discriminated union for actions |
-| `zod-enum` | Enum schema |
+| `zod-enum`  | Enum schema                     |
 
 ### Testing
 
-| Prefix | Expands To |
-|--------|-----------|
+| Prefix        | Expands To                            |
+| ------------- | ------------------------------------- |
 | `vtest-suite` | Vitest test suite with setup/teardown |
-| `vtest-mock` | vi.mock() pattern |
-| `vtest-spy` | vi.spyOn() pattern |
+| `vtest-mock`  | vi.mock() pattern                     |
+| `vtest-spy`   | vi.spyOn() pattern                    |
 
 ### Utilities
 
-| Prefix | Expands To |
-|--------|-----------|
-| `try-async` | Async try-catch with typed errors |
-| `response` | buildToolResponse() call |
-| `a1-notation` | A1 notation conversion helpers |
-| `dlog` | Debug logger call |
+| Prefix        | Expands To                        |
+| ------------- | --------------------------------- |
+| `try-async`   | Async try-catch with typed errors |
+| `response`    | buildToolResponse() call          |
+| `a1-notation` | A1 notation conversion helpers    |
+| `dlog`        | Debug logger call                 |
 
 ---
 
@@ -319,18 +349,18 @@ Add these to [.vscode/keybindings.json](../../.vscode/keybindings.json):
 
 ### Default Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `F5` | Start debugging |
-| `Shift+F5` | Stop debugging |
-| `Cmd+F5` | Restart debugging |
-| `F9` | Toggle breakpoint |
-| `F10` | Step over |
-| `F11` | Step into |
-| `Shift+F11` | Step out |
-| `Cmd+Shift+P` | Command palette |
+| Shortcut      | Action               |
+| ------------- | -------------------- |
+| `F5`          | Start debugging      |
+| `Shift+F5`    | Stop debugging       |
+| `Cmd+F5`      | Restart debugging    |
+| `F9`          | Toggle breakpoint    |
+| `F10`         | Step over            |
+| `F11`         | Step into            |
+| `Shift+F11`   | Step out             |
+| `Cmd+Shift+P` | Command palette      |
 | `Cmd+Shift+T` | Reopen closed editor |
-| `Cmd+K Cmd+T` | Run tests (Vitest) |
+| `Cmd+K Cmd+T` | Run tests (Vitest)   |
 
 ---
 
@@ -341,6 +371,7 @@ Add these to [.vscode/keybindings.json](../../.vscode/keybindings.json):
 **Problem:** TypeScript errors don't match build errors
 
 **Solution:**
+
 1. Press `Cmd+Shift+P`
 2. Type "TypeScript: Select TypeScript Version"
 3. Choose "Use Workspace Version"
@@ -351,6 +382,7 @@ Add these to [.vscode/keybindings.json](../../.vscode/keybindings.json):
 **Problem:** ESLint/Prettier not formatting on save
 
 **Solution:**
+
 1. Check [.vscode/settings.json](.vscode/settings.json) exists
 2. Verify extension installed: `code --list-extensions | grep eslint`
 3. Reload window
@@ -361,6 +393,7 @@ Add these to [.vscode/keybindings.json](../../.vscode/keybindings.json):
 **Problem:** Task fails with "command not found"
 
 **Solution:**
+
 ```bash
 # Install MCP Inspector globally
 npm install -g @modelcontextprotocol/inspector
@@ -374,6 +407,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 **Problem:** Testing panel shows "No tests found"
 
 **Solution:**
+
 1. Check [.vscode/settings.json](.vscode/settings.json) has `vitest.enable: true`
 2. Verify test files match pattern: `**/*.{test,spec}.ts`
 3. Run `npm install` to ensure Vitest is installed
@@ -384,6 +418,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 **Problem:** Breakpoints ignored during debugging
 
 **Solution:**
+
 1. Ensure source maps enabled in [tsconfig.json](../../tsconfig.json): `"sourceMap": true`
 2. Run build task before debugging (`Cmd+Shift+B`)
 3. Check debug configuration has `"sourceMaps": true`
@@ -394,6 +429,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 **Problem:** Import sizes incorrect or not showing
 
 **Solution:**
+
 1. Ensure `node_modules` is installed: `npm install`
 2. Extension calculates on save - save the file
 3. Check extension output: `Cmd+Shift+U` → "Import Cost"
@@ -441,10 +477,7 @@ Add snippets to [.vscode/servalsheets.code-snippets](../../.vscode/servalsheets.
 {
   "My Snippet": {
     "prefix": "my-snippet",
-    "body": [
-      "// Your code here",
-      "$0"
-    ],
+    "body": ["// Your code here", "$0"],
     "description": "Description"
   }
 }
@@ -464,10 +497,12 @@ Add snippets to [.vscode/servalsheets.code-snippets](../../.vscode/servalsheets.
 ## Support
 
 **Issues with VS Code setup?**
+
 1. Check [Troubleshooting](#troubleshooting) section above
 2. Run setup script: `bash scripts/setup-vscode.sh`
 3. File issue: [GitHub Issues](https://github.com/khill1269/servalsheets/issues)
 
 **Developer workflow questions?**
+
 - See [DEVELOPER_WORKFLOW.md](DEVELOPER_WORKFLOW.md)
 - See [DEBUGGING_AND_TESTING.md](DEBUGGING_AND_TESTING.md)

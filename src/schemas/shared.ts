@@ -363,11 +363,12 @@ export const ErrorCodeSchema = z.enum([
   'METHOD_NOT_FOUND',
   'INVALID_PARAMS',
   'INTERNAL_ERROR',
-  // Authentication & Authorization (4 codes)
+  // Authentication & Authorization (5 codes)
   'UNAUTHENTICATED',
   'PERMISSION_DENIED',
   'INVALID_CREDENTIALS',
   'INSUFFICIENT_PERMISSIONS',
+  'INCREMENTAL_SCOPE_REQUIRED', // Phase 0: OAuth incremental consent
   // Quota & Rate Limiting (3 codes)
   'QUOTA_EXCEEDED',
   'RATE_LIMITED',
@@ -713,6 +714,15 @@ export const MetadataDiffSchema = z.object({
     rowsChanged: z.number().int(),
     estimatedCellsChanged: z.number().int(),
   }),
+  sheetChanges: z
+    .object({
+      sheetsAdded: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRemoved: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRenamed: z.array(
+        z.object({ sheetId: z.number(), oldTitle: z.string(), newTitle: z.string() })
+      ),
+    })
+    .optional(),
 });
 
 export const SampleDiffSchema = z.object({
@@ -726,6 +736,15 @@ export const SampleDiffSchema = z.object({
     rowsChanged: z.number().int(),
     cellsSampled: z.number().int(),
   }),
+  sheetChanges: z
+    .object({
+      sheetsAdded: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRemoved: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRenamed: z.array(
+        z.object({ sheetId: z.number(), oldTitle: z.string(), newTitle: z.string() })
+      ),
+    })
+    .optional(),
 });
 
 export const FullDiffSchema = z.object({
@@ -736,6 +755,27 @@ export const FullDiffSchema = z.object({
     cellsAdded: z.number().int(),
     cellsRemoved: z.number().int(),
   }),
+  sheetChanges: z
+    .object({
+      sheetsAdded: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRemoved: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+      sheetsRenamed: z.array(
+        z.object({ sheetId: z.number(), oldTitle: z.string(), newTitle: z.string() })
+      ),
+    })
+    .optional(),
+});
+
+/**
+ * Sheet-level changes for webhook event categorization
+ * (Phase 4.2A - Fine-Grained Event Filtering)
+ */
+export const SheetLevelChangesSchema = z.object({
+  sheetsAdded: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+  sheetsRemoved: z.array(z.object({ sheetId: z.number(), title: z.string() })),
+  sheetsRenamed: z.array(
+    z.object({ sheetId: z.number(), oldTitle: z.string(), newTitle: z.string() })
+  ),
 });
 
 export const DiffResultSchema = z.discriminatedUnion('tier', [
@@ -833,7 +873,9 @@ export const ErrorDetailSchema = z.object({
   resolutionSteps: z.array(z.string()).optional(),
   category: z.enum(['client', 'server', 'network', 'auth', 'quota', 'unknown']).optional(),
   severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
-  retryStrategy: z.enum(['exponential_backoff', 'wait_for_reset', 'manual', 'none']).optional(),
+  retryStrategy: z
+    .enum(['exponential_backoff', 'wait_for_reset', 'manual', 'reauthorize', 'none'])
+    .optional(),
   suggestedTools: z.array(z.string()).optional(),
   // Automated error recovery
   fixableVia: z
@@ -928,6 +970,28 @@ export const CostEstimateSchema = z.object({
     .optional(),
 });
 
+/** Quota status with prediction and recommendations */
+export const QuotaStatusSchema = z.object({
+  current: z.number().int().min(0),
+  limit: z.number().int().min(0),
+  remaining: z.number().int().min(0),
+  resetIn: z.string(),
+  burnRate: z.number().min(0),
+  projection: z
+    .object({
+      willExceedIn: z.string(),
+      confidence: z.number().min(0).max(1),
+    })
+    .optional(),
+  recommendation: z
+    .object({
+      action: z.string(),
+      reason: z.string(),
+      savings: z.string(),
+    })
+    .optional(),
+});
+
 /** Response metadata with suggestions and cost info */
 export const ResponseMetaSchema = z.object({
   suggestions: z.array(ToolSuggestionSchema).optional(),
@@ -937,6 +1001,7 @@ export const ResponseMetaSchema = z.object({
   nextSteps: z.array(z.string()).optional(),
   warnings: z.array(z.string()).optional(), // Safety warnings
   snapshot: z.record(z.string(), z.unknown()).optional(), // Snapshot info for undo
+  quotaStatus: QuotaStatusSchema.optional(), // Predictive quota management
 });
 
 // ============================================================================
@@ -1076,6 +1141,57 @@ export const ExecutableActionSchema = z.object({
     .max(10)
     .optional()
     .describe('IDs of related findings/issues this action addresses'),
+
+  // Reasoning transparency (helps Claude understand WHY and WHEN)
+  reasoning: z
+    .object({
+      why: z.string().describe('Why this action is recommended'),
+      impact: z
+        .object({
+          quotaSavings: z
+            .string()
+            .optional()
+            .describe('API quota savings (e.g., "90% fewer calls")'),
+          latencySavings: z
+            .string()
+            .optional()
+            .describe('Performance improvement (e.g., "3x faster")'),
+          qualityImprovement: z
+            .string()
+            .optional()
+            .describe('Quality improvement (e.g., "+15% data quality score")'),
+        })
+        .optional()
+        .describe('Expected impact metrics'),
+      tradeoffs: z
+        .object({
+          pros: z.array(z.string()).describe('Benefits of this approach'),
+          cons: z.array(z.string()).describe('Drawbacks or limitations'),
+        })
+        .optional()
+        .describe('Pros and cons of this action'),
+      alternatives: z
+        .array(
+          z.object({
+            action: z.string().describe('Alternative approach'),
+            when: z.string().describe('When to use this alternative'),
+            benefit: z.string().describe('Why you might prefer this alternative'),
+          })
+        )
+        .optional()
+        .describe('Alternative actions to consider'),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .describe('Confidence level in this recommendation (0-1)'),
+      basedOn: z
+        .array(z.string())
+        .optional()
+        .describe('What evidence this recommendation is based on'),
+    })
+    .optional()
+    .describe('Reasoning transparency - helps Claude make informed decisions'),
 });
 
 /**

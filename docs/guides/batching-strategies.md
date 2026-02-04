@@ -1,3 +1,14 @@
+---
+title: Batching Strategies Guide
+category: guide
+last_updated: 2026-01-31
+description: Quick Reference for AI Agents
+version: 1.6.0
+tags: [sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Batching Strategies Guide
 
 **Quick Reference for AI Agents**
@@ -7,17 +18,18 @@ Learn when and how to use batching for optimal Google Sheets API performance.
 ## What is Batching?
 
 **Batching** combines multiple API operations into a single HTTP request, reducing:
+
 - API call count (quota savings)
 - Network roundtrips (latency reduction)
 - Connection overhead (throughput improvement)
 
 ## ServalSheets Batching Tools
 
-| Tool | Actions | Use Case |
-|------|---------|----------|
-| **sheets_data** | `batch_read`, `batch_write` | Read/write multiple ranges |
-| **sheets_transaction** | `begin`, `queue`, `commit` | Atomic multi-operation updates |
-| **sheets_composite** | `bulk_update`, `import_csv` | Pre-optimized common workflows |
+| Tool                   | Actions                     | Use Case                       |
+| ---------------------- | --------------------------- | ------------------------------ |
+| **sheets_data**        | `batch_read`, `batch_write` | Read/write multiple ranges     |
+| **sheets_transaction** | `begin`, `queue`, `commit`  | Atomic multi-operation updates |
+| **sheets_composite**   | `bulk_update`, `import_csv` | Pre-optimized common workflows |
 
 ## When to Use Batching
 
@@ -48,11 +60,13 @@ How many operations do you need?
 ### When to Use batch_read
 
 **Use batch_read when:**
+
 - Reading 2+ non-contiguous ranges
 - Reading from multiple sheets
 - Reading different data types (values, formulas, formats)
 
 **Example:**
+
 ```typescript
 // ❌ BAD: 3 API calls
 const sheet1Data = await read({ action: 'read', spreadsheetId: 'xxx', range: 'Sheet1!A1:B10' });
@@ -63,11 +77,7 @@ const sheet3Data = await read({ action: 'read', spreadsheetId: 'xxx', range: 'Sh
 const allData = await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: [
-    'Sheet1!A1:B10',
-    'Sheet2!C1:D10',
-    'Sheet3!E1:F10'
-  ]
+  ranges: ['Sheet1!A1:B10', 'Sheet2!C1:D10', 'Sheet3!E1:F10'],
 });
 // Access: allData.valueRanges[0].values, allData.valueRanges[1].values, etc.
 ```
@@ -77,23 +87,25 @@ const allData = await batch_read({
 ### When NOT to Use batch_read
 
 **DON'T use batch_read when:**
+
 - Reading a single range (use `read` instead)
 - Reading contiguous ranges (combine into one wide range)
 
 **Example:**
+
 ```typescript
 // ❌ BAD: batch_read for contiguous ranges
 await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: ['A1:B10', 'C1:D10']  // Contiguous!
+  ranges: ['A1:B10', 'C1:D10'], // Contiguous!
 });
 
 // ✅ GOOD: Single wide range
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:D10'  // Combines both ranges
+  range: 'A1:D10', // Combines both ranges
 });
 ```
 
@@ -110,8 +122,8 @@ await batch_write({
   data: [
     { range: 'A1', values: [[1]] },
     { range: 'B1', values: [[2]] },
-    { range: 'C1', values: [[3]] }
-  ]
+    { range: 'C1', values: [[3]] },
+  ],
 });
 ```
 
@@ -125,7 +137,7 @@ await batch_write({
 // Begin transaction: 1 API call
 await begin_transaction({
   action: 'begin',
-  spreadsheetId: 'xxx'
+  spreadsheetId: 'xxx',
 });
 
 // Queue operations: 0 API calls (local only)
@@ -134,8 +146,8 @@ await queue_operation({
   operation: {
     type: 'write',
     range: 'A1',
-    values: [[1]]
-  }
+    values: [[1]],
+  },
 });
 
 await queue_operation({
@@ -143,13 +155,13 @@ await queue_operation({
   operation: {
     type: 'write',
     range: 'B1',
-    values: [[2]]
-  }
+    values: [[2]],
+  },
 });
 
 // Commit: 1 API call (executes all)
 await commit_transaction({
-  action: 'commit'
+  action: 'commit',
 });
 ```
 
@@ -159,15 +171,16 @@ await commit_transaction({
 
 ### batch_write vs Transaction
 
-| Feature | batch_write | Transaction |
-|---------|-------------|-------------|
-| API Calls | 1 | 2 (begin + commit) |
-| Atomicity | No | Yes (all-or-nothing) |
-| Rollback | No | Yes |
-| Complexity | Simple | Medium |
-| Use When | Independent writes | Related writes |
+| Feature    | batch_write        | Transaction          |
+| ---------- | ------------------ | -------------------- |
+| API Calls  | 1                  | 2 (begin + commit)   |
+| Atomicity  | No                 | Yes (all-or-nothing) |
+| Rollback   | No                 | Yes                  |
+| Complexity | Simple             | Medium               |
+| Use When   | Independent writes | Related writes       |
 
 **Rule of Thumb:**
+
 - **2-5 writes**: Use `batch_write` (simpler)
 - **6+ writes** OR **need atomicity**: Use transaction
 - **Complex workflow**: Use transaction for rollback capability
@@ -181,7 +194,7 @@ await commit_transaction({
 const data = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:A100'
+  range: 'A1:A100',
 });
 
 // Step 2: Process locally (0 API calls)
@@ -191,7 +204,7 @@ for (let i = 0; i < data.values.length; i++) {
   if (typeof value === 'number' && value > 100) {
     updates.push({
       range: `B${i + 1}`,
-      values: [['HIGH']]
+      values: [['HIGH']],
     });
   }
 }
@@ -200,7 +213,7 @@ for (let i = 0; i < data.values.length; i++) {
 await batch_write({
   action: 'batch_write',
   spreadsheetId: 'xxx',
-  data: updates
+  data: updates,
 });
 ```
 
@@ -214,15 +227,11 @@ await batch_write({
 const allData = await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: [
-    'Sheet1!A1:A100',
-    'Sheet2!A1:A100',
-    'Sheet3!A1:A100'
-  ]
+  ranges: ['Sheet1!A1:A100', 'Sheet2!A1:A100', 'Sheet3!A1:A100'],
 });
 
 // Step 2: Aggregate locally (0 API calls)
-const totals = allData.valueRanges.map(range =>
+const totals = allData.valueRanges.map((range) =>
   range.values.reduce((sum, row) => sum + (row[0] || 0), 0)
 );
 
@@ -231,7 +240,7 @@ await write({
   action: 'write',
   spreadsheetId: 'xxx',
   range: 'Summary!A1:A3',
-  values: totals.map(t => [t])
+  values: totals.map((t) => [t]),
 });
 ```
 
@@ -245,7 +254,7 @@ await write({
 const data = await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: ['A1:A100', 'B1:B100']
+  ranges: ['A1:A100', 'B1:B100'],
 });
 
 // Step 2: Build conditional updates (0 API calls)
@@ -257,12 +266,12 @@ for (let i = 0; i < colA.length; i++) {
   if (colA[i][0] > colB[i][0]) {
     updates.push({
       range: `C${i + 1}`,
-      values: [['A > B']]
+      values: [['A > B']],
     });
   } else {
     updates.push({
       range: `C${i + 1}`,
-      values: [['A <= B']]
+      values: [['A <= B']],
     });
   }
 }
@@ -271,7 +280,7 @@ for (let i = 0; i < colA.length; i++) {
 await batch_write({
   action: 'batch_write',
   spreadsheetId: 'xxx',
-  data: updates
+  data: updates,
 });
 ```
 
@@ -282,29 +291,29 @@ await batch_write({
 
 ### Read Operations
 
-| Scenario | Without Batch | With Batch | Improvement |
-|----------|---------------|------------|-------------|
-| 10 ranges | 10 API calls, ~1000ms | 1 API call, ~150ms | 85% faster |
-| 50 ranges | 50 API calls, ~5000ms | 1 API call, ~400ms | 92% faster |
-| 100 ranges | 100 API calls, ~10s | 1 API call, ~800ms | 92% faster |
+| Scenario   | Without Batch         | With Batch         | Improvement |
+| ---------- | --------------------- | ------------------ | ----------- |
+| 10 ranges  | 10 API calls, ~1000ms | 1 API call, ~150ms | 85% faster  |
+| 50 ranges  | 50 API calls, ~5000ms | 1 API call, ~400ms | 92% faster  |
+| 100 ranges | 100 API calls, ~10s   | 1 API call, ~800ms | 92% faster  |
 
 ### Write Operations
 
-| Scenario | Without Batch | With Batch | Improvement |
-|----------|---------------|------------|-------------|
-| 10 writes | 10 API calls, ~1500ms | 1 API call, ~200ms | 87% faster |
-| 50 writes | 50 API calls, ~7500ms | 1 API call, ~500ms | 93% faster |
-| 100 writes | 100 API calls, ~15s | 1 API call, ~1000ms | 93% faster |
+| Scenario   | Without Batch         | With Batch          | Improvement |
+| ---------- | --------------------- | ------------------- | ----------- |
+| 10 writes  | 10 API calls, ~1500ms | 1 API call, ~200ms  | 87% faster  |
+| 50 writes  | 50 API calls, ~7500ms | 1 API call, ~500ms  | 93% faster  |
+| 100 writes | 100 API calls, ~15s   | 1 API call, ~1000ms | 93% faster  |
 
 ## Batching Limits
 
 ### Google Sheets API Limits
 
-| Limit | Value | Notes |
-|-------|-------|-------|
-| Max requests per batch | 100 | Google API hard limit |
-| Max batch size | 10 MB | Total request payload |
-| Max cells per update | 5,000,000 | Per batchUpdate call |
+| Limit                  | Value     | Notes                 |
+| ---------------------- | --------- | --------------------- |
+| Max requests per batch | 100       | Google API hard limit |
+| Max batch size         | 10 MB     | Total request payload |
+| Max cells per update   | 5,000,000 | Per batchUpdate call  |
 
 ### ServalSheets Auto-Splitting
 
@@ -315,7 +324,7 @@ ServalSheets automatically splits batches that exceed limits:
 await batch_write({
   action: 'batch_write',
   spreadsheetId: 'xxx',
-  data: array150Operations
+  data: array150Operations,
 });
 
 // ServalSheets automatically splits into:
@@ -333,14 +342,14 @@ await batch_write({
 await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: ['A1:B10']  // Only 1 range!
+  ranges: ['A1:B10'], // Only 1 range!
 });
 
 // ✅ GOOD: Direct read
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:B10'
+  range: 'A1:B10',
 });
 ```
 
@@ -351,14 +360,14 @@ await read({
 await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: ['A1:A10', 'A11:A20', 'A21:A30']
+  ranges: ['A1:A10', 'A11:A20', 'A21:A30'],
 });
 
 // ✅ GOOD: Single wide range
 await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:A30'
+  range: 'A1:A30',
 });
 ```
 
@@ -386,7 +395,7 @@ await import_csv({
   spreadsheetId: 'xxx',
   sheetName: 'Data',
   csvData: '...', // Large CSV
-  mode: 'append'
+  mode: 'append',
 });
 
 // Internally optimized:
@@ -405,8 +414,8 @@ await bulk_update({
   sheetName: 'Data',
   updates: [
     { column: 'Status', oldValue: 'Pending', newValue: 'Complete' },
-    { column: 'Priority', oldValue: 'Low', newValue: 'Medium' }
-  ]
+    { column: 'Priority', oldValue: 'Low', newValue: 'Medium' },
+  ],
 });
 
 // Internally optimized:
@@ -423,7 +432,7 @@ await smart_append({
   action: 'smart_append',
   spreadsheetId: 'xxx',
   sheetName: 'Logs',
-  values: [[timestamp, event, data]]
+  values: [[timestamp, event, data]],
 });
 
 // Internally optimized:
@@ -444,15 +453,15 @@ await smart_append({
 
 ## Quick Reference
 
-| Scenario | Solution | Quota Cost |
-|----------|----------|------------|
-| Read 1 range | read | 1 call |
-| Read 2-5 non-contiguous ranges | batch_read | 1 call |
-| Read contiguous ranges | read (wide range) | 1 call |
-| Write 2-5 independent updates | batch_write | 1 call |
-| Write 6+ updates (atomic) | transaction | 2 calls |
-| Import large CSV | import_csv | 2 calls |
-| Conditional bulk update | bulk_update | 2 calls |
+| Scenario                       | Solution          | Quota Cost |
+| ------------------------------ | ----------------- | ---------- |
+| Read 1 range                   | read              | 1 call     |
+| Read 2-5 non-contiguous ranges | batch_read        | 1 call     |
+| Read contiguous ranges         | read (wide range) | 1 call     |
+| Write 2-5 independent updates  | batch_write       | 1 call     |
+| Write 6+ updates (atomic)      | transaction       | 2 calls    |
+| Import large CSV               | import_csv        | 2 calls    |
+| Conditional bulk update        | bulk_update       | 2 calls    |
 
 ## Related Resources
 

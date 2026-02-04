@@ -171,15 +171,15 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
  * Action counts per tool
  */
 export const ACTION_COUNTS: Record<string, number> = {
-  sheets_advanced: 23,
+  sheets_advanced: 26,
   sheets_analyze: 16,
   sheets_appsscript: 14,
   sheets_auth: 4,
   sheets_bigquery: 14,
-  sheets_collaborate: 28,
+  sheets_collaborate: 35,
   sheets_composite: 10,
   sheets_confirm: 5,
-  sheets_core: 17,
+  sheets_core: 19,
   sheets_data: 18,
   sheets_dependencies: 7,
   sheets_dimensions: 28,
@@ -187,7 +187,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_format: 21,
   sheets_history: 7,
   sheets_quality: 4,
-  sheets_session: 17,
+  sheets_session: 26,
   sheets_templates: 8,
   sheets_transaction: 6,
   sheets_visualize: 18,

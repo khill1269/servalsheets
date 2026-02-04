@@ -1,3 +1,14 @@
+---
+title: Monitoring and Observability Guide
+category: guide
+last_updated: 2026-02-03
+description: This guide covers monitoring, logging, and observability strategies for ServalSheets in production, including automatic background quality analysis.
+version: 1.6.0
+tags: [monitoring, observability, sheets, prometheus, grafana, docker, kubernetes, quality-analysis]
+audience: user
+difficulty: intermediate
+---
+
 # Monitoring and Observability Guide
 
 This guide covers monitoring, logging, and observability strategies for ServalSheets in production.
@@ -27,13 +38,13 @@ ServalSheets provides comprehensive observability through:
 
 ### Observability Goals
 
-| Goal | Target | Method |
-|------|--------|--------|
-| Log all operations | 100% | Structured logging |
-| Track quota usage | Real-time | Metrics |
-| Detect errors | < 1 min | Alerting |
-| Performance visibility | Per-operation | Tracing |
-| Service health | 99.9% uptime | Health checks |
+| Goal                   | Target        | Method             |
+| ---------------------- | ------------- | ------------------ |
+| Log all operations     | 100%          | Structured logging |
+| Track quota usage      | Real-time     | Metrics            |
+| Detect errors          | < 1 min       | Alerting           |
+| Performance visibility | Per-operation | Tracing            |
+| Service health         | 99.9% uptime  | Health checks      |
 
 ---
 
@@ -46,10 +57,10 @@ ServalSheets uses **structured JSON logging** for machine-parseable logs.
 ```typescript
 // From src/logging/logger.ts
 export enum LogLevel {
-  DEBUG = 'debug',    // Detailed debugging info
-  INFO = 'info',      // General information
-  WARN = 'warn',      // Warning messages
-  ERROR = 'error',    // Error messages
+  DEBUG = 'debug', // Detailed debugging info
+  INFO = 'info', // General information
+  WARN = 'warn', // Warning messages
+  ERROR = 'error', // Error messages
 }
 ```
 
@@ -102,24 +113,24 @@ export LOG_FILE=/var/log/servalsheets/app.log
 ```typescript
 // From src/logging/schemas.ts
 export interface OperationLog {
-  timestamp: string;          // ISO 8601
-  level: LogLevel;           // debug, info, warn, error
-  message: string;           // Human-readable message
-  operation: string;         // Tool:action (e.g., sheets_core:read)
-  spreadsheetId?: string;    // Spreadsheet ID
-  range?: string;            // Cell range
-  duration: number;          // Milliseconds
-  quotaType: 'read' | 'write';  // Quota bucket
-  cellCount?: number;        // Cells affected
-  success: boolean;          // Operation succeeded
-  error?: ErrorDetails;      // Error details if failed
+  timestamp: string; // ISO 8601
+  level: LogLevel; // debug, info, warn, error
+  message: string; // Human-readable message
+  operation: string; // Tool:action (e.g., sheets_core:read)
+  spreadsheetId?: string; // Spreadsheet ID
+  range?: string; // Cell range
+  duration: number; // Milliseconds
+  quotaType: 'read' | 'write'; // Quota bucket
+  cellCount?: number; // Cells affected
+  success: boolean; // Operation succeeded
+  error?: ErrorDetails; // Error details if failed
 }
 
 export interface ErrorDetails {
-  code: string;              // Error code
-  message: string;           // Error message
-  stack?: string;            // Stack trace (debug only)
-  retries?: number;          // Retry attempts
+  code: string; // Error code
+  message: string; // Error message
+  stack?: string; // Stack trace (debug only)
+  retries?: number; // Retry attempts
 }
 ```
 
@@ -220,16 +231,16 @@ sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
 ```yaml
 # filebeat.yml
 filebeat.inputs:
-- type: log
-  enabled: true
-  paths:
-    - /var/log/servalsheets/*.log
-  json.keys_under_root: true
-  json.add_error_key: true
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/servalsheets/*.log
+    json.keys_under_root: true
+    json.add_error_key: true
 
 output.elasticsearch:
-  hosts: ["elasticsearch:9200"]
-  index: "servalsheets-%{+yyyy.MM.dd}"
+  hosts: ['elasticsearch:9200']
+  index: 'servalsheets-%{+yyyy.MM.dd}'
 ```
 
 #### Splunk
@@ -244,6 +255,131 @@ index = servalsheets
 
 ---
 
+## Background Quality Analysis
+
+ServalSheets automatically monitors data quality after destructive operations using fire-and-forget background analysis.
+
+### How It Works
+
+Background quality analysis:
+
+- **Triggers automatically** after write operations affecting ≥10 cells (configurable)
+- **Runs in background** (non-blocking, fire-and-forget pattern)
+- **Debounces operations** with 2-second window to batch multiple writes
+- **Adds alerts** to session context if quality drops >20%
+
+### Configuration
+
+```bash
+# Enable/disable background analysis (default: enabled)
+ENABLE_BACKGROUND_ANALYSIS=true
+
+# Minimum cells changed to trigger analysis (default: 10)
+BACKGROUND_ANALYSIS_MIN_CELLS=10
+
+# Debounce window in milliseconds (default: 2000 = 2 seconds)
+BACKGROUND_ANALYSIS_DEBOUNCE_MS=2000
+```
+
+### Operations Monitored
+
+Background analysis automatically triggers after:
+
+1. **Write Operations** - `sheets_data:write`, `sheets_data:update`
+2. **Append Operations** - `sheets_data:append` (both table and range)
+3. **Clear Operations** - `sheets_data:clear` (destructive)
+4. **Dimension Deletions** - `sheets_dimensions:delete` (rows/columns)
+
+### Alert Format
+
+When quality degradation is detected, alerts are added to the session context:
+
+```json
+{
+  "severity": "high",
+  "message": "Data quality dropped from 85% to 65% after write to A1:B100",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "actionable": {
+    "tool": "sheets_fix",
+    "action": "fix_all",
+    "params": {
+      "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+      "range": "A1:B100",
+      "preview": true
+    }
+  }
+}
+```
+
+### Logging
+
+Background analysis logs are structured for easy monitoring:
+
+```json
+{
+  "timestamp": "2026-02-03T10:15:30.123Z",
+  "level": "info",
+  "message": "Starting background quality analysis",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "range": "A1:B100"
+}
+```
+
+```json
+{
+  "timestamp": "2026-02-03T10:15:32.456Z",
+  "level": "warn",
+  "message": "Quality drop alert triggered",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "qualityChange": -20,
+  "range": "A1:B100"
+}
+```
+
+### Disabling Background Analysis
+
+To disable background analysis (not recommended for production):
+
+```bash
+# Disable background analysis
+export ENABLE_BACKGROUND_ANALYSIS=false
+
+# Restart server
+npm run start
+```
+
+### Performance Impact
+
+Background analysis is designed to be non-blocking:
+
+- **Latency**: 0ms (fire-and-forget, no wait)
+- **Memory**: Minimal (runs in existing event loop)
+- **Debouncing**: Batches multiple rapid writes into single analysis
+
+### Integration with sheets_analyze
+
+Background analysis provides lightweight monitoring. For comprehensive analysis, use the `sheets_analyze` tool:
+
+```typescript
+// Background: Lightweight automatic monitoring (always on)
+// - Quick quality score calculation
+// - Triggered by writes >10 cells
+// - Adds alerts to session context
+
+// Explicit: Comprehensive analysis (on-demand)
+await sheets_analyze.comprehensive({
+  spreadsheetId: '...',
+  action: 'comprehensive',
+});
+// - Full quality analysis
+// - Detailed insights
+// - Trend detection
+// - Anomaly detection
+// - Correlation analysis
+```
+
+---
+
 ## Metrics Collection
 
 ServalSheets exposes metrics for monitoring performance and quota usage.
@@ -254,20 +390,20 @@ ServalSheets exposes metrics for monitoring performance and quota usage.
 // From src/metrics/types.ts
 export interface Metrics {
   counters: {
-    operations_total: number;           // Total operations
-    operations_success: number;         // Successful operations
-    operations_error: number;           // Failed operations
-    quota_reads_used: number;          // Read quota used
-    quota_writes_used: number;         // Write quota used
+    operations_total: number; // Total operations
+    operations_success: number; // Successful operations
+    operations_error: number; // Failed operations
+    quota_reads_used: number; // Read quota used
+    quota_writes_used: number; // Write quota used
   };
   gauges: {
-    quota_reads_available: number;     // Read tokens available
-    quota_writes_available: number;    // Write tokens available
-    cache_size: number;                // Cache entries
-    memory_usage_mb: number;           // Memory usage
+    quota_reads_available: number; // Read tokens available
+    quota_writes_available: number; // Write tokens available
+    cache_size: number; // Cache entries
+    memory_usage_mb: number; // Memory usage
   };
   histograms: {
-    operation_duration_ms: number[];   // Operation durations
+    operation_duration_ms: number[]; // Operation durations
     cell_count_per_operation: number[]; // Cells affected
   };
 }
@@ -379,7 +515,10 @@ export async function publishMetrics(metrics: Metrics): Promise<void> {
       },
       {
         MetricName: 'OperationDuration',
-        Value: metrics.histograms.operation_duration_ms[metrics.histograms.operation_duration_ms.length - 1],
+        Value:
+          metrics.histograms.operation_duration_ms[
+            metrics.histograms.operation_duration_ms.length - 1
+          ],
         Unit: 'Milliseconds',
         Timestamp: new Date(),
       },
@@ -390,15 +529,15 @@ export async function publishMetrics(metrics: Metrics): Promise<void> {
 
 ### Key Metrics to Monitor
 
-| Metric | Type | Alert Threshold |
-|--------|------|----------------|
-| `operations_total` | Counter | - |
-| `operations_error` | Counter | > 5% of total |
-| `quota_reads_available` | Gauge | < 10% |
-| `quota_writes_available` | Gauge | < 10% |
-| `operation_duration_ms` | Histogram | p95 > 5000ms |
-| `cache_size` | Gauge | > 80% of max |
-| `memory_usage_mb` | Gauge | > 80% of limit |
+| Metric                   | Type      | Alert Threshold |
+| ------------------------ | --------- | --------------- |
+| `operations_total`       | Counter   | -               |
+| `operations_error`       | Counter   | > 5% of total   |
+| `quota_reads_available`  | Gauge     | < 10%           |
+| `quota_writes_available` | Gauge     | < 10%           |
+| `operation_duration_ms`  | Histogram | p95 > 5000ms    |
+| `cache_size`             | Gauge     | > 80% of max    |
+| `memory_usage_mb`        | Gauge     | > 80% of limit  |
 
 ---
 
@@ -439,7 +578,7 @@ export async function checkReadiness(): Promise<HealthStatus> {
     rateLimit: await checkRateLimits(),
   };
 
-  const healthy = Object.values(checks).every(check => check.healthy);
+  const healthy = Object.values(checks).every((check) => check.healthy);
 
   return {
     healthy,
@@ -467,7 +606,7 @@ export async function checkStartup(): Promise<HealthStatus> {
     initialization: await checkInitialization(),
   };
 
-  const ready = Object.values(checks).every(check => check.healthy);
+  const ready = Object.values(checks).every((check) => check.healthy);
 
   return {
     ready,
@@ -558,30 +697,30 @@ spec:
   template:
     spec:
       containers:
-      - name: servalsheets
-        image: servalsheets:latest
-        ports:
-        - containerPort: 3000
-        - containerPort: 9090  # Metrics
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: 3000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        startupProbe:
-          httpGet:
-            path: /health/startup
-            port: 3000
-          initialDelaySeconds: 0
-          periodSeconds: 5
-          failureThreshold: 30
+        - name: servalsheets
+          image: servalsheets:latest
+          ports:
+            - containerPort: 3000
+            - containerPort: 9090 # Metrics
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            failureThreshold: 30
 ```
 
 ---
@@ -616,10 +755,7 @@ import { trace, SpanStatusCode } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('servalsheets');
 
-export async function traceOperation<T>(
-  name: string,
-  operation: () => Promise<T>
-): Promise<T> {
+export async function traceOperation<T>(name: string, operation: () => Promise<T>): Promise<T> {
   return tracer.startActiveSpan(name, async (span) => {
     try {
       const result = await operation();
@@ -689,11 +825,11 @@ ServalSheets provides comprehensive Prometheus alert rules for production incide
 
 ### Alert Severity Levels
 
-| Severity | Response Time | Description | Examples |
-|----------|--------------|-------------|----------|
-| **critical** | Immediate | User-facing impact, service degradation | Service down, high error rate, circuit breaker open |
-| **warning** | 15 minutes | Performance degradation, risk of impact | Queue backup, high latency, quota near limit |
-| **info** | 1 hour | Optimization opportunities, trends | Low cache hit rate, small batch sizes |
+| Severity     | Response Time | Description                             | Examples                                            |
+| ------------ | ------------- | --------------------------------------- | --------------------------------------------------- |
+| **critical** | Immediate     | User-facing impact, service degradation | Service down, high error rate, circuit breaker open |
+| **warning**  | 15 minutes    | Performance degradation, risk of impact | Queue backup, high latency, quota near limit        |
+| **info**     | 1 hour        | Optimization opportunities, trends      | Low cache hit rate, small batch sizes               |
 
 ### Alert Rule Categories
 
@@ -725,6 +861,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Users experiencing failed operations
 
 **Response Actions**:
+
 1. Check logs for error patterns
 2. Review recent deployments
 3. Check Google API status
@@ -745,6 +882,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Requests to affected service are being rejected
 
 **Response Actions**:
+
 1. Check downstream service health
 2. Review error logs
 3. Verify network connectivity
@@ -765,6 +903,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Complete service outage, all requests failing
 
 **Response Actions**:
+
 1. Check process status
 2. Review system logs
 3. Check resources (CPU, memory, disk)
@@ -790,6 +929,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Users unable to authenticate with Google Sheets API
 
 **Response Actions**:
+
 1. Verify OAuth credentials are valid
 2. Check token expiration
 3. Verify Google API console configuration
@@ -815,6 +955,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Service may crash or become unresponsive
 
 **Response Actions**:
+
 1. Check for memory leaks
 2. Review large operations in progress
 3. Clear cache if needed
@@ -838,6 +979,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Increased latency for user requests
 
 **Response Actions**:
+
 1. Check for slow operations
 2. Review rate limiting configuration
 3. Consider horizontal scaling
@@ -858,6 +1000,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: 1% of requests experiencing significant delays
 
 **Response Actions**:
+
 1. Check Google API performance
 2. Review cache hit rate
 3. Check for large operations
@@ -879,6 +1022,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Risk of API throttling and request failures
 
 **Response Actions**:
+
 1. Enable or tune caching
 2. Review batch efficiency
 3. Check for unnecessary API calls
@@ -906,6 +1050,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Increased API calls and latency
 
 **Response Actions**:
+
 1. Review cache TTL configuration
 2. Check cache size limits
 3. Review access patterns
@@ -926,6 +1071,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: More API calls than necessary
 
 **Response Actions**:
+
 1. Review batching strategy
 2. Check operation patterns
 3. Consider adjusting batch thresholds
@@ -952,6 +1098,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Possible client issues or service degradation
 
 **Response Actions**:
+
 1. Check client connectivity
 2. Review error rates
 3. Check for network issues
@@ -976,6 +1123,7 @@ ServalSheets alerts are organized into four categories:
 **Impact**: Potential quota exhaustion or abuse
 
 **Response Actions**:
+
 1. Check for legitimate traffic spike
 2. Review client behavior
 3. Check for potential abuse
@@ -1015,7 +1163,7 @@ alerting:
 
 # Rule files
 rule_files:
-  - "alerts.yml"
+  - 'alerts.yml'
 
 # Scrape configurations
 scrape_configs:
@@ -1338,21 +1486,25 @@ export async function sendAlert(
   await slack.chat.postMessage({
     channel,
     text: `${emoji} ${severity.toUpperCase()}: ${alertName}`,
-    attachments: [{
-      color,
-      title: `${alertName} Alert`,
-      fields,
-      footer: 'ServalSheets Monitoring',
-      footer_icon: 'https://servalsheets.io/icon.png',
-      ts: Math.floor(Date.now() / 1000).toString(),
-      actions: annotations.runbook ? [
-        {
-          type: 'button',
-          text: 'View Runbook',
-          url: annotations.runbook,
-        },
-      ] : undefined,
-    }],
+    attachments: [
+      {
+        color,
+        title: `${alertName} Alert`,
+        fields,
+        footer: 'ServalSheets Monitoring',
+        footer_icon: 'https://servalsheets.io/icon.png',
+        ts: Math.floor(Date.now() / 1000).toString(),
+        actions: annotations.runbook
+          ? [
+              {
+                type: 'button',
+                text: 'View Runbook',
+                url: annotations.runbook,
+              },
+            ]
+          : undefined,
+      },
+    ],
   });
 }
 ```
@@ -1423,9 +1575,9 @@ groups:
         for: 1m
         labels:
           severity: critical
-          test: "true"
+          test: 'true'
         annotations:
-          summary: "Test alert - high error rate"
+          summary: 'Test alert - high error rate'
 ```
 
 #### Validate Alert Configuration
@@ -1525,19 +1677,22 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
 
 #### Runbook Template
 
-```markdown
+````markdown
 # [Alert Name] Runbook
 
 ## Alert Details
+
 - **Severity**: [critical|warning|info]
 - **Component**: [api|cache|queue|etc]
 - **Trigger**: [Condition that causes alert to fire]
 
 ## Symptoms
+
 - [User-visible symptoms]
 - [System symptoms]
 
 ## Impact
+
 - **User Impact**: [How users are affected]
 - **Business Impact**: [Business implications]
 
@@ -1548,14 +1703,17 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
    # View alert in Prometheus
    curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels.alertname=="AlertName")'
    ```
+````
 
-2. **Review Logs**
+1. **Review Logs**
+
    ```bash
    # Check recent error logs
    tail -100 /var/log/servalsheets/app.log | jq 'select(.level=="error")'
    ```
 
-3. **Check Metrics**
+2. **Check Metrics**
+
    ```bash
    # Query relevant metrics
    curl 'http://localhost:9090/api/v1/query?query=metric_name'
@@ -1564,30 +1722,37 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
 ## Resolution Steps
 
 ### Immediate Actions
+
 1. [First action to take]
 2. [Second action to take]
 
 ### Root Cause Investigation
+
 1. [Investigation step 1]
 2. [Investigation step 2]
 
 ### Long-term Fixes
+
 1. [Preventive measure 1]
 2. [Preventive measure 2]
 
 ## Related Alerts
+
 - [Related alert 1]
 - [Related alert 2]
 
 ## Escalation
+
 - **Level 1**: On-call engineer
 - **Level 2**: Team lead
 - **Level 3**: Senior engineer / Architect
 
 ## References
+
 - [Link to relevant documentation]
 - [Link to similar incidents]
-```
+
+````
 
 ---
 
@@ -1646,7 +1811,7 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
     ]
   }
 }
-```
+````
 
 ### CloudWatch Dashboard
 
@@ -1682,9 +1847,7 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
     {
       "type": "metric",
       "properties": {
-        "metrics": [
-          ["ServalSheets", "OperationDuration", { "stat": "p95" }]
-        ],
+        "metrics": [["ServalSheets", "OperationDuration", { "stat": "p95" }]],
         "period": 300,
         "stat": "p95",
         "region": "us-east-1",
@@ -1706,6 +1869,7 @@ Each alert should have a corresponding runbook. Create runbooks at `docs/runbook
 **Symptoms**: Operations taking > 5 seconds
 
 **Debugging**:
+
 ```bash
 # Check slow operations
 cat logs.json | jq 'select(.duration > 5000)'
@@ -1718,6 +1882,7 @@ cat logs.json | jq 'select(.cache_hit == false)' | wc -l
 ```
 
 **Solutions**:
+
 - Enable caching with longer TTLs
 - Use METADATA diff instead of FULL
 - Batch operations
@@ -1728,6 +1893,7 @@ cat logs.json | jq 'select(.cache_hit == false)' | wc -l
 **Symptoms**: 429 Rate Limit Exceeded errors
 
 **Debugging**:
+
 ```bash
 # Check quota usage
 cat logs.json | jq 'select(.quotaType == "write") | .operation'
@@ -1737,6 +1903,7 @@ curl http://localhost:3000/health/ready | jq '.checks.rateLimit'
 ```
 
 **Solutions**:
+
 - Reduce rate limits: `SERVALSHEETS_WRITES_PER_MINUTE=40`
 - Enable caching to reduce API calls
 - Batch operations
@@ -1747,6 +1914,7 @@ curl http://localhost:3000/health/ready | jq '.checks.rateLimit'
 **Symptoms**: High memory usage, OOM errors
 
 **Debugging**:
+
 ```bash
 # Check memory usage
 ps aux | grep servalsheets
@@ -1756,6 +1924,7 @@ cat logs.json | jq 'select(.cellCount > 100000)'
 ```
 
 **Solutions**:
+
 - Use streaming for large datasets
 - Use METADATA diff
 - Clear cache: `curl -X POST http://localhost:3000/cache/clear`
@@ -1783,14 +1952,14 @@ tail -f /var/log/servalsheets/app.log | jq .
 
 ServalSheets provides comprehensive observability:
 
-| Feature | Method | Use Case |
-|---------|--------|----------|
-| Structured logging | JSON logs | Debugging, auditing |
-| Metrics | Prometheus/CloudWatch | Performance, quota |
-| Health checks | HTTP endpoints | Kubernetes, load balancers |
-| APM | OpenTelemetry/Datadog | Distributed tracing |
-| Alerting | Prometheus/PagerDuty | Incident response |
-| Dashboards | Grafana/CloudWatch | Visualization |
+| Feature            | Method                | Use Case                   |
+| ------------------ | --------------------- | -------------------------- |
+| Structured logging | JSON logs             | Debugging, auditing        |
+| Metrics            | Prometheus/CloudWatch | Performance, quota         |
+| Health checks      | HTTP endpoints        | Kubernetes, load balancers |
+| APM                | OpenTelemetry/Datadog | Distributed tracing        |
+| Alerting           | Prometheus/PagerDuty  | Incident response          |
+| Dashboards         | Grafana/CloudWatch    | Visualization              |
 
 **Key Takeaway**: Enable structured logging, expose metrics, and set up alerts for critical issues like quota exhaustion and high error rates.
 

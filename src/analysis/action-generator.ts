@@ -52,6 +52,25 @@ export interface ExecutableAction {
   requiresConfirmation: boolean;
   category: ActionCategory;
   relatedFindings?: string[];
+  reasoning?: {
+    why: string;
+    impact?: {
+      quotaSavings?: string;
+      latencySavings?: string;
+      qualityImprovement?: string;
+    };
+    tradeoffs?: {
+      pros: string[];
+      cons: string[];
+    };
+    alternatives?: Array<{
+      action: string;
+      when: string;
+      benefit: string;
+    }>;
+    confidence: number;
+    basedOn?: string[];
+  };
 }
 
 /**
@@ -504,7 +523,7 @@ export class ActionGenerator {
       category: 'read' as ActionCategory,
     };
 
-    return {
+    const action: ExecutableAction = {
       id: this.generateId(),
       priority: options.priority,
       tool: template.tool!,
@@ -519,6 +538,11 @@ export class ActionGenerator {
       category: template.category!,
       relatedFindings: [options.finding.id],
     };
+
+    // Add reasoning transparency
+    action.reasoning = this.generateReasoning(options.finding, action);
+
+    return action;
   }
 
   /**
@@ -527,6 +551,83 @@ export class ActionGenerator {
   private generateId(): string {
     this.idCounter++;
     return `action_${Date.now()}_${this.idCounter}`;
+  }
+
+  /**
+   * Generate reasoning for an action
+   */
+  private generateReasoning(
+    finding: AnalysisFinding,
+    action: Partial<ExecutableAction>
+  ): ExecutableAction['reasoning'] {
+    const severity = finding.severity;
+    const isAutoFixable = action.reversible && action.risk === 'none';
+
+    const pros = [
+      action.category === 'data_cleaning'
+        ? 'Improves data quality immediately'
+        : action.category === 'visualization'
+          ? 'Makes data insights more accessible'
+          : action.category === 'format'
+            ? 'Enhances readability and professionalism'
+            : 'Addresses identified issue',
+    ];
+
+    const cons: string[] = [];
+
+    if (!action.reversible) {
+      cons.push('Cannot be undone - proceed with caution');
+    }
+
+    if (action.risk === 'medium' || action.risk === 'high') {
+      cons.push('May affect existing data or formulas');
+    }
+
+    if (severity === 'info') {
+      cons.push('Low impact if ignored - optional improvement');
+    }
+
+    const alternatives: Array<{ action: string; when: string; benefit: string }> = [];
+
+    if (isAutoFixable) {
+      alternatives.push({
+        action: 'Manual fix via sheets_data',
+        when: 'If you need fine-grained control',
+        benefit: 'More control but requires more API calls',
+      });
+    }
+
+    const basedOn = [`Detected ${finding.type}: ${finding.title}`];
+    if (finding.data?.['count']) {
+      basedOn.push(`Found ${finding.data['count']} instances`);
+    }
+    basedOn.push(`Severity: ${severity}`);
+
+    const confidence =
+      severity === 'critical'
+        ? 0.95
+        : severity === 'error'
+          ? 0.85
+          : severity === 'warning'
+            ? 0.75
+            : 0.6;
+
+    const qualityImpact = action.category === 'data_cleaning' ? '+15% data quality' : undefined;
+
+    return {
+      why: `Fix detected ${finding.type} to improve ${action.category} quality`,
+      impact: {
+        qualityImprovement: qualityImpact,
+        quotaSavings: isAutoFixable ? '1 API call vs 5-10 manual fixes' : undefined,
+      },
+      tradeoffs: {
+        pros,
+        cons,
+      },
+      alternatives: alternatives.length > 0 ? alternatives : undefined,
+      confidence,
+      basedOn,
+    };
   }
 
   /**

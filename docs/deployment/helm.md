@@ -1,3 +1,12 @@
+---
+title: Helm Chart Deployment
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets using Helm for templated, repeatable Kubernetes deployments.
+version: 1.6.0
+tags: [deployment, prometheus, kubernetes]
+---
+
 # Helm Chart Deployment
 
 Deploy ServalSheets using Helm for templated, repeatable Kubernetes deployments.

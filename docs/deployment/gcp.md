@@ -1,3 +1,12 @@
+---
+title: GCP Deployment (Terraform)
+category: general
+last_updated: 2026-01-31
+description: Deploy ServalSheets on Google Cloud using Cloud Run with Terraform.
+version: 1.6.0
+tags: [deployment, sheets]
+---
+
 # GCP Deployment (Terraform)
 
 Deploy ServalSheets on Google Cloud using Cloud Run with Terraform.

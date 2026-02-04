@@ -1,3 +1,12 @@
+---
+title: ServalSheets vs Alternatives
+category: general
+last_updated: 2026-01-31
+description: A comprehensive comparison of Google Sheets integration options for AI/LLM applications.
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets vs Alternatives
 
 A comprehensive comparison of Google Sheets integration options for AI/LLM applications.
@@ -32,7 +41,7 @@ A comprehensive comparison of Google Sheets integration options for AI/LLM appli
 - 🎯 Purpose-built for MCP and Claude
 - 🛡️ Comprehensive safety rails (dry-run, confirmations, effect limits)
 - 🤖 AI-powered features (formula generation, chart recommendations)
-- 📊 272 actions covering 100% of Sheets API v4
+- 📊 293 actions covering 100% of Sheets API v4
 - 🔄 Smart request deduplication and batching
 - 📈 Built-in monitoring and observability
 - 🔐 Enterprise security (OAuth 2.1, CSRF protection)
@@ -174,7 +183,7 @@ function updateSheet() {
 
 | MCP Feature       | ServalSheets             | Availability Elsewhere |
 | ----------------- | ------------------------ | ---------------------- |
-| Tools             | ✅ 21 tools, 272 actions | ❌ Not MCP             |
+| Tools             | ✅ 21 tools, 293 actions | ❌ Not MCP             |
 | Resources         | ✅ 6 URI templates       | ❌ Not MCP             |
 | Prompts           | ✅ 6 guided workflows    | ❌ Not MCP             |
 | Task cancellation | ✅ Full AbortController  | ❌ Not MCP             |
@@ -201,7 +210,7 @@ function updateSheet() {
 - Need safety rails for destructive operations
 - Want AI-powered spreadsheet features
 - Require enterprise-grade security
-- Need comprehensive API coverage (272 actions)
+- Need comprehensive API coverage (293 actions)
 - Want self-hosted deployment options
 
 ❌ **Consider alternatives if you:**
@@ -247,7 +256,7 @@ ServalSheets is the **only MCP-native Google Sheets integration** with:
 - Comprehensive safety rails
 - AI-powered features
 - Enterprise-grade security
-- 272 actions covering the complete Sheets API
+- 293 actions covering the complete Sheets API
 
 For AI applications and Claude Desktop users, ServalSheets provides unmatched functionality and safety features that no other solution offers.
 

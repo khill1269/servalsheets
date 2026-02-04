@@ -1,3 +1,12 @@
+---
+title: Troubleshooting Guide
+category: general
+last_updated: 2026-01-31
+description: Common issues, solutions, and debugging tips for ServalSheets.
+version: 1.6.0
+tags: [troubleshooting, sheets, prometheus, grafana]
+---
+
 # Troubleshooting Guide
 
 Common issues, solutions, and debugging tips for ServalSheets.
@@ -23,6 +32,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Service Account Key Issues**
+
    ```bash
    # Verify file exists and is readable
    ls -la ~/.config/google/servalsheets-prod.json
@@ -39,6 +49,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    - Re-download key from Google Cloud Console if corrupted
 
 2. **OAuth Token Expired**
+
    ```bash
    # Delete cached tokens
    rm -rf ~/.config/servalsheets/tokens.enc
@@ -49,6 +60,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 3. **Wrong Google Cloud Project**
+
    ```bash
    # Check which project the service account belongs to
    cat service-account.json | jq .project_id
@@ -58,6 +70,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Use separate service accounts per environment (dev/staging/prod)
 - Rotate keys annually
 - Store keys in secrets manager, not in code repository
@@ -73,6 +86,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Spreadsheet not shared with service account**
+
    ```bash
    # In Google Sheets, click Share
    # Add: your-service-account@project-id.iam.gserviceaccount.com
@@ -80,16 +94,18 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Invalid spreadsheet ID**
+
    ```javascript
    // Correct format:
-   spreadsheetId: "1ABC-123xyz_..." // From spreadsheet URL
+   spreadsheetId: '1ABC-123xyz_...'; // From spreadsheet URL
 
    // Common mistakes:
-   spreadsheetId: "https://docs.google.com/..." // ❌ Don't use full URL
-   spreadsheetId: "My Spreadsheet" // ❌ Don't use title
+   spreadsheetId: 'https://docs.google.com/...'; // ❌ Don't use full URL
+   spreadsheetId: 'My Spreadsheet'; // ❌ Don't use title
    ```
 
 3. **Sheet name doesn't exist**
+
    ```javascript
    // List available sheets first
    await sheets_core({ action: 'get', spreadsheetId: '...' });
@@ -97,6 +113,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Always use sheets_core.get first to verify spreadsheet exists
 - Store spreadsheet IDs in environment variables, not hardcoded
 - Use sheets_session to track active spreadsheet
@@ -110,6 +127,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Too many individual API calls**
+
    ```javascript
    // ❌ Bad: Multiple individual calls
    for (const range of ranges) {
@@ -119,12 +137,13 @@ Common issues, solutions, and debugging tips for ServalSheets.
    // ✅ Good: Single batch call
    await sheets_data({
      action: 'batch_read',
-     ranges: ranges
+     ranges: ranges,
    });
    // Saves 80-99% quota!
    ```
 
 2. **Missing batching/transactions**
+
    ```javascript
    // ❌ Bad: 100 individual writes
    for (const cell of cells) {
@@ -141,6 +160,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 3. **Need higher quota**
+
    ```bash
    # Check current quota usage
    # Google Cloud Console → APIs & Services → Quotas
@@ -150,6 +170,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Always use batch operations for multiple ranges
 - Use transactions for related writes
 - Read optimization guide: `servalsheets://guides/quota-optimization`
@@ -164,6 +185,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Too many operations in single transaction**
+
    ```javascript
    // ❌ Bad: 500 operations in one transaction
    for (let i = 0; i < 500; i++) {
@@ -182,6 +204,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Keep transactions under 50 operations
 - Break large updates into multiple transactions
 - Use composite operations for common patterns
@@ -197,6 +220,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Not using caching**
+
    ```javascript
    // Check cache configuration
    const config = {
@@ -209,16 +233,18 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Missing prefetching**
+
    ```javascript
    // Enable prefetching for frequently accessed ranges
    await sheets_data({
      action: 'read',
      range: 'A1:Z1000',
-     prefetch: true  // Enables background prefetch
+     prefetch: true, // Enables background prefetch
    });
    ```
 
 3. **Large data transfers**
+
    ```javascript
    // ❌ Bad: Reading 100K cells at once
    await sheets_data({ action: 'read', range: 'A1:Z100000' });
@@ -228,6 +254,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Use batch operations to reduce round trips
 - Enable request deduplication (default: enabled)
 - Use connection pooling (configured automatically)
@@ -242,6 +269,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Too many cached results**
+
    ```bash
    # Check cache sizes
    # LRU caches have automatic eviction, but check configuration
@@ -251,6 +279,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Memory leak in long-running process**
+
    ```bash
    # Restart server periodically (every 24h recommended)
    # Use PM2 or systemd for automatic restarts
@@ -260,6 +289,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Use Redis for distributed caching in production
 - Set `NODE_ENV=production` to reduce debug overhead
 - Monitor memory with Prometheus/Grafana
@@ -275,6 +305,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Redis not running**
+
    ```bash
    # Check Redis status
    redis-cli ping
@@ -285,6 +316,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Wrong Redis URL**
+
    ```bash
    # Verify Redis URL
    echo $REDIS_URL
@@ -295,6 +327,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 3. **Production mode requires Redis**
+
    ```bash
    # Error: Redis is required in production mode
 
@@ -306,6 +339,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Always use Redis in production (`NODE_ENV=production`)
 - Use health checks to monitor Redis connectivity
 - Configure Redis persistence (RDB or AOF)
@@ -321,23 +355,27 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Invalid A1 notation**
+
    ```javascript
    // ❌ Wrong formats:
-   range: "1:10" // Missing column
-   range: "A-Z" // Wrong syntax
-   range: "Sheet 1!A1" // Space in name (must be quoted)
+   range: '1:10'; // Missing column
+   range: 'A-Z'; // Wrong syntax
+   range: 'Sheet 1!A1'; // Space in name (must be quoted)
 
    // ✅ Correct formats:
-   range: "A1:Z10"
-   range: "'Sheet 1'!A1:Z10" // Quoted sheet name with space
-   range: "Sheet1" // Entire sheet
+   range: 'A1:Z10';
+   range: "'Sheet 1'!A1:Z10"; // Quoted sheet name with space
+   range: 'Sheet1'; // Entire sheet
    ```
 
 2. **Semantic range not found**
+
    ```javascript
    // Semantic range requires matching header
    {
-     semantic: { column: "Revenue" } // Must match column header exactly
+     semantic: {
+       column: 'Revenue';
+     } // Must match column header exactly
    }
 
    // Debug: Check available headers first
@@ -345,6 +383,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Use sheets_data.get to verify range exists
 - Use semantic ranges for flexible column references
 - Handle RangeResolutionError gracefully
@@ -358,23 +397,25 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Wrong value input option**
+
    ```javascript
    // ❌ Wrong: Treats formula as literal text
    await sheets_data({
      action: 'write',
      values: [['=SUM(A1:A10)']],
-     valueInputOption: 'RAW'  // ❌ Wrong
+     valueInputOption: 'RAW', // ❌ Wrong
    });
 
    // ✅ Correct: Interprets as formula
    await sheets_data({
      action: 'write',
      values: [['=SUM(A1:A10)']],
-     valueInputOption: 'USER_ENTERED'  // ✅ Correct (default)
+     valueInputOption: 'USER_ENTERED', // ✅ Correct (default)
    });
    ```
 
 **Prevention:**
+
 - Always use `USER_ENTERED` for formulas (default)
 - Use `RAW` only for literal text values
 - Validate formulas with sheets_advanced.formula_validate
@@ -390,6 +431,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Client doesn't support sampling**
+
    ```
    Error: SAMPLING_UNAVAILABLE
 
@@ -398,12 +440,14 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Fallback to deterministic analysis**
+
    ```javascript
    // Server automatically falls back to rule-based analysis
    // No action needed - check logs for "Sampling fallback" message
    ```
 
 **Prevention:**
+
 - Use latest MCP client (Claude Desktop 1.0+)
 - Check server capabilities with tools/list
 
@@ -416,14 +460,15 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **User declined operation**
+
    ```javascript
    try {
      const result = await sheets_confirm({
        request: {
          action: 'request',
          operation: 'delete_rows',
-         impact: { rowsAffected: 100 }
-       }
+         impact: { rowsAffected: 100 },
+       },
      });
    } catch (error) {
      if (error.code === 'USER_REJECTED') {
@@ -435,6 +480,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Always check confirmation result before proceeding
 - Handle USER_REJECTED gracefully
 - Provide clear impact descriptions in confirmation requests
@@ -450,6 +496,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Too many concurrent requests**
+
    ```bash
    # Check rate limiting configuration
    export RATE_LIMIT_MAX=100  # Requests per minute
@@ -460,12 +507,14 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Complex computations**
+
    ```javascript
    // Offload heavy computations to client
    // Use batch operations to reduce processing overhead
    ```
 
 **Prevention:**
+
 - Enable rate limiting (default: 100 req/min)
 - Use Redis for distributed caching
 - Monitor with Prometheus/Grafana
@@ -480,6 +529,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
 **Causes & Solutions:**
 
 1. **Too many failures**
+
    ```bash
    # Circuit breaker opens after 5 consecutive failures
    # Waits 30 seconds before trying again
@@ -489,6 +539,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 2. **Google API issues**
+
    ```bash
    # Check Google API status
    # https://status.cloud.google.com/
@@ -498,6 +549,7 @@ Common issues, solutions, and debugging tips for ServalSheets.
    ```
 
 **Prevention:**
+
 - Monitor circuit breaker metrics
 - Set up alerts for circuit breaker opens
 - Implement fallback strategies
@@ -515,6 +567,7 @@ npm start
 ```
 
 Debug logs show:
+
 - Cache hits/misses
 - API call details
 - Request deduplication
@@ -565,6 +618,7 @@ npm start
 ### Creating an Issue
 
 Include:
+
 - ServalSheets version (`npm list servalsheets`)
 - Node version (`node --version`)
 - Operating system

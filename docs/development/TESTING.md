@@ -1,3 +1,12 @@
+---
+title: ServalSheets Testing Guide
+category: development
+last_updated: 2026-01-31
+description: '> Version: 1.0.0'
+version: 1.6.0
+tags: [testing, sheets]
+---
+
 # ServalSheets Testing Guide
 
 > **Version:** 1.0.0  
@@ -29,10 +38,10 @@
         /\
        /  \      E2E Tests (5%)
       /────\     - Full MCP client → server flows
-     /      \    
+     /      \
     /────────\   Integration Tests (25%)
    /          \  - Handler + Service + Mock API
-  /────────────\ 
+  /────────────\
  /              \ Unit Tests (70%)
 /________________\ - Schemas, utilities, services
 ```
@@ -135,7 +144,7 @@ describe('SheetsValuesInputSchema', () => {
         spreadsheetId: 'abc123',
         range: { a1: 'Sheet1!A1:D10' },
       };
-      
+
       const result = SheetsValuesInputSchema.safeParse(input);
       expect(result.success).toBe(true);
     });
@@ -145,7 +154,7 @@ describe('SheetsValuesInputSchema', () => {
         action: 'read',
         range: { a1: 'Sheet1!A1:D10' },
       };
-      
+
       const result = SheetsValuesInputSchema.safeParse(input);
       expect(result.success).toBe(false);
       expect(result.error?.issues[0].path).toContain('spreadsheetId');
@@ -161,7 +170,7 @@ describe('SheetsValuesInputSchema', () => {
         { grid: { sheetId: 0, startRowIndex: 0, endRowIndex: 10 } },
       ];
 
-      formats.forEach(range => {
+      formats.forEach((range) => {
         const result = SheetsValuesInputSchema.safeParse({
           action: 'read',
           spreadsheetId: 'abc123',
@@ -178,9 +187,12 @@ describe('SheetsValuesInputSchema', () => {
         action: 'write',
         spreadsheetId: 'abc123',
         range: { a1: 'Sheet1!A1' },
-        values: [['Hello', 'World'], [1, 2]],
+        values: [
+          ['Hello', 'World'],
+          [1, 2],
+        ],
       };
-      
+
       const result = SheetsValuesInputSchema.safeParse(input);
       expect(result.success).toBe(true);
     });
@@ -192,7 +204,7 @@ describe('SheetsValuesInputSchema', () => {
         range: { a1: 'Sheet1!A1' },
         values: 'not an array',
       };
-      
+
       const result = SheetsValuesInputSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
@@ -204,7 +216,7 @@ describe('SheetsValuesInputSchema', () => {
         range: { a1: 'A1' },
         values: [['test']],
       };
-      
+
       const result = SheetsValuesInputSchema.parse(input);
       expect(result.valueInputOption).toBe('USER_ENTERED');
     });
@@ -216,7 +228,7 @@ describe('SheetsValuesInputSchema', () => {
         action: 'unknown',
         spreadsheetId: 'abc123',
       };
-      
+
       const result = SheetsValuesInputSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
@@ -245,14 +257,20 @@ describe('SheetsService', () => {
     it('should return values from API response', async () => {
       mockApi.spreadsheets.values.get.mockResolvedValue({
         data: {
-          values: [['A1', 'B1'], ['A2', 'B2']],
+          values: [
+            ['A1', 'B1'],
+            ['A2', 'B2'],
+          ],
           range: 'Sheet1!A1:B2',
         },
       });
 
       const result = await service.readValues('spreadsheet-id', 'Sheet1!A1:B2');
 
-      expect(result.values).toEqual([['A1', 'B1'], ['A2', 'B2']]);
+      expect(result.values).toEqual([
+        ['A1', 'B1'],
+        ['A2', 'B2'],
+      ]);
       expect(result.range).toBe('Sheet1!A1:B2');
     });
 
@@ -290,7 +308,10 @@ describe('SheetsService', () => {
       const result = await service.writeValues(
         'spreadsheet-id',
         'Sheet1!A1',
-        [['A', 'B'], ['C', 'D']],
+        [
+          ['A', 'B'],
+          ['C', 'D'],
+        ],
         'USER_ENTERED'
       );
 
@@ -298,7 +319,12 @@ describe('SheetsService', () => {
         spreadsheetId: 'spreadsheet-id',
         range: 'Sheet1!A1',
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [['A', 'B'], ['C', 'D']] },
+        requestBody: {
+          values: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
+        },
       });
       expect(result.updatedCells).toBe(4);
     });
@@ -312,7 +338,11 @@ describe('SheetsService', () => {
 
       await service.batchUpdate('id', [
         { addSheet: { properties: { title: 'New' } } },
-        { updateCells: { /* ... */ } },
+        {
+          updateCells: {
+            /* ... */
+          },
+        },
       ]);
 
       expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
@@ -351,22 +381,31 @@ describe('SheetsValuesHandler', () => {
   describe('handle - read action', () => {
     it('should return success with values', async () => {
       mockService.readValues.mockResolvedValue({
-        values: [['A', 'B'], ['C', 'D']],
+        values: [
+          ['A', 'B'],
+          ['C', 'D'],
+        ],
         range: 'Sheet1!A1:B2',
       });
 
-      const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'Sheet1!A1:B2' },
-      }, mockExtra);
+      const result = await handler.handle(
+        {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'Sheet1!A1:B2' },
+        },
+        mockExtra
+      );
 
       expect(result.isError).toBeFalsy();
       expect(result.structuredContent).toEqual({
         success: true,
         action: 'read',
         data: {
-          values: [['A', 'B'], ['C', 'D']],
+          values: [
+            ['A', 'B'],
+            ['C', 'D'],
+          ],
           range: 'Sheet1!A1:B2',
           rowCount: 2,
           columnCount: 2,
@@ -380,11 +419,14 @@ describe('SheetsValuesHandler', () => {
         range: 'A1',
       });
 
-      const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1' },
-      }, mockExtra);
+      const result = await handler.handle(
+        {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1' },
+        },
+        mockExtra
+      );
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe('text');
@@ -394,13 +436,16 @@ describe('SheetsValuesHandler', () => {
 
   describe('handle - write action', () => {
     it('should support dry run mode', async () => {
-      const result = await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1' },
-        values: [['test']],
-        safety: { dryRun: true },
-      }, mockExtra);
+      const result = await handler.handle(
+        {
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1' },
+          values: [['test']],
+          safety: { dryRun: true },
+        },
+        mockExtra
+      );
 
       expect(mockService.writeValues).not.toHaveBeenCalled();
       expect(result.structuredContent.dryRun).toBe(true);
@@ -409,17 +454,18 @@ describe('SheetsValuesHandler', () => {
     it('should create snapshot before write when autoSnapshot enabled', async () => {
       mockService.writeValues.mockResolvedValue({ updatedCells: 1 });
 
-      await handler.handle({
-        action: 'write',
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1' },
-        values: [['test']],
-        safety: { autoSnapshot: true },
-      }, mockExtra);
-
-      expect(mockService.createSnapshot).toHaveBeenCalledBefore(
-        mockService.writeValues
+      await handler.handle(
+        {
+          action: 'write',
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1' },
+          values: [['test']],
+          safety: { autoSnapshot: true },
+        },
+        mockExtra
       );
+
+      expect(mockService.createSnapshot).toHaveBeenCalledBefore(mockService.writeValues);
     });
   });
 
@@ -430,11 +476,14 @@ describe('SheetsValuesHandler', () => {
         message: 'Spreadsheet not found',
       });
 
-      const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'invalid-id',
-        range: { a1: 'A1' },
-      }, mockExtra);
+      const result = await handler.handle(
+        {
+          action: 'read',
+          spreadsheetId: 'invalid-id',
+          range: { a1: 'A1' },
+        },
+        mockExtra
+      );
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent.error.code).toBe('NOT_FOUND');
@@ -446,11 +495,14 @@ describe('SheetsValuesHandler', () => {
         message: 'Rate limit exceeded',
       });
 
-      const result = await handler.handle({
-        action: 'read',
-        spreadsheetId: 'test-id',
-        range: { a1: 'A1' },
-      }, mockExtra);
+      const result = await handler.handle(
+        {
+          action: 'read',
+          spreadsheetId: 'test-id',
+          range: { a1: 'A1' },
+        },
+        mockExtra
+      );
 
       expect(result.isError).toBe(true);
       expect(result.structuredContent.error.code).toBe('RATE_LIMITED');
@@ -561,20 +613,23 @@ describe('A1 Notation Utilities', () => {
   describe('isValidA1Notation', () => {
     it('should accept valid notations', () => {
       const valid = [
-        'A1', 'A1:B2', 'Sheet1!A1', 'Sheet1!A1:B2',
-        "'My Sheet'!A1:B2", 'A:A', '1:1', 'AA100:ZZ999',
+        'A1',
+        'A1:B2',
+        'Sheet1!A1',
+        'Sheet1!A1:B2',
+        "'My Sheet'!A1:B2",
+        'A:A',
+        '1:1',
+        'AA100:ZZ999',
       ];
-      valid.forEach(notation => {
+      valid.forEach((notation) => {
         expect(isValidA1Notation(notation), notation).toBe(true);
       });
     });
 
     it('should reject invalid notations', () => {
-      const invalid = [
-        '', '!A1', 'Sheet1!', '1A', 'A', '1',
-        'A1:B', 'Sheet1!!A1', 'A1:B2:C3',
-      ];
-      invalid.forEach(notation => {
+      const invalid = ['', '!A1', 'Sheet1!', '1A', 'A', '1', 'A1:B', 'Sheet1!!A1', 'A1:B2:C3'];
+      invalid.forEach((notation) => {
         expect(isValidA1Notation(notation), notation).toBe(false);
       });
     });
@@ -641,8 +696,8 @@ describe('MCP Protocol Integration', () => {
     it('should have valid tool names per SEP-986', async () => {
       const tools = await client.listTools();
       const nameRegex = /^[A-Za-z0-9._-]{1,128}$/;
-      
-      tools.tools.forEach(tool => {
+
+      tools.tools.forEach((tool) => {
         expect(tool.name).toMatch(nameRegex);
         expect(tool.name).toMatch(/^sheets_/); // Our convention
       });
@@ -650,8 +705,8 @@ describe('MCP Protocol Integration', () => {
 
     it('should have all required annotations', async () => {
       const tools = await client.listTools();
-      
-      tools.tools.forEach(tool => {
+
+      tools.tools.forEach((tool) => {
         expect(tool.annotations).toBeDefined();
         expect(typeof tool.annotations.readOnlyHint).toBe('boolean');
         expect(typeof tool.annotations.destructiveHint).toBe('boolean');
@@ -662,8 +717,8 @@ describe('MCP Protocol Integration', () => {
 
     it('should have input schemas with type object', async () => {
       const tools = await client.listTools();
-      
-      tools.tools.forEach(tool => {
+
+      tools.tools.forEach((tool) => {
         expect(tool.inputSchema.type).toBe('object');
       });
     });
@@ -713,7 +768,7 @@ describe.skipIf(!runIntegration)('Google Sheets API Integration', () => {
       credentials: JSON.parse(process.env.GOOGLE_TEST_CREDENTIALS!),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-    
+
     const sheetsApi = google.sheets({ version: 'v4', auth });
     service = new SheetsService(sheetsApi);
 
@@ -743,12 +798,7 @@ describe.skipIf(!runIntegration)('Google Sheets API Integration', () => {
       ];
 
       // Write
-      await service.writeValues(
-        testSpreadsheetId,
-        'Sheet1!A1',
-        testData,
-        'USER_ENTERED'
-      );
+      await service.writeValues(testSpreadsheetId, 'Sheet1!A1', testData, 'USER_ENTERED');
 
       // Read
       const result = await service.readValues(testSpreadsheetId, 'Sheet1!A1:C3');
@@ -776,17 +826,19 @@ describe.skipIf(!runIntegration)('Google Sheets API Integration', () => {
 
   describe('formatting', () => {
     it('should apply background color', async () => {
-      await service.batchUpdate(testSpreadsheetId, [{
-        repeatCell: {
-          range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
-          cell: {
-            userEnteredFormat: {
-              backgroundColor: { red: 0.2, green: 0.6, blue: 0.8 },
+      await service.batchUpdate(testSpreadsheetId, [
+        {
+          repeatCell: {
+            range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 0.2, green: 0.6, blue: 0.8 },
+              },
             },
+            fields: 'userEnteredFormat.backgroundColor',
           },
-          fields: 'userEnteredFormat.backgroundColor',
         },
-      }]);
+      ]);
 
       // Verify by reading cell format
       const response = await service.getSpreadsheet(testSpreadsheetId, {
@@ -815,7 +867,9 @@ import * as fc from 'fast-check';
 export const arbitraries = {
   // Spreadsheet ID (alphanumeric + dash/underscore)
   spreadsheetId: fc.stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')),
+    fc.constantFrom(
+      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'.split('')
+    ),
     { minLength: 1, maxLength: 100 }
   ),
 
@@ -829,28 +883,31 @@ export const arbitraries = {
   row: fc.integer({ min: 1, max: 1000000 }),
 
   // Cell reference
-  cellRef: fc.tuple(
-    fc.integer({ min: 0, max: 702 }).map(indexToColumn),
-    fc.integer({ min: 1, max: 10000 })
-  ).map(([col, row]) => `${col}${row}`),
+  cellRef: fc
+    .tuple(fc.integer({ min: 0, max: 702 }).map(indexToColumn), fc.integer({ min: 1, max: 10000 }))
+    .map(([col, row]) => `${col}${row}`),
 
   // A1 notation
   a1Notation: fc.oneof(
     // Simple range: A1:B10
-    fc.tuple(
-      fc.integer({ min: 0, max: 100 }).map(indexToColumn),
-      fc.integer({ min: 1, max: 1000 }),
-      fc.integer({ min: 0, max: 100 }).map(indexToColumn),
-      fc.integer({ min: 1, max: 1000 })
-    ).map(([c1, r1, c2, r2]) => `${c1}${r1}:${c2}${r2}`),
+    fc
+      .tuple(
+        fc.integer({ min: 0, max: 100 }).map(indexToColumn),
+        fc.integer({ min: 1, max: 1000 }),
+        fc.integer({ min: 0, max: 100 }).map(indexToColumn),
+        fc.integer({ min: 1, max: 1000 })
+      )
+      .map(([c1, r1, c2, r2]) => `${c1}${r1}:${c2}${r2}`),
     // With sheet: Sheet1!A1:B10
-    fc.tuple(
-      fc.stringOf(fc.alphanumeric(), { minLength: 1, maxLength: 50 }),
-      fc.integer({ min: 0, max: 100 }).map(indexToColumn),
-      fc.integer({ min: 1, max: 1000 }),
-      fc.integer({ min: 0, max: 100 }).map(indexToColumn),
-      fc.integer({ min: 1, max: 1000 })
-    ).map(([sheet, c1, r1, c2, r2]) => `${sheet}!${c1}${r1}:${c2}${r2}`)
+    fc
+      .tuple(
+        fc.stringOf(fc.alphanumeric(), { minLength: 1, maxLength: 50 }),
+        fc.integer({ min: 0, max: 100 }).map(indexToColumn),
+        fc.integer({ min: 1, max: 1000 }),
+        fc.integer({ min: 0, max: 100 }).map(indexToColumn),
+        fc.integer({ min: 1, max: 1000 })
+      )
+      .map(([sheet, c1, r1, c2, r2]) => `${sheet}!${c1}${r1}:${c2}${r2}`)
   ),
 
   // Color (0-1 scale)
@@ -862,25 +919,22 @@ export const arbitraries = {
   }),
 
   // Cell value (string, number, boolean, null)
-  cellValue: fc.oneof(
-    fc.string(),
-    fc.double({ noNaN: true }),
-    fc.boolean(),
-    fc.constant(null)
-  ),
+  cellValue: fc.oneof(fc.string(), fc.double({ noNaN: true }), fc.boolean(), fc.constant(null)),
 
   // 2D values array
   values2D: fc.array(
-    fc.array(
-      fc.oneof(fc.string(), fc.double({ noNaN: true }), fc.boolean(), fc.constant(null)),
-      { minLength: 1, maxLength: 26 }
-    ),
+    fc.array(fc.oneof(fc.string(), fc.double({ noNaN: true }), fc.boolean(), fc.constant(null)), {
+      minLength: 1,
+      maxLength: 26,
+    }),
     { minLength: 1, maxLength: 1000 }
   ),
 
   // Tool name (SEP-986 compliant)
   toolName: fc.stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-'.split('')),
+    fc.constantFrom(
+      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-'.split('')
+    ),
     { minLength: 1, maxLength: 128 }
   ),
 };
@@ -900,19 +954,15 @@ describe('Schema Property Tests', () => {
   describe('SheetsValuesInputSchema', () => {
     it('should accept any valid read input', () => {
       fc.assert(
-        fc.property(
-          arbitraries.spreadsheetId,
-          arbitraries.a1Notation,
-          (spreadsheetId, a1) => {
-            const input = {
-              action: 'read',
-              spreadsheetId,
-              range: { a1 },
-            };
-            const result = SheetsValuesInputSchema.safeParse(input);
-            return result.success;
-          }
-        ),
+        fc.property(arbitraries.spreadsheetId, arbitraries.a1Notation, (spreadsheetId, a1) => {
+          const input = {
+            action: 'read',
+            spreadsheetId,
+            range: { a1 },
+          };
+          const result = SheetsValuesInputSchema.safeParse(input);
+          return result.success;
+        }),
         { numRuns: 1000 }
       );
     });
@@ -940,7 +990,7 @@ describe('Schema Property Tests', () => {
 
     it('should preserve action type through parse', () => {
       const actions = ['read', 'write', 'append', 'clear', 'batch_read', 'batch_write'];
-      
+
       fc.assert(
         fc.property(
           fc.constantFrom(...actions),
@@ -952,7 +1002,9 @@ describe('Schema Property Tests', () => {
               range: { a1: 'A1:B2' },
               ...(action === 'write' || action === 'append' ? { values: [['test']] } : {}),
               ...(action === 'batch_read' ? { ranges: [{ a1: 'A1:B2' }] } : {}),
-              ...(action === 'batch_write' ? { data: [{ range: { a1: 'A1' }, values: [['test']] }] } : {}),
+              ...(action === 'batch_write'
+                ? { data: [{ range: { a1: 'A1' }, values: [['test']] }] }
+                : {}),
             };
             const result = SheetsValuesInputSchema.safeParse(input);
             return result.success && result.data.action === action;
@@ -975,25 +1027,19 @@ describe('Schema Property Tests', () => {
 
     it('should reject colors outside 0-1 range', () => {
       fc.assert(
-        fc.property(
-          fc.float({ min: 1.01, max: 255, noNaN: true }),
-          (value) => {
-            const result = ColorSchema.safeParse({ red: value, green: 0, blue: 0 });
-            return !result.success;
-          }
-        )
+        fc.property(fc.float({ min: 1.01, max: 255, noNaN: true }), (value) => {
+          const result = ColorSchema.safeParse({ red: value, green: 0, blue: 0 });
+          return !result.success;
+        })
       );
     });
 
     it('should clamp or reject negative values', () => {
       fc.assert(
-        fc.property(
-          fc.float({ min: -255, max: -0.01, noNaN: true }),
-          (value) => {
-            const result = ColorSchema.safeParse({ red: value, green: 0, blue: 0 });
-            return !result.success;
-          }
-        )
+        fc.property(fc.float({ min: -255, max: -0.01, noNaN: true }), (value) => {
+          const result = ColorSchema.safeParse({ red: value, green: 0, blue: 0 });
+          return !result.success;
+        })
       );
     });
   });
@@ -1015,7 +1061,7 @@ describe('E2E: Read-Write Flow', () => {
 
   beforeAll(async () => {
     client = await McpTestClient.create();
-    
+
     // Create test spreadsheet
     const result = await client.callTool('sheets_core', {
       action: 'create',
@@ -1094,6 +1140,232 @@ describe('E2E: Read-Write Flow', () => {
 
 ---
 
+## E2E Workflow Tests (Phase 2B)
+
+> **New in v1.6.0**: Workflow-based E2E tests for multi-step operations
+
+E2E workflow tests validate complete user journeys across multiple tools. These tests use the Test Orchestrator to coordinate complex multi-step operations.
+
+### Test Orchestrator
+
+The Test Orchestrator provides high-level workflow coordination:
+
+```typescript
+// tests/e2e/setup/test-orchestrator.ts
+import { createTestOrchestrator } from '../setup/test-orchestrator.js';
+
+// Create orchestrator
+const orchestrator = createTestOrchestrator('My Workflow Test');
+
+// Setup creates test spreadsheet automatically
+const spreadsheetId = await orchestrator.setup();
+
+// Execute workflow steps
+await orchestrator.executeStep({
+  name: 'Write data',
+  tool: 'sheets_data',
+  action: 'write',
+  args: {
+    spreadsheetId,
+    range: 'Data!A1:B2',
+    values: [
+      ['A', 'B'],
+      ['1', '2'],
+    ],
+  },
+  validate: (result) => {
+    expect(result.success).toBe(true);
+  },
+});
+
+// Cleanup (automatic)
+await orchestrator.cleanup();
+```
+
+### Workflow Types
+
+#### 1. Analysis Workflow (`tests/e2e/workflows/analysis-workflow.test.ts`)
+
+Tests the complete analysis pipeline:
+
+1. Create spreadsheet
+2. Populate with sample data (100-1000 rows)
+3. Read data to verify
+4. Perform quick analysis
+5. Perform comprehensive analysis
+6. Verify analysis results
+
+```typescript
+describeE2E('E2E: Analysis Workflow', () => {
+  let orchestrator: ReturnType<typeof createTestOrchestrator>;
+  let spreadsheetId: string;
+
+  beforeEach(async () => {
+    orchestrator = createTestOrchestrator('Analysis Workflow');
+    spreadsheetId = await orchestrator.setup();
+  });
+
+  afterEach(async () => {
+    await orchestrator.cleanup();
+  });
+
+  it('should complete full analysis pipeline', async () => {
+    const testData = generateTestData(100, 5);
+
+    await orchestrator.executeStep({
+      name: 'Populate test data',
+      tool: 'sheets_data',
+      action: 'write',
+      args: { spreadsheetId, range: 'Data!A1:E101', values: testData },
+    });
+
+    await orchestrator.executeStep({
+      name: 'Comprehensive analysis',
+      tool: 'sheets_analyze',
+      action: 'comprehensive',
+      args: { spreadsheetId },
+    });
+
+    // Verify workflow history
+    const context = orchestrator.getContext();
+    expect(context.history.every((h) => h.success)).toBe(true);
+  }, 60000);
+});
+```
+
+#### 2. Transaction Workflow (`tests/e2e/workflows/transaction-workflow.test.ts`)
+
+Tests transaction handling and data consistency:
+
+1. Multi-step atomic operations
+2. Batch updates
+3. Data consistency verification
+4. Error recovery tracking
+
+```typescript
+describeE2E('E2E: Transaction Workflow', () => {
+  it('should execute successful multi-step transaction', async () => {
+    // Transfer operation: Deduct from A, Add to B
+    await orchestrator.executeStep({
+      name: 'Deduct from Account A',
+      tool: 'sheets_data',
+      action: 'write',
+      args: { spreadsheetId, range: 'Data!B2', values: [['500']] },
+    });
+
+    await orchestrator.executeStep({
+      name: 'Add to Account B',
+      tool: 'sheets_data',
+      action: 'write',
+      args: { spreadsheetId, range: 'Data!B3', values: [['2500']] },
+    });
+
+    // Verify both operations completed
+    const context = orchestrator.getContext();
+    expect(context.history.filter((h) => h.success).length).toBe(2);
+  });
+});
+```
+
+#### 3. Collaboration Workflow (`tests/e2e/workflows/collaboration-workflow.test.ts`)
+
+Tests multi-user scenarios:
+
+1. Shared spreadsheet setup
+2. Concurrent-style updates
+3. Collaborative editing history
+4. Data validation across users
+
+```typescript
+describeE2E('E2E: Collaboration Workflow', () => {
+  it('should handle concurrent-style updates', async () => {
+    // Simulate 3 users updating different rows
+    await orchestrator.executeStep({
+      name: 'User 1: Increment counter A',
+      tool: 'sheets_data',
+      action: 'write',
+      args: { spreadsheetId, range: 'Data!B2', values: [['1']] },
+    });
+
+    await orchestrator.executeStep({
+      name: 'User 2: Increment counter B',
+      tool: 'sheets_data',
+      action: 'write',
+      args: { spreadsheetId, range: 'Data!B3', values: [['1']] },
+    });
+
+    // Verify all updates persisted
+    const context = orchestrator.getContext();
+    expect(context.history.every((h) => h.success)).toBe(true);
+  });
+});
+```
+
+### Running E2E Workflow Tests
+
+```bash
+# Run all E2E workflow tests
+npm test tests/e2e/workflows/
+
+# Run specific workflow
+npm test tests/e2e/workflows/analysis-workflow.test.ts
+
+# Run with live API (requires credentials)
+TEST_REAL_API=true npm test tests/e2e/workflows/
+
+# Skip E2E tests if no credentials
+npm test  # Workflows auto-skip via describeE2E()
+```
+
+### Workflow Test Features
+
+1. **Automatic Cleanup**: Test spreadsheets automatically deleted after each test
+2. **History Tracking**: All operations tracked with timestamps and success status
+3. **Validation Hooks**: Optional validation functions per step
+4. **Error Recovery**: Failed steps tracked, allows recovery testing
+5. **Context Preservation**: Workflow context available for assertions
+
+### Test Data Generation
+
+```typescript
+// Generate test data for workflow tests
+function generateTestData(rows: number, cols: number): unknown[][] {
+  const data: unknown[][] = [];
+
+  // Header row
+  const headers = Array.from({ length: cols }, (_, i) => `Column ${String.fromCharCode(65 + i)}`);
+  data.push(headers);
+
+  // Data rows
+  for (let row = 1; row <= rows; row++) {
+    const rowData: unknown[] = [];
+    for (let col = 0; col < cols; col++) {
+      if (col === 0) {
+        rowData.push(`Item ${row}`);
+      } else if (col === 1) {
+        rowData.push(Math.floor(Math.random() * 1000));
+      } else {
+        rowData.push(`Value ${row}-${col}`);
+      }
+    }
+    data.push(rowData);
+  }
+
+  return data;
+}
+```
+
+### Best Practices
+
+1. **Use describeE2E()**: Automatically skips tests if credentials not available
+2. **Meaningful step names**: Each step should clearly describe what it does
+3. **Add validation**: Use validate callback for immediate assertions
+4. **Check history**: Verify workflow completed successfully via context.history
+5. **Timeout generously**: E2E tests need longer timeouts (30-120s)
+6. **Clean up always**: Use afterEach() to ensure cleanup runs
+
+---
+
 ## Mocking Patterns
 
 ### Google API Mock
@@ -1143,7 +1415,11 @@ export const mockResponses = {
       properties: { title: 'Test Spreadsheet' },
       sheets: [
         {
-          properties: { sheetId: 0, title: 'Sheet1', gridProperties: { rowCount: 1000, columnCount: 26 } },
+          properties: {
+            sheetId: 0,
+            title: 'Sheet1',
+            gridProperties: { rowCount: 1000, columnCount: 26 },
+          },
         },
       ],
     },
@@ -1152,7 +1428,10 @@ export const mockResponses = {
     simple: {
       range: 'Sheet1!A1:B2',
       majorDimension: 'ROWS',
-      values: [['A1', 'B1'], ['A2', 'B2']],
+      values: [
+        ['A1', 'B1'],
+        ['A2', 'B2'],
+      ],
     },
     empty: {
       range: 'Sheet1!A1:B2',
@@ -1272,12 +1551,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'tests/',
-        'dist/',
-        '*.config.*',
-      ],
+      exclude: ['node_modules/', 'tests/', 'dist/', '*.config.*'],
       thresholds: {
         global: {
           statements: 80,
@@ -1369,4 +1643,4 @@ jobs:
 
 ---
 
-*This guide provides patterns for comprehensive testing of MCP servers with Google Sheets integration.*
+_This guide provides patterns for comprehensive testing of MCP servers with Google Sheets integration._

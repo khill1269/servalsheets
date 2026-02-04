@@ -146,6 +146,15 @@ const GetComprehensiveActionSchema = CommonFieldsSchema.extend({
     .optional()
     .default(100)
     .describe('Max rows per sheet if includeGridData=true (default: 100)'),
+  cursor: z.string().optional().describe('Pagination cursor for large workbooks'),
+  maxSheets: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .default(10)
+    .describe('Max sheets per page for pagination (default: 10)'),
 });
 
 const ListActionSchema = CommonFieldsSchema.extend({
@@ -308,6 +317,34 @@ const BatchUpdateSheetsActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
+// New Actions (Issue fix - missing functionality)
+// ============================================================================
+
+const ClearSheetActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('clear_sheet')
+    .describe('Clear all content from a sheet while preserving the sheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Numeric sheet ID to clear (use this OR sheetName)'),
+  sheetName: z.string().optional().describe('Sheet name/title to clear (use this OR sheetId)'),
+  clearValues: z.boolean().optional().default(true).describe('Clear cell values (default: true)'),
+  clearFormats: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Clear cell formatting (default: false)'),
+  clearNotes: z.boolean().optional().default(false).describe('Clear cell notes (default: false)'),
+});
+
+const MoveSheetActionSchema = CommonFieldsSchema.extend({
+  action: z.literal('move_sheet').describe('Move a sheet to a new position within the spreadsheet'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
+  sheetId: SheetIdSchema.optional().describe('Numeric sheet ID to move (use this OR sheetName)'),
+  sheetName: z.string().optional().describe('Sheet name/title to move (use this OR sheetId)'),
+  newIndex: z.number().int().min(0).describe('New 0-based position to move the sheet to'),
+});
+
+// ============================================================================
 // Combined Input Schema
 // ============================================================================
 
@@ -331,7 +368,7 @@ export const SheetsCoreInputSchema = z.object({
     BatchGetActionSchema,
     GetComprehensiveActionSchema,
     ListActionSchema,
-    // Sheet/tab actions (7)
+    // Sheet/tab actions (9 - added clear_sheet, move_sheet)
     AddSheetActionSchema,
     DeleteSheetActionSchema,
     DuplicateSheetActionSchema,
@@ -339,6 +376,8 @@ export const SheetsCoreInputSchema = z.object({
     CopySheetToActionSchema,
     ListSheetsActionSchema,
     GetSheetActionSchema,
+    ClearSheetActionSchema,
+    MoveSheetActionSchema,
     // Batch operations (Issue #2 fix - efficient multi-sheet operations)
     BatchDeleteSheetsActionSchema,
     BatchUpdateSheetsActionSchema,
@@ -402,6 +441,24 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
             fetchTime: z.coerce.number().int(),
           })
           .optional(),
+        pagination: z
+          .object({
+            hasMore: z.boolean().describe('True if more sheets available'),
+            nextCursor: z
+              .string()
+              .optional()
+              .describe('Cursor for next page (undefined = no more sheets)'),
+            totalSheets: z.coerce.number().int().describe('Total sheets in workbook'),
+            currentPage: z
+              .object({
+                startIndex: z.coerce.number().int(),
+                endIndex: z.coerce.number().int(),
+                count: z.coerce.number().int(),
+              })
+              .optional(),
+          })
+          .optional()
+          .describe('Pagination metadata for sheet-level pagination'),
       })
       .optional(),
     _meta: ResponseMetaSchema.optional(),
@@ -526,4 +583,20 @@ export type CoreBatchUpdateSheetsInput = SheetsCoreInput['request'] & {
     tabColor?: { red: number; green: number; blue: number; alpha?: number };
     hidden?: boolean;
   }>;
+};
+export type CoreClearSheetInput = SheetsCoreInput['request'] & {
+  action: 'clear_sheet';
+  spreadsheetId: string;
+  sheetId?: number;
+  sheetName?: string;
+  clearValues?: boolean;
+  clearFormats?: boolean;
+  clearNotes?: boolean;
+};
+export type CoreMoveSheetInput = SheetsCoreInput['request'] & {
+  action: 'move_sheet';
+  spreadsheetId: string;
+  sheetId?: number;
+  sheetName?: string;
+  newIndex: number;
 };

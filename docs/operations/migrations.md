@@ -1,3 +1,13 @@
+---
+title: Version Migration Guide
+category: runbook
+last_updated: 2026-01-31
+description: Procedures for migrating between ServalSheets versions, including breaking changes, data migrations, and rollback strategies.
+version: 1.6.0
+tags: [docker, kubernetes]
+estimated_time: 15-30 minutes
+---
+
 # Version Migration Guide
 
 ## Overview
@@ -8,11 +18,11 @@ Procedures for migrating between ServalSheets versions, including breaking chang
 
 ## Version Compatibility Matrix
 
-| From Version | To Version | Difficulty | Downtime Required | Data Migration |
-|--------------|------------|------------|-------------------|----------------|
-| 1.0.x → 1.1.x | ✅ Compatible | Easy | No | No |
-| 1.1.x → 2.0.x | ⚠️ Breaking | Medium | Yes (5-10 min) | Yes |
-| 0.x → 1.x | ❌ Major | Hard | Yes (30-60 min) | Yes |
+| From Version  | To Version    | Difficulty | Downtime Required | Data Migration |
+| ------------- | ------------- | ---------- | ----------------- | -------------- |
+| 1.0.x → 1.1.x | ✅ Compatible | Easy       | No                | No             |
+| 1.1.x → 2.0.x | ⚠️ Breaking   | Medium     | Yes (5-10 min)    | Yes            |
+| 0.x → 1.x     | ❌ Major      | Hard       | Yes (30-60 min)   | Yes            |
 
 ---
 
@@ -31,12 +41,14 @@ Procedures for migrating between ServalSheets versions, including breaking chang
 ## Migration: 1.0.x → 1.1.x
 
 ### What Changed
+
 - Added MCP Protocol 2025-11-25 support
 - Added Redis task store support
 - Enhanced error messages
 - New environment variables (optional)
 
 ### Breaking Changes
+
 **None** - Fully backward compatible
 
 ### Migration Steps
@@ -70,6 +82,7 @@ curl http://localhost:3000/health
 ### New Optional Features
 
 To enable Redis task store:
+
 ```bash
 # Add to .env
 REDIS_URL=redis://localhost:6379
@@ -83,12 +96,14 @@ docker-compose restart servalsheets
 ## Migration: 1.1.x → 2.0.x (Future)
 
 ### What Will Change (Example)
+
 - Schema version bump
 - Database structure changes
 - API endpoint changes
 - Configuration format changes
 
 ### Breaking Changes
+
 - ⚠️ Task store format change (requires migration)
 - ⚠️ Session store format change
 - ⚠️ Environment variable renames
@@ -193,6 +208,7 @@ migrateSessions();
 ```
 
 Run with:
+
 ```bash
 npx tsx scripts/migrate-sessions.ts
 ```
@@ -252,10 +268,10 @@ curl http://localhost:3000/health
 
 ### Deprecated Variables (Track across versions)
 
-| Version | Deprecated | Replacement | Migration |
-|---------|------------|-------------|-----------|
-| 2.0.0 | `OAUTH_TTL` | `ACCESS_TOKEN_TTL` | Rename |
-| 2.0.0 | `SESSION_TIMEOUT` | `SESSION_TTL_SECONDS` | Rename |
+| Version | Deprecated        | Replacement           | Migration |
+| ------- | ----------------- | --------------------- | --------- |
+| 2.0.0   | `OAUTH_TTL`       | `ACCESS_TOKEN_TTL`    | Rename    |
+| 2.0.0   | `SESSION_TIMEOUT` | `SESSION_TTL_SECONDS` | Rename    |
 
 ### Environment Migration Script
 
@@ -357,8 +373,8 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1        # Max 1 extra pod during update
-      maxUnavailable: 0  # Keep all pods running during update
+      maxSurge: 1 # Max 1 extra pod during update
+      maxUnavailable: 0 # Keep all pods running during update
 ```
 
 ```bash
@@ -422,6 +438,7 @@ kubectl patch service servalsheets -p '
    - Switch to new format once migration complete
 
 2. **Feature flags**
+
    ```typescript
    const USE_NEW_FORMAT = process.env.USE_NEW_FORMAT === 'true';
 
@@ -487,6 +504,7 @@ tail -f /var/log/servalsheets.log | grep ERROR
 **Problem**: Service won't start after upgrade
 
 **Solution**:
+
 ```bash
 # Check logs for specific error
 docker-compose logs servalsheets | tail -100
@@ -505,6 +523,7 @@ docker-compose logs servalsheets | tail -100
 **Problem**: "Schema version mismatch" error
 
 **Solution**:
+
 ```bash
 # Check current schema version
 redis-cli GET servalsheets:schema_version
@@ -519,6 +538,7 @@ redis-cli SET servalsheets:schema_version "2.0.0"
 **Problem**: Users getting "Session expired" errors
 
 **Solution**:
+
 - Expected behavior if session format changed
 - Users need to re-authenticate
 - Communicate this in release notes
@@ -534,6 +554,7 @@ redis-cli SET servalsheets:schema_version "2.0.0"
 **Downtime**: None
 
 Changes:
+
 - Added MCP 2025-11-25 support
 - New optional environment variables
 - Performance improvements
@@ -547,6 +568,7 @@ No migration required - fully backward compatible.
 **Downtime**: None
 
 Changes:
+
 - Security fixes
 - Bug fixes
 - Documentation updates
@@ -558,6 +580,7 @@ Simply update and restart - no configuration changes needed.
 ## Migration Checklist
 
 ### Pre-Migration
+
 - [ ] Backup all data
 - [ ] Test in staging
 - [ ] Read release notes
@@ -565,6 +588,7 @@ Simply update and restart - no configuration changes needed.
 - [ ] Notify users
 
 ### During Migration
+
 - [ ] Stop services (if downtime required)
 - [ ] Run migration scripts
 - [ ] Update environment variables
@@ -572,6 +596,7 @@ Simply update and restart - no configuration changes needed.
 - [ ] Start services
 
 ### Post-Migration
+
 - [ ] Run validation tests
 - [ ] Check logs for errors
 - [ ] Verify functionality
@@ -579,6 +604,7 @@ Simply update and restart - no configuration changes needed.
 - [ ] Mark migration complete
 
 ### Emergency Rollback Ready
+
 - [ ] Backup of previous version
 - [ ] Rollback script tested
 - [ ] Team on standby
@@ -591,14 +617,16 @@ Simply update and restart - no configuration changes needed.
 ### Design for Migration
 
 1. **Version all data structures**
+
    ```typescript
    interface Session {
-     version: string;  // Always include version
+     version: string; // Always include version
      data: any;
    }
    ```
 
 2. **Support multiple versions temporarily**
+
    ```typescript
    if (session.version === '1.0') {
      return migrateFromV1(session);

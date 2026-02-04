@@ -1,3 +1,12 @@
+---
+title: ServalSheets Case Studies
+category: general
+last_updated: 2026-01-31
+description: Real-world implementations demonstrating ServalSheets capabilities.
+version: 1.6.0
+tags: [sheets, prometheus, grafana, docker, kubernetes]
+---
+
 # ServalSheets Case Studies
 
 Real-world implementations demonstrating ServalSheets capabilities.
@@ -82,7 +91,7 @@ Deployed ServalSheets with Claude Desktop for:
 
 ### Technical Details
 
-- **Tools Used:** `sheets_data`, `sheets_formatting`, `sheets_analyze`
+- **Tools Used:** `sheets_data`, `sheets_format`, `sheets_analyze`
 - **Integration:** Claude Desktop (STDIO transport)
 - **Deployment:** Local development, production on Docker
 - **Safety Features:** Dry-run for all write operations, user confirmations
@@ -130,7 +139,7 @@ ServalSheets provided:
 
 ### Technical Details
 
-- **Tools Used:** `sheets_data`, `sheets_analysis`, `sheets_charts`
+- **Tools Used:** `sheets_data`, `sheets_analyze`, `sheets_visualize`
 - **Integration:** HTTP/SSE transport with internal services
 - **Deployment:** Kubernetes with Helm chart
 - **Monitoring:** Prometheus + Grafana dashboards
@@ -178,7 +187,7 @@ ServalSheets enabled:
 
 ### Technical Details
 
-- **Tools Used:** `sheets_data`, `sheets_structure`, `sheets_formatting`
+- **Tools Used:** `sheets_data`, `sheets_core`, `sheets_format`
 - **Integration:** OAuth 2.1 with regional service accounts
 - **Deployment:** GCP Cloud Run (multi-region)
 - **Safety Features:** Effect scope limits, expected state validation
@@ -226,7 +235,7 @@ ServalSheets provided:
 
 ### Technical Details
 
-- **Tools Used:** `sheets_data`, `sheets_analysis`, `sheets_resources`
+- **Tools Used:** `sheets_data`, `sheets_analyze`, `sheets_resources`
 - **Integration:** Claude Desktop for individual researchers
 - **Deployment:** Departmental Docker instance
 - **Safety Features:** Dry-run mandatory for all writes

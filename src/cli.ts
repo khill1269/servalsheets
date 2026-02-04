@@ -204,6 +204,7 @@ if (serviceAccountPath) {
       logger.info('ServalSheets STDIO server started successfully');
     }
   } catch (error) {
+    console.error('FATAL ERROR starting ServalSheets:', error);
     logger.error('Failed to start ServalSheets server', { error });
     process.exit(1);
   }

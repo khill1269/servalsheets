@@ -39,7 +39,10 @@ scrape_configs:
     # Static configuration (update for your deployment)
     static_configs:
       - targets:
-          - 'servalsheets:9090'
+          # If ServalSheets runs in Docker Compose: use service name
+          - 'servalsheets:3000'
+          # If ServalSheets runs on host: use host.docker.internal:3000
+          # - 'host.docker.internal:3000'
         labels:
           environment: 'production'
           instance: 'servalsheets-1'
@@ -102,11 +105,5 @@ scrape_configs:
 #       max_backoff: 100ms
 
 # Storage configuration
-storage:
-  tsdb:
-    # Data retention period
-    retention.time: 15d
-    # Maximum storage size
-    retention.size: 10GB
-    # Compress old blocks
-    wal_compression: true
+# Note: Retention settings are configured via command-line flags in docker-compose.yml
+# See: --storage.tsdb.retention.time and related flags

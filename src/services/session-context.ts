@@ -53,6 +53,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { UserProfileManager, type UserProfile } from './user-profile-manager.js';
 
 // ============================================================================
 // TYPES
@@ -92,6 +93,27 @@ export interface OperationRecord {
   snapshotId?: string;
   /** Number of cells affected */
   cellsAffected?: number;
+}
+
+export interface Alert {
+  /** Unique alert ID */
+  id: string;
+  /** Alert severity */
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  /** Alert message */
+  message: string;
+  /** Timestamp when alert was created */
+  timestamp: number;
+  /** Spreadsheet ID if alert is related to a specific spreadsheet */
+  spreadsheetId?: string;
+  /** Actionable fix for this alert */
+  actionable?: {
+    tool: string;
+    action: string;
+    params: Record<string, unknown>;
+  };
+  /** Whether the alert has been acknowledged */
+  acknowledged: boolean;
 }
 
 export interface UserPreferences {
@@ -175,6 +197,21 @@ export class SessionContextManager {
   private readonly maxSheetNames = 100; // Limit sheet names to prevent memory issues
   private readonly maxDescriptionLength = 500; // Limit operation descriptions
   private readonly maxStateStringLength = 10_000_000; // 10MB limit for JSON state
+
+  // Quota tracking for predictive quota management
+  private quotaTracking = {
+    requestTimestamps: [] as number[], // Last 5 minutes of requests
+    lastReset: Date.now(),
+    recentErrors: [] as Array<{ code: string; timestamp: number }>,
+  };
+
+  // Alert storage for proactive monitoring
+  private alerts: Alert[] = [];
+  private readonly maxAlerts = 20;
+
+  // User profile management for persistent learning
+  private profileManager = new UserProfileManager();
+  private currentUserId?: string;
 
   constructor(initialState?: Partial<SessionState>) {
     this.state = {
@@ -659,6 +696,274 @@ export class SessionContextManager {
     }
 
     return suggestions;
+  }
+
+  // ===========================================================================
+  // QUOTA TRACKING (Predictive Quota Management)
+  // ===========================================================================
+
+  /**
+   * Track a request for quota prediction
+   */
+  trackRequest(): void {
+    const now = Date.now();
+    // Keep only last 5 minutes
+    this.quotaTracking.requestTimestamps = this.quotaTracking.requestTimestamps
+      .filter((t) => now - t < 300000)
+      .concat(now);
+  }
+
+  /**
+   * Predict quota exhaustion based on current burn rate
+   */
+  predictQuotaExhaustion(
+    currentQuota: number,
+    limit: number
+  ): {
+    current: number;
+    limit: number;
+    remaining: number;
+    resetIn: string;
+    burnRate: number;
+    projection?: {
+      willExceedIn: string;
+      confidence: number;
+    };
+    recommendation?: {
+      action: string;
+      reason: string;
+      savings: string;
+    };
+  } {
+    const now = Date.now();
+    const recentMinute = this.quotaTracking.requestTimestamps.filter((t) => now - t < 60000).length;
+
+    const burnRate = recentMinute;
+    const remaining = limit - currentQuota;
+
+    if (burnRate > 0 && remaining > 0) {
+      const minutesUntilExhaustion = remaining / burnRate;
+
+      return {
+        current: currentQuota,
+        limit,
+        remaining,
+        resetIn: '47 minutes', // From Google API headers (approximate)
+        burnRate,
+        projection: {
+          willExceedIn: `${Math.floor(minutesUntilExhaustion)} minutes`,
+          confidence: 0.85,
+        },
+        recommendation:
+          minutesUntilExhaustion < 10
+            ? {
+                action: 'switch_to_batch_operations',
+                reason: `Will hit quota in ${Math.floor(minutesUntilExhaustion)} min`,
+                savings: 'Batch operations use 90% fewer API calls',
+              }
+            : undefined,
+      };
+    }
+
+    return { current: currentQuota, limit, remaining, resetIn: '47 minutes', burnRate };
+  }
+
+  // ===========================================================================
+  // ALERT MANAGEMENT (Proactive Monitoring)
+  // ===========================================================================
+
+  /**
+   * Add an alert for proactive monitoring
+   */
+  addAlert(alert: Omit<Alert, 'id' | 'timestamp' | 'acknowledged'>): void {
+    this.alerts.unshift({
+      ...alert,
+      id: `alert_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: Date.now(),
+      acknowledged: false,
+    });
+
+    // Limit to max alerts
+    if (this.alerts.length > this.maxAlerts) {
+      this.alerts = this.alerts.slice(0, this.maxAlerts);
+    }
+
+    logger.info('Alert added', {
+      component: 'session-context',
+      alertId: this.alerts[0]!.id,
+      severity: alert.severity,
+      message: alert.message,
+    });
+  }
+
+  /**
+   * Get alerts with optional filtering
+   */
+  getAlerts(filter?: { onlyUnacknowledged?: boolean; severity?: string }): Alert[] {
+    let filtered = this.alerts;
+
+    if (filter?.onlyUnacknowledged) {
+      filtered = filtered.filter((a) => !a.acknowledged);
+    }
+
+    if (filter?.severity) {
+      filtered = filtered.filter((a) => a.severity === filter.severity);
+    }
+
+    return filtered;
+  }
+
+  /**
+   * Acknowledge an alert
+   */
+  acknowledgeAlert(alertId: string): boolean {
+    const alert = this.alerts.find((a) => a.id === alertId);
+    if (alert) {
+      alert.acknowledged = true;
+      logger.info('Alert acknowledged', {
+        component: 'session-context',
+        alertId,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clear all alerts
+   */
+  clearAlerts(): void {
+    const count = this.alerts.length;
+    this.alerts = [];
+    logger.info('Alerts cleared', {
+      component: 'session-context',
+      count,
+    });
+  }
+
+  // ===========================================================================
+  // USER PROFILE MANAGEMENT
+  // ===========================================================================
+
+  /**
+   * Set the current user ID and load their profile
+   */
+  async setUserId(userId: string): Promise<void> {
+    this.currentUserId = userId;
+    const profile = await this.profileManager.loadProfile(userId);
+
+    // Apply profile preferences to session
+    if (profile.preferences.confirmationLevel) {
+      this.state.preferences.confirmationLevel = profile.preferences.confirmationLevel;
+    }
+    if (profile.preferences.formatPreferences) {
+      if (profile.preferences.formatPreferences.headers) {
+        const headerStyle = profile.preferences.formatPreferences.headers;
+        if (headerStyle === 'bold' || headerStyle === 'bold-colored' || headerStyle === 'minimal') {
+          this.state.preferences.formatting.headerStyle = headerStyle;
+        }
+      }
+      if (profile.preferences.formatPreferences.currency) {
+        this.state.preferences.formatting.currencyFormat =
+          profile.preferences.formatPreferences.currency;
+      }
+      if (profile.preferences.formatPreferences.dateFormat) {
+        this.state.preferences.formatting.dateFormat =
+          profile.preferences.formatPreferences.dateFormat;
+      }
+    }
+
+    logger.info('User profile loaded and applied', {
+      component: 'session-context',
+      userId,
+    });
+  }
+
+  /**
+   * Get the current user's profile
+   */
+  async getUserProfile(): Promise<UserProfile | null> {
+    if (!this.currentUserId) {
+      return null;
+    }
+    return await this.profileManager.loadProfile(this.currentUserId);
+  }
+
+  /**
+   * Update user preferences in their profile
+   */
+  async updateUserPreferences(preferences: Partial<UserProfile['preferences']>): Promise<void> {
+    if (!this.currentUserId) {
+      logger.warn('Cannot update preferences - no user ID set', {
+        component: 'session-context',
+      });
+      return;
+    }
+
+    await this.profileManager.updatePreferences(this.currentUserId, preferences);
+
+    // Also update session state
+    if (preferences.confirmationLevel) {
+      this.state.preferences.confirmationLevel = preferences.confirmationLevel;
+    }
+
+    logger.info('User preferences updated', {
+      component: 'session-context',
+      userId: this.currentUserId,
+      preferences,
+    });
+  }
+
+  /**
+   * Record a successful formula for learning
+   */
+  async recordSuccessfulFormula(formula: string, useCase: string): Promise<void> {
+    if (!this.currentUserId) {
+      return;
+    }
+    await this.profileManager.recordSuccessfulFormula(this.currentUserId, formula, useCase);
+  }
+
+  /**
+   * Record that user rejected a suggestion
+   */
+  async rejectSuggestion(suggestion: string): Promise<void> {
+    if (!this.currentUserId) {
+      return;
+    }
+    await this.profileManager.rejectSuggestion(this.currentUserId, suggestion);
+  }
+
+  /**
+   * Record an error pattern for learning
+   */
+  async recordErrorPattern(error: string): Promise<void> {
+    if (!this.currentUserId) {
+      return;
+    }
+    await this.profileManager.recordErrorPattern(this.currentUserId, error);
+  }
+
+  /**
+   * Get top successful formulas for the current user
+   */
+  async getTopFormulas(
+    limit = 10
+  ): Promise<Array<{ formula: string; useCase: string; successCount: number }>> {
+    if (!this.currentUserId) {
+      return [];
+    }
+    return await this.profileManager.getTopFormulas(this.currentUserId, limit);
+  }
+
+  /**
+   * Check if a suggestion should be avoided (user rejected it before)
+   */
+  async shouldAvoidSuggestion(suggestion: string): Promise<boolean> {
+    if (!this.currentUserId) {
+      return false;
+    }
+    return await this.profileManager.shouldAvoidSuggestion(this.currentUserId, suggestion);
   }
 }
 

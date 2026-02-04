@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getSamplingAnalysisService } from '../services/sampling-analysis.js';
 import type { AnalyzeResponse } from '../schemas/analyze.js';
+import { resourceNotifications } from './notifications.js';
 
 /**
  * In-memory store for analysis results
@@ -50,6 +51,9 @@ export function storeAnalysisResult(spreadsheetId: string, result: AnalyzeRespon
       analysisResultsStore.delete(firstKey);
     }
   }
+
+  // Notify clients that the resource list has changed
+  resourceNotifications.notifyAnalysisAdded(id);
 
   return id;
 }

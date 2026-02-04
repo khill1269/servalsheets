@@ -94,6 +94,9 @@ test-replay.jsonl
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/
 
+# Analysis reports (Word/Excel documents)
+reports/
+
 # Build artifacts and packages
 *.tgz
 *.mcpb

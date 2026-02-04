@@ -1,3 +1,14 @@
+---
+title: Quota Optimization Guide
+category: guide
+last_updated: 2026-01-31
+description: Quick Reference for AI Agents
+version: 1.6.0
+tags: [sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Quota Optimization Guide
 
 **Quick Reference for AI Agents**
@@ -7,26 +18,28 @@ This guide helps you minimize Google Sheets API quota usage with ServalSheets.
 ## Understanding Google Sheets Quotas
 
 ### Default Quotas (Per User)
+
 - **Read requests**: 300/minute
 - **Write requests**: 60/minute
 - **Concurrent requests**: 300 reads, 100 writes
 
 ### What Counts as 1 API Call?
 
-| Operation | API Calls | Notes |
-|-----------|-----------|-------|
-| Read single range | 1 | `read({ range: 'A1:B10' })` |
-| Read multiple ranges (batch) | 1 | `batch_read({ ranges: ['A1:B10', 'C1:D10'] })` |
-| Write to single range | 1 | `write({ range: 'A1', values: [[1]] })` |
-| Batch write (100 updates) | 1 | All updates in single API call |
-| Get spreadsheet metadata | 1 | `get({ spreadsheetId })` |
-| Transaction (10 operations) | 1 | All operations batched |
+| Operation                    | API Calls | Notes                                          |
+| ---------------------------- | --------- | ---------------------------------------------- |
+| Read single range            | 1         | `read({ range: 'A1:B10' })`                    |
+| Read multiple ranges (batch) | 1         | `batch_read({ ranges: ['A1:B10', 'C1:D10'] })` |
+| Write to single range        | 1         | `write({ range: 'A1', values: [[1]] })`        |
+| Batch write (100 updates)    | 1         | All updates in single API call                 |
+| Get spreadsheet metadata     | 1         | `get({ spreadsheetId })`                       |
+| Transaction (10 operations)  | 1         | All operations batched                         |
 
 ## Optimization Strategies
 
 ### 1. Use Batch Operations (20-40% Reduction)
 
 **❌ BAD - Multiple API Calls:**
+
 ```typescript
 // 3 separate API calls = 3 quota units
 await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1' });
@@ -35,12 +48,13 @@ await read({ action: 'read', spreadsheetId: 'xxx', range: 'C1' });
 ```
 
 **✅ GOOD - Single Batch Call:**
+
 ```typescript
 // 1 API call = 1 quota unit (66% savings)
 await batch_read({
   action: 'batch_read',
   spreadsheetId: 'xxx',
-  ranges: ['A1', 'B1', 'C1']
+  ranges: ['A1', 'B1', 'C1'],
 });
 ```
 
@@ -49,6 +63,7 @@ await batch_read({
 ### 2. Use Transactions for Multiple Writes (80-90% Reduction)
 
 **❌ BAD - Individual Writes:**
+
 ```typescript
 // 5 separate write calls = 5 quota units
 await write({ action: 'write', spreadsheetId: 'xxx', range: 'A1', values: [[1]] });
@@ -59,14 +74,30 @@ await write({ action: 'write', spreadsheetId: 'xxx', range: 'A5', values: [[5]] 
 ```
 
 **✅ GOOD - Transaction:**
+
 ```typescript
 // 3 API calls total (begin + queue 5 ops + commit)
 await begin_transaction({ action: 'begin', spreadsheetId: 'xxx' });
-await queue_operation({ action: 'queue', operation: { type: 'write', range: 'A1', values: [[1]] } });
-await queue_operation({ action: 'queue', operation: { type: 'write', range: 'A2', values: [[2]] } });
-await queue_operation({ action: 'queue', operation: { type: 'write', range: 'A3', values: [[3]] } });
-await queue_operation({ action: 'queue', operation: { type: 'write', range: 'A4', values: [[4]] } });
-await queue_operation({ action: 'queue', operation: { type: 'write', range: 'A5', values: [[5]] } });
+await queue_operation({
+  action: 'queue',
+  operation: { type: 'write', range: 'A1', values: [[1]] },
+});
+await queue_operation({
+  action: 'queue',
+  operation: { type: 'write', range: 'A2', values: [[2]] },
+});
+await queue_operation({
+  action: 'queue',
+  operation: { type: 'write', range: 'A3', values: [[3]] },
+});
+await queue_operation({
+  action: 'queue',
+  operation: { type: 'write', range: 'A4', values: [[4]] },
+});
+await queue_operation({
+  action: 'queue',
+  operation: { type: 'write', range: 'A5', values: [[5]] },
+});
 await commit_transaction({ action: 'commit' });
 ```
 
@@ -75,6 +106,7 @@ await commit_transaction({ action: 'commit' });
 ### 3. Read Wide Ranges Instead of Multiple Narrow Ranges
 
 **❌ BAD - 10 Separate Reads:**
+
 ```typescript
 // 10 API calls
 for (let i = 1; i <= 10; i++) {
@@ -83,12 +115,13 @@ for (let i = 1; i <= 10; i++) {
 ```
 
 **✅ GOOD - Single Wide Range:**
+
 ```typescript
 // 1 API call (90% savings)
 const result = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'A1:A10'
+  range: 'A1:A10',
 });
 // Extract individual cells from result.values
 ```
@@ -98,22 +131,24 @@ const result = await read({
 ### 4. Use Data-Only Actions When You Don't Need Metadata
 
 **❌ BAD - Full Spreadsheet Fetch:**
+
 ```typescript
 // Fetches metadata + all sheet data
 const spreadsheet = await get({
   action: 'get',
   spreadsheetId: 'xxx',
-  includeGridData: true  // Heavy operation
+  includeGridData: true, // Heavy operation
 });
 ```
 
 **✅ GOOD - Data-Only Read:**
+
 ```typescript
 // Only fetches cell values (no metadata overhead)
 const data = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'Sheet1!A1:Z100'
+  range: 'Sheet1!A1:Z100',
 });
 ```
 
@@ -124,13 +159,17 @@ const data = await read({
 ServalSheets provides composite actions that are pre-optimized:
 
 **✅ GOOD - smart_append:**
+
 ```typescript
 // Automatically finds last row and appends efficiently
 await smart_append({
   action: 'smart_append',
   spreadsheetId: 'xxx',
   sheetName: 'Sheet1',
-  values: [[1, 2, 3], [4, 5, 6]]
+  values: [
+    [1, 2, 3],
+    [4, 5, 6],
+  ],
 });
 // Internally: 1 read (find last row) + 1 write = 2 API calls
 ```
@@ -183,6 +222,7 @@ Start
 ### Pattern 1: Import CSV Data
 
 **Naive Approach** (High Quota):
+
 ```typescript
 // Read existing data: 1 API call
 const existing = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:Z1000' });
@@ -195,6 +235,7 @@ for (const row of csvRows) {
 ```
 
 **Optimized Approach** (Low Quota):
+
 ```typescript
 // Use composite action: import_csv
 await import_csv({
@@ -202,7 +243,7 @@ await import_csv({
   spreadsheetId: 'xxx',
   sheetName: 'Data',
   csvData: csvString,
-  mode: 'append'
+  mode: 'append',
 });
 // Total: 2 API calls (1 read to find position, 1 write for all rows)
 ```
@@ -212,6 +253,7 @@ await import_csv({
 ### Pattern 2: Update Multiple Cells Based on Condition
 
 **Naive Approach** (High Quota):
+
 ```typescript
 // Read all data: 1 API call
 const data = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:A100' });
@@ -219,13 +261,19 @@ const data = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:A100'
 // Update matching cells one-by-one: N API calls
 for (let i = 0; i < data.values.length; i++) {
   if (data.values[i][0] === 'TARGET') {
-    await write({ action: 'write', spreadsheetId: 'xxx', range: `A${i+1}`, values: [['UPDATED']] });
+    await write({
+      action: 'write',
+      spreadsheetId: 'xxx',
+      range: `A${i + 1}`,
+      values: [['UPDATED']],
+    });
   }
 }
 // Total: 1 + N API calls (where N = matching rows)
 ```
 
 **Optimized Approach** (Low Quota):
+
 ```typescript
 // Read all data: 1 API call
 const data = await read({ action: 'read', spreadsheetId: 'xxx', range: 'A1:A100' });
@@ -235,8 +283,8 @@ const updates = [];
 for (let i = 0; i < data.values.length; i++) {
   if (data.values[i][0] === 'TARGET') {
     updates.push({
-      range: `A${i+1}`,
-      values: [['UPDATED']]
+      range: `A${i + 1}`,
+      values: [['UPDATED']],
     });
   }
 }
@@ -245,7 +293,7 @@ for (let i = 0; i < data.values.length; i++) {
 await batch_write({
   action: 'batch_write',
   spreadsheetId: 'xxx',
-  data: updates
+  data: updates,
 });
 // Total: 2 API calls (1 read + 1 batch write)
 ```
@@ -255,22 +303,29 @@ await batch_write({
 ### Pattern 3: Copy Data Between Sheets
 
 **Naive Approach** (High Quota):
+
 ```typescript
 // Read source sheet row-by-row: 100 API calls
 for (let i = 1; i <= 100; i++) {
   const row = await read({ action: 'read', spreadsheetId: 'xxx', range: `Sheet1!A${i}:Z${i}` });
-  await write({ action: 'write', spreadsheetId: 'xxx', range: `Sheet2!A${i}:Z${i}`, values: row.values });
+  await write({
+    action: 'write',
+    spreadsheetId: 'xxx',
+    range: `Sheet2!A${i}:Z${i}`,
+    values: row.values,
+  });
 }
 // Total: 200 API calls (100 reads + 100 writes)
 ```
 
 **Optimized Approach** (Low Quota):
+
 ```typescript
 // Read entire source range: 1 API call
 const sourceData = await read({
   action: 'read',
   spreadsheetId: 'xxx',
-  range: 'Sheet1!A1:Z100'
+  range: 'Sheet1!A1:Z100',
 });
 
 // Write entire destination range: 1 API call
@@ -278,7 +333,7 @@ await write({
   action: 'write',
   spreadsheetId: 'xxx',
   range: 'Sheet2!A1:Z100',
-  values: sourceData.values
+  values: sourceData.values,
 });
 // Total: 2 API calls
 ```
@@ -304,12 +359,12 @@ tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log | grep quota
 
 ### Typical Quota Usage Patterns
 
-| Workflow | Naive Quota | Optimized Quota | Savings |
-|----------|-------------|-----------------|---------|
-| Import 100-row CSV | 101 calls | 2 calls | 98% |
-| Update 50 cells | 50 calls | 2 calls | 96% |
-| Copy sheet (1000 cells) | 1000 calls | 2 calls | 99.8% |
-| Bulk format (100 ranges) | 100 calls | 1 call | 99% |
+| Workflow                 | Naive Quota | Optimized Quota | Savings |
+| ------------------------ | ----------- | --------------- | ------- |
+| Import 100-row CSV       | 101 calls   | 2 calls         | 98%     |
+| Update 50 cells          | 50 calls    | 2 calls         | 96%     |
+| Copy sheet (1000 cells)  | 1000 calls  | 2 calls         | 99.8%   |
+| Bulk format (100 ranges) | 100 calls   | 1 call          | 99%     |
 
 ## Quota Limits and Errors
 
@@ -344,13 +399,13 @@ try {
 
 ## Quick Reference Table
 
-| Instead of... | Use... | Quota Savings |
-|--------------|--------|---------------|
-| N × read | 1 × batch_read | (N-1)/N × 100% |
-| N × write | 1 × transaction | ~80% |
-| read + write (multiple) | composite action | 50-90% |
-| get (with includeGridData) | read (range-specific) | 30-50% |
-| Multiple narrow ranges | Single wide range | 50-90% |
+| Instead of...              | Use...                | Quota Savings  |
+| -------------------------- | --------------------- | -------------- |
+| N × read                   | 1 × batch_read        | (N-1)/N × 100% |
+| N × write                  | 1 × transaction       | ~80%           |
+| read + write (multiple)    | composite action      | 50-90%         |
+| get (with includeGridData) | read (range-specific) | 30-50%         |
+| Multiple narrow ranges     | Single wide range     | 50-90%         |
 
 ## Related Resources
 

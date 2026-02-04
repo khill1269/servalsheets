@@ -1,3 +1,12 @@
+---
+title: CI/CD Integration Test Setup
+category: development
+last_updated: 2026-01-31
+description: This guide explains how to configure integration tests to run in GitHub Actions or other CI/CD environments.
+version: 1.6.0
+tags: [testing, setup, configuration, sheets, docker]
+---
+
 # CI/CD Integration Test Setup
 
 This guide explains how to configure integration tests to run in GitHub Actions or other CI/CD environments.
@@ -5,6 +14,7 @@ This guide explains how to configure integration tests to run in GitHub Actions 
 ## Overview
 
 Integration tests can run in CI/CD pipelines using GitHub repository secrets to securely store credentials. This allows you to:
+
 - Run integration tests on pull requests
 - Verify API changes against real Google Sheets
 - Catch breaking changes before deployment
@@ -16,6 +26,7 @@ Integration tests can run in CI/CD pipelines using GitHub repository secrets to 
 First, ensure you have a service account set up following the [Integration Test Setup Guide](./INTEGRATION_TEST_SETUP.md).
 
 You'll need:
+
 - Service account JSON file
 - Test spreadsheet ID
 - Test spreadsheet shared with the service account
@@ -28,11 +39,13 @@ You'll need:
 
 Add these secrets:
 
-#### Required Secrets:
+#### Required Secrets
 
 **GOOGLE_TEST_CREDENTIALS**
+
 - **Value**: The complete contents of your service account JSON file
 - **Format**: Copy the entire JSON as-is
+
 ```json
 {
   "type": "service_account",
@@ -49,6 +62,7 @@ Add these secrets:
 ```
 
 **TEST_SPREADSHEET_ID**
+
 - **Value**: Your test spreadsheet ID
 - **Example**: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 
@@ -61,9 +75,9 @@ name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -161,7 +175,7 @@ Add to `.gitlab-ci.yml`:
 
 ```yaml
 variables:
-  TEST_REAL_API: "true"
+  TEST_REAL_API: 'true'
 
 test:integration:
   stage: test
@@ -181,6 +195,7 @@ test:integration:
 ```
 
 Add these variables in GitLab:
+
 - `GOOGLE_TEST_CREDENTIALS` (masked, protected)
 - `TEST_SPREADSHEET_ID` (masked, protected)
 
@@ -219,6 +234,7 @@ workflows:
 ```
 
 Add environment variables in CircleCI project settings:
+
 - `GOOGLE_TEST_CREDENTIALS`
 - `TEST_SPREADSHEET_ID`
 
@@ -234,28 +250,28 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- task: NodeTool@0
-  inputs:
-    versionSpec: '20.x'
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
 
-- script: npm ci
-  displayName: 'Install dependencies'
+  - script: npm ci
+    displayName: 'Install dependencies'
 
-- script: |
-    mkdir -p tests/config
-    echo '$(GOOGLE_TEST_CREDENTIALS)' > tests/config/test-credentials.json
-  displayName: 'Setup credentials'
-  condition: ne(variables['GOOGLE_TEST_CREDENTIALS'], '')
+  - script: |
+      mkdir -p tests/config
+      echo '$(GOOGLE_TEST_CREDENTIALS)' > tests/config/test-credentials.json
+    displayName: 'Setup credentials'
+    condition: ne(variables['GOOGLE_TEST_CREDENTIALS'], '')
 
-- script: TEST_REAL_API=true npm test tests/integration/
-  displayName: 'Run integration tests'
-  condition: ne(variables['GOOGLE_TEST_CREDENTIALS'], '')
-  env:
-    TEST_SPREADSHEET_ID: $(TEST_SPREADSHEET_ID)
+  - script: TEST_REAL_API=true npm test tests/integration/
+    displayName: 'Run integration tests'
+    condition: ne(variables['GOOGLE_TEST_CREDENTIALS'], '')
+    env:
+      TEST_SPREADSHEET_ID: $(TEST_SPREADSHEET_ID)
 
-- script: rm -f tests/config/test-credentials.json
-  displayName: 'Cleanup credentials'
-  condition: always()
+  - script: rm -f tests/config/test-credentials.json
+    displayName: 'Cleanup credentials'
+    condition: always()
 ```
 
 ## Security Best Practices
@@ -326,9 +342,9 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   unit-tests:
@@ -402,10 +418,10 @@ jobs:
 
 For any CI/CD platform, you need:
 
-| Secret Name | Description | Example |
-|------------|-------------|---------|
-| `GOOGLE_TEST_CREDENTIALS` | Full service account JSON | `{"type":"service_account",...}` |
-| `TEST_SPREADSHEET_ID` | Test spreadsheet ID | `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms` |
+| Secret Name               | Description               | Example                                        |
+| ------------------------- | ------------------------- | ---------------------------------------------- |
+| `GOOGLE_TEST_CREDENTIALS` | Full service account JSON | `{"type":"service_account",...}`               |
+| `TEST_SPREADSHEET_ID`     | Test spreadsheet ID       | `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms` |
 
 ## Additional Resources
 
@@ -416,6 +432,7 @@ For any CI/CD platform, you need:
 ## Support
 
 If you encounter issues:
+
 1. Verify local tests work first
 2. Check CI logs for specific errors
 3. Validate secret configuration

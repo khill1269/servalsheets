@@ -77,6 +77,18 @@ export function registerExamplesResources(server: McpServer): void {
     },
     async (uri) => readExamplesResource(typeof uri === 'string' ? uri : uri.toString())
   );
+
+  // Comparative examples - trade-off analysis
+  server.registerResource(
+    'Comparative Examples (Trade-off Analysis)',
+    'servalsheets://examples/comparative-tradeoffs',
+    {
+      description:
+        'Comparative examples showing multiple approaches with trade-offs for key operations: bulk updates, large reads, calculations, quality checks.',
+      mimeType: 'application/json',
+    },
+    async (uri) => readExamplesResource(typeof uri === 'string' ? uri : uri.toString())
+  );
 }
 
 /**
@@ -655,6 +667,329 @@ export async function readExamplesResource(uri: string): Promise<{
             completeness: 0.983,
           },
           notes: 'Identifies missing values by column with row numbers for easy fixing.',
+        },
+      ],
+    },
+    'comparative-tradeoffs': {
+      title: 'Comparative Examples with Trade-off Analysis',
+      description:
+        'Shows multiple approaches for common operations with detailed trade-off analysis',
+      examples: [
+        {
+          name: 'Update 500 Cells - Three Approaches',
+          scenario: 'You need to update 500 cells with new data',
+          approaches: [
+            {
+              method: 'Individual writes',
+              tool: 'sheets_data',
+              action: 'write',
+              code: 'for (let i = 0; i < 500; i++) { await sheets_data.write(...) }',
+              pros: [
+                'Simple to understand',
+                'Easy to debug each operation',
+                'Can handle errors per-cell',
+              ],
+              cons: [
+                'Extremely slow (500 sequential API calls)',
+                'Very high quota usage (500 units)',
+                'Rate limited (~30 req/min = 17 minutes)',
+              ],
+              apiCalls: 500,
+              duration: '~250 seconds',
+              quotaUsage: '500 units',
+              when: 'NEVER use this for >10 writes',
+            },
+            {
+              method: 'Batch write',
+              tool: 'sheets_data',
+              action: 'batch_write',
+              code: 'await sheets_data.batch_write({ ranges: [...500 ranges], values: [...] })',
+              pros: [
+                'Fast (single API call)',
+                'Moderate quota usage',
+                'Good for independent writes',
+              ],
+              cons: [
+                'Not atomic - partial failures possible',
+                'All-or-nothing per batch',
+                'Requires upfront data preparation',
+              ],
+              apiCalls: 1,
+              duration: '~2 seconds',
+              quotaUsage: '100 units',
+              when: "Independent writes that don't need atomicity",
+            },
+            {
+              method: 'Transaction',
+              tool: 'sheets_transaction',
+              actions: ['begin', 'queue (500x)', 'commit'],
+              code: 'sheets_transaction.begin() → queue 500 ops → commit()',
+              pros: [
+                'Atomic - all succeed or all fail',
+                '80% quota savings vs individual',
+                'Automatic rollback on error',
+                'Maintains consistency',
+              ],
+              cons: [
+                'Requires 3 API calls (begin, commit, end)',
+                'Not beneficial for <5 operations',
+                'Slightly more complex',
+              ],
+              apiCalls: 3,
+              duration: '~3 seconds',
+              quotaUsage: '100 units',
+              when: 'Related writes that must succeed/fail together',
+            },
+          ],
+          recommendation: 'Use transactions for >50 sequential writes needing consistency',
+          tradeoffMatrix: {
+            speed: { individual: 1, batch: 10, transaction: 9 },
+            safety: { individual: 5, batch: 3, transaction: 10 },
+            quotaEfficiency: { individual: 1, batch: 8, transaction: 9 },
+          },
+        },
+        {
+          name: 'Read Large Dataset - Three Approaches',
+          scenario: 'You need to read 5 sheets with 1000 rows each',
+          approaches: [
+            {
+              method: 'Sequential reads',
+              tool: 'sheets_data',
+              action: 'read',
+              code: 'for sheet in sheets: await sheets_data.read(range: "A1:Z1000")',
+              pros: ['Simple code', 'Can process each sheet as it loads'],
+              cons: [
+                'Very slow (5 sequential API calls)',
+                'Blocks on each request (~10 seconds total)',
+              ],
+              apiCalls: 5,
+              duration: '~10 seconds',
+              quotaUsage: '5 units',
+              when: 'Only when you need to process each sheet before fetching next',
+            },
+            {
+              method: 'Batch read (formatted)',
+              tool: 'sheets_data',
+              action: 'batch_read',
+              code: 'await sheets_data.batch_read({ ranges: ["Sheet1!A1:Z1000", ..., "Sheet5!A1:Z1000"] })',
+              pros: ['Single API call', 'Parallel fetching', 'Gets all data at once'],
+              cons: [
+                'Includes formatting overhead',
+                'Slower for large datasets with complex formatting',
+              ],
+              apiCalls: 1,
+              duration: '~3 seconds',
+              quotaUsage: '1 unit',
+              when: 'Need formatted values (dates, currency, etc.)',
+            },
+            {
+              method: 'Batch read (unformatted)',
+              tool: 'sheets_data',
+              action: 'batch_read',
+              code: 'await sheets_data.batch_read({ ranges: [...], valueRenderOption: "UNFORMATTED_VALUE" })',
+              pros: [
+                'Single API call',
+                '3x faster than formatted (no rendering)',
+                'Raw values good for calculations',
+              ],
+              cons: ['Loses date/currency formatting', 'May need manual parsing'],
+              apiCalls: 1,
+              duration: '~1 second',
+              quotaUsage: '1 unit',
+              when: 'Raw data for analysis/calculations (most common case)',
+            },
+          ],
+          recommendation:
+            'Use batch_read with UNFORMATTED_VALUE for analysis; formatted only when display matters',
+          tradeoffMatrix: {
+            speed: { sequential: 2, batchFormatted: 7, batchUnformatted: 10 },
+            dataFidelity: { sequential: 10, batchFormatted: 10, batchUnformatted: 7 },
+            simplicity: { sequential: 10, batchFormatted: 9, batchUnformatted: 8 },
+          },
+        },
+        {
+          name: 'Complex Calculation - Three Approaches',
+          scenario: 'Calculate quarterly sales summaries with multiple aggregations',
+          approaches: [
+            {
+              method: 'Array formulas in sheet',
+              tool: 'sheets_data',
+              action: 'write',
+              code: 'sheets_data.write({ range: "Summary!A1", values: [["=ARRAYFORMULA(...)"]] })',
+              pros: [
+                'Updates automatically when source data changes',
+                'Visible to all users',
+                'No quota usage after creation',
+              ],
+              cons: [
+                'Slow for >10K rows',
+                "Can't use external data sources",
+                'Recalculates on every sheet edit',
+              ],
+              apiCalls: 1,
+              duration: '~1 second (plus recalc time)',
+              quotaUsage: '1 unit (creation only)',
+              when: 'Data changes frequently and you need live updates',
+            },
+            {
+              method: 'Apps Script custom function',
+              tool: 'sheets_appsscript',
+              action: 'execute',
+              code: 'sheets_appsscript.execute({ scriptId, function: "calculateQuarterlySummary" })',
+              pros: [
+                'Can access external APIs',
+                'Complex logic possible',
+                'Can schedule periodic execution',
+              ],
+              cons: [
+                '6-minute execution time limit',
+                'Requires Apps Script setup',
+                'Harder to debug',
+              ],
+              apiCalls: 1,
+              duration: '~5-30 seconds',
+              quotaUsage: '1 unit',
+              when: 'Need external integrations or scheduled calculations',
+            },
+            {
+              method: 'Client-side calculation with results write',
+              tool: 'sheets_data',
+              actions: ['read', 'write'],
+              code: 'data = sheets_data.read(); results = calculate(data); sheets_data.write(results)',
+              pros: [
+                'Fastest for complex logic',
+                'Full programming language available',
+                'Easy to test and debug',
+              ],
+              cons: [
+                "Results don't auto-update",
+                'Requires running the calculation',
+                '2 API calls (read + write)',
+              ],
+              apiCalls: 2,
+              duration: '~2 seconds',
+              quotaUsage: '2 units',
+              when: 'One-time or manually-triggered complex analysis',
+            },
+          ],
+          recommendation: 'Formulas for live data; client-side for complex one-time analysis',
+          tradeoffMatrix: {
+            performance: { formulas: 5, appsScript: 7, clientSide: 10 },
+            realTimeUpdates: { formulas: 10, appsScript: 8, clientSide: 1 },
+            flexibility: { formulas: 3, appsScript: 10, clientSide: 9 },
+          },
+        },
+        {
+          name: 'Data Quality Validation - Three Approaches',
+          scenario: 'Validate data quality before processing',
+          approaches: [
+            {
+              method: 'Comprehensive analysis',
+              tool: 'sheets_analyze',
+              action: 'comprehensive',
+              code: 'await sheets_analyze.comprehensive({ spreadsheetId })',
+              pros: [
+                'Detects 15+ issue types',
+                'Detailed report with recommendations',
+                'Identifies patterns and anomalies',
+              ],
+              cons: ['Slower (~5-10 seconds)', 'More API calls', 'May be overkill for known data'],
+              apiCalls: '5-10',
+              duration: '~5-10 seconds',
+              quotaUsage: '5-10 units',
+              when: 'First time analyzing or unknown data quality',
+            },
+            {
+              method: 'Scout mode',
+              tool: 'sheets_analyze',
+              action: 'scout',
+              code: 'await sheets_analyze.scout({ spreadsheetId, range })',
+              pros: ['Very fast (~200ms)', 'Single API call', 'Good for monitoring'],
+              cons: [
+                'Less detailed than comprehensive',
+                'Misses edge cases',
+                'Limited to specific range',
+              ],
+              apiCalls: 1,
+              duration: '~200 milliseconds',
+              quotaUsage: '1 unit',
+              when: 'Quick quality check or ongoing monitoring',
+            },
+            {
+              method: 'Pre-write validation',
+              tool: 'sheets_quality',
+              action: 'validate',
+              code: 'await sheets_quality.validate({ data, rules })',
+              pros: ['Client-side (no API call)', 'Instant validation', 'Custom rules'],
+              cons: [
+                'Only validates what you check',
+                'Misses sheet-level issues',
+                'Requires defining rules',
+              ],
+              apiCalls: 0,
+              duration: 'Instant',
+              quotaUsage: '0 units',
+              when: 'Validating data before write operations',
+            },
+          ],
+          recommendation:
+            'Scout mode for monitoring; comprehensive for diagnosis; validate before writes',
+          tradeoffMatrix: {
+            speed: { comprehensive: 3, scout: 9, validate: 10 },
+            coverage: { comprehensive: 10, scout: 7, validate: 5 },
+            quotaEfficiency: { comprehensive: 3, scout: 8, validate: 10 },
+          },
+        },
+        {
+          name: 'Create Dashboard - Three Approaches',
+          scenario: 'Create an interactive dashboard with charts and filters',
+          approaches: [
+            {
+              method: 'Manual step-by-step',
+              tools: ['sheets_data', 'sheets_visualize', 'sheets_dimensions'],
+              code: 'sheets_data.write() → sheets_visualize.chart_create() → sheets_dimensions.create_slicer()',
+              pros: ['Full control over each step', 'Can adjust based on intermediate results'],
+              cons: ['Many API calls (10+)', 'Slow overall', 'Easy to forget steps'],
+              apiCalls: '10-15',
+              duration: '~15 seconds',
+              quotaUsage: '10-15 units',
+              when: 'Building dashboard interactively with user feedback',
+            },
+            {
+              method: 'Transaction-based',
+              tool: 'sheets_transaction',
+              code: 'sheets_transaction.begin() → queue all operations → commit()',
+              pros: ['Atomic (all succeed or all fail)', '70% quota savings', 'Consistent state'],
+              cons: [
+                "All-or-nothing (can't partially succeed)",
+                'Harder to debug failures',
+                'Requires planning upfront',
+              ],
+              apiCalls: 3,
+              duration: '~5 seconds',
+              quotaUsage: '5 units',
+              when: 'Dashboard must be complete or not exist (production)',
+            },
+            {
+              method: 'Template-based',
+              tool: 'sheets_templates',
+              action: 'detect_and_apply',
+              code: 'sheets_templates.detect_and_apply({ templateType: "dashboard" })',
+              pros: ['Instant creation', 'Best practices built-in', 'Consistent styling'],
+              cons: ['Less customizable', 'May not match exact needs', 'Requires template setup'],
+              apiCalls: 2,
+              duration: '~3 seconds',
+              quotaUsage: '2 units',
+              when: 'Standard dashboard patterns (sales, finance, project tracking)',
+            },
+          ],
+          recommendation:
+            'Templates for standard dashboards; transactions for custom production builds',
+          tradeoffMatrix: {
+            speed: { manual: 3, transaction: 8, template: 10 },
+            flexibility: { manual: 10, transaction: 9, template: 5 },
+            reliability: { manual: 5, transaction: 10, template: 9 },
+          },
         },
       ],
     },

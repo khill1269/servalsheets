@@ -33,7 +33,9 @@ import {
 import { compactResponse } from '../utils/response-compactor.js';
 import type { SamplingServer } from '../mcp/sampling.js';
 import type { RequestDeduplicator } from '../utils/request-deduplication.js';
-import type { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { CircuitBreaker } from '../utils/circuit-breaker.js';
+import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
+import { getCircuitBreakerConfig } from '../config/env.js';
 import { getContextManager } from '../services/context-manager.js';
 import {
   requiresConfirmation,
@@ -48,6 +50,8 @@ import {
 } from '../utils/safety-helpers.js';
 import { createEnhancedError, enhanceError } from '../utils/enhanced-errors.js';
 import { memoize } from '../utils/memoization.js';
+import { withApiSpan } from '../utils/tracing.js';
+import { recordGoogleApiCall } from '../observability/metrics.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -60,6 +64,7 @@ export interface HandlerContext {
   parallelExecutor?: import('../services/parallel-executor.js').ParallelExecutor; // Phase 2: Parallel batch execution
   prefetchPredictor?: import('../services/prefetch-predictor.js').PrefetchPredictor; // Phase 3: Predictive prefetching
   accessPatternTracker?: import('../services/access-pattern-tracker.js').AccessPatternTracker; // Phase 3: Access pattern learning
+  queryOptimizer?: import('../services/query-optimizer.js').AdaptiveQueryOptimizer; // Phase 3B: Adaptive query optimization
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];
@@ -159,6 +164,7 @@ export abstract class BaseHandler<TInput, TOutput> {
   protected toolName: string;
   protected currentSpreadsheetId?: string; // Track current request for better error messages
   protected currentVerbosity: 'minimal' | 'standard' | 'detailed' = 'standard'; // LLM optimization: skip metadata for minimal
+  private lastProgressTime = 0; // Throttle progress events to max 1/sec
 
   constructor(toolName: string, context: HandlerContext) {
     this.toolName = toolName;
@@ -171,6 +177,49 @@ export abstract class BaseHandler<TInput, TOutput> {
    */
   protected setVerbosity(verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'): void {
     this.currentVerbosity = verbosity;
+  }
+
+  /**
+   * Send progress notification for long-running operations (Phase 2: HTTP Progress Notifications)
+   * Only works with HTTP/SSE transport - gracefully degrades for STDIO
+   * Throttled to max 1 event per second to avoid overwhelming the client
+   *
+   * @param completed - Number of items completed
+   * @param total - Total number of items
+   * @param message - Optional progress message
+   */
+  protected async sendProgress(completed: number, total: number, _message?: string): Promise<void> {
+    // Only available for HTTP transport (graceful degradation for STDIO)
+    if (!this.context.server) {
+      return;
+    }
+
+    // Throttle: max 1 event per second
+    const now = Date.now();
+    if (now - this.lastProgressTime < 1000) {
+      return;
+    }
+    this.lastProgressTime = now;
+
+    try {
+      // Send MCP progress notification
+      await this.context.server.notification({
+        method: 'notifications/progress',
+        params: {
+          progress: completed,
+          total,
+          progressToken: this.context.requestId || `${this.toolName}-progress`,
+        },
+      });
+    } catch (error) {
+      // Don't fail the operation if progress notification fails
+      // Just log and continue
+      const logger = this.context.logger || getRequestLogger();
+      logger?.warn?.('Failed to send progress notification', {
+        error: error instanceof Error ? error.message : String(error),
+        tool: this.toolName,
+      });
+    }
   }
 
   /**
@@ -202,6 +251,90 @@ export abstract class BaseHandler<TInput, TOutput> {
    * Handle the input and return output
    */
   abstract handle(input: TInput): Promise<TOutput>;
+
+  /**
+   * Execute an API call with circuit breaker protection
+   * Creates/retrieves a circuit breaker for the operation type
+   * Protects against cascade failures when Google API degrades
+   *
+   * @param operation - Operation name for circuit breaker identification (e.g., 'values.get')
+   * @param fn - The API call to execute
+   * @param fallback - Optional fallback function if circuit is open
+   */
+  protected async withCircuitBreaker<T>(
+    operation: string,
+    fn: () => Promise<T>,
+    fallback?: () => Promise<T>
+  ): Promise<T> {
+    const circuitName = `${this.toolName}:${operation}`;
+    const config = getCircuitBreakerConfig();
+
+    // Get or create circuit breaker from registry
+    let entry = circuitBreakerRegistry.get(circuitName);
+    if (!entry) {
+      const newBreaker = new CircuitBreaker({
+        name: circuitName,
+        failureThreshold: config.failureThreshold,
+        successThreshold: config.successThreshold,
+        timeout: config.timeout,
+      });
+      circuitBreakerRegistry.register(circuitName, newBreaker);
+      entry = circuitBreakerRegistry.get(circuitName);
+    }
+
+    return entry!.breaker.execute(fn, fallback);
+  }
+
+  /**
+   * Execute an instrumented Google API call with distributed tracing and metrics
+   * Automatically records latency metrics and creates trace spans for observability
+   *
+   * @param method - API method name (e.g., 'spreadsheets.values.get')
+   * @param apiCall - The API call function to execute
+   * @param context - Optional context for enhanced tracing (spreadsheetId, range, etc.)
+   * @returns Promise resolving to the API call result
+   */
+  protected async instrumentedApiCall<T>(
+    method: string,
+    apiCall: () => Promise<T>,
+    context?: { spreadsheetId?: string; range?: string; sheetName?: string }
+  ): Promise<T> {
+    const startTime = Date.now();
+
+    // Build endpoint URL for tracing
+    const endpoint = context?.spreadsheetId
+      ? `https://sheets.googleapis.com/v4/spreadsheets/${context.spreadsheetId}`
+      : 'https://sheets.googleapis.com/v4';
+
+    return withApiSpan(
+      method,
+      endpoint,
+      async (span) => {
+        // Add context attributes to span for better tracing
+        if (context?.spreadsheetId) {
+          span.setAttribute('spreadsheet.id', context.spreadsheetId);
+        }
+        if (context?.range) {
+          span.setAttribute('range', context.range);
+        }
+        if (context?.sheetName) {
+          span.setAttribute('sheet.name', context.sheetName);
+        }
+
+        try {
+          const result = await apiCall();
+          const duration = (Date.now() - startTime) / 1000;
+          recordGoogleApiCall(method, 'success', duration);
+          return result;
+        } catch (error) {
+          const duration = (Date.now() - startTime) / 1000;
+          recordGoogleApiCall(method, 'error', duration);
+          throw error;
+        }
+      },
+      { 'api.system': 'google_sheets' }
+    );
+  }
 
   /**
    * Create intents from input
@@ -923,6 +1056,91 @@ export abstract class BaseHandler<TInput, TOutput> {
     });
 
     return response.data;
+  }
+
+  /**
+   * Validate spreadsheet size before using includeGridData=true without explicit ranges.
+   *
+   * This prevents fetching massive payloads on large spreadsheets when using
+   * includeGridData without bounded ranges. Returns an error if the spreadsheet
+   * exceeds safe limits for full grid data retrieval.
+   *
+   * Use this BEFORE making any sheetsApi.spreadsheets.get() call with:
+   * - includeGridData: true AND
+   * - ranges: [] (empty/undefined, meaning ALL sheets)
+   *
+   * Safe limits (conservative to prevent OOM and timeouts):
+   * - Max 500,000 cells total across all sheets
+   * - Max 50 sheets
+   *
+   * @param spreadsheetId - The spreadsheet to validate
+   * @param sheetsApi - Sheets API instance
+   * @param sheetId - Optional: only validate a specific sheet
+   * @returns null if safe to proceed, or an error response if too large
+   */
+  protected async validateGridDataSize(
+    spreadsheetId: string,
+    sheetsApi: import('googleapis').sheets_v4.Sheets,
+    sheetId?: number
+  ): Promise<HandlerError | null> {
+    const MAX_CELLS_FOR_GRID_DATA = 500_000; // 500K cells
+    const MAX_SHEETS_FOR_GRID_DATA = 50;
+
+    try {
+      const metadata = await sheetsApi.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))',
+      });
+
+      const sheets = sheetId
+        ? (metadata.data.sheets ?? []).filter((s) => s.properties?.sheetId === sheetId)
+        : (metadata.data.sheets ?? []);
+
+      // Check sheet count
+      if (sheets.length > MAX_SHEETS_FOR_GRID_DATA) {
+        return this.error({
+          code: 'SPREADSHEET_TOO_LARGE',
+          message: `Spreadsheet has ${sheets.length} sheets (max: ${MAX_SHEETS_FOR_GRID_DATA} for this operation)`,
+          retryable: false,
+          resolution:
+            'Specify a sheetId parameter to target a specific sheet instead of all sheets.',
+        });
+      }
+
+      // Calculate total cells
+      const totalCells = sheets.reduce(
+        (sum, s) =>
+          sum +
+          (s.properties?.gridProperties?.rowCount ?? 0) *
+            (s.properties?.gridProperties?.columnCount ?? 0),
+        0
+      );
+
+      if (totalCells > MAX_CELLS_FOR_GRID_DATA) {
+        return this.error({
+          code: 'SPREADSHEET_TOO_LARGE',
+          message: `Spreadsheet has ${totalCells.toLocaleString()} cells (max: ${MAX_CELLS_FOR_GRID_DATA.toLocaleString()} for this operation)`,
+          retryable: false,
+          resolution:
+            'Specify a sheetId parameter or use a more targeted range to reduce the data volume.',
+          details: {
+            totalCells,
+            maxCells: MAX_CELLS_FOR_GRID_DATA,
+            sheetCount: sheets.length,
+          },
+        });
+      }
+
+      return null; // Safe to proceed
+    } catch (error) {
+      // If we can't validate size, proceed anyway (fail safely)
+      const logger = getRequestLogger();
+      logger.warn('Failed to validate grid data size, proceeding anyway', {
+        spreadsheetId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 
   /**

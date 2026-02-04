@@ -1,3 +1,12 @@
+---
+title: ServalSheets Architecture Diagrams
+category: general
+last_updated: 2026-01-31
+description: '> Version: 1.2.0'
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets Architecture Diagrams
 
 > **Version:** 1.2.0  
@@ -36,7 +45,7 @@
 │  ┌───────────────────────────▼───────────────────────┐                                 │
 │  │              Tool Registration                      │                                │
 │  │  ┌──────────────────────────────────────────────┐  │                                │
-│  │  │ TOOL_DEFINITIONS (21 tools, 272 actions)     │  │                                │
+│  │  │ TOOL_DEFINITIONS (21 tools, 293 actions)     │  │                                │
 │  │  │ ├── schemas/*.ts (Zod discriminated unions)  │  │                                │
 │  │  │ ├── annotations.ts (64 MCP hints)            │  │                                │
 │  │  │ └── schema-compat.ts (SDK compatibility)     │  │                                │
@@ -381,4 +390,4 @@
 
 ---
 
-*Diagrams verified against source code: January 5, 2026*
+_Diagrams verified against source code: January 5, 2026_

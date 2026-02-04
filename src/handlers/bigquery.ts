@@ -200,10 +200,11 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
   /**
    * Wrap BigQuery API operations with circuit breaker protection (P2-4)
+   * Uses the instance-level circuit breaker with BigQuery-specific fallback
    * @param operation - The BigQuery API operation to execute
    * @returns Result of the operation
    */
-  private async withCircuitBreaker<T>(operation: () => Promise<T>): Promise<T> {
+  private async withBigQueryCircuitBreaker<T>(operation: () => Promise<T>): Promise<T> {
     return await this.circuitBreaker.execute(operation);
   }
 
@@ -577,7 +578,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
 
     try {
       // Use BigQuery jobs.query with query controls (wrapped with circuit breaker - P2-4)
-      const queryResponse = await this.withCircuitBreaker(() =>
+      const queryResponse = await this.withBigQueryCircuitBreaker(() =>
         bigquery.jobs.query({
           projectId: req.projectId,
           requestBody: {
@@ -691,7 +692,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await this.withCircuitBreaker(() =>
+      const response = await this.withBigQueryCircuitBreaker(() =>
         bigquery.datasets.list({
           projectId: req.projectId,
           maxResults: req.maxResults ?? 100,
@@ -721,7 +722,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await this.withCircuitBreaker(() =>
+      const response = await this.withBigQueryCircuitBreaker(() =>
         bigquery.tables.list({
           projectId: req.projectId,
           datasetId: req.datasetId,
@@ -753,7 +754,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
     const bigquery = this.requireBigQuery();
 
     try {
-      const response = await this.withCircuitBreaker(() =>
+      const response = await this.withBigQueryCircuitBreaker(() =>
         bigquery.tables.get({
           projectId: req.projectId,
           datasetId: req.datasetId,
@@ -860,7 +861,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           totalRows,
         });
 
-        const insertResponse = await this.withCircuitBreaker(() =>
+        const insertResponse = await this.withBigQueryCircuitBreaker(() =>
           bigquery.tabledata.insertAll({
             projectId: req.destination.projectId,
             datasetId: req.destination.datasetId,
@@ -922,7 +923,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       }));
 
       // Run the query with control parameters (wrapped with circuit breaker - P2-4)
-      const queryResponse = await this.withCircuitBreaker(() =>
+      const queryResponse = await this.withBigQueryCircuitBreaker(() =>
         bigquery.jobs.query({
           projectId: req.projectId,
           requestBody: {

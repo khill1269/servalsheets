@@ -73,12 +73,13 @@ import {
   buildToolResponse,
   registerServalSheetsResources,
   registerServalSheetsPrompts,
-  prepareSchemaForRegistration,
+  prepareSchemaForRegistrationCached,
   registerToolsListCompatibilityHandler,
 } from './mcp/registration.js';
 import { recordSpreadsheetId } from './mcp/completions.js';
 import {
   registerKnowledgeResources,
+  registerDeferredKnowledgeResources,
   registerHistoryResources,
   registerCacheResources,
   registerTransactionResources,
@@ -96,6 +97,10 @@ import {
   registerSheetResources,
   registerSchemaResources,
   registerDiscoveryResources,
+  registerMasterIndexResource,
+  registerKnowledgeIndexResource,
+  registerKnowledgeSearchResource,
+  initializeResourceNotifications,
 } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
@@ -108,6 +113,7 @@ import {
 import { parseWithCache } from './utils/schema-cache.js';
 import { startKeepalive } from './utils/keepalive.js';
 import { cleanupAllResources } from './utils/resource-cleanup.js';
+import { DEFER_SCHEMAS } from './config/constants.js';
 
 /**
  * Extract action from args, checking up to 3 levels deep for nested request objects
@@ -163,6 +169,10 @@ export class ServalSheetsServer {
   private taskAbortControllers = new Map<string, AbortController>();
   private healthMonitor: HealthMonitor;
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
+
+  // Resource lazy loading state
+  private resourcesRegistered = false;
+  private resourceRegistrationPromise: Promise<void> | null = null;
 
   constructor(options: ServalSheetsServerOptions = {}) {
     this.options = options;
@@ -249,6 +259,7 @@ export class ServalSheetsServer {
         parallelExecutor,
         prefetchPredictor,
         accessPatternTracker,
+        queryOptimizer,
       } = await initializePerformanceOptimizations(this.googleClient.sheets);
 
       // Create reusable context and handlers
@@ -278,6 +289,7 @@ export class ServalSheetsServer {
         parallelExecutor, // Phase 2: Parallel batch execution (40% faster batch ops)
         prefetchPredictor, // Phase 3: Predictive prefetching (200-500ms latency reduction)
         accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
+        queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {
           hasElevatedAccess: this.googleClient.hasElevatedAccess,
@@ -321,8 +333,15 @@ export class ServalSheetsServer {
     // Tool argument completions will be added when SDK supports them
     // this.registerCompletions();
 
-    // Register resources
-    this.registerResources();
+    // Register resources (async to support non-blocking knowledge discovery)
+    // Can be deferred to first access with DEFER_RESOURCE_DISCOVERY=true (saves 300-500ms)
+    const { shouldDeferResourceDiscovery } = await import('./config/env.js');
+    if (shouldDeferResourceDiscovery()) {
+      baseLogger.info('Resource discovery deferred - resources will load on first access');
+    } else {
+      await this.registerResources();
+      this.resourcesRegistered = true;
+    }
 
     // Register prompts
     this.registerPrompts();
@@ -346,12 +365,15 @@ export class ServalSheetsServer {
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {
-      // Prepare schemas for SDK registration (shared with HTTP/remote servers)
-      const inputSchemaForRegistration = prepareSchemaForRegistration(
+      // Prepare schemas for SDK registration with caching (P0-2 optimization)
+      // Caching saves 8-40ms at startup by avoiding redundant schema transformations
+      const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
+        tool.name,
         tool.inputSchema,
         'input'
       ) as unknown as AnySchema;
-      const outputSchemaForRegistration = prepareSchemaForRegistration(
+      const outputSchemaForRegistration = prepareSchemaForRegistrationCached(
+        tool.name,
         tool.outputSchema,
         'output'
       ) as unknown as AnySchema;
@@ -607,6 +629,9 @@ export class ServalSheetsServer {
       abortSignal?: AbortSignal; // Task cancellation support
     }
   ): Promise<CallToolResult> {
+    // Lazy-load resources if deferred at startup
+    await this.ensureResourcesRegistered();
+
     const startTime = Date.now();
 
     // Update queue metrics
@@ -827,11 +852,19 @@ export class ServalSheetsServer {
   /**
    * Register resources
    */
-  private registerResources(): void {
+  private async registerResources(): Promise<void> {
     registerServalSheetsResources(this._server, this.googleClient);
 
-    // Register embedded knowledge resources
-    registerKnowledgeResources(this._server);
+    // Register knowledge resources
+    // Deferred mode: register URI template only, load files on-demand (saves ~800KB context)
+    // Eager mode: discover all files at startup and register individual URIs
+    // Auto-enabled for STDIO when DEFER_SCHEMAS is active; override with DISABLE_KNOWLEDGE_RESOURCES
+    const useDeferred = process.env['DISABLE_KNOWLEDGE_RESOURCES'] === 'true' || DEFER_SCHEMAS;
+    if (useDeferred) {
+      registerDeferredKnowledgeResources(this._server);
+    } else {
+      await registerKnowledgeResources(this._server);
+    }
 
     // Register operation history resources (Phase 1, Task 1.3)
     registerHistoryResources(this._server);
@@ -890,6 +923,58 @@ export class ServalSheetsServer {
     // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
     // These resources expose full tool schemas on-demand when using minimal registration
     registerSchemaResources(this._server);
+
+    // Register master index resource (servalsheets://index)
+    // Entry point for Claude to discover all available resources
+    registerMasterIndexResource(this._server);
+
+    // Register knowledge index resource (knowledge:///index)
+    // Provides semantic index of all knowledge files with usage guidance
+    registerKnowledgeIndexResource(this._server);
+
+    // Register knowledge search resource (knowledge:///search?q={query})
+    // Enables fuzzy search across all knowledge files
+    registerKnowledgeSearchResource(this._server);
+
+    // Initialize resource change notifications (MCP notifications/resources/list_changed)
+    // Enables clients to be notified when dynamic resources change (e.g., analysis results)
+    initializeResourceNotifications(this._server);
+  }
+
+  /**
+   * Ensure resources are registered (lazy initialization)
+   *
+   * This method is called before any operation that requires resources.
+   * If resources were deferred at startup, they are registered on first access.
+   * Thread-safe: multiple concurrent calls will only register once.
+   */
+  private async ensureResourcesRegistered(): Promise<void> {
+    // Fast path: resources already registered
+    if (this.resourcesRegistered) {
+      return;
+    }
+
+    // If registration is in progress, wait for it
+    if (this.resourceRegistrationPromise) {
+      await this.resourceRegistrationPromise;
+      return;
+    }
+
+    // Start registration (only one caller will enter this block)
+    this.resourceRegistrationPromise = (async () => {
+      try {
+        baseLogger.info('Lazy-loading resources on first access');
+        await this.registerResources();
+        this.resourcesRegistered = true;
+        baseLogger.info('Resources registered successfully');
+      } catch (error) {
+        baseLogger.error('Failed to register resources', { error });
+        this.resourceRegistrationPromise = null; // Allow retry
+        throw error;
+      }
+    })();
+
+    await this.resourceRegistrationPromise;
   }
 
   /**
@@ -1158,14 +1243,34 @@ export async function createServalSheetsServer(
   if (redisUrl) {
     const { createClient } = await import('redis');
     const { initCapabilityCacheService } = await import('./services/capability-cache.js');
+    const { initETagCache } = await import('./services/etag-cache.js');
+    const { getDistributedCacheConfig } = await import('./config/env.js');
+
     const redis = createClient({ url: redisUrl });
     await redis.connect();
+
+    // Initialize capability cache with Redis
     initCapabilityCacheService(redis);
     baseLogger.info('Capability cache service initialized with Redis');
+
+    // Initialize ETag cache with Redis (if enabled)
+    const cacheConfig = getDistributedCacheConfig();
+    if (cacheConfig.enabled) {
+      initETagCache(redis);
+      baseLogger.info('ETag cache initialized with Redis L2 (distributed caching enabled)');
+    } else {
+      initETagCache();
+      baseLogger.info('ETag cache initialized (L1 memory-only)');
+    }
   } else {
     const { initCapabilityCacheService } = await import('./services/capability-cache.js');
+    const { initETagCache } = await import('./services/etag-cache.js');
+
     initCapabilityCacheService();
     baseLogger.info('Capability cache service initialized (memory-only)');
+
+    initETagCache();
+    baseLogger.info('ETag cache initialized (L1 memory-only)');
   }
 
   const server = new ServalSheetsServer(options);

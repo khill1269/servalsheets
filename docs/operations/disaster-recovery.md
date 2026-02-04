@@ -1,3 +1,13 @@
+---
+title: Disaster Recovery Runbook
+category: runbook
+last_updated: 2026-01-31
+description: 'RTO (Recovery Time Objective): 1 hour'
+version: 1.6.0
+tags: [docker]
+estimated_time: 15-30 minutes
+---
+
 # Disaster Recovery Runbook
 
 ## Quick Reference
@@ -14,16 +24,17 @@
 
 **Incident Severity Levels:**
 
-| Level | Definition | Response Time | Escalation |
-|-------|------------|---------------|------------|
-| **P0 - Critical** | Complete service outage | Immediate | On-call engineer + Manager |
-| **P1 - High** | Partial outage affecting >50% users | <15 minutes | On-call engineer |
-| **P2 - Medium** | Degraded performance | <1 hour | Standard on-call |
-| **P3 - Low** | Minor issues | <4 hours | Standard support |
+| Level             | Definition                          | Response Time | Escalation                 |
+| ----------------- | ----------------------------------- | ------------- | -------------------------- |
+| **P0 - Critical** | Complete service outage             | Immediate     | On-call engineer + Manager |
+| **P1 - High**     | Partial outage affecting >50% users | <15 minutes   | On-call engineer           |
+| **P2 - Medium**   | Degraded performance                | <1 hour       | Standard on-call           |
+| **P3 - Low**      | Minor issues                        | <4 hours      | Standard support           |
 
 ### 2. Incident Commander
 
 **Responsibilities:**
+
 - Declare incident and severity level
 - Coordinate recovery efforts
 - Communicate with stakeholders
@@ -36,6 +47,7 @@
 ### Scenario 1: Complete Server Failure
 
 **Symptoms:**
+
 - Health endpoint not responding
 - All requests timing out
 - No logs being generated
@@ -73,6 +85,7 @@ curl http://localhost:3000/health
 ### Scenario 2: Redis Failure (Session Loss)
 
 **Symptoms:**
+
 - "Session not found" errors
 - Users forced to re-authenticate
 - Task state lost
@@ -107,6 +120,7 @@ redis-cli INFO stats
 ### Scenario 3: OAuth Service Disruption
 
 **Symptoms:**
+
 - Authentication failures
 - "Invalid credentials" errors
 - Google API returning errors
@@ -140,6 +154,7 @@ systemctl restart servalsheets
 ### Scenario 4: Database/Storage Corruption
 
 **Symptoms:**
+
 - "Cannot read property" errors
 - Redis returning corrupted data
 - Token store decryption failures
@@ -176,6 +191,7 @@ systemctl start servalsheets
 ### Scenario 5: Complete Datacenter/Region Loss
 
 **Symptoms:**
+
 - All services unreachable
 - Network partition
 - Complete infrastructure failure
@@ -222,12 +238,12 @@ VP Engineering: +1-XXX-XXX-XXXX (P0 only)
 
 ### External Dependencies
 
-| Service | Support Contact | SLA |
-|---------|----------------|-----|
-| Google Cloud | Google Cloud Support | 1 hour response |
-| Redis Cloud | support@redis.com | 30 min response |
-| AWS | AWS Support (Enterprise) | 15 min response |
-| Cloudflare | support@cloudflare.com | 1 hour response |
+| Service      | Support Contact          | SLA             |
+| ------------ | ------------------------ | --------------- |
+| Google Cloud | Google Cloud Support     | 1 hour response |
+| Redis Cloud  | support@redis.com        | 30 min response |
+| AWS          | AWS Support (Enterprise) | 15 min response |
+| Cloudflare   | support@cloudflare.com   | 1 hour response |
 
 ---
 
@@ -238,6 +254,7 @@ VP Engineering: +1-XXX-XXX-XXXX (P0 only)
 **Slack Channel:** `#servalsheets-incidents`
 
 **Status Update Frequency:**
+
 - P0: Every 15 minutes
 - P1: Every 30 minutes
 - P2: Every hour
@@ -247,6 +264,7 @@ VP Engineering: +1-XXX-XXX-XXXX (P0 only)
 **Status Page:** `status.servalsheets.example.com`
 
 **Customer Notification:**
+
 ```
 Subject: [INCIDENT] ServalSheets Service Disruption
 
@@ -290,12 +308,14 @@ Updates will be provided every 30 minutes.
 # Incident Report: [DATE] - [TITLE]
 
 ## Summary
+
 - **Duration:** [START] to [END] ([DURATION])
 - **Impact:** [NUMBER] users affected
 - **Severity:** P[0-3]
 - **RCA:** [ROOT CAUSE]
 
 ## Timeline
+
 - [TIME]: Incident detected
 - [TIME]: On-call engineer paged
 - [TIME]: Root cause identified
@@ -304,21 +324,27 @@ Updates will be provided every 30 minutes.
 - [TIME]: Incident resolved
 
 ## Root Cause
+
 [Detailed technical explanation]
 
 ## Resolution
+
 [What was done to fix it]
 
 ## Lessons Learned
+
 ### What Went Well
+
 - [Item 1]
 - [Item 2]
 
 ### What Could Be Improved
+
 - [Item 1]
 - [Item 2]
 
 ## Action Items
+
 - [ ] [ACTION] - Owner: [NAME] - Due: [DATE]
 - [ ] [ACTION] - Owner: [NAME] - Due: [DATE]
 ```
@@ -332,6 +358,7 @@ Updates will be provided every 30 minutes.
 **Schedule:** First Saturday of Q1, Q2, Q3, Q4 at 2 AM
 
 **Procedure:**
+
 1. Announce planned DR test to team
 2. Simulate primary region failure
 3. Execute failover to DR region
@@ -342,6 +369,7 @@ Updates will be provided every 30 minutes.
 8. Update DR procedures as needed
 
 **Success Criteria:**
+
 - Failover completed within RTO (1 hour)
 - All critical services operational
 - No data loss beyond RPO (24 hours)
@@ -352,6 +380,7 @@ Updates will be provided every 30 minutes.
 ## DR Checklist
 
 ### Before Disaster
+
 - [ ] Backups running daily (automated)
 - [ ] Backup verification completed (monthly)
 - [ ] DR region infrastructure provisioned
@@ -362,6 +391,7 @@ Updates will be provided every 30 minutes.
 - [ ] Team trained on DR procedures
 
 ### During Disaster
+
 - [ ] Incident declared and logged
 - [ ] Stakeholders notified
 - [ ] Recovery procedures initiated
@@ -370,6 +400,7 @@ Updates will be provided every 30 minutes.
 - [ ] External dependencies contacted (if needed)
 
 ### After Disaster
+
 - [ ] Service restored and verified
 - [ ] Incident closed
 - [ ] Post-mortem scheduled
@@ -410,6 +441,7 @@ watch -n 5 'curl -s http://localhost:3000/health | jq .'
 ## Summary
 
 **Key Takeaways:**
+
 1. Assess severity and declare incident immediately
 2. Follow established procedures - don't improvise under pressure
 3. Communicate frequently and transparently

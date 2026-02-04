@@ -20,6 +20,7 @@ import { logger } from './utils/logger.js';
 import { CircuitBreaker } from './utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from './version.js';
+import { getRecommendedScopes, formatScopesForAuth } from './config/oauth-scopes.js';
 
 // ============================================================================
 // SECURITY CONSTANTS
@@ -522,13 +523,12 @@ export class OAuthProvider {
           `${this.config.issuer}/oauth/google-callback`
         );
         googleAuthUrl.searchParams.set('response_type', 'code');
-        // Match old project's "admin" scope mode: spreadsheets + drive.file + drive.readonly
-        googleAuthUrl.searchParams.set(
-          'scope',
-          'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly'
-        );
+        // Use centralized scope configuration (includes ALL features: Sheets, Drive, BigQuery, Apps Script)
+        const googleScopes = formatScopesForAuth(getRecommendedScopes());
+        googleAuthUrl.searchParams.set('scope', googleScopes);
         googleAuthUrl.searchParams.set('access_type', 'offline');
         googleAuthUrl.searchParams.set('prompt', 'consent');
+        googleAuthUrl.searchParams.set('include_granted_scopes', 'true'); // Google incremental authorization
 
         // Store state for callback
         const stateData: StateData = {

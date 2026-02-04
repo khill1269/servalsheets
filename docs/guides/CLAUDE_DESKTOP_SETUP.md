@@ -1,3 +1,14 @@
+---
+title: Claude Desktop Setup Guide
+category: guide
+last_updated: 2026-01-31
+description: This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
+version: 1.6.0
+tags: [setup, configuration, sheets]
+audience: user
+difficulty: intermediate
+---
+
 # Claude Desktop Setup Guide
 
 This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
@@ -5,6 +16,7 @@ This guide helps you configure ServalSheets v1.6.0 to work with Claude Desktop.
 ## 🆕 What's New in v1.6.0
 
 ServalSheets v1.6.0 includes production-ready performance and observability features:
+
 - ✅ **HTTP Compression**: 60-80% bandwidth reduction
 - ✅ **Payload Monitoring**: Automatic size tracking (2MB warnings, 10MB limits)
 - ✅ **Batch Efficiency**: Real-time optimization analysis
@@ -30,6 +42,7 @@ npm run build
 ```
 
 The script will:
+
 1. Run OAuth authentication in your browser
 2. Create `claude_desktop_config.json` pointing at `dist/cli.js`
 3. Verify tokens and config files
@@ -73,9 +86,7 @@ The script will:
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": [
-        "/absolute/path/to/servalsheets/dist/cli.js"
-      ],
+      "args": ["/absolute/path/to/servalsheets/dist/cli.js"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json",
         "LOG_LEVEL": "info"
@@ -85,23 +96,41 @@ The script will:
 }
 ```
 
-**With v1.6.0 features enabled**:
+**With all v1.6.0 features enabled (development)**:
 
 ```json
 {
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": [
-        "/absolute/path/to/servalsheets/dist/cli.js"
-      ],
+      "args": ["/absolute/path/to/servalsheets/dist/cli.js"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json",
+        "NODE_ENV": "development",
         "LOG_LEVEL": "debug",
-        "OTEL_ENABLED": "true",
-        "OTEL_LOG_SPANS": "true",
-        "RATE_LIMIT_READS_PER_MINUTE": "300",
-        "RATE_LIMIT_WRITES_PER_MINUTE": "60"
+
+        "CACHE_ENABLED": "true",
+        "CACHE_MAX_SIZE_MB": "100",
+        "CACHE_TTL_MS": "300000",
+
+        "DEDUP_ENABLED": "true",
+        "DEDUP_WINDOW_MS": "5000",
+
+        "TRACING_ENABLED": "true",
+        "TRACING_SAMPLE_RATE": "1.0",
+
+        "MAX_CONCURRENT_REQUESTS": "10",
+        "REQUEST_TIMEOUT_MS": "30000",
+
+        "ENABLE_PAYLOAD_VALIDATION": "true",
+        "ENABLE_REQUEST_MERGING": "true",
+        "ENABLE_PARALLEL_EXECUTOR": "true",
+        "PARALLEL_EXECUTOR_THRESHOLD": "100",
+        "ENABLE_GRANULAR_PROGRESS": "true",
+
+        "CIRCUIT_BREAKER_FAILURE_THRESHOLD": "5",
+        "CIRCUIT_BREAKER_SUCCESS_THRESHOLD": "2",
+        "CIRCUIT_BREAKER_TIMEOUT_MS": "30000"
       }
     }
   }
@@ -132,9 +161,7 @@ The script will:
   "mcpServers": {
     "servalsheets": {
       "command": "node",
-      "args": [
-        "/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"
-      ],
+      "args": ["/Users/thomascahill/Documents/mcp-servers/servalsheets/dist/cli.js"],
       "env": {
         "GOOGLE_ACCESS_TOKEN": "ya29.a0AfB_..."
       }
@@ -173,42 +200,83 @@ Expected: Claude should use the `sheets_core` tool and return sheet names.
 
 ## ⚙️ Environment Variables (v1.6.0)
 
-ServalSheets v1.6.0 supports extensive configuration via environment variables:
+ServalSheets v1.6.0 supports the following configuration via environment variables:
 
 ### Core Configuration
-```bash
-# Google credentials (required)
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-# OR
-GOOGLE_ACCESS_TOKEN=ya29.xxx
 
-# Logging
+```bash
+# Google credentials (required - choose one)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# OR for OAuth
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+GOOGLE_REDIRECT_URI=http://localhost:3000/callback
+GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+
+# Environment
+NODE_ENV=development        # development, production, test
 LOG_LEVEL=info              # debug, info, warn, error
 ```
 
-### Performance & Observability (v1.6.0)
+### Performance & Caching
+
 ```bash
-# Rate limiting (default: 300/60)
-RATE_LIMIT_READS_PER_MINUTE=300
-RATE_LIMIT_WRITES_PER_MINUTE=60
+# Response caching (default: enabled)
+CACHE_ENABLED=true
+CACHE_MAX_SIZE_MB=100       # Maximum cache size
+CACHE_TTL_MS=300000         # 5 minutes
 
-# OpenTelemetry tracing
-OTEL_ENABLED=true           # Enable distributed tracing
-OTEL_LOG_SPANS=true         # Log spans to console
+# Request deduplication (default: enabled)
+DEDUP_ENABLED=true
+DEDUP_WINDOW_MS=5000        # 5 second deduplication window
+```
 
-# Caching
-CACHE_ENABLED=true          # Enable response caching (default: true)
+### Tracing & Observability
 
-# Request deduplication
-DEDUPLICATION_ENABLED=true  # Prevent duplicate requests (default: true)
+```bash
+# OpenTelemetry tracing (default: enabled)
+TRACING_ENABLED=true
+TRACING_SAMPLE_RATE=0.1     # 10% sampling (use 1.0 for dev)
+```
+
+### Safety & Reliability
+
+```bash
+# Concurrency limits
+MAX_CONCURRENT_REQUESTS=10
+REQUEST_TIMEOUT_MS=30000    # 30 seconds
+
+# Circuit breaker
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
+CIRCUIT_BREAKER_SUCCESS_THRESHOLD=2
+CIRCUIT_BREAKER_TIMEOUT_MS=30000
+```
+
+### Optional Performance Features
+
+```bash
+# Request merging (20-40% API savings)
+ENABLE_REQUEST_MERGING=true
+
+# Parallel execution (40% faster for large batches)
+ENABLE_PARALLEL_EXECUTOR=true
+PARALLEL_EXECUTOR_THRESHOLD=100
+
+# Progress notifications
+ENABLE_GRANULAR_PROGRESS=true
+
+# Payload validation
+ENABLE_PAYLOAD_VALIDATION=true
 ```
 
 ### Automatic Features (No Configuration)
+
 The following features are **always active** in v1.6.0:
+
 - ✅ HTTP compression (60-80% bandwidth reduction)
 - ✅ Payload monitoring (2MB warnings, 10MB limits)
 - ✅ Batch efficiency analysis
-- ✅ Dynamic rate limiting (auto-throttles on 429 errors)
 
 ### Example: Production Configuration
 
@@ -220,12 +288,14 @@ The following features are **always active** in v1.6.0:
       "args": ["servalsheets"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json",
+        "NODE_ENV": "production",
         "LOG_LEVEL": "info",
-        "RATE_LIMIT_READS_PER_MINUTE": "300",
-        "RATE_LIMIT_WRITES_PER_MINUTE": "60",
-        "OTEL_ENABLED": "false",
         "CACHE_ENABLED": "true",
-        "DEDUPLICATION_ENABLED": "true"
+        "DEDUP_ENABLED": "true",
+        "TRACING_ENABLED": "true",
+        "TRACING_SAMPLE_RATE": "0.1",
+        "ENABLE_REQUEST_MERGING": "true",
+        "ENABLE_PARALLEL_EXECUTOR": "true"
       }
     }
   }
@@ -242,9 +312,11 @@ The following features are **always active** in v1.6.0:
       "args": ["/absolute/path/to/dist/cli.js"],
       "env": {
         "GOOGLE_APPLICATION_CREDENTIALS": "/path/to/service-account.json",
+        "NODE_ENV": "development",
         "LOG_LEVEL": "debug",
-        "OTEL_ENABLED": "true",
-        "OTEL_LOG_SPANS": "true"
+        "TRACING_ENABLED": "true",
+        "TRACING_SAMPLE_RATE": "1.0",
+        "ENABLE_GRANULAR_PROGRESS": "true"
       }
     }
   }
@@ -258,6 +330,7 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Tool calls fail with permission errors
 
 **Fixes**:
+
 1. Verify JSON path is correct in config
 2. Check JSON file is valid (not corrupted)
 3. Ensure APIs are enabled in Google Cloud Console
@@ -268,10 +341,12 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Tools don't appear in Claude Desktop (no MCP icon in the bottom-right)
 
 **Fixes**:
+
 1. Check config file syntax (must be valid JSON)
 2. Verify file path to cli.js is correct
 3. Check logs: `~/Library/Logs/Claude/mcp-server-servalsheets.log`
 4. Test CLI manually:
+
    ```bash
    export GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/servalsheets-service-account.json
    node /path/to/servalsheets/dist/cli.js
@@ -281,16 +356,18 @@ The following features are **always active** in v1.6.0:
 
 **Symptoms**: Operations fail with "RATE_LIMITED" errors
 
-**Fixes** (v1.6.0 automatic):
-1. Dynamic throttling is **automatic** - wait 60 seconds for recovery
+**Fixes**:
+
+1. Wait 60 seconds for Google's quota to reset
 2. Check logs for rate limit events
-3. Adjust rate limits if needed:
+3. Enable request merging to reduce API calls:
+
    ```json
    "env": {
-     "RATE_LIMIT_READS_PER_MINUTE": "200",
-     "RATE_LIMIT_WRITES_PER_MINUTE": "40"
+     "ENABLE_REQUEST_MERGING": "true"
    }
    ```
+
 4. Consider increasing Google Cloud project quotas
 
 ### Issue: "Payload too large" errors
@@ -298,10 +375,12 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Operations fail with size limit errors
 
 **Fixes** (v1.6.0 monitoring):
+
 1. Check logs for payload size warnings (>2MB)
 2. Reduce batch sizes or range selections
 3. Use pagination for large data reads
 4. Enable debug logging to see exact payload sizes:
+
    ```json
    "env": { "LOG_LEVEL": "debug" }
    ```
@@ -311,16 +390,27 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Slow responses, high latency
 
 **Fixes** (v1.6.0 features):
-1. Enable OpenTelemetry to identify bottlenecks:
+
+1. Enable tracing to identify bottlenecks:
+
    ```json
    "env": {
-     "OTEL_ENABLED": "true",
-     "OTEL_LOG_SPANS": "true"
+     "TRACING_ENABLED": "true",
+     "TRACING_SAMPLE_RATE": "1.0"
    }
    ```
-2. Check batch efficiency in logs (look for warnings about <3 intents/spreadsheet)
+
+2. Enable performance optimizations:
+
+   ```json
+   "env": {
+     "ENABLE_REQUEST_MERGING": "true",
+     "ENABLE_PARALLEL_EXECUTOR": "true"
+   }
+   ```
+
 3. Verify caching is enabled: `"CACHE_ENABLED": "true"`
-4. Enable deduplication: `"DEDUPLICATION_ENABLED": "true"`
+4. Verify deduplication is enabled: `"DEDUP_ENABLED": "true"`
 5. HTTP compression is automatic (check logs for compression stats)
 
 ### Issue: "Permission denied" when accessing spreadsheet
@@ -328,6 +418,7 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Tool works but can't access specific spreadsheet
 
 **Fixes**:
+
 1. Share the spreadsheet with your service account email
 2. Grant appropriate permissions (Viewer or Editor)
 3. Wait 30 seconds for Google's cache to update
@@ -338,10 +429,12 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: Spreadsheet ID is correct but sheet name isn't found
 
 **Fixes**:
+
 1. Check sheet name matches exactly (case-sensitive)
 2. Verify spreadsheet ID is correct
 3. Ensure you have access to the spreadsheet
 4. Try listing sheets first:
+
    ```
    List all sheets in spreadsheet: <id>
    ```
@@ -351,6 +444,7 @@ The following features are **always active** in v1.6.0:
 **Symptoms**: After many operations, tools start failing
 
 **Fixes**:
+
 1. Wait a few minutes for quota to reset
 2. Use batch operations to reduce API calls
 3. Check [Google API quotas](https://console.cloud.google.com/apis/api/sheets.googleapis.com/quotas)
@@ -380,12 +474,13 @@ You should see **21 tools** available:
 18. `sheets_bigquery` - BigQuery Connected Sheets (Tier 7)
 19. `sheets_appsscript` - Apps Script automation (Tier 7)
 
-**Total**: 21 tools, 272 actions
+**Total**: 21 tools, 293 actions
 
 To see the current action breakdown, run:
+
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 21 tools, 272 actions
+# Output: ✅ Total: 21 tools, 293 actions
 ```
 
 ## 🎯 Example Tasks
@@ -393,6 +488,7 @@ npm run check:drift | grep "Total:"
 Try asking Claude:
 
 ### Basic Operations
+
 ```
 Read cells A1:D10 from spreadsheet: <your-spreadsheet-id>
 ```
@@ -402,6 +498,7 @@ Write "Hello World" to cell A1 in spreadsheet: <your-spreadsheet-id>
 ```
 
 ### Data Analysis
+
 ```
 Analyze the data quality in spreadsheet: <your-spreadsheet-id>
 Range: Sheet1!A1:Z100
@@ -412,6 +509,7 @@ Calculate statistics for the Revenue column in my sales spreadsheet: <your-sprea
 ```
 
 ### Advanced Operations
+
 ```
 Create a bar chart showing monthly sales from spreadsheet: <your-spreadsheet-id>
 Data range: Sales!A1:B12
@@ -423,6 +521,7 @@ Spreadsheet: <your-spreadsheet-id>
 ```
 
 ### Using Safety Features
+
 ```
 Preview what would happen if I cleared all data in range Sheet1!A1:Z100
 Use dry-run mode
@@ -437,6 +536,7 @@ Spreadsheet: <your-spreadsheet-id>
 2. **Least privilege**: Use Viewer role if only reading data
 3. **Key rotation**: Rotate service account keys annually
 4. **Secure storage**: Keep JSON keys in `~/.config/google/` with 600 permissions:
+
    ```bash
    chmod 600 ~/.config/google/servalsheets-service-account.json
    ```
@@ -446,6 +546,7 @@ Spreadsheet: <your-spreadsheet-id>
 1. **Short-lived**: OAuth access tokens expire (use service accounts for automation)
 2. **Refresh tokens**: Store refresh tokens securely if using OAuth flow
 3. **Encrypted storage**: Enable encrypted token store:
+
    ```bash
    export GOOGLE_TOKEN_STORE_PATH=~/.config/servalsheets/tokens.enc
    export ENCRYPTION_KEY=$(openssl rand -hex 32)
@@ -453,20 +554,69 @@ Spreadsheet: <your-spreadsheet-id>
 
 ## 📝 Configuration Reference
 
-### All Environment Variables
+### All Supported Environment Variables
 
-| Variable | Description | Required | Example |
-|----------|-------------|----------|---------|
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | One of these | `~/.config/google/sa.json` |
-| `GOOGLE_ACCESS_TOKEN` | OAuth access token | One of these | `ya29.xxx` |
-| `GOOGLE_CLIENT_ID` | OAuth client ID | With secret | `xxx.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | OAuth client secret | With ID | `GOCSPX-xxx` |
-| `GOOGLE_TOKEN_STORE_PATH` | Encrypted token file | Optional | `~/.config/servalsheets/tokens.enc` |
-| `ENCRYPTION_KEY` | 64-char hex encryption key | With path | `openssl rand -hex 32` |
+**Authentication (choose one method):**
+
+| Variable                         | Description                | Required           | Default | Example                             |
+| -------------------------------- | -------------------------- | ------------------ | ------- | ----------------------------------- |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path  | Yes (if not OAuth) | -       | `~/.config/google/sa.json`          |
+| `GOOGLE_CLIENT_ID`               | OAuth client ID            | Yes (if OAuth)     | -       | `xxx.apps.googleusercontent.com`    |
+| `GOOGLE_CLIENT_SECRET`           | OAuth client secret        | Yes (if OAuth)     | -       | `GOCSPX-xxx`                        |
+| `GOOGLE_REDIRECT_URI`            | OAuth redirect URI         | Yes (if OAuth)     | -       | `http://localhost:3000/callback`    |
+| `GOOGLE_TOKEN_STORE_PATH`        | Encrypted token file       | Optional           | -       | `~/.config/servalsheets/tokens.enc` |
+| `ENCRYPTION_KEY`                 | 64-char hex encryption key | With token store   | -       | `openssl rand -hex 32`              |
+
+**Core Settings:**
+
+| Variable    | Description       | Default       | Example      |
+| ----------- | ----------------- | ------------- | ------------ |
+| `NODE_ENV`  | Environment mode  | `development` | `production` |
+| `LOG_LEVEL` | Logging verbosity | `info`        | `debug`      |
+| `PORT`      | HTTP server port  | `3000`        | `8080`       |
+| `HOST`      | HTTP server host  | `127.0.0.1`   | `0.0.0.0`    |
+
+**Performance & Caching:**
+
+| Variable            | Description                  | Default         | Example  |
+| ------------------- | ---------------------------- | --------------- | -------- |
+| `CACHE_ENABLED`     | Enable response caching      | `true`          | `false`  |
+| `CACHE_MAX_SIZE_MB` | Maximum cache size           | `100`           | `200`    |
+| `CACHE_TTL_MS`      | Cache TTL                    | `300000` (5min) | `600000` |
+| `DEDUP_ENABLED`     | Enable request deduplication | `true`          | `false`  |
+| `DEDUP_WINDOW_MS`   | Deduplication window         | `5000` (5s)     | `10000`  |
+
+**Tracing & Observability:**
+
+| Variable              | Description                  | Default | Example |
+| --------------------- | ---------------------------- | ------- | ------- |
+| `TRACING_ENABLED`     | Enable OpenTelemetry tracing | `true`  | `false` |
+| `TRACING_SAMPLE_RATE` | Sampling rate (0-1)          | `0.1`   | `1.0`   |
+
+**Safety & Reliability:**
+
+| Variable                            | Description              | Default       | Example |
+| ----------------------------------- | ------------------------ | ------------- | ------- |
+| `MAX_CONCURRENT_REQUESTS`           | Max concurrent API calls | `10`          | `20`    |
+| `REQUEST_TIMEOUT_MS`                | Request timeout          | `30000` (30s) | `60000` |
+| `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | Failures before break    | `5`           | `10`    |
+| `CIRCUIT_BREAKER_SUCCESS_THRESHOLD` | Successes to close       | `2`           | `3`     |
+| `CIRCUIT_BREAKER_TIMEOUT_MS`        | Circuit breaker timeout  | `30000` (30s) | `60000` |
+
+**Optional Performance Features:**
+
+| Variable                      | Description              | Default | Example |
+| ----------------------------- | ------------------------ | ------- | ------- |
+| `ENABLE_REQUEST_MERGING`      | Merge overlapping reads  | `false` | `true`  |
+| `ENABLE_PARALLEL_EXECUTOR`    | Parallel batch execution | `false` | `true`  |
+| `PARALLEL_EXECUTOR_THRESHOLD` | Min size for parallel    | `100`   | `50`    |
+| `ENABLE_GRANULAR_PROGRESS`    | Progress notifications   | `false` | `true`  |
+| `ENABLE_PAYLOAD_VALIDATION`   | Validate payloads        | `true`  | `false` |
 
 ### Example Configurations
 
 **Production (Service Account)**:
+
 ```json
 {
   "mcpServers": {
@@ -482,6 +632,7 @@ Spreadsheet: <your-spreadsheet-id>
 ```
 
 **Development (Local Build)**:
+
 ```json
 {
   "mcpServers": {
@@ -498,6 +649,7 @@ Spreadsheet: <your-spreadsheet-id>
 ```
 
 **Multiple Environments**:
+
 ```json
 {
   "mcpServers": {
@@ -522,16 +674,19 @@ Spreadsheet: <your-spreadsheet-id>
 ## 🔍 Viewing Logs
 
 Logs are written to:
+
 ```
 ~/Library/Logs/Claude/mcp-server-servalsheets.log
 ```
 
 View live logs:
+
 ```bash
 tail -f ~/Library/Logs/Claude/mcp-server-servalsheets.log
 ```
 
 View errors only:
+
 ```bash
 grep ERROR ~/Library/Logs/Claude/mcp-server-servalsheets.log
 ```
@@ -539,29 +694,37 @@ grep ERROR ~/Library/Logs/Claude/mcp-server-servalsheets.log
 ## 🚀 Performance Tips
 
 ### Batch Operations
+
 Instead of:
+
 ```
 Read A1:A10, then read B1:B10, then read C1:C10
 ```
 
 Use:
+
 ```
 Read A1:C10 in one call
 ```
 
 ### Caching
+
 ServalSheets caches:
+
 - Spreadsheet metadata (5 minutes)
 - Sheet structure (5 minutes)
 - Named ranges (10 minutes)
 
 Clear cache if structure changes:
+
 ```
 Refresh metadata for spreadsheet: <id>
 ```
 
 ### Rate Limiting
+
 Built-in rate limiter respects Google's quotas:
+
 - 100 requests per 100 seconds per user
 - Automatic backoff on 429 errors
 - Queue management with retry

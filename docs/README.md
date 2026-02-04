@@ -1,3 +1,12 @@
+---
+title: ServalSheets Documentation
+category: general
+last_updated: 2026-02-03
+description: > Production-grade Google Sheets MCP server documentation
+version: 1.6.0
+tags: [sheets]
+---
+
 # ServalSheets Documentation
 
 > **Production-grade Google Sheets MCP server documentation**  
@@ -11,7 +20,7 @@ docs/
 ├── architecture-diagrams.md     # System architecture (Mermaid)
 ├── openapi.json                 # OpenAPI specification
 │
-├── guides/                      # User & admin guides (18 files)
+├── guides/                      # User & admin guides (19 files)
 ├── examples/                    # Tool request/response examples (17 files)
 ├── development/                 # Developer documentation (16 files)
 ├── operations/                  # Production runbooks (8 files)
@@ -26,7 +35,7 @@ docs/
     └── 2026-01/                 # Archived files by date
 ```
 
-**Active Files:** 79 | **Generated:** 244 | **Archived:** 172
+**Active Files:** 80 | **Generated:** 244 | **Archived:** 172
 
 ---
 
@@ -60,6 +69,7 @@ End-user and administrator documentation:
 | [MONITORING.md](./guides/MONITORING.md)                     | Observability & metrics    |
 | [PERFORMANCE.md](./guides/PERFORMANCE.md)                   | Performance optimization   |
 | [SKILL.md](./guides/SKILL.md)                               | Claude skill integration   |
+| [SUBMISSION_CHECKLIST.md](./guides/SUBMISSION_CHECKLIST.md) | Remote MCP submission prep |
 
 ### Examples (`examples/`)
 
@@ -195,18 +205,18 @@ Archive contains:
 
 | Category         | Files  | Purpose                  |
 | ---------------- | ------ | ------------------------ |
-| Guides           | 18     | User documentation       |
+| Guides           | 19     | User documentation       |
 | Examples         | 17     | Request/response samples |
 | Development      | 16     | Developer docs           |
 | Operations       | 8      | Production runbooks      |
 | Analysis         | 15     | Audit framework          |
 | Planning         | 1      | Active roadmap           |
 | Releases         | 1      | Release notes            |
-| **Active Total** | **79** |                          |
+| **Active Total** | **80** |                          |
 | Generated (API)  | 244    | TypeDoc output           |
 | Archive          | 172    | Historical               |
 
 ---
 
-**Last Updated:** January 12, 2026  
+**Last Updated:** February 3, 2026
 **Documentation Version:** 3.0 (Reorganized per MCP best practices)

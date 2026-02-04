@@ -1,3 +1,11 @@
+---
+title: Claude Code Rules for ServalSheets
+category: development
+last_updated: 2026-01-31
+description: 'Version: 1.0'
+version: 1.6.0
+---
+
 # Claude Code Rules for ServalSheets
 
 **Version:** 1.0
@@ -12,6 +20,7 @@
 These rules emerged from analyzing 16,851 lines of production code and 1761 tests in ServalSheets. They ensure consistent quality, maintainability, and verifiability of all changes.
 
 **Quick Navigation:**
+
 - [Core Principles (5 Rules)](#core-principles)
 - [ServalSheets-Specific Patterns](#servalsheets-specific-patterns)
 - [Enforcement Mechanisms](#enforcement-mechanisms)
@@ -27,6 +36,7 @@ These rules emerged from analyzing 16,851 lines of production code and 1761 test
 **Policy:** Every factual claim must be backed by evidence.
 
 **Requirements:**
+
 - File paths with line ranges: `src/handlers/values.ts:123-145`
 - Command outputs: Show the actual command + relevant output
 - Test results: Include test name + assertion that passed
@@ -34,6 +44,7 @@ These rules emerged from analyzing 16,851 lines of production code and 1761 test
 **Examples:**
 
 ✅ **Good:**
+
 ```
 Changed error handling in src/handlers/values.ts:234-239:
   if (!result.values) {
@@ -43,11 +54,13 @@ Changed error handling in src/handlers/values.ts:234-239:
 ```
 
 ❌ **Bad:**
+
 ```
 Fixed error handling in the values handler
 ```
 
 **Enforcement:**
+
 - Manual code review checks for evidence
 - PR template requires "Evidence" section
 
@@ -58,6 +71,7 @@ Fixed error handling in the values handler
 **Policy:** Understand the full call stack before making changes.
 
 **Requirements:**
+
 - Start from one of these entrypoints:
   - **STDIO:** `src/cli.ts` → `src/server.ts` → handler
   - **HTTP:** `src/http-server.ts` → handler
@@ -68,6 +82,7 @@ Fixed error handling in the values handler
 **Examples:**
 
 ✅ **Good:**
+
 ```
 Traced sheets_data read action:
 1. cli.ts:75 - Parse args, load env
@@ -79,16 +94,19 @@ Traced sheets_data read action:
 ```
 
 ❌ **Bad:**
+
 ```
 The handler calls the API and returns the result
 ```
 
 **Why it matters:**
+
 - ServalSheets uses layered validation (fast → full → shape checking)
 - Schema transformations happen at multiple layers
 - Response builders enforce MCP protocol compliance
 
 **Enforcement:**
+
 - Code review requirement for changes touching >1 layer
 - Add test that exercises full stack
 
@@ -99,6 +117,7 @@ The handler calls the API and returns the result
 **Policy:** Reproduce the bug OR write a failing test before fixing.
 
 **Requirements:**
+
 - For bug fixes: Include reproduction steps + error message
 - For refactors: Include test showing current behavior
 - For new features: Include test showing missing functionality
@@ -106,6 +125,7 @@ The handler calls the API and returns the result
 **Examples:**
 
 ✅ **Good:**
+
 ```
 Bug: sheets_data returns undefined for empty ranges
 
@@ -117,16 +137,19 @@ Test added: tests/handlers/values.test.ts:123-145
 ```
 
 ❌ **Bad:**
+
 ```
 Fixed a bug where empty ranges weren't handled properly
 ```
 
 **Acceptable Exceptions:**
+
 - Typos in comments/docs (provide git diff)
 - Formatting-only changes (show prettier output)
 - Dependency updates (show npm audit output)
 
 **Enforcement:**
+
 - CI: Run tests before and after change
 - Pre-commit hook: Warn if no test files modified
 
@@ -137,12 +160,14 @@ Fixed a bug where empty ranges weren't handled properly
 **Policy:** Limit scope to 3 files in `src/` unless tests require more.
 
 **Requirements:**
+
 - Changes to `src/`: ≤3 files
 - **Exception:** Tests can add unlimited test files
 - **Exception:** Docs can add unlimited markdown files
 - **Exception:** Schema changes trigger metadata regeneration (5 files)
 
 **When to break this rule:**
+
 - Large refactors: Get approval in issue/PR description
 - Schema changes: Expected to touch generated files (package.json, src/schemas/index.ts, src/mcp/completions.ts, server.json)
 - Test infrastructure: Can add test helpers, mocks, fixtures
@@ -150,6 +175,7 @@ Fixed a bug where empty ranges weren't handled properly
 **Examples:**
 
 ✅ **Good (3 files):**
+
 ```
 Modified:
   src/handlers/values.ts (add null check)
@@ -158,6 +184,7 @@ Modified:
 ```
 
 ✅ **Good (schema change with generated files):**
+
 ```
 Modified:
   src/schemas/values.ts (add new action)
@@ -171,6 +198,7 @@ Added:
 ```
 
 ❌ **Bad (8 files):**
+
 ```
 Modified in commit 1bf75a4:
   8 src/ files changed, 1873 insertions
@@ -180,6 +208,7 @@ Recommendation: Split into 4 PRs (one per concern)
 ```
 
 **Enforcement:**
+
 - Pre-commit hook: Warn if >3 `src/` files modified
 - CI: Fail if >10 `src/` files modified (after excluding generated)
 - Manual review: Large commits require justification in PR
@@ -191,24 +220,27 @@ Recommendation: Split into 4 PRs (one per concern)
 **Policy:** Empty objects/undefined must be logged and intentional.
 
 **Requirements:**
+
 - Never return `{}` or `undefined` silently
 - Always log warnings/errors before returning empty values
 - Use structured errors with `ErrorCode` enum
 - Document why empty return is acceptable
 
 **Problem Pattern:**
+
 ```typescript
 // ❌ Silent fallback - violates rule
 function getConfig(): Config {
   try {
     return loadConfig();
   } catch (error) {
-    return {};  // Silent failure!
+    return {}; // Silent failure!
   }
 }
 ```
 
 **Correct Patterns:**
+
 ```typescript
 // ✅ Logged fallback - follows rule
 function getConfig(): Config {
@@ -217,9 +249,9 @@ function getConfig(): Config {
   } catch (error) {
     logger.error('Failed to load config, using defaults', {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     });
-    return getDefaultConfig();  // Explicit default
+    return getDefaultConfig(); // Explicit default
   }
 }
 
@@ -227,21 +259,20 @@ function getConfig(): Config {
 function getConfig(): Config {
   const config = loadConfig();
   if (!config) {
-    throw new ConfigurationError(
-      'CONFIG_MISSING',
-      'Configuration file not found'
-    );
+    throw new ConfigurationError('CONFIG_MISSING', 'Configuration file not found');
   }
   return config;
 }
 ```
 
 **Acceptable Silent Returns:**
+
 - Optional chaining: `user?.preferences?.theme` (TypeScript enforces)
 - Explicitly typed as optional: `function findUser(): User | undefined`
 - Empty arrays for "no results": `return []` (with comment explaining)
 
 **Enforcement:**
+
 - Script: `npm run check:silent-fallbacks`
 - Code review: Check for silent fallbacks
 - Test coverage: Verify error paths log appropriately
@@ -261,6 +292,7 @@ ServalSheets uses three validation tiers for performance:
 **Rule:** Always use fast validators first for performance-critical paths.
 
 **Example:**
+
 ```typescript
 // Fast validation (0.1ms)
 fastValidateSpreadsheet(input);
@@ -283,6 +315,7 @@ if (!result.response || typeof result.response !== 'object') {
 **Rule:** Never call `schema.parse()` directly in handlers - use schema-compat helpers.
 
 **Example:**
+
 ```typescript
 // ❌ Bad: Direct parse
 const result = schema.parse(input);
@@ -300,11 +333,12 @@ const result = await safeParseAsync(schema, input);
 **Rule:** Always use `buildToolResponse()` in handlers.
 
 **Example:**
+
 ```typescript
 // ❌ Bad: Manual response construction
 return {
   content: [{ type: 'text', text: JSON.stringify(data) }],
-  structuredContent: data
+  structuredContent: data,
 };
 
 // ✅ Good: Use response builder
@@ -312,8 +346,8 @@ return buildToolResponse({
   response: {
     success: true,
     action: 'read',
-    data
-  }
+    data,
+  },
 });
 ```
 
@@ -326,15 +360,17 @@ return buildToolResponse({
 **Rule:** Always throw typed errors, never generic `Error`.
 
 **Example:**
+
 ```typescript
 // ❌ Bad: Generic error
 throw new Error('Sheet not found');
 
 // ✅ Good: Structured error
-throw new SheetNotFoundError(
-  `Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}`,
-  { spreadsheetId, sheetName, availableSheets }
-);
+throw new SheetNotFoundError(`Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}`, {
+  spreadsheetId,
+  sheetName,
+  availableSheets,
+});
 ```
 
 ### Pattern 5: Contract Tests
@@ -346,6 +382,7 @@ throw new SheetNotFoundError(
 **Rule:** Add contract test when modifying schema transformations.
 
 **Example:**
+
 ```typescript
 it('should preserve discriminated union structure', () => {
   const zodSchema = SheetsValuesInputSchema;
@@ -366,6 +403,7 @@ it('should preserve discriminated union structure', () => {
 **File:** `.github/workflows/ci.yml`
 
 **Existing checks:**
+
 - `npm run typecheck` - TypeScript strict mode
 - `npm run lint` - ESLint
 - `npm run format:check` - Prettier
@@ -374,6 +412,7 @@ it('should preserve discriminated union structure', () => {
 - `npm run check:placeholders` - No TODO/FIXME in `src/`
 
 **New checks (added):**
+
 - `npm run check:silent-fallbacks` - Detect `return {}` without logging
 - `npm run check:debug-prints` - Detect console.log in `src/`
 - `npm run check:commit-size` - Warn on >3 files changed
@@ -383,6 +422,7 @@ it('should preserve discriminated union structure', () => {
 **Command:** `npm run verify`
 
 Runs in sequence:
+
 1. check:drift
 2. check:placeholders
 3. typecheck
@@ -391,6 +431,7 @@ Runs in sequence:
 6. test
 
 **Always run before committing:**
+
 ```bash
 npm run verify  # Must pass before git push
 ```
@@ -400,6 +441,7 @@ npm run verify  # Must pass before git push
 **File:** `.github/PULL_REQUEST_TEMPLATE.md` (to be added)
 
 **Required sections:**
+
 - Evidence (file paths + line ranges)
 - Execution path (if multi-layer change)
 - Test coverage (link to test file)
@@ -410,6 +452,7 @@ npm run verify  # Must pass before git push
 **File:** `docs/development/CODE_REVIEW_GUIDELINES.md` (to be added)
 
 **Review checklist:**
+
 - [ ] Evidence provided for all claims
 - [ ] Execution path documented for multi-layer changes
 - [ ] Tests added/modified (no fixes without tests)
@@ -426,6 +469,7 @@ npm run verify  # Must pass before git push
 **Count:** ~140 instances
 
 **Analysis:**
+
 - **Intentional (keep):** STDIO startup messages (~50 instances)
   - `src/resources/*.ts` - Resource registration (console.error to stderr)
   - `src/storage/session-store.ts:313,317` - Session store mode
@@ -437,6 +481,7 @@ npm run verify  # Must pass before git push
   - `src/cli/auth-setup.ts` - Setup wizard
 
 **Fix for debugging prints:**
+
 ```typescript
 // Before
 console.error('Failed to get sheet structure:', error);
@@ -445,11 +490,12 @@ console.error('Failed to get sheet structure:', error);
 logger.error('Failed to get sheet structure', {
   spreadsheetId,
   sheetId,
-  error: error instanceof Error ? error.message : String(error)
+  error: error instanceof Error ? error.message : String(error),
 });
 ```
 
 **Detection:**
+
 ```bash
 npm run check:debug-prints
 ```
@@ -461,10 +507,12 @@ npm run check:debug-prints
 **Count:** 26 files
 
 **Example locations:**
+
 - `src/server.ts:773` - returns {} on error
 - `src/mcp/registration/tool-handlers.ts:394` - returns {} without logging
 
 **Fix:**
+
 ```typescript
 // Before
 } catch (error) {
@@ -482,6 +530,7 @@ npm run check:debug-prints
 ```
 
 **Detection:**
+
 ```bash
 npm run check:silent-fallbacks
 ```
@@ -491,10 +540,12 @@ npm run check:silent-fallbacks
 ### Violation 3: Large Commits
 
 **Recent examples:**
+
 - `1bf75a4` - 8 files, 1873 insertions (metrics + heap + session + docs)
 - `eeb56fa` - 18 files, 5994 insertions (test fixes + optimizations)
 
 **Recommendation:** Break into smaller PRs
+
 ```
 # Instead of 1 large PR with 8 files:
 PR #1: feat(metrics): add metrics server (2 files)
@@ -504,6 +555,7 @@ PR #4: docs: add production guides (docs only)
 ```
 
 **Detection:**
+
 ```bash
 npm run check:commit-size
 ```
@@ -543,13 +595,13 @@ npm run verify:build
 
 ### Rule Summary
 
-| Rule | Check | Fix |
-|------|-------|-----|
-| 1. Verify | File paths + line ranges provided? | Add evidence |
-| 2. Trace | Execution path documented? | Document call stack |
-| 3. Prove | Test fails before fix? | Add failing test |
-| 4. Minimal | ≤3 src/ files modified? | Split into smaller PRs |
-| 5. No Silent | Returns {} with logging? | Add logger.error() |
+| Rule         | Check                              | Fix                    |
+| ------------ | ---------------------------------- | ---------------------- |
+| 1. Verify    | File paths + line ranges provided? | Add evidence           |
+| 2. Trace     | Execution path documented?         | Document call stack    |
+| 3. Prove     | Test fails before fix?             | Add failing test       |
+| 4. Minimal   | ≤3 src/ files modified?            | Split into smaller PRs |
+| 5. No Silent | Returns {} with logging?           | Add logger.error()     |
 
 ### When in Doubt
 

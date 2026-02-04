@@ -391,7 +391,10 @@ Always return valid JSON in the exact format requested.`;
       const parsed = JSON.parse(jsonMatch[0]);
 
       return this.success('suggest_chart', {
-        suggestions: parsed.suggestions || [],
+        suggestions: (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
+          type: 'chart' as const,
+          ...s,
+        })),
         _meta: {
           duration,
           timestamp: new Date().toISOString(),
@@ -1060,7 +1063,10 @@ Always return valid JSON in the exact format requested.`;
       const parsed = JSON.parse(jsonMatch[0]);
 
       return this.success('suggest_pivot', {
-        suggestions: parsed.suggestions || [],
+        suggestions: (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
+          type: 'pivot' as const,
+          ...s,
+        })),
         _meta: {
           duration,
           timestamp: new Date().toISOString(),
@@ -1198,6 +1204,14 @@ Always return valid JSON in the exact format requested.`;
   }
 
   private async handlePivotGet(input: PivotGetInput): Promise<VisualizeResponse> {
+    // Validate spreadsheet size before loading full grid data
+    const sizeError = await this.validateGridDataSize(
+      input.spreadsheetId,
+      this.sheetsApi,
+      input.sheetId
+    );
+    if (sizeError) return sizeError as VisualizeResponse;
+
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: input.spreadsheetId,
       // Don't use ranges with sheetId - filter from response instead

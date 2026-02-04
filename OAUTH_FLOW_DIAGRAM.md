@@ -143,7 +143,7 @@
 │   • sheets_dependencies (7 actions)                            │
 │   • sheets_fix        (1 action)                               │
 │                                                                 │
-│ Total: 291 actions across 21 tools                             │
+│ Total: 293 actions across 21 tools                             │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -326,24 +326,30 @@ In HTTP mode, there's an additional OAuth provider flow:
 ## 🎯 Key Insights
 
 ### 1. **Configuration Priority**
+
 ```
 Explicit Options > Stored Tokens > Environment Config > Default
       (code)          (file)            (.env)          (full)
 ```
 
 ### 2. **Default Behavior**
+
 - If nothing configured: **8 comprehensive scopes**
 - After `npm run auth`: **Scopes from authentication**
 - With `OAUTH_SCOPE_MODE=minimal`: **2 basic scopes**
 
 ### 3. **Stored Tokens Win**
+
 If `~/.servalsheets/tokens.encrypted` exists:
+
 - Extract `scope` field from tokens
 - **Override** configured scopes
 - Use stored scopes for all operations
 
 ### 4. **Single Source of Truth**
+
 All scope configurations flow through:
+
 ```
 src/config/oauth-scopes.ts
   ├─> FULL_ACCESS_SCOPES (8 scopes)
@@ -352,6 +358,7 @@ src/config/oauth-scopes.ts
 ```
 
 ### 5. **Consistent Everywhere**
+
 - STDIO mode: Uses same scope config
 - HTTP mode: Uses same scope config
 - OAuth provider: Uses same scope config
@@ -364,18 +371,21 @@ src/config/oauth-scopes.ts
 ### Check What's Loaded
 
 **In Code**:
+
 ```typescript
 const scopes = this.googleClient.scopes;
 console.log('Active scopes:', scopes);
 ```
 
 **Via HTTP**:
+
 ```bash
 curl http://localhost:3000/health | jq '.scopes | length'
 # Should output: 8 (for full mode)
 ```
 
 **In Logs**:
+
 ```bash
 npm run start:http
 # Look for: "Google API clients initialized"

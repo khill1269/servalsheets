@@ -50,6 +50,7 @@ import {
   type GenerateActionsResult,
   type AnalysisFinding,
 } from '../analysis/action-generator.js';
+import { sendProgress } from '../utils/request-context.js';
 
 export interface AnalyzeHandlerOptions {
   context: HandlerContext;
@@ -1927,7 +1928,7 @@ export class AnalyzeHandler {
           sheetId as number | undefined,
           metadata,
           async (chunk) => {
-            // Progress callback
+            // Progress callback - send to client via MCP progress notifications
             const progressPercent = ((chunk.rowsProcessed / chunk.totalRows) * 100).toFixed(1);
             logger.info('Streaming progress', {
               chunkIndex: chunk.chunkIndex,
@@ -1935,6 +1936,13 @@ export class AnalyzeHandler {
               progress: `${progressPercent}%`,
               partialResults: chunk.partialResults,
             });
+
+            // Send MCP progress notification to client (if supported)
+            await sendProgress(
+              chunk.chunkIndex,
+              chunk.totalChunks,
+              `Processing chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} (${progressPercent}% - ${chunk.rowsProcessed}/${chunk.totalRows} rows)`
+            );
           }
         );
 

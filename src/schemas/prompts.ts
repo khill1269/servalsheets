@@ -102,3 +102,59 @@ export const UndoChangesPromptArgsSchema: PromptArgsShape = {
   spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
   changeDescription: z.string().optional(), // What needs to be undone
 };
+
+// Interactive Learning Prompts (Phase 4: Optional Enhancements)
+export const MasterClassDataQualityPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().optional(), completeSpreadsheetId),
+  level: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+};
+
+export const MasterClassFormulasPromptArgsSchema: PromptArgsShape = {
+  topic: z
+    .enum([
+      'performance',
+      'array_formulas',
+      'volatile_functions',
+      'lookup_optimization',
+      'error_handling',
+    ])
+    .optional(),
+};
+
+export const MasterClassPerformancePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  focusArea: z.enum(['read_ops', 'write_ops', 'formulas', 'concurrent_users']).optional(),
+};
+
+export const ChallengeQualityDetectivePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+};
+
+export const ChallengePerformanceProfilerPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+};
+
+export const ScenarioMultiUserPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+  scenario: z.enum(['conflict_resolution', 'protection_strategy', 'version_control']).optional(),
+};
+
+// Context-Aware and Chained Workflow Prompts (Phase 3: Improvement Plan)
+export const AutoAnalyzePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+};
+
+export const FullSetupPromptArgsSchema: PromptArgsShape = {
+  type: z.enum(['budget', 'crm', 'inventory', 'project', 'sales', 'marketing']),
+  name: z.string().min(1),
+  collaborators: z.array(z.string()).optional(),
+};
+
+export const AuditSecurityPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string().min(1), completeSpreadsheetId),
+};
+
+export const CompareSpreadsheetPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId1: c(z.string().min(1), completeSpreadsheetId),
+  spreadsheetId2: c(z.string().min(1), completeSpreadsheetId),
+};

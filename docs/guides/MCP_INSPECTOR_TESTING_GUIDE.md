@@ -1,4 +1,16 @@
+---
+title: MCP Inspector Testing Guide - ServalSheets
+category: guide
+last_updated: 2026-01-31
+description: 'Complete guide to manual and automated testing using MCP Inspector. Covers interactive web UI testing, automated test scripts, and comprehensive validation workflows for ServalSheets MCP server.'
+version: 1.6.0
+tags: [testing, mcp, sheets, inspector, validation]
+audience: user
+difficulty: intermediate
+---
+
 # MCP Inspector Testing Guide - ServalSheets
+
 ## Complete Manual and Automated Testing
 
 ---
@@ -8,11 +20,13 @@
 ### Method 1: Interactive Web UI (Recommended for Manual Testing)
 
 **Step 1: Start MCP Inspector**
+
 ```bash
 npx @modelcontextprotocol/inspector node dist/cli.js --stdio
 ```
 
 This will:
+
 - ✅ Start the MCP Inspector web interface
 - ✅ Open your browser automatically
 - ✅ Connect to the ServalSheets server via STDIO
@@ -24,17 +38,21 @@ This will:
 ## 📋 Comprehensive Test Checklist
 
 ### Phase 1: Server Connection ✅
+
 - [ ] Server connects successfully
 - [ ] No connection errors
 - [ ] Server responds to initialize
 - [ ] Protocol version: 2025-11-25
 
 ### Phase 2: Tool Discovery ✅
+
 - [ ] List all tools (compare against `src/schemas/index.ts` or `server.json`)
 - [ ] Verify tool names and descriptions match generated metadata
 
 ### Phase 3: Schema Validation ✅
+
 For each tool, verify:
+
 - [ ] Input schema is present and well-formed
 - [ ] Output schema is present
 - [ ] Description is clear and accurate
@@ -43,6 +61,7 @@ For each tool, verify:
 ### Phase 4: Basic Tool Execution
 
 **Test 1: Authentication Status** (No auth required)
+
 ```json
 {
   "name": "sheets_auth",
@@ -53,9 +72,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Returns authentication status (likely NOT_AUTHENTICATED in test)
 
 **Test 2: Spreadsheet Operations** (Requires auth)
+
 ```json
 {
   "name": "sheets_core",
@@ -67,9 +88,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Returns spreadsheet metadata OR auth error if not authenticated
 
 **Test 3: Analysis** (Read-only, requires auth)
+
 ```json
 {
   "name": "sheets_analyze",
@@ -81,9 +104,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Data quality report OR auth error
 
 **Test 4: Transaction** (Management operation)
+
 ```json
 {
   "name": "sheets_transaction",
@@ -95,9 +120,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Transaction ID OR auth error
 
 **Test 5: History** (Metadata-only)
+
 ```json
 {
   "name": "sheets_history",
@@ -108,9 +135,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: List of operations (may be empty)
 
 **Test 6: Confirm** (Planning tool)
+
 ```json
 {
   "name": "sheets_confirm",
@@ -121,9 +150,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Confirmation statistics
 
 **Test 7: Analyze** (AI-powered)
+
 ```json
 {
   "name": "sheets_analyze",
@@ -136,11 +167,13 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Formula suggestion OR auth error
 
 ### Phase 5: Error Handling ✅
 
 **Test Invalid Action**
+
 ```json
 {
   "name": "sheets_core",
@@ -152,9 +185,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Schema validation error with clear message
 
 **Test Missing Required Field**
+
 ```json
 {
   "name": "sheets_core",
@@ -165,9 +200,11 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Validation error for missing spreadsheetId OR parameter inference
 
 **Test Invalid Spreadsheet ID**
+
 ```json
 {
   "name": "sheets_core",
@@ -179,11 +216,13 @@ For each tool, verify:
   }
 }
 ```
+
 **Expected**: Error with resolution steps (if authenticated)
 
 ### Phase 6: Response Structure ✅
 
 For each successful response, verify:
+
 - [ ] Has `success: true` field
 - [ ] Has appropriate data fields for the action
 - [ ] Has `meta` field with:
@@ -193,6 +232,7 @@ For each successful response, verify:
   - [ ] operationCost (if applicable)
 
 For error responses, verify:
+
 - [ ] Has `success: false` field
 - [ ] Has `error` object with:
   - [ ] code
@@ -230,6 +270,7 @@ npm test tests/integration/mcp-tools-list.test.ts
 ```
 
 This tests:
+
 - ✅ Tool discovery
 - ✅ Schema validation
 - ✅ Tool execution
@@ -240,8 +281,10 @@ This tests:
 
 ## 📊 Expected Results
 
-### Without Authentication:
+### Without Authentication
+
 Most tools will return authentication errors with clear resolution steps:
+
 ```json
 {
   "success": false,
@@ -260,8 +303,10 @@ Most tools will return authentication errors with clear resolution steps:
 }
 ```
 
-### With Authentication:
+### With Authentication
+
 Tools will execute successfully and return structured data:
+
 ```json
 {
   "success": true,
@@ -281,7 +326,8 @@ Tools will execute successfully and return structured data:
 
 ## 🔍 What to Look For
 
-### ✅ Good Signs:
+### ✅ Good Signs
+
 - Server connects immediately
 - All 21 tools are listed
 - Schemas are well-formed
@@ -289,7 +335,8 @@ Tools will execute successfully and return structured data:
 - Responses are fast
 - No crashes or hangs
 
-### ⚠️ Warning Signs:
+### ⚠️ Warning Signs
+
 - Connection timeouts
 - Missing tools
 - Malformed schemas
@@ -297,7 +344,8 @@ Tools will execute successfully and return structured data:
 - Slow responses (> 5s)
 - Memory growth
 
-### ❌ Critical Issues:
+### ❌ Critical Issues
+
 - Server won't start
 - Protocol errors
 - Schema validation failures
@@ -308,21 +356,26 @@ Tools will execute successfully and return structured data:
 
 ## 📝 Testing Notes
 
-### Current Server Status:
+### Current Server Status
+
 - **Build**: ✅ Clean
 - **Tests**: ✅ 906/911 passing (99.5%)
 - **Tools**: ✅ 24/24 functional
 - **Protocol**: ✅ MCP 2025-11-25 compliant
 
-### Authentication:
+### Authentication
+
 The server requires Google OAuth authentication for most operations. Without authentication:
+
 - sheets_auth works (status, login endpoints)
 - sheets_history works (no auth required)
 - sheets_confirm works (planning only)
 - Other tools return clear auth errors
 
-### Test Environment:
+### Test Environment
+
 For full testing with Google Sheets access:
+
 1. Set up OAuth credentials
 2. Use `sheets_auth` tool to authenticate
 3. Then test all tools with real spreadsheet
@@ -331,7 +384,8 @@ For full testing with Google Sheets access:
 
 ## 🎯 Quick Verification Checklist
 
-### Minimum Tests (5 minutes):
+### Minimum Tests (5 minutes)
+
 1. [ ] Server connects
 2. [ ] List all tools (24 total)
 3. [ ] Test sheets_auth status
@@ -339,7 +393,8 @@ For full testing with Google Sheets access:
 5. [ ] Test sheets_confirm get_stats
 6. [ ] Verify error messages are clear
 
-### Full Tests (15 minutes):
+### Full Tests (15 minutes)
+
 1. [ ] Complete minimum tests
 2. [ ] Test all 21 tools (at least status/list actions)
 3. [ ] Test with valid spreadsheet ID (requires auth)
@@ -347,7 +402,8 @@ For full testing with Google Sheets access:
 5. [ ] Verify response structures
 6. [ ] Check performance
 
-### Production Validation (30 minutes):
+### Production Validation (30 minutes)
+
 1. [ ] Complete full tests
 2. [ ] Test with real Google Sheets
 3. [ ] Test complex operations
@@ -364,6 +420,7 @@ For full testing with Google Sheets access:
 **Auth Token**: a56c5c4ea58a5560d5e2fa81ceb4ca546c5148eee81e8ceb96969e08cc84bb3e
 
 **To connect**:
+
 1. Open the URL in your browser
 2. Configure STDIO transport with:
    - Command: `node`
@@ -371,6 +428,7 @@ For full testing with Google Sheets access:
    - Working Directory: `/Users/thomascahill/Documents/mcp-servers/servalsheets`
 
 **Or restart with automatic connection**:
+
 ```bash
 npx @modelcontextprotocol/inspector node dist/cli.js --stdio
 ```
@@ -381,7 +439,7 @@ npx @modelcontextprotocol/inspector node dist/cli.js --stdio
 
 - **MCP Protocol Spec**: https://spec.modelcontextprotocol.io
 - **ServalSheets Docs**: See README.md
-- **Schema Definitions**: See src/schemas/*.ts
+- **Schema Definitions**: See src/schemas/\*.ts
 - **Test Results**: See TEST_RESULTS.md
 
 ---

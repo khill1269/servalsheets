@@ -538,9 +538,10 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
     // Shared suggestion fields
     suggestions: z
       .array(
-        z.union([
+        z.discriminatedUnion('type', [
           // Chart suggestions
           z.object({
+            type: z.literal('chart'),
             chartType: ChartTypeSchema,
             title: z.string(),
             explanation: z.string(),
@@ -553,6 +554,7 @@ const VisualizeResponseSchema = z.discriminatedUnion('success', [
           }),
           // Pivot suggestions
           z.object({
+            type: z.literal('pivot'),
             title: z.string(),
             explanation: z.string(),
             confidence: z.coerce.number().min(0).max(100),

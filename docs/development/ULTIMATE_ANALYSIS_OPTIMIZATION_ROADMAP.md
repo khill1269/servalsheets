@@ -1,3 +1,11 @@
+---
+title: Ultimate Analysis Tool Optimization Roadmap
+category: development
+last_updated: 2026-01-31
+description: '> Created: January 12, 2026'
+version: 1.6.0
+---
+
 # Ultimate Analysis Tool Optimization Roadmap
 
 > **Created:** January 12, 2026
@@ -11,7 +19,7 @@
 The goal is to build an analysis tool that doesn't just detect issues—it **understands spreadsheets like a senior consultant** and provides actionable insights across ALL categories. This document outlines:
 
 1. **Current State Assessment** - What we have today
-2. **Gap Analysis** - Missing categories and capabilities  
+2. **Gap Analysis** - Missing categories and capabilities
 3. **43-Category Framework** - Comprehensive extraction taxonomy
 4. **Implementation Roadmap** - Phased execution plan
 5. **Success Metrics** - How we measure "ultimate"
@@ -22,18 +30,18 @@ The goal is to build an analysis tool that doesn't just detect issues—it **und
 
 ### Handler Implementation Status
 
-| Action | Status | Path | Notes |
-|--------|--------|------|-------|
-| `analyze_data` | ✅ Complete | Fast/AI/Streaming | 3 execution paths |
-| `suggest_visualization` | ✅ Complete | AI | Chart/pivot recommendations |
-| `generate_formula` | ✅ Complete | AI | Natural language → formula |
-| `detect_patterns` | ✅ Complete | Fast/AI | Implemented 113 lines |
-| `analyze_structure` | ✅ Complete | Fast | Implemented 70 lines |
-| `analyze_quality` | ✅ Complete | Fast | Implemented 113 lines |
-| `analyze_performance` | ✅ Complete | Fast | Implemented 149 lines |
-| `create_recommended_chart` | ✅ Complete | Fast + Elicitation | Implemented 184 lines |
-| `create_recommended_pivot` | ✅ Complete | Fast + Elicitation | Implemented 184 lines |
-| `explain_analysis` | ✅ Complete | AI | Implemented 67 lines |
+| Action                     | Status      | Path               | Notes                       |
+| -------------------------- | ----------- | ------------------ | --------------------------- |
+| `analyze_data`             | ✅ Complete | Fast/AI/Streaming  | 3 execution paths           |
+| `suggest_visualization`    | ✅ Complete | AI                 | Chart/pivot recommendations |
+| `generate_formula`         | ✅ Complete | AI                 | Natural language → formula  |
+| `detect_patterns`          | ✅ Complete | Fast/AI            | Implemented 113 lines       |
+| `analyze_structure`        | ✅ Complete | Fast               | Implemented 70 lines        |
+| `analyze_quality`          | ✅ Complete | Fast               | Implemented 113 lines       |
+| `analyze_performance`      | ✅ Complete | Fast               | Implemented 149 lines       |
+| `create_recommended_chart` | ✅ Complete | Fast + Elicitation | Implemented 184 lines       |
+| `create_recommended_pivot` | ✅ Complete | Fast + Elicitation | Implemented 184 lines       |
+| `explain_analysis`         | ✅ Complete | AI                 | Implemented 67 lines        |
 
 **UPDATE (2026-01-12):** ALL 10 ACTIONS ARE NOW FULLY IMPLEMENTED!
 
@@ -41,22 +49,22 @@ The goal is to build an analysis tool that doesn't just detect issues—it **und
 
 ```typescript
 // src/analysis/helpers.ts (515 lines)
-pearson()                  // Correlation coefficient
-valueType()                // Type detection  
-analyzeTrends()            // Linear regression trends
-detectAnomalies()          // Z-score outliers (>3σ)
-analyzeSeasonality()       // Basic pattern detection
-analyzeCorrelationsData()  // Pairwise correlations
+pearson(); // Correlation coefficient
+valueType(); // Type detection
+analyzeTrends(); // Linear regression trends
+detectAnomalies(); // Z-score outliers (>3σ)
+analyzeSeasonality(); // Basic pattern detection
+analyzeCorrelationsData(); // Pairwise correlations
 ```
 
 ### Infrastructure Status
 
-| Component | File | Lines | Status |
-|-----------|------|-------|--------|
-| Smart Router | router.ts | 460 | ✅ Complete |
-| Tiered Retrieval | tiered-retrieval.ts | 441 | ✅ Complete |
-| Streaming Analyzer | streaming.ts | 450 | ✅ Complete |
-| Helper Functions | helpers.ts | 515 | 🔶 Partial |
+| Component          | File                | Lines | Status      |
+| ------------------ | ------------------- | ----- | ----------- |
+| Smart Router       | router.ts           | 460   | ✅ Complete |
+| Tiered Retrieval   | tiered-retrieval.ts | 441   | ✅ Complete |
+| Streaming Analyzer | streaming.ts        | 450   | ✅ Complete |
+| Helper Functions   | helpers.ts          | 515   | 🔶 Partial  |
 
 ---
 
@@ -64,19 +72,20 @@ analyzeCorrelationsData()  // Pairwise correlations
 
 ### Missing Analysis Categories
 
-| Category | Current | Needed | Gap |
-|----------|---------|--------|-----|
-| Data Quality | 4 checks | 15 checks | 11 missing |
-| Structural | 0 checks | 10 checks | 10 missing |
-| Performance | 0 checks | 12 checks | 12 missing |
-| Patterns | 4 checks | 8 checks | 4 missing |
-| Business Intelligence | 0 checks | 10 checks | 10 missing |
-| Formula Intelligence | 0 checks | 8 checks | 8 missing |
-| **TOTAL** | **8** | **63** | **55 missing** |
+| Category              | Current  | Needed    | Gap            |
+| --------------------- | -------- | --------- | -------------- |
+| Data Quality          | 4 checks | 15 checks | 11 missing     |
+| Structural            | 0 checks | 10 checks | 10 missing     |
+| Performance           | 0 checks | 12 checks | 12 missing     |
+| Patterns              | 4 checks | 8 checks  | 4 missing      |
+| Business Intelligence | 0 checks | 10 checks | 10 missing     |
+| Formula Intelligence  | 0 checks | 8 checks  | 8 missing      |
+| **TOTAL**             | **8**    | **63**    | **55 missing** |
 
 ### Handler Implementations (UPDATED 2026-01-12)
 
 **ALL 10 ACTIONS NOW COMPLETE:**
+
 - ✅ `detect_patterns` - Implemented (113 lines)
 - ✅ `analyze_structure` - Implemented (70 lines)
 - ✅ `analyze_quality` - Implemented (113 lines)
@@ -191,14 +200,14 @@ ANALYSIS
 
 ### Category Priority Matrix
 
-| Priority | Count | Categories | Rationale |
-|----------|-------|------------|-----------|
-| P0 | 15 | Data Quality | Most requested, highest impact |
-| P1 | 10 | Structural | Needed for intelligent routing |
-| P1 | 8 | Patterns | Core analysis capability |
-| P2 | 12 | Performance | Differentiation opportunity |
-| P2 | 8 | Visualization | Auto-creation enabler |
-| P3 | 10 | Business Intel | Advanced differentiation |
+| Priority | Count | Categories     | Rationale                      |
+| -------- | ----- | -------------- | ------------------------------ |
+| P0       | 15    | Data Quality   | Most requested, highest impact |
+| P1       | 10    | Structural     | Needed for intelligent routing |
+| P1       | 8     | Patterns       | Core analysis capability       |
+| P2       | 12    | Performance    | Differentiation opportunity    |
+| P2       | 8     | Visualization  | Auto-creation enabler          |
+| P3       | 10    | Business Intel | Advanced differentiation       |
 
 ---
 
@@ -209,6 +218,7 @@ ANALYSIS
 **Goal:** Complete the 10 action handlers + core categories
 
 #### 1.1 Fix TypeScript Errors (Day 1)
+
 ```bash
 # Current: 24 errors
 # - src/services/sheet-extractor.ts: 20 errors (null handling)
@@ -221,11 +231,11 @@ ANALYSIS
 ```typescript
 // detect_patterns handler
 case "detect_patterns": {
-  const { analyzeTrends, detectAnomalies, analyzeCorrelationsData, analyzeSeasonality } = 
+  const { analyzeTrends, detectAnomalies, analyzeCorrelationsData, analyzeSeasonality } =
     await import("../analysis/helpers.js");
-  
+
   const data = await this.readData(input.spreadsheetId, rangeStr);
-  
+
   return {
     success: true,
     action: "detect_patterns",
@@ -248,7 +258,7 @@ export class CategoryExtractor {
   extractDQ001_EmptyCells(data: unknown[][]): CategoryResult { ... }
   extractDQ004_DuplicateRows(data: unknown[][]): CategoryResult { ... }
   extractDQ007_TypeConsistency(data: unknown[][]): CategoryResult { ... }
-  
+
   // All 15 DQ categories...
 }
 ```
@@ -258,14 +268,15 @@ export class CategoryExtractor {
 **Goal:** Implement all 43 categories with intelligent routing
 
 #### 2.1 Structural Analysis
+
 ```typescript
 // Schema inference
 interface SchemaInference {
   columns: Array<{
     index: number;
     inferredType: 'string' | 'number' | 'date' | 'boolean' | 'mixed';
-    nullability: number;  // % null
-    cardinality: number;  // unique values
+    nullability: number; // % null
+    cardinality: number; // unique values
     isPrimaryKey: boolean;
     isForeignKey: boolean;
     foreignKeyTarget?: string;
@@ -280,6 +291,7 @@ interface SchemaInference {
 ```
 
 #### 2.2 Performance Analysis
+
 ```typescript
 // Formula audit
 interface FormulaAudit {
@@ -297,6 +309,7 @@ interface FormulaAudit {
 ```
 
 #### 2.3 Pattern Detection Enhancement
+
 ```typescript
 // Advanced patterns
 interface PatternAnalysis {
@@ -325,6 +338,7 @@ interface PatternAnalysis {
 **Goal:** Add domain-specific intelligence that differentiates ServalSheets
 
 #### 3.1 Financial Pattern Recognition
+
 ```typescript
 interface FinancialPatterns {
   isPnL: boolean;
@@ -345,6 +359,7 @@ interface FinancialPatterns {
 ```
 
 #### 3.2 CRM/Sales Intelligence
+
 ```typescript
 interface SalesPatterns {
   isPipeline: boolean;
@@ -369,17 +384,18 @@ interface SalesPatterns {
 **Goal:** Close the loop from analysis → recommendation → creation
 
 #### 4.1 Recommendation Engine
+
 ```typescript
 // Generate actionable recommendations
 interface Recommendation {
-  id: string;  // For create_recommended_* actions
+  id: string; // For create_recommended_* actions
   type: 'chart' | 'pivot' | 'formula' | 'formatting' | 'cleanup';
   priority: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   description: string;
   impact: string;
   effort: 'trivial' | 'easy' | 'moderate' | 'complex';
-  
+
   // Execution params (passed to create_recommended_*)
   createParams: {
     tool: string;
@@ -390,6 +406,7 @@ interface Recommendation {
 ```
 
 #### 4.2 Auto-Creation Flow
+
 ```typescript
 // User flow:
 // 1. analyze_data → returns recommendations with IDs
@@ -399,13 +416,13 @@ interface Recommendation {
 case "create_recommended_chart": {
   // Lookup stored recommendation
   const recommendation = await getStoredRecommendation(input.recommendationId);
-  
+
   // Execute via sheets_visualize tool
   const result = await this.context.callTool('sheets_visualize', {
     action: 'create',
     ...recommendation.createParams.params
   });
-  
+
   return {
     success: true,
     action: "create_recommended_chart",
@@ -420,6 +437,7 @@ case "create_recommended_chart": {
 ## 5. New Helper Functions Needed
 
 ### Data Quality Helpers
+
 ```typescript
 // src/analysis/quality-helpers.ts
 
@@ -431,7 +449,7 @@ export function findDuplicateRows(data: unknown[][]): {
   duplicateGroups: number[][];
   duplicateCount: number;
   uniqueCount: number;
-}
+};
 
 /**
  * Detect near-duplicates using Levenshtein distance
@@ -440,7 +458,7 @@ export function findDuplicateRows(data: unknown[][]): {
 export function findNearDuplicates(
   data: unknown[][],
   threshold: number = 0.9
-): Array<{ rows: number[]; similarity: number }>
+): Array<{ rows: number[]; similarity: number }>;
 
 /**
  * Check data type consistency per column
@@ -451,7 +469,7 @@ export function analyzeColumnTypes(data: unknown[][]): Array<{
   types: Record<string, number>;
   dominantType: string;
   consistency: number;
-}>
+}>;
 
 /**
  * Validate email format
@@ -461,7 +479,7 @@ export function validateEmails(values: string[]): Array<{
   value: string;
   isValid: boolean;
   issue?: string;
-}>
+}>;
 
 /**
  * Validate date formats
@@ -471,10 +489,11 @@ export function validateDates(values: unknown[]): Array<{
   value: unknown;
   isValid: boolean;
   inferredFormat?: string;
-}>
+}>;
 ```
 
 ### Structural Analysis Helpers
+
 ```typescript
 // src/analysis/structure-helpers.ts
 
@@ -485,7 +504,7 @@ export function detectHeaderRow(data: unknown[][]): {
   headerRowIndex: number;
   confidence: number;
   headers: string[];
-}
+};
 
 /**
  * Detect data region boundaries
@@ -496,7 +515,7 @@ export function detectDataRegion(data: unknown[][]): {
   startCol: number;
   endCol: number;
   hasHeaders: boolean;
-}
+};
 
 /**
  * Infer column schema
@@ -508,7 +527,7 @@ export function inferSchema(data: unknown[][]): Array<{
   nullable: boolean;
   unique: boolean;
   cardinality: number;
-}>
+}>;
 
 /**
  * Detect foreign key relationships
@@ -521,10 +540,11 @@ export function detectForeignKeys(
   targetSheet: string;
   targetColumn: number;
   matchRate: number;
-}>
+}>;
 ```
 
 ### Performance Analysis Helpers
+
 ```typescript
 // src/analysis/performance-helpers.ts
 
@@ -535,7 +555,7 @@ export function findVolatileFormulas(formulas: string[][]): Array<{
   cell: string;
   formula: string;
   volatileFunction: string;
-}>
+}>;
 
 /**
  * Detect full column references (A:A pattern)
@@ -545,30 +565,29 @@ export function findFullColumnRefs(formulas: string[][]): Array<{
   formula: string;
   columns: string[];
   suggestion: string;
-}>
+}>;
 
 /**
  * Calculate formula complexity score
  */
 export function scoreFormulaComplexity(formula: string): {
-  score: number;  // 0-100
-  depth: number;  // Nesting depth
+  score: number; // 0-100
+  depth: number; // Nesting depth
   functionCount: number;
-  factors: string[];  // What makes it complex
-}
+  factors: string[]; // What makes it complex
+};
 
 /**
  * Detect circular references
  */
-export function detectCircularRefs(
-  formulas: Map<string, string>
-): Array<{
+export function detectCircularRefs(formulas: Map<string, string>): Array<{
   cycle: string[];
   length: number;
-}>
+}>;
 ```
 
 ### Pattern Analysis Helpers
+
 ```typescript
 // src/analysis/pattern-helpers.ts
 
@@ -580,7 +599,7 @@ export function detectDistribution(values: number[]): {
   parameters: Record<string, number>;
   confidence: number;
   testUsed: string;
-}
+};
 
 /**
  * Detect change points in time series
@@ -590,17 +609,17 @@ export function detectChangePoints(values: number[]): Array<{
   direction: 'increase' | 'decrease';
   magnitude: number;
   pValue: number;
-}>
+}>;
 
 /**
  * Spearman rank correlation (for non-linear relationships)
  */
-export function spearman(x: number[], y: number[]): number
+export function spearman(x: number[], y: number[]): number;
 
 /**
  * Modified Z-score using MAD (more robust to outliers)
  */
-export function modifiedZScore(values: number[]): number[]
+export function modifiedZScore(values: number[]): number[];
 ```
 
 ---
@@ -609,27 +628,27 @@ export function modifiedZScore(values: number[]): number[]
 
 ### With Existing Tools
 
-| Analysis Category | Triggers Which Tool | Action |
-|-------------------|---------------------|--------|
-| DQ004: Duplicates | sheets_composite | deduplicate |
-| DQ010: Whitespace | sheets_data | batch_write (trimmed) |
-| PF001: Volatile | sheets_fix | fix |
-| VR001: Time Series | sheets_visualize | create (line) |
-| VR005: Pivot Potential | sheets_visualize | create |
+| Analysis Category      | Triggers Which Tool | Action                |
+| ---------------------- | ------------------- | --------------------- |
+| DQ004: Duplicates      | sheets_composite    | deduplicate           |
+| DQ010: Whitespace      | sheets_data         | batch_write (trimmed) |
+| PF001: Volatile        | sheets_fix          | fix                   |
+| VR001: Time Series     | sheets_visualize    | create (line)         |
+| VR005: Pivot Potential | sheets_visualize    | create                |
 
 ### MCP Elicitation (SEP-1036)
 
 ```typescript
 // Before auto-creation, confirm with user
 const confirmation = await this.context.server.elicit({
-  message: "I recommend creating a line chart for your sales trend. Proceed?",
+  message: 'I recommend creating a line chart for your sales trend. Proceed?',
   requestedSchema: {
     type: 'object',
     properties: {
       approved: { type: 'boolean' },
-      modifications: { type: 'string' }
-    }
-  }
+      modifications: { type: 'string' },
+    },
+  },
 });
 
 if (confirmation.data.approved) {
@@ -642,14 +661,16 @@ if (confirmation.data.approved) {
 ```typescript
 // AI-enhanced pattern detection for complex cases
 const aiAnalysis = await this.context.server.createMessage({
-  messages: [{
-    role: 'user',
-    content: {
-      type: 'text',
-      text: `Analyze this data for business patterns:\n${JSON.stringify(sampleData)}`
-    }
-  }],
-  maxTokens: 2000
+  messages: [
+    {
+      role: 'user',
+      content: {
+        type: 'text',
+        text: `Analyze this data for business patterns:\n${JSON.stringify(sampleData)}`,
+      },
+    },
+  ],
+  maxTokens: 2000,
 });
 ```
 
@@ -658,28 +679,31 @@ const aiAnalysis = await this.context.server.createMessage({
 ## 7. Success Metrics
 
 ### Coverage Metrics
-| Metric | Current | Target | Gap |
-|--------|---------|--------|-----|
-| Categories implemented | 8 | 43 | 35 |
-| Handler actions complete | 3/10 | 10/10 | 7 |
-| Test coverage | 0% | 80% | 80% |
-| Documentation | 0% | 100% | 100% |
+
+| Metric                   | Current | Target | Gap  |
+| ------------------------ | ------- | ------ | ---- |
+| Categories implemented   | 8       | 43     | 35   |
+| Handler actions complete | 3/10    | 10/10  | 7    |
+| Test coverage            | 0%      | 80%    | 80%  |
+| Documentation            | 0%      | 100%   | 100% |
 
 ### Performance Metrics
-| Metric | Target |
-|--------|--------|
-| Fast path latency | <2s for 10K cells |
-| AI path latency | <15s for analysis |
-| Cache hit rate | >70% |
-| Memory usage | <100MB for 100K cells |
+
+| Metric            | Target                |
+| ----------------- | --------------------- |
+| Fast path latency | <2s for 10K cells     |
+| AI path latency   | <15s for analysis     |
+| Cache hit rate    | >70%                  |
+| Memory usage      | <100MB for 100K cells |
 
 ### Quality Metrics
-| Metric | Target |
-|--------|--------|
-| False positive rate | <5% |
-| False negative rate | <10% |
+
+| Metric                   | Target               |
+| ------------------------ | -------------------- |
+| False positive rate      | <5%                  |
+| False negative rate      | <10%                 |
 | Recommendation relevance | >80% user acceptance |
-| Auto-fix success rate | >95% |
+| Auto-fix success rate    | >95%                 |
 
 ---
 
@@ -716,6 +740,7 @@ tests/analysis/
 ## 9. Next Steps (Immediate)
 
 ### Week 1 Priority
+
 1. ✅ Document this roadmap
 2. 🔲 Fix 24 TypeScript errors
 3. 🔲 Implement `detect_patterns` handler
@@ -723,6 +748,7 @@ tests/analysis/
 5. 🔲 Create `quality-helpers.ts` with core DQ functions
 
 ### Week 2 Priority
+
 1. 🔲 Implement `analyze_structure` handler
 2. 🔲 Implement `analyze_performance` handler
 3. 🔲 Create `structure-helpers.ts`
@@ -731,4 +757,4 @@ tests/analysis/
 
 ---
 
-*This roadmap positions ServalSheets as the most comprehensive spreadsheet analysis tool available via MCP.*
+_This roadmap positions ServalSheets as the most comprehensive spreadsheet analysis tool available via MCP._

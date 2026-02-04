@@ -1,3 +1,13 @@
+---
+title: ServalSheets Prompts Guide
+category: guide
+last_updated: 2026-01-31
+description: ServalSheets includes 7 guided prompts to help you get started and accomplish common tasks.
+version: 1.6.0
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets Prompts Guide
 
 ServalSheets includes **7 guided prompts** to help you get started and accomplish common tasks.
@@ -5,15 +15,18 @@ ServalSheets includes **7 guided prompts** to help you get started and accomplis
 ## 🎉 Onboarding Prompts
 
 ### `welcome`
+
 **Your first introduction to ServalSheets**
 
 Invoke with:
+
 ```
 /welcome
 ```
 
 What it shows:
-- Overview of 21 tools and 272 actions
+
+- Overview of 21 tools and 293 actions
 - Quick start with test spreadsheet
 - What ServalSheets can do
 - Safety features
@@ -24,14 +37,17 @@ Perfect for: First-time users, understanding capabilities
 ---
 
 ### `test_connection`
+
 **Verify your ServalSheets setup**
 
 Invoke with:
+
 ```
 /test_connection
 ```
 
 What it does:
+
 - Tests connection with public spreadsheet
 - Verifies all authentication is working
 - Guides through 3 test operations
@@ -42,19 +58,23 @@ Perfect for: After initial setup, troubleshooting connection issues
 ---
 
 ### `first_operation`
+
 **Guided walkthrough of your first operation**
 
 Invoke with:
+
 ```
 /first_operation
 ```
 
 Or with your own spreadsheet:
+
 ```
 /first_operation spreadsheetId=YOUR_SPREADSHEET_ID
 ```
 
 What it covers:
+
 - Reading data
 - Analyzing quality
 - Getting statistics
@@ -68,14 +88,17 @@ Perfect for: Learning the workflow, understanding safety features
 ## 🔬 Analysis Prompts
 
 ### `analyze_spreadsheet`
+
 **Comprehensive data quality and structure analysis**
 
 Invoke with:
+
 ```
 /analyze_spreadsheet spreadsheetId=YOUR_ID
 ```
 
 What it analyzes:
+
 - Metadata and structure
 - Data quality (completeness, duplicates, consistency)
 - Column data types
@@ -87,14 +110,17 @@ Perfect for: Understanding unfamiliar spreadsheets, data quality audits
 ---
 
 ### `clean_data`
+
 **Systematic data cleaning workflow**
 
 Invoke with:
+
 ```
 /clean_data spreadsheetId=YOUR_ID range=Sheet1!A1:Z100
 ```
 
 What it does:
+
 - Analyzes current data quality
 - Creates cleaning plan
 - Previews changes (dry-run)
@@ -109,14 +135,17 @@ Perfect for: Messy data, standardization, preparing data for analysis
 ## 🚀 Quick Start Prompts
 
 ### `transform_data`
+
 **Safe data transformation with preview**
 
 Invoke with:
+
 ```
 /transform_data spreadsheetId=YOUR_ID range=Sheet1!A1:D100 transformation="convert dates to YYYY-MM-DD format"
 ```
 
 What it does:
+
 - Reads current data
 - Plans transformation
 - Shows preview (dry-run)
@@ -129,24 +158,29 @@ Perfect for: Format conversions, calculations, data restructuring
 ---
 
 ### `create_report`
+
 **Generate formatted report from data**
 
 Invoke with:
+
 ```
 /create_report spreadsheetId=YOUR_ID
 ```
 
 Or specify report type:
+
 ```
 /create_report spreadsheetId=YOUR_ID reportType=charts
 ```
 
 Report types:
+
 - `summary` - Basic summary with statistics (default)
 - `detailed` - Comprehensive report with multiple sections
 - `charts` - Report with visualizations
 
 What it creates:
+
 - New "Report" sheet
 - Summary statistics
 - Professional formatting
@@ -177,6 +211,7 @@ Prompts appear in the prompt selector. Just type `/` and you'll see:
 ### Example Conversations
 
 **First Time User:**
+
 ```
 You: /welcome
 Claude: [Shows complete introduction to ServalSheets]
@@ -189,6 +224,7 @@ Claude: [Walks through first operation step-by-step]
 ```
 
 **Data Analysis:**
+
 ```
 You: /analyze_spreadsheet spreadsheetId=abc123
 Claude: [Performs comprehensive analysis]
@@ -198,6 +234,7 @@ Claude: [Cleans data systematically with safety checks]
 ```
 
 **Reporting:**
+
 ```
 You: /create_report spreadsheetId=abc123 reportType=charts
 Claude: [Creates professional report with charts]
@@ -205,22 +242,26 @@ Claude: [Creates professional report with charts]
 
 ## 🎯 Prompt Flow Recommendations
 
-### For New Users:
+### For New Users
+
 1. `/welcome` - Understand what ServalSheets does
 2. `/test_connection` - Verify setup works
 3. `/first_operation` - Learn the workflow
 
-### For Data Quality:
+### For Data Quality
+
 1. `/analyze_spreadsheet` - Identify issues
 2. `/clean_data` - Fix the issues
 3. `/analyze_spreadsheet` - Verify improvements
 
-### For Reporting:
+### For Reporting
+
 1. `/analyze_spreadsheet` - Understand the data
 2. `/create_report` - Generate the report
 3. Share or export the result
 
-### For Data Transformation:
+### For Data Transformation
+
 1. Read current data
 2. `/transform_data` - Apply transformation safely
 3. Verify results
@@ -254,6 +295,7 @@ If prompts aren't working:
 ## 🎨 Customizing Prompts
 
 Want to create your own prompts? See:
+
 - `src/mcp/prompts.ts` - Prompt definitions (arguments defined as plain objects)
 - `src/mcp/registration.ts` - Prompt registration
 - [MCP Prompts Docs](https://modelcontextprotocol.io/docs/prompts)
@@ -262,14 +304,14 @@ Want to create your own prompts? See:
 
 **Quick Reference:**
 
-| Prompt | Purpose | Parameters |
-|--------|---------|------------|
-| `welcome` | Introduction | None |
-| `test_connection` | Verify setup | None |
-| `first_operation` | Guided walkthrough | `spreadsheetId` (optional) |
-| `analyze_spreadsheet` | Comprehensive analysis | `spreadsheetId` (required) |
-| `clean_data` | Data cleaning | `spreadsheetId`, `range` (required) |
-| `transform_data` | Data transformation | `spreadsheetId`, `range`, `transformation` (required) |
-| `create_report` | Report generation | `spreadsheetId` (required), `reportType` (optional) |
+| Prompt                | Purpose                | Parameters                                            |
+| --------------------- | ---------------------- | ----------------------------------------------------- |
+| `welcome`             | Introduction           | None                                                  |
+| `test_connection`     | Verify setup           | None                                                  |
+| `first_operation`     | Guided walkthrough     | `spreadsheetId` (optional)                            |
+| `analyze_spreadsheet` | Comprehensive analysis | `spreadsheetId` (required)                            |
+| `clean_data`          | Data cleaning          | `spreadsheetId`, `range` (required)                   |
+| `transform_data`      | Data transformation    | `spreadsheetId`, `range`, `transformation` (required) |
+| `create_report`       | Report generation      | `spreadsheetId` (required), `reportType` (optional)   |
 
 **Test Spreadsheet ID:** `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`

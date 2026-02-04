@@ -1,14 +1,23 @@
+---
+title: 'ServalSheets: Code Protection, Monetization & Viral Growth Strategy'
+category: business
+last_updated: 2026-01-31
+description: 'You have three viable deployment models, each with different protection levels:'
+version: 1.6.0
+tags: [sheets, grafana]
+---
+
 # ServalSheets: Code Protection, Monetization & Viral Growth Strategy
 
 ## Executive Summary
 
 You have three viable deployment models, each with different protection levels:
 
-| Model | Code Protection | Revenue Control | Complexity |
-|-------|----------------|-----------------|------------|
-| **Hosted SaaS** | 100% protected | Full control | High (infra needed) |
-| **Hybrid** | Core protected, OSS SDK | Good control | Medium |
-| **Licensed NPM** | Obfuscated + license keys | Moderate | Low |
+| Model            | Code Protection           | Revenue Control | Complexity          |
+| ---------------- | ------------------------- | --------------- | ------------------- |
+| **Hosted SaaS**  | 100% protected            | Full control    | High (infra needed) |
+| **Hybrid**       | Core protected, OSS SDK   | Good control    | Medium              |
+| **Licensed NPM** | Obfuscated + license keys | Moderate        | Low                 |
 
 **My Recommendation:** Start with **Hybrid Model** - it gives you the best balance of protection, viral growth, and monetization while you build the full SaaS infrastructure.
 
@@ -29,6 +38,7 @@ You have three viable deployment models, each with different protection levels:
 ```
 
 **Implementation:**
+
 ```typescript
 // Your remote-server.ts already supports this!
 // Users just configure their MCP client to connect to your URL
@@ -47,12 +57,14 @@ You have three viable deployment models, each with different protection levels:
 ```
 
 **Pros:**
+
 - Code is 100% protected
 - Full usage tracking built-in
 - Instant updates for all users
 - No piracy possible
 
 **Cons:**
+
 - Requires hosting infrastructure
 - Latency for users
 - You're responsible for uptime
@@ -83,12 +95,14 @@ You have three viable deployment models, each with different protection levels:
 ```
 
 **What's Open (Free Tier):**
+
 - read, write, append (basic)
 - list_sheets, get_metadata
 - Simple formatting
 - Up to 1,000 ops/month
 
 **What's Protected (Paid):**
+
 - Charts, Pivots, Visualizations
 - BigQuery integration
 - Apps Script execution
@@ -109,24 +123,25 @@ import { validateLicense } from './licensing';
 
 async function startServer(config: Config) {
   const license = await validateLicense(config.licenseKey);
-  
+
   if (!license.valid) {
     console.error('Invalid or expired license. Get one at servalsheets.com');
     process.exit(1);
   }
-  
+
   // Enable features based on license tier
   const enabledFeatures = getFeatures(license.tier);
-  
+
   // Start with feature flags
-  const server = new ServalSheetsServer({ 
-    ...config, 
-    features: enabledFeatures 
+  const server = new ServalSheetsServer({
+    ...config,
+    features: enabledFeatures,
   });
 }
 ```
 
 **Obfuscation (build step):**
+
 ```bash
 npm install javascript-obfuscator -D
 ```
@@ -146,16 +161,18 @@ module.exports = {
   selfDefending: true,
   stringArray: true,
   stringArrayThreshold: 0.75,
-  transformObjectKeys: true
+  transformObjectKeys: true,
 };
 ```
 
 **Pros:**
+
 - Easy to implement
 - Users run locally (fast)
 - No server costs initially
 
 **Cons:**
+
 - Determined attackers can crack it
 - License server still needed
 - Updates require user action
@@ -263,12 +280,15 @@ interface UsageRecord {
 export class UsageMeter {
   private supabase;
   private cache: Map<string, { count: number; resetAt: Date }> = new Map();
-  
+
   constructor(supabaseUrl: string, supabaseKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
   }
-  
-  async checkQuota(userId: string, plan: string): Promise<{
+
+  async checkQuota(
+    userId: string,
+    plan: string
+  ): Promise<{
     allowed: boolean;
     remaining: number;
     resetAt: Date;
@@ -277,31 +297,31 @@ export class UsageMeter {
       free: 1000,
       pro: 50000,
       team: 200000,
-      enterprise: Infinity
+      enterprise: Infinity,
     };
-    
+
     const limit = limits[plan] || limits.free;
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    
+
     const { data } = await this.supabase
       .from('usage_monthly')
       .select('total_operations')
       .eq('user_id', userId)
       .eq('month', monthStart.toISOString().split('T')[0])
       .single();
-    
+
     const used = data?.total_operations || 0;
     const remaining = Math.max(0, limit - used);
-    
+
     return {
       allowed: remaining > 0,
       remaining,
-      resetAt: new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)
+      resetAt: new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1),
     };
   }
-  
+
   async recordUsage(record: UsageRecord): Promise<void> {
     // Record individual usage
     await this.supabase.from('usage').insert({
@@ -310,21 +330,21 @@ export class UsageMeter {
       tool: record.tool,
       tokens_used: record.tokensUsed,
       spreadsheet_id: record.spreadsheetId,
-      metadata: record.metadata
+      metadata: record.metadata,
     });
-    
+
     // Update monthly aggregate (upsert)
     const monthStart = new Date();
     monthStart.setDate(1);
-    
+
     await this.supabase.rpc('increment_monthly_usage', {
       p_user_id: record.userId,
       p_month: monthStart.toISOString().split('T')[0],
       p_tool: record.tool,
-      p_count: record.tokensUsed
+      p_count: record.tokensUsed,
     });
   }
-  
+
   async getUsageStats(userId: string): Promise<{
     currentMonth: number;
     byTool: Record<string, number>;
@@ -344,22 +364,22 @@ import { createHash } from 'crypto';
 
 export class ApiKeyAuth {
   private supabase;
-  
+
   constructor(supabase) {
     this.supabase = supabase;
   }
-  
+
   hashKey(key: string): string {
     return createHash('sha256').update(key).digest('hex');
   }
-  
+
   generateKey(): string {
     // Format: sk_live_xxxxxxxxxxxxxxxxxxxx
     const prefix = 'sk_live_';
     const random = crypto.randomBytes(24).toString('base64url');
     return prefix + random;
   }
-  
+
   async validateKey(apiKey: string): Promise<{
     valid: boolean;
     userId?: string;
@@ -369,12 +389,13 @@ export class ApiKeyAuth {
     if (!apiKey || !apiKey.startsWith('sk_')) {
       return { valid: false };
     }
-    
+
     const keyHash = this.hashKey(apiKey);
-    
+
     const { data, error } = await this.supabase
       .from('api_keys')
-      .select(`
+      .select(
+        `
         user_id,
         permissions,
         expires_at,
@@ -383,30 +404,31 @@ export class ApiKeyAuth {
           plan,
           email
         )
-      `)
+      `
+      )
       .eq('key_hash', keyHash)
       .single();
-    
+
     if (error || !data) {
       return { valid: false };
     }
-    
+
     // Check expiration
     if (data.expires_at && new Date(data.expires_at) < new Date()) {
       return { valid: false };
     }
-    
+
     // Update last used
     await this.supabase
       .from('api_keys')
       .update({ last_used_at: new Date().toISOString() })
       .eq('key_hash', keyHash);
-    
+
     return {
       valid: true,
       userId: data.user_id,
       plan: data.users.plan,
-      permissions: data.permissions
+      permissions: data.permissions,
     };
   }
 }
@@ -425,7 +447,7 @@ export const PRICE_IDS = {
   pro_monthly: 'price_xxxxx',
   pro_annual: 'price_xxxxx',
   team_monthly: 'price_xxxxx',
-  team_annual: 'price_xxxxx'
+  team_annual: 'price_xxxxx',
 };
 
 export async function createCheckoutSession(
@@ -441,22 +463,15 @@ export async function createCheckoutSession(
     success_url: successUrl,
     cancel_url: cancelUrl,
     client_reference_id: userId,
-    metadata: { userId }
+    metadata: { userId },
   });
-  
+
   return session.url;
 }
 
-export async function handleWebhook(
-  body: string,
-  signature: string
-): Promise<void> {
-  const event = stripe.webhooks.constructEvent(
-    body,
-    signature,
-    process.env.STRIPE_WEBHOOK_SECRET
-  );
-  
+export async function handleWebhook(body: string, signature: string): Promise<void> {
+  const event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+
   switch (event.type) {
     case 'checkout.session.completed':
       await handleCheckoutComplete(event.data.object);
@@ -488,20 +503,20 @@ export const PLAN_FEATURES = {
     tools: [
       'sheets_data', // Limited actions
       'sheets_core',
-      'sheets_session'
+      'sheets_session',
     ],
     actions: {
       sheets_data: ['read', 'write', 'append', 'batch_read'],
       sheets_core: ['get', 'list_sheets'],
-      sheets_session: ['*']
+      sheets_session: ['*'],
     },
     limits: {
       operations_per_month: 1000,
       spreadsheets: 5,
-      rows_per_operation: 1000
-    }
+      rows_per_operation: 1000,
+    },
   },
-  
+
   pro: {
     tools: [
       'sheets_data',
@@ -511,7 +526,7 @@ export const PLAN_FEATURES = {
       'sheets_visualize', // Charts!
       'sheets_analyze',
       'sheets_session',
-      'sheets_history'
+      'sheets_history',
     ],
     actions: {
       sheets_data: ['*'],
@@ -521,15 +536,15 @@ export const PLAN_FEATURES = {
       sheets_visualize: ['*'],
       sheets_analyze: ['*'],
       sheets_session: ['*'],
-      sheets_history: ['*']
+      sheets_history: ['*'],
     },
     limits: {
       operations_per_month: 50000,
       spreadsheets: 50,
-      rows_per_operation: 10000
-    }
+      rows_per_operation: 10000,
+    },
   },
-  
+
   team: {
     tools: ['*'], // All tools
     actions: { '*': ['*'] }, // All actions
@@ -537,10 +552,10 @@ export const PLAN_FEATURES = {
       operations_per_month: 200000,
       spreadsheets: 500,
       rows_per_operation: 50000,
-      seats: 5
-    }
+      seats: 5,
+    },
   },
-  
+
   enterprise: {
     tools: ['*'],
     actions: { '*': ['*'] },
@@ -548,9 +563,9 @@ export const PLAN_FEATURES = {
       operations_per_month: Infinity,
       spreadsheets: Infinity,
       rows_per_operation: 100000,
-      seats: Infinity
-    }
-  }
+      seats: Infinity,
+    },
+  },
 };
 
 export function canAccessTool(plan: string, tool: string): boolean {
@@ -560,11 +575,11 @@ export function canAccessTool(plan: string, tool: string): boolean {
 
 export function canAccessAction(plan: string, tool: string, action: string): boolean {
   const features = PLAN_FEATURES[plan] || PLAN_FEATURES.free;
-  
+
   if (features.actions['*']?.includes('*')) return true;
   if (features.actions[tool]?.includes('*')) return true;
   if (features.actions[tool]?.includes(action)) return true;
-  
+
   return false;
 }
 
@@ -588,66 +603,66 @@ export function createGatedHandler(
     // 1. Authenticate
     const apiKey = request.headers?.authorization?.replace('Bearer ', '');
     const authResult = await auth.validateKey(apiKey);
-    
+
     if (!authResult.valid) {
       return {
         error: {
           code: 'UNAUTHORIZED',
-          message: 'Invalid or missing API key. Get one at servalsheets.com'
-        }
+          message: 'Invalid or missing API key. Get one at servalsheets.com',
+        },
       };
     }
-    
+
     // 2. Check feature access
     const action = request.params?.action;
     if (!canAccessTool(authResult.plan, tool)) {
       return {
         error: {
           code: 'UPGRADE_REQUIRED',
-          message: `The ${tool} tool requires a Pro plan or higher. Upgrade at servalsheets.com/upgrade`
-        }
+          message: `The ${tool} tool requires a Pro plan or higher. Upgrade at servalsheets.com/upgrade`,
+        },
       };
     }
-    
+
     if (!canAccessAction(authResult.plan, tool, action)) {
       return {
         error: {
           code: 'UPGRADE_REQUIRED',
-          message: `The ${action} action requires a Pro plan or higher.`
-        }
+          message: `The ${action} action requires a Pro plan or higher.`,
+        },
       };
     }
-    
+
     // 3. Check quota
     const quota = await usageMeter.checkQuota(authResult.userId, authResult.plan);
     if (!quota.allowed) {
       return {
         error: {
           code: 'QUOTA_EXCEEDED',
-          message: `Monthly quota exceeded. Resets ${quota.resetAt.toLocaleDateString()}. Upgrade for more: servalsheets.com/upgrade`
-        }
+          message: `Monthly quota exceeded. Resets ${quota.resetAt.toLocaleDateString()}. Upgrade for more: servalsheets.com/upgrade`,
+        },
       };
     }
-    
+
     // 4. Execute
     const result = await handler(request);
-    
+
     // 5. Record usage
     await usageMeter.recordUsage({
       userId: authResult.userId,
       action,
       tool,
       tokensUsed: calculateTokens(action, request, result),
-      spreadsheetId: request.params?.spreadsheetId
+      spreadsheetId: request.params?.spreadsheetId,
     });
-    
+
     // 6. Add usage info to response
     return {
       ...result,
       _usage: {
         remaining: quota.remaining - 1,
-        plan: authResult.plan
-      }
+        plan: authResult.plan,
+      },
     };
   };
 }
@@ -670,8 +685,8 @@ function addBranding(result: any, plan: string): any {
       _powered_by: {
         text: '🦁 Powered by ServalSheets',
         upgrade_url: 'https://servalsheets.com/upgrade',
-        message: 'Remove this branding with Pro plan'
-      }
+        message: 'Remove this branding with Pro plan',
+      },
     };
   }
   return result;
@@ -701,15 +716,16 @@ function addBranding(result: any, plan: string): any {
 
 Create shareable templates that showcase ServalSheets:
 
-| Template | Audience | Viral Hook |
-|----------|----------|------------|
-| Sales Dashboard | Sales teams | "Built with AI in 5 minutes" |
-| Budget Tracker | Finance | "Auto-categorizes expenses" |
-| Project Tracker | PMs | "Updates itself from Slack" |
-| Content Calendar | Marketing | "AI writes your posts" |
-| Inventory System | E-commerce | "Syncs with Shopify" |
+| Template         | Audience    | Viral Hook                   |
+| ---------------- | ----------- | ---------------------------- |
+| Sales Dashboard  | Sales teams | "Built with AI in 5 minutes" |
+| Budget Tracker   | Finance     | "Auto-categorizes expenses"  |
+| Project Tracker  | PMs         | "Updates itself from Slack"  |
+| Content Calendar | Marketing   | "AI writes your posts"       |
+| Inventory System | E-commerce  | "Syncs with Shopify"         |
 
 Each template includes:
+
 - "Made with ServalSheets" badge
 - One-click "Use This Template" that requires sign-up
 - Tutorial video showing how it was built
@@ -720,7 +736,7 @@ Each template includes:
 // Auto-generate shareable stats
 async function generateShareCard(userId: string): Promise<string> {
   const stats = await getUserStats(userId);
-  
+
   return `
     🦁 My ServalSheets Stats This Month:
     
@@ -735,9 +751,10 @@ async function generateShareCard(userId: string): Promise<string> {
 
 ### Launch Campaign: "The 272 Challenge"
 
-**Concept:** Showcase that you have 272 actions by challenging users to find a Sheets task you can't do.
+**Concept:** Showcase that you have 293 actions by challenging users to find a Sheets task you can't do.
 
 **Campaign Flow:**
+
 ```
 Week 1: Teaser
 ├── "We built an AI tool with 272 Google Sheets actions"
@@ -763,19 +780,19 @@ Week 4: Referral Push
 
 ### Content Calendar (First Month)
 
-| Day | Platform | Content | Goal |
-|-----|----------|---------|------|
-| D1 | Twitter | Launch thread | 500 likes |
-| D1 | HN | Show HN post | Front page |
-| D2 | Reddit | r/ChatGPT demo | 100 upvotes |
-| D3 | YouTube | 10-min tutorial | 1K views |
-| D5 | Twitter | "272 Challenge" start | Engagement |
-| D7 | LinkedIn | Founder story | 50 comments |
-| D10 | Dev.to | Technical deep-dive | 5K views |
-| D14 | Twitter | Week 2 stats | Social proof |
-| D17 | YouTube | Customer interview | Trust |
-| D21 | Twitter | Referral announcement | Growth |
-| D28 | Newsletter | Month 1 recap | Retention |
+| Day | Platform   | Content               | Goal         |
+| --- | ---------- | --------------------- | ------------ |
+| D1  | Twitter    | Launch thread         | 500 likes    |
+| D1  | HN         | Show HN post          | Front page   |
+| D2  | Reddit     | r/ChatGPT demo        | 100 upvotes  |
+| D3  | YouTube    | 10-min tutorial       | 1K views     |
+| D5  | Twitter    | "272 Challenge" start | Engagement   |
+| D7  | LinkedIn   | Founder story         | 50 comments  |
+| D10 | Dev.to     | Technical deep-dive   | 5K views     |
+| D14 | Twitter    | Week 2 stats          | Social proof |
+| D17 | YouTube    | Customer interview    | Trust        |
+| D21 | Twitter    | Referral announcement | Growth       |
+| D28 | Newsletter | Month 1 recap         | Retention    |
 
 ---
 
@@ -783,33 +800,33 @@ Week 4: Referral Push
 
 ### High-Priority Additions
 
-| Feature | Why | Effort | Impact |
-|---------|-----|--------|--------|
+| Feature             | Why                           | Effort | Impact            |
+| ------------------- | ----------------------------- | ------ | ----------------- |
 | **Usage Dashboard** | Users need to see their usage | 2 days | Critical for paid |
-| **Onboarding Flow** | Reduce time-to-value | 1 day | Activation |
-| **Error Recovery** | 14.6% → <3% error rate | 3 days | Enterprise trust |
-| **Retry Logic** | Handle Google API limits | 1 day | Reliability |
-| **Caching Layer** | Reduce API calls, save money | 2 days | Cost savings |
+| **Onboarding Flow** | Reduce time-to-value          | 1 day  | Activation        |
+| **Error Recovery**  | 14.6% → <3% error rate        | 3 days | Enterprise trust  |
+| **Retry Logic**     | Handle Google API limits      | 1 day  | Reliability       |
+| **Caching Layer**   | Reduce API calls, save money  | 2 days | Cost savings      |
 
 ### Medium-Priority Additions
 
-| Feature | Why | Effort | Impact |
-|---------|-----|--------|--------|
-| **Slack Notifications** | Webhook → Slack | 1 day | Stickiness |
-| **Scheduled Jobs** | "Run every Monday" | 3 days | Enterprise |
-| **Multi-sheet Operations** | Work across sheets | 2 days | Power users |
-| **Formula Builder AI** | Natural language → formula | 2 days | Differentiation |
-| **Data Validation Presets** | Common validation rules | 1 day | Convenience |
+| Feature                     | Why                        | Effort | Impact          |
+| --------------------------- | -------------------------- | ------ | --------------- |
+| **Slack Notifications**     | Webhook → Slack            | 1 day  | Stickiness      |
+| **Scheduled Jobs**          | "Run every Monday"         | 3 days | Enterprise      |
+| **Multi-sheet Operations**  | Work across sheets         | 2 days | Power users     |
+| **Formula Builder AI**      | Natural language → formula | 2 days | Differentiation |
+| **Data Validation Presets** | Common validation rules    | 1 day  | Convenience     |
 
 ### Competitive Differentiators to Build
 
-| Feature | What It Does | Why It Wins |
-|---------|-------------|-------------|
-| **Natural Language Queries** | "Show me sales over $10K" | No code needed |
-| **Smart Suggestions** | AI recommends next action | Proactive assistance |
-| **Template Marketplace** | Share/sell templates | Network effects |
-| **Audit Trail** | Who did what when | Enterprise compliance |
-| **Version Snapshots** | Point-in-time recovery | Data safety |
+| Feature                      | What It Does              | Why It Wins           |
+| ---------------------------- | ------------------------- | --------------------- |
+| **Natural Language Queries** | "Show me sales over $10K" | No code needed        |
+| **Smart Suggestions**        | AI recommends next action | Proactive assistance  |
+| **Template Marketplace**     | Share/sell templates      | Network effects       |
+| **Audit Trail**              | Who did what when         | Enterprise compliance |
+| **Version Snapshots**        | Point-in-time recovery    | Data safety           |
 
 ---
 
@@ -841,7 +858,7 @@ Week 4: Referral Push
 
 Monthly Cost Estimate (Early Stage):
 ├── Cloudflare Workers: $5/month
-├── Supabase Pro: $25/month  
+├── Supabase Pro: $25/month
 ├── Stripe: 2.9% + $0.30 per transaction
 ├── PostHog: Free up to 1M events
 ├── Sentry: Free up to 5K errors
@@ -884,24 +901,28 @@ class_name = "RateLimiter"
 ## Implementation Priority
 
 ### Week 1-2: Billing Foundation
+
 1. Set up Supabase project
 2. Create database schema
 3. Implement API key auth
 4. Basic usage tracking
 
 ### Week 3-4: Stripe Integration
+
 1. Create Stripe products/prices
 2. Checkout flow
 3. Webhook handlers
 4. Plan upgrade/downgrade
 
 ### Week 5-6: Feature Gating
+
 1. Implement feature flags
 2. Modify handlers with gating
 3. Error messages with upgrade CTAs
 4. Usage dashboard
 
 ### Week 7-8: Launch
+
 1. Marketing site
 2. Documentation
 3. MCP directory submissions
@@ -924,4 +945,4 @@ class_name = "RateLimiter"
 
 ---
 
-*This is your blueprint. Execute it and you'll have a protected, monetized, viral product within 8 weeks.*
+_This is your blueprint. Execute it and you'll have a protected, monetized, viral product within 8 weeks._

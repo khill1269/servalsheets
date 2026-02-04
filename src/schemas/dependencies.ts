@@ -27,7 +27,7 @@ export const DependencyActionsSchema = z.enum([
  * Build dependency graph action
  */
 export const DependencyBuildInputSchema = z.object({
-  action: z.literal('build'),
+  action: z.literal('build').describe('Build a formula dependency graph for the spreadsheet'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
   sheetNames: z
     .array(z.string())
@@ -39,7 +39,9 @@ export const DependencyBuildInputSchema = z.object({
  * Analyze impact action
  */
 export const DependencyAnalyzeImpactInputSchema = z.object({
-  action: z.literal('analyze_impact'),
+  action: z
+    .literal('analyze_impact')
+    .describe('Analyze what cells would be affected by changing a cell'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
   cell: z.string().min(1, 'Cell address required').describe('Cell address (e.g., Sheet1!A1)'),
 });
@@ -48,7 +50,7 @@ export const DependencyAnalyzeImpactInputSchema = z.object({
  * Detect circular dependencies action
  */
 export const DependencyDetectCyclesInputSchema = z.object({
-  action: z.literal('detect_cycles'),
+  action: z.literal('detect_cycles').describe('Detect circular references in formulas'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
 });
 
@@ -56,7 +58,7 @@ export const DependencyDetectCyclesInputSchema = z.object({
  * Get dependencies action
  */
 export const DependencyGetDependenciesInputSchema = z.object({
-  action: z.literal('get_dependencies'),
+  action: z.literal('get_dependencies').describe('Get cells that a formula cell depends on'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
   cell: z.string().min(1, 'Cell address required').describe('Cell address (e.g., Sheet1!A1)'),
 });
@@ -65,7 +67,7 @@ export const DependencyGetDependenciesInputSchema = z.object({
  * Get dependents action
  */
 export const DependencyGetDependentsInputSchema = z.object({
-  action: z.literal('get_dependents'),
+  action: z.literal('get_dependents').describe('Get cells that depend on a given cell'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
   cell: z.string().min(1, 'Cell address required').describe('Cell address (e.g., Sheet1!A1)'),
 });
@@ -74,7 +76,7 @@ export const DependencyGetDependentsInputSchema = z.object({
  * Get statistics action
  */
 export const DependencyGetStatsInputSchema = z.object({
-  action: z.literal('get_stats'),
+  action: z.literal('get_stats').describe('Get dependency graph statistics'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
 });
 
@@ -82,7 +84,7 @@ export const DependencyGetStatsInputSchema = z.object({
  * Export DOT format action
  */
 export const DependencyExportDotInputSchema = z.object({
-  action: z.literal('export_dot'),
+  action: z.literal('export_dot').describe('Export dependency graph in Graphviz DOT format'),
   spreadsheetId: z.string().min(1, 'Spreadsheet ID required'),
 });
 

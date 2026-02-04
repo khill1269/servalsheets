@@ -1,9 +1,19 @@
+---
+title: 'Synthesis Agent: Final Report Compilation'
+category: general
+last_updated: 2026-01-31
+description: Compile all 5 agent reports into a comprehensive final analysis report with actionable recommendations.
+version: 1.6.0
+---
+
 # Synthesis Agent: Final Report Compilation
 
 ## Mission
+
 Compile all 5 agent reports into a comprehensive final analysis report with actionable recommendations.
 
 ## Scope
+
 **Input:** 5 agent reports (categories 1-106)
 **Expected Time:** 10-15 minutes
 **Output:** `analysis-output/FINAL_ANALYSIS_REPORT.md`
@@ -23,6 +33,7 @@ analysis-output/category-reports/agent5-meta.md
 ### 1. Aggregate All Scores (10 minutes)
 
 Read all 5 agent reports and extract:
+
 - All 106 category scores
 - Calculate total score: ΣΣ (category_score × weight)
 - Calculate average score per category
@@ -31,11 +42,11 @@ Read all 5 agent reports and extract:
 Create master score matrix:
 
 ```markdown
-| Category | Agent | Score | Weight | Weighted | Status |
-|----------|-------|-------|--------|----------|--------|
-| 1. Authentication | Agent 1 | X/10 | 5% | X | ✅/⚠️/❌ |
-| ... | ... | ... | ... | ... | ... |
-| **TOTAL** | - | **XXX/1060** | 100% | **XX%** | ... |
+| Category          | Agent   | Score        | Weight | Weighted | Status   |
+| ----------------- | ------- | ------------ | ------ | -------- | -------- |
+| 1. Authentication | Agent 1 | X/10         | 5%     | X        | ✅/⚠️/❌ |
+| ...               | ...     | ...          | ...    | ...      | ...      |
+| **TOTAL**         | -       | **XXX/1060** | 100%   | **XX%**  | ...      |
 ```
 
 ### 2. Aggregate All Issues (5 minutes)
@@ -46,17 +57,21 @@ Collect issues from all 5 reports and compile:
 ## All Issues by Priority
 
 ### P0 - Critical (Must Fix Immediately)
+
 1. **SEC-001** (Agent 1, Cat 1): Token exposure in logs
 2. **FUNC-002** (Agent 1, Cat 2): Missing batch validation
-...
+   ...
 
 ### P1 - High Priority (Fix This Sprint)
+
 ...
 
 ### P2 - Medium Priority (Fix This Quarter)
+
 ...
 
 ### P3 - Low Priority (Backlog)
+
 ...
 ```
 
@@ -64,7 +79,7 @@ Collect issues from all 5 reports and compile:
 
 Identify issue dependencies:
 
-```markdown
+````markdown
 ## Issue Dependencies
 
 ```mermaid
@@ -72,6 +87,7 @@ graph TD
     SEC-001[Fix token exposure] --> FUNC-002[Add batch validation]
     FUNC-002 --> PERF-001[Optimize caching]
 ```
+````
 
 ### 4. Identify Top Strengths (2 minutes)
 
@@ -89,7 +105,7 @@ From all reports, identify top 10 strengths:
    - 1,830+ tests
    - 85% coverage
    - 7 test types
-...
+     ...
 ```
 
 ### 5. Identify Top Gaps (2 minutes)
@@ -107,7 +123,7 @@ From all reports, identify top 10 gaps:
 2. **Limited Dead Code Detection** (Cat 93: 4/10)
    - Manual detection only
    - No automated tooling
-...
+     ...
 ```
 
 ### 6. Create Implementation Roadmap (5 minutes)
@@ -118,6 +134,7 @@ Organize fixes into phases:
 ## Implementation Roadmap
 
 ### Phase 1: Critical Fixes (Week 1-2)
+
 **Goal:** Address all P0 issues
 
 - [ ] SEC-001: Fix token exposure (2 days)
@@ -128,6 +145,7 @@ Organize fixes into phases:
 **Impact:** Resolves production blockers
 
 ### Phase 2: High Priority (Week 3-6)
+
 **Goal:** Address all P1 issues
 
 - [ ] PERF-001: Optimize caching (1 week)
@@ -138,9 +156,11 @@ Organize fixes into phases:
 **Impact:** Improves reliability and UX
 
 ### Phase 3: Medium Priority (Month 2-3)
+
 ...
 
 ### Phase 4: Enhancements (Month 4+)
+
 ...
 ```
 
@@ -150,6 +170,7 @@ Organize fixes into phases:
 ## Audit Metrics
 
 ### Execution
+
 - **Total Time:** [duration]
 - **Categories Analyzed:** 106/106 (100%)
 - **Agents Deployed:** 5
@@ -158,6 +179,7 @@ Organize fixes into phases:
 - **Lines of Code Reviewed:** [count]
 
 ### Findings
+
 - **Total Score:** XXX/1060 (XX%)
 - **Average Category Score:** X.X/10
 - **Categories ≥8/10:** XX (XX%)
@@ -171,6 +193,7 @@ Organize fixes into phases:
 ### 8. Generate Executive Summary (3 minutes)
 
 Write 2-3 paragraph executive summary covering:
+
 - Overall health assessment
 - Key strengths
 - Critical issues
@@ -184,11 +207,11 @@ Identify low-effort, high-impact improvements:
 ```markdown
 ## Quick Wins (Low Effort, High Impact)
 
-| Issue | Effort | Impact | Category | Priority |
-|-------|--------|--------|----------|----------|
-| DOC-003 | 2 hours | High | 26 | P1 |
-| QUAL-002 | 4 hours | High | 24 | P1 |
-| PERF-003 | 1 day | High | 32 | P2 |
+| Issue    | Effort  | Impact | Category | Priority |
+| -------- | ------- | ------ | -------- | -------- |
+| DOC-003  | 2 hours | High   | 26       | P1       |
+| QUAL-002 | 4 hours | High   | 24       | P1       |
+| PERF-003 | 1 day   | High   | 32       | P2       |
 ```
 
 ## Final Report Structure
@@ -229,12 +252,14 @@ Identify low-effort, high-impact improvements:
 ## Category Scores by Part
 
 ### Part 1: Functional Features (1-12)
+
 **Score:** XX/120 (XX%)
 **Status:** ✅ Strong
 
 [Brief summary]
 
 ### Part 2: Technical Excellence (13-32)
+
 **Score:** XX/200 (XX%)
 **Status:** ⚠️ Needs attention
 
@@ -287,6 +312,7 @@ Identify low-effort, high-impact improvements:
 **Commands Executed:** [count]
 
 ### Evidence Files
+
 - ci.log - CI pipeline results
 - tests-detailed.log - Detailed test output
 - coverage.log - Coverage report
@@ -296,6 +322,7 @@ Identify low-effort, high-impact improvements:
 - build.log - Build output
 
 ### Agent Reports
+
 - agent1-functional.md (Categories 1-21)
 - agent2-infrastructure.md (Categories 22-42)
 - agent3-advanced.md (Categories 43-63)
@@ -307,14 +334,17 @@ Identify low-effort, high-impact improvements:
 ## Recommendations
 
 ### Immediate Actions (This Week)
+
 1. [P0 issue 1]
 2. [P0 issue 2]
 
 ### Short-Term (This Month)
+
 1. [P1 issue 1]
 2. [P1 issue 2]
 
 ### Long-Term (This Quarter)
+
 1. [P2 issue 1]
 2. [P2 issue 2]
 

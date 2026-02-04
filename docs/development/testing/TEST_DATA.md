@@ -1,3 +1,12 @@
+---
+title: ServalSheets Test Data Guide
+category: development
+last_updated: 2026-01-31
+description: This guide documents test data patterns, factories, and mocks used in the
+version: 1.6.0
+tags: [testing]
+---
+
 # ServalSheets Test Data Guide
 
 This guide documents test data patterns, factories, and mocks used in the
@@ -10,6 +19,7 @@ ServalSheets test suite. It is meant for quick copy/paste when writing tests.
 Factory helpers live in `tests/helpers/input-factories.ts`.
 
 Common factories:
+
 - `createValuesReadInput`
 - `createValuesWriteInput`
 - `createSpreadsheetGetInput`
@@ -25,25 +35,28 @@ import {
   createValuesWriteInput,
   createFormatApplyInput,
   createAnalyzeInput,
-} from "../helpers/input-factories.js";
+} from '../helpers/input-factories.js';
 
 const readInput = createValuesReadInput({
-  spreadsheetId: "test-sheet-values-read",
-  range: { a1: "Sheet1!A1:B2" },
+  spreadsheetId: 'test-sheet-values-read',
+  range: { a1: 'Sheet1!A1:B2' },
 });
 
 const writeInput = createValuesWriteInput({
-  values: [["Name", "Score"], ["Alice", 5]],
+  values: [
+    ['Name', 'Score'],
+    ['Alice', 5],
+  ],
 });
 
 const formatInput = createFormatApplyInput({
-  range: { a1: "Sheet1!A1:B2" },
+  range: { a1: 'Sheet1!A1:B2' },
   format: { backgroundColor: { red: 1, green: 1, blue: 0 } },
 });
 
 const analyzeInput = createAnalyzeInput({
-  range: { a1: "Sheet1!A1:B2" },
-  analysisTypes: ["summary", "quality"],
+  range: { a1: 'Sheet1!A1:B2' },
+  analysisTypes: ['summary', 'quality'],
 });
 ```
 
@@ -57,7 +70,7 @@ cases or invalid inputs, build the input inline.
 Mock helpers live in `tests/helpers/google-api-mocks.ts`.
 
 ```ts
-import { createMockSheetsApi, createMockDriveApi } from "../helpers/google-api-mocks.js";
+import { createMockSheetsApi, createMockDriveApi } from '../helpers/google-api-mocks.js';
 
 const sheetsApi = createMockSheetsApi();
 const driveApi = createMockDriveApi();
@@ -67,11 +80,14 @@ For simple response objects, `createMockSheetsResponse` from
 `tests/helpers/input-factories.ts` is often enough:
 
 ```ts
-import { createMockSheetsResponse } from "../helpers/input-factories.js";
+import { createMockSheetsResponse } from '../helpers/input-factories.js';
 
 const response = createMockSheetsResponse({
-  values: [["Name", "Score"], ["Alice", 5]],
-  sheets: [{ properties: { sheetId: 0, title: "Sheet1" } }],
+  values: [
+    ['Name', 'Score'],
+    ['Alice', 5],
+  ],
+  sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
 });
 ```
 
@@ -86,10 +102,7 @@ Integration tests require real credentials. Use helpers in
 `tests/helpers/credential-loader.ts`:
 
 ```ts
-import {
-  shouldRunIntegrationTests,
-  checkCredentialsOrSkip,
-} from "../helpers/credential-loader.js";
+import { shouldRunIntegrationTests, checkCredentialsOrSkip } from '../helpers/credential-loader.js';
 
 if (!shouldRunIntegrationTests()) {
   // Skip integration tests
@@ -106,37 +119,45 @@ When creating real spreadsheets/sheets, clean them up in `afterAll` or
 ## Best Practices
 
 1. Use descriptive IDs
+
 ```ts
 // Good
-const input = createValuesReadInput({ spreadsheetId: "test-sheet-values-read" });
+const input = createValuesReadInput({ spreadsheetId: 'test-sheet-values-read' });
 ```
 
-2. Keep data small and focused
+1. Keep data small and focused
+
 ```ts
 // Good
-const values = [["Name", "Score"], ["Alice", 5]];
-```
-
-3. Prefer realistic data
-```ts
 const values = [
-  ["Name", "Email"],
-  ["Alice Johnson", "alice@example.com"],
+  ['Name', 'Score'],
+  ['Alice', 5],
 ];
 ```
 
-4. Avoid shared mutable fixtures
-```ts
-// Bad
-const SHARED = [["A"]];
+1. Prefer realistic data
 
-// Good
-const values = [["A"]];
+```ts
+const values = [
+  ['Name', 'Email'],
+  ['Alice Johnson', 'alice@example.com'],
+];
 ```
 
-5. Clean up singleton state when needed
+1. Avoid shared mutable fixtures
+
 ```ts
-import { resetAllSingletons } from "../helpers/singleton-reset.js";
+// Bad
+const SHARED = [['A']];
+
+// Good
+const values = [['A']];
+```
+
+1. Clean up singleton state when needed
+
+```ts
+import { resetAllSingletons } from '../helpers/singleton-reset.js';
 
 beforeEach(() => {
   resetAllSingletons();

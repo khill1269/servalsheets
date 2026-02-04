@@ -1,3 +1,11 @@
+---
+title: ServalSheets Business Strategy (January 2026)
+category: business
+last_updated: 2026-01-31
+description: 'Status: Preliminary analysis / AI-assisted draft'
+version: 1.6.0
+---
+
 # ServalSheets Business Strategy (January 2026)
 
 **Status**: Preliminary analysis / AI-assisted draft

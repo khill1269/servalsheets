@@ -12,7 +12,13 @@ export type { ToolDefinition } from './tool-definitions.js';
 export { TOOL_DEFINITIONS } from './tool-definitions.js';
 
 // Re-export helpers
-export { prepareSchemaForRegistration, verifySchemaIfNeeded } from './schema-helpers.js';
+export {
+  prepareSchemaForRegistration,
+  prepareSchemaForRegistrationCached,
+  verifySchemaIfNeeded,
+  getCachedPreparedSchema,
+  getPreparedSchemaCacheSize,
+} from './schema-helpers.js';
 
 // Re-export handler functions
 export {

@@ -1,8 +1,19 @@
+---
+title: ServalSheets Usage Guide
+category: guide
+last_updated: 2026-01-31
+description: Complete guide to using ServalSheets MCP Server
+version: 1.6.0
+tags: [sheets, docker]
+audience: user
+difficulty: intermediate
+---
+
 # ServalSheets Usage Guide
 
 **Complete guide to using ServalSheets MCP Server**
 
-Version: 1.0.0 | Last Updated: 2026-01-03
+Version: 1.6.0 | Last Updated: 2026-01-30
 
 ---
 
@@ -28,7 +39,7 @@ Version: 1.0.0 | Last Updated: 2026-01-03
 
 ### Key Features
 
-- **19 Tools, 244 Actions**: Comprehensive Google Sheets API v4 coverage
+- **21 Tools, 291 Actions**: Comprehensive Google Sheets API v4 coverage
 - **Safety Rails**: Dry-run preview, effect scope limits, expected state validation, auto-snapshots
 - **Smart Operations**: Semantic range resolution (find columns by header name), tiered diff engine
 - **Production Ready**: Rate limiting, encrypted token storage, structured logging, health checks
@@ -116,7 +127,7 @@ npm link
 
 ```bash
 # Pull image
-docker pull anthropic/servalsheets:1.0.0
+docker pull anthropic/servalsheets:1.6.0
 
 # Or build from source
 docker build -t servalsheets .
@@ -158,6 +169,7 @@ ServalSheets requires Google API credentials. You have three authentication opti
    - Click **Create** (key downloads automatically)
 
 3. **Save Key Securely**:
+
    ```bash
    # Create secure directory
    mkdir -p ~/.config/google
@@ -171,6 +183,7 @@ ServalSheets requires Google API credentials. You have three authentication opti
    ```
 
 4. **Configure ServalSheets**:
+
    ```bash
    export GOOGLE_APPLICATION_CREDENTIALS=~/.config/google/servalsheets-sa.json
    ```
@@ -203,6 +216,7 @@ ServalSheets requires Google API credentials. You have three authentication opti
 5. Copy the **Access token** (starts with `ya29.`)
 
 6. Configure ServalSheets:
+
    ```bash
    export GOOGLE_ACCESS_TOKEN=ya29.xxxxxxxxxxxxx
    ```
@@ -224,6 +238,7 @@ ServalSheets requires Google API credentials. You have three authentication opti
    - Click **Create**
 
 2. Configure ServalSheets:
+
    ```bash
    export GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
    export GOOGLE_CLIENT_SECRET=GOCSPX-xxx
@@ -267,6 +282,7 @@ npx @modelcontextprotocol/inspector node dist/cli.js
 ```
 
 Then in the inspector, try:
+
 ```json
 {
   "tool": "sheets_core",
@@ -300,12 +316,14 @@ Once you have credentials configured:
 ### Getting Spreadsheet ID
 
 Your spreadsheet ID is in the URL:
+
 ```
 https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_HERE/edit
                                          ^^^^^^^^^^^^^^^^^^^^
 ```
 
 Example:
+
 ```
 https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
 ID: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
@@ -336,6 +354,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```
 
 **Or use the automated setup script**:
+
 ```bash
 ./configure-claude.sh
 ```
@@ -354,6 +373,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ServalSheets includes 7 guided prompts for easy interaction:
 
 #### `/welcome` - Introduction
+
 Get an overview of ServalSheets capabilities and a test spreadsheet.
 
 ```
@@ -361,6 +381,7 @@ Type in Claude Desktop: /welcome
 ```
 
 #### `/test_connection` - Verify Setup
+
 Test your configuration with a public spreadsheet.
 
 ```
@@ -368,6 +389,7 @@ Type in Claude Desktop: /test_connection
 ```
 
 #### `/first_operation` - Guided Walkthrough
+
 Step-by-step walkthrough of your first operation.
 
 ```
@@ -419,16 +441,19 @@ const transport = new StdioClientTransport({
   command: 'node',
   args: ['node_modules/servalsheets/dist/cli.js'],
   env: {
-    GOOGLE_APPLICATION_CREDENTIALS: '/path/to/service-account.json'
-  }
+    GOOGLE_APPLICATION_CREDENTIALS: '/path/to/service-account.json',
+  },
 });
 
-const client = new McpClient({
-  name: 'my-app',
-  version: '1.0.0'
-}, {
-  capabilities: {}
-});
+const client = new McpClient(
+  {
+    name: 'my-app',
+    version: '1.0.0',
+  },
+  {
+    capabilities: {},
+  }
+);
 
 await client.connect(transport);
 
@@ -443,9 +468,9 @@ const result = await client.callTool({
     request: {
       action: 'read',
       spreadsheetId: '1Bxi...upms',
-      range: { a1: 'Sheet1!A1:D10' }
-    }
-  }
+      range: { a1: 'Sheet1!A1:D10' },
+    },
+  },
 });
 
 console.log('Result:', result);
@@ -758,13 +783,13 @@ Tools with `execution.taskSupport` can return a task for async processing. Inclu
 
 ```javascript
 // Bad: Multiple API calls
-await read({ range: "A1" });
-await read({ range: "B1" });
-await read({ range: "C1" });
+await read({ range: 'A1' });
+await read({ range: 'B1' });
+await read({ range: 'C1' });
 // 3 API calls
 
 // Good: Single batch call
-await read({ ranges: ["A1", "B1", "C1"] });
+await read({ ranges: ['A1', 'B1', 'C1'] });
 // 1 API call
 ```
 
@@ -772,13 +797,13 @@ await read({ ranges: ["A1", "B1", "C1"] });
 
 ```javascript
 // For display to users
-valueRenderOption: 'FORMATTED_VALUE'  // "1,234.56"
+valueRenderOption: 'FORMATTED_VALUE'; // "1,234.56"
 
 // For calculations
-valueRenderOption: 'UNFORMATTED_VALUE'  // 1234.56
+valueRenderOption: 'UNFORMATTED_VALUE'; // 1234.56
 
 // For formulas
-valueRenderOption: 'FORMULA'  // "=SUM(A1:A10)"
+valueRenderOption: 'FORMULA'; // "=SUM(A1:A10)"
 ```
 
 ### 4. Use Semantic Ranges for Flexible Queries
@@ -838,6 +863,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 **Symptoms**: `UNAUTHENTICATED` error
 
 **Solutions**:
+
 1. Check credentials path: `echo $GOOGLE_APPLICATION_CREDENTIALS`
 2. Verify file exists: `ls -la ~/.config/google/servalsheets-sa.json`
 3. Check file permissions: Should be `-rw-------` (600)
@@ -850,6 +876,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 **Symptoms**: `PERMISSION_DENIED` error when accessing spreadsheet
 
 **Solutions**:
+
 1. Share spreadsheet with service account email
 2. Check service account email: `cat ~/.config/google/servalsheets-sa.json | jq -r '.client_email'`
 3. Verify spreadsheet ID is correct
@@ -862,6 +889,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 **Symptoms**: 429 errors, `RATE_LIMIT_EXCEEDED`
 
 **Solutions**:
+
 1. Reduce rate limits: `export SERVALSHEETS_WRITES_PER_MINUTE=40`
 2. Enable caching: `export SERVALSHEETS_CACHE_DATA_TTL=300000`
 3. Use batch operations instead of individual calls
@@ -874,6 +902,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 **Symptoms**: No 🔨 icon (standard MCP indicator), tools not available
 
 **Solutions**:
+
 1. Check config file: `cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .`
 2. Verify JSON syntax is valid
 3. Restart Claude Desktop (⌘+Q then reopen)
@@ -886,6 +915,7 @@ export LOG_FILE=/var/log/servalsheets/app.log
 **Symptoms**: Operations taking > 5 seconds
 
 **Solutions**:
+
 1. Use METADATA diff instead of FULL: `diffTier: 'METADATA'`
 2. Enable caching with longer TTLs
 3. Reduce cell range size
@@ -904,21 +934,25 @@ export LOG_FILE=/var/log/servalsheets/app.log
 ## Next Steps
 
 ### New Users
+
 - ✅ Complete [FIRST_TIME_USER.md](./FIRST_TIME_USER.md) (5 minutes)
 - ✅ Try the `/welcome` prompt in Claude Desktop
 - ✅ Experiment with the test spreadsheet: `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
 
 ### Production Deployment
+
 - 📖 Read [SECURITY.md](../../SECURITY.md) - Security best practices
 - 📖 Read [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment options
 - 📖 Read [MONITORING.md](./MONITORING.md) - Observability setup
 
 ### Advanced Usage
+
 - 📖 Read [SKILL.md](./SKILL.md) - How Claude uses the tools (for AI developers)
 - 📖 Read [PERFORMANCE.md](./PERFORMANCE.md) - Optimization strategies
 - 📖 Explore [PROMPTS_GUIDE.md](./PROMPTS_GUIDE.md) - All 7 interactive prompts
 
 ### Contributing
+
 - 📖 Read [IMPLEMENTATION_GUARDRAILS.md](../development/IMPLEMENTATION_GUARDRAILS.md) - Architecture overview
 - 📖 Read [MCP_2025-11-25_COMPLIANCE_CHECKLIST.md](../MCP_2025-11-25_COMPLIANCE_CHECKLIST.md) - Requirements
 - 🐛 Report issues: https://github.com/khill1269/servalsheets/issues
@@ -948,22 +982,22 @@ export LOG_LEVEL=debug
 
 ### Essential Tools
 
-| Tool | Purpose | Read-Only? |
-|------|---------|------------|
-| `sheets_data` | Read/write cell values | No |
-| `sheets_analyze` | Analyze data quality | Yes |
-| `sheets_format` | Format cells | No |
-| `sheets_visualize` | Create charts | No |
-| `sheets_core` | Manage spreadsheets | No |
+| Tool               | Purpose                | Read-Only? |
+| ------------------ | ---------------------- | ---------- |
+| `sheets_data`      | Read/write cell values | No         |
+| `sheets_analyze`   | Analyze data quality   | Yes        |
+| `sheets_format`    | Format cells           | No         |
+| `sheets_visualize` | Create charts          | No         |
+| `sheets_core`      | Manage spreadsheets    | No         |
 
 ### Essential Safety Features
 
-| Feature | Purpose | When to Use |
-|---------|---------|-------------|
-| `dryRun: true` | Preview without executing | Always for destructive ops |
-| `effectScope` | Limit operation scope | Bulk operations |
-| `expectedState` | Validate before writing | Critical updates |
-| `autoSnapshot` | Create backup | Destructive operations |
+| Feature         | Purpose                   | When to Use                |
+| --------------- | ------------------------- | -------------------------- |
+| `dryRun: true`  | Preview without executing | Always for destructive ops |
+| `effectScope`   | Limit operation scope     | Bulk operations            |
+| `expectedState` | Validate before writing   | Critical updates           |
+| `autoSnapshot`  | Create backup             | Destructive operations     |
 
 ---
 
@@ -983,4 +1017,4 @@ export LOG_LEVEL=debug
 
 **Need help?** Open an issue: https://github.com/khill1269/servalsheets/issues
 
-**Version**: 1.0.0 | **License**: MIT | **Protocol**: MCP 2025-11-25
+**Version**: 1.6.0 | **License**: MIT | **Protocol**: MCP 2025-11-25

@@ -1,3 +1,12 @@
+---
+title: Developer Workflow Guide
+category: development
+last_updated: 2026-01-31
+description: 'Version: 1.0'
+version: 1.6.0
+tags: [sheets]
+---
+
 # Developer Workflow Guide
 
 **Version:** 1.0
@@ -85,6 +94,7 @@ export LOG_LEVEL=debug
 Tests use mock Google APIs by default (no real API calls required).
 
 To test against real API (optional):
+
 ```bash
 export TEST_REAL_API=true
 npm run test:integration
@@ -196,6 +206,7 @@ ServalSheets uses three types of tests:
 - **Mocks:** Mock Google APIs, external services
 
 **Example:**
+
 ```typescript
 // tests/handlers/values.test.ts
 describe('ValuesHandler', () => {
@@ -207,7 +218,7 @@ describe('ValuesHandler', () => {
     const result = await handler.handle({
       action: 'read',
       spreadsheetId: 'test123',
-      range: { a1: 'A1:A1' }
+      range: { a1: 'A1:A1' },
     });
 
     // Assert
@@ -224,6 +235,7 @@ describe('ValuesHandler', () => {
 - **Mocks:** Minimal (may use real API with `TEST_REAL_API=true`)
 
 **Example:**
+
 ```typescript
 // tests/integration/mcp-tools-list.test.ts
 describe('MCP tools/list integration', () => {
@@ -231,7 +243,7 @@ describe('MCP tools/list integration', () => {
     const tools = await server.listTools();
 
     expect(tools.tools).toHaveLength(16);
-    tools.tools.forEach(tool => {
+    tools.tools.forEach((tool) => {
       expect(tool.inputSchema.type).toBe('object');
       expect(tool.name).toMatch(/^sheets_/);
     });
@@ -246,6 +258,7 @@ describe('MCP tools/list integration', () => {
 - **Speed:** <100ms each
 
 **Example:**
+
 ```typescript
 // tests/contracts/schema-transformation.test.ts
 describe('Zod → JSON Schema → MCP transformation', () => {
@@ -266,16 +279,19 @@ describe('Zod → JSON Schema → MCP transformation', () => {
 ### When to Write Tests
 
 **Before fixing a bug (TDD):**
+
 1. Write test that reproduces the bug (fails)
 2. Fix the bug
 3. Verify test now passes
 
 **When adding a feature:**
+
 1. Write test for new functionality (fails)
 2. Implement feature
 3. Verify test passes
 
 **When refactoring:**
+
 1. Ensure existing tests pass
 2. Refactor code
 3. Verify tests still pass (no behavior change)
@@ -293,6 +309,7 @@ describe('[Module/Class name]', () => {
 ```
 
 **Examples:**
+
 - `should return values when range exists`
 - `should return empty array when range is empty`
 - `should throw NotFoundError when spreadsheet missing`
@@ -631,29 +648,28 @@ rm tests/debug/reproduce-bug.test.ts
 ### ❌ Anti-Pattern 1: Silent Fallbacks
 
 **Bad:**
+
 ```typescript
 function getConfig(): Config {
   try {
     return loadConfig();
   } catch {
-    return {};  // Silent failure - no logging!
+    return {}; // Silent failure - no logging!
   }
 }
 ```
 
 **Good:**
+
 ```typescript
 function getConfig(): Config {
   try {
     return loadConfig();
   } catch (error) {
     logger.error('Failed to load config', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
-    throw new ConfigurationError(
-      'CONFIG_LOAD_FAILED',
-      'Unable to load configuration'
-    );
+    throw new ConfigurationError('CONFIG_LOAD_FAILED', 'Unable to load configuration');
   }
 }
 ```
@@ -661,38 +677,42 @@ function getConfig(): Config {
 ### ❌ Anti-Pattern 2: Generic Errors
 
 **Bad:**
+
 ```typescript
 throw new Error('Something went wrong');
 ```
 
 **Good:**
+
 ```typescript
-throw new SheetNotFoundError(
-  `Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}`,
-  { spreadsheetId, sheetName, availableSheets }
-);
+throw new SheetNotFoundError(`Sheet "${sheetName}" not found in spreadsheet ${spreadsheetId}`, {
+  spreadsheetId,
+  sheetName,
+  availableSheets,
+});
 ```
 
 ### ❌ Anti-Pattern 3: Direct API Calls
 
 **Bad:**
+
 ```typescript
 const result = await googleapis.sheets.spreadsheets.values.get({
   spreadsheetId,
-  range
+  range,
 });
 ```
 
 **Good:**
+
 ```typescript
-const result = await this.sheetsService.readValues(
-  spreadsheetId,
-  range,
-  { valueRenderOption: 'FORMATTED_VALUE' }
-);
+const result = await this.sheetsService.readValues(spreadsheetId, range, {
+  valueRenderOption: 'FORMATTED_VALUE',
+});
 ```
 
 **Why:** Service layer provides:
+
 - Rate limiting
 - Caching
 - Error handling
@@ -702,6 +722,7 @@ const result = await this.sheetsService.readValues(
 ### ❌ Anti-Pattern 4: Skipping Verification
 
 **Bad:**
+
 ```bash
 # Make changes
 git add .
@@ -711,6 +732,7 @@ git push
 ```
 
 **Good:**
+
 ```bash
 # Make changes
 npm run verify  # Run locally first (2-3 minutes)
@@ -727,6 +749,7 @@ git push
 ### VS Code
 
 **Recommended extensions:**
+
 - ESLint (`dbaeumer.vscode-eslint`)
 - Prettier (`esbenp.prettier-vscode`)
 - TypeScript (`ms-vscode.vscode-typescript-next`)
@@ -734,6 +757,7 @@ git push
 - Vitest (`vitest.explorer`)
 
 **Settings (.vscode/settings.json):**
+
 ```json
 {
   "editor.formatOnSave": true,

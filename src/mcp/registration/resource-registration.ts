@@ -113,46 +113,76 @@ export function registerServalSheetsResources(
         throw createAuthRequiredError(uri.href);
       }
 
+      // P1-2: Parse pagination parameters from query string
+      // URI format: sheets:///spreadsheetId/range?_limit=100&_offset=0
+      const DEFAULT_LIMIT = 10000; // Max cells per response
+      const parsedUrl = new URL(uri.href, 'sheets://localhost');
+      const limitParam = parsedUrl.searchParams.get('_limit');
+      const offsetParam = parsedUrl.searchParams.get('_offset');
+      const limit = limitParam ? Math.min(parseInt(limitParam, 10), DEFAULT_LIMIT) : DEFAULT_LIMIT;
+      const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
+
       try {
         const valuesResponse = await googleClient.sheets.spreadsheets.values.get({
           spreadsheetId,
           range,
         });
 
-        // Truncate large responses to prevent MCP protocol issues
-        const MAX_CELLS = 10000;
-        const values = valuesResponse.data.values || [];
-        const totalCells = values.reduce(
+        const allValues = valuesResponse.data.values || [];
+        const totalRows = allValues.length;
+        const totalCells = allValues.reduce(
           (sum, row) => sum + (Array.isArray(row) ? row.length : 0),
           0
         );
 
-        let result: Record<string, unknown>;
+        // Apply pagination (row-based offset and cell-based limit)
+        let paginatedValues: unknown[][];
+        let cellCount = 0;
 
-        if (totalCells > MAX_CELLS) {
-          // Truncate to first N rows that fit within limit
-          let cellCount = 0;
-          const truncatedValues: unknown[][] = [];
-
-          for (const row of values) {
+        if (offset > 0) {
+          // Skip offset rows
+          paginatedValues = [];
+          for (let i = offset; i < allValues.length; i++) {
+            const row = allValues[i]!;
             const rowLength = Array.isArray(row) ? row.length : 0;
-            if (cellCount + rowLength > MAX_CELLS) {
+            if (cellCount + rowLength > limit) {
               break;
             }
-            truncatedValues.push(row);
+            paginatedValues.push(row);
             cellCount += rowLength;
           }
-
-          result = {
-            ...valuesResponse.data,
-            values: truncatedValues,
-            _truncated: true,
-            _message: `Response truncated: ${totalCells} cells exceeds ${MAX_CELLS} limit. Use sheets_data tool with pagination for large ranges.`,
-            _originalCellCount: totalCells,
-          };
         } else {
-          result = { ...valuesResponse.data };
+          // Apply cell limit from start
+          paginatedValues = [];
+          for (const row of allValues) {
+            const rowLength = Array.isArray(row) ? row.length : 0;
+            if (cellCount + rowLength > limit) {
+              break;
+            }
+            paginatedValues.push(row);
+            cellCount += rowLength;
+          }
         }
+
+        const hasMore = offset + paginatedValues.length < totalRows;
+        const nextOffset = offset + paginatedValues.length;
+
+        // Build result with pagination metadata
+        const result: Record<string, unknown> = {
+          ...valuesResponse.data,
+          values: paginatedValues,
+          _pagination: {
+            offset,
+            limit,
+            totalRows,
+            totalCells,
+            returnedRows: paginatedValues.length,
+            hasMore,
+            ...(hasMore && {
+              nextUri: `sheets:///${spreadsheetId}/${encodeURIComponent(range)}?_limit=${limit}&_offset=${nextOffset}`,
+            }),
+          },
+        };
 
         return {
           contents: [
