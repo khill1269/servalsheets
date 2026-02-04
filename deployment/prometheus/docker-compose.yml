@@ -1,4 +1,3 @@
-version: '3.8'
 
 # Prometheus and Alertmanager for ServalSheets Monitoring
 # Collects metrics, evaluates alerts, and sends notifications

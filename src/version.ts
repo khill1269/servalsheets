@@ -23,9 +23,18 @@ export const SERVER_INFO = {
 /** Server icon metadata for client UIs */
 export const SERVER_ICONS: Icon[] = [
   {
-    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png',
+    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon.svg',
+    mimeType: 'image/svg+xml',
+  },
+  {
+    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-256.png',
     mimeType: 'image/png',
-    sizes: ['1536x1024'],
+    sizes: ['256x256'],
+  },
+  {
+    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-120.png',
+    mimeType: 'image/png',
+    sizes: ['120x120'],
   },
 ];
 

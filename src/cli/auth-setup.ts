@@ -18,11 +18,16 @@ import { logger } from '../utils/logger.js';
 import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { EncryptedFileTokenStore } from '../services/token-store.js';
-import { DEFAULT_SCOPES } from '../services/google-api.js';
+import { getRecommendedScopes, SCOPE_DESCRIPTIONS } from '../config/oauth-scopes.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import { randomBytes } from 'crypto';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Color codes for terminal output
 const colors = {
@@ -174,6 +179,10 @@ RATE_LIMIT_MAX_REQUESTS=100
  */
 function startCallbackServer(port: number): Promise<string> {
   return new Promise((resolve, reject) => {
+    // Load branded HTML templates
+    const successHtml = fs.readFileSync(path.join(__dirname, 'auth-success.html'), 'utf-8');
+    const errorHtmlTemplate = fs.readFileSync(path.join(__dirname, 'auth-error.html'), 'utf-8');
+
     const server = http.createServer((req, res) => {
       if (req.url?.startsWith('/callback')) {
         const url = new URL(req.url, `http://localhost:${port}`);
@@ -182,32 +191,23 @@ function startCallbackServer(port: number): Promise<string> {
 
         if (error) {
           res.writeHead(400, { 'Content-Type': 'text/html' });
-          res.end(`
-            <!DOCTYPE html>
-            <html>
-              <head><title>Authorization Failed</title></head>
-              <body style="font-family: sans-serif; padding: 50px; text-align: center;">
-                <h1>❌ Authorization Failed</h1>
-                <p>Error: ${error}</p>
-                <p>Please close this window and try again.</p>
-              </body>
-            </html>
-          `);
+          // Inject error message into template via query parameter (handled by client-side JS)
+          const errorHtml = errorHtmlTemplate.replace(
+            '</body>',
+            `<script>
+              const urlParams = new URLSearchParams('?error=${encodeURIComponent(error)}');
+              const errorMsg = urlParams.get('error');
+              if (errorMsg) {
+                document.getElementById('error-message').textContent = decodeURIComponent(errorMsg);
+              }
+            </script></body>`
+          );
+          res.end(errorHtml);
           server.close();
           reject(new Error(error));
         } else if (code) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(`
-            <!DOCTYPE html>
-            <html>
-              <head><title>Authorization Successful</title></head>
-              <body style="font-family: sans-serif; padding: 50px; text-align: center;">
-                <h1>✅ Authorization Successful!</h1>
-                <p>You can now close this window and return to the terminal.</p>
-                <p style="color: #666; margin-top: 30px;">ServalSheets is ready to use!</p>
-              </body>
-            </html>
-          `);
+          res.end(successHtml);
           server.close();
           resolve(code);
         }
@@ -262,21 +262,15 @@ async function openBrowser(url: string): Promise<void> {
  */
 async function main(): Promise<void> {
   console.clear();
+  console.log('');
+  console.log(`${colors.green}╔════════════════════════════════════════════╗${colors.reset}`);
   console.log(
-    `${colors.bright}${colors.blue}╔════════════════════════════════════════════╗${colors.reset}`
+    `${colors.green}║${colors.reset}      ${colors.cyan}🦁 Serval Sheets Authentication${colors.reset}       ${colors.green}║${colors.reset}`
   );
   console.log(
-    `${colors.bright}${colors.blue}║                                            ║${colors.reset}`
+    `${colors.green}║${colors.reset}   ${colors.bright}Production-Grade Google Sheets MCP${colors.reset}    ${colors.green}║${colors.reset}`
   );
-  console.log(
-    `${colors.bright}${colors.blue}║    ServalSheets Authentication Setup       ║${colors.reset}`
-  );
-  console.log(
-    `${colors.bright}${colors.blue}║                                            ║${colors.reset}`
-  );
-  console.log(
-    `${colors.bright}${colors.blue}╚════════════════════════════════════════════╝${colors.reset}`
-  );
+  console.log(`${colors.green}╚════════════════════════════════════════════╝${colors.reset}`);
   console.log('');
 
   // Check current status
@@ -392,11 +386,23 @@ async function main(): Promise<void> {
     // Create OAuth2 client
     const oauth2Client: OAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
-    // Generate authorization URL
+    // Get recommended scopes (includes all features: Sheets, Drive, BigQuery, Apps Script)
+    const scopes = Array.from(getRecommendedScopes());
+
+    console.log(`${colors.cyan}Requesting the following permissions:${colors.reset}`);
+    console.log('');
+    scopes.forEach((scope) => {
+      const description = SCOPE_DESCRIPTIONS[scope] ?? scope;
+      console.log(`  ${colors.green}✓${colors.reset} ${description}`);
+    });
+    console.log('');
+
+    // Generate authorization URL with full scopes upfront
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: DEFAULT_SCOPES,
+      scope: scopes,
       prompt: 'consent',
+      include_granted_scopes: true,
     });
 
     console.log('Opening browser for Google authentication...');
