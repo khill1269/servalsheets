@@ -1,10 +1,20 @@
+---
+title: ServalSheets TODO List - HISTORICAL ARCHIVE
+category: archived
+last_updated: 2026-01-31
+description: Historical archive of January 2026 planning sessions (deprecated)
+version: 1.6.0
+tags: [archive, deprecated]
+---
+
 # ServalSheets TODO List - HISTORICAL ARCHIVE
 
 **⚠️ DEPRECATED:** This document is a historical archive from January 2026 planning sessions.
 
 **Current Production Status (2026-01-16):**
+
 - ✅ **Version:** 1.6.0
-- ✅ **Architecture:** 21 tools, 272 actions (current consolidated set)
+- ✅ **Architecture:** 21 tools, 293 actions (current consolidated set)
 - ✅ **Status:** Production ready, all verification checks passing
 - ✅ **Phases 0-4 and Phase 7:** COMPLETE
 
@@ -15,9 +25,9 @@
 
 ## ARCHIVED CONTENT BELOW
 
-*Generated: 2026-01-07 (Updated with comprehensive audit findings)*
+_Generated: 2026-01-07 (Updated with comprehensive audit findings)_
 
-**⚠️ NOTE:** This document contains historical planning information. Many tasks reference previous architectures with 24-26 tools. **Current production architecture: 21 tools, 272 actions** (as of v1.6.0).
+**⚠️ NOTE:** This document contains historical planning information. Many tasks reference previous architectures with 24-26 tools. **Current production architecture: 21 tools, 293 actions** (as of v1.6.0).
 
 ## 🔥 IN PROGRESS
 
@@ -28,6 +38,7 @@
 ## ✅ PHASE 0: CRITICAL RUNTIME BREAKAGES (COMPLETE!)
 
 ### Task 0.1: Wire Sampling/Elicitation Capabilities ✅ COMPLETE
+
 **Priority**: P0 | **Effort**: 4h | **Status**: ✅ Done (Commit: 9372dde)
 **Finding**: #1 HIGH - Sampling/elicitation advertised but not wired
 **Verified**: ⚠️ CORRECTED - See docs/development/TODO_VERIFICATION_REPORT.md
@@ -40,16 +51,18 @@ Files: src/handlers/confirm.ts, src/handlers/analyze.ts, src/server.ts
 ```
 
 **⚠️ IMPORTANT**: MCP SDK 1.25.1 does NOT provide `extra.elicit` or `extra.sample` methods.
+
 - RequestHandlerExtra only includes: signal, requestId, sendRequest, sendNotification
 - Elicitation/sampling are methods on the Server class: `server.elicitInput()` and `server.createMessage()`
 - See node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js:342-382
 
 **Solution Implemented**:
+
 ```typescript
 // In server.ts - pass Server instance to handlers
 return this.handleToolCall(tool.name, args, {
   ...extra,
-  server: this.server  // Add this!
+  server: this.server, // Add this!
 });
 
 // In handlers - use Server methods directly
@@ -62,13 +75,14 @@ if (!context.server.getClientCapabilities()?.elicitation) {
 const result = await context.server.elicitInput({
   mode: 'form',
   message: 'Confirm changes?',
-  requestedSchema: confirmSchema
+  requestedSchema: confirmSchema,
 });
 ```
 
 ---
 
 ### Task 0.2: Fix Task Cancellation ✅ COMPLETE
+
 **Priority**: P0 | **Effort**: 3h | **Status**: ✅ Done (Commit: 6b2387e)
 **Finding**: #2 HIGH - SEP-1686 cancel is ineffective
 
@@ -80,6 +94,7 @@ Files: src/core/task-store-adapter.ts, src/core/task-store.ts, src/server.ts
 ```
 
 **Solution Implemented**:
+
 - Updated TaskStoreAdapter.updateTaskStatus to detect status === 'cancelled'
 - Calls this.cancelTask(taskId) to properly set cancellation flags
 - Ensures cancelledTasks Map is populated
@@ -89,6 +104,7 @@ Files: src/core/task-store-adapter.ts, src/core/task-store.ts, src/server.ts
 ---
 
 ### Task 0.3: Initialize Services for HTTP/Remote Transports ✅ COMPLETE
+
 **Priority**: P0 | **Effort**: 3h | **Status**: ✅ Done (Commit: 7d426b6)
 **Finding**: #3 HIGH - HTTP/remote missing service initialization
 
@@ -100,6 +116,7 @@ Files: src/http-server.ts, src/remote-server.ts
 ```
 
 **Solution Implemented**:
+
 - Added service initialization to http-server.ts after googleClient creation
 - Added service initialization to remote-server.ts after googleClient creation
 - All 4 services now initialized: initTransactionManager, initConflictDetector, initImpactAnalyzer, initValidationEngine
@@ -108,6 +125,7 @@ Files: src/http-server.ts, src/remote-server.ts
 ---
 
 ### Task 0.4: Fix server.json Schema Validation ✅ COMPLETE
+
 **Priority**: P0 | **Effort**: 2h | **Status**: ✅ Done (Commit: 3ed59af)
 **Finding**: #4 HIGH - server.json fails validation
 
@@ -120,6 +138,7 @@ Files: server.json, scripts/generate-metadata.ts
 ```
 
 **Solution Implemented**:
+
 - Updated generate-metadata.ts to use pkg.mcpName for name field
 - Generator now emits packages: [] and tools: [] arrays
 - Added repository.source property for schema compliance
@@ -129,6 +148,7 @@ Files: server.json, scripts/generate-metadata.ts
 ---
 
 ### Task 0.5: Fix stdout Logging in stdio Mode ✅ COMPLETE
+
 **Priority**: P0 | **Effort**: 2h | **Status**: ✅ Done (Commit: 6c55e43)
 **Finding**: #15 MED - stdout logging corrupts stdio protocol stream
 
@@ -139,6 +159,7 @@ Files: src/core/task-store.ts
 ```
 
 **Solution Implemented**:
+
 - Replaced all console.error calls in task-store.ts with logger calls
 - InMemoryTaskStore.cancelTask: console.error → logger.warn
 - RedisTaskStore error handler: console.error → logger.error
@@ -151,6 +172,7 @@ Files: src/core/task-store.ts
 ## 🟡 PHASE 1: MCP PROTOCOL COMPLIANCE (Week 1)
 
 ### Task 1.1: Forward Complete MCP Context ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 3h | **Status**: ✅ Done
 **Finding**: #6 MED - MCP call context forwarding incomplete
 
@@ -162,10 +184,11 @@ Files: src/server.ts, src/mcp/registration.ts
 ```
 
 **Checklist**:
+
 - [x] Read server.ts:283 (stdio tool registration)
 - [x] Read registration.ts:862 (HTTP/remote registration)
 - [x] Update server.ts:283 to forward full `extra` object
-- [x] Add requestId from extra.requestId || extra.requestInfo?._meta?.requestId
+- [x] Add requestId from extra.requestId || extra.requestInfo?.\_meta?.requestId
 - [x] Add abortSignal from extra.signal
 - [x] Preserve sendNotification, progressToken, elicit, sample
 - [x] Update registration.ts:586 to build full request context
@@ -175,6 +198,7 @@ Files: src/server.ts, src/mcp/registration.ts
 - [x] Commit changes
 
 **Diff Snippet**:
+
 ```typescript
 // server.ts
 -        async (args: Record<string, unknown>, extra) => {
@@ -200,6 +224,7 @@ Files: src/server.ts, src/mcp/registration.ts
 ---
 
 ### Task 1.2: Return MCP Tool Errors, Not Protocol Errors ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #7 MED - HTTP/remote tools throw protocol errors
 
@@ -210,6 +235,7 @@ Files: src/mcp/registration.ts
 ```
 
 **Checklist**:
+
 - [x] Read registration.ts:717 (createToolCallHandler error handling)
 - [x] Read server.ts (stdio error handling for comparison)
 - [x] Update createToolCallHandler to catch errors
@@ -220,12 +246,14 @@ Files: src/mcp/registration.ts
 - [x] Commit changes
 
 **Best Fix**:
+
 - [x] Extract shared error-mapping utility
 - [x] Use in both stdio and HTTP/remote
 
 ---
 
 ### Task 1.3: Fix History Undo/Revert by Injecting SnapshotService ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #8 MED - History undo/revert broken
 
@@ -237,6 +265,7 @@ Files: src/handlers/index.ts, src/handlers/history.ts
 ```
 
 **Checklist**:
+
 - [x] Read index.ts:164 (HistoryHandler construction)
 - [x] Read history.ts constructor (check for snapshotService parameter)
 - [x] Update index.ts:164 to pass snapshotService into HistoryHandler
@@ -247,12 +276,14 @@ Files: src/handlers/index.ts, src/handlers/history.ts
 - [x] Commit changes
 
 **Best Fix**:
+
 - [x] Include snapshot service in shared handler context
 - [x] Add undo/revert integration tests
 
 ---
 
 ### Task 1.4: Register sheets_fix Tool ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ✅ Done
 **Finding**: #9 MED - sheets_fix exists but not registered
 
@@ -264,6 +295,7 @@ Files: src/mcp/registration.ts, src/schemas/index.ts, src/handlers/index.ts
 ```
 
 **Implementation**:
+
 - [x] Add sheets_fix to TOOL_DEFINITIONS in registration.ts
 - [x] Add sheets_fix to handler map
 - [x] Add SHEETS_FIX_ANNOTATIONS to fix.ts and annotations.ts
@@ -278,6 +310,7 @@ Files: src/mcp/registration.ts, src/schemas/index.ts, src/handlers/index.ts
 ---
 
 ### Task 1.5: Register Logging Handler ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ✅ Done
 **Finding**: #10 MED - Logging capability declared but not registered
 
@@ -290,6 +323,7 @@ Files: src/server.ts, src/mcp/logging.ts
 ```
 
 **Implementation**:
+
 - [x] Read logging.ts:12 handler implementation
 - [x] Register logging/setLevel handler in server.ts
 - [x] Implement handler in all transports (stdio, HTTP, remote)
@@ -304,6 +338,7 @@ Files: src/server.ts, src/mcp/logging.ts
 ---
 
 ### Task 1.6: Wire Completions and Update TOOL_ACTIONS ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 3h | **Status**: ✅ Done
 **Finding**: #11 MED - Completions not wired and stale
 
@@ -315,6 +350,7 @@ Files: src/server.ts, src/mcp/completions.ts
 ```
 
 **Checklist**:
+
 - [x] Read completions.ts:87 (sheets_confirm actions)
 - [x] Compare with confirm.ts:53 (actual actions)
 - [x] Update TOOL_ACTIONS for sheets_confirm: ['request', 'get_stats']
@@ -331,11 +367,13 @@ Files: src/server.ts, src/mcp/completions.ts
 - [x] Commit changes
 
 **Note on Completions Registration**:
+
 - MCP SDK v1.25.1 only supports completions for prompts/resources, NOT tool arguments
 - Completions capability is declared in createServerCapabilities() but no handler needed yet
 - TOOL_ACTIONS data structure is ready for when SDK adds tool argument completion support
 
 **Note on Metadata Generator**:
+
 - scripts/generate-metadata.ts has a buggy action counting algorithm (shows 152 instead of 188)
 - It only counts simple discriminated union patterns, misses many actions
 - TOOL_REGISTRY in index.ts has correct manual counts (188 actions)
@@ -344,6 +382,7 @@ Files: src/server.ts, src/mcp/completions.ts
 ---
 
 ### Task 1.7: Add Resource Parity Across Transports ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #12 MED - Resource registration lacks transport parity
 
@@ -356,6 +395,7 @@ Files: src/server/http-server.ts, src/server/remote-server.ts
 ```
 
 **Checklist**:
+
 - [x] Read server.ts:672-711 (full resource registration list)
 - [x] Read http-server.ts:157-159 (current HTTP resources - only core + knowledge)
 - [x] Read remote-server.ts:382-384 (current remote resources - only core + knowledge)
@@ -383,6 +423,7 @@ All three transports now have identical resource registration, maintaining the s
 ---
 
 ### Task 1.8: Wire sheets_auth to googleClient in HTTP/Remote ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ✅ Done
 **Finding**: #13 MED - HTTP/remote sheets_auth not wired
 
@@ -395,6 +436,7 @@ Files: src/server/http-server.ts, src/server/remote-server.ts, src/mcp/registrat
 ```
 
 **Checklist**:
+
 - [x] Read registration.ts:817 (registerServalSheetsTools signature)
 - [x] Read http-server.ts:168 (current call site)
 - [x] Read remote-server.ts:393 (current call site)
@@ -412,6 +454,7 @@ The AuthHandler in registerServalSheetsTools now receives the googleClient for H
 ## 🟢 PHASE 2: SINGLE SOURCE OF TRUTH (COMPLETE!)
 
 ### Task 2.1: Generate Counts and Action Lists from Schemas ✅ COMPLETE
+
 **Priority**: P1 | **Effort**: 6h | **Status**: ✅ Done (Commits: 47a29e3, 5832b8e)
 **Finding**: #5 HIGH - Metadata/action list drift
 
@@ -423,6 +466,7 @@ Files: scripts/generate-metadata.ts, src/schemas/index.ts, src/schemas/annotatio
 ```
 
 **Checklist**:
+
 - [ ] Read generate-metadata.ts (current implementation)
 - [ ] Update generator to:
   - [ ] Scan all schema files in src/schemas/
@@ -443,12 +487,14 @@ Files: scripts/generate-metadata.ts, src/schemas/index.ts, src/schemas/annotatio
 - [ ] Commit generated files
 
 **Expected Result**:
+
 ```
 TOOL_COUNT = 23
 ACTION_COUNT = 188
 ```
 
 **Diff Snippet**:
+
 ```typescript
 // generate-metadata.ts
 -  schemasIndex = schemasIndex.replace(
@@ -473,6 +519,7 @@ ACTION_COUNT = 188
 ---
 
 ### Task 2.2: Add CI Guard for Metadata Drift
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
 **Finding**: #5 HIGH - Metadata drift prevention
 
@@ -482,6 +529,7 @@ Files: scripts/check-metadata-drift.sh
 ```
 
 **Checklist**:
+
 - [ ] Read check-metadata-drift.sh (current implementation)
 - [ ] Update to track additional files:
   - [ ] src/schemas/annotations.ts
@@ -496,6 +544,7 @@ Files: scripts/check-metadata-drift.sh
 - [ ] Commit changes
 
 **Diff Snippet**:
+
 ```bash
 # check-metadata-drift.sh
 -git add package.json src/schemas/index.ts server.json 2>/dev/null || true
@@ -508,6 +557,7 @@ Files: scripts/check-metadata-drift.sh
 ---
 
 ### Task 2.3: Generate Tool Descriptions for /info Endpoint
+
 **Priority**: P2 | **Effort**: 3h | **Status**: ⬜ Not Started
 **Finding**: #16 LOW - /info tool descriptions blank
 
@@ -519,6 +569,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ```
 
 **Checklist**:
+
 - [ ] Read descriptions.ts (already exists!)
 - [ ] Read annotations.ts:227 (getToolMetadata function)
 - [ ] Update getToolMetadata to populate description from descriptions.ts
@@ -528,6 +579,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 - [ ] Commit changes
 
 **Best Fix**:
+
 - [ ] Generate /info metadata from canonical tool registry
 - [ ] Ensure consistency across all endpoints
 
@@ -542,6 +594,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ### Strategic Decision
 
 **Deferred until after Phase 5 completion** to prioritize:
+
 1. ✅ Fixing broken functionality (Phase 1)
 2. ✅ Establishing single source of truth (Phase 2)
 3. ✅ Documentation accuracy (Phase 3)
@@ -551,12 +604,14 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ### Rationale for Deferral
 
 **Why 11 tools might be better** (theoretical benefits):
+
 - Better aligns with MCP best practices (fewer tools, more actions per tool)
 - Reduces cognitive load for LLMs (fewer tool choices to evaluate)
 - Improves context efficiency (related actions grouped together)
 - Cleaner API surface (logical groupings vs granular capabilities)
 
 **Why we're deferring**:
+
 - ⚠️ Major breaking change requiring client migration
 - ⚠️ Needs real-world usage feedback on current 24-tool architecture
 - ⚠️ Requires backward compatibility layer
@@ -567,10 +622,12 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ### Proposed 11-Tool Structure (for future reference)
 
 **Current Architecture (24 tools)**: One tool per capability domain
+
 - sheets_auth, sheets_core, sheets_core, sheets_data, sheets_data, sheets_format, sheets_dimensions, sheets_format, sheets_visualize, sheets_visualize, sheets_dimensions, sheets_collaborate, sheets_collaborate, sheets_collaborate, sheets_analyze, sheets_advanced, sheets_transaction, sheets_quality, sheets_quality, sheets_quality, sheets_history, sheets_confirm, sheets_analyze, sheets_fix
 - Total: 24 tools with 188 actions
 
 **Potential Target Architecture (11 tools)**: Grouped by workflow/feature set
+
 1. **sheets_core** - Spreadsheet/sheet/range CRUD (combines: spreadsheet, sheet, values, cells)
 2. **sheets_format** - Styling and appearance (combines: format, dimensions)
 3. **sheets_data** - Data manipulation (combines: rules, charts, pivot, filter_sort)
@@ -586,6 +643,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ### When to Revisit
 
 **Reconsider after**:
+
 - ✅ All Phases 1-5 tasks completed
 - ✅ System stable in production
 - ✅ User feedback collected on current architecture
@@ -593,6 +651,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 - ✅ LLM usage patterns analyzed
 
 **Required before implementation**:
+
 - [ ] User/stakeholder approval of consolidation strategy
 - [ ] Backward compatibility plan
 - [ ] Migration guide drafted
@@ -600,6 +659,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 - [ ] Feature flag strategy for gradual rollout
 
 ### Task 2.5.1: Design 11-Tool Schema Architecture
+
 **Priority**: P3 | **Effort**: 8h+ | **Status**: ⏸️ Deferred
 
 **NOTE**: This task is ON HOLD pending completion of Phases 1-5 and strategic review.
@@ -609,6 +669,7 @@ Files: src/schemas/annotations.ts, src/schemas/descriptions.ts
 ## 🔵 PHASE 3: DOCUMENTATION & CONSISTENCY (Week 3)
 
 ### Task 3.1: Remove References to Deleted Tools
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
 **Finding**: #17 LOW - Docs reference removed tools
 
@@ -620,6 +681,7 @@ Files: README.md, TOOLS_INTEGRATION_COMPLETE.md
 ```
 
 **Checklist**:
+
 - [ ] Search for "sheets_workflow" in all docs
 - [ ] Search for "sheets_insights" in all docs
 - [ ] Search for "sheets_plan" in all docs
@@ -633,6 +695,7 @@ Files: README.md, TOOLS_INTEGRATION_COMPLETE.md
 ---
 
 ### Task 3.2: Update Prompt Copy with Correct Counts
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: #5 HIGH - Count drift in prompts
 
@@ -645,6 +708,7 @@ Files: src/mcp/features-2025-11-25.ts, src/mcp/registration.ts
 ```
 
 **Checklist**:
+
 - [ ] Read features-2025-11-25.ts:14 (prompt description)
 - [ ] Update to "23 tools with 188 actions"
 - [ ] Read registration.ts:1053 (prompt copy)
@@ -655,12 +719,14 @@ Files: src/mcp/features-2025-11-25.ts, src/mcp/registration.ts
 - [ ] Commit changes
 
 **Best Fix**:
+
 - [ ] Import counts from generated constants
 - [ ] Use `${TOOL_COUNT}` and `${ACTION_COUNT}` in strings
 
 ---
 
 ### Task 3.3: Update well-known.ts Capabilities
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: #14 LOW - Well-known claims subscriptions without implementation
 
@@ -672,6 +738,7 @@ Files: src/server/well-known.ts
 ```
 
 **Checklist**:
+
 - [ ] Read well-known.ts:132 (subscriptions field)
 - [ ] Set `subscriptions: false` (not implemented)
 - [ ] Update prompt/resource counts to match reality
@@ -680,6 +747,7 @@ Files: src/server/well-known.ts
 - [ ] Commit changes
 
 **Best Fix**:
+
 - [ ] Implement resource subscription handlers if intended
 - [ ] Or keep false until ready
 
@@ -688,6 +756,7 @@ Files: src/server/well-known.ts
 ## 🟣 PHASE 4: AUTHENTICATION & API HARDENING (Week 4)
 
 ### Task 4.1: Verify Scope Coverage for All Operations
+
 **Priority**: P2 | **Effort**: 4h | **Status**: ⬜ Not Started
 **Finding**: Unproven - scope checks may be missing in some handlers
 
@@ -697,6 +766,7 @@ Files: src/handlers/*.ts, src/auth/scopes.ts
 ```
 
 **Checklist**:
+
 - [ ] Read src/auth/scopes.ts (scope definitions)
 - [ ] For each handler in src/handlers/:
   - [ ] Identify operations requiring specific scopes
@@ -711,6 +781,7 @@ Files: src/handlers/*.ts, src/auth/scopes.ts
 ---
 
 ### Task 4.2: Add Token Redaction Assertions
+
 **Priority**: P2 | **Effort**: 2h | **Status**: ⬜ Not Started
 **Finding**: Unproven - need to verify tokens are never logged
 
@@ -720,6 +791,7 @@ Files: src/utils/google-api.ts, src/utils/error-factory.ts
 ```
 
 **Checklist**:
+
 - [ ] Read google-api.ts (API client code)
 - [ ] Search for all error.message/error.stack usages
 - [ ] Add token redaction to error factory
@@ -732,6 +804,7 @@ Files: src/utils/google-api.ts, src/utils/error-factory.ts
 ---
 
 ### Task 4.3: Validate Retry and Error Mapping with Integration Tests
+
 **Priority**: P2 | **Effort**: 3h | **Status**: ⬜ Not Started
 **Finding**: Unproven - live Google API request validation needed
 
@@ -741,6 +814,7 @@ Files: tests/integration/*.ts
 ```
 
 **Checklist**:
+
 - [ ] Run: npm run test:integration (with TEST_REAL_API=true)
 - [ ] Verify retry logic for 429 errors
 - [ ] Verify retry logic for 503 errors
@@ -757,6 +831,7 @@ Files: tests/integration/*.ts
 ## 🟠 PHASE 5: RELEASE CLEANUP (Week 5)
 
 ### Task 5.1: Verify TypeScript/Zod Compile Status
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: Unproven - need to verify build succeeds
 
@@ -766,6 +841,7 @@ Files: All TypeScript files
 ```
 
 **Checklist**:
+
 - [ ] Run: npm run typecheck
 - [ ] Fix any type errors
 - [ ] Run: npm run build
@@ -777,6 +853,7 @@ Files: All TypeScript files
 ---
 
 ### Task 5.2: Verify Dist Artifact Parity
+
 **Priority**: P1 | **Effort**: 2h | **Status**: ⬜ Not Started
 **Finding**: Unproven - need to verify dist matches src
 
@@ -786,6 +863,7 @@ Files: dist/*, src/*
 ```
 
 **Checklist**:
+
 - [ ] Run: npm run build
 - [ ] Compare dist/mcp/registration.js to src/mcp/registration.ts
 - [ ] Verify tool counts match
@@ -798,6 +876,7 @@ Files: dist/*, src/*
 ---
 
 ### Task 5.3: Update package.json for Prepack Hook
+
 **Priority**: P1 | **Effort**: 1h | **Status**: ⬜ Not Started
 **Finding**: Related to #5 HIGH - ensure generator runs before publish
 
@@ -807,11 +886,14 @@ Files: package.json
 ```
 
 **Checklist**:
+
 - [ ] Read package.json:75 (scripts section)
 - [ ] Add/update prepack script:
+
   ```json
   "prepack": "npm run generate:metadata && npm run build"
   ```
+
 - [ ] Test: npm pack
 - [ ] Verify generator runs automatically
 - [ ] Verify build runs automatically
@@ -821,6 +903,7 @@ Files: package.json
 ---
 
 ### Task 5.4: Final Validation and Release Checklist
+
 **Priority**: P1 | **Effort**: 3h | **Status**: ⬜ Not Started
 
 ```
@@ -828,6 +911,7 @@ Final validation before release
 ```
 
 **Checklist**:
+
 - [ ] Run: npm run typecheck (must pass)
 - [ ] Run: npm run build (must pass)
 - [ ] Run: npm run validate:server-json (must pass)
@@ -845,6 +929,7 @@ Final validation before release
 ## 📊 PHASE SUMMARY
 
 ### Phase 0: Critical Runtime Breakages ✅ COMPLETE
+
 **Duration**: 2-3 days
 **Tasks**: 5 tasks (0.1-0.5)
 **Severity**: All P0 (blocking)
@@ -852,6 +937,7 @@ Final validation before release
 **Status**: ✅ All tasks completed
 
 ### Phase 1: MCP Protocol Compliance ✅ COMPLETE
+
 **Duration**: 1 week
 **Tasks**: 8 tasks (1.1-1.8)
 **Severity**: P1 (high priority)
@@ -859,6 +945,7 @@ Final validation before release
 **Status**: ✅ All 8 tasks completed (Commits: 4da448d, 47a29e3, f2da68b)
 
 ### Phase 2: Single Source of Truth ✅ COMPLETE
+
 **Duration**: 1 week
 **Tasks**: 3 tasks (2.1-2.3)
 **Severity**: P1-P2
@@ -866,6 +953,7 @@ Final validation before release
 **Status**: ✅ All 3 tasks completed (Commits: 47a29e3, 5832b8e, ada27c0, a98db4b, a7c4a51)
 
 ### Phase 2.5: Tool Consolidation (11 Tools) ⏸️ DEFERRED
+
 **Duration**: 8+ hours
 **Tasks**: 1 task (2.5.1)
 **Severity**: P3 (future enhancement)
@@ -873,6 +961,7 @@ Final validation before release
 **Status**: ⏸️ Deferred until after Phases 1-5 complete
 
 ### Phase 3: Documentation & Consistency ✅ COMPLETE
+
 **Duration**: 3 days
 **Tasks**: 3 tasks (3.1-3.3)
 **Severity**: P1
@@ -880,6 +969,7 @@ Final validation before release
 **Status**: ✅ All 3 tasks completed (Commits: ada27c0, a98db4b, a7c4a51)
 
 ### Phase 4: Auth & API Hardening ⚠️ PARTIAL (2/3 Complete)
+
 **Duration**: 1 week
 **Tasks**: 3 tasks (4.1-4.3)
 **Severity**: P2
@@ -888,6 +978,7 @@ Final validation before release
 **Note**: Task 4.1 (scope coverage) requires 10-14h and deferred to future PR
 
 ### Phase 5: Release Cleanup 🔄 IN PROGRESS
+
 **Duration**: 2-3 days
 **Tasks**: 4 tasks (5.1-5.4)
 **Severity**: P1
@@ -899,6 +990,7 @@ Final validation before release
 ## 🎯 CURRENT SPRINT: PHASE 5 (Release Cleanup)
 
 **Previous Sprints**:
+
 - Phase 0 ✅ COMPLETE - All P0 blocking issues resolved
 - Phase 1 ✅ COMPLETE - Full MCP protocol compliance achieved
 - Phase 2 ✅ COMPLETE - Single source of truth established
@@ -909,12 +1001,14 @@ Final validation before release
 **Sprint Duration**: 2-3 days (7 hours total)
 
 **Tasks**:
+
 1. Task 5.1: Verify TypeScript/Zod Compilation (1h) - ✅ Already verified
 2. Task 5.2: Verify Dist Artifact Parity (2h)
 3. Task 5.3: Update package.json Prepack Hook (1h)
 4. Task 5.4: Final Validation Checklist (3h)
 
 **Success Criteria**:
+
 - [ ] TypeScript compiles without errors
 - [ ] Build artifacts match source code
 - [ ] Metadata regenerates automatically on publish
@@ -926,25 +1020,25 @@ Final validation before release
 
 ## 🏷️ FINDING REFERENCE
 
-| Finding | Severity | Task(s) | Status |
-|---------|----------|---------|--------|
-| #1 Sampling/elicitation not wired | HIGH | 0.1 | ⬜ Not Started |
-| #2 Task cancel ineffective | HIGH | 0.2 | ⬜ Not Started |
-| #3 HTTP/remote services missing | HIGH | 0.3 | ⬜ Not Started |
-| #4 server.json validation fails | HIGH | 0.4 | ⬜ Not Started |
-| #5 Metadata/action list drift | HIGH | 2.1, 2.2, 3.2 | ⬜ Not Started |
-| #6 MCP context incomplete | MED | 1.1 | ⬜ Not Started |
-| #7 Protocol errors not tool errors | MED | 1.2 | ⬜ Not Started |
-| #8 History undo/revert broken | MED | 1.3 | ⬜ Not Started |
-| #9 sheets_fix not registered | MED | 1.4 | ⬜ Not Started |
-| #10 Logging not registered | MED | 1.5 | ⬜ Not Started |
-| #11 Completions not wired | MED | 1.6 | ⬜ Not Started |
-| #12 Resource parity missing | MED | 1.7 | ⬜ Not Started |
-| #13 sheets_auth not wired HTTP | MED | 1.8 | ⬜ Not Started |
-| #14 Subscriptions unsupported | LOW | 3.3 | ⬜ Not Started |
-| #15 stdout corrupts stdio | MED | 0.5 | ⬜ Not Started |
-| #16 /info descriptions blank | LOW | 2.3 | ⬜ Not Started |
-| #17 Docs reference removed tools | LOW | 3.1 | ⬜ Not Started |
+| Finding                            | Severity | Task(s)       | Status         |
+| ---------------------------------- | -------- | ------------- | -------------- |
+| #1 Sampling/elicitation not wired  | HIGH     | 0.1           | ⬜ Not Started |
+| #2 Task cancel ineffective         | HIGH     | 0.2           | ⬜ Not Started |
+| #3 HTTP/remote services missing    | HIGH     | 0.3           | ⬜ Not Started |
+| #4 server.json validation fails    | HIGH     | 0.4           | ⬜ Not Started |
+| #5 Metadata/action list drift      | HIGH     | 2.1, 2.2, 3.2 | ⬜ Not Started |
+| #6 MCP context incomplete          | MED      | 1.1           | ⬜ Not Started |
+| #7 Protocol errors not tool errors | MED      | 1.2           | ⬜ Not Started |
+| #8 History undo/revert broken      | MED      | 1.3           | ⬜ Not Started |
+| #9 sheets_fix not registered       | MED      | 1.4           | ⬜ Not Started |
+| #10 Logging not registered         | MED      | 1.5           | ⬜ Not Started |
+| #11 Completions not wired          | MED      | 1.6           | ⬜ Not Started |
+| #12 Resource parity missing        | MED      | 1.7           | ⬜ Not Started |
+| #13 sheets_auth not wired HTTP     | MED      | 1.8           | ⬜ Not Started |
+| #14 Subscriptions unsupported      | LOW      | 3.3           | ⬜ Not Started |
+| #15 stdout corrupts stdio          | MED      | 0.5           | ⬜ Not Started |
+| #16 /info descriptions blank       | LOW      | 2.3           | ⬜ Not Started |
+| #17 Docs reference removed tools   | LOW      | 3.1           | ⬜ Not Started |
 
 ---
 

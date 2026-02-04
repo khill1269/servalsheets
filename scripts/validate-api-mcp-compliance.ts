@@ -2,7 +2,7 @@
 /**
  * ServalSheets - API & MCP Compliance Validator
  *
- * Validates all 21 tools and 272 actions against:
+ * Validates all 21 tools and 293 actions against:
  * 1. Google Sheets API v4 requirements
  * 2. MCP Protocol 2025-11-25 compliance
  * 3. Common implementation pitfalls
@@ -168,7 +168,8 @@ function validateMcpSchemaStructure() {
     const responseSchema = outputShape.response;
 
     if (responseSchema instanceof z.ZodDiscriminatedUnion) {
-      const discriminator = (responseSchema as any)._def.discriminator;
+      const discriminator = (responseSchema as unknown as { _def: { discriminator: string } })._def
+        .discriminator;
       if (discriminator === 'success') {
         log(`  ✅ ${tool.name}: Output discriminates on "success" field`, 'green');
       } else {
@@ -210,7 +211,8 @@ function validateMcpActionCoverage() {
     let actionCount = 0;
 
     if (requestSchema instanceof z.ZodDiscriminatedUnion) {
-      const options = (requestSchema as any)._def.options as z.ZodObject<any>[];
+      const options = (requestSchema as unknown as { _def: { options: z.ZodTypeAny[] } })._def
+        .options;
       actionCount = options.length;
     } else if (requestSchema instanceof z.ZodObject) {
       const requestShape = requestSchema.shape as Record<string, z.ZodTypeAny>;
@@ -451,7 +453,7 @@ function validateHandlerImplementations() {
         });
 
         for (const lineNum of linesWithEmptyReturn) {
-          const lineContent = content.split('\n')[lineNum - 1];
+          const _lineContent = content.split('\n')[lineNum - 1];
           const prevLine = content.split('\n')[lineNum - 2] || '';
 
           if (!prevLine.includes('OK:') && !prevLine.includes('Explicit empty')) {
@@ -561,7 +563,7 @@ function detectCommonPitfalls() {
       if (content.includes('toGridRange(') || content.includes('parseRange(')) {
         properHelperUsage++;
       }
-    } catch (error) {
+    } catch (_error) {
       // Skip files that can't be read
     }
   }
@@ -596,7 +598,7 @@ function detectCommonPitfalls() {
         colorValidationFound = true;
         break;
       }
-    } catch (error) {
+    } catch (_error) {
       // Skip
     }
   }
@@ -631,7 +633,7 @@ function getAllTsFiles(dir: string): string[] {
         files.push(fullPath);
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Skip directories we can't read
   }
 
@@ -730,8 +732,8 @@ function generateReport() {
 
 async function main() {
   log('🚀 ServalSheets API & MCP Compliance Validator', 'bright');
-const actionTotal = Object.values(TOOL_ACTIONS).reduce((sum, actions) => sum + actions.length, 0);
-log(`Validating ${TOOL_DEFINITIONS.length} tools with ${actionTotal} actions...\n`, 'cyan');
+  const actionTotal = Object.values(TOOL_ACTIONS).reduce((sum, actions) => sum + actions.length, 0);
+  log(`Validating ${TOOL_DEFINITIONS.length} tools with ${actionTotal} actions...\n`, 'cyan');
 
   // Run all validations
   validateMcpSchemaStructure();
