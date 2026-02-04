@@ -100,6 +100,14 @@ export const errorsByType = new Counter({
   registers: [register],
 });
 
+// HTTP/2 connection reset metrics
+export const http2ConnectionResetsTotal = new Counter({
+  name: 'servalsheets_http2_connection_resets_total',
+  help: 'Total HTTP/2 connection resets due to credential changes',
+  labelNames: ['reason'],
+  registers: [register],
+});
+
 // Latency percentiles as Summary (better than Histogram for percentiles)
 export const toolCallLatencySummary = new Summary({
   name: 'servalsheets_tool_call_latency_summary',

@@ -148,6 +148,8 @@ export class GoogleApiClient {
   // Token validation cache to avoid excessive API calls
   private lastValidationResult?: { valid: boolean; error?: string };
   private lastValidationTime?: number;
+  // HTTP/2 connection reset tracking
+  private lastCredentialChangeTime?: number;
   private static readonly VALIDATION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(options: GoogleApiClientOptions = {}) {
@@ -315,6 +317,88 @@ export class GoogleApiClient {
   }
 
   /**
+   * Reset HTTP agents and API clients after credential changes
+   * Prevents ERR_HTTP2_GOAWAY_SESSION by creating fresh connections
+   *
+   * This is called automatically when:
+   * - OAuth tokens are refreshed (via 'tokens' event listener)
+   * - Credentials are manually updated (via setCredentials())
+   *
+   * @internal
+   */
+  private async resetHttpAgents(): Promise<void> {
+    if (!this.auth) {
+      logger.warn('Cannot reset HTTP agents: auth client not initialized');
+      return;
+    }
+
+    logger.info('Resetting HTTP agents due to credential change');
+
+    // Record metric
+    const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
+    http2ConnectionResetsTotal.inc({ reason: 'token_refresh' });
+
+    // Destroy old agents (closes stale HTTP/2 connections)
+    this.httpAgents.http.destroy();
+    this.httpAgents.https.destroy();
+
+    // Create fresh agents
+    this.httpAgents = createHttpAgents();
+
+    // Recreate API clients with new agents
+    const enableHTTP2 = process.env['GOOGLE_API_HTTP2_ENABLED'] !== 'false';
+
+    const sheetsApi = google.sheets({
+      version: 'v4',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+    const driveApi = google.drive({
+      version: 'v3',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+    const bigqueryApi = google.bigquery({
+      version: 'v2',
+      auth: this.auth,
+      http2: enableHTTP2,
+    });
+
+    // Reconfigure transporter with new agents
+    if (this.auth && 'transporter' in this.auth) {
+      const transporter = (this.auth as unknown as Record<string, unknown>)['transporter'] as
+        | Record<string, unknown>
+        | undefined;
+      if (transporter && transporter['defaults']) {
+        const defaults = transporter['defaults'] as Record<string, unknown>;
+        defaults['agent'] = this.httpAgents.https;
+        defaults['httpAgent'] = this.httpAgents.http;
+      }
+    }
+
+    // Wrap with retry/circuit breaker (maintain existing error handling)
+    this._sheets = wrapGoogleApi(sheetsApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
+    });
+    this._drive = wrapGoogleApi(driveApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
+    });
+    this._bigquery = wrapGoogleApi(bigqueryApi, {
+      ...(this.retryOptions ?? {}),
+      timeoutMs: this.timeoutMs,
+      circuit: this.circuit,
+    });
+
+    logger.info('HTTP agents reset complete', {
+      http2Enabled: enableHTTP2,
+    });
+  }
+
+  /**
    * Validate API schemas using Discovery API (optional)
    * Only runs if DISCOVERY_API_ENABLED environment variable is true
    */
@@ -468,6 +552,13 @@ export class GoogleApiClient {
         // Invalidate validation cache when tokens are auto-refreshed
         this.lastValidationResult = undefined;
         this.lastValidationTime = undefined;
+
+        // Reset HTTP agents to prevent GOAWAY errors
+        const { env } = await import('../config/env.js');
+        if (env.ENABLE_AUTO_CONNECTION_RESET) {
+          this.lastCredentialChangeTime = Date.now();
+          await this.resetHttpAgents();
+        }
       });
     };
 
@@ -798,7 +889,16 @@ export class GoogleApiClient {
     this.lastValidationResult = undefined;
     this.lastValidationTime = undefined;
 
-    logger.debug('Credentials updated', {
+    // Reset HTTP agents to prevent GOAWAY errors (fire-and-forget)
+    void (async () => {
+      const { env } = await import('../config/env.js');
+      if (env.ENABLE_AUTO_CONNECTION_RESET) {
+        this.lastCredentialChangeTime = Date.now();
+        await this.resetHttpAgents();
+      }
+    })();
+
+    logger.debug('Credentials updated and HTTP agents reset', {
       hasAccessToken: Boolean(accessToken),
       hasRefreshToken: Boolean(effectiveRefreshToken),
       preservedExistingRefresh: !refreshToken && Boolean(existingCredentials.refresh_token),

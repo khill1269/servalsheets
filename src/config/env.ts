@@ -59,6 +59,8 @@ const EnvSchema = z.object({
   ENABLE_TABLE_APPENDS: z.coerce.boolean().default(true),
   ENABLE_PAYLOAD_VALIDATION: z.coerce.boolean().default(true),
   ENABLE_LEGACY_SSE: z.coerce.boolean().default(true),
+  // HTTP/2 connection reset on credential change (prevents GOAWAY errors)
+  ENABLE_AUTO_CONNECTION_RESET: z.coerce.boolean().default(true),
 
   // Performance optimization flags
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)
