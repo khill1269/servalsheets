@@ -5,12 +5,14 @@
 ## NO Documentation File Creation
 
 **NEVER create these files:**
+
 - Session logs, audit reports, analysis docs
 - `*_REPORT.md`, `*_ANALYSIS.md`, `*_LOG.md`, `*_SUMMARY.md`
 - Any markdown file documenting what you did
 - Status updates, progress reports, implementation plans
 
 **Instead:**
+
 - Report findings directly in chat
 - If user needs a file, they'll ask explicitly
 - Code changes only - no meta-documentation
@@ -20,7 +22,7 @@
 1. **Verify before claiming:**
    - Every factual claim must include: `file:line` OR `command → output snippet`
    - Run `npm run verify` before every commit
-   
+
 2. **Trace execution paths:**
    - Prove reachability from an entrypoint:
      - STDIO: `src/cli.ts` → `src/server.ts` → handler
@@ -72,6 +74,7 @@ npm run verify:build        # Build + validate + smoke
 ## ServalSheets-Specific Patterns
 
 ### Layered Validation (Performance Critical)
+
 ```typescript
 // 1. Fast validators first (0.1ms)
 fastValidateSpreadsheet(input);
@@ -82,6 +85,7 @@ if (!result.response) throw new ResponseValidationError(...);
 ```
 
 ### Response Builder (MCP Compliance)
+
 ```typescript
 // ✅ Always use response builder
 return buildToolResponse({ response: { success: true, data } });
@@ -91,6 +95,7 @@ return { content: [...], structuredContent: data };
 ```
 
 ### Structured Errors (40+ error codes)
+
 ```typescript
 // ✅ Typed error
 throw new SheetNotFoundError('Sheet not found', { spreadsheetId, sheetName });
@@ -102,6 +107,7 @@ throw new Error('Sheet not found');
 ## Audit Mode Prompt
 
 When starting work, operate as an auditor:
+
 1. Show the exact execution path (entrypoint → callsite)
 2. Run `npm run verify` and report failures
 3. Reproduce the bug with a failing test
@@ -112,15 +118,16 @@ When starting work, operate as an auditor:
 
 **ALWAYS verify these values from their authoritative sources:**
 
-| Metric | Source File | Current Value |
-|--------|-------------|---------------|
-| **ACTION_COUNT** | `src/schemas/index.ts` | 272 actions |
-| **TOOL_COUNT** | `src/schemas/index.ts` | 21 tools |
-| **Protocol Version** | `src/version.ts:14` | MCP 2025-11-25 |
-| **Zod Version** | `package.json` | 4.3.5 |
-| **SDK Version** | `package.json` | ^1.25.2 |
+| Metric               | Source File            | Current Value  |
+| -------------------- | ---------------------- | -------------- |
+| **ACTION_COUNT**     | `src/schemas/index.ts` | 293 actions    |
+| **TOOL_COUNT**       | `src/schemas/index.ts` | 21 tools       |
+| **Protocol Version** | `src/version.ts:14`    | MCP 2025-11-25 |
+| **Zod Version**      | `package.json`         | 4.3.5          |
+| **SDK Version**      | `package.json`         | ^1.25.2        |
 
 **How to verify:**
+
 ```bash
 # Get current action/tool counts
 npm run check:drift
@@ -141,9 +148,11 @@ grep "MCP_PROTOCOL_VERSION" src/version.ts
 The `scripts/generate-metadata.ts` script automatically updates these files:
 
 **Input (Source of Truth):**
+
 - `src/schemas/*.ts` - Individual tool schemas with `z.enum([...])` actions
 
 **Output (Generated - DO NOT edit manually):**
+
 - `package.json` - Description with tool/action counts
 - `src/schemas/index.ts` - `TOOL_COUNT` and `ACTION_COUNT` constants
 - `src/schemas/annotations.ts` - `ACTION_COUNTS` per-tool breakdown
@@ -151,6 +160,7 @@ The `scripts/generate-metadata.ts` script automatically updates these files:
 - `server.json` - Full MCP server metadata
 
 **When to run:**
+
 ```bash
 # After modifying any schema file
 npm run gen:metadata
@@ -160,6 +170,7 @@ npm run check:drift
 ```
 
 **The script supports:**
+
 - ✅ `z.enum([...])` action arrays (current pattern)
 - ✅ `z.literal('action')` single actions
 - ✅ Special case tools (fix, validation, impact, analyze, confirm)
@@ -171,6 +182,7 @@ npm run check:drift
 **Build Status:** ✅ **PASSING** (as of 2026-01-13)
 
 All verification checks passing:
+
 - TypeScript compilation: 0 errors
 - Linting: Clean (0 errors, 41 warnings in CLI tool acceptable)
 - Tests: 114 test files passing
@@ -181,15 +193,17 @@ All verification checks passing:
 **No Active Issues** - All previous TypeScript errors and verification issues have been resolved.
 
 **Recent Improvements:**
+
 1. Fixed all silent fallback warnings (6 instances across multiple files)
 2. Added sheets_session tool to all registry locations
 3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced)
 4. Added Tier 7 enterprise tools (sheets_appsscript, sheets_bigquery, sheets_templates)
-5. Current state: 21 tools with 272 actions
+5. Current state: 21 tools with 293 actions
 6. Synchronized metadata across all files
 7. Fixed TypeScript strict mode issues in handlers
 
 **Check current status:**
+
 ```bash
 npm run verify 2>&1 | tee verify-output.txt
 ```
@@ -200,19 +214,19 @@ npm run verify 2>&1 | tee verify-output.txt
 
 **These files have been removed and should NOT be referenced:**
 
-| File | Deleted | Reason | Replacement |
-|------|---------|--------|-------------|
-| `src/mcp/sdk-compat.ts` | 2026-01-11 | Schema flattening complete | Native SDK conversion |
-| `tests/contracts/sdk-compat.test.ts` | 2026-01-11 | Test for deleted file | N/A |
-| `src/server-v2.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
-| `src/server-compat.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
-| `src/migration-v1-to-v2.ts` | 2026-01-14 | V2 architecture abandoned | N/A |
-| `src/schemas-v2/` | 2026-01-14 | V2 architecture abandoned | N/A |
-| `src/handlers-v2/` | 2026-01-14 | V2 architecture abandoned | N/A |
-| `src/services/snapshot-service.ts` | 2026-01-14 | Unused V2 service | N/A |
-| `src/__tests__/handlers-v2.test.ts` | 2026-01-14 | V2 test file | N/A |
-| `docs/archive/2026-01/` | 2026-01-14 | Old debug logs | N/A |
-| `docs/archive/2026-01-debug-session/` | 2026-01-14 | Old debug logs | N/A |
+| File                                  | Deleted    | Reason                     | Replacement           |
+| ------------------------------------- | ---------- | -------------------------- | --------------------- |
+| `src/mcp/sdk-compat.ts`               | 2026-01-11 | Schema flattening complete | Native SDK conversion |
+| `tests/contracts/sdk-compat.test.ts`  | 2026-01-11 | Test for deleted file      | N/A                   |
+| `src/server-v2.ts`                    | 2026-01-14 | V2 architecture abandoned  | N/A                   |
+| `src/server-compat.ts`                | 2026-01-14 | V2 architecture abandoned  | N/A                   |
+| `src/migration-v1-to-v2.ts`           | 2026-01-14 | V2 architecture abandoned  | N/A                   |
+| `src/schemas-v2/`                     | 2026-01-14 | V2 architecture abandoned  | N/A                   |
+| `src/handlers-v2/`                    | 2026-01-14 | V2 architecture abandoned  | N/A                   |
+| `src/services/snapshot-service.ts`    | 2026-01-14 | Unused V2 service          | N/A                   |
+| `src/__tests__/handlers-v2.test.ts`   | 2026-01-14 | V2 test file               | N/A                   |
+| `docs/archive/2026-01/`               | 2026-01-14 | Old debug logs             | N/A                   |
+| `docs/archive/2026-01-debug-session/` | 2026-01-14 | Old debug logs             | N/A                   |
 
 **Git evidence:** V2 files were never committed (untracked). Planning docs archived in `docs/archive/abandoned-v2/`
 
@@ -225,16 +239,17 @@ npm run verify 2>&1 | tee verify-output.txt
 The `sheets_session` tool provides conversational context management.
 
 **All locations now synchronized:**
+
 - ✅ `src/schemas/session.ts` - Schema definition
 - ✅ `src/handlers/session.ts` - Handler implementation
 - ✅ `src/mcp/registration/tool-definitions.ts` - Registered
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
 - ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 21 tools"
 - ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 21 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "272 actions across 21 tools"
+- ✅ `src/mcp/completions.ts` - Comment updated to "293 actions across 21 tools"
 - ✅ Tool is functional and working
 
-**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 272 actions (as of 2026-01-27)
+**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 293 actions (as of 2026-02-01)
 
 ---
 
@@ -245,14 +260,16 @@ The `sheets_session` tool provides conversational context management.
 The HTTP and OAuth servers have been consolidated into a single implementation.
 
 **Current Architecture:**
+
 - `src/server.ts` - STDIO transport (MCP over stdin/stdout)
 - `src/http-server.ts` - HTTP/SSE transport with optional OAuth support
 - `src/remote-server.ts` - Thin compatibility wrapper (calls http-server with OAuth enabled)
 
 **Usage:**
+
 ```typescript
 // Standard HTTP mode (token via Authorization header)
-createHttpServer({ port: 3000 })
+createHttpServer({ port: 3000 });
 
 // OAuth mode (full OAuth 2.1 provider)
 createHttpServer({
@@ -269,11 +286,11 @@ createHttpServer({
     googleClientSecret: '...',
     accessTokenTtl: 3600,
     refreshTokenTtl: 604800,
-  }
-})
+  },
+});
 
 // Backward compatibility
-startRemoteServer({ port: 3000 })  // Uses OAuth mode
+startRemoteServer({ port: 3000 }); // Uses OAuth mode
 ```
 
 **Code Reduction:** ~540 LOC of duplicated code eliminated

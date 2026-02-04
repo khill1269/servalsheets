@@ -48,12 +48,12 @@ if [ -n "$STAGED_MD_FILES" ]; then
   # Verify documentation action counts if README.md or SKILL.md changed
   if echo "$STAGED_MD_FILES" | grep -q "README.md\|docs/guides/SKILL.md"; then
     echo "  → Verifying action counts in documentation"
-    if ! grep -q "21 tools, 291 actions" README.md; then
-      echo "❌ README.md has incorrect action count. Should be '21 tools, 291 actions'"
+    if ! grep -q "21 tools, 293 actions" README.md; then
+      echo "❌ README.md has incorrect action count. Should be '21 tools, 293 actions'"
       exit 1
     fi
-    if ! grep -q "21 tools with 291 actions" docs/guides/SKILL.md; then
-      echo "❌ SKILL.md has incorrect action count. Should be '21 tools with 291 actions'"
+    if ! grep -q "21 tools with 293 actions" docs/guides/SKILL.md; then
+      echo "❌ SKILL.md has incorrect action count. Should be '21 tools with 293 actions'"
       exit 1
     fi
   fi

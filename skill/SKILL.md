@@ -35,7 +35,7 @@ R - REFLECT     Report results, suggest improvements, next steps
 
 ## Tool Architecture
 
-21 tools with 272 actions. Each tool called with `request` object:
+21 tools with 293 actions. Each tool called with `request` object:
 
 ```json
 { "request": { "action": "action_name", "spreadsheetId": "...", ...params } }
@@ -129,4 +129,4 @@ R - REFLECT     Report results, suggest improvements, next steps
 
 Load for detailed information:
 
-- [references/tool-guide.md](references/tool-guide.md) — Complete 21 tools, 272 actions
+- [references/tool-guide.md](references/tool-guide.md) — Complete 21 tools, 293 actions

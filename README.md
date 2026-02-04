@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 21 tools, 291 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 21 tools, 293 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -70,7 +70,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.25.2
-- ✅ **Tools**: 21 tools with 291 actions using discriminated unions
+- ✅ **Tools**: 21 tools with 293 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -260,7 +260,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (21 tools, 272 actions)
+### Tool Summary (21 tools, 293 actions)
 
 | Tool                  | Actions | Description                                                       |
 | --------------------- | ------- | ----------------------------------------------------------------- |
