@@ -1,4 +1,12 @@
+---
+title: Comprehensive ServalSheets Audit Toolkit
+category: archived
+last_updated: 2026-01-31
+description: "Purpose: Systematic validation of codebase integrity, documentation accuracy, and standards compliance"
+---
+
 # Comprehensive ServalSheets Audit Toolkit
+
 **Purpose:** Systematic validation of codebase integrity, documentation accuracy, and standards compliance
 **Date:** 2026-01-29
 
@@ -35,6 +43,7 @@ grep "error TS" typescript-audit.txt | cut -d: -f4 | sort | uniq -c | sort -rn
 ```
 
 **What it catches:**
+
 - ✅ Missing imports
 - ✅ Type mismatches
 - ✅ Unused variables
@@ -64,6 +73,7 @@ npx madge --depends src/ | sort -k2 -rn | head -20
 ```
 
 **What it catches:**
+
 - ✅ Circular dependencies (architecture smell)
 - ✅ Orphaned files (unused code)
 - ✅ High coupling (over-complex modules)
@@ -86,6 +96,7 @@ npx ts-prune | grep "used in module" | wc -l
 ```
 
 **What it catches:**
+
 - ✅ Dead code
 - ✅ Refactoring leftovers
 - ✅ Incorrectly exported internals
@@ -109,6 +120,7 @@ npx c8 report --reporter=text | grep -A5 "Uncovered"
 ```
 
 **Thresholds to check:**
+
 - ✅ Handlers: >80% coverage
 - ✅ Services: >70% coverage
 - ✅ Utils: >85% coverage
@@ -139,6 +151,7 @@ npx npm-check-updates --interactive
 ```
 
 **What it catches:**
+
 - ✅ Security vulnerabilities
 - ✅ Deprecated packages
 - ✅ Major version updates needed
@@ -163,6 +176,7 @@ npx @modelcontextprotocol/inspector dist/cli.js
 ```
 
 **Manual Test Checklist:**
+
 - [ ] All 21 tools appear in list
 - [ ] Each tool has correct input schema
 - [ ] Each tool returns valid output schema
@@ -316,6 +330,7 @@ npx typedoc --validation.invalidLink --validation.notDocumented
 ```
 
 **Add to package.json:**
+
 ```json
 {
   "scripts": {
@@ -424,6 +439,7 @@ npx cr src/**/*.ts --format json | jq '.functions[] | select(.cyclomatic > 20)'
 ```
 
 **Thresholds:**
+
 - Cyclomatic complexity: <20 (prefer <10)
 - Function length: <100 lines (prefer <50)
 - Parameter count: <5 (prefer <3)
@@ -569,6 +585,7 @@ npm install -g @modelcontextprotocol/server-brave-search
 ```
 
 **Then ask Claude to:**
+
 - "Use filesystem MCP to analyze all TypeScript files and find inconsistencies"
 - "Use GitHub MCP to check for open issues related to documentation"
 - "Use Brave Search to find latest MCP best practices and compare to our implementation"
@@ -588,6 +605,7 @@ npm install @modelcontextprotocol/sdk
 ```
 
 **`src/audit-server.ts`:**
+
 ```typescript
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -636,6 +654,7 @@ await server.connect(transport);
 ```
 
 **Then use it with Claude:**
+
 ```bash
 npx @modelcontextprotocol/inspector dist/audit-server.js
 ```

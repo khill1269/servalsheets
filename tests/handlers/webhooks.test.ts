@@ -16,6 +16,7 @@ const mockWebhookManager = {
   list: vi.fn(),
   get: vi.fn(),
   recordDelivery: vi.fn(),
+  getEventStats: vi.fn(),
 };
 
 // Mock webhook queue
@@ -501,6 +502,7 @@ describe('WebhookHandler', () => {
       };
 
       mockWebhookManager.get.mockResolvedValue(mockWebhook);
+      mockWebhookManager.getEventStats.mockResolvedValue(null); // No event stats yet
       mockWebhookQueue.getStats.mockResolvedValue({
         pendingCount: 1,
         failedCount: 0,

@@ -1,4 +1,13 @@
+---
+title: 🎯 ServalSheets - Complete Implementation Plan
+category: archived
+last_updated: 2026-01-31
+description: "Created: 2026-01-24"
+tags: [prometheus]
+---
+
 # 🎯 ServalSheets - Complete Implementation Plan
+
 **Created**: 2026-01-24
 **Status**: Planning Phase - Awaiting Approval
 
@@ -7,6 +16,7 @@
 ## Overview
 
 This plan addresses **3 categories** of improvements discovered through comprehensive analysis:
+
 1. **Critical Stability** (P0): Memory leaks, concurrency issues, safety
 2. **Performance** (P1): Caching, API optimization, resource management
 3. **Code Quality** (P2): Architecture cleanup, maintainability
@@ -21,8 +31,10 @@ This plan addresses **3 categories** of improvements discovered through comprehe
 These are high-impact, low-effort improvements that require no architectural changes.
 
 ### ✅ 0.1: Add Semantic Priority to Suggestions
+
 **File**: `src/utils/response-enhancer.ts`
 **Current**:
+
 ```typescript
 _meta: {
   suggestedTools: ['sheets_fix', 'sheets_visualize']
@@ -30,6 +42,7 @@ _meta: {
 ```
 
 **New**:
+
 ```typescript
 _meta: {
   suggestedTools: [
@@ -50,6 +63,7 @@ _meta: {
 ```
 
 **Implementation**:
+
 ```typescript
 // src/utils/response-enhancer.ts
 interface SuggestedTool {
@@ -103,6 +117,7 @@ function rankSuggestions(
 ```
 
 **Testing**:
+
 - Add test in `tests/utils/response-enhancer.test.ts`
 - Verify priority ordering
 - Check reason generation logic
@@ -113,9 +128,11 @@ function rankSuggestions(
 ---
 
 ### ✅ 0.2: Link Resources in Error Responses
+
 **File**: `src/utils/error-factory.ts`
 
 **Current**:
+
 ```typescript
 export function createSheetNotFoundError(
   message: string,
@@ -131,6 +148,7 @@ export function createSheetNotFoundError(
 ```
 
 **New**:
+
 ```typescript
 export function createSheetNotFoundError(
   message: string,
@@ -164,7 +182,9 @@ export function createSheetNotFoundError(
 ```
 
 **Implementation Plan**:
+
 1. Update `ErrorDetail` interface in `src/schemas/shared.ts`:
+
 ```typescript
 export interface ErrorDetail {
   code: ErrorCode;
@@ -191,6 +211,7 @@ export interface ErrorDetail {
 3. Create new resources in `src/resources/` if needed
 
 **Errors to Enhance**:
+
 - SHEET_NOT_FOUND → servalsheets://decisions/find-sheet
 - PERMISSION_DENIED → servalsheets://decisions/request-access
 - AUTH_REQUIRED → servalsheets://reference/authentication
@@ -201,6 +222,7 @@ export interface ErrorDetail {
 - DATA_VALIDATION_ERROR → servalsheets://reference/data-types
 
 **Testing**:
+
 - Update `tests/error-factory.test.ts`
 - Verify resource URIs are valid
 - Check that resources exist
@@ -211,9 +233,11 @@ export interface ErrorDetail {
 ---
 
 ### ✅ 0.3: Add Cost Comparison Matrix
+
 **File**: `src/schemas/descriptions.ts`
 
 **Current**:
+
 ```typescript
 export const SHEETS_DATA_DESCRIPTION = `
 **TOP 3 ACTIONS**:
@@ -224,6 +248,7 @@ export const SHEETS_DATA_DESCRIPTION = `
 ```
 
 **New**:
+
 ```typescript
 export const SHEETS_DATA_DESCRIPTION = `
 **TOP 3 ACTIONS**:
@@ -254,11 +279,13 @@ export const SHEETS_DATA_DESCRIPTION = `
 ```
 
 **Add to ALL tools** with batching:
+
 - sheets_data (read vs batch_read vs batch_write)
 - sheets_dimensions (insert vs batch operations)
 - sheets_core (get vs batch_get)
 
 **Implementation**:
+
 ```typescript
 // src/schemas/descriptions.ts
 interface CostProfile {
@@ -300,6 +327,7 @@ function generateCostComparison(
 ---
 
 ### ✅ 0.4: Action Equivalence Map
+
 **File**: `src/mcp/completions.ts`
 
 **Purpose**: Help Claude map natural language queries to actual action names
@@ -308,6 +336,7 @@ function generateCostComparison(
 **New**: Fuzzy matching with synonym support
 
 **Implementation**:
+
 ```typescript
 // src/mcp/completions.ts
 
@@ -407,6 +436,7 @@ export function completeAction(toolName: string, partial: string): string[] {
 ```
 
 **Testing**:
+
 ```typescript
 // tests/mcp/completions.test.ts
 describe('Action phrase matching', () => {
@@ -433,10 +463,12 @@ describe('Action phrase matching', () => {
 These are production-critical fixes that prevent crashes, memory leaks, and quota issues.
 
 ### 🔥 1.1: Unified Concurrency Control
+
 **Priority**: P0 (Critical)
 **Files**: `src/utils/concurrency-coordinator.ts` (NEW)
 
 **Problem**: 3 independent concurrency limits can spawn 22+ concurrent Google API connections
+
 - ParallelExecutor: max 20 concurrent
 - PrefetchingSystem: max 2 concurrent
 - BatchingSystem: adaptive window control
@@ -446,6 +478,7 @@ These are production-critical fixes that prevent crashes, memory leaks, and quot
 **Solution**: Shared semaphore across all executors
 
 **Implementation**:
+
 ```typescript
 // src/utils/concurrency-coordinator.ts
 
@@ -524,7 +557,9 @@ export class ConcurrencyCoordinator {
 ```
 
 **Integration Points**:
+
 1. **ParallelExecutor** (`src/services/parallel-executor.ts`):
+
 ```typescript
 async execute<T>(operations: Operation<T>[]): Promise<T[]> {
   const coordinator = ConcurrencyCoordinator.getInstance();
@@ -538,6 +573,7 @@ async execute<T>(operations: Operation<T>[]): Promise<T[]> {
 ```
 
 2. **PrefetchingSystem** (`src/services/prefetching-system.ts`):
+
 ```typescript
 async prefetch(spreadsheetId: string): Promise<void> {
   const coordinator = ConcurrencyCoordinator.getInstance();
@@ -550,6 +586,7 @@ async prefetch(spreadsheetId: string): Promise<void> {
 ```
 
 3. **BatchingSystem** (`src/services/batching-system.ts`):
+
 ```typescript
 async executeBatch(batch: Batch): Promise<Response> {
   const coordinator = ConcurrencyCoordinator.getInstance();
@@ -562,6 +599,7 @@ async executeBatch(batch: Batch): Promise<Response> {
 ```
 
 **Testing**:
+
 ```typescript
 // tests/utils/concurrency-coordinator.test.ts
 describe('ConcurrencyCoordinator', () => {
@@ -583,6 +621,7 @@ describe('ConcurrencyCoordinator', () => {
 ```
 
 **Metrics Integration**:
+
 ```typescript
 // src/services/metrics.ts
 MetricsService.registerGauge('concurrency_active', () =>
@@ -600,12 +639,14 @@ MetricsService.registerGauge('concurrency_queued', () =>
 ---
 
 ### 🔥 1.2: Memory Leak Detection & Fixes
+
 **Priority**: P0 (Critical)
 **Files**: Multiple service files
 
 **Problem**: 45 timer registrations, only 33 cleanup calls detected
 
 **Leaks Identified**:
+
 1. `PrefetchingSystem.refreshTimer` - unref'd but may not cleanup
 2. `CacheManager.cleanupTimer` - window history grows unbounded (1000+ entries)
 3. `MetricsService` - interval timers without cleanup
@@ -615,6 +656,7 @@ MetricsService.registerGauge('concurrency_queued', () =>
 **Implementation**:
 
 **Step 1: Add cleanup registry**
+
 ```typescript
 // src/utils/resource-cleanup.ts
 
@@ -672,6 +714,7 @@ process.on('SIGINT', () => ResourceCleanup.cleanup());
 **Step 2: Fix each leak**
 
 1. **PrefetchingSystem** (`src/services/prefetching-system.ts`):
+
 ```typescript
 export class PrefetchingSystem {
   private refreshTimer?: NodeJS.Timeout;
@@ -692,6 +735,7 @@ export class PrefetchingSystem {
 ```
 
 2. **CacheManager** (`src/utils/cache-manager.ts`):
+
 ```typescript
 export class CacheManager {
   private windowHistory: number[] = [];
@@ -709,6 +753,7 @@ export class CacheManager {
 ```
 
 3. **HistoryService** (`src/services/history-service.ts`):
+
 ```typescript
 export class HistoryService {
   private operations: Operation[] = [];
@@ -726,6 +771,7 @@ export class HistoryService {
 ```
 
 **Step 3: Add CI memory leak tests**
+
 ```typescript
 // tests/memory/leak-detection.test.ts
 
@@ -766,6 +812,7 @@ describe('Memory leak detection', () => {
 ```
 
 **GitHub Actions Integration**:
+
 ```yaml
 # .github/workflows/memory-leak-check.yml
 - name: Run memory leak tests
@@ -781,6 +828,7 @@ describe('Memory leak detection', () => {
 ---
 
 ### 🔥 1.3: Auto-Invoke Elicitation for Destructive Operations
+
 **Priority**: P0 (Safety)
 **Files**: `src/handlers/base.ts`, `src/mcp/elicitation.ts`
 
@@ -791,6 +839,7 @@ describe('Memory leak detection', () => {
 **Solution**: Auto-invoke elicitation before dangerous operations
 
 **Implementation**:
+
 ```typescript
 // src/handlers/base.ts
 
@@ -914,6 +963,7 @@ async handle(input: unknown, context: HandlerContext): Promise<ToolResponse> {
 ```
 
 **Testing**:
+
 ```typescript
 // tests/handlers/elicitation.test.ts
 describe('Auto-elicitation', () => {
@@ -957,12 +1007,14 @@ describe('Auto-elicitation', () => {
 ---
 
 ### 🔥 1.4: Fix Unbounded Service Caches
+
 **Priority**: P0 (Memory)
 **Files**: 11 service files
 
 **Problem**: Services use Map-based caches without size limits
 
 **Affected Services**:
+
 1. AccessPatternTracker - tracks access patterns (unbounded)
 2. HistoryService - maintains operation history (unbounded)
 3. CapabilityCache - session capabilities (has TTL but no size limit)
@@ -972,6 +1024,7 @@ describe('Auto-elicitation', () => {
 **Solution**: Implement shared `BoundedCache<K, V>` with LRU eviction
 
 **Implementation**:
+
 ```typescript
 // src/utils/bounded-cache.ts
 
@@ -1033,6 +1086,7 @@ export class BoundedCache<K extends string, V> {
 ```
 
 **Migration Example** (AccessPatternTracker):
+
 ```typescript
 // BEFORE:
 export class AccessPatternTracker {
@@ -1068,6 +1122,7 @@ export class AccessPatternTracker {
 ```
 
 **Services to Migrate** (priority order):
+
 1. AccessPatternTracker (highest growth rate)
 2. HistoryService (grows with every operation)
 3. SessionContext (grows with users)
@@ -1076,6 +1131,7 @@ export class AccessPatternTracker {
 6. 6 more services...
 
 **Testing**:
+
 ```typescript
 // tests/utils/bounded-cache.test.ts
 describe('BoundedCache', () => {
@@ -1114,6 +1170,7 @@ describe('BoundedCache', () => {
 ## Phase 2: Performance (Week 2 - 10 hours)
 
 ### ⚡ 2.1: Cache Key Memoization
+
 **Priority**: P1
 **Files**: `src/utils/cache-manager.ts`, `src/utils/memoization.ts`
 
@@ -1122,6 +1179,7 @@ describe('BoundedCache', () => {
 **Solution**: Memoize key generation with LRU cache
 
 **Implementation**:
+
 ```typescript
 // src/utils/cache-key-generator.ts
 
@@ -1184,6 +1242,7 @@ export const cacheKeyGenerator = new CacheKeyGenerator();
 ```
 
 **Integration**:
+
 ```typescript
 // src/utils/cache-manager.ts
 import { cacheKeyGenerator } from './cache-key-generator';
@@ -1197,6 +1256,7 @@ export function createCacheKey(
 ```
 
 **Benchmarks**:
+
 ```typescript
 // tests/benchmarks/cache-key-generation.bench.ts
 describe('Cache key generation benchmarks', () => {
@@ -1227,6 +1287,7 @@ describe('Cache key generation benchmarks', () => {
 ---
 
 ### ⚡ 2.2: Sheet Resolver Cross-Handler Caching
+
 **Priority**: P1
 **Files**: `src/services/sheet-resolver.ts`, `src/handlers/base.ts`
 
@@ -1235,6 +1296,7 @@ describe('Cache key generation benchmarks', () => {
 **Solution**: Share resolved metadata across handlers within same request context
 
 **Implementation**:
+
 ```typescript
 // src/utils/request-context.ts (extend existing)
 
@@ -1268,6 +1330,7 @@ export function getSheetCache(context: RequestContext): ResolvedSheetCache {
 ```
 
 **Sheet Resolver Integration**:
+
 ```typescript
 // src/services/sheet-resolver.ts
 
@@ -1335,6 +1398,7 @@ export class SheetResolver {
 ```
 
 **Handler Integration**:
+
 ```typescript
 // src/handlers/base.ts
 
@@ -1361,6 +1425,7 @@ private shouldPrePopulateCache(input: unknown): boolean {
 ```
 
 **Testing**:
+
 ```typescript
 // tests/services/sheet-resolver.test.ts
 describe('Sheet resolver caching', () => {
@@ -1385,6 +1450,7 @@ describe('Sheet resolver caching', () => {
 ---
 
 ### ⚡ 2.3: Request Deduplication TTL
+
 **Priority**: P1
 **Files**: `src/utils/request-deduplication.ts`
 
@@ -1393,6 +1459,7 @@ describe('Sheet resolver caching', () => {
 **Solution**: Add TTL and size limits to dedup cache
 
 **Implementation**:
+
 ```typescript
 // src/utils/request-deduplication.ts
 
@@ -1460,6 +1527,7 @@ export class RequestDeduplicator {
 ## Phase 3: Code Quality (Week 3 - 19 hours)
 
 ### 📦 3.1: Consolidate Error Handling
+
 **Priority**: P2
 **Files**: `src/utils/error-factory.ts`, `src/utils/enhanced-errors.ts`, `src/utils/error-messages.ts`
 
@@ -1468,6 +1536,7 @@ export class RequestDeduplicator {
 **Solution**: Single `UnifiedErrorFactory` with strategy pattern
 
 **Architecture**:
+
 ```typescript
 // src/utils/unified-error-factory.ts
 
@@ -1549,6 +1618,7 @@ export const errorFactory = new UnifiedErrorFactory();
 ```
 
 **Migration Plan**:
+
 1. Create `unified-error-factory.ts` with strategy pattern
 2. Migrate 40+ error types one-by-one
 3. Update all handlers to use new factory
@@ -1561,6 +1631,7 @@ export const errorFactory = new UnifiedErrorFactory();
 ---
 
 ### 🏗️ 3.2: Handler Composition Over Inheritance
+
 **Priority**: P2
 **Files**: `src/handlers/base.ts` → multiple new files
 
@@ -1569,6 +1640,7 @@ export const errorFactory = new UnifiedErrorFactory();
 **Solution**: Use composition with mixins/helpers
 
 **New Architecture**:
+
 ```typescript
 // src/handlers/mixins/safety-mixin.ts
 export function withSafety<T extends Handler>(handler: T): T & SafetyMethods {
@@ -1620,6 +1692,7 @@ export class DataHandler implements Handler {
 ```
 
 **Benefits**:
+
 - Handlers only get features they need
 - Easier to test (can test mixins independently)
 - Clearer dependencies
@@ -1631,6 +1704,7 @@ export class DataHandler implements Handler {
 ---
 
 ### 📊 3.3: Metrics Consolidation
+
 **Priority**: P2
 **Files**: `src/services/metrics.ts`, `src/services/metrics-dashboard.ts`, `src/services/sampling-analysis.ts`
 
@@ -1639,6 +1713,7 @@ export class DataHandler implements Handler {
 **Solution**: Unified metrics with topic-based publishing
 
 **Architecture**:
+
 ```typescript
 // src/services/unified-metrics.ts
 
@@ -1705,7 +1780,8 @@ class DashboardAggregator implements MetricSubscriber {
 
 ## Phase 4: Polish (Week 4 - 15 hours)
 
-### Additional improvements including:
+### Additional improvements including
+
 - Complete tool icons (5/21 missing)
 - Bundle size optimization
 - Documentation updates
@@ -1730,27 +1806,32 @@ class DashboardAggregator implements MetricSubscriber {
 ### Expected Impact
 
 **Phase 0 (2h)**:
+
 - -8% wrong tool usage
 - +12% error self-service
 - Better Claude guidance
 
 **Phase 1 (13h)**:
+
 - -50% production bugs
 - 100% safer under load (quota protection)
 - -100MB memory per week
 - -15% accidental data loss
 
 **Phase 2 (10h)**:
+
 - -30% API calls
 - -500ms per 1000 requests
 - Better cache efficiency
 
 **Phase 3 (19h)**:
+
 - +50% developer productivity
 - -50% maintenance time
 - Better architecture
 
 **Phase 4 (15h)**:
+
 - Production polish
 - World-class quality
 
@@ -1759,6 +1840,7 @@ class DashboardAggregator implements MetricSubscriber {
 ## Recommended Approval Strategy
 
 ### Option A: Phased Rollout (Recommended)
+
 ```
 Week 1: Approve & implement Phase 0 + Phase 1 (15 hours)
 Week 2: Review results, approve Phase 2 (10 hours)
@@ -1767,12 +1849,14 @@ Week 4: Review results, approve Phase 4 (15 hours)
 ```
 
 ### Option B: Quick Wins Only
+
 ```
 Today: Implement Phase 0 only (2 hours)
 Next week: Re-evaluate based on testing
 ```
 
 ### Option C: Critical Path Only
+
 ```
 Week 1: Phase 0 + critical items from Phase 1 (8 hours)
 - Concurrency control

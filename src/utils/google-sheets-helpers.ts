@@ -248,11 +248,60 @@ export function toGridRange(input: GridRangeInput): sheets_v4.Schema$GridRange {
 
 /**
  * Estimate cell count from a GridRange
+ *
+ * Accounts for:
+ * - Sparse matrices (empty cells don't count toward payload)
+ * - Merged cells (count as single cell for bandwidth estimation)
+ * - Actual data size if available
+ *
+ * @param range - GridRange to estimate
+ * @param options - Optional estimation parameters
+ * @returns Estimated cell count (conservative for bandwidth planning)
  */
-export function estimateCellCount(range: sheets_v4.Schema$GridRange): number {
+export function estimateCellCount(
+  range: sheets_v4.Schema$GridRange,
+  options?: {
+    /** Actual row data for sparsity detection */
+    values?: unknown[][];
+    /** Merged cell ranges for deduplication */
+    merges?: sheets_v4.Schema$GridRange[];
+    /** Sparsity factor (0-1, default 0.7 for typical sheets) */
+    sparsityFactor?: number;
+  }
+): number {
   const rows = (range.endRowIndex ?? 0) - (range.startRowIndex ?? 0);
   const cols = (range.endColumnIndex ?? 0) - (range.startColumnIndex ?? 0);
-  return Math.max(0, rows * cols);
+  const rawCellCount = Math.max(0, rows * cols);
+
+  // If we have actual data, count non-empty cells
+  if (options?.values) {
+    let nonEmptyCells = 0;
+    for (const row of options.values) {
+      if (Array.isArray(row)) {
+        nonEmptyCells += row.filter(
+          (cell) => cell !== null && cell !== undefined && cell !== ''
+        ).length;
+      }
+    }
+    return nonEmptyCells;
+  }
+
+  // If we have merge information, subtract merged cells
+  if (options?.merges && options.merges.length > 0) {
+    let mergedCellCount = 0;
+    for (const merge of options.merges) {
+      const mergeRows = (merge.endRowIndex ?? 0) - (merge.startRowIndex ?? 0);
+      const mergeCols = (merge.endColumnIndex ?? 0) - (merge.startColumnIndex ?? 0);
+      // Merged cells count as 1 for the top-left, 0 for the rest
+      mergedCellCount += Math.max(0, mergeRows * mergeCols - 1);
+    }
+    return Math.max(0, rawCellCount - mergedCellCount);
+  }
+
+  // Apply sparsity factor for more realistic estimates
+  // Typical spreadsheets are 60-80% sparse (empty cells)
+  const sparsityFactor = options?.sparsityFactor ?? 0.7;
+  return Math.ceil(rawCellCount * sparsityFactor);
 }
 
 // ============================================================================

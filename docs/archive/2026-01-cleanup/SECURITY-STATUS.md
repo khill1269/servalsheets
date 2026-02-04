@@ -1,3 +1,11 @@
+---
+title: Security Status
+category: archived
+last_updated: 2026-01-31
+description: "Last Updated: 2026-01-16"
+tags: [security]
+---
+
 # Security Status
 
 **Last Updated:** 2026-01-16
@@ -13,10 +21,12 @@
 **Severity:** HIGH
 
 **CVEs:**
+
 - GHSA-3vhc-576x-3qv4: JWT algorithm confusion when JWK lacks "alg"
 - GHSA-f67f-6cw9-8mq4: JWT Algorithm Confusion via Unsafe Default (HS256)
 
 **Dependency Chain:**
+
 ```
 servalsheets
   └── @modelcontextprotocol/sdk@1.25.2
@@ -27,22 +37,26 @@ servalsheets
 **Impact Assessment for ServalSheets:** ✅ **LOW RISK**
 
 **Why Low Risk:**
+
 1. **Primary Transport:** ServalSheets uses STDIO transport for Claude Desktop
 2. **HTTP Usage:** hono is only used by MCP SDK for HTTP/SSE transport (optional)
 3. **JWT Not Used:** ServalSheets OAuth implementation doesn't use hono's JWT middleware
 4. **Scope:** Vulnerability is in hono's JWT auth middleware, which we don't use
 
 **Mitigation:**
+
 - Default configuration uses STDIO (unaffected)
 - HTTP server mode uses Express, not hono
 - If using MCP SDK HTTP features: use OAuth with Google, not JWT
 
 **Resolution Timeline:**
+
 - **Expected Fix:** hono@4.11.4 (not yet released)
 - **Workaround:** Already implemented - use STDIO or Express-based HTTP server
 - **Tracking:** Will update to @modelcontextprotocol/sdk with fixed hono version when available
 
 **Action Items:**
+
 - [ ] Monitor hono releases for 4.11.4+
 - [ ] Update @modelcontextprotocol/sdk when new version with fixed hono is released
 - [ ] Re-run `npm audit` monthly
@@ -99,7 +113,7 @@ If you discover a security vulnerability in ServalSheets, please:
 
 ## Security Best Practices
 
-### For Users:
+### For Users
 
 1. **Use OAuth Authentication** (recommended)
    - Tokens encrypted at rest
@@ -121,7 +135,7 @@ If you discover a security vulnerability in ServalSheets, please:
    - No credentials in config file
    - Automatic cleanup on uninstall
 
-### For Developers:
+### For Developers
 
 1. **Dependency Management**
    - Review security advisories monthly

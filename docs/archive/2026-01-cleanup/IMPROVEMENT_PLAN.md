@@ -1,3 +1,11 @@
+---
+title: ServalSheets Comprehensive Improvement Plan
+category: archived
+last_updated: 2026-01-31
+description: "Created: January 23, 2026"
+tags: [sheets]
+---
+
 # ServalSheets Comprehensive Improvement Plan
 
 **Created:** January 23, 2026  
@@ -9,6 +17,7 @@
 ## 🎯 Executive Summary
 
 This document outlines a systematic improvement plan for ServalSheets with:
+
 - **59 validation errors** to fix (58 schema-related)
 - **Guardrails framework** to prevent breaking changes
 - **Testing strategy** with continuous validation
@@ -19,6 +28,7 @@ This document outlines a systematic improvement plan for ServalSheets with:
 ## 📊 Current State Analysis
 
 ### Tool Inventory
+
 | Metric | Current | Target |
 |--------|---------|--------|
 | Tools | 19 | 19 |
@@ -452,6 +462,7 @@ echo "✅ All CI validation passed!"
 **Source:** https://modelcontextprotocol.io/specification/2025-11-25
 
 Key requirements for schema compliance:
+
 1. **JSON-RPC 2.0** message format
 2. **JSON Schema Draft 2020-12** for input/output schemas
 3. Tool schemas MUST declare required fields, types, allowed values

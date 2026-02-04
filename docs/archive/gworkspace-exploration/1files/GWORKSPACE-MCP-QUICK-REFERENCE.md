@@ -1,6 +1,15 @@
+---
+title: GWorkspace MCP Quick Reference Card
+category: archived
+last_updated: 2026-01-31
+description: "Tools:      16          Resources:   25+"
+tags: [mcp, sheets]
+---
+
 # GWorkspace MCP Quick Reference Card
 
 ## 📊 Key Metrics
+
 ```
 Tools:      16          Resources:   25+
 Actions:    211         Prompts:     12
@@ -31,24 +40,28 @@ APIs:       4           Est. LOC:    15-20K
 ## 🧠 Intelligence Features
 
 ### Sampling (Server → LLM)
+
 ```
 Champions: gw_formulas, gw_workflow, gw_scripts, gw_charts, gw_query
 Use for:   Formula generation, chart recommendations, SQL generation
 ```
 
 ### Elicitation (Server → User)  
+
 ```
 Champions: gw_share (security), gw_query (costs), gw_filter (data loss)
 Use for:   Destructive confirmations, permission changes, cost warnings
 ```
 
 ### Streaming (Progress)
+
 ```
 Champions: gw_workflow, gw_files, gw_query
 Use for:   Multi-step workflows, large imports/exports, long queries
 ```
 
 ### Safety Features
+
 ```
 Snapshot:  gw_rows/columns (delete), gw_filter (deduplicate)
 Diff:      gw_cells (find_replace), gw_filter (deduplicate)
@@ -78,6 +91,7 @@ Undo:      All destructive operations (except transfer_ownership)
 | `gw_scripts.deploy` | 🔓 PUBLIC ACCESS | Security warning |
 
 ## 📦 NPM Setup
+
 ```bash
 npm install @modelcontextprotocol/sdk@^1.22.0 \
             googleapis@^140.0.0 \
@@ -98,6 +112,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 \
 ## 💡 Quick Code Patterns
 
 ### Tool Registration
+
 ```typescript
 server.registerTool("gw_cells.read", {
   title: "Read Cells",
@@ -113,6 +128,7 @@ server.registerTool("gw_cells.read", {
 ```
 
 ### Sampling Call
+
 ```typescript
 const formula = await samplingService.createMessage({
   messages: [{ role: "user", content: prompt }],
@@ -122,6 +138,7 @@ const formula = await samplingService.createMessage({
 ```
 
 ### Elicitation
+
 ```typescript
 const confirmed = await elicitationService.confirm({
   message: `Delete ${rowCount} rows?`,
@@ -130,6 +147,7 @@ const confirmed = await elicitationService.confirm({
 ```
 
 ### Progress Streaming
+
 ```typescript
 const progress = streaming.createProgress("operation-id");
 await progress.step("Step 1 of 5...");
@@ -137,6 +155,7 @@ await progress.complete(result);
 ```
 
 ## 📁 Project Structure (Key Files)
+
 ```
 src/
 ├── tools/           # 16 tool implementations
@@ -150,15 +169,19 @@ src/
 ## 🚀 Implementation Priority
 
 ### Phase 1: Core
+
 `gw_spreadsheet` → `gw_cells` → `gw_rows` → `gw_columns`
 
 ### Phase 2: Intelligence
+
 `gw_formulas` → `gw_style` → `gw_rules` → Sampling/Elicitation
 
 ### Phase 3: Features
+
 `gw_charts` → `gw_filter` → `gw_share` → `gw_files`
 
 ### Phase 4: Advanced
+
 `gw_triggers` → `gw_scripts` → `gw_query` → `gw_workflow`
 
 ---

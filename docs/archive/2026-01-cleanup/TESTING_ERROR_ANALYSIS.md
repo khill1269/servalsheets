@@ -1,3 +1,11 @@
+---
+title: ServalSheets MCP Server - Comprehensive Error Analysis
+category: archived
+last_updated: 2026-01-31
+description: "Analysis Date: 2025-01-22"
+tags: [testing]
+---
+
 # ServalSheets MCP Server - Comprehensive Error Analysis
 
 **Analysis Date:** 2025-01-22
@@ -22,16 +30,19 @@ During systematic testing of ServalSheets MCP server, we encountered **1 critica
 **Severity:** 🔴 CRITICAL (Causes complete hang)
 
 **Symptom:**
+
 ```
 <e>No result received from client-side tool execution.</e>
 ```
 
 **Reproduction Steps:**
+
 1. Create a spreadsheet (works fine)
 2. Attempt to copy it with `sheets_core → copy`
 3. Tool hangs indefinitely, returns no result
 
 **Parameter Variations Attempted:**
+
 ```javascript
 // Attempt 1: Using "title" parameter
 {"title": "_Test_Copied_Spreadsheet_Delete_Me", "action": "copy", "spreadsheetId": "..."}
@@ -50,7 +61,8 @@ During systematic testing of ServalSheets MCP server, we encountered **1 critica
 
 After reviewing the actual source code, here are the findings:
 
-### Schema Definition (`src/schemas/core.ts`):
+### Schema Definition (`src/schemas/core.ts`)
+
 ```typescript
 const CopyActionSchema = CommonFieldsSchema.extend({
   action: z.literal('copy').describe('Copy an entire spreadsheet'),
@@ -60,7 +72,8 @@ const CopyActionSchema = CommonFieldsSchema.extend({
 });
 ```
 
-### Handler Implementation (`src/handlers/core.ts`):
+### Handler Implementation (`src/handlers/core.ts`)
+
 ```typescript
 private async handleCopy(input: CoreCopyInput): Promise<CoreResponse> {
     if (!this.driveApi) {
@@ -80,7 +93,7 @@ private async handleCopy(input: CoreCopyInput): Promise<CoreResponse> {
 }
 ```
 
-### Root Causes Identified:
+### Root Causes Identified
 
 1. **🔴 CRITICAL: No Timeout on Drive API Call**
    - The `driveApi.files.copy()` call has NO timeout wrapper
@@ -99,7 +112,7 @@ private async handleCopy(input: CoreCopyInput): Promise<CoreResponse> {
    - NOT `title`, NOT `name`
    - Schema explicitly defines `newTitle: z.string().optional()`
 
-### Recommended Fixes:
+### Recommended Fixes
 
 ```typescript
 // Fix 1: Add timeout wrapper utility
@@ -164,6 +177,7 @@ private async handleCopy(input: CoreCopyInput): Promise<CoreResponse> {
 **Finding:** `REQUEST_TIMEOUT = 10000` (10s) is defined in `src/config/constants.ts` but NOT applied to actual Google API calls.
 
 **Affected Operations (All Could Hang):**
+
 | File | Operation | API Call |
 |------|-----------|----------|
 | `core.ts` | `handleCopy` | `driveApi.files.copy()` |
@@ -226,9 +240,11 @@ Despite having `CIRCUIT_BREAKER_THRESHOLD = 5` and `CIRCUIT_BREAKER_TIMEOUT = 60
 ### 🔴 P0 - CRITICAL (Fix Immediately)
 
 **1. Add Timeout Wrapper Utility**
+
 ```bash
 # Create new file: src/utils/api-timeout.ts
 ```
+
 ```typescript
 export async function withTimeout<T>(
   promise: Promise<T>, 
@@ -243,6 +259,7 @@ export async function withTimeout<T>(
 ```
 
 **2. Apply Timeout to All Drive API Calls**
+
 - `src/handlers/core.ts`: `handleCopy`, `handleList`
 - `src/handlers/collaborate.ts`: version operations
 - `src/handlers/templates.ts`: file operations
@@ -250,11 +267,13 @@ export async function withTimeout<T>(
 ### 🟡 P1 - HIGH (Fix This Week)
 
 **3. Verify driveApi Initialization**
+
 - Check where `SheetsCoreHandler` is instantiated
 - Ensure `driveApi` is ALWAYS passed (not undefined)
 - Add startup validation to fail fast if Drive API not available
 
 **4. Add Integration Tests for Drive Operations**
+
 ```typescript
 describe('sheets_core copy', () => {
   it('should copy spreadsheet with timeout', async () => {
@@ -275,11 +294,13 @@ describe('sheets_core copy', () => {
 ### 🟢 P2 - MEDIUM (Fix This Month)
 
 **5. Apply Circuit Breaker Pattern**
+
 - Use existing `CIRCUIT_BREAKER_THRESHOLD` constant
 - Wrap external API calls with circuit breaker
 - Track failures and trip circuit after threshold
 
 **6. Add Telemetry/Tracing**
+
 - Log operation start/end times
 - Track API call latencies
 - Alert on timeouts
@@ -289,6 +310,7 @@ describe('sheets_core copy', () => {
 ## QUICK FIX FOR TESTING
 
 To continue testing while the fix is implemented, skip these actions:
+
 - `sheets_core → copy`
 - `sheets_core → list` (uses Drive API)
 - `sheets_core → duplicate_sheet` (may use similar pattern)
@@ -303,6 +325,7 @@ These can be tested after the timeout fix is deployed.
 ## Appendix: Error Messages Reference
 
 ### "No result received from client-side tool execution"
+
 - **Meaning:** MCP client timeout - tool didn't respond within expected time
 - **Common Causes:**
   1. Infinite loop in handler

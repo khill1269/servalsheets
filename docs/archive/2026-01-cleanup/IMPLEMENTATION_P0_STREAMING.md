@@ -1,4 +1,13 @@
+---
+title: "P0.1: Streaming Implementation Guide"
+category: archived
+last_updated: 2026-01-31
+description: "Priority: 🔴 CRITICAL (P0)"
+tags: [sheets]
+---
+
 # P0.1: Streaming Implementation Guide
+
 **Priority:** 🔴 CRITICAL (P0)
 **Estimated Time:** 1-2 weeks
 **Impact:** Unlock large dataset support (1M+ rows)
@@ -8,12 +17,14 @@
 ## Problem Statement
 
 **Current State:**
+
 - All data operations load full datasets into memory
 - OOM errors on spreadsheets >100k rows
 - SSE headers exist but unused for data streaming
 - No pagination or chunking strategy
 
 **Target State:**
+
 - Stream data in chunks using async iterators
 - Handle unlimited dataset sizes with constant memory
 - Support progressive rendering in clients
@@ -272,6 +283,7 @@ export async function collectChunks(
 **File:** `src/handlers/data.ts` - **Lines 500-600** (MODIFY)
 
 **Current Code (Line 500-520):**
+
 ```typescript
 // handlers/data.ts:500-520 (BEFORE)
 async handle(input: SheetsDataInput): Promise<ToolResponse> {
@@ -301,6 +313,7 @@ async handle(input: SheetsDataInput): Promise<ToolResponse> {
 ```
 
 **New Code (Line 500-600):**
+
 ```typescript
 // handlers/data.ts:500-600 (AFTER)
 import {
@@ -554,6 +567,7 @@ Add streaming capability to sheets_data tool:
 ## Testing Strategy
 
 ### Unit Tests
+
 ```bash
 # Test streaming utilities
 npm test tests/handlers/streaming.test.ts
@@ -563,6 +577,7 @@ npm test tests/handlers/data.test.ts
 ```
 
 ### Integration Tests
+
 ```bash
 # Test with real Google Sheets API (requires auth)
 export TEST_SPREADSHEET_ID="your-test-sheet-id"
@@ -570,6 +585,7 @@ npm test tests/integration/streaming-integration.test.ts
 ```
 
 ### Performance Tests
+
 ```bash
 # Benchmark streaming vs non-streaming
 npm run benchmarks:streaming
@@ -580,16 +596,19 @@ npm run benchmarks:streaming
 ## Rollout Plan
 
 ### Phase 1: Implementation (Week 1)
+
 - ✅ Day 1-2: Create streaming-helpers.ts
 - ✅ Day 3-4: Modify handlers/data.ts
 - ✅ Day 5: Update schemas and tool definitions
 
 ### Phase 2: Testing (Week 2)
+
 - ✅ Day 1-2: Write unit tests
 - ✅ Day 3-4: Write integration tests
 - ✅ Day 5: Performance benchmarking
 
 ### Phase 3: Rollout (Gradual)
+
 - ✅ Week 3: Beta flag (enable via env var `ENABLE_STREAMING=true`)
 - ✅ Week 4: Opt-in (users set `streaming: true` in requests)
 - ✅ Week 5: Auto-detect (automatically stream ranges >10k rows)
@@ -600,11 +619,13 @@ npm run benchmarks:streaming
 ## Success Metrics
 
 ### Before Implementation
+
 - ❌ Max dataset size: 10k rows
 - ❌ Memory usage: Linear with dataset size
 - ❌ OOM errors on large sheets
 
 ### After Implementation
+
 - ✅ Max dataset size: 1M+ rows
 - ✅ Memory usage: Constant (1000 rows buffered)
 - ✅ No OOM errors
@@ -617,6 +638,7 @@ npm run benchmarks:streaming
 **Breaking Changes:** NONE
 
 **Compatibility Strategy:**
+
 - Legacy mode: Default for ranges <10k rows
 - Opt-in streaming: Add `streaming: true` to request
 - Auto-detect: Automatically stream ranges >10k rows

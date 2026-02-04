@@ -1,3 +1,10 @@
+---
+title: 🧠 Context Window Optimization Guide
+category: archived
+last_updated: 2026-01-31
+description: After ~100 tool calls, conversations reset. This isn't an MCP server timeout - it's Claude Desktop context window pressure.
+---
+
 # 🧠 Context Window Optimization Guide
 
 ## The Problem: 100-Step Timeout
@@ -246,12 +253,15 @@ GOOGLE_API_TIMEOUT_MS=60000
 ### For Long Operations (50+ steps)
 
 1. **Use Transactions**: Batch multiple operations
+
    ```
    Begin transaction → Queue 10 operations → Commit
    ```
+
    This is 1 context entry instead of 10.
 
-2. **Use Composite Operations**: 
+2. **Use Composite Operations**:
+
    ```
    sheets_composite.setup_sheet (1 call)
    vs
@@ -259,11 +269,13 @@ GOOGLE_API_TIMEOUT_MS=60000
    ```
 
 3. **Checkpoint Before Major Phases**:
+
    ```
    sheets_session.save_checkpoint({sessionId: "test-run-1", phase: "formatting"})
    ```
 
 4. **Resume After Reset**:
+
    ```
    sheets_session.resume_from_checkpoint({sessionId: "test-run-1"})
    ```
@@ -307,6 +319,7 @@ Expected result: Complete 100+ steps across multiple context windows.
 ## Metrics to Track
 
 After changes, monitor:
+
 - Average response size (target: <5KB)
 - Steps before context pressure (target: 150+)
 - Checkpoint resume success rate

@@ -1,3 +1,11 @@
+---
+title: "GWorkspace MCP: Complete 16-Tool Architecture Reference"
+category: archived
+last_updated: 2026-01-31
+description: "Source Documentation: /mnt/project/15-complete-architecture-map.md, /mnt/project/18-tool-intelligence-mapping.md"
+tags: [sheets]
+---
+
 # GWorkspace MCP: Complete 16-Tool Architecture Reference
 
 ## Executive Summary
@@ -13,6 +21,7 @@
 ### Category 1: CORE DATA (4 tools, 50 actions)
 
 #### Tool 1: gw_spreadsheet (16 actions)
+
 **Purpose:** Open, create, and manage spreadsheets and sheets
 
 | Action | Risk | Description |
@@ -39,6 +48,7 @@
 ---
 
 #### Tool 2: gw_cells (14 actions)
+
 **Purpose:** Read, write, find, replace cell data
 
 | Action | Risk | Description |
@@ -63,6 +73,7 @@
 ---
 
 #### Tool 3: gw_rows (10 actions)
+
 **Purpose:** Insert, delete, move, hide, resize rows
 
 | Action | Risk | Description |
@@ -83,6 +94,7 @@
 ---
 
 #### Tool 4: gw_columns (10 actions)
+
 **Purpose:** Insert, delete, move, hide, resize columns
 
 | Action | Risk | Description |
@@ -105,6 +117,7 @@
 ### Category 2: FORMATTING (2 tools, 34 actions)
 
 #### Tool 5: gw_style (18 actions)
+
 **Purpose:** Fonts, colors, borders, alignment
 
 | Action | Risk | Description |
@@ -133,6 +146,7 @@
 ---
 
 #### Tool 6: gw_rules (16 actions)
+
 **Purpose:** Data validation, dropdowns, conditional formatting
 
 | Action | Risk | Description |
@@ -161,6 +175,7 @@
 ### Category 3: ANALYSIS (3 tools, 36 actions)
 
 #### Tool 7: gw_charts (14 actions)
+
 **Purpose:** All chart types, pivots, slicers
 
 | Action | Risk | Description |
@@ -185,6 +200,7 @@
 ---
 
 #### Tool 8: gw_formulas (12 actions)
+
 **Purpose:** Generate, explain, audit, named ranges
 
 | Action | Risk | Description |
@@ -207,6 +223,7 @@
 ---
 
 #### Tool 9: gw_filter (10 actions)
+
 **Purpose:** Filter, sort, views, deduplication
 
 | Action | Risk | Description |
@@ -229,6 +246,7 @@
 ### Category 4: COLLABORATION (2 tools, 26 actions)
 
 #### Tool 10: gw_share (14 actions)
+
 **Purpose:** Permissions, comments, protection
 
 | Action | Risk | Description |
@@ -253,6 +271,7 @@
 ---
 
 #### Tool 11: gw_files (12 actions)
+
 **Purpose:** Export, import, versions, backup
 
 | Action | Risk | Description |
@@ -277,6 +296,7 @@
 ### Category 5: AUTOMATION (2 tools, 22 actions)
 
 #### Tool 12: gw_triggers (10 actions)
+
 **Purpose:** Time, edit, change, form triggers
 
 | Action | Risk | Description |
@@ -297,6 +317,7 @@
 ---
 
 #### Tool 13: gw_scripts (12 actions)
+
 **Purpose:** Create, run, manage Apps Scripts
 
 | Action | Risk | Description |
@@ -321,6 +342,7 @@
 ### Category 6: ENTERPRISE (1 tool, 16 actions)
 
 #### Tool 14: gw_query (16 actions)
+
 **Purpose:** BigQuery queries, Connected Sheets, data connections
 
 | Action | Risk | Description |
@@ -349,6 +371,7 @@
 ### Category 7: META (2 tools, 18 actions)
 
 #### Tool 15: gw_workflow (12 actions)
+
 **Purpose:** CRM, dashboard, report workflows
 
 | Action | Risk | Description |
@@ -371,6 +394,7 @@
 ---
 
 #### Tool 16: gw_help (6 actions)
+
 **Purpose:** Self-documentation and suggestions
 
 | Action | Risk | Description |
@@ -438,14 +462,16 @@
 | **Scope** | Sheets-focused | Full Workspace |
 | **Status** | Implemented | Specification |
 
-### Exclusive to GWorkspace MCP:
+### Exclusive to GWorkspace MCP
+
 - **gw_query** (16 actions) - BigQuery integration
 - **gw_triggers** (10 actions) - Trigger management
 - **gw_scripts** (12 actions) - Apps Script automation
 - **gw_workflow** (12 actions) - Multi-step workflows
 - **gw_help** (6 actions) - Self-documentation
 
-### Structural Differences:
+### Structural Differences
+
 - ServalSheets: Combined structure handler for rows/columns
 - GWorkspace: Separate gw_rows and gw_columns tools
 
@@ -454,24 +480,28 @@
 ## Architecture Layers
 
 ### Layer 1: Capability Layer
+
 - **16 Tools** with 211 actions
 - **25+ Resources** (static knowledge + dynamic context)
 - **12 Prompts** (workflow templates)
 - **4 Completion Providers** (dynamic autocomplete)
 
 ### Layer 2: Intelligence Layer
+
 - **Sampling Service** - Server→LLM for generation/analysis
 - **Elicitation Service** - Server→User for confirmation/selection
 - **Streaming Service** - Real-time progress
 - **Intent Detection** - 13 intent categories
 
 ### Layer 3: Execution Layer
+
 - **Batch Optimizer** - Combine operations (80-95% API reduction)
 - **Session Manager** - Context, history, cache
 - **Auth Manager** - OAuth 2.0 with PKCE
 - **Error Recovery** - Auto-retry, sampling for fixes
 
 ### Layer 4: Google APIs
+
 - Google Sheets API v4
 - Google Drive API v3
 - Google Apps Script API
@@ -482,21 +512,25 @@
 ## Implementation Priority
 
 ### Phase 1: Core Foundation (Weeks 1-4)
+
 - MCP server skeleton + Auth Manager
 - gw_spreadsheet, gw_cells, gw_style
 - Session Manager + Batch Optimizer
 
 ### Phase 2: Intelligence (Weeks 5-8)
+
 - Sampling Service + Elicitation Service
 - Streaming progress
 - gw_rows, gw_columns, gw_rules
 
 ### Phase 3: Full Features (Weeks 9-12)
+
 - All remaining tools
 - Resource system + Prompt templates
 - Workflow engine + Error recovery
 
 ### Phase 4: Polish (Weeks 13-16)
+
 - Completion providers
 - Advanced intent detection
 - Documentation + Testing
@@ -508,6 +542,7 @@
 ### Critical Additions Required
 
 #### 1. Tool Annotations (MCP 2025-11-25)
+
 Every action must declare these standard hints:
 
 ```typescript
@@ -531,6 +566,7 @@ interface ToolAnnotations {
 | run_script | false | ⚠️ varies | ⚠️ varies | ✅ true |
 
 #### 2. Cancellation Support
+
 Long-running operations must support cancellation:
 
 | Operation | Cancellable | Behavior on Cancel |
@@ -543,6 +579,7 @@ Long-running operations must support cancellation:
 | gw_scripts.run | ⚠️ Maybe | May not support mid-execution |
 
 #### 3. Pagination
+
 Cursor-based pagination for list operations:
 
 ```typescript
@@ -556,6 +593,7 @@ Cursor-based pagination for list operations:
 ```
 
 Operations requiring pagination:
+
 - `gw_cells.read_range` (>10K cells)
 - `gw_spreadsheet.list_sheets` (>100 sheets)
 - `gw_filter.deduplicate` results

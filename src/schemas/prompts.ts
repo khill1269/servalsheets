@@ -158,3 +158,72 @@ export const CompareSpreadsheetPromptArgsSchema: PromptArgsShape = {
   spreadsheetId1: c(z.string().min(1), completeSpreadsheetId),
   spreadsheetId2: c(z.string().min(1), completeSpreadsheetId),
 };
+
+// Error recovery and troubleshooting prompts
+export const RecoverFromErrorPromptArgsSchema: PromptArgsShape = {
+  errorCode: z.string().describe('The error code from the failed operation'),
+  errorMessage: z.string().optional().describe('The full error message'),
+  toolName: z.string().optional().describe('The tool that failed (e.g., sheets_data)'),
+  context: z.string().optional().describe('What you were trying to do'),
+};
+
+export const TroubleshootPerformancePromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  operation: z.string().optional().describe('What operation was slow'),
+  responseTime: z.number().optional().describe('How long it took (ms)'),
+};
+
+export const FixDataQualityPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  range: c(z.string(), completeRange),
+  issues: z.string().optional().describe('Known issues'),
+};
+
+export const OptimizeFormulasPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  range: c(z.string().optional(), completeRange),
+};
+
+export const BulkImportDataPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  dataSize: z.number().optional().describe('Approximate row count'),
+  dataSource: z.string().optional().describe('Source description'),
+};
+
+export const AdvancedDataMigrationPromptArgsSchema: PromptArgsShape = {
+  sourceSpreadsheetId: c(z.string(), completeSpreadsheetId),
+  targetSpreadsheetId: c(z.string(), completeSpreadsheetId),
+  migrationType: z
+    .enum(['full', 'incremental', 'selective'])
+    .optional()
+    .describe('Migration type: full, incremental, or selective'),
+  transformations: z.string().optional().describe('Data transformations to apply'),
+};
+
+export const PerformanceAuditPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+  focusAreas: z
+    .array(z.string())
+    .optional()
+    .describe('Focus areas: formulas, data_size, api_usage, caching, structure'),
+};
+
+export const BatchOptimizerPromptArgsSchema: PromptArgsShape = {
+  operationType: z
+    .enum(['read', 'write', 'update', 'format', 'mixed'])
+    .describe('Type of operations to optimize'),
+  operationCount: z.number().optional().describe('Number of individual operations'),
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+};
+
+export const UltimateAnalysisPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+};
+
+export const CreateVisualizationPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+};
+
+export const AnalyzeWithHistoryPromptArgsSchema: PromptArgsShape = {
+  spreadsheetId: c(z.string(), completeSpreadsheetId),
+};

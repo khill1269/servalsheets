@@ -1,0 +1,50 @@
+docs: fix action count inconsistencies and add CI validation
+
+Fix documentation drift where action counts varied (272, 291, 293) across
+310 files. Added automated validation to prevent future drift.
+
+## Changes
+
+**Infrastructure (new):**
+- scripts/check-doc-action-counts.sh - Validates docs have correct count
+- scripts/fix-doc-action-counts.sh - Auto-fixes incorrect counts
+- package.json: Added check:doc-action-counts, fix:doc-action-counts
+- package.json: Integrated check into npm run verify
+
+**Documentation fixes (51 primary files):**
+- README.md: 4 locations (291→293, 272→293)
+- CLAUDE.md: 4 locations (291→293)
+- CHANGELOG.md: 4 locations (272→293)
+- skill/SKILL.md: 3 locations (272→293)
+- docs/**/*.md: 37 files (291→293)
+- Plus business docs, planning docs, archive docs
+
+**Source code comments:**
+- src/mcp/completions.ts: Comment (272→293)
+- src/mcp/registration/prompt-registration.ts: (291→293)
+- src/mcp/features-2025-11-25.ts: (272→293)
+- src/schemas/index.ts: Updated comment to reference ACTION_COUNTS
+- src/schemas/descriptions.ts: (272→293)
+- src/schemas/action-metadata.ts: (272→293)
+- src/index.ts: (272→293)
+
+## Ground Truth
+Source: src/schemas/annotations.ts:224 (ACTION_COUNT = 293)
+Validated by: npm run gen:metadata && npm run check:drift
+
+## Verification
+✅ npm run check:doc-action-counts - PASS
+✅ npm run typecheck - PASS
+✅ npm run build - PASS
+✅ npm run verify - PASS (1404 tests)
+
+## Impact
+- Runtime: No change (code already used correct constants)
+- Documentation: Now accurate and consistent across 310 files
+- CI: Future drift automatically detected in verify pipeline
+- Maintainability: Single command to validate/fix
+
+Files changed: 310 (documentation, comments, scripts)
+Evidence: src/schemas/annotations.ts:224 calculates from ACTION_COUNTS
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>

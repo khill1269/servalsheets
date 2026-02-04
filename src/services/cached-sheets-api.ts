@@ -152,7 +152,11 @@ export class CachedSheetsApi {
   }
 
   /**
-   * Batch get values with caching
+   * Batch get values with caching and de-duplication
+   *
+   * De-duplicates ranges within the same batch to avoid fetching
+   * the same range multiple times. Maps de-duplicated results back
+   * to original order.
    */
   async batchGetValues(
     spreadsheetId: string,
@@ -165,10 +169,23 @@ export class CachedSheetsApi {
   ): Promise<sheets_v4.Schema$BatchGetValuesResponse> {
     this.stats.totalRequests++;
 
+    // De-duplicate ranges to avoid fetching same range multiple times
+    const uniqueRanges = Array.from(new Set(ranges));
+    const duplicatesEliminated = ranges.length - uniqueRanges.length;
+
+    if (duplicatesEliminated > 0) {
+      logger.debug('De-duplicated batch request', {
+        originalCount: ranges.length,
+        uniqueCount: uniqueRanges.length,
+        duplicatesEliminated,
+        efficiencyGain: `${((duplicatesEliminated / ranges.length) * 100).toFixed(1)}%`,
+      });
+    }
+
     const cacheKey = {
       spreadsheetId,
       endpoint: 'values' as const,
-      range: ranges.sort().join(','),
+      range: uniqueRanges.sort().join(','),
       params: options,
     };
 
@@ -180,17 +197,21 @@ export class CachedSheetsApi {
       this.stats.cacheHits++;
       logger.debug('Cache hit for batchGet', {
         spreadsheetId,
-        rangeCount: ranges.length,
+        rangeCount: uniqueRanges.length,
         savedApiCall: true,
       });
+      // Map cached results back to original order if duplicates existed
+      if (duplicatesEliminated > 0) {
+        return this.remapBatchResults(cached, ranges, uniqueRanges);
+      }
       return cached;
     }
 
-    // Cache miss - fetch from API
+    // Cache miss - fetch from API with de-duplicated ranges
     this.stats.cacheMisses++;
     const response = await this.sheetsApi.spreadsheets.values.batchGet({
       spreadsheetId,
-      ranges,
+      ranges: uniqueRanges,
       valueRenderOption: options.valueRenderOption,
       dateTimeRenderOption: options.dateTimeRenderOption,
       majorDimension: options.majorDimension,
@@ -199,7 +220,50 @@ export class CachedSheetsApi {
     // Cache the response
     await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
 
+    // Map results back to original order if duplicates existed
+    if (duplicatesEliminated > 0) {
+      return this.remapBatchResults(response.data, ranges, uniqueRanges);
+    }
+
     return response.data;
+  }
+
+  /**
+   * Remap de-duplicated batch results back to original range order
+   * @private
+   */
+  private remapBatchResults(
+    response: sheets_v4.Schema$BatchGetValuesResponse,
+    originalRanges: string[],
+    uniqueRanges: string[]
+  ): sheets_v4.Schema$BatchGetValuesResponse {
+    if (!response.valueRanges) {
+      return response;
+    }
+
+    // Create lookup map from unique ranges to their results
+    const resultMap = new Map<string, sheets_v4.Schema$ValueRange>();
+    uniqueRanges.forEach((range, index) => {
+      const valueRange = response.valueRanges?.[index];
+      if (valueRange) {
+        resultMap.set(range, valueRange);
+      }
+    });
+
+    // Map back to original order (including duplicates)
+    const remappedValueRanges = originalRanges.map((range) => {
+      const result = resultMap.get(range);
+      if (!result) {
+        // Shouldn't happen, but return empty range if missing
+        return { range, values: [] };
+      }
+      return result;
+    });
+
+    return {
+      ...response,
+      valueRanges: remappedValueRanges,
+    };
   }
 
   /**

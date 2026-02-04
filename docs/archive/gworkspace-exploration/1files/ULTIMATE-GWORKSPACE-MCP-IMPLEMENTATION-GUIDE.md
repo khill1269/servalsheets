@@ -1,4 +1,13 @@
+---
+title: Ultimate GWorkspace MCP Server
+category: archived
+last_updated: 2026-01-31
+description: "Generated: January 13, 2026"
+tags: [mcp, sheets]
+---
+
 # Ultimate GWorkspace MCP Server
+
 ## Complete Implementation Guide v1.0
 
 **Generated:** January 13, 2026  
@@ -144,6 +153,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.1 Core Tools (50 actions)
 
 #### gw_spreadsheet (16 actions)
+
 **Purpose:** Spreadsheet and sheet management
 
 | Action | Description | Risk | API Method |
@@ -166,6 +176,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | get_url | Get spreadsheet URL | 🟢 Read | Local computation |
 
 **Intelligence Requirements:**
+
 - Elicitation: delete_sheet (confirm before deletion)
 - Snapshot: delete_sheet (backup before delete)
 - Undo: delete_sheet, rename_sheet
@@ -173,6 +184,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_cells (14 actions)
+
 **Purpose:** Cell data operations - THE MOST USED TOOL
 
 | Action | Description | Risk | API Method |
@@ -193,6 +205,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | transpose | Flip rows/columns | 🟡 Modify | Custom logic |
 
 **Intelligence Requirements:**
+
 - Sampling: find (interpret natural language queries)
 - Elicitation: find_replace (show affected count, confirm), clear (confirm)
 - Streaming: batch operations (progress for large ranges)
@@ -203,6 +216,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_rows (10 actions)
+
 **Purpose:** Row operations
 
 | Action | Description | Risk | API Method |
@@ -219,6 +233,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | ungroup | Ungroup rows | 🟢 Modify | batchUpdate.deleteDimensionGroup |
 
 **Intelligence Requirements:**
+
 - Elicitation: delete REQUIRED (show count: "Delete 47 rows?", offer backup)
 - Streaming: bulk delete (progress for large operations)
 - Snapshot: delete (auto-backup before)
@@ -228,6 +243,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_columns (10 actions)
+
 **Purpose:** Column operations (mirrors gw_rows)
 
 | Action | Description | Risk | API Method |
@@ -250,6 +266,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.2 Formatting Tools (34 actions)
 
 #### gw_style (18 actions)
+
 **Purpose:** Visual formatting
 
 | Action | Description | Risk |
@@ -274,12 +291,14 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | remove_banding | Remove banding | 🟢 Delete |
 
 **Intelligence Requirements:**
+
 - Sampling: Recommend colors based on data type/context
 - Undo: All operations (store previous format state)
 
 ---
 
 #### gw_rules (16 actions)
+
 **Purpose:** Data validation and conditional formatting
 
 | Action | Description | Risk |
@@ -302,6 +321,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | prioritize_rules | Reorder rule priority | 🟢 Modify |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐HIGH: add_dropdown (generate options from data), add_conditional_format (generate rules from "highlight overdue items" → formula), add_color_scale (recommend colors based on data meaning)
 - Elicitation: clear_all_rules REQUIRED ("This will remove 15 validation rules and 8 conditional formats")
 - Diff Preview: add_conditional_format (preview affected cells)
@@ -313,6 +333,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.3 Analysis Tools (36 actions)
 
 #### gw_charts (14 actions)
+
 **Purpose:** Charts and visualizations
 
 | Action | Description | Risk |
@@ -333,6 +354,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | delete_pivot | Delete pivot | 🟡 Delete |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐⭐CRITICAL: create (recommend chart type from data analysis - detect time series → line chart, categories → bar chart, parts of whole → pie chart), create_pivot (suggest dimensions/measures), update (suggest improvements)
 - Elicitation: create (confirm chart type selection, data range, customization options), create_pivot (wizard for rows/columns/values/filters)
 - Undo: All create/update/delete operations
@@ -340,6 +362,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_formulas (12 actions)
+
 **Purpose:** Formula generation and management - KILLER FEATURE
 
 | Action | Description | Risk |
@@ -358,6 +381,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | list_named_ranges | List named ranges | 🟢 Read |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐⭐CRITICAL: generate (formula from natural language "calculate compound interest" → formula), explain (natural language explanation of complex formulas), fix (analyze error, suggest correction), optimize (suggest performance improvements)
 - Elicitation: apply_formula (confirm before applying to range), fix (confirm suggested fix)
 - Dry Run ⭐⭐: Validate formula before apply (syntax check, test on sample data)
@@ -366,6 +390,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_filter (10 actions)
+
 **Purpose:** Filtering, sorting, deduplication
 
 | Action | Description | Risk |
@@ -382,6 +407,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | deduplicate | Remove duplicate rows | 🔴 Destructive |
 
 **Intelligence Requirements:**
+
 - Sampling: apply (interpret "show only high-value deals" → analyze Value column, determine threshold), sort (determine column from context), find_duplicates (identify key columns)
 - Elicitation ⭐⭐⭐CRITICAL: deduplicate REQUIRED (show count, sample duplicates, which copy to keep: first/last/most complete, offer backup)
 - Streaming: find_duplicates (progress for large datasets), deduplicate (progress during removal)
@@ -394,6 +420,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.4 Collaboration Tools (26 actions)
 
 #### gw_share (14 actions)
+
 **Purpose:** Permissions and collaboration - SECURITY CRITICAL
 
 | Action | Description | Risk |
@@ -414,8 +441,9 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | unprotect_range | Remove protection | 🟡 Security |
 
 **Intelligence Requirements:**
+
 - Sampling: protect_range (suggest protection based on content - formulas → protect formulas only)
-- Elicitation ⭐⭐⭐CRITICAL FOR SECURITY: 
+- Elicitation ⭐⭐⭐CRITICAL FOR SECURITY:
   - add_permission REQUIRED especially for external users (WARNING for external email, permission level selection, notify option, expiration date)
   - transfer_ownership EXTREME confirmation ("THIS ACTION CANNOT BE UNDONE", show consequences, type "TRANSFER" to confirm)
 - Undo: Most operations EXCEPT transfer_ownership (irreversible)
@@ -423,6 +451,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_files (12 actions)
+
 **Purpose:** File operations via Drive API
 
 | Action | Description | Risk |
@@ -441,6 +470,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | delete_backup | Delete backup | 🟡 Delete |
 
 **Intelligence Requirements:**
+
 - Elicitation: import_csv/import_xlsx (confirm destination: new sheet/append/replace, column mapping), restore_version REQUIRED (show version details, changes preview)
 - Streaming ⭐⭐: export/import operations (progress for large files)
 - Snapshot: restore_version (auto-backup current state), import with replace (backup existing)
@@ -451,6 +481,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.5 Automation Tools (22 actions)
 
 #### gw_triggers (10 actions)
+
 **Purpose:** Event-based automation
 
 | Action | Description | Risk |
@@ -467,6 +498,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | disable | Disable trigger | 🟢 Modify |
 
 **Intelligence Requirements:**
+
 - Sampling: create_time (suggest schedule from "every Monday morning" → cron)
 - Elicitation: create_* (confirm trigger configuration, show what will happen), enable (confirm before enabling)
 - Dry Run: Test trigger logic before enabling
@@ -475,6 +507,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_scripts (12 actions)
+
 **Purpose:** Apps Script management - CODE EXECUTION
 
 | Action | Description | Risk |
@@ -493,8 +526,9 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | debug | Debug script | 🟢 Read |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐⭐CRITICAL: create (generate Apps Script from description - "email me when stock drops below 10" → complete function), update (modify based on request), fix (debug errors)
-- Elicitation ⭐⭐⭐CRITICAL: 
+- Elicitation ⭐⭐⭐CRITICAL:
   - create (review generated code, show required permissions, Edit option)
   - run/run_function REQUIRED (show function name, potential side effects)
   - deploy REQUIRED (creating PUBLIC endpoint, access level warning)
@@ -507,6 +541,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.6 Enterprise Tool (16 actions)
 
 #### gw_query (16 actions)
+
 **Purpose:** BigQuery integration - COSTS MONEY
 
 | Action | Description | Risk |
@@ -529,8 +564,9 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | delete_data_source | Remove data source | 🟡 Delete |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐: run_query (generate SQL from natural language), create_connected (suggest refresh schedule)
-- Elicitation ⭐⭐⭐CRITICAL: 
+- Elicitation ⭐⭐⭐CRITICAL:
   - run_query REQUIRED (show generated SQL, estimated cost, data scanned)
   - schedule_refresh REQUIRED (show frequency, estimated monthly cost)
 - Streaming ⭐⭐: run_query (progress for long queries)
@@ -542,6 +578,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ### 3.7 Meta Tools (18 actions)
 
 #### gw_workflow (12 actions)
+
 **Purpose:** High-level workflow automation - FLAGSHIP CAPABILITY
 
 | Action | Description | Risk |
@@ -560,6 +597,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | suggest_improvements | Suggest optimizations | 🟢 Read |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐⭐CRITICAL: All build_* (design complete workflow from requirements), clean_data (detect issues, suggest fixes), suggest_improvements (analyze spreadsheet, recommend optimizations)
 - Elicitation ⭐⭐⭐CRITICAL: Multi-step wizard for all build_* (Step 1: Template, Step 2: Fields, Step 3: Options, Step 4: Dashboard, Step 5: Confirm), clean_data (confirm each operation)
 - Streaming ⭐⭐⭐ESSENTIAL: All workflows provide detailed progress with checkmarks
@@ -570,6 +608,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 ---
 
 #### gw_help (6 actions)
+
 **Purpose:** Self-documentation and discovery
 
 | Action | Description | Risk |
@@ -582,6 +621,7 @@ npm install @modelcontextprotocol/sdk@^1.22.0 googleapis@^140.0.0 \
 | search_docs | Search documentation | 🟢 Read |
 
 **Intelligence Requirements:**
+
 - Sampling ⭐⭐CORE PURPOSE: suggest_tool (recommend best tool for goal), explain_action (natural language explanation), search_docs (semantic search)
 - Caching: All operations (static content)
 
@@ -1178,6 +1218,7 @@ ultimate-gworkspace-mcp/
 ## 10. Implementation Phases
 
 ### Phase 0: Foundation (Week 1-2)
+
 - [ ] Project setup with TypeScript + dependencies
 - [ ] Tool annotations for all 21 tools
 - [ ] Logging infrastructure (MCPLogger)
@@ -1185,6 +1226,7 @@ ultimate-gworkspace-mcp/
 - [ ] OAuth2 authentication flow
 
 ### Phase 1: Core Tools (Week 3-6)
+
 - [ ] gw_spreadsheet (16 actions)
 - [ ] gw_cells (14 actions)
 - [ ] gw_rows (10 actions)
@@ -1193,6 +1235,7 @@ ultimate-gworkspace-mcp/
 - [ ] Batch optimizer
 
 ### Phase 2: Intelligence Layer (Week 7-10)
+
 - [ ] Sampling service integration
 - [ ] Elicitation service
 - [ ] Streaming/progress service
@@ -1202,6 +1245,7 @@ ultimate-gworkspace-mcp/
 - [ ] Diff preview service
 
 ### Phase 3: Full Features (Week 11-14)
+
 - [ ] gw_charts (14 actions)
 - [ ] gw_formulas (12 actions) ← Killer feature
 - [ ] gw_filter (10 actions)
@@ -1214,6 +1258,7 @@ ultimate-gworkspace-mcp/
 - [ ] gw_help (6 actions)
 
 ### Phase 4: Polish (Week 15-16)
+
 - [ ] Resource system (25+ URIs)
 - [ ] Prompt templates (12 workflows)
 - [ ] Pagination for large results

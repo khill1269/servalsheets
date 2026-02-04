@@ -1,4 +1,13 @@
+---
+title: "ServalSheets: Hyperfocused Roadmap (Evidence-Based)"
+category: archived
+last_updated: 2026-01-31
+description: "Audit Date: 2026-01-29"
+tags: [sheets, prometheus, grafana, docker]
+---
+
 # ServalSheets: Hyperfocused Roadmap (Evidence-Based)
+
 **Audit Date:** 2026-01-29
 **Current Version:** 1.6.0
 **Assessment:** Production-ready, but missing 2 critical features
@@ -20,6 +29,7 @@ ServalSheets is FAR more capable than the previous roadmap documents suggested:
 - ✅ **Caching + Prefetch** - Access pattern tracking + predictive prefetch
 
 **Real Gaps (Only 2):**
+
 1. ❌ No pagination for 100k+ row datasets
 2. ❌ No visualization/alerting (Prometheus metrics not visualized)
 
@@ -45,6 +55,7 @@ ServalSheets is FAR more capable than the previous roadmap documents suggested:
 Based on research of production MCP servers in 2026:
 
 **Must Have:**
+
 - OAuth 2.1 ✅ (has it)
 - Monitoring with Prometheus ✅ (has it)
 - Health checks ✅ (has it)
@@ -52,9 +63,11 @@ Based on research of production MCP servers in 2026:
 - Error tracking ❌ (missing Sentry)
 
 **Real World Problem:**
+
 - Large dataset handling ❌ (no pagination for 100k+ rows)
 
 **Sources:**
+
 - [MCP Best Practices 2026](https://www.cdata.com/blog/mcp-server-best-practices-2026)
 - [Production MCP Deployment](https://www.ekamoira.com/blog/mcp-servers-cloud-deployment-guide)
 
@@ -65,12 +78,14 @@ Based on research of production MCP servers in 2026:
 ### Research-Based Requirements
 
 **Google Sheets API Constraints** ([Source](https://developers.google.com/workspace/sheets/api/limits)):
+
 - ❌ 10,000 cells per request maximum
 - ❌ 2MB payload recommended
 - ❌ 300 read requests per minute per project
 - ❌ 180 second timeout
 
 **Current ServalSheets Behavior:**
+
 ```typescript
 // src/handlers/data.ts:416 - NO PAGINATION
 const response = await this.sheetsApi.spreadsheets.values.get({
@@ -92,6 +107,7 @@ const response = await this.sheetsApi.spreadsheets.values.get({
 ### MCP Pagination Pattern ([Source](https://arxiv.org/html/2510.05968v1))
 
 Academic research on MCP large datasets recommends:
+
 - Limit preview responses to 10-100 records
 - Report accurate `total_count` metadata
 - Use cursor-based pagination with opaque tokens
@@ -335,6 +351,7 @@ describe('Large Dataset Pagination', () => {
 **Day 1: Sentry Integration (4 hours)**
 
 Modify: `package.json`
+
 ```json
 {
   "dependencies": {
@@ -344,6 +361,7 @@ Modify: `package.json`
 ```
 
 Modify: `src/http-server.ts` (lines 1-30)
+
 ```typescript
 import * as Sentry from '@sentry/node';
 
@@ -365,6 +383,7 @@ if (process.env.SENTRY_DSN) {
 ```
 
 Modify: `src/handlers/base.ts` (wrap handlers)
+
 ```typescript
 async handle(input: TInput, request?: any): Promise<ToolResponse> {
   const transaction = Sentry.startTransaction({
@@ -398,6 +417,7 @@ async handle(input: TInput, request?: any): Promise<ToolResponse> {
 ```
 
 **Sources:**
+
 - [Sentry MCP Server](https://docs.sentry.io/product/sentry-mcp/) - Official MCP support
 - [Sentry Node.js SDK](https://docs.sentry.io/platforms/javascript/guides/node/)
 
@@ -452,6 +472,7 @@ Create: `monitoring/grafana/servalsheets-dashboard.json` (~500 lines)
 ```
 
 Update: `docker-compose.yml` (add Grafana service)
+
 ```yaml
 services:
   grafana:
@@ -468,6 +489,7 @@ services:
 **Day 3-4: Documentation Updates**
 
 Update: `README.md` (add pagination examples)
+
 ```markdown
 ## Large Dataset Support (1.7.0+)
 
@@ -490,6 +512,7 @@ const page2 = await client.call('sheets_data', {
   cursor: page1.pagination.nextCursor
 });
 ```
+
 ```
 
 Create: `docs/OBSERVABILITY.md` (Grafana + Sentry setup guide)

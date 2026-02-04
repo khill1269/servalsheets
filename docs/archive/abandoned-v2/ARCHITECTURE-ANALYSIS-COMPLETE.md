@@ -1,3 +1,11 @@
+---
+title: ServalSheets v2.0 - Complete Architecture Analysis
+category: archived
+last_updated: 2026-01-31
+description: "> Analysis Date: January 13, 2026"
+tags: [sheets]
+---
+
 # ServalSheets v2.0 - Complete Architecture Analysis
 
 > **Analysis Date:** January 13, 2026  
@@ -126,6 +134,7 @@ ServalSheets v2.0 is a **production-grade MCP server** for Google Sheets with a 
 | `clear_notes` | Clear cell notes | batchUpdate |
 
 **Key Implementation Pattern:**
+
 ```typescript
 private async read(input): Promise<SheetsDataOutput> {
   const { spreadsheetId, range, valueRenderOption, dateTimeRenderOption } = input;
@@ -160,6 +169,7 @@ private async read(input): Promise<SheetsDataOutput> {
 | Alternating (2) | add_alternating, remove_alternating |
 
 **Preset Formats Available:**
+
 - `header` - Blue background, white bold text
 - `subheader` - Light gray background, bold
 - `data` - Standard data formatting
@@ -199,6 +209,7 @@ private async read(input): Promise<SheetsDataOutput> {
 | Slicers (2) | create_slicer, update_slicer |
 
 **Supported Chart Types:**
+
 - LINE, BAR, COLUMN, AREA
 - PIE, SCATTER, COMBO
 - STEPPED_AREA
@@ -217,6 +228,7 @@ private async read(input): Promise<SheetsDataOutput> {
 | Patterns (4) | detect_patterns, find_outliers, detect_trends, analyze_distribution |
 
 **Comprehensive Analysis Returns:**
+
 - Domain detection (CRM, Budget, Inventory, etc.)
 - Quality score (0-100)
 - Column profiling with data types
@@ -236,6 +248,7 @@ private async read(input): Promise<SheetsDataOutput> {
 | Bulk Operations (6) | smart_append, bulk_update, deduplicate, bulk_format, bulk_validate, migrate_data |
 
 **Smart Features:**
+
 - `smart_append` - Skip duplicates, match columns
 - `deduplicate` - Key columns, keep first/last
 - `migrate_data` - Transform data during migration
@@ -266,6 +279,7 @@ private async read(input): Promise<SheetsDataOutput> {
 | Operations (5) | list_operations, get_operation, undo, redo, revert_to |
 
 **Snapshot Flow:**
+
 ```
 create_snapshot → Store full spreadsheet state → Get snapshotId
 restore_snapshot → Load state → Apply via batchUpdate
@@ -286,6 +300,7 @@ compare_versions → Diff two snapshots → Report changes
 | Impact Analysis (3) | analyze_impact, preview, estimate_quota |
 
 **Transaction Flow:**
+
 ```typescript
 begin(spreadsheetId)    → Get transactionId, create snapshot
 queue(transactionId, op) → Add operation to pending list
@@ -306,6 +321,7 @@ rollback(transactionId)  → Restore from snapshot
 | Stats (1) | get_stats |
 
 **Session State:**
+
 ```typescript
 interface SessionState {
   activeSpreadsheetId?: string;
@@ -450,6 +466,7 @@ interface SnapshotService {
 ```
 
 **Implementations:**
+
 - In-memory (Map-based, auto-cleanup after 100)
 - File-based (JSON files in baseDir/snapshots/)
 
@@ -605,6 +622,7 @@ describe('SheetsDataHandler', () => {
 ### Production Recommendations
 
 1. **Persistent State Storage**
+
    ```typescript
    // Use Redis or database for:
    - Transaction state
@@ -613,6 +631,7 @@ describe('SheetsDataHandler', () => {
    ```
 
 2. **Enhanced Error Handling**
+
    ```typescript
    // Add retry logic for transient errors
    // Implement circuit breaker pattern
@@ -620,6 +639,7 @@ describe('SheetsDataHandler', () => {
    ```
 
 3. **Comprehensive Testing**
+
    ```typescript
    // Target 80%+ coverage
    // Add integration tests
@@ -627,6 +647,7 @@ describe('SheetsDataHandler', () => {
    ```
 
 4. **Monitoring & Observability**
+
    ```typescript
    // Add metrics for:
    - API call latency

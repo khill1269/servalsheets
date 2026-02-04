@@ -1,3 +1,10 @@
+---
+title: ServalSheets v1 → v2 Migration Guide
+category: archived
+last_updated: 2026-01-31
+description: ServalSheets v2 consolidates 26 tools into 11 intent-based tools while maintaining full backwards compatibility. This guide helps you migrate existing
+---
+
 # ServalSheets v1 → v2 Migration Guide
 
 ## Overview
@@ -16,21 +23,27 @@ ServalSheets v2 consolidates 26 tools into 11 intent-based tools while maintaini
 ## Running Modes
 
 ### v2-Only Mode (New Projects)
+
 ```bash
 COMPAT_MODE=v2-only npm run start:v2
 ```
+
 Only v2 tools are available. Best for new projects.
 
 ### Compatibility Mode (Migration)
+
 ```bash
 COMPAT_MODE=v1-and-v2 npm run start:compat
 ```
+
 Both v1 and v2 tools work. v1 calls are automatically converted.
 
 ### Deprecation Mode (Gradual Migration)
+
 ```bash
 COMPAT_MODE=v1-deprecated npm run start:compat
 ```
+
 v1 tools work but show deprecation warnings.
 
 ---
@@ -115,6 +128,7 @@ v1 tools work but show deprecation warnings.
 ## Code Migration Examples
 
 ### Before (v1): Multiple tools for analysis
+
 ```typescript
 // v1: 4 separate tool calls
 const scout = await call('sheets_scout', { spreadsheetId });
@@ -124,6 +138,7 @@ const stats = await call('sheets_descriptive_stats', { spreadsheetId, range: 'A:
 ```
 
 ### After (v2): One comprehensive call
+
 ```typescript
 // v2: Single call gets everything
 const analysis = await call('sheets_analyze', {
@@ -140,6 +155,7 @@ const analysis = await call('sheets_analyze', {
 ---
 
 ### Before (v1): Write without safety
+
 ```typescript
 // v1: Direct write
 await call('sheets_update_values', {
@@ -150,6 +166,7 @@ await call('sheets_update_values', {
 ```
 
 ### After (v2): Write with safety options
+
 ```typescript
 // v2: Write with automatic backup
 await call('sheets_data', {
@@ -167,6 +184,7 @@ await call('sheets_data', {
 ---
 
 ### Before (v1): Formatting
+
 ```typescript
 // v1: Specific formatting tool
 await call('sheets_format_cells', {
@@ -177,6 +195,7 @@ await call('sheets_format_cells', {
 ```
 
 ### After (v2): With presets
+
 ```typescript
 // v2: Use preset for common patterns
 await call('sheets_style', {
@@ -213,6 +232,7 @@ interface SafetyOptions {
 ```
 
 ### Transaction Example
+
 ```typescript
 // Start transaction
 const tx = await call('sheets_safety', {

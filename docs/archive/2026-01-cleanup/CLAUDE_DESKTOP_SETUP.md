@@ -1,3 +1,11 @@
+---
+title: Claude Desktop Setup Guide
+category: archived
+last_updated: 2026-02-04
+description: ServalSheets v1.6.0 - Ready to test in Claude Desktop!
+tags: [setup, configuration, sheets]
+---
+
 # Claude Desktop Setup Guide
 
 **ServalSheets v1.6.0** - Ready to test in Claude Desktop!
@@ -7,9 +15,10 @@
 ## ✅ Build Complete
 
 Your ServalSheets MCP server is compiled and ready:
+
 - **Version:** 1.6.0
 - **Tools:** 21
-- **Actions:** 272
+- **Actions:** 291
 - **Files:** 859 compiled files in `dist/`
 
 ---
@@ -19,12 +28,14 @@ Your ServalSheets MCP server is compiled and ready:
 ### Step 1: Authenticate with Google (OAuth)
 
 **Run the OAuth setup:**
+
 ```bash
 cd /Users/thomascahill/Downloads/servalsheets
 node dist/cli/auth-setup.js
 ```
 
 This will:
+
 1. Open your browser for Google authentication
 2. Ask you to authorize ServalSheets
 3. Save tokens to `~/.servalsheets/tokens.json`
@@ -34,16 +45,19 @@ This will:
 ### Step 2: Locate Claude Desktop Config
 
 **macOS:**
+
 ```bash
 ~/Library/Application Support/Claude/claude_desktop_config.json
 ```
 
 **Windows:**
+
 ```bash
 %APPDATA%\Claude\claude_desktop_config.json
 ```
 
 **Linux:**
+
 ```bash
 ~/.config/Claude/claude_desktop_config.json
 ```
@@ -66,6 +80,7 @@ Open the config file and add:
 ```
 
 **⚠️ IMPORTANT:** Update the path:
+
 - Change `/Users/thomascahill/Downloads/servalsheets/dist/cli.js` to your actual path
 
 **Note:** No `GOOGLE_APPLICATION_CREDENTIALS` needed with OAuth! Tokens are stored in `~/.servalsheets/tokens.json`
@@ -215,6 +230,7 @@ If you install globally with `npm install -g`:
 **This is the easiest method and works automatically with Claude Desktop!**
 
 1. **Run the OAuth setup once:**
+
    ```bash
    cd /Users/thomascahill/Downloads/servalsheets
    node dist/cli/auth-setup.js
@@ -253,6 +269,7 @@ If you install globally with `npm install -g`:
    - Grant "Editor" permissions
 
 4. **Update Claude Desktop Config:**
+
    ```json
    {
      "mcpServers": {
@@ -274,15 +291,19 @@ If you install globally with `npm install -g`:
 ### Claude Desktop Not Showing ServalSheets
 
 1. **Check config file syntax:**
+
    ```bash
    cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq
    ```
+
    Should parse without errors.
 
 2. **Verify paths are absolute:**
+
    ```bash
    ls -la /Users/thomascahill/Downloads/servalsheets/dist/cli.js
    ```
+
    File should exist.
 
 3. **Check Claude Desktop logs:**
@@ -292,12 +313,14 @@ If you install globally with `npm install -g`:
 ### Authentication Errors
 
 1. **Verify service account file exists:**
+
    ```bash
    ls -la /path/to/your/service-account.json
    cat /path/to/your/service-account.json | jq
    ```
 
 2. **Check service account email:**
+
    ```bash
    cat /path/to/your/service-account.json | jq -r '.client_email'
    ```
@@ -309,18 +332,22 @@ If you install globally with `npm install -g`:
 ### Server Not Starting
 
 1. **Test manually:**
+
    ```bash
    cd /Users/thomascahill/Downloads/servalsheets
    node dist/cli.js --version
    ```
+
    Should print: `servalsheets v1.6.0`
 
 2. **Check for missing dependencies:**
+
    ```bash
    npm install
    ```
 
 3. **Rebuild if needed:**
+
    ```bash
    npm run build:clean
    ```
@@ -330,6 +357,7 @@ If you install globally with `npm install -g`:
 ## 📊 What You Can Test
 
 ### Core Features (17 Tools)
+
 - ✅ **sheets_auth** - Authentication status
 - ✅ **sheets_core** - Create/get/update spreadsheets
 - ✅ **sheets_data** - Read/write cell data
@@ -338,6 +366,7 @@ If you install globally with `npm install -g`:
 - ✅ **sheets_visualize** - Charts and pivot tables
 
 ### Modern Features (v1.6.0)
+
 - ✅ **sheets_session** - "the spreadsheet", "undo that"
 - ✅ **sheets_composite** - import_csv, deduplicate, bulk_update
 - ✅ **sheets_quality** - validate, detect_conflicts
@@ -347,6 +376,7 @@ If you install globally with `npm install -g`:
 - ✅ **sheets_transaction** - Multi-operation atomicity
 
 ### Phase 7 Performance
+
 - ✅ **10-20x faster** diff operations
 - ✅ **50-100x fewer** sheet extraction operations
 - ✅ **W3C Trace Context** for debugging
@@ -357,6 +387,7 @@ If you install globally with `npm install -g`:
 ## 🎯 Example Prompts to Try
 
 ### Basic Operations
+
 ```
 "Create a spreadsheet called 'Test Data' with columns: ID, Name, Email"
 "Read data from Sheet1!A1:C10"
@@ -364,6 +395,7 @@ If you install globally with `npm install -g`:
 ```
 
 ### Modern Features
+
 ```
 "Import this CSV: Name,Age\nAlice,30\nBob,25"
 "Deduplicate the data in Sheet1 based on the Email column"
@@ -372,6 +404,7 @@ If you install globally with `npm install -g`:
 ```
 
 ### Conversational Context
+
 ```
 "Set this as the active spreadsheet: [spreadsheet-id]"
 "Show me the active context"
@@ -380,6 +413,7 @@ If you install globally with `npm install -g`:
 ```
 
 ### AI Analysis
+
 ```
 "Analyze the data and give me insights"
 "Suggest the best chart type for this data"
@@ -387,6 +421,7 @@ If you install globally with `npm install -g`:
 ```
 
 ### Complex Workflows
+
 ```
 "Create a CRM with Contacts, Companies, and Deals sheets"
 "Add data validation dropdowns for Status column"
@@ -399,18 +434,21 @@ If you install globally with `npm install -g`:
 ## 📚 Additional Resources
 
 ### Included in Package
+
 - **SKILL.md** - Claude skill file (v1.6.0, updated 2026-01-26)
 - **README.md** - Complete documentation
 - **TESTING_GUIDE.md** - Comprehensive testing guide
 - **docs/** - Full documentation directory
 
 ### Key Files
-- **server.json** - MCP metadata (21 tools, 272 actions)
+
+- **server.json** - MCP metadata (21 tools, 293 actions)
 - **dist/cli.js** - STDIO server entrypoint
 - **dist/server.js** - Server core
 - **dist/http-server.js** - HTTP/SSE transport
 
 ### Online Resources
+
 - **GitHub:** https://github.com/khill1269/servalsheets
 - **Issues:** https://github.com/khill1269/servalsheets/issues
 
@@ -431,7 +469,7 @@ Your setup is successful when:
 
 ---
 
-## 🚀 You're Ready!
+## 🚀 You're Ready
 
 ServalSheets v1.6.0 is now configured for Claude Desktop testing. Restart Claude Desktop and start building sophisticated Google Sheets applications!
 

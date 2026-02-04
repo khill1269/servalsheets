@@ -1,3 +1,10 @@
+---
+title: ServalSheets 2.0 - Implementation Specification
+category: archived
+last_updated: 2026-01-31
+description: | Tool | Actions | Primary Use Case |
+---
+
 # ServalSheets 2.0 - Implementation Specification
 
 ## Quick Reference: 11 Super Tools
@@ -732,32 +739,38 @@ const SheetsVisualizeSchema = z.discriminatedUnion('action', [
 ## Remaining Tools (Summary)
 
 ### sheets_analyze (15 actions)
+
 - comprehensive, data_quality, formula_audit, statistics, detect_patterns
 - column_analysis, generate_formula, suggest_chart, explain_data, query_natural
 - suggest_template, apply_recommendation, analyze_performance, analyze_formulas, compare_ranges
 
 ### sheets_automate (12 actions)  
+
 - preview_fixes, apply_fixes, fix_formulas, fix_formatting
 - import_csv, import_json, smart_append, bulk_update
 - deduplicate, bulk_format, bulk_validate, migrate_data
 
 ### sheets_share (16 actions)
+
 - share, update_permission, remove_permission, list_permissions
 - get_permission, transfer_ownership, set_link_sharing, get_share_link
 - add_comment, update_comment, delete_comment, list_comments
 - get_comment, resolve_comment, reopen_comment, add_reply
 
 ### sheets_history (12 actions)
+
 - list_revisions, get_revision, restore_revision, create_snapshot
 - list_snapshots, restore_snapshot, compare_versions
 - list_operations, get_operation, undo, redo, revert_to
 
 ### sheets_safety (12 actions)
+
 - begin, queue, commit, rollback, status
 - validate, check_conflicts, analyze_impact, preview
 - estimate_quota, verify_range, list_transactions
 
 ### sheets_context (8 actions)
+
 - set_active, get_context, find_reference, update_preferences
 - request_confirm, get_confirmation, cancel_pending, get_stats
 

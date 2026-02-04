@@ -255,11 +255,13 @@ describe('SchemaCache', () => {
   });
 
   describe('cache directory creation', () => {
-    it('should create cache directory on initialization', () => {
+    it('should create cache directory on first operation', async () => {
       const customDir = '.test-custom-cache';
 
       try {
-        new SchemaCache({ cacheDir: customDir });
+        const customCache = new SchemaCache({ cacheDir: customDir });
+        // Directory is created lazily on first operation
+        await customCache.set('test', 'v1', mockSchema);
 
         expect(existsSync(customDir)).toBe(true);
       } finally {
@@ -274,6 +276,9 @@ describe('SchemaCache', () => {
     it('should handle corrupted cache files gracefully', async () => {
       const { writeFileSync } = await import('node:fs');
       const { join } = await import('node:path');
+
+      // Trigger lazy directory creation first
+      await cache.set('temp', 'v1', mockSchema);
 
       // Write invalid JSON
       writeFileSync(join(testCacheDir, 'sheets-v4.json'), 'invalid json', 'utf-8');

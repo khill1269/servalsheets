@@ -568,27 +568,81 @@ All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
 
 **TIP:** Use devMode:true in run action to test latest saved code (owner only) before deploying.`,
 
-  sheets_webhook: `Manage Google Sheets webhook notifications for real-time change detection.
+  sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (7 actions).
 
-Key capabilities:
-• Register webhooks for spreadsheet changes (cell updates, formatting, structure)
-• Configure event filtering (specific event types or all changes)
-• Manage webhook lifecycle (register, unregister, list, test)
-• Monitor delivery statistics and reliability metrics
-• HMAC signature verification for secure webhooks
+**PREREQUISITES:** sheets_auth must be authenticated. Webhook endpoint must accept HTTPS POST requests and return 200 OK.
 
-Actions: register, unregister, list, get, test, get_stats`,
+**ROUTING - Pick this tool when:**
+> Setting up REAL-TIME notifications for spreadsheet changes
+> Triggering EXTERNAL systems when data updates
+> Building EVENT-DRIVEN workflows and automation
+> Monitoring spreadsheet ACTIVITY in real-time
+> Integrating with WEBHOOKS or callback URLs
 
-  sheets_dependencies: `Analyze formula dependencies and calculate change impact across spreadsheet.
+**NOT this tool - use instead:**
+> sheets_data - For direct read/write operations
+> sheets_history - For viewing PAST changes (not real-time)
+> sheets_collaborate - For sharing and permissions
 
-Key capabilities:
-• Build dependency graphs from spreadsheet formulas
-• Identify cells affected by changes (direct and indirect dependents)
-• Detect circular dependency issues in formulas
-• Calculate recalculation costs and complexity
-• Export dependency visualizations (DOT format for Graphviz)
+**ACTIONS BY CATEGORY:**
+[Lifecycle] register (create webhook), unregister (remove webhook), get (view details), list (all webhooks)
+[Testing] test (send test payload), get_stats (delivery metrics)
 
-Actions: build, analyze_impact, detect_cycles, get_dependencies, get_dependents, get_stats, export_dot`,
+**TOP 3 ACTIONS:**
+1. register: {"action":"register","spreadsheetId":"1ABC...","webhookUrl":"https://api.example.com/webhook","eventTypes":["cell.update"],"secret":"your-secret-key"} -> Create webhook
+2. list: {"action":"list","spreadsheetId":"1ABC..."} -> View active webhooks
+3. test: {"action":"test","webhookId":"wh_123"} -> Send test notification
+
+**WEBHOOK EVENTS:**
+- cell.update: Cell values changed
+- format.update: Formatting changed
+- sheet.create/delete/rename: Sheet structure changes
+- all: Subscribe to all events
+
+**REQUIREMENTS:**
+- Webhook URL must be HTTPS (not HTTP)
+- Endpoint must return 200 OK within 10 seconds
+- HMAC signature verification recommended (use secret parameter)
+- Max webhook lifetime: 1 day (Google Drive API limit)
+
+**TIP:** Use the secret parameter for HMAC signature verification to ensure webhook authenticity. Webhooks expire after 1 day and must be re-registered.`,
+
+  sheets_dependencies: `🔗 DEPENDENCIES - Formula dependency analysis and impact assessment (8 actions).
+
+**PREREQUISITES:** sheets_auth must be authenticated. Spreadsheet must contain formulas for meaningful analysis.
+
+**ROUTING - Pick this tool when:**
+> Understanding FORMULA relationships and dependencies
+> Analyzing IMPACT of changing cell values
+> Detecting CIRCULAR REFERENCES in formulas
+> Finding what cells DEPEND ON a given cell
+> Visualizing formula DEPENDENCY GRAPHS
+> Planning spreadsheet REFACTORING safely
+
+**NOT this tool - use instead:**
+> sheets_analyze - For general spreadsheet analysis and insights
+> sheets_quality - For formula ERROR detection
+> sheets_fix - For FIXING formula errors (not analyzing)
+> sheets_data - For reading/writing cell VALUES
+
+**ACTIONS BY CATEGORY:**
+[Analysis] build (create graph), analyze_impact (what changes affect), get_stats (complexity metrics)
+[Queries] get_dependencies (what cell depends on), get_dependents (what depends on cell)
+[Quality] detect_cycles (find circular refs)
+[Export] export_dot (Graphviz visualization)
+
+**TOP 3 ACTIONS:**
+1. analyze_impact: {"action":"analyze_impact","spreadsheetId":"1ABC...","cell":"Data!A1"} -> See what cells would be affected by changing A1
+2. detect_cycles: {"action":"detect_cycles","spreadsheetId":"1ABC..."} -> Find circular reference errors
+3. get_dependents: {"action":"get_dependents","spreadsheetId":"1ABC...","cell":"Summary!B5"} -> See what formulas use B5
+
+**USE CASES:**
+- 📊 Before changing important cells, check impact to avoid breaking formulas
+- 🔄 Detect circular references causing #REF! errors
+- 🎯 Find all formulas that use a specific cell (dependents)
+- 🗺️ Export dependency graph to visualize complex formula relationships
+
+**TIP:** Run detect_cycles first to identify circular references, then use analyze_impact before modifying cells with many dependents to understand the scope of changes.`,
 };
 
 // Type export for other modules

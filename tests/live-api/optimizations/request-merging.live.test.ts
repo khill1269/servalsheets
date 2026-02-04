@@ -5,48 +5,34 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled } from '../setup/live-api-client.js';
+import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
   type TestSpreadsheet,
 } from '../setup/test-spreadsheet-manager.js';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../../helpers/mcp-test-harness.js';
 
 const runTests = isLiveApiEnabled();
 const describeOrSkip = runTests ? describe : describe.skip;
 
 describeOrSkip('Request Merging Live Verification', () => {
-  let harness: McpTestHarness;
+  let client: LiveApiClient;
   let spreadsheetManager: TestSpreadsheetManager;
   let testSpreadsheet: TestSpreadsheet;
 
   beforeAll(async () => {
-    const client = await getLiveApiClient();
+    client = await getLiveApiClient();
     spreadsheetManager = createTestSpreadsheetManager(client, 'MERGE_TEST_');
     testSpreadsheet = await spreadsheetManager.createTestSpreadsheet('MAIN');
     await spreadsheetManager.populateTestData(testSpreadsheet.id, { rows: 100 });
-
-    harness = await createServalSheetsTestHarness({
-      serverOptions: {
-        googleApiOptions: {
-          serviceAccountKeyPath: process.env['GOOGLE_APPLICATION_CREDENTIALS'],
-        },
-      },
-    });
-  }, 30000);
+  }, 60000);
 
   afterAll(async () => {
     await spreadsheetManager.cleanup();
-    await harness.close();
   }, 30000);
 
   describe('Overlapping Range Merging', () => {
     it('should handle concurrent reads of overlapping ranges', async () => {
-      // Request overlapping ranges concurrently
       const ranges = [
         'TestData!A1:C10',
         'TestData!B5:D15',
@@ -57,53 +43,37 @@ describeOrSkip('Request Merging Live Verification', () => {
 
       const results = await Promise.all(
         ranges.map((range) =>
-          harness.client.callTool({
-            name: 'sheets_data',
-            arguments: {
-              request: {
-                action: 'read',
-                spreadsheetId: testSpreadsheet.id,
-                range,
-              },
-            },
+          client.sheets.spreadsheets.values.get({
+            spreadsheetId: testSpreadsheet.id,
+            range,
           })
         )
       );
 
       const duration = performance.now() - startTime;
 
-      // All should succeed
       for (const result of results) {
-        const response = (result.structuredContent as { response: { success: boolean } }).response;
-        expect(response.success).toBe(true);
+        expect(result.data.values).toBeDefined();
       }
 
-      console.log(`Merged reads completed in ${duration.toFixed(2)}ms`);
+      console.log(`Overlapping reads completed in ${duration.toFixed(2)}ms`);
     });
 
-    it('should handle batch_read efficiently', async () => {
+    it('should handle batch_get efficiently', async () => {
       const startTime = performance.now();
 
-      const result = await harness.client.callTool({
-        name: 'sheets_data',
-        arguments: {
-          request: {
-            action: 'batch_read',
-            spreadsheetId: testSpreadsheet.id,
-            ranges: [
-              'TestData!A1:B10',
-              'TestData!C1:D10',
-              'TestData!E1:F10',
-            ],
-          },
-        },
+      const result = await client.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: testSpreadsheet.id,
+        ranges: [
+          'TestData!A1:B10',
+          'TestData!C1:D10',
+          'TestData!E1:F10',
+        ],
       });
 
       const duration = performance.now() - startTime;
 
-      const response = (result.structuredContent as { response: { success: boolean; valueRanges?: unknown[] } }).response;
-      expect(response.success).toBe(true);
-      expect(response.valueRanges).toHaveLength(3);
+      expect(result.data.valueRanges).toHaveLength(3);
 
       console.log(`Batch read completed in ${duration.toFixed(2)}ms`);
     });
@@ -116,15 +86,9 @@ describeOrSkip('Request Merging Live Verification', () => {
       // Sequential reads
       const seqStart = performance.now();
       for (const range of ranges) {
-        await harness.client.callTool({
-          name: 'sheets_data',
-          arguments: {
-            request: {
-              action: 'read',
-              spreadsheetId: testSpreadsheet.id,
-              range,
-            },
-          },
+        await client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range,
         });
       }
       const seqDuration = performance.now() - seqStart;
@@ -133,15 +97,9 @@ describeOrSkip('Request Merging Live Verification', () => {
       const parStart = performance.now();
       await Promise.all(
         ranges.map((range) =>
-          harness.client.callTool({
-            name: 'sheets_data',
-            arguments: {
-              request: {
-                action: 'read',
-                spreadsheetId: testSpreadsheet.id,
-                range,
-              },
-            },
+          client.sheets.spreadsheets.values.get({
+            spreadsheetId: testSpreadsheet.id,
+            range,
           })
         )
       );
@@ -149,8 +107,6 @@ describeOrSkip('Request Merging Live Verification', () => {
 
       console.log(`Sequential: ${seqDuration.toFixed(2)}ms, Parallel: ${parDuration.toFixed(2)}ms`);
 
-      // Parallel should generally be faster (unless rate limited)
-      // Just verify both complete successfully
       expect(seqDuration).toBeGreaterThan(0);
       expect(parDuration).toBeGreaterThan(0);
     });

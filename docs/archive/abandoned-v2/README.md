@@ -1,3 +1,10 @@
+---
+title: Abandoned V2 Architecture (2026-01)
+category: archived
+last_updated: 2026-01-31
+description: This directory contains planning documents for a V2 tool reorganization that was ultimately not implemented.
+---
+
 # Abandoned V2 Architecture (2026-01)
 
 This directory contains planning documents for a V2 tool reorganization that was ultimately not implemented.
@@ -28,6 +35,7 @@ The V1 architecture (17 tools, 226 actions) was kept as the production implement
 ## Context
 
 The V2 architecture attempted to consolidate 17 tools into 11 "super tools" grouped by user intent:
+
 - sheets_data (26 actions) - Consolidated from sheets_data + sheets_core
 - sheets_style (18 actions) - Consolidated from sheets_format
 - sheets_structure (27 actions) - Consolidated from sheets_core + sheets_dimensions + sheets_advanced

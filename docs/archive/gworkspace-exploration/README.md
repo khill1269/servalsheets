@@ -1,3 +1,11 @@
+---
+title: GWorkspace Exploration Archive
+category: archived
+last_updated: 2026-01-31
+description: This directory contains exploratory work on GWorkspace MCP implementation that was separate from the ServalSheets core project.
+tags: [sheets]
+---
+
 # GWorkspace Exploration Archive
 
 This directory contains exploratory work on GWorkspace MCP implementation that was separate from the ServalSheets core project.

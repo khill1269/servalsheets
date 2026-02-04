@@ -7,7 +7,6 @@
  */
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
 import {
   FirstOperationPromptArgsSchema,
   AnalyzeSpreadsheetPromptArgsSchema,
@@ -32,6 +31,17 @@ import {
   FullSetupPromptArgsSchema,
   AuditSecurityPromptArgsSchema,
   CompareSpreadsheetPromptArgsSchema,
+  RecoverFromErrorPromptArgsSchema,
+  TroubleshootPerformancePromptArgsSchema,
+  FixDataQualityPromptArgsSchema,
+  OptimizeFormulasPromptArgsSchema,
+  BulkImportDataPromptArgsSchema,
+  AdvancedDataMigrationPromptArgsSchema,
+  PerformanceAuditPromptArgsSchema,
+  BatchOptimizerPromptArgsSchema,
+  UltimateAnalysisPromptArgsSchema,
+  CreateVisualizationPromptArgsSchema,
+  AnalyzeWithHistoryPromptArgsSchema,
 } from '../../schemas/prompts.js';
 
 // ============================================================================
@@ -572,12 +582,7 @@ Report:
     {
       description:
         '🔧 Recover from ServalSheets errors - AI-powered troubleshooting and self-healing',
-      argsSchema: {
-        errorCode: z.string().describe('The error code from the failed operation'),
-        errorMessage: z.string().optional().describe('The full error message'),
-        toolName: z.string().optional().describe('The tool that failed (e.g., sheets_data)'),
-        context: z.string().optional().describe('What you were trying to do'),
-      },
+      argsSchema: RecoverFromErrorPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const errorCode = (args['errorCode'] as string) || 'UNKNOWN_ERROR';
@@ -760,11 +765,7 @@ Still Stuck?
     'troubleshoot_performance',
     {
       description: '⚡ Diagnose and fix slow spreadsheet operations',
-      argsSchema: {
-        spreadsheetId: z.string().describe('The spreadsheet ID'),
-        operation: z.string().optional().describe('What operation was slow'),
-        responseTime: z.number().optional().describe('How long it took (ms)'),
-      },
+      argsSchema: TroubleshootPerformancePromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const spreadsheetId = args['spreadsheetId'] as string;
@@ -852,11 +853,7 @@ Apply fixes and retest!`,
     'fix_data_quality',
     {
       description: '🔍 Identify and fix data quality issues',
-      argsSchema: {
-        spreadsheetId: z.string().describe('The spreadsheet ID'),
-        range: z.string().describe('Range to analyze'),
-        issues: z.string().optional().describe('Known issues'),
-      },
+      argsSchema: FixDataQualityPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const spreadsheetId = args['spreadsheetId'] as string;
@@ -944,10 +941,7 @@ After cleanup, consider:
     'optimize_formulas',
     {
       description: '📊 Optimize slow or inefficient formulas',
-      argsSchema: {
-        spreadsheetId: z.string().describe('The spreadsheet ID'),
-        range: z.string().optional().describe('Range with slow formulas'),
-      },
+      argsSchema: OptimizeFormulasPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const spreadsheetId = args['spreadsheetId'] as string;
@@ -1049,11 +1043,7 @@ After optimization:
     'bulk_import_data',
     {
       description: '📥 Efficiently import large datasets',
-      argsSchema: {
-        spreadsheetId: z.string().describe('Target spreadsheet ID'),
-        dataSize: z.number().optional().describe('Approximate row count'),
-        dataSource: z.string().optional().describe('Source description'),
-      },
+      argsSchema: BulkImportDataPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const spreadsheetId = args['spreadsheetId'] as string;
@@ -1793,15 +1783,7 @@ KEY TAKEAWAYS:
     {
       description:
         '🚀 Advanced multi-sheet, multi-spreadsheet data migration with transformation and validation',
-      argsSchema: {
-        sourceSpreadsheetId: z.string().describe('Source spreadsheet ID'),
-        targetSpreadsheetId: z.string().describe('Target spreadsheet ID'),
-        migrationType: z
-          .enum(['full', 'incremental', 'selective'])
-          .optional()
-          .describe('Migration type: full, incremental, or selective'),
-        transformations: z.string().optional().describe('Data transformations to apply'),
-      },
+      argsSchema: AdvancedDataMigrationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const migrationType = (args['migrationType'] as string) || 'full';
@@ -2052,13 +2034,7 @@ Ready to execute migration! 🚀`,
     {
       description:
         '⚡ Comprehensive spreadsheet performance audit with optimization recommendations',
-      argsSchema: {
-        spreadsheetId: z.string().describe('Spreadsheet ID to audit'),
-        focusAreas: z
-          .array(z.string())
-          .optional()
-          .describe('Focus areas: formulas, data_size, api_usage, caching, structure'),
-      },
+      argsSchema: PerformanceAuditPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const focusAreas = (args['focusAreas'] as string[]) || ['all'];
@@ -2315,13 +2291,7 @@ Audit complete! Review findings and implement recommendations. 🎯`,
     'batch_optimizer',
     {
       description: '🔄 Convert inefficient individual operations to optimized batch operations',
-      argsSchema: {
-        operationType: z
-          .enum(['read', 'write', 'update', 'format', 'mixed'])
-          .describe('Type of operations to optimize'),
-        operationCount: z.number().optional().describe('Number of individual operations'),
-        spreadsheetId: z.string().describe('Spreadsheet ID'),
-      },
+      argsSchema: BatchOptimizerPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       const operationType = args['operationType'] as string;
@@ -2705,9 +2675,7 @@ Ready to optimize! Convert your operations now. 🚀`,
     'ultimate_analysis',
     {
       description: '🧠 Ultimate Analysis Tool - Intelligent routing for data analysis',
-      argsSchema: {
-        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
-      },
+      argsSchema: UltimateAnalysisPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
@@ -2787,9 +2755,7 @@ Ready to analyze! What insights do you need? 🚀`,
     'create_visualization',
     {
       description: '📊 Create charts/pivots with AI recommendations and user confirmation',
-      argsSchema: {
-        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
-      },
+      argsSchema: CreateVisualizationPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {
@@ -2890,9 +2856,7 @@ Ready to visualize your data! 🎨`,
     'analyze_with_history',
     {
       description: '🔗 Reference previous analysis results via MCP Resources',
-      argsSchema: {
-        spreadsheetId: z.string().describe('Spreadsheet ID from URL (required)'),
-      },
+      argsSchema: AnalyzeWithHistoryPromptArgsSchema,
     },
     async (args: Record<string, unknown>) => {
       return {

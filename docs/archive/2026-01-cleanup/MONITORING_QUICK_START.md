@@ -1,3 +1,11 @@
+---
+title: 🚀 Monitoring Quick Start
+category: archived
+last_updated: 2026-01-31
+description: Everything you need to test health monitoring when you restart Claude.
+tags: [monitoring, observability]
+---
+
 # 🚀 Monitoring Quick Start
 
 Everything you need to test health monitoring when you restart Claude.
@@ -24,6 +32,7 @@ npm run test:health
 ## What You'll See
 
 ### When Monitor Starts
+
 ```
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║            🦁 ServalSheets Live Monitor v2.1 (Anomaly Detection)           ║
@@ -44,12 +53,14 @@ Health monitoring (automatic):
 ```
 
 ### When Claude Connects
+
 ```
 [10:30:15] → sheets_auth.status
 [10:30:15] ← ✓ sheets_auth.status (125ms)
 ```
 
 Server logs:
+
 ```
 [INFO] Health monitoring started
 [INFO] Request queue initialized
@@ -58,6 +69,7 @@ Server logs:
 ```
 
 ### When You Make Tool Calls
+
 ```
 [10:31:45] → sheets_core.list
 [10:31:46] ← ✓ sheets_core.list (1.2s)
@@ -67,6 +79,7 @@ Server logs:
 ```
 
 ### When Errors Occur
+
 ```
 [10:35:20] → sheets_data.read [invalid-id]
 [10:35:21] ← ✗ sheets_data.read (234ms) ╔══════════════╗
@@ -76,6 +89,7 @@ Server logs:
 ```
 
 ### When Memory is High (>70%)
+
 ```
 [WARN] Health check WARNING: heap {
   message: 'Heap usage at 73.2% (warning)',
@@ -84,6 +98,7 @@ Server logs:
 ```
 
 ### When Connection is Idle (>60s)
+
 ```
 [WARN] Health check WARNING: connection {
   message: 'Connection idle for 65000ms (warning)',
@@ -92,6 +107,7 @@ Server logs:
 ```
 
 ### When Anomaly Detected
+
 ```
 ╔════════════════════════════════════════════════╗
 ║ ⚠️  ANOMALY DETECTED                           ║
@@ -101,6 +117,7 @@ Server logs:
 ```
 
 ### Final Report (Ctrl+C)
+
 ```
 ═══════════════════════════════════════════════════════════════════════════
                               📊 ANALYSIS REPORT
@@ -160,16 +177,19 @@ When you restart Claude:
 ## Troubleshooting
 
 **Monitor says "Log file not found"**
+
 - Make sure Claude Desktop is running
 - Check config: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Log location: `~/Library/Logs/Claude/mcp-server-ServalSheets.log`
 
 **No health monitoring logs**
+
 - Health logs go to server console (INFO/DEBUG level)
 - In Claude Code, check the server output panel
 - Or watch: `tail -f ~/Library/Logs/Claude/mcp-server-ServalSheets.log`
 
 **Monitor running but no tool calls**
+
 - Claude must be actively using ServalSheets
 - Ask Claude: "Can you list my spreadsheets?"
 - Check auth status first: "What's my ServalSheets connection status?"

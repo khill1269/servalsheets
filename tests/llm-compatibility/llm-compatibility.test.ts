@@ -357,6 +357,17 @@ function buildCollaborateFields(action: string, mode: BuildMode): Record<string,
     case 'version_restore_snapshot':
     case 'version_delete_snapshot':
       return { ...base, snapshotId: asString('snapshot') };
+    case 'approval_create':
+      return { ...base, range: SAMPLE_RANGE, approvers: [SAMPLE_EMAIL] };
+    case 'approval_approve':
+    case 'approval_reject':
+    case 'approval_get_status':
+    case 'approval_cancel':
+      return { ...base, approvalId: asString('approval_123') };
+    case 'approval_list_pending':
+      return base;
+    case 'approval_delegate':
+      return { ...base, approvalId: asString('approval_123'), delegateTo: SAMPLE_EMAIL };
     default:
       return base;
   }

@@ -88,6 +88,7 @@ const createMockGoogleClient = (
       error: hasTokens ? undefined : 'No token present',
     }),
     setCredentials: vi.fn(),
+    setScopes: vi.fn(),
     clearStoredTokens: vi.fn(),
     revokeAccess: vi.fn(),
   }) as any;

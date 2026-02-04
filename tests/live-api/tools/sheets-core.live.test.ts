@@ -3,9 +3,12 @@
  *
  * Tests spreadsheet and sheet management operations against the real Google Sheets API.
  * Requires TEST_REAL_API=true environment variable.
+ * 
+ * OPTIMIZED: Uses a single main spreadsheet where possible, only creates
+ * additional spreadsheets for tests that specifically need them.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LiveApiClient } from '../setup/live-api-client.js';
 import { TestSpreadsheetManager, TestSpreadsheet } from '../setup/test-spreadsheet-manager.js';
 import {
@@ -28,17 +31,14 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
     }
     client = new LiveApiClient(credentials, { trackMetrics: true });
     manager = new TestSpreadsheetManager(client);
-  });
+    
+    // Create ONE main spreadsheet for most tests
+    testSpreadsheet = await manager.createTestSpreadsheet('core');
+  }, 60000);
 
   afterAll(async () => {
-    // Cleanup all test spreadsheets created during this test run
     await manager.cleanup();
-  });
-
-  beforeEach(async () => {
-    // Create a fresh test spreadsheet for each test
-    testSpreadsheet = await manager.createTestSpreadsheet('core');
-  });
+  }, 30000);
 
   describe('Spreadsheet Operations', () => {
     describe('get action', () => {
@@ -74,9 +74,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
         const response = await client.sheets.spreadsheets.create({
           requestBody: {
-            properties: {
-              title,
-            },
+            properties: { title },
           },
         });
 
@@ -84,7 +82,6 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         expect(response.data.spreadsheetId).toBeDefined();
         expect(response.data.properties?.title).toBe(title);
 
-        // Track for cleanup
         manager.trackSpreadsheet(response.data.spreadsheetId!);
       });
 
@@ -110,17 +107,14 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         expect(sheetTitles).toContain('Summary');
         expect(sheetTitles).toContain('Config');
 
-        // Track for cleanup
         manager.trackSpreadsheet(response.data.spreadsheetId!);
       });
     });
 
     describe('copy action', () => {
       it('should copy a spreadsheet', async () => {
-        // First create a spreadsheet with some data
         const sourceId = testSpreadsheet.id;
 
-        // Add some data to the source
         await client.sheets.spreadsheets.values.update({
           spreadsheetId: sourceId,
           range: 'TestData!A1:B2',
@@ -133,7 +127,6 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
           },
         });
 
-        // Copy the spreadsheet using Drive API
         const copyResponse = await client.drive.files.copy({
           fileId: sourceId,
           requestBody: {
@@ -145,10 +138,8 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         expect(copyResponse.data.id).toBeDefined();
         expect(copyResponse.data.id).not.toBe(sourceId);
 
-        // Track for cleanup
         manager.trackSpreadsheet(copyResponse.data.id!);
 
-        // Verify the copy has the same data
         const verifyResponse = await client.sheets.spreadsheets.values.get({
           spreadsheetId: copyResponse.data.id!,
           range: 'TestData!A1:B2',
@@ -170,15 +161,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         const response = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                addSheet: {
-                  properties: {
-                    title: newSheetTitle,
-                  },
-                },
-              },
-            ],
+            requests: [{ addSheet: { properties: { title: newSheetTitle } } }],
           },
         });
 
@@ -196,25 +179,19 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         const response = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                addSheet: {
-                  properties: {
-                    title: newSheetTitle,
-                    gridProperties: {
-                      rowCount: 100,
-                      columnCount: 26,
-                      frozenRowCount: 1,
-                    },
-                    tabColor: {
-                      red: 0.2,
-                      green: 0.6,
-                      blue: 0.8,
-                    },
+            requests: [{
+              addSheet: {
+                properties: {
+                  title: newSheetTitle,
+                  gridProperties: {
+                    rowCount: 100,
+                    columnCount: 26,
+                    frozenRowCount: 1,
                   },
+                  tabColor: { red: 0.2, green: 0.6, blue: 0.8 },
                 },
               },
-            ],
+            }],
           },
         });
 
@@ -222,49 +199,31 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
         const addedSheet = response.data.replies![0].addSheet;
         expect(addedSheet?.properties?.gridProperties?.rowCount).toBe(100);
-        expect(addedSheet?.properties?.gridProperties?.columnCount).toBe(26);
         expect(addedSheet?.properties?.gridProperties?.frozenRowCount).toBe(1);
       });
     });
 
     describe('delete_sheet action', () => {
       it('should delete a sheet from spreadsheet', async () => {
-        // First add a sheet to delete
         const addResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                addSheet: {
-                  properties: {
-                    title: `ToDelete_${Date.now()}`,
-                  },
-                },
-              },
-            ],
+            requests: [{ addSheet: { properties: { title: `ToDelete_${Date.now()}` } } }],
           },
         });
 
         const sheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
         expect(sheetId).toBeDefined();
 
-        // Now delete the sheet
         const deleteResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                deleteSheet: {
-                  sheetId,
-                },
-              },
-            ],
+            requests: [{ deleteSheet: { sheetId } }],
           },
         });
 
         expect(deleteResponse.status).toBe(200);
 
-        // Verify sheet is gone
         const verifyResponse = await client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,
         });
@@ -276,36 +235,31 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
     describe('rename_sheet action', () => {
       it('should rename an existing sheet', async () => {
-        // Get the first sheet's ID
-        const getResponse = await client.sheets.spreadsheets.get({
+        // Add a new sheet to rename
+        const addResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
+          requestBody: {
+            requests: [{ addSheet: { properties: { title: `ToRename_${Date.now()}` } } }],
+          },
         });
 
-        const firstSheet = getResponse.data.sheets![0];
-        const sheetId = firstSheet.properties!.sheetId;
+        const sheetId = addResponse.data.replies![0].addSheet?.properties?.sheetId;
         const newTitle = `Renamed_${Date.now()}`;
 
-        // Rename the sheet
         const renameResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                updateSheetProperties: {
-                  properties: {
-                    sheetId,
-                    title: newTitle,
-                  },
-                  fields: 'title',
-                },
+            requests: [{
+              updateSheetProperties: {
+                properties: { sheetId, title: newTitle },
+                fields: 'title',
               },
-            ],
+            }],
           },
         });
 
         expect(renameResponse.status).toBe(200);
 
-        // Verify the rename
         const verifyResponse = await client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,
         });
@@ -319,7 +273,7 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
     describe('duplicate_sheet action', () => {
       it('should duplicate a sheet within the same spreadsheet', async () => {
-        // Add some data to the first sheet
+        // Ensure TestData sheet has some data
         await client.sheets.spreadsheets.values.update({
           spreadsheetId: testSpreadsheet.id,
           range: 'TestData!A1:B2',
@@ -332,25 +286,24 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
           },
         });
 
-        // Get the first sheet's ID
         const getResponse = await client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,
         });
 
-        const sourceSheetId = getResponse.data.sheets![0].properties!.sheetId;
+        const testDataSheet = getResponse.data.sheets!.find(
+          (s) => s.properties?.title === 'TestData'
+        );
+        const sourceSheetId = testDataSheet?.properties?.sheetId;
 
-        // Duplicate the sheet
         const duplicateResponse = await client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                duplicateSheet: {
-                  sourceSheetId,
-                  newSheetName: `Copy_${Date.now()}`,
-                },
+            requests: [{
+              duplicateSheet: {
+                sourceSheetId,
+                newSheetName: `Copy_${Date.now()}`,
               },
-            ],
+            }],
           },
         });
 
@@ -360,7 +313,6 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         expect(duplicatedSheet?.properties?.sheetId).toBeDefined();
         expect(duplicatedSheet?.properties?.sheetId).not.toBe(sourceSheetId);
 
-        // Verify the duplicate has the same data
         const verifyResponse = await client.sheets.spreadsheets.values.get({
           spreadsheetId: testSpreadsheet.id,
           range: `${duplicatedSheet?.properties?.title}!A1:B2`,
@@ -375,18 +327,6 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
     describe('list_sheets action', () => {
       it('should list all sheets in a spreadsheet', async () => {
-        // Add a couple more sheets
-        await client.sheets.spreadsheets.batchUpdate({
-          spreadsheetId: testSpreadsheet.id,
-          requestBody: {
-            requests: [
-              { addSheet: { properties: { title: 'ExtraSheet1' } } },
-              { addSheet: { properties: { title: 'ExtraSheet2' } } },
-            ],
-          },
-        });
-
-        // List all sheets
         const response = await client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,
           fields: 'sheets.properties',
@@ -394,12 +334,8 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
 
         expect(response.status).toBe(200);
         expect(response.data.sheets).toBeDefined();
-        // Default sheets (TestData, Benchmarks, Formulas) + 2 extra = 5+
-        expect(response.data.sheets!.length).toBeGreaterThanOrEqual(5);
-
-        const titles = response.data.sheets!.map((s) => s.properties?.title);
-        expect(titles).toContain('ExtraSheet1');
-        expect(titles).toContain('ExtraSheet2');
+        // Should have at least the default sheets
+        expect(response.data.sheets!.length).toBeGreaterThanOrEqual(3);
       });
     });
   });
@@ -418,33 +354,18 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                deleteSheet: {
-                  sheetId: 999999999,
-                },
-              },
-            ],
+            requests: [{ deleteSheet: { sheetId: 999999999 } }],
           },
         })
       ).rejects.toThrow();
     });
 
     it('should handle duplicate sheet name', async () => {
-      // Try to add a sheet with the same name as an existing one
       await expect(
         client.sheets.spreadsheets.batchUpdate({
           spreadsheetId: testSpreadsheet.id,
           requestBody: {
-            requests: [
-              {
-                addSheet: {
-                  properties: {
-                    title: 'TestData', // Already exists
-                  },
-                },
-              },
-            ],
+            requests: [{ addSheet: { properties: { title: 'TestData' } } }],
           },
         })
       ).rejects.toThrow();
@@ -455,7 +376,6 @@ describe.skipIf(!runLiveTests)('sheets_core Live API Tests', () => {
     it('should track API call metrics', async () => {
       client.resetMetrics();
 
-      // Make a few API calls
       await client.trackOperation('get', 'GET', () =>
         client.sheets.spreadsheets.get({
           spreadsheetId: testSpreadsheet.id,

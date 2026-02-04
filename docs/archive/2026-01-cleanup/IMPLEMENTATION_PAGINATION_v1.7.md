@@ -1,4 +1,13 @@
+---
+title: "Implementation Guide: Large Dataset Pagination (v1.7.0)"
+category: archived
+last_updated: 2026-01-31
+description: "Priority: P0 - Critical for enterprise use cases"
+tags: [sheets, grafana]
+---
+
 # Implementation Guide: Large Dataset Pagination (v1.7.0)
+
 **Priority:** P0 - Critical for enterprise use cases
 **Effort:** 5 days
 **Impact:** Unlock 100k+ row spreadsheet support
@@ -8,6 +17,7 @@
 ## Problem Statement
 
 **Current Limitation:**
+
 ```typescript
 // This FAILS for large datasets
 await client.call('sheets_data', {
@@ -18,6 +28,7 @@ await client.call('sheets_data', {
 ```
 
 **Google Sheets API Constraints:**
+
 - Max 10,000 cells per request
 - 2MB payload recommended
 - 180 second timeout
@@ -762,11 +773,13 @@ const result = await sheets_data({
 ## Performance Expectations
 
 ### Before (v1.6.0)
+
 - ❌ Max rows: ~10k (API limit)
 - ❌ Memory: Linear with dataset size (OOM on 100k rows)
 - ❌ Latency: N/A (fails)
 
 ### After (v1.7.0)
+
 - ✅ Max rows: 1M+ (paginated)
 - ✅ Memory: Constant (~1000 rows buffered)
 - ✅ Latency: ~500ms per page
@@ -777,14 +790,17 @@ const result = await sheets_data({
 ## Migration Notes
 
 ### Breaking Changes
+
 **NONE** - Fully backward compatible
 
 ### Opt-In Behavior
+
 - Small datasets (<10k cells): No pagination (existing behavior)
 - Large datasets (>10k cells): Automatic pagination (new behavior)
 - Users can opt-in with `cursor` parameter
 
 ### Cache Interaction
+
 - Cached data bypasses pagination (small datasets only)
 - Large dataset pages are NOT cached (too much memory)
 - Metadata can be cached separately
@@ -827,12 +843,14 @@ export const paginationOverhead = new Histogram({
 ## Rollout Plan
 
 ### Week 1: Development + Testing
+
 - Day 1-2: Implement pagination-helpers.ts + tests
 - Day 3: Update data handler
 - Day 4: Update schemas + integration tests
 - Day 5: Manual testing with real 100k+ row sheet
 
 ### Week 2: Deployment + Monitoring
+
 - Deploy to staging
 - Load test with various dataset sizes
 - Monitor pagination metrics

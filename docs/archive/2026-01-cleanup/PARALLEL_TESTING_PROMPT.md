@@ -1,3 +1,11 @@
+---
+title: 🚀 PARALLEL TESTING PROMPT - Critical Fixes Validation
+category: archived
+last_updated: 2026-01-31
+description: "PURPOSE: Spawn multiple agents in parallel to aggressively test all 16 critical fixes across all high-error-rate tools."
+tags: [testing]
+---
+
 # 🚀 PARALLEL TESTING PROMPT - Critical Fixes Validation
 
 **PURPOSE**: Spawn multiple agents in parallel to aggressively test all 16 critical fixes across all high-error-rate tools.
@@ -11,6 +19,7 @@
 Claude, please execute this comprehensive parallel testing plan. **Use multiple agents in parallel** to maximize testing speed.
 
 ### **Test Spreadsheet**
+
 Create a new test spreadsheet called "ServalSheets Critical Fixes Test - [timestamp]"
 
 ---
@@ -20,6 +29,7 @@ Create a new test spreadsheet called "ServalSheets Critical Fixes Test - [timest
 **Run these 5 test groups IN PARALLEL using separate agents:**
 
 ### **Agent 1: Chart Creation Tests (Fix #1 - A1 Notation)**
+
 Test multi-range chart creation (the fix that was blocking before):
 
 1. Create employee data:
@@ -44,6 +54,7 @@ Test multi-range chart creation (the fix that was blocking before):
 ---
 
 ### **Agent 2: Lowercase Enum Testing (Fix #5 - Case Insensitivity)**
+
 Test ALL enums with lowercase values:
 
 1. **Dimension tests**:
@@ -72,6 +83,7 @@ Test ALL enums with lowercase values:
 ---
 
 ### **Agent 3: Quality & Confirm Tools (Fixes #4, #5)**
+
 Test the tools that had 43-57% error rates:
 
 1. **sheets_quality.analyze_impact**:
@@ -89,6 +101,7 @@ Test the tools that had 43-57% error rates:
    - Provide all optional fields explicitly
 
 **Expected**:
+
 - Quality tool accepts valid sheet_* tool names
 - Confirm tool works WITHOUT optional fields (was failing at 57% before!)
 - No validation errors
@@ -96,6 +109,7 @@ Test the tools that had 43-57% error rates:
 ---
 
 ### **Agent 4: Format & Dimensions (Fixes #6, #7)**
+
 Test color precision and dimension operations:
 
 1. **Color precision tests**:
@@ -114,6 +128,7 @@ Test color precision and dimension operations:
    - Auto-fit with dimension: `"both"` (lowercase)
 
 **Expected**:
+
 - Colors rounded to 4 decimals automatically
 - columnIndex accepts numeric values
 - All dimension operations work
@@ -121,6 +136,7 @@ Test color precision and dimension operations:
 ---
 
 ### **Agent 5: Composite & Advanced Operations**
+
 Test bulk operations and edge cases:
 
 1. **Composite operations**:
@@ -139,6 +155,7 @@ Test bulk operations and edge cases:
    - Use various lowercase enum values throughout
 
 **Expected**:
+
 - High success rate (>90%)
 - No "unknown action" in metrics
 - Fast execution with new optimizations
@@ -162,6 +179,7 @@ After all agents complete, check metrics:
 ## 🎯 SUCCESS CRITERIA
 
 **MUST ACHIEVE**:
+
 - [ ] All 5 agent groups complete successfully
 - [ ] Charts with comma-separated ranges work
 - [ ] All lowercase enums accepted
@@ -172,6 +190,7 @@ After all agents complete, check metrics:
 - [ ] Zero "unknown action" metrics
 
 **IDEAL TARGETS**:
+
 - [ ] Error rate <5%
 - [ ] All operations complete in <5s each
 - [ ] 95%+ operations successful
@@ -189,6 +208,7 @@ After all agents complete, check metrics:
 4. **Report results as each agent completes**
 
 **Example execution**:
+
 ```
 I'm spawning 5 parallel agents to test all critical fixes:
 
@@ -215,6 +235,7 @@ Overall: 47/47 tests passed (100%)
 ## 🔍 MONITORING
 
 While testing runs, monitoring will track:
+
 - All tool calls and their durations
 - Validation errors (should be near zero)
 - Action extraction (no more "unknown")

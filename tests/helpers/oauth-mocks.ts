@@ -35,6 +35,7 @@ export class MockOAuth2Client {
       access_token: 'mock-access-token',
       refresh_token: 'mock-refresh-token',
       expiry_date: Date.now() + 3600000,
+      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
     },
   });
 

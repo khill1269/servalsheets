@@ -1,3 +1,11 @@
+---
+title: 🧪 Comprehensive ServalSheets Test Prompt
+category: archived
+last_updated: 2026-01-31
+description: Copy and paste this prompt into Claude to test all 21 tools and 267 actions.
+tags: [testing]
+---
+
 # 🧪 Comprehensive ServalSheets Test Prompt
 
 Copy and paste this prompt into Claude to test all 21 tools and 267 actions.
@@ -161,6 +169,7 @@ Please work through these systematically, reporting success/failure for each ste
 As Claude works through this, you should see in your monitor terminal:
 
 ### Real-time Tool Calls
+
 ```
 [10:45:00] → sheets_auth.status
 [10:45:00] ← ✓ sheets_auth.status (120ms)
@@ -172,17 +181,20 @@ As Claude works through this, you should see in your monitor terminal:
 ```
 
 ### Health Monitoring
+
 ```
 [DEBUG] Health check passed: heap (4.2% usage)
 [DEBUG] Health check passed: connection (active)
 ```
 
 ### Performance Tracking
+
 - Slow calls highlighted (>2s)
 - Average response times per tool
 - Error rate tracking
 
 ### Final Report (Ctrl+C)
+
 - Total tools called
 - Actions executed
 - Error breakdown

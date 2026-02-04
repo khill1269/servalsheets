@@ -1,3 +1,11 @@
+---
+title: ✅ Claude Desktop Timeout Fix - Applied
+category: archived
+last_updated: 2026-01-31
+description: "Problem: Claude Desktop times out after 60-90 seconds, causing session loss during long operations."
+tags: [sheets]
+---
+
 # ✅ Claude Desktop Timeout Fix - Applied
 
 **Problem**: Claude Desktop times out after 60-90 seconds, causing session loss during long operations.
@@ -9,17 +17,20 @@
 ## What Was Fixed
 
 ### 1. **Keepalive System** (`src/utils/keepalive.ts`)
+
 - Sends MCP progress notifications every 15 seconds during operations
 - Prevents Claude Desktop from thinking the server is unresponsive
 - Automatically wraps ALL tool operations
 - Configurable via environment variables
 
 ### 2. **Increased Timeouts** (`.env.local`)
+
 - Request timeout: 30s → **120s** (allows 2 minutes per operation)
 - Google API timeout: 30s → **60s** (per API call)
 - Connection health: 60s warn, 120s critical → **90s warn, 180s critical**
 
 ### 3. **Reduced Batching Delays** (`.env.local`)
+
 - Batch window: 50-200ms → **10-50ms** (less waiting between operations)
 
 ---
@@ -81,22 +92,27 @@ ADAPTIVE_BATCH_WINDOW_INITIAL_MS=20
 ## How to Restart Claude and Test
 
 ### 1. Quit Claude Desktop
+
 - Mac: `Cmd+Q` or Claude → Quit Claude
 - Make sure it's fully quit (check Activity Monitor if needed)
 
 ### 2. Restart Claude Desktop
+
 - Open Claude Desktop app
 - Wait for it to fully initialize (~5-10 seconds)
 
 ### 3. Test Long Operations
+
 Try one of these to verify timeouts are fixed:
 
 **Quick Test** (should complete in ~30s):
+
 ```
 Create a test spreadsheet, add 10 rows of data, format it, and create a chart.
 ```
 
 **Longer Test** (should complete in ~60s):
+
 ```
 Create a comprehensive test spreadsheet with:
 1. Write 50 rows of employee data
@@ -107,19 +123,23 @@ Create a comprehensive test spreadsheet with:
 ```
 
 **Stress Test** (should complete in ~90s):
+
 ```
 Run the full comprehensive test from COMPREHENSIVE_TEST_PROMPT.md
 (100 steps testing all 21 tools)
 ```
 
 ### 4. Monitor Activity
+
 Open a terminal and watch logs in real-time:
+
 ```bash
 cd /Users/thomascahill/Documents/mcp-servers/servalsheets
 npm run monitor:live
 ```
 
 You should see:
+
 - No timeout errors
 - Operations completing successfully
 - "Health monitoring" messages in logs
@@ -129,11 +149,13 @@ You should see:
 ## What You'll See
 
 ### In Claude Desktop
+
 - Operations will take the same time as before (5-60s)
 - But Claude WON'T timeout anymore
 - Long operations will complete successfully
 
 ### In Monitoring Terminal
+
 ```
 [09:15:30] → sheets_data.write
 [09:15:35] ← ✓ sheets_data.write (5.0s)
@@ -146,6 +168,7 @@ You should see:
 ```
 
 ### In Server Logs (if DEBUG_KEEPALIVE=true)
+
 ```
 [DEBUG] Keepalive started: sheets_data.write, interval=15000ms
 [DEBUG] Sent progress notification #1
@@ -160,6 +183,7 @@ You should see:
 ### Still Getting Timeouts?
 
 **1. Check .env.local was loaded**
+
 ```bash
 # In server logs, you should see:
 [INFO] Health monitoring started
@@ -167,16 +191,19 @@ You should see:
 ```
 
 **2. Restart the MCP server**
+
 - Quit Claude Desktop completely
 - Wait 10 seconds
 - Start Claude Desktop again
 
 **3. Check Claude Desktop version**
+
 - Make sure you're using Claude Desktop (not Claude.ai web)
 - MCP progress notifications require Claude Desktop
 
 **4. Increase timeouts further**
 Edit `.env.local`:
+
 ```bash
 REQUEST_TIMEOUT_MS=180000  # 3 minutes
 PROGRESS_NOTIFICATION_INTERVAL_MS=10000  # Notify every 10s
@@ -185,6 +212,7 @@ PROGRESS_NOTIFICATION_INTERVAL_MS=10000  # Notify every 10s
 ### Keepalive Not Working?
 
 **Check if progress notifications are enabled:**
+
 ```bash
 # In server logs, look for:
 [DEBUG] Keepalive started: sheets_core.list_sheets
@@ -196,9 +224,11 @@ PROGRESS_NOTIFICATION_INTERVAL_MS=10000  # Notify every 10s
 
 **Enable debug mode:**
 Edit `.env.local`:
+
 ```bash
 DEBUG_KEEPALIVE=true
 ```
+
 Restart Claude Desktop, then check logs for keepalive activity.
 
 ### Operations Still Slow?
@@ -206,6 +236,7 @@ Restart Claude Desktop, then check logs for keepalive activity.
 Keepalive **doesn't speed up operations** - it only prevents timeouts.
 
 If operations are slow:
+
 1. Check internet connection
 2. Check Google Sheets API quotas (see monitoring)
 3. Reduce batch window further (set to 5ms minimum)
@@ -294,6 +325,7 @@ After restarting Claude Desktop:
 ## Need Help?
 
 If timeouts persist:
+
 1. Check this file: `/Users/thomascahill/Documents/mcp-servers/servalsheets/.env.local`
 2. Check logs: `~/Library/Logs/Claude/mcp-server-ServalSheets.log`
 3. Try increasing REQUEST_TIMEOUT_MS to 180000 (3 minutes)

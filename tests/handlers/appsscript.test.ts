@@ -19,7 +19,14 @@ const createMockGoogleClient = () => ({
       refresh_token: 'test-refresh-token',
       expiry_date: Date.now() + 3600000,
     },
+    getAccessToken: vi.fn().mockResolvedValue({ token: 'test-access-token' }),
   },
+  getTokenStatus: vi.fn().mockReturnValue({
+    hasAccessToken: true,
+    hasRefreshToken: true,
+    expiryDate: Date.now() + 3600000, // 1 hour from now (won't trigger pre-refresh)
+    scope: 'https://www.googleapis.com/auth/script.projects',
+  }),
 });
 
 describe('SheetsAppsScriptHandler', () => {

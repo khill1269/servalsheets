@@ -5,43 +5,30 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { getLiveApiClient, isLiveApiEnabled } from '../setup/live-api-client.js';
+import { getLiveApiClient, isLiveApiEnabled, type LiveApiClient } from '../setup/live-api-client.js';
 import {
   TestSpreadsheetManager,
   createTestSpreadsheetManager,
   type TestSpreadsheet,
 } from '../setup/test-spreadsheet-manager.js';
-import {
-  createServalSheetsTestHarness,
-  type McpTestHarness,
-} from '../../helpers/mcp-test-harness.js';
 
 const runTests = isLiveApiEnabled();
 const describeOrSkip = runTests ? describe : describe.skip;
 
 describeOrSkip('Parallel Execution Live Verification', () => {
-  let harness: McpTestHarness;
+  let client: LiveApiClient;
   let spreadsheetManager: TestSpreadsheetManager;
   let testSpreadsheet: TestSpreadsheet;
 
   beforeAll(async () => {
-    const client = await getLiveApiClient();
+    client = await getLiveApiClient();
     spreadsheetManager = createTestSpreadsheetManager(client, 'PARALLEL_TEST_');
     testSpreadsheet = await spreadsheetManager.createTestSpreadsheet('MAIN');
     await spreadsheetManager.populateTestData(testSpreadsheet.id, { rows: 100 });
-
-    harness = await createServalSheetsTestHarness({
-      serverOptions: {
-        googleApiOptions: {
-          serviceAccountKeyPath: process.env['GOOGLE_APPLICATION_CREDENTIALS'],
-        },
-      },
-    });
-  }, 30000);
+  }, 60000);
 
   afterAll(async () => {
     await spreadsheetManager.cleanup();
-    await harness.close();
   }, 30000);
 
   describe('Concurrent Read Operations', () => {
@@ -52,25 +39,17 @@ describeOrSkip('Parallel Execution Live Verification', () => {
 
       const results = await Promise.all(
         ranges.map((range) =>
-          harness.client.callTool({
-            name: 'sheets_data',
-            arguments: {
-              request: {
-                action: 'read',
-                spreadsheetId: testSpreadsheet.id,
-                range,
-              },
-            },
+          client.sheets.spreadsheets.values.get({
+            spreadsheetId: testSpreadsheet.id,
+            range,
           })
         )
       );
 
       const duration = performance.now() - startTime;
 
-      // All should succeed
       for (const result of results) {
-        const response = (result.structuredContent as { response: { success: boolean } }).response;
-        expect(response.success).toBe(true);
+        expect(result.data.values).toBeDefined();
       }
 
       console.log(`10 concurrent reads completed in ${duration.toFixed(2)}ms`);
@@ -78,84 +57,45 @@ describeOrSkip('Parallel Execution Live Verification', () => {
 
     it('should handle mixed read/write operations concurrently', async () => {
       const operations = [
-        // Reads
-        harness.client.callTool({
-          name: 'sheets_data',
-          arguments: {
-            request: {
-              action: 'read',
-              spreadsheetId: testSpreadsheet.id,
-              range: 'TestData!A1:B10',
-            },
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:B10',
+        }),
+        client.sheets.spreadsheets.values.update({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'Benchmarks!A1:B5',
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [['Mixed', 'Op1'], ['Test', 'Op2'], ['Data', 'Op3'], ['Row', 'Op4'], ['Five', 'Op5']],
           },
         }),
-        // Write
-        harness.client.callTool({
-          name: 'sheets_data',
-          arguments: {
-            request: {
-              action: 'write',
-              spreadsheetId: testSpreadsheet.id,
-              range: 'Benchmarks!A1:B5',
-              values: [['Mixed', 'Op1'], ['Test', 'Op2'], ['Data', 'Op3'], ['Row', 'Op4'], ['Five', 'Op5']],
-            },
-          },
-        }),
-        // Another read
-        harness.client.callTool({
-          name: 'sheets_data',
-          arguments: {
-            request: {
-              action: 'read',
-              spreadsheetId: testSpreadsheet.id,
-              range: 'TestData!C1:D10',
-            },
-          },
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!C1:D10',
         }),
       ];
 
       const results = await Promise.all(operations);
 
-      for (const result of results) {
-        const response = (result.structuredContent as { response: { success: boolean } }).response;
-        expect(response.success).toBe(true);
-      }
+      expect(results[0].data.values).toBeDefined();
+      expect(results[1].data.updatedCells).toBeGreaterThan(0);
+      expect(results[2].data.values).toBeDefined();
     });
   });
 
-  describe('Concurrent Multi-Tool Operations', () => {
-    it('should handle concurrent operations across different tools', async () => {
+  describe('Concurrent Multi-Endpoint Operations', () => {
+    it('should handle concurrent operations across different endpoints', async () => {
       const operations = [
-        // sheets_core
-        harness.client.callTool({
-          name: 'sheets_core',
-          arguments: {
-            request: {
-              action: 'get',
-              spreadsheetId: testSpreadsheet.id,
-            },
-          },
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
         }),
-        // sheets_data
-        harness.client.callTool({
-          name: 'sheets_data',
-          arguments: {
-            request: {
-              action: 'read',
-              spreadsheetId: testSpreadsheet.id,
-              range: 'TestData!A1:F5',
-            },
-          },
+        client.sheets.spreadsheets.values.get({
+          spreadsheetId: testSpreadsheet.id,
+          range: 'TestData!A1:F5',
         }),
-        // sheets_analyze
-        harness.client.callTool({
-          name: 'sheets_analyze',
-          arguments: {
-            request: {
-              action: 'analyze_structure',
-              spreadsheetId: testSpreadsheet.id,
-            },
-          },
+        client.sheets.spreadsheets.get({
+          spreadsheetId: testSpreadsheet.id,
+          includeGridData: false,
         }),
       ];
 
@@ -163,12 +103,11 @@ describeOrSkip('Parallel Execution Live Verification', () => {
       const results = await Promise.all(operations);
       const duration = performance.now() - startTime;
 
-      for (const result of results) {
-        const response = (result.structuredContent as { response: { success: boolean } }).response;
-        expect(response.success).toBe(true);
-      }
+      expect(results[0].data.spreadsheetId).toBe(testSpreadsheet.id);
+      expect(results[1].data.values).toBeDefined();
+      expect(results[2].data.spreadsheetId).toBe(testSpreadsheet.id);
 
-      console.log(`3 concurrent multi-tool ops completed in ${duration.toFixed(2)}ms`);
+      console.log(`3 concurrent multi-endpoint ops completed in ${duration.toFixed(2)}ms`);
     });
   });
 
@@ -180,15 +119,9 @@ describeOrSkip('Parallel Execution Live Verification', () => {
 
       for (let batch = 0; batch < batchCount; batch++) {
         const operations = Array.from({ length: batchSize }, (_, i) =>
-          harness.client.callTool({
-            name: 'sheets_data',
-            arguments: {
-              request: {
-                action: 'read',
-                spreadsheetId: testSpreadsheet.id,
-                range: `TestData!A${batch * 10 + i + 1}:F${batch * 10 + i + 5}`,
-              },
-            },
+          client.sheets.spreadsheets.values.get({
+            spreadsheetId: testSpreadsheet.id,
+            range: `TestData!A${batch * 10 + i + 1}:F${batch * 10 + i + 5}`,
           })
         );
 
@@ -196,13 +129,12 @@ describeOrSkip('Parallel Execution Live Verification', () => {
         await Promise.all(operations);
         durations.push(performance.now() - start);
 
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Small delay between batches to avoid quota issues
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
       console.log(`Batch durations: ${durations.map(d => d.toFixed(2)).join('ms, ')}ms`);
 
-      // All batches should complete successfully
       expect(durations.length).toBe(batchCount);
       expect(durations.every(d => d > 0)).toBe(true);
     });

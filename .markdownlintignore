@@ -1,0 +1,27 @@
+# Ignore generated files
+docs/generated/**
+docs/.vitepress/dist/**
+docs/.vitepress/cache/**
+
+# Ignore archive (legacy content)
+docs/archive/**
+
+# Ignore node_modules
+node_modules/**
+
+# Ignore coverage reports
+coverage/**
+
+# Ignore build outputs
+dist/**
+
+# Ignore snapshot files
+**/*.snap.md
+
+# Ignore CHANGELOG (has special formatting)
+CHANGELOG.md
+docs/CHANGELOG.md
+
+# Auto-generated files
+docs/DOCS_CATALOG.md
+docs/METRICS_DASHBOARD.md

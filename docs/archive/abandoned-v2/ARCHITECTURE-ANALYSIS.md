@@ -1,3 +1,11 @@
+---
+title: ServalSheets v2.0 - Comprehensive Architecture Analysis
+category: archived
+last_updated: 2026-01-31
+description: ServalSheets v2.0 is a complete reimplementation that consolidates 26 v1 tools into 11 intent-based tools with 167+ actions. The architecture follows 
+tags: [sheets]
+---
+
 # ServalSheets v2.0 - Comprehensive Architecture Analysis
 
 ## Executive Summary

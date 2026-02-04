@@ -1,3 +1,11 @@
+---
+title: ServalSheets - Anthropic Directory Submission Summary
+category: archived
+last_updated: 2026-01-31
+description: "Date: January 25, 2026"
+tags: [sheets]
+---
+
 # ServalSheets - Anthropic Directory Submission Summary
 
 **Date:** January 25, 2026  
@@ -31,10 +39,12 @@
 ## All Items Completed
 
 ### 1. Privacy Policy ✅
+
 - **File:** `PRIVACY.md`
 - **Content:** Data collection, retention, user rights, security measures
 
 ### 2. OAuth Callback URLs ✅
+
 - **File:** `src/config/env.ts`
 - **URLs configured:**
   - `http://localhost:3000/callback`
@@ -44,21 +54,25 @@
   - `https://claude.com/api/mcp/auth_callback`
 
 ### 3. Test Account Documentation ✅
+
 - **File:** `docs/guides/TEST_ACCOUNT_SETUP.md`
 - **Content:** Step-by-step guide for creating test spreadsheets
 - **Coverage:** All 21 tool categories with example payloads
 
 ### 4. Firewall Configuration Guide ✅
+
 - **File:** `docs/guides/FIREWALL_CONFIGURATION.md`
 - **Content:** Claude IP allowlisting instructions
 - **Examples:** AWS, GCP, Azure, Linux (iptables, ufw, nginx)
 
 ### 5. TypeScript Build ✅
+
 - **Status:** Builds successfully
 - **Output:** 21 tools, 267 actions
 - **Tests:** 30/30 compliance tests passing
 
 ### 6. README Updated ✅
+
 - Added Policies section linking to PRIVACY.md and SECURITY.md
 
 ---

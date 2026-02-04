@@ -1,3 +1,11 @@
+---
+title: ServalSheets - Anthropic Directory Compliance Audit
+category: archived
+last_updated: 2026-01-31
+description: "Date: January 25, 2026"
+tags: [sheets]
+---
+
 # ServalSheets - Anthropic Directory Compliance Audit
 
 **Date:** January 25, 2026  

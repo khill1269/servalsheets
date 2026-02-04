@@ -1,7 +1,15 @@
+---
+title: ServalSheets v1.6.0 - Testing Guide
+category: archived
+last_updated: 2026-02-04
+description: "Package: servalsheets.mcpb"
+tags: [testing, sheets]
+---
+
 # ServalSheets v1.6.0 - Testing Guide
 
 **Package:** `servalsheets.mcpb`
-**Version:** 1.6.0 (21 tools, 272 actions)
+**Version:** 1.6.0 (21 tools, 293 actions)
 **Updated:** 2026-01-26
 **Status:** Production Ready ✅
 
@@ -83,17 +91,20 @@ npm run start:remote
 ## 📋 What's New in v1.6.0
 
 ### Performance Optimizations (Phase 7) 🚀
+
 - **10-20x faster diff engine** - Map-based O(1) lookups instead of O(n×m) nested loops
 - **50-100x fewer operations** in sheet extraction - flatMap optimizations
 - **W3C Trace Context** - Distributed tracing with traceparent headers
 - **Cardinality limits** - Prevents unbounded metric growth (MAX_LABEL_CARDINALITY = 10,000)
 
 ### Comprehensive Error Handling 🛡️
+
 - **71 error codes** (up from 15) - Complete Google Sheets API coverage
 - **11 HTTP status handlers** - 401, 403, 404, 409, 413, 429, 500, 502, 503, 504, etc.
 - **Resolution steps** - Every error includes specific fix instructions
 
 ### Modern Features ✨
+
 - **sheets_session** - Conversational context ("the spreadsheet", "undo that")
 - **sheets_composite** - High-level operations (import_csv, smart_append, bulk_update, deduplicate)
 - **sheets_quality** - Data validation and conflict detection
@@ -102,8 +113,9 @@ npm run start:remote
 - **sheets_history** - Undo/redo/revert operations
 
 ### Architecture
+
 - **21 tools** (after Wave 5 consolidation + Tier 7 enterprise)
-- **272 actions** across all tools
+- **293 actions** across all tools
 - **100% metadata synchronized**
 - **Production ready** - All verification checks passing
 
@@ -124,6 +136,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ### 2. Modern Features ✅
 
 #### Composite Operations
+
 ```bash
 # Import CSV
 {
@@ -151,6 +164,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ```
 
 #### Quality Assurance
+
 ```bash
 # Validate data
 {
@@ -173,6 +187,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ```
 
 #### Auto-Repair
+
 ```bash
 # Fix broken spreadsheet
 {
@@ -186,6 +201,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ```
 
 #### History & Undo
+
 ```bash
 # List history
 {
@@ -208,6 +224,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ### 3. Performance Testing ✅
 
 #### Test Diff Engine Optimization
+
 ```bash
 # Create large spreadsheet (1000+ rows)
 # Make changes
@@ -215,6 +232,7 @@ echo '{"tool":"sheets_core","input":{"action":"create","title":"Test Spreadsheet
 ```
 
 #### Test Sheet Extraction
+
 ```bash
 # Extract data from spreadsheet with 10K rows
 # Should process in <1 second (vs 10+ seconds before)
@@ -233,12 +251,14 @@ curl -H "traceparent: 00-$(openssl rand -hex 16)-$(openssl rand -hex 8)-01" \
 ### 5. Error Handling Testing ✅
 
 #### Test Quota Exceeded
+
 ```bash
 # Trigger rate limit (make 100+ requests in 1 minute)
 # Expected: QUOTA_EXCEEDED error with retry guidance
 ```
 
 #### Test Formula Errors
+
 ```bash
 # Write invalid formula
 {
@@ -254,6 +274,7 @@ curl -H "traceparent: 00-$(openssl rand -hex 16)-$(openssl rand -hex 8)-01" \
 ```
 
 #### Test Permission Errors
+
 ```bash
 # Try to access spreadsheet without permissions
 # Expected: PERMISSION_DENIED with clear resolution steps
@@ -285,7 +306,7 @@ curl -H "traceparent: 00-$(openssl rand -hex 16)-$(openssl rand -hex 8)-01" \
 | **sheets_bigquery** | 14 | BigQuery Connected Sheets |
 | **sheets_appsscript** | 14 | Apps Script automation |
 
-**Total:** 272 actions
+**Total:** 293 actions
 
 ---
 
@@ -310,6 +331,7 @@ server.json validation failed:
 ## 📖 Documentation
 
 ### Included Files
+
 - `README.md` - Main documentation
 - `CLAUDE.md` - Claude Code rules
 - `SKILL.md` - Claude skill file (v1.6.0, updated 2026-01-26)
@@ -317,6 +339,7 @@ server.json validation failed:
 - `examples/` - Example code
 
 ### Key Documentation
+
 - **API Reference:** `docs/API.md` (if exists)
 - **Troubleshooting:** `docs/TROUBLESHOOTING.md` (71 error codes)
 - **Development:** `docs/development/` (architecture, source of truth)
@@ -404,6 +427,7 @@ Your testing is successful if:
 **Total files:** 925
 
 **Includes:**
+
 - ✅ All 17 tool handlers (`dist/handlers/*.js`)
 - ✅ All 17 tool schemas (`dist/schemas/*.js`)
 - ✅ All service files (`dist/services/*.js`)
@@ -421,26 +445,30 @@ Your testing is successful if:
 This package includes all **Phase 7: Elite Performance & Observability** improvements:
 
 ### Performance
+
 - **Diff Engine:** Map-based lookups (10-20x faster)
 - **Sheet Extraction:** flatMap chains (50-100x fewer operations)
 
 ### Observability
+
 - **W3C Trace Context:** Distributed tracing standard
 - **Request correlation:** traceId, spanId, parentSpanId in all logs
 
 ### Error Handling
+
 - **71 error codes** (comprehensive)
 - **11 HTTP status handlers** (complete Google API coverage)
 - **Resolution steps** for every error
 
 ### Quality
+
 - **Cardinality limits:** Prevents metric explosion
 - **Silent fallback fix:** Explicit comments for intentional undefined
 - **PR template:** Standardized contribution process
 
 ---
 
-## 🚀 Ready to Test!
+## 🚀 Ready to Test
 
 Install the package and start testing the new v1.6.0 features. Report any issues or feedback!
 

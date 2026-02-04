@@ -1,3 +1,11 @@
+---
+title: ServalSheets Enhancement Roadmap
+category: archived
+last_updated: 2026-01-31
+description: ServalSheets is already at 100% Anthropic Directory compliance. These enhancements would make it stand out as a premium, enterprise-grade MCP server.
+tags: [sheets, grafana, docker, kubernetes]
+---
+
 # ServalSheets Enhancement Roadmap
 
 ## Executive Summary

@@ -1,3 +1,10 @@
+---
+title: ServalSheets 2.0 - Advanced Orchestration Skill
+category: archived
+last_updated: 2026-01-31
+description: ServalSheets 2.0 consolidates 26 tools into 11 Super Tools with ~170 actions for maximum LLM efficiency.
+---
+
 # ServalSheets 2.0 - Advanced Orchestration Skill
 
 ## Overview
@@ -204,6 +211,7 @@ For complex operations (CRM, dashboard, tracker):
 ```
 
 Returns:
+
 - Spreadsheet metadata
 - All sheet data (with smart sampling for large sheets)
 - Data quality issues
@@ -300,6 +308,7 @@ Would you like me to:
 ## Error Handling
 
 If a transaction fails:
+
 1. Auto-rollback is enabled, so no partial state
 2. Report which operation failed
 3. Suggest fix (usually validation issue or formula syntax)

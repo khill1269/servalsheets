@@ -1,3 +1,11 @@
+---
+title: 🔍 ServalSheets - Issues Found & Fix Plan
+category: archived
+last_updated: 2026-01-31
+description: "Analysis Date: 2026-01-24 09:26 AM"
+tags: [sheets]
+---
+
 # 🔍 ServalSheets - Issues Found & Fix Plan
 
 **Analysis Date**: 2026-01-24 09:26 AM
@@ -9,10 +17,12 @@
 ## 🚨 Critical Issues (Fix Immediately)
 
 ### 1. **A1 Notation Validation Too Strict** ⚠️ ACTIVE ERROR
+
 **Status**: Failing right now (09:24:34)
 **Error Rate**: Multiple occurrences in sheets_data, sheets_visualize
 
 **Problem**:
+
 ```
 sourceRange: "Sheet1!A1:A10,Sheet1!D1:D10"
 ❌ Rejected by regex: /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)$/
@@ -21,6 +31,7 @@ sourceRange: "Sheet1!A1:A10,Sheet1!D1:D10"
 Claude is trying to create charts with multiple ranges (comma-separated), but our schema rejects it.
 
 **Google Sheets API Reality**:
+
 - ✅ Supports: `"A1:B10"` (single range)
 - ✅ Supports: `"A1:A10,D1:D10"` (multiple ranges for charts)
 - ✅ Supports: `"Sheet1"` (whole sheet - for append)
@@ -35,6 +46,7 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 ---
 
 ### 2. **High Error Rate Tools** (30%+ failure)
+
 **Status**: Blocking comprehensive testing
 
 | Tool | Error Rate | Calls | Errors | Impact |
@@ -48,6 +60,7 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 | sheets_analyze | **29%** | 85 | 25 | Analysis unreliable |
 
 **Root Causes**:
+
 1. Schema validation too strict (A1 notation, enums)
 2. Missing optional field handling
 3. Unclear parameter names (data vs updates vs values)
@@ -57,6 +70,7 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 ---
 
 ### 3. **Unknown Action Tracking** ⚠️ Data Quality Issue
+
 **Status**: 296 calls with "unknown" action (13% of all calls)
 
 | Tool | Unknown Calls | Error Rate |
@@ -68,6 +82,7 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 | sheets_dimensions | 26 | 15% |
 
 **Problem**: Action field not being extracted from requests, breaking:
+
 - Metrics tracking
 - Error categorization
 - Debugging
@@ -110,12 +125,14 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 ## 📊 Tool Performance Analysis
 
 ### Healthy Tools (0-10% error rate) ✅
+
 - sheets_analysis: 0% (5 calls)
 - sheets_core: 5% (315 calls) ✅ **Excellent**
 - sheets_auth: 4% (163 calls) ✅
 - sheets_data: 10% (576 calls) ✅ **Most used**
 
 ### Moderate Issues (11-20%)
+
 - sheets_session: 11% (65 calls)
 - sheets_collaborate: 13% (30 calls)
 - sheets_bigquery: 14% (14 calls)
@@ -125,10 +142,12 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 - sheets_templates: 20% (5 calls)
 
 ### High Issues (21-30%) ⚠️
+
 - sheets_history: 23% (31 calls)
 - sheets_transaction: 22% (67 calls)
 
 ### Critical Issues (30%+) 🚨
+
 - Listed in section 2 above
 
 ---
@@ -138,19 +157,23 @@ Claude is trying to create charts with multiple ranges (comma-separated), but ou
 ### Phase 1: Fix Blocking Issues (1-2 hours)
 
 #### 1.1 Fix A1 Notation Regex (30 min)
+
 **File**: `src/schemas/shared.ts`
 
 **Current**:
+
 ```typescript
 const A1_NOTATION_REGEX = /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)$/;
 ```
 
 **Fixed**:
+
 ```typescript
 const A1_NOTATION_REGEX = /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+|[A-Z]+)(?:,(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+|[A-Z]+))*$/;
 ```
 
 **Supports**:
+
 - `A1:B10` (single range)
 - `A1:A10,D1:D10` (multiple ranges)
 - `Sheet1!A1:B10` (with sheet)
@@ -158,6 +181,7 @@ const A1_NOTATION_REGEX = /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[
 - `Sheet1!A:A` (whole column)
 
 **Test Cases**:
+
 - ✅ `"A1:B10"` → valid
 - ✅ `"A1:A10,D1:D10"` → valid
 - ✅ `"Sheet1!A1:B10,Sheet1!D1:D10"` → valid
@@ -165,9 +189,11 @@ const A1_NOTATION_REGEX = /^(?:'.+'!|[^!]+!)?(?:[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?|[
 - ❌ `"A1:B10,,D1:D10"` → invalid (empty range)
 
 #### 1.2 Fix Action Extraction (30 min)
+
 **File**: `src/server.ts:682-737`
 
 **Problem**: Nested request object not handled
+
 ```typescript
 // Current only checks:
 args.action
@@ -178,6 +204,7 @@ args.request?.request?.action (some handlers double-wrap)
 ```
 
 **Fix**: Recursive action extraction
+
 ```typescript
 function extractAction(args: Record<string, unknown>): string {
   if (typeof args['action'] === 'string') return args['action'];
@@ -196,11 +223,13 @@ function extractAction(args: Record<string, unknown>): string {
 ```
 
 #### 1.3 Fix sheets_visualize Schema (20 min)
+
 **File**: `src/schemas/visualize.ts`
 
 **Problem**: sourceRange field uses A1NotationSchema (rejects comma-separated)
 
 **Fix**:
+
 ```typescript
 // Add new schema for chart ranges
 export const ChartRangeSchema = z.union([
@@ -220,27 +249,33 @@ data: z.object({
 ### Phase 2: Reduce Error Rates (2-3 hours)
 
 #### 2.1 Fix sheets_quality Validation (45 min)
+
 **Error Rate**: 43% → Target: <10%
 
 **Issues**:
+
 - operation.tool/action/params not optional when they should be
 - strategy enum too restrictive
 
 **File**: `src/schemas/quality.ts`
 
 #### 2.2 Fix sheets_confirm Validation (30 min)
+
 **Error Rate**: 57% → Target: <10%
 
 **Issues**:
+
 - Elicitation integration broken
 - Missing optional fields
 
 **File**: `src/schemas/confirm.ts`
 
 #### 2.3 Fix sheets_visualize Validation (1 hour)
+
 **Error Rate**: 33% → Target: <15%
 
 **Issues**:
+
 - Chart options too strict
 - Color formats not flexible enough
 - Position validation too restrictive
@@ -248,9 +283,11 @@ data: z.object({
 **File**: `src/schemas/visualize.ts`
 
 #### 2.4 Fix sheets_format Validation (1 hour)
+
 **Error Rate**: 16% → Target: <10%
 
 **Top Issues**:
+
 - rulePreset enum missing values
 - condition schema too strict
 - color schema rejects valid hex colors
@@ -262,25 +299,31 @@ data: z.object({
 ### Phase 3: Improve Observability (1 hour)
 
 #### 3.1 Add Better Error Messages
+
 **File**: `src/utils/enhanced-errors.ts`
 
 For each validation hot spot, add:
+
 - Clear error message explaining what's wrong
 - Example of correct format
 - Link to documentation
 
 #### 3.2 Add Validation Error Metrics
+
 **File**: `src/observability/metrics.ts`
 
 Track:
+
 - Validation errors by field path
 - Most common validation failures
 - Error rates by tool/action
 
 #### 3.3 Improve Logging
+
 **File**: `src/utils/logger.ts`
 
 Add structured logging:
+
 - Tool name + action in every log
 - Request ID propagation
 - Validation error details
@@ -290,12 +333,14 @@ Add structured logging:
 ## 📈 Success Metrics
 
 ### Current (Baseline)
+
 - Overall error rate: 14.6%
 - Validation errors: 47% of all errors
 - Tools with >30% error rate: 7 tools
 - Unknown actions: 13% of calls
 
 ### Target (After Fixes)
+
 - Overall error rate: <8% ✅
 - Validation errors: <30% of all errors ✅
 - Tools with >30% error rate: 0 tools ✅
@@ -309,6 +354,7 @@ Add structured logging:
 **Phase**: Phase 4 - Visualization
 
 Recent operations:
+
 - ✅ sheets_composite.smart_append - SUCCESS
 - ✅ sheets_composite.bulk_update - SUCCESS
 - ✅ sheets_format.set_format - SUCCESS
@@ -350,6 +396,7 @@ Recent operations:
 ## 🧪 Testing Strategy
 
 After each fix:
+
 1. Run `npm run verify` (typecheck, lint, tests)
 2. Rebuild: `npm run build`
 3. Restart Claude Desktop

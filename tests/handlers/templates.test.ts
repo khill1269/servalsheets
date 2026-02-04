@@ -114,6 +114,14 @@ describe('SheetsTemplatesHandler', () => {
         getClient: vi.fn().mockResolvedValue({}),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock service type
       } as any,
+      auth: {
+        hasElevatedAccess: true,
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive.appdata',
+          'https://www.googleapis.com/auth/drive.file',
+        ],
+      },
       rangeResolver: {
         resolve: vi.fn().mockResolvedValue({
           a1Notation: 'Sheet1!A1:A5',

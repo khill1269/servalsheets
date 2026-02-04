@@ -1,3 +1,11 @@
+---
+title: Health Monitoring System
+category: archived
+last_updated: 2026-01-31
+description: ServalSheets includes an integrated health monitoring system for production observability.
+tags: [monitoring, observability]
+---
+
 # Health Monitoring System
 
 ServalSheets includes an integrated health monitoring system for production observability.
@@ -5,6 +13,7 @@ ServalSheets includes an integrated health monitoring system for production obse
 ## What's Monitored
 
 ### 1. Heap Health Check
+
 - **What**: Monitors Node.js heap memory usage
 - **Thresholds**:
   - ⚠️ **Warning**: 70% heap usage
@@ -13,6 +22,7 @@ ServalSheets includes an integrated health monitoring system for production obse
 - **Snapshots**: Optional heap snapshots on critical (set `ENABLE_HEAP_SNAPSHOTS=true`)
 
 ### 2. Connection Health Check
+
 - **What**: Tracks MCP connection activity via tool call heartbeats
 - **Thresholds**:
   - ⚠️ **Warning**: 60 seconds idle
@@ -23,6 +33,7 @@ ServalSheets includes an integrated health monitoring system for production obse
 ## How It Works
 
 ### Automatic Startup
+
 Health monitoring starts automatically when the server initializes:
 
 ```typescript
@@ -32,6 +43,7 @@ await this.healthMonitor.start();
 ```
 
 ### Heartbeat Tracking
+
 Every tool call records a heartbeat to track connection health:
 
 ```typescript
@@ -40,6 +52,7 @@ this.connectionHealthCheck.recordHeartbeat(toolName);
 ```
 
 ### Graceful Shutdown
+
 Health monitoring stops cleanly on server shutdown:
 
 ```typescript
@@ -50,6 +63,7 @@ await this.healthMonitor.stop();
 ## Testing Health Monitoring
 
 ### Quick Test
+
 Run the health monitoring test script:
 
 ```bash
@@ -57,6 +71,7 @@ npm run test:health
 ```
 
 This will:
+
 1. ✅ Start the server and health monitoring
 2. ✅ Wait for health checks to execute
 3. ✅ Display health status for all checks
@@ -65,6 +80,7 @@ This will:
 6. ✅ Gracefully shutdown
 
 ### Expected Output
+
 ```
 🏥 Health Monitoring Test
 
@@ -156,12 +172,14 @@ When you restart Claude Desktop:
 ## Architecture
 
 ### Health Monitor (Central Coordinator)
+
 - File: [src/server/health-monitor.ts](src/server/health-monitor.ts)
 - Manages multiple health check plugins
 - Runs checks on schedule (30s default)
 - Aggregates results into overall health status
 
 ### Health Check Plugins
+
 1. **HeapHealthCheck**: [src/server/heap-health-check.ts](src/server/heap-health-check.ts)
    - Monitors `process.memoryUsage().heapUsed`
    - Warns at 70%, critical at 85%
@@ -173,6 +191,7 @@ When you restart Claude Desktop:
    - Records tool names for debugging
 
 ### Integration Points
+
 - **Startup**: [src/server.ts:284](src/server.ts#L284)
 - **Heartbeats**: [src/server.ts:571](src/server.ts#L571)
 - **Shutdown**: [src/server.ts:927](src/server.ts#L927)

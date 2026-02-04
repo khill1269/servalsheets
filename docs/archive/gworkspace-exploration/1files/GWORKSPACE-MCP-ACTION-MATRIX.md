@@ -1,8 +1,17 @@
+---
+title: GWorkspace MCP - Complete Action Matrix
+category: archived
+last_updated: 2026-01-31
+description: "- Risk: 🟢 Read | 🟡 Modify | 🔴 Destructive | ⚠️ Irreversible | 💰 Costs"
+tags: [mcp]
+---
+
 # GWorkspace MCP - Complete Action Matrix
 
 ## All 211 Actions by Tool
 
 ### Legend
+
 - **Risk**: 🟢 Read | 🟡 Modify | 🔴 Destructive | ⚠️ Irreversible | 💰 Costs
 - **Sampling**: ⭐ = Uses LLM | ⭐⭐ = Important | ⭐⭐⭐ = Critical
 - **Elicit**: ✓ = Optional | ✓✓ = Recommended | ✓✓✓ = Required
@@ -343,6 +352,7 @@
 | **Actions with Undo** | 172 (85%) |
 
 ### High-Risk Summary
+
 - **Destructive Actions**: 24 (require confirmation)
 - **Security Actions**: 9 (permission changes)
 - **Cost Actions**: 4 (BigQuery operations)

@@ -1,0 +1,143 @@
+# ServalSheets Output Schema & Bug Fix Plan
+
+## Root Cause Analysis
+
+### Primary Issue: Response Compactor Converts Objects to Strings
+
+`src/utils/response-compactor.ts:197-199` - The `compactInner()` function replaces any
+object larger than 500 bytes with the string `'[object truncated]'`. This violates the
+output schema which expects objects, causing:
+
+```
+"expected object, received string"
+```
+
+**Affected actions:** `core.get`, `core.get_comprehensive`, `analyze.generate_formula`,
+`analyze.scout`, `analyze.plan`
+
+The `spreadsheet`, `comprehensiveMetadata`, `formula`, `scout`, and `plan` fields are all
+objects >500 bytes that get replaced with a string sentinel.
+
+### Secondary Issues
+
+1. **Missing conditional fields** - `response-compactor.ts` CONDITIONAL_FIELDS list is
+   missing: `spreadsheet`, `comprehensiveMetadata`, `formula`, `scout`, `plan`, `operations`,
+   `filter` as a nested object field
+
+2. **`suggest_pivot` union schema** - Pivot suggestions don't match chart union branch;
+   Zod discriminated union validation is ambiguous
+
+3. **`smart_append` missing field** - Handler doesn't guarantee `columnsMatched` array
+
+4. **`fix` preview strips operations** - Compact mode strips `operations` array
+
+5. **Person chip enum** - Schema allows `SHORT`/`FULL`, Google API expects
+   `DEFAULT`/`FULL`/`NAME_ONLY`
+
+6. **SheetId NaN** - Some dimension actions don't require explicit sheetId in schema but
+   handler tries to parse it from A1 notation and gets NaN
+
+7. **`setup_sheet`** - No check for existing sheet before addSheet
+
+---
+
+## Fix Plan
+
+### Fix 1: Response Compactor - Preserve Schema-Required Objects
+**File:** `src/utils/response-compactor.ts`
+**Lines:** 193-199, 28, 36-63
+
+Changes:
+- Add `PRESERVED_OBJECT_FIELDS` set containing fields that MUST remain as objects
+  (never be string-truncated): `spreadsheet`, `comprehensiveMetadata`, `formula`,
+  `scout`, `plan`, `operations`, `filter`, `spreadsheets`, `pivotTable`
+- In `compactInner()`, when an object field >500 bytes is in PRESERVED_OBJECT_FIELDS,
+  keep the object but recursively compact its children instead of replacing with string
+- Add `operations` to CONDITIONAL_FIELDS
+
+### Fix 2: core.ts - get_comprehensive stringification
+**File:** `src/handlers/core.ts`
+
+The `get_comprehensive` handler returns a massive metadata object. The compactor
+truncates it. Fix: add `comprehensiveMetadata` to PRESERVED_OBJECT_FIELDS (Fix 1
+handles this).
+
+### Fix 3: analyze.ts - Output schema fields
+**File:** `src/schemas/analyze.ts`
+
+No schema change needed - the Zod schemas are correct. The fix is in the compactor
+(Fix 1). The handler returns proper objects that get string-truncated.
+
+### Fix 4: dimensions.ts - get_basic_filter output schema
+**File:** `src/schemas/dimensions.ts` or `src/handlers/dimensions.ts`
+
+The `filter.range` field uses `GridRangeSchema` but the handler's `toGridRangeOutput()`
+might return a string A1 notation instead of grid range object. Need to verify and
+ensure the handler returns `{ sheetId, startRowIndex, endRowIndex, startColumnIndex,
+endColumnIndex }` format.
+
+### Fix 5: visualize.ts - suggest_pivot union discrimination
+**File:** `src/schemas/visualize.ts`
+
+The suggestions array uses `z.union()` without a discriminator between chart and pivot
+suggestions. When a pivot suggestion lacks `chartType`, validation fails on the first
+union branch. Fix: either add a discriminator field `type: 'chart' | 'pivot'` to both
+branches, or make `chartType` optional in the pivot suggestion branch.
+
+### Fix 6: composite.ts - smart_append missing columnsMatched
+**File:** `src/handlers/composite.ts`
+
+Ensure the handler always includes `columnsMatched: []` (defaulting to empty array) in
+the response even when no columns were matched.
+
+### Fix 7: fix.ts - preview mode operations field
+**File:** `src/handlers/fix.ts` or `src/schemas/fix.ts`
+
+Either: (a) make `operations` optional in the output schema, or (b) ensure the handler
+always returns the operations array even after verbosity filtering. Preferred: (b) add
+`operations` to essential fields so it's never stripped.
+
+### Fix 8: advanced.ts - Person chip display_format enum
+**File:** `src/schemas/advanced.ts` + `src/utils/google-sheets-helpers.ts`
+
+Change schema enum from `['SHORT', 'FULL']` to `['DEFAULT', 'FULL', 'NAME_ONLY']`
+matching the actual Google Sheets API PersonProperties.DisplayFormat enum. Update default
+from `'SHORT'` to `'DEFAULT'`.
+
+### Fix 9: dimensions.ts - SheetId extraction for filter/slicer actions
+**File:** `src/schemas/dimensions.ts` or `src/handlers/dimensions.ts`
+
+For `set_basic_filter` and `create_filter_view`, the schema should require `sheetId` as
+a separate required parameter (it already does for most actions). The A1-to-sheetId
+lookup is failing when the metadata cache doesn't have the sheet info. Fix: make
+`sheetId` required in the schema for these actions (not derived from range).
+
+### Fix 10: composite.ts - setup_sheet existing sheet check
+**File:** `src/handlers/composite.ts`
+
+Before calling addSheet, check if a sheet with the same name already exists using
+list_sheets. If it exists, skip creation and use the existing sheet.
+
+---
+
+## Implementation Order (by impact)
+
+1. **Fix 1** - Response compactor (fixes 5 actions at once)
+2. **Fix 5** - suggest_pivot union
+3. **Fix 6** - smart_append columnsMatched
+4. **Fix 7** - fix preview operations
+5. **Fix 4** - get_basic_filter range
+6. **Fix 8** - Person chip enum
+7. **Fix 9** - SheetId extraction
+8. **Fix 10** - setup_sheet check
+9. **Fix 2/3** - Covered by Fix 1
+
+## Files Modified (estimated)
+
+- `src/utils/response-compactor.ts` (Fix 1)
+- `src/schemas/visualize.ts` (Fix 5)
+- `src/handlers/composite.ts` (Fix 6, 10)
+- `src/schemas/fix.ts` or `src/handlers/fix.ts` (Fix 7)
+- `src/handlers/dimensions.ts` (Fix 4, 9)
+- `src/schemas/advanced.ts` (Fix 8)
+- `src/utils/google-sheets-helpers.ts` (Fix 8)

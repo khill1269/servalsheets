@@ -3,6 +3,12 @@
  *
  * Provides authenticated Google Sheets API client for live testing.
  * Handles credential loading, metrics tracking, and request logging.
+ *
+ * Enhanced features:
+ * - Integration with test retry manager
+ * - Rate limiting support
+ * - Quota tracking
+ * - Centralized metrics collection
  */
 
 import { google, sheets_v4, drive_v3 } from 'googleapis';
@@ -12,10 +18,23 @@ import {
   shouldRunIntegrationTests,
   type TestCredentials,
 } from '../../helpers/credential-loader.js';
+import { executeWithTestRetry, type TestRetryOptions } from './test-retry-manager.js';
+import { getTestRateLimiter, type TestRateLimiter } from './test-rate-limiter.js';
+import { getQuotaManager, type QuotaManager } from './quota-manager.js';
+import { getMetricsCollector, recordApiCallMetric } from './metrics-collector.js';
+import { TEST_CONFIG } from './config.js';
 
 export interface LiveApiClientOptions {
+  /** Log all requests to console */
   logRequests?: boolean;
+  /** Track metrics for all operations */
   trackMetrics?: boolean;
+  /** Use retry manager for automatic retries */
+  useRetryManager?: boolean;
+  /** Use rate limiter for quota management */
+  useRateLimiter?: boolean;
+  /** Custom retry options */
+  retryOptions?: TestRetryOptions;
 }
 
 export interface RequestMetrics {
@@ -42,17 +61,37 @@ export interface ApiStats {
  * Note: For automatic metrics tracking, use trackOperation() method.
  * Direct API calls via client.sheets.* are not auto-tracked due to
  * Google API client limitations with JavaScript Proxies.
+ *
+ * Enhanced features:
+ * - executeWithRetry() wraps operations with test retry manager
+ * - Automatic rate limiting with acquireTokens()
+ * - Quota tracking and reporting
+ * - Integration with centralized metrics collector
  */
 export class LiveApiClient {
   private sheetsApi: sheets_v4.Sheets;
   private driveApi: drive_v3.Drive;
   private credentials: TestCredentials;
   private metrics: RequestMetrics[] = [];
-  private options: LiveApiClientOptions;
+  private options: Required<LiveApiClientOptions>;
+
+  // Infrastructure components
+  private rateLimiter: TestRateLimiter;
+  private quotaManager: QuotaManager;
 
   constructor(credentials: TestCredentials, options: LiveApiClientOptions = {}) {
     this.credentials = credentials;
-    this.options = options;
+    this.options = {
+      logRequests: options.logRequests ?? false,
+      trackMetrics: options.trackMetrics ?? true,
+      useRetryManager: options.useRetryManager ?? true,
+      useRateLimiter: options.useRateLimiter ?? true,
+      retryOptions: options.retryOptions ?? {},
+    };
+
+    // Get infrastructure singletons
+    this.rateLimiter = getTestRateLimiter();
+    this.quotaManager = getQuotaManager();
 
     let auth;
 
@@ -108,6 +147,7 @@ export class LiveApiClient {
     fn: () => Promise<GaxiosResponse<T>>
   ): Promise<GaxiosResponse<T>> {
     const startTime = performance.now();
+    const type = this.classifyOperation(method);
 
     try {
       const response = await fn();
@@ -123,6 +163,13 @@ export class LiveApiClient {
 
       this.metrics.push(metric);
 
+      // Record to central metrics collector
+      if (this.options.trackMetrics) {
+        recordApiCallMetric(type, operation, duration, true, {
+          statusCode: response.status,
+        });
+      }
+
       if (this.options.logRequests) {
         console.log(`[API] ${operation} ${method}: ${duration.toFixed(2)}ms (${response.status})`);
       }
@@ -130,17 +177,122 @@ export class LiveApiClient {
       return response;
     } catch (error) {
       const duration = performance.now() - startTime;
+      const statusCode = (error as { code?: number }).code;
 
       this.metrics.push({
         operation,
         method,
         startTime,
         duration,
-        statusCode: (error as { code?: number }).code,
+        statusCode,
       });
+
+      // Record to central metrics collector
+      if (this.options.trackMetrics) {
+        recordApiCallMetric(type, operation, duration, false, {
+          statusCode,
+          errorCode: String(statusCode),
+        });
+      }
 
       throw error;
     }
+  }
+
+  /**
+   * Execute an operation with retry logic and rate limiting.
+   * This is the recommended method for all API calls.
+   */
+  async executeWithRetry<T>(
+    operation: string,
+    method: string,
+    fn: () => Promise<GaxiosResponse<T>>,
+    retryOptions?: TestRetryOptions
+  ): Promise<GaxiosResponse<T>> {
+    const type = this.classifyOperation(method);
+
+    // Acquire rate limit tokens if enabled
+    if (this.options.useRateLimiter) {
+      await this.rateLimiter.acquire(type);
+    }
+
+    // Wrap with retry if enabled
+    if (this.options.useRetryManager) {
+      return executeWithTestRetry(
+        async () => this.trackOperation(operation, method, fn),
+        {
+          operationName: operation,
+          ...this.options.retryOptions,
+          ...retryOptions,
+        }
+      );
+    }
+
+    // Otherwise just track
+    return this.trackOperation(operation, method, fn);
+  }
+
+  /**
+   * Execute a read operation (uses read rate limit tokens)
+   */
+  async executeRead<T>(
+    operation: string,
+    fn: () => Promise<GaxiosResponse<T>>,
+    retryOptions?: TestRetryOptions
+  ): Promise<GaxiosResponse<T>> {
+    return this.executeWithRetry(operation, 'GET', fn, retryOptions);
+  }
+
+  /**
+   * Execute a write operation (uses write rate limit tokens)
+   */
+  async executeWrite<T>(
+    operation: string,
+    fn: () => Promise<GaxiosResponse<T>>,
+    retryOptions?: TestRetryOptions
+  ): Promise<GaxiosResponse<T>> {
+    return this.executeWithRetry(operation, 'POST', fn, retryOptions);
+  }
+
+  /**
+   * Classify operation type based on HTTP method
+   */
+  private classifyOperation(method: string): 'read' | 'write' {
+    const writeMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    return writeMethods.includes(method.toUpperCase()) ? 'write' : 'read';
+  }
+
+  /**
+   * Handle rate limit error (429) by entering throttle mode
+   */
+  handleRateLimitError(): void {
+    this.rateLimiter.throttle(60000);
+    this.quotaManager.enterThrottle(60000);
+  }
+
+  /**
+   * Check if there's enough quota for planned operations
+   */
+  checkQuota(estimatedReads: number, estimatedWrites: number): boolean {
+    const verification = this.quotaManager.verifyQuota({
+      reads: estimatedReads,
+      writes: estimatedWrites,
+    });
+    return verification.hasQuota;
+  }
+
+  /**
+   * Get current quota state
+   */
+  getQuotaState() {
+    return this.quotaManager.getState();
+  }
+
+  /**
+   * Get rate limiter status
+   */
+  getRateLimiterStatus() {
+    return this.rateLimiter.getStatus();
   }
 
   /**
@@ -203,6 +355,39 @@ export class LiveApiClient {
    */
   getTestConfig(): TestCredentials['testConfig'] {
     return this.credentials.testConfig;
+  }
+
+  /**
+   * Get the centralized test report
+   */
+  getTestReport(format: 'json' | 'markdown' | 'html' = 'json'): string {
+    return getMetricsCollector().getReport(format);
+  }
+
+  /**
+   * Get combined statistics from all infrastructure
+   */
+  getFullStats(): {
+    api: ApiStats;
+    rateLimiter: ReturnType<TestRateLimiter['getStats']>;
+    quota: ReturnType<QuotaManager['getStats']>;
+  } {
+    return {
+      api: this.getStats(),
+      rateLimiter: this.rateLimiter.getStats(),
+      quota: this.quotaManager.getStats(),
+    };
+  }
+
+  /**
+   * Reset all infrastructure state
+   */
+  resetAll(): void {
+    this.resetMetrics();
+    this.rateLimiter.reset();
+    this.rateLimiter.resetStats();
+    this.quotaManager.reset();
+    this.quotaManager.resetStats();
   }
 }
 

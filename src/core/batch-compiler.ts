@@ -861,6 +861,15 @@ export class BatchCompiler {
       { index: startIndex, request: startReq },
     ];
 
+    // Pre-compute cell JSON strings to avoid repeated stringify in loop
+    const cellJSONCache = new Map<number, string>();
+    for (let k = startIndex + 1; k < requests.length; k++) {
+      const req = requests[k];
+      if (req?.repeatCell?.cell && !processed.has(k)) {
+        cellJSONCache.set(k, JSON.stringify(req.repeatCell.cell));
+      }
+    }
+
     // Find repeatCell requests with same cell format
     for (let j = startIndex + 1; j < requests.length; j++) {
       if (processed.has(j)) continue;
@@ -869,10 +878,12 @@ export class BatchCompiler {
       if (!req.repeatCell?.range || !req.repeatCell.cell) continue;
 
       // Must be same sheet, same fields, same cell format
+      const cachedCellJSON = cellJSONCache.get(j);
       if (
+        cachedCellJSON &&
         req.repeatCell.range.sheetId === sheetId &&
         req.repeatCell.fields === fields &&
-        JSON.stringify(req.repeatCell.cell) === cellJSON
+        cachedCellJSON === cellJSON
       ) {
         // Check if ranges are adjacent
         const lastCandidate = candidates.at(-1)!;

@@ -1,3 +1,11 @@
+---
+title: Complete Monitoring Test Guide
+category: archived
+last_updated: 2026-01-31
+description: When you restart Claude Desktop, use these tools to verify all monitoring systems.
+tags: [testing, monitoring, observability]
+---
+
 # Complete Monitoring Test Guide
 
 When you restart Claude Desktop, use these tools to verify all monitoring systems.
@@ -5,14 +13,18 @@ When you restart Claude Desktop, use these tools to verify all monitoring system
 ## 🔍 Monitoring Systems Overview
 
 ### 1. Health Monitoring (Built-in)
+
 **File**: [src/server.ts](src/server.ts#L161-L181)
+
 - ✅ Heap health (memory usage)
 - ✅ Connection health (heartbeat tracking)
 - ✅ Automatic startup/shutdown
 - ✅ Logs to console
 
 ### 2. Live Monitor (Advanced Logging)
+
 **File**: [scripts/live-monitor.ts](scripts/live-monitor.ts)
+
 - 📊 Real-time tool call tracking
 - 🔍 Error pattern detection
 - ⚡ Performance metrics
@@ -43,6 +55,7 @@ npx tsx scripts/live-monitor.ts --export
 ```
 
 **What you'll see**:
+
 ```
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║            🦁 ServalSheets Live Monitor v2.1 (Anomaly Detection)           ║
@@ -70,12 +83,14 @@ Leave this running in the background.
 **What the live monitor will show**:
 
 When Claude connects to ServalSheets, you'll see:
+
 ```
 [10:30:15] → sheets_auth.status
 [10:30:15] ← ✓ sheets_auth.status (125ms)
 ```
 
 **Server logs** (in Claude Code or MCP logs):
+
 ```
 [INFO] Health monitoring started
 [INFO] Request queue initialized { maxConcurrent: 10 }
@@ -94,12 +109,14 @@ Can you list my spreadsheets?
 ```
 
 **Live monitor shows**:
+
 ```
 [10:31:45] → sheets_core.list
 [10:31:46] ← ✓ sheets_core.list (1.2s)
 ```
 
 **Health monitoring tracks**:
+
 - ✅ Heartbeat recorded for `sheets_core`
 - ✅ Connection status updates to "active"
 - ✅ Last activity timestamp refreshed
@@ -116,6 +133,7 @@ node -e "const arr = []; for(let i=0; i<10000000; i++) arr.push(new Array(100).f
 ```
 
 **Health monitoring will log**:
+
 ```
 [WARN] Health check WARNING: heap {
   message: 'Heap usage at 73.2% (warning)',
@@ -126,6 +144,7 @@ node -e "const arr = []; for(let i=0; i<10000000; i++) arr.push(new Array(100).f
 ```
 
 Or if critical (>85%):
+
 ```
 [ERROR] Health check CRITICAL: heap {
   message: 'Heap usage at 87.5% (critical)',
@@ -140,6 +159,7 @@ Or if critical (>85%):
 Wait 60-120 seconds without making any tool calls.
 
 **After 60s** (warning threshold):
+
 ```
 [WARN] Health check WARNING: connection {
   message: 'Connection idle for 65000ms (warning)',
@@ -149,6 +169,7 @@ Wait 60-120 seconds without making any tool calls.
 ```
 
 **After 120s** (critical threshold):
+
 ```
 [ERROR] Health check CRITICAL: connection {
   message: 'Connection idle for 125000ms (critical)',
@@ -169,6 +190,7 @@ Can you read data from spreadsheet "yet-another-bad"?
 ```
 
 **Live monitor will alert**:
+
 ```
 ╔════════════════════════════════════════════════╗
 ║ ⚠️  ANOMALY DETECTED                           ║
@@ -248,6 +270,7 @@ Recent Errors (last 15)
 ## 📊 What Each System Monitors
 
 ### Health Monitoring (Built-in)
+
 | Check | Metric | Warning | Critical | Interval |
 |-------|--------|---------|----------|----------|
 | Heap | Memory usage | 70% | 85% | 30s |
@@ -256,6 +279,7 @@ Recent Errors (last 15)
 **Logs to**: Server console (visible in Claude Code or MCP logs)
 
 ### Live Monitor (Advanced)
+
 | Feature | What it tracks |
 |---------|----------------|
 | Tool Calls | Every `tools/call` request with action |
@@ -292,6 +316,7 @@ npx @modelcontextprotocol/inspector node dist/index.js
 After testing, you should see:
 
 ### Health Monitoring
+
 - ✅ "Health monitoring started" log on server init
 - ✅ Heap check runs every 30s (logs in DEBUG level)
 - ✅ Connection check runs every 30s
@@ -301,6 +326,7 @@ After testing, you should see:
 - ✅ "Health monitoring stopped" on shutdown
 
 ### Live Monitor
+
 - ✅ All tool calls captured with timestamps
 - ✅ Error categorization working (NOT_FOUND, VALIDATION, etc.)
 - ✅ Performance metrics accurate (duration, slow calls)
@@ -314,18 +340,22 @@ After testing, you should see:
 ## 🐛 Troubleshooting
 
 ### Live Monitor shows "Log file not found"
+
 **Fix**: Make sure Claude Desktop is running and ServalSheets is configured
 **Log location**: `~/Library/Logs/Claude/mcp-server-ServalSheets.log`
 
 ### Health monitoring not logging
+
 **Fix**: Check log level is set to INFO or DEBUG
 **Verify**: Look for "Health monitoring started" in server logs
 
 ### No heartbeats recorded
+
 **Fix**: Make sure tool calls are actually executing
 **Verify**: Check live monitor shows tool responses
 
 ### Memory warnings not triggering
+
 **Fix**: Your heap usage is healthy (good!)
 **Test**: Simulate high memory usage with the node command above
 

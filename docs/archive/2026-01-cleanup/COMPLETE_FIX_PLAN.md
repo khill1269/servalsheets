@@ -1,3 +1,10 @@
+---
+title: 🎯 ServalSheets - Complete Fix Implementation Plan
+category: archived
+last_updated: 2026-01-31
+description: "Created: 2026-01-24"
+---
+
 # 🎯 ServalSheets - Complete Fix Implementation Plan
 
 **Created**: 2026-01-24
@@ -10,6 +17,7 @@
 ## 📊 **EXECUTIVE SUMMARY**
 
 ### **Current State Analysis**
+
 - ✅ Build Status: **PASSING** (TypeScript, tests, linting)
 - ⚠️ Overall Error Rate: **14.6%** (328 errors / 2,254 calls)
 - ⚠️ Validation Errors: **153 (47% of all errors)**
@@ -17,6 +25,7 @@
 - ⚠️ High-Risk Tools: **7 tools with >30% error rate**
 
 ### **Fix Categories**
+
 | Category | Count | Time | Priority | Impact |
 |----------|-------|------|----------|--------|
 | Validation Issues | 12 | 4-5h | 🔴 Critical | 45% error reduction |
@@ -55,6 +64,7 @@ Week 4: Architecture (🔵)
 ## 🔴 **PHASE 1: CRITICAL VALIDATION FIXES (6-8 hours)**
 
 ### **Fix #1: A1 Notation Regex - Support Multiple Ranges**
+
 **Priority**: 🔴 P0 - BLOCKING
 **Estimated Time**: 30 minutes
 **Complexity**: Low
@@ -63,10 +73,13 @@ Week 4: Architecture (🔵)
 **Risk**: Low (isolated change)
 
 **Files to Modify**:
+
 1. `src/config/google-limits.ts` (line 187-188)
 
 **Implementation Steps**:
+
 1. ✅ **Update regex** (5 min)
+
    ```typescript
    export const A1_NOTATION_REGEX =
      /^(?:(?:'(?:[^']|'')+)'!|[^'!][^!]*!)?(?:[A-Z]{1,3}(?:[0-9]+)?(?::[A-Z]{1,3}(?:[0-9]+)?)?|[0-9]+:[0-9]+|[A-Z]{1,3}:[A-Z]{1,3}|[^,!]+)(?:,(?:(?:'(?:[^']|'')+)'!|[^'!][^!]*!)?(?:[A-Z]{1,3}(?:[0-9]+)?(?::[A-Z]{1,3}(?:[0-9]+)?)?|[0-9]+:[0-9]+|[A-Z]{1,3}:[A-Z]{1,3}))*$/;
@@ -77,6 +90,7 @@ Week 4: Architecture (🔵)
    - Add 15 test cases (single, multiple, quoted, invalid)
 
 3. ✅ **Run verification** (5 min)
+
    ```bash
    npm test tests/validation/a1-notation.test.ts
    npm run typecheck
@@ -88,12 +102,14 @@ Week 4: Architecture (🔵)
    - Update CHANGELOG.md
 
 **Success Criteria**:
+
 - ✅ All test cases pass
 - ✅ Accepts "A1:A10,D1:D10"
 - ✅ Accepts "Sheet1!A1:A10,Sheet1!D1:D10"
 - ✅ Rejects "A1:B10,,D1:E10" (empty range)
 
 **Rollback Plan**:
+
 ```bash
 git checkout HEAD -- src/config/google-limits.ts
 npm run verify
@@ -102,6 +118,7 @@ npm run verify
 ---
 
 ### **Fix #2: Action Extraction - Eliminate "Unknown" Actions**
+
 **Priority**: 🔴 P0 - CRITICAL
 **Estimated Time**: 45 minutes
 **Complexity**: Low
@@ -110,10 +127,13 @@ npm run verify
 **Risk**: Low (well-tested)
 
 **Files to Modify**:
+
 1. `src/server.ts` (lines 698-710, 740-749)
 
 **Implementation Steps**:
+
 1. ✅ **Extract helper function** (10 min)
+
    ```typescript
    // Add at line 120
    function extractActionFromArgs(args: unknown): string {
@@ -141,6 +161,7 @@ npm run verify
    - Line 740-749: Replace with `const action = extractActionFromArgs(args);`
 
 3. ✅ **Export function for testing** (5 min)
+
    ```typescript
    export { extractActionFromArgs }; // For testing
    ```
@@ -150,18 +171,21 @@ npm run verify
    - Test direct, nested (1-3 levels), invalid inputs
 
 5. ✅ **Verify** (5 min)
+
    ```bash
    npm test tests/server/action-extraction.test.ts
    npm run verify
    ```
 
 **Success Criteria**:
+
 - ✅ All test cases pass
 - ✅ Handles 3 levels of nesting
 - ✅ Returns "unknown" for invalid inputs
 - ✅ No TypeScript errors
 
 **Verification After Deploy**:
+
 ```bash
 # Check reduction in unknown actions
 npm run monitor:stats | grep "unknown"
@@ -171,6 +195,7 @@ npm run monitor:stats | grep "unknown"
 ---
 
 ### **Fix #3: Chart sourceRange - Support Multiple Ranges**
+
 **Priority**: 🔴 P0 - BLOCKING
 **Estimated Time**: 1 hour
 **Complexity**: Medium
@@ -179,10 +204,13 @@ npm run monitor:stats | grep "unknown"
 **Risk**: Medium (affects chart creation)
 
 **Files to Modify**:
+
 1. `src/schemas/visualize.ts` (line 104-127)
 
 **Implementation Steps**:
+
 1. ✅ **Create ChartRangeSchema** (15 min)
+
    ```typescript
    // Add before ChartDataSchema (line 103)
    const ChartRangeSchema = z
@@ -197,6 +225,7 @@ npm run monitor:stats | grep "unknown"
    ```
 
 2. ✅ **Update ChartDataSchema** (5 min)
+
    ```typescript
    const ChartDataSchema = z.object({
      sourceRange: ChartRangeSchema, // Changed from RangeInputSchema
@@ -214,18 +243,21 @@ npm run monitor:stats | grep "unknown"
    - Add examples to CHANGELOG.md
 
 5. ✅ **Verify** (5 min)
+
    ```bash
    npm test tests/schemas/visualize-chart-range.test.ts
    npm run verify
    ```
 
 **Success Criteria**:
+
 - ✅ Accepts "A1:A10,D1:D10"
 - ✅ Accepts "Sheet1!A1:A10,Sheet1!D1:D10"
 - ✅ Rejects invalid comma-separated ranges
 - ✅ All existing chart tests still pass
 
 **Integration Test**:
+
 ```bash
 # Test with Claude Desktop
 # Ask: "Create a column chart with name column (A) and salary column (D)"
@@ -235,6 +267,7 @@ npm run monitor:stats | grep "unknown"
 ---
 
 ### **Fix #4: Quality Operation Validation - Strict Tool Names**
+
 **Priority**: 🔴 P0 - CRITICAL
 **Estimated Time**: 1 hour
 **Complexity**: Medium
@@ -243,16 +276,20 @@ npm run monitor:stats | grep "unknown"
 **Risk**: Low (better validation)
 
 **Files to Modify**:
+
 1. `src/schemas/quality.ts` (line 89-96)
 
 **Implementation Steps**:
+
 1. ✅ **Add tool enum** (10 min)
+
    ```typescript
    import { TOOL_REGISTRY } from './index.js';
    const KNOWN_TOOLS = Object.keys(TOOL_REGISTRY) as [string, ...string[]];
    ```
 
 2. ✅ **Update operation schema** (15 min)
+
    ```typescript
    operation: z.object({
      type: z.string().min(1).max(100),
@@ -271,12 +308,14 @@ npm run monitor:stats | grep "unknown"
    - Test valid tools, invalid tools, edge cases
 
 5. ✅ **Verify** (5 min)
+
    ```bash
    npm test tests/schemas/quality-validation.test.ts
    npm run verify
    ```
 
 **Success Criteria**:
+
 - ✅ Accepts all registered tools
 - ✅ Rejects invalid tool names with clear error
 - ✅ Error message lists valid tools
@@ -284,6 +323,7 @@ npm run monitor:stats | grep "unknown"
 ---
 
 ### **Fix #5: Enum Case Sensitivity - Accept Lowercase**
+
 **Priority**: 🔴 P0 - HIGH IMPACT
 **Estimated Time**: 2 hours
 **Complexity**: Medium (many files)
@@ -292,6 +332,7 @@ npm run monitor:stats | grep "unknown"
 **Risk**: Low (backward compatible)
 
 **Files to Modify** (13 files):
+
 1. `src/schemas/shared.ts` (8 enums)
 2. `src/schemas/format.ts` (3 enums)
 3. `src/schemas/visualize.ts` (5 enums)
@@ -300,6 +341,7 @@ npm run monitor:stats | grep "unknown"
 **Implementation Steps**:
 
 1. ✅ **Create reusable helper** (10 min)
+
    ```typescript
    // Add to src/schemas/shared.ts
    export function caseInsensitiveEnum<T extends [string, ...string[]]>(
@@ -343,18 +385,21 @@ npm run monitor:stats | grep "unknown"
    - Test in actual tool schemas
 
 7. ✅ **Verify** (5 min)
+
    ```bash
    npm test tests/schemas/
    npm run verify
    ```
 
 **Success Criteria**:
+
 - ✅ All enums accept lowercase
 - ✅ Output is normalized to uppercase
 - ✅ No breaking changes to existing code
 - ✅ All tests pass
 
 **Example Test**:
+
 ```typescript
 it('accepts case-insensitive dimension', () => {
   expect(DimensionSchema.parse('rows')).toBe('ROWS');
@@ -366,6 +411,7 @@ it('accepts case-insensitive dimension', () => {
 ---
 
 ### **Fix #6: Color Precision - Round to 4 Decimals**
+
 **Priority**: 🟡 P1 - HIGH
 **Estimated Time**: 20 minutes
 **Complexity**: Low
@@ -374,10 +420,13 @@ it('accepts case-insensitive dimension', () => {
 **Risk**: Very Low
 
 **Files to Modify**:
+
 1. `src/schemas/shared.ts` (line 31-40)
 
 **Implementation Steps**:
+
 1. ✅ **Add transform** (5 min)
+
    ```typescript
    export const ColorSchema = z
      .object({
@@ -396,6 +445,7 @@ it('accepts case-insensitive dimension', () => {
    ```
 
 2. ✅ **Add tests** (10 min)
+
    ```typescript
    it('rounds color values to 4 decimals', () => {
      const result = ColorSchema.parse({
@@ -410,12 +460,14 @@ it('accepts case-insensitive dimension', () => {
 3. ✅ **Verify** (5 min)
 
 **Success Criteria**:
+
 - ✅ Colors rounded to 4 decimals
 - ✅ No precision loss for common values
 
 ---
 
 ### **Fix #7: Chart Position anchorCell - Require Sheet Name**
+
 **Priority**: 🟡 P1 - HIGH
 **Estimated Time**: 30 minutes
 **Complexity**: Low
@@ -424,10 +476,13 @@ it('accepts case-insensitive dimension', () => {
 **Risk**: Low
 
 **Files to Modify**:
+
 1. `src/schemas/shared.ts` (line 418-424)
 
 **Implementation Steps**:
+
 1. ✅ **Update schema** (10 min)
+
    ```typescript
    anchorCell: z
      .string()
@@ -442,6 +497,7 @@ it('accepts case-insensitive dimension', () => {
 3. ✅ **Verify** (5 min)
 
 **Success Criteria**:
+
 - ✅ Rejects "E2" (no sheet)
 - ✅ Accepts "Sheet1!E2"
 
@@ -450,11 +506,13 @@ it('accepts case-insensitive dimension', () => {
 ## 🟡 **PHASE 2: HIGH PRIORITY FIXES (4-5 hours)**
 
 ### **Fix #8: String Field Max Length Validation**
+
 **Priority**: 🟡 P1
 **Time**: 1.5 hours
 **Files**: All schema files
 
 **Add max lengths**:
+
 - Chart title: 500 chars
 - Font family: 100 chars
 - Labels: 255 chars
@@ -463,11 +521,13 @@ it('accepts case-insensitive dimension', () => {
 ---
 
 ### **Fix #9: Number Coercion - Reject NaN**
+
 **Priority**: 🟡 P1
 **Time**: 1 hour
 **Files**: All schemas using `z.coerce.number()`
 
 **Replace**:
+
 ```typescript
 // Old
 z.coerce.number()
@@ -486,6 +546,7 @@ z.preprocess(val => {
 ---
 
 ### **Fix #10-12: Schema Refinements**
+
 - Spreadsheet ID length validation
 - Optional fields with defaults
 - Risk level schema consolidation
@@ -495,11 +556,13 @@ z.preprocess(val => {
 ## 🟢 **PHASE 3: CODE QUALITY FIXES (5-6 hours)**
 
 ### **Fix #13: Extract Nested Schemas**
+
 **Priority**: 🟢 P2
 **Time**: 2 hours
 **Impact**: Readability
 
 **Example**:
+
 ```typescript
 // Before: Deeply nested
 const PivotGroupSchema = z.object({
@@ -521,6 +584,7 @@ const GroupRuleSchema = z.object({
 ---
 
 ### **Fix #14-17: Error Handling Improvements**
+
 - Structured error responses (all handlers)
 - Error context enrichment
 - Retry logic for transient failures
@@ -529,6 +593,7 @@ const GroupRuleSchema = z.object({
 ---
 
 ### **Fix #18-23: Code Quality**
+
 - Add JSDoc comments
 - Extract magic numbers
 - Standardize naming
@@ -541,11 +606,13 @@ const GroupRuleSchema = z.object({
 ## 🔵 **PHASE 4: ARCHITECTURE FIXES (8-10 hours)**
 
 ### **Fix #24: Repository Pattern**
+
 **Priority**: 🔵 P3 - STRATEGIC
 **Time**: 3 hours
 **Impact**: Testability, maintainability
 
 **Create**:
+
 ```typescript
 interface SheetsRepository {
   batchUpdate(spreadsheetId: string, requests: any[]): Promise<Response>;
@@ -559,6 +626,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ---
 
 ### **Fix #25: Circuit Breaker**
+
 **Priority**: 🔵 P3
 **Time**: 2 hours
 **Impact**: Fault tolerance
@@ -566,6 +634,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ---
 
 ### **Fix #26: Request Deduplication**
+
 **Priority**: 🔵 P3
 **Time**: 1.5 hours
 **Impact**: API quota, idempotency
@@ -573,6 +642,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ---
 
 ### **Fix #27-34: Architecture Improvements**
+
 - Health checks for dependencies
 - Graceful shutdown
 - Backpressure mechanism
@@ -586,6 +656,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ## 📋 **IMPLEMENTATION CHECKLIST**
 
 ### **Pre-Implementation**
+
 - [ ] Backup current codebase (`git checkout -b fix/validation-improvements`)
 - [ ] Create baseline metrics (`npm run monitor:stats > baseline.txt`)
 - [ ] Review all test files
@@ -594,6 +665,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ### **Phase 1: Critical Fixes (Week 1)**
 
 #### **Day 1 Morning (2-3 hours)**
+
 - [ ] Fix #1: A1 notation regex
   - [ ] Update regex in google-limits.ts
   - [ ] Add test file
@@ -610,6 +682,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
   - [ ] Commit: "fix: improve action extraction from nested requests"
 
 #### **Day 1 Afternoon (2-3 hours)**
+
 - [ ] Fix #3: Chart sourceRange
   - [ ] Create ChartRangeSchema
   - [ ] Update ChartDataSchema
@@ -625,6 +698,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
   - [ ] Commit: "fix: validate tool names in quality operations"
 
 #### **Day 2 Morning (2 hours)**
+
 - [ ] Fix #5: Enum case sensitivity
   - [ ] Create helper function
   - [ ] Update all enums (13 files)
@@ -633,6 +707,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
   - [ ] Commit: "fix: make all enums case-insensitive"
 
 #### **Day 2 Afternoon (1 hour)**
+
 - [ ] Fix #6: Color precision
   - [ ] Add transform to ColorSchema
   - [ ] Add tests
@@ -644,6 +719,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
   - [ ] Commit: "fix: require sheet name in chart anchor cells"
 
 #### **Day 3 (2-3 hours)**
+
 - [ ] Integration testing
   - [ ] Run full test suite
   - [ ] Test with Claude Desktop
@@ -657,15 +733,18 @@ class CachedSheetsRepository implements SheetsRepository {...}
   - [ ] Monitor for issues
 
 ### **Phase 2: High Priority (Week 2)**
+
 - [ ] Day 1: Fixes #8-9
 - [ ] Day 2: Fixes #10-12
 - [ ] Day 3: Testing and deployment
 
 ### **Phase 3: Code Quality (Week 3)**
+
 - [ ] Days 1-2: Fixes #13-23
 - [ ] Day 3: Testing and documentation
 
 ### **Phase 4: Architecture (Week 4)**
+
 - [ ] Days 1-2: Fixes #24-27
 - [ ] Day 3: Testing and rollout
 
@@ -674,6 +753,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ## 📊 **SUCCESS METRICS**
 
 ### **After Phase 1** (Target: Week 1)
+
 - [ ] Overall error rate: 14.6% → <8%
 - [ ] sheets_visualize error rate: 33% → <20%
 - [ ] sheets_quality error rate: 43% → <20%
@@ -682,18 +762,21 @@ class CachedSheetsRepository implements SheetsRepository {...}
 - [ ] No regressions in response time
 
 ### **After Phase 2** (Target: Week 2)
+
 - [ ] Overall error rate: <5%
 - [ ] All tools <20% error rate
 - [ ] No case sensitivity errors
 - [ ] No precision-related API errors
 
 ### **After Phase 3** (Target: Week 3)
+
 - [ ] Overall error rate: <3%
 - [ ] 95%+ test coverage
 - [ ] All code quality checks passing
 - [ ] Comprehensive documentation
 
 ### **After Phase 4** (Target: Week 4)
+
 - [ ] Production-ready architecture
 - [ ] Circuit breaker operational
 - [ ] Request deduplication working
@@ -704,6 +787,7 @@ class CachedSheetsRepository implements SheetsRepository {...}
 ## 🔄 **ROLLBACK PROCEDURES**
 
 ### **Per-Fix Rollback**
+
 ```bash
 # Rollback single fix
 git revert <commit-hash>
@@ -712,6 +796,7 @@ npm run build
 ```
 
 ### **Phase Rollback**
+
 ```bash
 # Rollback entire phase
 git reset --hard <phase-start-commit>
@@ -720,6 +805,7 @@ npm run verify
 ```
 
 ### **Emergency Rollback**
+
 ```bash
 # Revert to main branch
 git checkout main
@@ -733,6 +819,7 @@ systemctl restart servalsheets
 ## 🧪 **TESTING STRATEGY**
 
 ### **Unit Tests** (Per Fix)
+
 ```bash
 npm test tests/validation/
 npm test tests/schemas/
@@ -740,12 +827,14 @@ npm test tests/server/
 ```
 
 ### **Integration Tests** (Per Phase)
+
 ```bash
 npm test tests/handlers/
 npm test tests/integration/
 ```
 
 ### **End-to-End Tests** (After Each Phase)
+
 ```bash
 # Start monitoring
 npm run monitor:live
@@ -755,6 +844,7 @@ npm run monitor:live
 ```
 
 ### **Performance Tests**
+
 ```bash
 npm run benchmark:handlers
 npm run benchmark:responses
@@ -765,12 +855,14 @@ npm run benchmark:responses
 ## 📈 **MONITORING PLAN**
 
 ### **Pre-Deployment**
+
 ```bash
 # Capture baseline
 npm run monitor:stats > baseline-$(date +%Y%m%d).txt
 ```
 
 ### **During Deployment**
+
 ```bash
 # Watch live activity
 npm run monitor:live
@@ -780,6 +872,7 @@ npm run monitor:errors
 ```
 
 ### **Post-Deployment**
+
 ```bash
 # Compare metrics
 npm run monitor:stats > after-fix-$(date +%Y%m%d).txt
@@ -795,17 +888,20 @@ npm run monitor:stats | grep "unknown"
 ## 🎯 **RISK ASSESSMENT**
 
 ### **Low Risk Fixes** (Safe to implement)
+
 - Fix #1: A1 notation regex (isolated)
 - Fix #2: Action extraction (helper function)
 - Fix #6: Color precision (transform only)
 - Fix #7: Chart position (stricter validation)
 
 ### **Medium Risk Fixes** (Need careful testing)
+
 - Fix #3: Chart sourceRange (affects chart creation)
 - Fix #4: Quality validation (stricter validation)
 - Fix #5: Enum case sensitivity (many files)
 
 ### **High Risk Fixes** (Require gradual rollout)
+
 - Fix #24: Repository pattern (architectural change)
 - Fix #25: Circuit breaker (changes error behavior)
 - Fix #26: Request deduplication (changes idempotency)
@@ -815,18 +911,21 @@ npm run monitor:stats | grep "unknown"
 ## 📞 **ESCALATION PATHS**
 
 ### **Build Failures**
+
 1. Check TypeScript errors: `npm run typecheck`
 2. Check test failures: `npm test 2>&1 | tee test-output.txt`
 3. Revert problematic commit
 4. Review test output and fix
 
 ### **Runtime Errors**
+
 1. Check monitoring: `npm run monitor:live`
 2. Review logs: `tail -100 ~/Library/Logs/Claude/mcp-server-ServalSheets.log`
 3. Identify failing operation
 4. Rollback if critical
 
 ### **Performance Degradation**
+
 1. Run benchmarks: `npm run benchmark:handlers`
 2. Check response times in monitoring
 3. Profile if needed
@@ -836,13 +935,15 @@ npm run monitor:stats | grep "unknown"
 
 ## 🎉 **COMPLETION CRITERIA**
 
-### **Phase 1 Complete When**:
+### **Phase 1 Complete When**
+
 - ✅ All 7 critical fixes implemented
 - ✅ All tests passing
 - ✅ Error rate reduced by 40%+
 - ✅ No P0/P1 issues remaining
 
-### **All Phases Complete When**:
+### **All Phases Complete When**
+
 - ✅ All 43 fixes implemented
 - ✅ Error rate <3%
 - ✅ All architecture improvements in place
@@ -863,4 +964,3 @@ npm run monitor:stats | grep "unknown"
 **Status**: Ready for Implementation ✅
 **Next Step**: Create feature branch and start with Fix #1
 **Command**: `git checkout -b fix/critical-validation-improvements`
-

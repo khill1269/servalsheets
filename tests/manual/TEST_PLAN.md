@@ -1,4 +1,5 @@
 # ServalSheets Live API Test Executor
+
 # Run this by telling Claude: "Execute the comprehensive test suite using the connected MCP tools"
 
 This file defines the test plan. Claude should execute each test using the connected servalsheets MCP tools.
@@ -6,15 +7,18 @@ This file defines the test plan. Claude should execute each test using the conne
 ## Test Plan
 
 ### Phase 1: Authentication
+
 - [x] sheets_auth:status
 - [ ] sheets_auth:login (if needed)
 
 ### Phase 2: Setup - Create Test Spreadsheet
+
 - [ ] sheets_core:create - Create test spreadsheet with initial sheet
 
 ### Phase 3: Core Operations
 
 #### sheets_core (15 actions)
+
 - [ ] get
 - [ ] create
 - [ ] copy
@@ -32,6 +36,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] get_sheet
 
 #### sheets_data (20 actions)
+
 - [ ] read
 - [ ] write
 - [ ] append
@@ -54,6 +59,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] copy_paste
 
 #### sheets_format (18 actions)
+
 - [ ] set_format
 - [ ] suggest_format
 - [ ] set_background
@@ -74,6 +80,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] add_conditional_format_rule
 
 #### sheets_dimensions (39 actions)
+
 - [ ] insert_rows
 - [ ] insert_columns
 - [ ] delete_rows
@@ -115,6 +122,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] list_slicers
 
 #### sheets_visualize (16 actions)
+
 - [ ] chart_create
 - [ ] suggest_chart
 - [ ] chart_update
@@ -133,6 +141,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] pivot_refresh
 
 #### sheets_collaborate (28 actions)
+
 - [ ] share_add
 - [ ] share_update
 - [ ] share_remove
@@ -163,6 +172,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] version_export
 
 #### sheets_analyze (16 actions)
+
 - [ ] comprehensive
 - [ ] analyze_data
 - [ ] suggest_visualization
@@ -176,6 +186,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] explain_analysis
 
 #### sheets_advanced (19 actions)
+
 - [ ] add_named_range
 - [ ] update_named_range
 - [ ] delete_named_range
@@ -197,6 +208,7 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] list_tables
 
 #### sheets_transaction (6 actions)
+
 - [ ] begin
 - [ ] queue
 - [ ] commit
@@ -205,12 +217,14 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] list
 
 #### sheets_quality (4 actions)
+
 - [ ] validate
 - [ ] detect_conflicts
 - [ ] resolve_conflict
 - [ ] analyze_impact
 
 #### sheets_history (7 actions)
+
 - [ ] list
 - [ ] get
 - [ ] stats
@@ -220,19 +234,23 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear
 
 #### sheets_confirm (2 actions)
+
 - [ ] request (skip - requires elicitation)
 - [ ] get_stats
 
 #### sheets_fix (1 action)
+
 - [ ] fix (preview mode)
 
 #### sheets_composite (4 actions)
+
 - [ ] import_csv
 - [ ] smart_append
 - [ ] bulk_update
 - [ ] deduplicate
 
 #### sheets_session (13 actions)
+
 - [ ] set_active
 - [ ] get_active
 - [ ] get_context
@@ -247,4 +265,4 @@ This file defines the test plan. Claude should execute each test using the conne
 - [ ] clear_pending
 - [ ] reset
 
-## Total: 21 tools, 272 actions
+## Total: 21 tools, 293 actions

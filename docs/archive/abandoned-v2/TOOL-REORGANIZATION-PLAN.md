@@ -1,3 +1,11 @@
+---
+title: ServalSheets Tool Reorganization Plan
+category: archived
+last_updated: 2026-01-31
+description: "Current State: 26 tools, ~215 actions"
+tags: [sheets]
+---
+
 # ServalSheets Tool Reorganization Plan
 
 ## Executive Summary
@@ -126,6 +134,7 @@
 ## Detailed Tool Specifications
 
 ### 1. sheets_auth (Keep as-is)
+
 **Actions:** 4 | **Category:** Foundation
 
 No changes needed. Clear, focused, essential.
@@ -140,6 +149,7 @@ logout    - Clear credentials
 ---
 
 ### 2. sheets_data (NEW - Consolidates values + cells)
+
 **Actions:** 28 | **Category:** Foundation
 
 Merges: `sheets_core` + `sheets_data` + `sheets_data`
@@ -182,6 +192,7 @@ get_properties      - Get cell properties
 ```
 
 **Key Improvement:** Safety options built into every write action:
+
 ```json
 {
   "action": "write",
@@ -198,6 +209,7 @@ get_properties      - Get cell properties
 ---
 
 ### 3. sheets_style (NEW - Consolidates format + rules)
+
 **Actions:** 18 | **Category:** Foundation
 
 Merges: `sheets_format` + `sheets_format`
@@ -231,6 +243,7 @@ add_alternating     - Apply alternating colors (banding)
 ---
 
 ### 4. sheets_structure (NEW - Consolidates sheet + dimensions + advanced)
+
 **Actions:** 25 | **Category:** Structure
 
 Merges: `sheets_core` + `sheets_dimensions` + parts of `sheets_advanced`
@@ -275,6 +288,7 @@ list_protections    - List protected ranges
 ---
 
 ### 5. sheets_visualize (NEW - Consolidates charts + pivot + filter_sort)
+
 **Actions:** 20 | **Category:** Structure
 
 Merges: `sheets_visualize` + `sheets_visualize` + `sheets_dimensions`
@@ -313,6 +327,7 @@ update_slicer       - Update slicer
 ---
 
 ### 6. sheets_analyze (ENHANCED - Consolidates analysis + AI)
+
 **Actions:** 15 | **Category:** Intelligence
 
 Merges: `sheets_analyze` + `sheets_analyze` (deprecated)
@@ -344,6 +359,7 @@ apply_recommendation - Apply a specific recommendation
 ---
 
 ### 7. sheets_automate (NEW - Consolidates fix + composite)
+
 **Actions:** 12 | **Category:** Intelligence
 
 Merges: `sheets_fix` + `sheets_composite`
@@ -371,6 +387,7 @@ migrate_data        - Move data between sheets/spreadsheets
 ---
 
 ### 8. sheets_share (ENHANCED - Consolidates sharing + comments)
+
 **Actions:** 16 | **Category:** Collaboration
 
 Merges: `sheets_collaborate` + `sheets_collaborate`
@@ -402,6 +419,7 @@ add_reply           - Reply to comment
 ---
 
 ### 9. sheets_history (ENHANCED - Consolidates versions + history)
+
 **Actions:** 12 | **Category:** Collaboration
 
 Merges: `sheets_collaborate` + `sheets_history`
@@ -429,6 +447,7 @@ revert_to           - Revert to specific operation
 ---
 
 ### 10. sheets_safety (NEW - Consolidates transaction + validation + conflict + impact)
+
 **Actions:** 12 | **Category:** Safety
 
 Merges: `sheets_transaction` + `sheets_quality` + `sheets_quality` + `sheets_quality`
@@ -455,6 +474,7 @@ verify_range        - Verify range exists and is valid
 ---
 
 ### 11. sheets_context (NEW - Consolidates session + confirm)
+
 **Actions:** 8 | **Category:** Safety
 
 Merges: `sheets_session` + `sheets_confirm`
@@ -480,21 +500,25 @@ get_stats           - Get confirmation statistics
 ## Migration Plan
 
 ### Phase 1: Deprecation Warnings (Week 1-2)
+
 - Add deprecation notices to old tool descriptions
 - Log warnings when deprecated tools are used
 - Update documentation
 
 ### Phase 2: Parallel Running (Week 3-4)
+
 - Deploy new tools alongside old
 - Route old tool calls to new implementations
 - Collect usage metrics
 
 ### Phase 3: Client Updates (Week 5-6)
+
 - Update SKILL.md with new tool patterns
 - Update examples and templates
 - Notify users of changes
 
 ### Phase 4: Remove Old Tools (Week 7-8)
+
 - Remove deprecated tool definitions
 - Clean up old schemas
 - Final testing
@@ -519,11 +543,13 @@ Note: Action count decreased because we removed redundant actions and consolidat
 ## LLM Efficiency Benefits
 
 ### 1. Reduced Cognitive Load
+
 - **Before:** 26 tools to consider
 - **After:** 11 tools to consider
 - **Improvement:** 58% fewer decisions
 
 ### 2. Clearer Intent Mapping
+
 ```
 User Intent                    → Tool
 "Read my data"                 → sheets_data
@@ -534,16 +560,20 @@ User Intent                    → Tool
 ```
 
 ### 3. Fewer Tool Switches
+
 - **Before:** Format header = sheets_format → sheets_format → sheets_dimensions
 - **After:** Format header = sheets_style (one tool)
 
 ### 4. Built-in Safety
+
 - Every write operation in sheets_data has safety options
 - No need to remember to call sheets_transaction separately
 - Confirmation built into sheets_context
 
 ### 5. Consistent Action Naming
+
 All tools use consistent verb patterns:
+
 - `create_*`, `update_*`, `delete_*`, `list_*`, `get_*`
 - No more: `add_*` vs `set_*` vs `create_*` confusion
 

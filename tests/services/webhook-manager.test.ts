@@ -32,18 +32,20 @@ describe('WebhookManager', () => {
       sMembers: vi.fn().mockResolvedValue([]),
     };
 
-    // Mock Google API client
+    // Mock Google API client (Drive API v3 for watch)
     mockGoogleApi = {
-      spreadsheets: {
-        watch: vi.fn().mockResolvedValue({
-          data: {
-            resourceId: 'resource_123',
-            expiration: String(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        }),
-      },
-      channels: {
-        stop: vi.fn().mockResolvedValue({}),
+      drive: {
+        files: {
+          watch: vi.fn().mockResolvedValue({
+            data: {
+              resourceId: 'resource_123',
+              expiration: String(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          }),
+        },
+        channels: {
+          stop: vi.fn().mockResolvedValue({}),
+        },
       },
     };
   });
@@ -162,7 +164,12 @@ describe('WebhookManager', () => {
       const result = await manager.unregister('webhook_123');
 
       expect(result.success).toBe(true);
-      // Note: Google Sheets API v4 doesn't support watch/push, so no channels.stop call
+      expect(mockGoogleApi.drive.channels.stop).toHaveBeenCalledWith({
+        requestBody: {
+          id: 'channel_123',
+          resourceId: 'resource_123',
+        },
+      });
       expect(mockRedis.del).toHaveBeenCalledWith('webhook:webhook_123');
       expect(mockRedis.sRem).toHaveBeenCalledWith('webhooks:spreadsheet:1ABC', 'webhook_123');
     });

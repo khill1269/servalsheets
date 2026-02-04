@@ -1,3 +1,10 @@
+---
+title: ServalSheets LLM Optimization Guide
+category: archived
+last_updated: 2026-01-31
+description: "Goal: Make every tool maximally efficient and intuitive for LLM usage (Claude, GPT-4, etc.)"
+---
+
 # ServalSheets LLM Optimization Guide
 
 **Goal**: Make every tool maximally efficient and intuitive for LLM usage (Claude, GPT-4, etc.)
@@ -7,6 +14,7 @@
 **Current State**: 17 tools, 226 actions - feature-complete but not optimized for LLM token efficiency and usability.
 
 **Key Issues**:
+
 1. ⚠️ Tool descriptions too technical (API-focused vs task-focused)
 2. ⚠️ Missing usage hints and common patterns
 3. ⚠️ Responses include unnecessary metadata
@@ -20,12 +28,14 @@
 ## 1. Tool Description Optimization
 
 ### Current Problem
+
 ```typescript
 // TOO TECHNICAL - focuses on what it does, not when to use it
 description: "Core spreadsheet and sheet/tab operations: create, get, copy, update"
 ```
 
 ### Optimized Format
+
 ```typescript
 // TASK-FOCUSED - tells LLM when/why to use it
 description: `🔑 START HERE for spreadsheet access
@@ -38,6 +48,7 @@ NEXT STEPS: After getting sheets → use sheets_data to read/write values`
 ### Implementation Priority: **HIGH**
 
 **Template for All Tools**:
+
 ```typescript
 {
   name: 'sheets_X',
@@ -73,6 +84,7 @@ action: z.enum([
 ```
 
 **Benefits**:
+
 - LLM sees hints in schema when deciding which action
 - No extra API calls needed
 - Reduces decision-making tokens
@@ -84,6 +96,7 @@ action: z.enum([
 ### Problem: Responses Include Too Much Metadata
 
 **Current Response** (comprehensive analysis):
+
 ```json
 {
   "success": true,
@@ -105,6 +118,7 @@ action: z.enum([
 ### Optimization Strategy
 
 #### Option 1: Tiered Responses (Recommended)
+
 ```typescript
 // Add verbosity parameter to ALL tools
 verbosity?: 'minimal' | 'standard' | 'detailed' // Default: 'standard'
@@ -121,6 +135,7 @@ verbosity?: 'minimal' | 'standard' | 'detailed' // Default: 'standard'
 ```
 
 #### Option 2: Smart Defaults
+
 ```typescript
 // Automatically minimize when response > 1000 tokens
 if (estimatedTokens > 1000) {
@@ -133,6 +148,7 @@ if (estimatedTokens > 1000) {
 ```
 
 ### Implementation: Add to ALL tools
+
 ```typescript
 // src/schemas/shared.ts
 export const VerbositySchema = z.enum(['minimal', 'standard', 'detailed']).default('standard');
@@ -146,6 +162,7 @@ verbosity: VerbositySchema.optional()
 ## 4. Comprehensive Analysis (sheets_analyze) Specific Optimizations
 
 ### Current Issues
+
 1. Returns ALL sheet data by default (can be 100K+ tokens)
 2. No progressive disclosure
 3. No focus on what user asked for
@@ -153,6 +170,7 @@ verbosity: VerbositySchema.optional()
 ### Optimizations
 
 #### A. Smart Sampling Based on Query
+
 ```typescript
 interface ComprehensiveInput {
   spreadsheetId: string;
@@ -165,6 +183,7 @@ interface ComprehensiveInput {
 **Token Savings**: 60-80% by focusing on relevant analysis
 
 #### B. Progressive Disclosure Pattern
+
 ```typescript
 // 1. Initial call: Summary only
 { action: 'comprehensive', spreadsheetId, summaryOnly: true }
@@ -181,6 +200,7 @@ interface ComprehensiveInput {
 **Token Savings**: 90% on initial call, progressive as needed
 
 #### C. Query-Aware Analysis
+
 ```typescript
 // NEW: Natural language query parameter
 interface ComprehensiveInput {
@@ -200,6 +220,7 @@ if (query.includes('quality')) {
 ### Current Problem: Too Many Required Parameters
 
 **Example** (sheets_data write):
+
 ```typescript
 {
   action: 'write',
@@ -212,6 +233,7 @@ if (query.includes('quality')) {
 ```
 
 **LLM Impact**:
+
 - More tokens to construct request
 - Higher error rate (missing required fields)
 - More back-and-forth
@@ -236,6 +258,7 @@ if (query.includes('quality')) {
 **Token Savings**: 20-30% per request
 
 ### Apply to ALL Tools
+
 ```typescript
 // Audit every action for parameters that:
 // 1. Have obvious defaults (>80% of time)
@@ -283,11 +306,13 @@ if (query.includes('quality')) {
 ```
 
 **Benefits**:
+
 - LLM can fix immediately (no user interaction)
 - Provides working examples
 - Suggests next steps
 
 ### Implementation
+
 ```typescript
 // src/utils/error-messages.ts
 export const LLM_FRIENDLY_ERRORS = {
@@ -308,6 +333,7 @@ export const LLM_FRIENDLY_ERRORS = {
 ### Problem: LLMs Don't Know Multi-Step Workflows
 
 **Example**: "Analyze my sales data"
+
 - LLM needs: auth → get spreadsheet → list sheets → find "Sales" sheet → read data → analyze
 - Current: 5-6 tool calls, high token cost
 
@@ -332,6 +358,7 @@ export const LLM_FRIENDLY_ERRORS = {
 ```
 
 ### Common Workflow Actions
+
 ```typescript
 // sheets_workflow tool (NEW - Tool 18)
 actions: [
@@ -379,6 +406,7 @@ export const TOOL_METADATA = {
 ### Problem: LLMs Re-fetch Same Data
 
 **Example**:
+
 1. Get spreadsheet info (200 tokens response)
 2. LLM asks follow-up question
 3. Gets spreadsheet info again (200 tokens wasted)
@@ -399,6 +427,7 @@ export const TOOL_METADATA = {
 ```
 
 **LLM Instruction** (in tool description):
+
 ```
 💡 CACHE TIP: Spreadsheet metadata is cached. After first call, you can reference
    data from memory without re-calling. Cache TTL: 5 minutes.
@@ -440,6 +469,7 @@ export const LLM_USAGE_GUIDE = `
 ```
 
 **Register as MCP Prompt**:
+
 ```typescript
 server.registerPrompt(
   'usage-guide',
@@ -455,11 +485,13 @@ server.registerPrompt(
 ### sheets_data (Most Used Tool)
 
 **Current Issues**:
+
 - read returns ALL data (can be 50K+ tokens)
 - No way to request summary/preview
 - Includes empty rows/columns
 
 **Optimizations**:
+
 ```typescript
 interface ReadInput {
   // Existing
@@ -492,11 +524,13 @@ interface ReadInput {
 ### sheets_analyze (Most Token-Heavy)
 
 **Current Issues**:
+
 - Always returns everything
 - No focus parameter
 - Includes low-priority insights
 
 **Optimizations**:
+
 ```typescript
 interface AnalyzeInput {
   spreadsheetId: string;
@@ -516,10 +550,12 @@ interface AnalyzeInput {
 ### sheets_format (High Parameter Count)
 
 **Current Issues**:
+
 - Too many format options
 - Hard to remember all parameters
 
 **Optimization**: Add presets
+
 ```typescript
 // Instead of:
 {
@@ -544,6 +580,7 @@ interface AnalyzeInput {
 ## 12. Implementation Priority
 
 ### Phase 1: Quick Wins (1-2 days)
+
 1. ✅ Add verbosity parameter to all tools
 2. ✅ Update tool descriptions with task-focused format
 3. ✅ Add smart defaults to reduce required parameters
@@ -552,6 +589,7 @@ interface AnalyzeInput {
 **Impact**: 40% token reduction, 30% error reduction
 
 ### Phase 2: Response Optimization (2-3 days)
+
 1. ✅ Implement tiered responses (minimal/standard/detailed)
 2. ✅ Add preview mode to sheets_data
 3. ✅ Add focus parameter to sheets_analyze
@@ -560,6 +598,7 @@ interface AnalyzeInput {
 **Impact**: 60% token reduction for common workflows
 
 ### Phase 3: New Features (3-5 days)
+
 1. ✅ Add sheets_workflow tool with composite actions
 2. ✅ Add format presets
 3. ✅ Implement query-aware analysis
@@ -594,6 +633,7 @@ interface LLMOptimizationMetrics {
 ```
 
 ### Target Improvements (vs baseline)
+
 - 📉 Response tokens: -50%
 - 📉 Tool calls per task: -30%
 - 📉 Parameter errors: -60%
@@ -606,6 +646,7 @@ interface LLMOptimizationMetrics {
 ### Scenario: "Analyze my sales spreadsheet for data quality issues"
 
 #### BEFORE (Current Implementation)
+
 ```
 1. LLM → sheets_auth (action: 'status')
    Response: 150 tokens
@@ -625,6 +666,7 @@ TOTAL: 9,850 tokens, 4 tool calls, ~15 seconds
 ```
 
 #### AFTER (Optimized)
+
 ```
 1. LLM → sheets_analyze (
      action: 'comprehensive',
@@ -680,6 +722,7 @@ TOTAL: 450 tokens, 1 tool call, ~3 seconds
 **With Optimizations**: 50-70% token reduction, 30-50% fewer tool calls, better user experience
 
 **Next Steps**:
+
 1. Implement Phase 1 (Quick Wins) immediately
 2. Measure baseline metrics
 3. Roll out Phase 2 (Response Optimization)

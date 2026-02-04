@@ -27,6 +27,9 @@ const createMockContext = (): HandlerContext => ({
   rangeResolver: {
     resolve: vi.fn().mockResolvedValue({ a1Notation: 'Sheet1!A1:B2' }),
   } as any,
+  auth: {
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  } as any,
 });
 
 describe('AdvancedHandler', () => {
@@ -161,6 +164,26 @@ describe('AdvancedHandler', () => {
     });
 
     it('adds a rich link chip', async () => {
+      // Per Google API docs: Only Drive links can be written as rich link chips
+      const result = await handler.handle({
+        action: 'add_rich_link_chip',
+        spreadsheetId: 'sheet-id',
+        range: { a1: 'Sheet1!C1' },
+        uri: 'https://drive.google.com/file/d/ABC123/view',
+      });
+
+      const parsed = SheetsAdvancedOutputSchema.safeParse(result);
+      expect(parsed.success).toBe(true);
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.chip?.type).toBe('rich_link');
+        expect(result.response.chip?.uri).toBe('https://drive.google.com/file/d/ABC123/view');
+      }
+      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
+    });
+
+    it('rejects non-Drive URIs for rich link chips', async () => {
+      // Per Google API docs: Only Drive links can be written as rich link chips
       const result = await handler.handle({
         action: 'add_rich_link_chip',
         spreadsheetId: 'sheet-id',
@@ -170,12 +193,12 @@ describe('AdvancedHandler', () => {
 
       const parsed = SheetsAdvancedOutputSchema.safeParse(result);
       expect(parsed.success).toBe(true);
-      expect(result.response.success).toBe(true);
-      if (result.response.success) {
-        expect(result.response.chip?.type).toBe('rich_link');
-        expect(result.response.chip?.uri).toBe('https://example.com/docs');
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        // Error message should indicate Drive-only restriction
+        const errorMsg = JSON.stringify(result.response);
+        expect(errorMsg).toContain('Google Drive');
       }
-      expect(mockSheetsApi.spreadsheets.batchUpdate).toHaveBeenCalled();
     });
 
     it('lists chips in a range', async () => {
@@ -192,17 +215,25 @@ describe('AdvancedHandler', () => {
                     {
                       values: [
                         {
-                          userEnteredValue: { stringValue: 'Alice' },
-                          textFormatRuns: [
-                            { format: { link: { uri: 'mailto:alice@example.com' } } },
+                          userEnteredValue: { stringValue: '@alice@example.com' },
+                          formattedValue: 'Alice',
+                          chipRuns: [
+                            {
+                              chip: {
+                                personProperties: {
+                                  email: 'alice@example.com',
+                                },
+                              },
+                            },
                           ],
                         },
                         {
                           userEnteredValue: { stringValue: 'File' },
-                          textFormatRuns: [
+                          formattedValue: 'File',
+                          chipRuns: [
                             {
-                              format: {
-                                link: {
+                              chip: {
+                                richLinkProperties: {
                                   uri: 'https://drive.google.com/file/d/FILE123/view',
                                 },
                               },
@@ -211,8 +242,15 @@ describe('AdvancedHandler', () => {
                         },
                         {
                           userEnteredValue: { stringValue: 'Example' },
-                          textFormatRuns: [
-                            { format: { link: { uri: 'https://example.com' } } },
+                          formattedValue: 'Example',
+                          chipRuns: [
+                            {
+                              chip: {
+                                richLinkProperties: {
+                                  uri: 'https://example.com',
+                                },
+                              },
+                            },
                           ],
                         },
                       ],
