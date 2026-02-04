@@ -108,6 +108,33 @@ export const http2ConnectionResetsTotal = new Counter({
   registers: [register],
 });
 
+// HTTP/2 error metrics
+export const http2ErrorsTotal = new Counter({
+  name: 'servalsheets_http2_errors_total',
+  help: 'Total HTTP/2 errors by error code',
+  labelNames: ['error_code', 'error_type'],
+  registers: [register],
+});
+
+// Connection health metrics
+export const connectionHealthScore = new Gauge({
+  name: 'servalsheets_connection_health_score',
+  help: 'Connection health score (0-100, based on consecutive errors)',
+  registers: [register],
+});
+
+export const consecutiveErrorsGauge = new Gauge({
+  name: 'servalsheets_consecutive_errors',
+  help: 'Current number of consecutive API errors',
+  registers: [register],
+});
+
+export const lastSuccessfulCallTimestamp = new Gauge({
+  name: 'servalsheets_last_successful_call_timestamp_seconds',
+  help: 'Unix timestamp of last successful API call',
+  registers: [register],
+});
+
 // Latency percentiles as Summary (better than Histogram for percentiles)
 export const toolCallLatencySummary = new Summary({
   name: 'servalsheets_tool_call_latency_summary',
@@ -415,4 +442,33 @@ export function recordCircuitBreakerTransition(
     from_state: fromState,
     to_state: toState,
   });
+}
+
+/**
+ * Record HTTP/2 connection reset
+ */
+export function recordHttp2ConnectionReset(reason: string): void {
+  http2ConnectionResetsTotal.inc({ reason });
+}
+
+/**
+ * Record HTTP/2 error
+ */
+export function recordHttp2Error(errorCode: string, errorType: string): void {
+  http2ErrorsTotal.inc({ error_code: errorCode, error_type: errorType });
+}
+
+/**
+ * Update connection health metrics
+ */
+export function updateConnectionHealth(
+  consecutiveErrors: number,
+  lastSuccessTimestamp: number
+): void {
+  // Health score: 100 when no errors, decreases by 20 per consecutive error
+  const healthScore = Math.max(0, 100 - consecutiveErrors * 20);
+
+  consecutiveErrorsGauge.set(consecutiveErrors);
+  connectionHealthScore.set(healthScore);
+  lastSuccessfulCallTimestamp.set(lastSuccessTimestamp / 1000); // Convert ms to seconds
 }

@@ -152,6 +152,13 @@ export class GoogleApiClient {
   private lastCredentialChangeTime?: number;
   private static readonly VALIDATION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+  // HTTP/2 Connection Health Management
+  private consecutiveErrors = 0;
+  private static readonly CONNECTION_ERROR_THRESHOLD = 3;
+  private lastSuccessfulCall = Date.now();
+  private connectionResetInProgress = false;
+  private keepaliveInterval?: NodeJS.Timeout;
+
   constructor(options: GoogleApiClientOptions = {}) {
     this.options = options;
     this._authType = options.serviceAccountKeyPath
@@ -300,20 +307,26 @@ export class GoogleApiClient {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
     this._bigquery = wrapGoogleApi(bigqueryApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
 
     // Optional: Validate schemas with Discovery API if enabled
     await this.validateSchemasWithDiscovery();
+
+    // Start connection health keepalive
+    this.startKeepalive();
   }
 
   /**
@@ -381,21 +394,167 @@ export class GoogleApiClient {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
     this._drive = wrapGoogleApi(driveApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
     this._bigquery = wrapGoogleApi(bigqueryApi, {
       ...(this.retryOptions ?? {}),
       timeoutMs: this.timeoutMs,
       circuit: this.circuit,
+      client: this,
     });
 
     logger.info('HTTP agents reset complete', {
       http2Enabled: enableHTTP2,
     });
+  }
+
+  /**
+   * Reset HTTP/2 connections after consecutive API failures.
+   * This forces new connection negotiation with Google servers.
+   *
+   * @internal Called automatically when consecutive errors exceed threshold
+   */
+  private async resetConnectionsAfterErrors(): Promise<void> {
+    if (this.connectionResetInProgress) {
+      logger.debug('Connection reset already in progress, skipping');
+      return;
+    }
+
+    this.connectionResetInProgress = true;
+    logger.warn('Resetting HTTP/2 connections due to consecutive errors', {
+      consecutiveErrors: this.consecutiveErrors,
+      lastSuccess: new Date(this.lastSuccessfulCall).toISOString(),
+    });
+
+    try {
+      // Record metric with different reason than token refresh
+      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
+      http2ConnectionResetsTotal.inc({ reason: 'consecutive_errors' });
+
+      // Reuse the existing agent reset logic
+      await this.resetHttpAgents();
+
+      this.consecutiveErrors = 0;
+      this.lastSuccessfulCall = Date.now();
+      logger.info('HTTP/2 connections reset successfully after errors');
+    } catch (error) {
+      logger.error('Failed to reset connections after errors', { error });
+    } finally {
+      this.connectionResetInProgress = false;
+    }
+  }
+
+  /**
+   * Track API call success/failure for connection health monitoring.
+   * Call this after each API operation completes.
+   *
+   * @param success - Whether the API call succeeded
+   */
+  public recordCallResult(success: boolean): void {
+    if (success) {
+      this.consecutiveErrors = 0;
+      this.lastSuccessfulCall = Date.now();
+    } else {
+      this.consecutiveErrors++;
+      const threshold = parseInt(
+        process.env['GOOGLE_API_CONNECTION_RESET_THRESHOLD'] ??
+          String(GoogleApiClient.CONNECTION_ERROR_THRESHOLD)
+      );
+
+      if (this.consecutiveErrors >= threshold) {
+        logger.warn('Consecutive error threshold reached, triggering connection reset', {
+          consecutiveErrors: this.consecutiveErrors,
+          threshold,
+        });
+        // Trigger async connection reset (don't await to not block)
+        this.resetConnectionsAfterErrors().catch((err) =>
+          logger.error('Connection reset failed', { error: err })
+        );
+      }
+    }
+
+    // Update connection health metrics
+    import('../observability/metrics.js')
+      .then(({ updateConnectionHealth }) => {
+        updateConnectionHealth(this.consecutiveErrors, this.lastSuccessfulCall);
+      })
+      .catch(() => {
+        // Metrics are optional, don't fail on import errors
+      });
+  }
+
+  /**
+   * Check if connections need proactive refresh due to idle time.
+   * Call this periodically or before important operations.
+   */
+  public async ensureHealthyConnection(): Promise<void> {
+    const idleTime = Date.now() - this.lastSuccessfulCall;
+    const maxIdleMs = parseInt(process.env['GOOGLE_API_MAX_IDLE_MS'] ?? '300000'); // 5 min default
+
+    if (idleTime > maxIdleMs) {
+      logger.info('Connection idle too long, proactively refreshing', {
+        idleTimeMs: idleTime,
+        maxIdleMs,
+      });
+
+      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
+      http2ConnectionResetsTotal.inc({ reason: 'idle_timeout' });
+
+      await this.resetHttpAgents();
+      this.lastSuccessfulCall = Date.now();
+    }
+  }
+
+  /**
+   * Start periodic keepalive checks to maintain healthy connections.
+   * Called automatically during initialization if enabled.
+   *
+   * @internal
+   */
+  private startKeepalive(): void {
+    const intervalMs = parseInt(process.env['GOOGLE_API_KEEPALIVE_INTERVAL_MS'] ?? '60000'); // 1 min default
+
+    if (intervalMs <= 0) {
+      logger.debug('Keepalive disabled (interval <= 0)');
+      return;
+    }
+
+    // Clear any existing interval
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+    }
+
+    this.keepaliveInterval = setInterval(async () => {
+      try {
+        await this.ensureHealthyConnection();
+      } catch (error) {
+        logger.warn('Keepalive check failed', { error });
+      }
+    }, intervalMs);
+
+    // Don't prevent process exit
+    this.keepaliveInterval.unref();
+
+    logger.debug('Keepalive started', { intervalMs });
+  }
+
+  /**
+   * Stop keepalive interval. Called during cleanup/destroy.
+   *
+   * @internal
+   */
+  private stopKeepalive(): void {
+    if (this.keepaliveInterval) {
+      clearInterval(this.keepaliveInterval);
+      this.keepaliveInterval = undefined;
+      logger.debug('Keepalive stopped');
+    }
   }
 
   /**
@@ -1120,10 +1279,11 @@ export async function createGoogleApiClient(
 
 function wrapGoogleApi<T extends object>(
   api: T,
-  options?: RetryOptions & { circuit?: CircuitBreaker }
+  options?: RetryOptions & { circuit?: CircuitBreaker; client?: GoogleApiClient }
 ): T {
   const cache = new WeakMap<object, unknown>();
   const circuit = options?.circuit;
+  const client = options?.client;
 
   const wrapObject = (obj: object): unknown => {
     if (cache.has(obj)) {
@@ -1151,22 +1311,29 @@ function wrapGoogleApi<T extends object>(
         const value = Reflect.get(target, prop, receiver);
 
         if (typeof value === 'function') {
-          return (...args: unknown[]) => {
-            const operation = (): Promise<unknown> =>
-              executeWithRetry((signal) => {
-                const callArgs = injectSignal(args, signal);
-                return (value as (...params: unknown[]) => Promise<unknown>).apply(
-                  target,
-                  callArgs
-                );
-              }, options);
+          return async (...args: unknown[]) => {
+            try {
+              const operation = (): Promise<unknown> =>
+                executeWithRetry((signal) => {
+                  const callArgs = injectSignal(args, signal);
+                  return (value as (...params: unknown[]) => Promise<unknown>).apply(
+                    target,
+                    callArgs
+                  );
+                }, options);
 
-            // Wrap with circuit breaker if available
-            if (circuit) {
-              return circuit.execute(operation);
+              // Wrap with circuit breaker if available
+              const result = circuit ? await circuit.execute(operation) : await operation();
+
+              // Track successful API call
+              client?.recordCallResult(true);
+
+              return result;
+            } catch (error) {
+              // Track failed API call
+              client?.recordCallResult(false);
+              throw error;
             }
-
-            return operation();
           };
         }
 

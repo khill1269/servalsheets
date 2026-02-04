@@ -751,6 +751,42 @@ export abstract class BaseHandler<TInput, TOutput> {
       });
     }
 
+    // HTTP/2 Connection Errors (transient, auto-recoverable)
+    // These occur when Google servers close idle connections or during network issues
+    const errorCode = (error as { code?: string }).code;
+    if (
+      errorCode?.startsWith('ERR_HTTP2') ||
+      message.includes('http2') ||
+      message.includes('goaway') ||
+      message.includes('stream cancel') ||
+      message.includes('stream error') ||
+      message.includes('session error') ||
+      message.includes('new streams cannot be created') ||
+      message.includes('the pending stream has been canceled')
+    ) {
+      return {
+        code: 'CONNECTION_ERROR',
+        message:
+          'HTTP/2 connection was reset by Google servers. This is a temporary network issue.',
+        category: 'transient',
+        severity: 'medium',
+        retryable: true,
+        retryAfterMs: 2000,
+        resolution: 'The connection will automatically recover. Please retry the operation.',
+        resolutionSteps: [
+          '1. Wait 2-5 seconds for connection recovery',
+          '2. Retry the same operation',
+          '3. If error persists after 3 retries, the server may need restart',
+          '4. Check network connectivity if issue continues',
+        ],
+        details: {
+          errorCode: errorCode || 'HTTP2_ERROR',
+          originalMessage: error.message,
+          recoveryAction: 'automatic',
+        },
+      };
+    }
+
     // Default: internal error
     return {
       code: 'INTERNAL_ERROR',

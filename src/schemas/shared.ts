@@ -403,8 +403,9 @@ export const ErrorCodeSchema = z.enum([
   'CANCELLED',
   'OPERATION_CANCELLED', // Phase 1.3: User cancelled operation via elicitation
   'DATA_LOSS',
-  // Network & Service Errors (5 codes)
+  // Network & Service Errors (6 codes)
   'UNAVAILABLE',
+  'CONNECTION_ERROR', // HTTP/2 GOAWAY, stream errors, connection resets
   'UNIMPLEMENTED',
   'UNKNOWN',
   'OUT_OF_RANGE',
@@ -871,7 +872,9 @@ export const ErrorDetailSchema = z.object({
   // Agent-actionable fields
   resolution: z.string().optional(),
   resolutionSteps: z.array(z.string()).optional(),
-  category: z.enum(['client', 'server', 'network', 'auth', 'quota', 'unknown']).optional(),
+  category: z
+    .enum(['client', 'server', 'network', 'auth', 'quota', 'transient', 'unknown'])
+    .optional(),
   severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   retryStrategy: z
     .enum(['exponential_backoff', 'wait_for_reset', 'manual', 'reauthorize', 'none'])
