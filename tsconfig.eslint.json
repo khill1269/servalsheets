@@ -4,6 +4,14 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "vitest.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "vitest.config.ts",
+    "vitest.config.chaos.ts",
+    "vitest.config.live.ts",
+    "vitest.config.load.ts"
+  ],
   "exclude": ["node_modules", "dist", "coverage"]
 }

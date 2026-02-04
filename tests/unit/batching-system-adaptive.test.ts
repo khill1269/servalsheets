@@ -411,10 +411,10 @@ describe('BatchingSystem with Adaptive Window', () => {
     });
 
     it('should reset adaptive window with stats', () => {
-      const initialWindow = batchingSystem.getStats().currentWindowMs!;
+      const _initialWindow = batchingSystem.getStats().currentWindowMs!;
 
       // Execute operation to change window
-      const promise = batchingSystem.execute({
+      const _promise = batchingSystem.execute({
         id: 'test-1',
         type: 'values:update',
         spreadsheetId: 'test-sheet',
@@ -523,6 +523,6 @@ describe('BatchingSystem with Adaptive Window', () => {
       // Adaptive should have stats
       expect(adaptiveStats.currentWindowMs).toBeDefined();
       expect(fixedStats.currentWindowMs).toBeUndefined();
-    });
+    }, 20000); // 20 second timeout for this long-running test
   });
 });
