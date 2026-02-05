@@ -45,7 +45,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 import type { Logger } from 'winston';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import { logger as baseLogger } from './logger.js';
+import { baseLogger } from './base-logger.js';
 
 export interface RequestContext {
   requestId: string;

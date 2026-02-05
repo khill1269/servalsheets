@@ -74,6 +74,9 @@ jobs:
       - name: Lint
         run: npx turbo run lint
 
+      - name: Check architecture
+        run: npm run check:architecture
+
       - name: Format check
         run: npx turbo run format:check
 
