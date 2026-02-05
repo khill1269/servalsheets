@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
+import boundariesPlugin from 'eslint-plugin-boundaries';
 
 export default [
   {
@@ -75,6 +76,55 @@ export default [
         'warn',
         {
           allow: ['warn', 'error'],
+        },
+      ],
+    },
+  },
+  {
+    // Architectural boundaries enforcement
+    files: ['src/**/*.ts'],
+    plugins: {
+      boundaries: boundariesPlugin,
+    },
+    settings: {
+      'boundaries/elements': [
+        { type: 'entrypoint', pattern: 'src/(cli|server|http-server|remote-server).ts' },
+        { type: 'handler', pattern: 'src/handlers/*' },
+        { type: 'service', pattern: 'src/services/*' },
+        { type: 'schema', pattern: 'src/schemas/*' },
+        { type: 'util', pattern: 'src/utils/*' },
+        { type: 'mcp', pattern: 'src/mcp/*' },
+        { type: 'config', pattern: 'src/config/*' },
+      ],
+    },
+    rules: {
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            {
+              from: ['entrypoint'],
+              allow: ['handler', 'service', 'schema', 'mcp', 'config', 'util'],
+            },
+            {
+              from: ['handler'],
+              allow: ['service', 'schema', 'util', 'config'],
+            },
+            {
+              from: ['service'],
+              allow: ['schema', 'util', 'config'],
+              disallow: ['handler'],
+            },
+            {
+              from: ['schema'],
+              allow: ['util'],
+            },
+            {
+              from: ['mcp'],
+              allow: ['handler', 'service', 'schema', 'util', 'config'],
+            },
+          ],
         },
       ],
     },

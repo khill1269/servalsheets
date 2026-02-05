@@ -1,0 +1,44 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/cli.ts",
+    "src/server.ts",
+    "src/http-server.ts",
+    "src/remote-server.ts",
+    "tests/**/*.test.ts",
+    "tests/**/*.spec.ts",
+    "scripts/**/*.ts",
+    "scripts/**/*.mjs",
+    "scripts/**/*.cjs"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "!src/**/*.d.ts"
+  ],
+  "ignore": [
+    "src/**/*.d.ts",
+    "docs/**",
+    "scripts/archive/**",
+    "dist/**",
+    "coverage/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+  "ignoreDependencies": [
+    "@types/*"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "includeEntryExports": false,
+  "vitest": {
+    "config": ["vitest.config.ts", "vitest.config.*.ts"],
+    "entry": ["tests/**/*.test.ts", "tests/**/*.spec.ts"]
+  },
+  "eslint": {
+    "config": [".eslintrc.json"],
+    "entry": ["**/*.ts"]
+  },
+  "typescript": {
+    "config": ["tsconfig.json", "tsconfig.*.json"],
+    "entry": ["src/**/*.ts"]
+  }
+}

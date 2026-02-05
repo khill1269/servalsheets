@@ -36,21 +36,34 @@ jobs:
       - name: Check metadata drift
         run: npx turbo run check:drift
 
+      - name: Build (required for dynamic imports)
+        run: npx turbo run build
+
       - name: Verify documentation matches code
         run: |
+          # Import actual counts from source of truth
+          EXPECTED_TOOLS=$(node -p "require('./dist/schemas/index.js').TOOL_COUNT")
+          EXPECTED_ACTIONS=$(node -p "require('./dist/schemas/index.js').ACTION_COUNT")
+
+          echo "Source of truth: ${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions"
+
           # Check README.md mentions correct count
-          if ! grep -q "21 tools, 291 actions" README.md; then
-            echo "❌ README.md has incorrect action count. Should be '21 tools, 291 actions'"
+          if ! grep -q "${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions" README.md; then
+            echo "❌ README.md has incorrect action count"
+            echo "   Expected: ${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions"
+            echo "   Current: $(grep -o '[0-9]* tools, [0-9]* actions' README.md || echo 'not found')"
             exit 1
           fi
 
           # Check SKILL.md mentions correct count
-          if ! grep -q "21 tools with 291 actions" docs/guides/SKILL.md; then
-            echo "❌ SKILL.md has incorrect action count. Should be '21 tools with 291 actions'"
+          if ! grep -q "${EXPECTED_TOOLS} tools with ${EXPECTED_ACTIONS} actions" docs/guides/SKILL.md; then
+            echo "❌ SKILL.md has incorrect action count"
+            echo "   Expected: ${EXPECTED_TOOLS} tools with ${EXPECTED_ACTIONS} actions"
+            echo "   Current: $(grep -o '[0-9]* tools with [0-9]* actions' docs/guides/SKILL.md || echo 'not found')"
             exit 1
           fi
 
-          echo "✅ Documentation action counts are correct"
+          echo "✅ Documentation action counts are correct (${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions)"
 
       - name: Check placeholders
         run: npx turbo run check:placeholders
