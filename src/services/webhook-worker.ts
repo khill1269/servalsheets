@@ -13,11 +13,11 @@
  * @category Services
  */
 
-import { createHmac } from 'crypto';
 import { logger } from '../utils/logger.js';
 import { getWebhookQueue, type WebhookDeliveryJob } from './webhook-queue.js';
 import { getWebhookManager } from './webhook-manager.js';
 import { recordWebhookDelivery } from '../observability/metrics.js';
+import { signWebhookPayload } from '../security/webhook-signature.js';
 
 /**
  * Webhook worker configuration
@@ -148,9 +148,18 @@ export class WebhookWorker {
 
       // Calculate HMAC signature (if secret provided)
       const payloadStr = JSON.stringify(payload);
-      const signature = job.secret
-        ? createHmac('sha256', job.secret).update(payloadStr).digest('hex')
-        : undefined;
+      let signature: string | undefined;
+      if (job.secret) {
+        try {
+          signature = signWebhookPayload(payloadStr, job.secret);
+        } catch (error) {
+          logger.warn('Failed to sign webhook payload', {
+            deliveryId: job.deliveryId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          // Continue without signature if signing fails
+        }
+      }
 
       // Send HTTP POST request
       const controller = new AbortController();
@@ -162,7 +171,7 @@ export class WebhookWorker {
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': 'ServalSheets-Webhook/1.0',
-            'X-Webhook-Signature': signature ? `sha256=${signature}` : 'none',
+            'X-Webhook-Signature': signature || 'none',
             'X-Webhook-Delivery': job.deliveryId,
             'X-Webhook-Event': job.eventType,
           },

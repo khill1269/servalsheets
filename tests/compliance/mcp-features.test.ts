@@ -417,7 +417,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
     });
 
     it('should have correct action count', () => {
-      expect(ACTION_COUNT).toBe(291);
+      expect(ACTION_COUNT).toBe(294);
     });
   });
 });

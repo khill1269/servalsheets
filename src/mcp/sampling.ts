@@ -18,6 +18,7 @@ import type {
   TextContent,
   ModelPreferences,
 } from '@modelcontextprotocol/sdk/types.js';
+import { logger } from '../utils/logger.js';
 
 // ============================================================================
 // Types
@@ -436,8 +437,11 @@ export async function recommendChart(
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
-  } catch {
-    // Fallback parsing
+  } catch (error) {
+    logger.warn('Failed to parse chart suggestion JSON', {
+      error: error instanceof Error ? error.message : String(error),
+      textLength: text.length,
+    });
   }
 
   return {
@@ -519,8 +523,11 @@ export async function identifyDataIssues(
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
-  } catch {
-    // Fallback
+  } catch (error) {
+    logger.warn('Failed to parse data cleaning issues JSON', {
+      error: error instanceof Error ? error.message : String(error),
+      textLength: text.length,
+    });
   }
 
   return [];

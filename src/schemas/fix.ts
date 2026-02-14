@@ -30,7 +30,19 @@ export const IssueToFixSchema = z.object({
   severity: z.enum(['low', 'medium', 'high']),
   sheet: z.string().optional(),
   description: z.string(),
-  metadata: z.record(z.string(), z.unknown()).optional(), // Extra context
+  metadata: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .optional(), // Extra context
 });
 
 export type IssueToFix = z.infer<typeof IssueToFixSchema>;
@@ -58,7 +70,19 @@ export const FixOperationSchema = z.object({
   issueType: FixableIssueTypeSchema,
   tool: z.string().describe('Tool to call (e.g., sheets_data, sheets_dimensions)'),
   action: z.string().describe('Action to perform'),
-  parameters: z.record(z.string(), z.unknown()).describe('Parameters for the tool'),
+  parameters: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe('Parameters for the tool (can be string, number, boolean, null, array, or object)'),
   estimatedImpact: z.string().describe('What this operation will change'),
   risk: z.enum(['low', 'medium', 'high']).describe('Risk level of this operation'),
 });
@@ -97,7 +121,16 @@ export const SheetsFixResponseSchema = z.discriminatedUnion('success', [
     error: z.object({
       code: z.string(),
       message: z.string(),
-      details: z.unknown().optional(),
+      details: z
+        .union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+        .optional(),
       retryable: z.boolean(),
       suggestedFix: z.string().optional(),
     }),

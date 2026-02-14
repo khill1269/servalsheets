@@ -1149,7 +1149,28 @@ export class AnalyzeHandler {
             const samplingRequest = buildNLQuerySamplingRequest(nlInput.query, context);
 
             // Call LLM via MCP Sampling
-            const samplingResult = await server4.createMessage(samplingRequest);
+            let samplingResult;
+            try {
+              samplingResult = await server4.createMessage(samplingRequest);
+            } catch (samplingError) {
+              logger.error('MCP Sampling call failed for query_natural_language', {
+                component: 'analyze-handler',
+                action: 'query_natural_language',
+                error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+              });
+              response = {
+                success: false,
+                error: {
+                  code: 'FEATURE_UNAVAILABLE',
+                  message:
+                    'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
+                  retryable: false,
+                  suggestedFix:
+                    'Ensure your MCP client supports the Sampling capability or provide an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
+                },
+              };
+              break;
+            }
 
             // Parse response
             const contentText =
@@ -1231,12 +1252,35 @@ export class AnalyzeHandler {
               : `Please explain this analysis result in simple terms:\n\n${JSON.stringify(explainInput.analysisResult, null, 2)}`;
 
             const samplingRequest = buildAnalysisSamplingRequest([[questionText]], {
-              spreadsheetId: '',
+              spreadsheetId: req.spreadsheetId || '',
               analysisTypes: ['summary' as const],
               maxTokens: 1000,
             });
 
-            const samplingResult = await serverExplain.createMessage(samplingRequest);
+            // Call LLM via MCP Sampling
+            let samplingResult;
+            try {
+              samplingResult = await serverExplain.createMessage(samplingRequest);
+            } catch (samplingError) {
+              logger.error('MCP Sampling call failed for explain_analysis', {
+                component: 'analyze-handler',
+                action: 'explain_analysis',
+                error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+              });
+              response = {
+                success: false,
+                error: {
+                  code: 'FEATURE_UNAVAILABLE',
+                  message:
+                    'MCP Sampling capability failed. This feature requires a compatible MCP client with Sampling support (MCP 2025-11-25+).',
+                  retryable: false,
+                  suggestedFix:
+                    'Ensure your MCP client supports the Sampling capability or provide an LLM API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY).',
+                },
+              };
+              break;
+            }
+
             const duration = Date.now() - startTime;
 
             // Extract text from response
@@ -1384,7 +1428,8 @@ export class AnalyzeHandler {
             let scoutResult: ScoutResult;
             if (req.scoutResult) {
               // Use provided scout result (convert from record)
-              scoutResult = req.scoutResult as unknown as ScoutResult;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              scoutResult = req.scoutResult as any as ScoutResult;
             } else {
               // Run scout first
               const cache = getCacheAdapter('analysis');
@@ -1606,7 +1651,8 @@ export class AnalyzeHandler {
                   reversible: a.reversible,
                   requiresConfirmation: a.requiresConfirmation,
                   category: a.category,
-                })),
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                })) as any,
               },
               message: `Generated ${result.actions.length} actions from ${result.summary.totalFindings} findings`,
             };
@@ -1636,6 +1682,7 @@ export class AnalyzeHandler {
               code: 'INVALID_PARAMS',
               message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
               retryable: false,
+              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
             },
           };
         }
@@ -2110,7 +2157,8 @@ export class AnalyzeHandler {
         resourceUri: result.resourceUri,
       });
 
-      return result;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return result as any;
     } catch (error) {
       logger.error('Comprehensive analysis failed', {
         error: error instanceof Error ? error.message : String(error),

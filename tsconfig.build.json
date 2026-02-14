@@ -18,8 +18,6 @@
     "src/services/schema-cache.ts",
     "src/services/schema-validator.ts",
     "src/cli/schema-manager.ts",
-    "src/utils/google-api-inspector.ts",
-    "src/utils/protocol-tracer.ts",
-    "src/utils/request-replay.ts"
+    "src/utils/protocol-tracer.ts"
   ]
 }

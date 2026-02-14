@@ -169,6 +169,7 @@ export class SheetsAppsScriptHandler extends BaseHandler<
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -917,7 +918,8 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
     return this.success('run', {
       result: result.response?.result,
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
   }
 
   private async handleListProcesses(
@@ -954,29 +956,53 @@ export class SheetsAppsScriptHandler extends BaseHandler<
       nextPageToken?: string;
     }
 
-    // Build query parameters for filtering
-    const params: string[] = [];
-    if (req.pageSize) params.push(`pageSize=${req.pageSize}`);
-    if (req.pageToken) params.push(`pageToken=${encodeURIComponent(req.pageToken)}`);
+    // Build request body for POST request
+    interface ListProcessesRequest {
+      userProcessFilter?: {
+        scriptId?: string;
+        functionName?: string;
+        types?: string[];
+        statuses?: string[];
+      };
+      pageSize?: number;
+      pageToken?: string;
+    }
 
-    // Build user process filter - each filter is a separate query param
+    const body: ListProcessesRequest = {};
+
+    // Build user process filter
+    const userProcessFilter: ListProcessesRequest['userProcessFilter'] = {};
     if (req.scriptId) {
-      params.push(`userProcessFilter.scriptId=${req.scriptId}`);
+      userProcessFilter.scriptId = req.scriptId;
     }
     if (req.functionName) {
-      params.push(`userProcessFilter.functionName=${req.functionName}`);
+      userProcessFilter.functionName = req.functionName;
     }
     if (req.processType) {
-      params.push(`userProcessFilter.types=${req.processType}`);
+      userProcessFilter.types = [req.processType];
     }
     if (req.processStatus) {
-      params.push(`userProcessFilter.statuses=${req.processStatus}`);
+      userProcessFilter.statuses = [req.processStatus];
     }
 
-    let path = '/processes:listScriptProcesses';
-    if (params.length > 0) path += `?${params.join('&')}`;
+    // Only include filter if it has properties
+    if (Object.keys(userProcessFilter).length > 0) {
+      body.userProcessFilter = userProcessFilter;
+    }
 
-    const result = await this.apiRequest<ListProcessesResponse>('GET', path);
+    // Add pagination parameters to body
+    if (req.pageSize) {
+      body.pageSize = req.pageSize;
+    }
+    if (req.pageToken) {
+      body.pageToken = req.pageToken;
+    }
+
+    const result = await this.apiRequest<ListProcessesResponse>(
+      'POST',
+      '/processes:listScriptProcesses',
+      body
+    );
 
     return this.success('list_processes', {
       processes: (result.processes ?? []).map((p) => ({

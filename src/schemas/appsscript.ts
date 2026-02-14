@@ -304,10 +304,19 @@ const RunActionSchema = z.object({
   scriptId: ScriptIdSchema,
   functionName: z.string().min(1).describe('Name of function to execute'),
   parameters: z
-    .array(z.unknown())
+    .array(
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
     .optional()
     .describe(
-      'Function parameters (basic types only: strings, numbers, arrays, objects, booleans)'
+      'Function parameters (basic types only: strings, numbers, arrays, objects, booleans, null)'
     ),
   devMode: z
     .boolean()
@@ -410,7 +419,17 @@ const AppsScriptResponseSchema = z.discriminatedUnion('success', [
     deployments: z.array(DeploymentSchema).optional().describe('List of deployments'),
     webAppUrl: z.string().optional().describe('Web app URL (for web app deployments)'),
     // Execution results
-    result: z.unknown().optional().describe('Function return value'),
+    result: z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+      .optional()
+      .describe('Function return value (can be string, number, boolean, null, array, or object)'),
     executionError: z
       .object({
         errorMessage: z.string().optional(),

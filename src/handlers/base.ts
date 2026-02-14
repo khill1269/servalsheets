@@ -36,6 +36,12 @@ import type { RequestDeduplicator } from '../utils/request-deduplication.js';
 import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
+import {
+  buildGridRangeInput,
+  parseA1Notation,
+  type GridRangeInput,
+} from '../utils/google-sheets-helpers.js';
+import type { sheets_v4 } from 'googleapis';
 import { getContextManager } from '../services/context-manager.js';
 import {
   requiresConfirmation,
@@ -523,6 +529,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       code: 'SHEET_NOT_FOUND',
       message: `${resourceType} ${identifier} not found`,
       retryable: false,
+      suggestedFix: 'Verify the sheet name or ID is correct',
       details,
     });
   }
@@ -539,6 +546,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       code: 'INVALID_REQUEST',
       message: `Invalid ${what}: ${why}`,
       retryable: false,
+      suggestedFix: 'Verify the request format is correct',
       details,
     });
   }
@@ -655,6 +663,7 @@ export abstract class BaseHandler<TInput, TOutput> {
       code: 'UNKNOWN_ERROR',
       message: String(err),
       retryable: false,
+      suggestedFix: 'Please try again. If the issue persists, contact support',
     });
   }
 
@@ -923,6 +932,7 @@ export abstract class BaseHandler<TInput, TOutput> {
    *     code: 'OPERATION_CANCELLED',
    *     message: 'Operation cancelled by user',
    *     retryable: false,
+   suggestedFix: 'Retry the operation',
    *   });
    * }
    * ```
@@ -1138,6 +1148,7 @@ export abstract class BaseHandler<TInput, TOutput> {
           code: 'SPREADSHEET_TOO_LARGE',
           message: `Spreadsheet has ${sheets.length} sheets (max: ${MAX_SHEETS_FOR_GRID_DATA} for this operation)`,
           retryable: false,
+          suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
           resolution:
             'Specify a sheetId parameter to target a specific sheet instead of all sheets.',
         });
@@ -1157,6 +1168,7 @@ export abstract class BaseHandler<TInput, TOutput> {
           code: 'SPREADSHEET_TOO_LARGE',
           message: `Spreadsheet has ${totalCells.toLocaleString()} cells (max: ${MAX_CELLS_FOR_GRID_DATA.toLocaleString()} for this operation)`,
           retryable: false,
+          suggestedFix: 'Split your spreadsheet into smaller files or remove unnecessary data',
           resolution:
             'Specify a sheetId parameter or use a more targeted range to reduce the data volume.',
           details: {
@@ -1349,5 +1361,64 @@ export abstract class BaseHandler<TInput, TOutput> {
       );
     }
     return match.properties?.sheetId ?? 0;
+  }
+
+  // ============================================================
+  // Shared Helper Methods (extracted from handler duplicates)
+  // ============================================================
+
+  /**
+   * Execute an API call with request deduplication.
+   * Prevents duplicate concurrent and sequential requests within TTL.
+   * Expected savings: 30-50% API call reduction.
+   *
+   * Extracted from: core.ts, data.ts (identical implementations)
+   */
+  protected async deduplicatedApiCall<T>(cacheKey: string, apiCall: () => Promise<T>): Promise<T> {
+    const deduplicator = this.context.requestDeduplicator;
+    if (deduplicator) {
+      return deduplicator.deduplicate(cacheKey, apiCall);
+    }
+    return apiCall();
+  }
+
+  /**
+   * Convert a RangeInput (A1 notation or named range) to a GridRange for batchUpdate requests.
+   * Resolves the range, parses A1 notation, and looks up the sheet ID.
+   *
+   * Extracted from: advanced.ts, dimensions.ts (identical implementations)
+   * Note: visualize.ts has a specialized version with comma-separated range handling.
+   */
+  protected async rangeToGridRange(
+    spreadsheetId: string,
+    range: RangeInput,
+    sheetsApi: sheets_v4.Sheets
+  ): Promise<GridRangeInput> {
+    const a1 = await this.resolveRange(spreadsheetId, range);
+    const parsed = parseA1Notation(a1);
+    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, sheetsApi);
+
+    return buildGridRangeInput(
+      sheetId,
+      parsed.startRow,
+      parsed.endRow,
+      parsed.startCol,
+      parsed.endCol
+    );
+  }
+
+  /**
+   * Convert a Google Sheets Schema$GridRange (with nullable fields) to our GridRangeInput type.
+   *
+   * Extracted from: advanced.ts, dimensions.ts (identical implementations)
+   */
+  protected gridRangeToOutput(range: sheets_v4.Schema$GridRange): GridRangeInput {
+    return buildGridRangeInput(
+      range.sheetId ?? 0,
+      range.startRowIndex ?? undefined,
+      range.endRowIndex ?? undefined,
+      range.startColumnIndex ?? undefined,
+      range.endColumnIndex ?? undefined
+    );
   }
 }

@@ -25,3 +25,14 @@ export {
   type ResourceIndicatorConfig,
   type TokenValidationResult,
 } from './resource-indicators.js';
+
+export {
+  WebhookSignatureManager,
+  initWebhookSignatureManager,
+  getWebhookSignatureManager,
+  resetWebhookSignatureManager,
+  generateWebhookSecret,
+  signWebhookPayload,
+  verifyWebhookSignature,
+  type WebhookSignatureConfig,
+} from './webhook-signature.js';

@@ -14,10 +14,8 @@ import type {
   AdvancedResponse,
   AdvancedRequest,
 } from '../schemas/index.js';
-import type { RangeInput } from '../schemas/shared.js';
 import {
   buildA1Notation,
-  buildGridRangeInput,
   parseA1Notation,
   toGridRange,
   type GridRangeInput,
@@ -132,6 +130,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
         }
       }
@@ -233,7 +232,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddNamedRange(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_named_range' }>
   ): Promise<AdvancedResponse> {
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
@@ -251,7 +250,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    const namedRange = response.data.replies?.[0]?.addNamedRange?.namedRange;
+    const namedRange = response.data?.replies?.[0]?.addNamedRange?.namedRange;
     return this.success('add_named_range', {
       namedRange: namedRange ? this.mapNamedRange(namedRange) : undefined,
     });
@@ -269,7 +268,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       name: req.name,
     };
     if (req.range) {
-      const gridRange = await this.toGridRange(req.spreadsheetId!, req.range);
+      const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range, this.sheetsApi);
       update.range = toGridRange(gridRange);
     }
 
@@ -310,6 +309,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -375,7 +375,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddProtectedRange(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_protected_range' }>
   ): Promise<AdvancedResponse> {
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
     const request: sheets_v4.Schema$ProtectedRange = {
       range: toGridRange(gridRange),
       description: req.description,
@@ -394,7 +394,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    const protectedRange = response.data.replies?.[0]?.addProtectedRange?.protectedRange;
+    const protectedRange = response.data?.replies?.[0]?.addProtectedRange?.protectedRange;
     return this.success('add_protected_range', {
       protectedRange: protectedRange ? this.mapProtectedRange(protectedRange) : undefined,
     });
@@ -418,7 +418,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     if (req.warningOnly !== undefined) fields.push('warningOnly');
     if (req.editors !== undefined) fields.push('editors');
     if (req.range) {
-      const gridRange = await this.toGridRange(req.spreadsheetId!, req.range);
+      const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range, this.sheetsApi);
       update.range = toGridRange(gridRange);
       fields.push('range');
     }
@@ -460,6 +460,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -541,7 +542,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     });
 
     const metaId =
-      response.data.replies?.[0]?.createDeveloperMetadata?.developerMetadata?.metadataId;
+      response.data?.replies?.[0]?.createDeveloperMetadata?.developerMetadata?.metadataId;
     return this.success('set_metadata', { metadataId: metaId ?? undefined });
   }
 
@@ -594,6 +595,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -643,6 +645,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message:
           'Missing required "range" parameter. Specify the range to apply banding (e.g., "Sheet1!A1:D10").',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -655,6 +658,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           'Example: rowProperties: { headerColor: { red: 0.2, green: 0.4, blue: 0.8 }, ' +
           'firstBandColor: { red: 1, green: 1, blue: 1 }, secondBandColor: { red: 0.9, green: 0.9, blue: 0.9 } }',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -682,6 +686,8 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
                 `Received: red=${red}, green=${green}, blue=${blue}. ` +
                 `Example: { red: 0.2, green: 0.4, blue: 0.8 } for a blue color.`,
               retryable: false,
+              suggestedFix:
+                'Check the parameter format and ensure all required parameters are provided',
             });
           }
         }
@@ -694,7 +700,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     const colColorError = validateColors(req.columnProperties, 'columnProperties');
     if (colColorError) return colColorError;
 
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: req.spreadsheetId!,
@@ -713,7 +719,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    const bandedRangeId = response.data.replies?.[0]?.addBanding?.bandedRange?.bandedRangeId;
+    const bandedRangeId = response.data?.replies?.[0]?.addBanding?.bandedRange?.bandedRangeId;
     return this.success('add_banding', {
       bandedRangeId: bandedRangeId ?? undefined,
     });
@@ -771,6 +777,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -816,7 +823,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       for (const br of sheet.bandedRanges ?? []) {
         bandedRanges.push({
           bandedRangeId: br.bandedRangeId ?? 0,
-          range: this.toGridRangeOutput(br.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
+          range: this.gridRangeToOutput(br.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
         });
       }
     }
@@ -890,14 +897,14 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       },
     });
 
-    const table = response.data.replies?.[0]?.addTable?.table;
+    const table = response.data?.replies?.[0]?.addTable?.table;
 
     return this.success('create_table', {
       table: table
         ? {
             tableId: table.tableId ?? '',
             tableName: req.tableName, // Store for client-side reference
-            range: this.toGridRangeOutput(table.range ?? { sheetId }),
+            range: this.gridRangeToOutput(table.range ?? { sheetId }),
             hasHeaders,
             headerRowCount,
           }
@@ -959,7 +966,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         tables.push({
           tableId: table.tableId ?? '',
           tableName: undefined, // Google API doesn't provide table name yet (April 2025)
-          range: this.toGridRangeOutput(range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
+          range: this.gridRangeToOutput(range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
           columnCount,
           rowCount,
         });
@@ -1042,6 +1049,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message: `Table with ID '${req.tableId}' not found`,
         category: 'client',
         retryable: false,
+        suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         details: { tableId: req.tableId },
       });
     }
@@ -1054,6 +1062,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
         category: 'client',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
         details: { columnIndex: req.columnIndex, columnCount: columnProperties.length },
       });
     }
@@ -1115,6 +1124,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message: `Table with ID '${req.tableId}' not found`,
         category: 'client',
         retryable: false,
+        suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         details: { tableId: req.tableId },
       });
     }
@@ -1127,6 +1137,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message: `Column index ${req.columnIndex} is out of range (table has ${columnProperties.length} columns)`,
         category: 'client',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
         details: { columnIndex: req.columnIndex, columnCount: columnProperties.length },
       });
     }
@@ -1162,6 +1173,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
           message: 'Table does not have a valid range',
           category: 'server',
           retryable: false,
+          suggestedFix: 'Ensure all preconditions are met before retrying',
           details: { tableId: req.tableId },
         });
       }
@@ -1227,7 +1239,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   private async handleAddPersonChip(
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_person_chip' }>
   ): Promise<AdvancedResponse> {
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
 
     // Build person chip using chipRuns API (June 2025)
     const cellData = buildPersonChip(req.email, req.displayFormat as PersonChipDisplayFormat);
@@ -1277,6 +1289,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         code: 'INCREMENTAL_SCOPE_REQUIRED',
         message: 'Drive file access required. Please grant drive.file scope to write Drive chips.',
         retryable: true,
+        suggestedFix: 'Grant the required permissions when prompted',
         details: {
           requiredScope: 'https://www.googleapis.com/auth/drive.file',
           currentScopes: this.context.auth?.scopes ?? [],
@@ -1284,7 +1297,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       });
     }
 
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
 
     // Build Drive chip using chipRuns API (June 2025)
     const cellData = buildDriveChip(req.fileId, req.displayText);
@@ -1337,6 +1350,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         message:
           'Drive file access required. Please grant drive.file scope to write rich link chips.',
         retryable: true,
+        suggestedFix: 'Grant the required permissions when prompted',
         details: {
           requiredScope: 'https://www.googleapis.com/auth/drive.file',
           currentScopes: this.context.auth?.scopes ?? [],
@@ -1344,7 +1358,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       });
     }
 
-    const gridRange = await this.toGridRange(req.spreadsheetId!, req.range!);
+    const gridRange = await this.rangeToGridRange(req.spreadsheetId!, req.range!, this.sheetsApi);
 
     // Build rich link chip using chipRuns API (June 2025)
     const cellData = buildRichLinkChip(req.uri, req.displayText);
@@ -1462,27 +1476,13 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   // Helpers
   // ============================================================
 
-  private async toGridRange(spreadsheetId: string, range: RangeInput): Promise<GridRangeInput> {
-    const a1 = await this.resolveRange(spreadsheetId, range);
-    const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
-
-    return buildGridRangeInput(
-      sheetId,
-      parsed.startRow,
-      parsed.endRow,
-      parsed.startCol,
-      parsed.endCol
-    );
-  }
-
   private mapNamedRange(
     named: sheets_v4.Schema$NamedRange
   ): NonNullable<AdvancedSuccess['namedRange']> {
     return {
       namedRangeId: named.namedRangeId ?? '',
       name: named.name ?? '',
-      range: this.toGridRangeOutput(named.range ?? { sheetId: 0 }),
+      range: this.gridRangeToOutput(named.range ?? { sheetId: 0 }),
     };
   }
 
@@ -1491,7 +1491,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   ): NonNullable<AdvancedSuccess['protectedRange']> {
     return {
       protectedRangeId: pr.protectedRangeId ?? 0,
-      range: this.toGridRangeOutput(pr.range ?? { sheetId: 0 }),
+      range: this.gridRangeToOutput(pr.range ?? { sheetId: 0 }),
       description: pr.description ?? undefined,
       warningOnly: pr.warningOnly ?? false,
       requestingUserCanEdit: pr.requestingUserCanEdit ?? false,
@@ -1505,16 +1505,4 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     };
   }
 
-  /**
-   * Convert Google Sheets Schema$GridRange (with nullable fields) to our GridRange type
-   */
-  private toGridRangeOutput(range: sheets_v4.Schema$GridRange): GridRangeInput {
-    return buildGridRangeInput(
-      range.sheetId ?? 0,
-      range.startRowIndex ?? undefined,
-      range.endRowIndex ?? undefined,
-      range.startColumnIndex ?? undefined,
-      range.endColumnIndex ?? undefined
-    );
-  }
 }

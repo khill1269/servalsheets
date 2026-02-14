@@ -73,12 +73,15 @@ const EnvSchema = z.object({
 
   // Performance optimization flags
   // RequestMerger: Merges overlapping range reads within 50ms window (20-40% API savings)
-  ENABLE_REQUEST_MERGING: z.coerce.boolean().default(false),
+  // Enabled by default — production-ready with safe 50ms window and metrics tracking
+  ENABLE_REQUEST_MERGING: z.coerce.boolean().default(true),
   // ParallelExecutor: Parallel execution for large batch operations (40% faster)
+  // Disabled pending test coverage — concurrent API calls need validation before enabling
   ENABLE_PARALLEL_EXECUTOR: z.coerce.boolean().default(false),
   PARALLEL_EXECUTOR_THRESHOLD: z.coerce.number().int().positive().default(100),
   // Granular progress notifications for long-running operations
-  ENABLE_GRANULAR_PROGRESS: z.coerce.boolean().default(false),
+  // Enabled by default — non-breaking MCP-compliant progress updates for CSV import, dedup, batch ops
+  ENABLE_GRANULAR_PROGRESS: z.coerce.boolean().default(true),
 
   // Deduplication
   DEDUP_ENABLED: z.coerce.boolean().default(true),
@@ -96,6 +99,11 @@ const EnvSchema = z.object({
   // Safety limits
   MAX_CONCURRENT_REQUESTS: z.coerce.number().int().positive().default(10),
   REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
+
+  // Per-action timeout overrides for operations that need longer than MCP 30s default
+  // Use these to configure timeouts for specific actions that naturally take longer
+  COMPOSITE_TIMEOUT_MS: z.coerce.number().positive().default(120000), // 2 minutes for CSV/XLSX imports
+  LARGE_PAYLOAD_TIMEOUT_MS: z.coerce.number().positive().default(60000), // 1 minute for large data operations
 
   // Graceful shutdown
   GRACEFUL_SHUTDOWN_TIMEOUT_MS: z.coerce.number().positive().default(10000), // 10 seconds

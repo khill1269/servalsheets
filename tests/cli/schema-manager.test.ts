@@ -55,11 +55,15 @@ describe('SchemaManagerCli', () => {
   });
 
   afterEach(() => {
-    if (existsSync(testCacheDir)) {
-      rmSync(testCacheDir, { recursive: true, force: true });
-    }
-    if (existsSync('.discovery-cache')) {
-      rmSync('.discovery-cache', { recursive: true, force: true });
+    try {
+      if (existsSync(testCacheDir)) {
+        rmSync(testCacheDir, { recursive: true, force: true });
+      }
+      if (existsSync('.discovery-cache')) {
+        rmSync('.discovery-cache', { recursive: true, force: true });
+      }
+    } catch {
+      // EPERM in sandboxed environments — safe to ignore
     }
     delete process.env.DISCOVERY_API_ENABLED;
     resetDiscoveryApiClient();

@@ -43,13 +43,13 @@ This is the primary discovery mechanism for HTTP-based MCP servers per SEP-1649.
 **Package contents:**
 
 - `SKILL.md` - Main skill file with UASEV+R protocol
-- `references/tool-guide.md` - Complete 21 tools, 293 actions reference
+- `references/tool-guide.md` - Complete 21 tools, 294 actions reference
 
 ### 3. Version Updates
 
 - `package.json`: 1.4.0 → 1.6.0
 - `src/version.ts`: 1.4.0 → 1.6.0
-- Description updated to "21 tools, 293 actions"
+- Description updated to "21 tools, 294 actions"
 
 ## Files Modified
 

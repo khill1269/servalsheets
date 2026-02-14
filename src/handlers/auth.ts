@@ -112,6 +112,7 @@ export class AuthHandler {
               code: 'INVALID_PARAMS',
               message: `Unsupported auth action: ${(exhaustiveCheck as { action: string }).action}`,
               retryable: false,
+              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
             },
           };
         }
@@ -183,7 +184,7 @@ export class AuthHandler {
       authType: configured ? 'oauth' : 'unconfigured',
       message: configured
         ? 'OAuth credentials configured but no session. Call sheets_auth action "login".'
-        : 'OAuth credentials not configured. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET.',
+        : 'OAuth credentials not configured. Install the latest version of ServalSheets which includes embedded credentials, or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET manually.',
     };
   }
 
@@ -196,10 +197,11 @@ export class AuthHandler {
           code: 'CONFIG_ERROR',
           message: 'OAuth client credentials are not configured.',
           retryable: false,
-          resolution: 'Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET).',
+          resolution:
+            'Update to the latest ServalSheets version (embedded credentials), or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET) in your environment.',
           resolutionSteps: [
-            '1. Create OAuth credentials in Google Cloud Console',
-            '2. Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in your environment or .env',
+            '1. Update ServalSheets to the latest version (includes embedded OAuth credentials)',
+            '2. Or manually set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET in your environment or .env',
             '3. Restart the server',
           ],
         },
@@ -289,7 +291,9 @@ export class AuthHandler {
         const { tokens } = await oauthClient.getToken(result.code);
         oauthClient.setCredentials(tokens);
 
-        // Save tokens
+        // Save tokens - use requested scopes as fallback when Google doesn't return scope
+        // (common with incremental consent / include_granted_scopes)
+        const grantedScope = tokens.scope ?? requestedScopes.join(' ');
         if (this.tokenStoreKey) {
           const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
           await tokenStore.save({
@@ -297,7 +301,7 @@ export class AuthHandler {
             refresh_token: tokens.refresh_token ?? undefined,
             expiry_date: tokens.expiry_date ?? undefined,
             token_type: tokens.token_type ?? undefined,
-            scope: tokens.scope ?? undefined,
+            scope: grantedScope,
             id_token: tokens.id_token ?? undefined,
           });
         }
@@ -306,9 +310,7 @@ export class AuthHandler {
         if (this.googleClient && tokens.access_token) {
           this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
           // Update client scopes to match what was actually granted
-          if (tokens.scope) {
-            this.googleClient.setScopes(tokens.scope.split(' '));
-          }
+          this.googleClient.setScopes(grantedScope.split(' '));
         }
 
         // Start token manager for proactive refresh (Phase 1, Task 1.1)
@@ -398,13 +400,18 @@ export class AuthHandler {
           code: 'CONFIG_ERROR',
           message: 'OAuth client credentials are not configured.',
           retryable: false,
-          resolution: 'Set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET).',
+          resolution:
+            'Update to the latest ServalSheets version (embedded credentials), or set OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET (or GOOGLE_CLIENT_ID/SECRET) in your environment.',
         },
       };
     }
 
     const { tokens } = await oauthClient.getToken(request.code);
     oauthClient.setCredentials(tokens);
+
+    // Use granted scope from Google, or fall back to client's current scopes
+    const callbackScope =
+      tokens.scope ?? (this.googleClient?.scopes?.join(' ') || undefined);
 
     if (this.tokenStoreKey) {
       const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);
@@ -413,16 +420,16 @@ export class AuthHandler {
         refresh_token: tokens.refresh_token ?? undefined,
         expiry_date: tokens.expiry_date ?? undefined,
         token_type: tokens.token_type ?? undefined,
-        scope: tokens.scope ?? undefined,
+        scope: callbackScope,
         id_token: tokens.id_token ?? undefined,
       });
     }
 
     if (this.googleClient && tokens.access_token) {
       this.googleClient.setCredentials(tokens.access_token, tokens.refresh_token ?? undefined);
-      // Update client scopes to match what was actually granted
-      if (tokens.scope) {
-        this.googleClient.setScopes(tokens.scope.split(' '));
+      // Update client scopes - always call setScopes even without tokens.scope
+      if (callbackScope) {
+        this.googleClient.setScopes(callbackScope.split(' '));
       }
     }
 

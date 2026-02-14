@@ -253,6 +253,20 @@ describe('Regression: Validation Error Fixes', () => {
         }
       });
 
+      it('should accept sheetName when sheetId is omitted', () => {
+        const input = {
+          request: {
+            action: 'insert',
+            dimension: 'ROWS',
+            spreadsheetId: TEST_SPREADSHEET_ID,
+            sheetName: 'Sheet1',
+            startIndex: 5,
+          },
+        };
+        const result = schema.safeParse(input);
+        expect(result.success).toBe(true);
+      });
+
       it('should coerce string startIndex to number', () => {
         const input = {
           request: {
@@ -482,6 +496,39 @@ describe('Regression: Validation Error Fixes', () => {
         };
         const result = schema.safeParse(input);
         expect(result.success).toBe(true);
+      });
+
+      it('should accept range alias for set_hyperlink and normalize to cell', () => {
+        const input = {
+          request: {
+            action: 'set_hyperlink',
+            spreadsheetId: TEST_SPREADSHEET_ID,
+            range: 'A1',
+            url: 'https://example.com',
+          },
+        };
+        const result = schema.safeParse(input);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect((result.data.request as any).cell).toBe('A1');
+        }
+      });
+    });
+
+    describe('clear_hyperlink - cell required', () => {
+      it('should accept range alias for clear_hyperlink and normalize to cell', () => {
+        const input = {
+          request: {
+            action: 'clear_hyperlink',
+            spreadsheetId: TEST_SPREADSHEET_ID,
+            range: 'A1',
+          },
+        };
+        const result = schema.safeParse(input);
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect((result.data.request as any).cell).toBe('A1');
+        }
       });
     });
   });

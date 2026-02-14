@@ -5,7 +5,7 @@ exports[`FormatHandler Snapshots > matches snapshot for set_format response 1`] 
   "_meta": {
     "costEstimate": {
       "apiCalls": 1,
-      "cellsAffected": 4,
+      "cellsAffected": 3,
       "estimatedLatencyMs": 500,
       "quotaImpact": {
         "current": 0,
@@ -15,7 +15,7 @@ exports[`FormatHandler Snapshots > matches snapshot for set_format response 1`] 
     },
   },
   "action": "set_format",
-  "cellsFormatted": 4,
+  "cellsFormatted": 3,
   "success": true,
 }
 `;

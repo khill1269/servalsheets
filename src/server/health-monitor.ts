@@ -32,6 +32,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 /**
  * Health check severity levels
@@ -220,6 +221,18 @@ export class HealthMonitor {
 
       this.intervals.set(name, interval);
     }
+
+    // Register cleanup for all intervals
+    registerCleanup(
+      'HealthMonitor',
+      () => {
+        for (const interval of this.intervals.values()) {
+          clearInterval(interval);
+        }
+        this.intervals.clear();
+      },
+      'health-check-intervals'
+    );
 
     logger.info('Health monitor started', {
       checks: Array.from(this.checks.keys()),

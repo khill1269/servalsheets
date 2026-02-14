@@ -45,7 +45,7 @@ tags: [sheets]
 │  ┌───────────────────────────▼───────────────────────┐                                 │
 │  │              Tool Registration                      │                                │
 │  │  ┌──────────────────────────────────────────────┐  │                                │
-│  │  │ TOOL_DEFINITIONS (21 tools, 293 actions)     │  │                                │
+│  │  │ TOOL_DEFINITIONS (21 tools, 294 actions)     │  │                                │
 │  │  │ ├── schemas/*.ts (Zod discriminated unions)  │  │                                │
 │  │  │ ├── annotations.ts (64 MCP hints)            │  │                                │
 │  │  │ └── schema-compat.ts (SDK compatibility)     │  │                                │

@@ -167,6 +167,8 @@ export class CollaborateHandler extends BaseHandler<
           severity: 'high',
           retryable: false,
           retryStrategy: 'manual',
+          suggestedFix:
+            'Check that the spreadsheet is shared with your account and you have edit permissions',
           details: {
             operation,
             requiredScopes: requirements?.required ?? ['https://www.googleapis.com/auth/drive'],
@@ -358,6 +360,7 @@ export class CollaborateHandler extends BaseHandler<
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(inferredReq as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -447,6 +450,7 @@ export class CollaborateHandler extends BaseHandler<
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -621,6 +625,7 @@ export class CollaborateHandler extends BaseHandler<
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -764,6 +769,7 @@ export class CollaborateHandler extends BaseHandler<
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -963,6 +969,7 @@ export class CollaborateHandler extends BaseHandler<
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -996,6 +1003,7 @@ export class CollaborateHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: 'Drive API not available for version operations',
         retryable: false,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
 
@@ -1103,6 +1111,7 @@ export class CollaborateHandler extends BaseHandler<
           errorCode: error?.code,
         },
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         retryStrategy: 'exponential_backoff',
         resolution:
           'Retry the operation. If error persists, check spreadsheet permissions and Google Drive API status.',
@@ -1367,6 +1376,7 @@ export class CollaborateHandler extends BaseHandler<
           message: `Approval ${input.approvalId} not found`,
           details: { approvalId: input.approvalId },
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -1378,6 +1388,8 @@ export class CollaborateHandler extends BaseHandler<
           message: 'You are not authorized to approve this request',
           details: { approvalId: input.approvalId, userEmail },
           retryable: false,
+          suggestedFix:
+            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         });
       }
 
@@ -1388,6 +1400,7 @@ export class CollaborateHandler extends BaseHandler<
           message: 'You have already approved this request',
           details: { approvalId: input.approvalId, userEmail },
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
 
@@ -1444,6 +1457,7 @@ export class CollaborateHandler extends BaseHandler<
           message: `Approval ${input.approvalId} not found`,
           details: { approvalId: input.approvalId },
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -1455,6 +1469,8 @@ export class CollaborateHandler extends BaseHandler<
           message: 'You are not authorized to reject this request',
           details: { approvalId: input.approvalId, userEmail },
           retryable: false,
+          suggestedFix:
+            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         });
       }
 
@@ -1502,6 +1518,7 @@ export class CollaborateHandler extends BaseHandler<
           message: `Approval ${input.approvalId} not found`,
           details: { approvalId: input.approvalId },
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -1576,6 +1593,7 @@ export class CollaborateHandler extends BaseHandler<
           message: `Approval ${input.approvalId} not found`,
           details: { approvalId: input.approvalId },
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -1587,6 +1605,8 @@ export class CollaborateHandler extends BaseHandler<
           message: 'You are not authorized to delegate this approval',
           details: { approvalId: input.approvalId, userEmail },
           retryable: false,
+          suggestedFix:
+            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         });
       }
 
@@ -1635,6 +1655,7 @@ export class CollaborateHandler extends BaseHandler<
           message: `Approval ${input.approvalId} not found`,
           details: { approvalId: input.approvalId },
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -1646,6 +1667,8 @@ export class CollaborateHandler extends BaseHandler<
           message: 'Only the requester can cancel an approval',
           details: { approvalId: input.approvalId, userEmail },
           retryable: false,
+          suggestedFix:
+            'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         });
       }
 
@@ -1692,7 +1715,8 @@ export class CollaborateHandler extends BaseHandler<
         fields: 'user(emailAddress)',
       });
       return response.data.user?.emailAddress ?? undefined;
-    } catch {
+    } catch (err) {
+      logger.debug('Failed to get current user email from Drive API', { error: String(err) });
       return undefined;
     }
   }
@@ -1721,7 +1745,8 @@ export class CollaborateHandler extends BaseHandler<
       }
 
       return JSON.parse(item.developerMetadata.metadataValue) as Approval;
-    } catch {
+    } catch (err) {
+      logger.debug('Failed to get approval metadata', { approvalId, spreadsheetId, error: String(err) });
       return null;
     }
   }

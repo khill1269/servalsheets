@@ -34,7 +34,7 @@
     "entry": ["tests/**/*.test.ts", "tests/**/*.spec.ts"]
   },
   "eslint": {
-    "config": [".eslintrc.json"],
+    "config": ["eslint.config.js"],
     "entry": ["**/*.ts"]
   },
   "typescript": {

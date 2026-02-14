@@ -1,7 +1,7 @@
 /**
  * Action-Level Performance Benchmarks
  *
- * Comprehensive benchmarks for all 293 actions across 21 tools.
+ * Comprehensive benchmarks for all 294 actions across 21 tools.
  * Run with: npm run bench:action-level
  *
  * Note: This is a more granular benchmark than tool-level.bench.ts.

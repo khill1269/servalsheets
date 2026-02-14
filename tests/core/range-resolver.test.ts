@@ -27,6 +27,33 @@ describe('RangeResolver', () => {
     resolver = new RangeResolver({ sheetsApi: mockApi as any });
   });
 
+  describe('Defensive input handling', () => {
+    it('throws INVALID_RANGE instead of TypeError for undefined input', async () => {
+      await expect(resolver.resolve('test-id', undefined as unknown as never)).rejects.toThrow(
+        RangeResolutionError
+      );
+
+      try {
+        await resolver.resolve('test-id', undefined as unknown as never);
+      } catch (error) {
+        expect((error as RangeResolutionError).code).toBe('INVALID_RANGE');
+        expect((error as Error).message).toContain('Range input is required');
+      }
+    });
+
+    it('accepts plain A1 strings directly', async () => {
+      mockApi.spreadsheets.get.mockResolvedValue({
+        data: {
+          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+        },
+      });
+
+      const result = await resolver.resolve('test-id', 'Sheet1!A1:B2');
+      expect(result.a1Notation).toBe('Sheet1!A1:B2');
+      expect(result.sheetId).toBe(0);
+    });
+  });
+
   describe('Sheet name escaping', () => {
     it('should escape single quotes in sheet names', async () => {
       mockApi.spreadsheets.get.mockResolvedValue({

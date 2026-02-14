@@ -177,7 +177,7 @@ export class ServalSheetsServer {
   constructor(options: ServalSheetsServerOptions = {}) {
     this.options = options;
 
-    // Initialize task store for SEP-1686 support
+    // Initialize task store for MCP 2025-11-25 Tasks support
     // Use provided taskStore or create default with InMemoryTaskStore
     this.taskStore = options.taskStore ?? new TaskStoreAdapter();
 
@@ -187,13 +187,15 @@ export class ServalSheetsServer {
         name: options.name ?? 'servalsheets',
         version: options.version ?? PACKAGE_VERSION,
         icons: SERVER_ICONS,
+        description:
+          'Production-grade Google Sheets MCP server with AI-powered analysis, transactions, workflows, and enterprise features',
       },
       {
         // Server capabilities (logging, tasks, etc. - tools/prompts/resources auto-registered)
         capabilities: createServerCapabilities(),
         // Instructions for LLM context
         instructions: SERVER_INSTRUCTIONS,
-        // Task support (SEP-1686) for tasks/get/list/result/cancel and task-capable tools
+        // Task support (MCP 2025-11-25) for tasks/get/list/result/cancel and task-capable tools
         taskStore: this.taskStore,
       }
     );
@@ -263,6 +265,8 @@ export class ServalSheetsServer {
       } = await initializePerformanceOptimizations(this.googleClient.sheets);
 
       // Create reusable context and handlers
+      // Local ref for closure capture in getter below
+      const _googleClient = this.googleClient;
       this.context = {
         batchCompiler: new BatchCompiler({
           rateLimiter: new RateLimiter(),
@@ -292,8 +296,16 @@ export class ServalSheetsServer {
         queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {
-          hasElevatedAccess: this.googleClient.hasElevatedAccess,
-          scopes: this.googleClient.scopes,
+          // Use getter to always read live value from GoogleApiClient
+          // This ensures re-auth with broader scopes takes effect immediately
+          get hasElevatedAccess() {
+            return _googleClient.hasElevatedAccess;
+          },
+          // Use getter to always read live scopes from GoogleApiClient
+          // This ensures re-auth with broader scopes takes effect immediately
+          get scopes() {
+            return _googleClient.scopes;
+          },
         },
         samplingServer: this._server.server, // Pass underlying Server instance for sampling
         server: this._server.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
@@ -988,20 +1000,18 @@ export class ServalSheetsServer {
    * Register task cancellation handler
    *
    * Enables clients to cancel long-running tasks via the tasks/cancel request.
-   * SEP-1686: Task-based execution support
+   * MCP 2025-11-25: Task-based execution support
    */
   private registerTaskCancelHandler(): void {
     try {
-      // Register the cancel handler with the experimental tasks API
-      // Note: The SDK should route cancel requests to this handler
+      // Register the cancel handler with the SDK tasks API
+      // Note: The SDK routes cancel requests via experimental.tasks accessor
       if (this._server.experimental?.tasks) {
         // The TaskStoreAdapter handles the protocol-level cancel requests
         // Our handleTaskCancel method provides the implementation
         baseLogger.info('Task cancellation support enabled');
       } else {
-        baseLogger.warn(
-          'Task cancellation not available (SDK does not support experimental.tasks)'
-        );
+        baseLogger.warn('Task cancellation not available (SDK does not expose tasks API)');
       }
     } catch (error) {
       baseLogger.error('Failed to register task cancel handler', { error });

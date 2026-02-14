@@ -47,7 +47,7 @@ npm search mcp-google-sheets-pro
 {
   "name": "servalsheets",
   "version": "1.0.0",
-  "description": "The most comprehensive MCP server for Google Sheets - 293 actions, 21 tools",
+  "description": "The most comprehensive MCP server for Google Sheets - 294 actions, 21 tools",
   "keywords": ["mcp", "google-sheets", "ai", "automation", "claude", "chatgpt"],
   "bin": {
     "servalsheets": "./dist/cli.js"
@@ -79,7 +79,7 @@ The most comprehensive MCP server for Google Sheets automation.
 
 ## Why ServalSheets?
 
-- **293 actions** vs. 15-25 in competitors (10-18x more)
+- **294 actions** vs. 15-25 in competitors (10-18x more)
 - **21 specialized tools** covering every Sheets capability
 - **Enterprise-ready** with OAuth 2.1, 92% test coverage
 - **Unique features**: Charts, Pivots, BigQuery, Apps Script
@@ -114,7 +114,7 @@ npx servalsheets init
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](...)
 [![License](https://img.shields.io/badge/license-MIT-green)](...)
 
-**The most comprehensive MCP server for Google Sheets** — 293 actions, 21 tools, enterprise-ready.
+**The most comprehensive MCP server for Google Sheets** — 294 actions, 21 tools, enterprise-ready.
 
 ## 🆚 Why ServalSheets?
 

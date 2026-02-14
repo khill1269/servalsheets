@@ -217,8 +217,11 @@ export class TransactionManager {
       // Validate all operations
       this.validateOperations(transaction);
 
+      // Resolve sheet names to IDs for range-based operations
+      const sheetNameMap = await this.buildSheetNameMap(transaction.spreadsheetId);
+
       // Merge operations into batch request
-      const batchRequest = this.mergeToBatchRequest(transaction.operations);
+      const batchRequest = this.mergeToBatchRequest(transaction.operations, sheetNameMap);
 
       // Execute batch request via Google Sheets API
       const batchResponse = await this.executeBatchRequest(transaction.spreadsheetId, batchRequest);
@@ -530,7 +533,10 @@ export class TransactionManager {
   /**
    * Merge operations into single batch request
    */
-  private mergeToBatchRequest(operations: QueuedOperation[]): BatchRequest {
+  private mergeToBatchRequest(
+    operations: QueuedOperation[],
+    sheetNameMap?: Map<string, number>
+  ): BatchRequest {
     this.log(`Merging ${operations.length} operations into batch request`);
 
     const requests: BatchRequestEntry[] = [];
@@ -538,7 +544,7 @@ export class TransactionManager {
 
     for (const op of operations) {
       // Convert operation to batch request entry
-      const entry = this.operationToBatchEntry(op);
+      const entry = this.operationToBatchEntry(op, sheetNameMap);
       if (entry) {
         requests.push(entry);
       } else {
@@ -580,7 +586,10 @@ export class TransactionManager {
    * Supports: values_write, format_apply, sheet_create, sheet_delete, and 'custom' operations.
    * Custom operations are mapped based on their tool/action parameters.
    */
-  private operationToBatchEntry(op: QueuedOperation): BatchRequestEntry | null {
+  private operationToBatchEntry(
+    op: QueuedOperation,
+    sheetNameMap?: Map<string, number>
+  ): BatchRequestEntry | null {
     switch (op.type) {
       case 'values_write':
         return {
@@ -616,7 +625,7 @@ export class TransactionManager {
 
       case 'custom':
         // Convert custom operations based on tool/action
-        return this.convertCustomOperation(op);
+        return this.convertCustomOperation(op, sheetNameMap);
 
       default:
         this.log(`Unknown operation type: ${op.type}, skipping`);
@@ -630,7 +639,10 @@ export class TransactionManager {
    * Maps ServalSheets tool actions to Google Sheets API batchUpdate requests.
    * This enables transaction batching for operations queued via the generic queue() method.
    */
-  private convertCustomOperation(op: QueuedOperation): BatchRequestEntry | null {
+  private convertCustomOperation(
+    op: QueuedOperation,
+    sheetNameMap?: Map<string, number>
+  ): BatchRequestEntry | null {
     const { tool, action, params } = op;
     const toolAction = `${tool}:${action}`;
 
@@ -640,18 +652,19 @@ export class TransactionManager {
       // sheets_data operations
       case 'sheets_data:write':
       case 'sheets_data:batch_write':
-        return this.buildUpdateCellsRequest(params, 'userEnteredValue');
+        return this.buildUpdateCellsRequest(params, 'userEnteredValue', false, sheetNameMap);
 
       case 'sheets_data:clear':
       case 'sheets_data:batch_clear':
-        return this.buildUpdateCellsRequest(params, 'userEnteredValue', true);
+        return this.buildUpdateCellsRequest(params, 'userEnteredValue', true, sheetNameMap);
 
       case 'sheets_data:merge_cells':
         return {
           mergeCells: {
             range: this.parseRangeToGridRange(
               params['range'] as string,
-              params['sheetId'] as number
+              params['sheetId'] as number,
+              sheetNameMap
             ),
             mergeType: (params['mergeType'] as string) || 'MERGE_ALL',
           },
@@ -662,7 +675,8 @@ export class TransactionManager {
           unmergeCells: {
             range: this.parseRangeToGridRange(
               params['range'] as string,
-              params['sheetId'] as number
+              params['sheetId'] as number,
+              sheetNameMap
             ),
           },
         };
@@ -674,10 +688,10 @@ export class TransactionManager {
       case 'sheets_format:set_number_format':
       case 'sheets_format:set_alignment':
       case 'sheets_format:set_borders':
-        return this.buildUpdateCellsRequest(params, 'userEnteredFormat');
+        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', false, sheetNameMap);
 
       case 'sheets_format:clear_format':
-        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', true);
+        return this.buildUpdateCellsRequest(params, 'userEnteredFormat', true, sheetNameMap);
 
       // sheets_core operations
       case 'sheets_core:add_sheet':
@@ -818,7 +832,8 @@ export class TransactionManager {
               name: params['name'] as string,
               range: this.parseRangeToGridRange(
                 params['range'] as string,
-                params['sheetId'] as number
+                params['sheetId'] as number,
+                sheetNameMap
               ),
             },
           },
@@ -837,7 +852,8 @@ export class TransactionManager {
             protectedRange: {
               range: this.parseRangeToGridRange(
                 params['range'] as string,
-                params['sheetId'] as number
+                params['sheetId'] as number,
+                sheetNameMap
               ),
               description: params['description'] as string | undefined,
               warningOnly: params['warningOnly'] as boolean | undefined,
@@ -868,14 +884,15 @@ export class TransactionManager {
   private buildUpdateCellsRequest(
     params: Record<string, unknown>,
     fields: string,
-    clear: boolean = false
+    clear: boolean = false,
+    sheetNameMap?: Map<string, number>
   ): BatchRequestEntry {
     const range = params['range'] as string;
     const sheetId = params['sheetId'] as number | undefined;
 
     return {
       updateCells: {
-        range: this.parseRangeToGridRange(range, sheetId),
+        range: this.parseRangeToGridRange(range, sheetId, sheetNameMap),
         rows: clear ? [] : undefined,
         fields,
       },
@@ -887,7 +904,8 @@ export class TransactionManager {
    */
   private parseRangeToGridRange(
     range: string | undefined,
-    defaultSheetId: number = 0
+    defaultSheetId: number = 0,
+    sheetNameMap?: Map<string, number>
   ): sheets_v4.Schema$GridRange {
     if (!range) {
       return toGridRange(buildGridRangeInput(defaultSheetId));
@@ -898,10 +916,21 @@ export class TransactionManager {
     const sheetName = sheetMatch?.[1] || sheetMatch?.[2];
     const rangeOnly = sheetName ? range.split('!')[1] : range;
 
+    // Resolve sheet ID: use explicit sheetId if provided, else resolve name from map
+    let resolvedSheetId = defaultSheetId;
+    if (sheetName && sheetNameMap) {
+      const mappedId = sheetNameMap.get(sheetName);
+      if (mappedId !== undefined) {
+        resolvedSheetId = mappedId;
+      } else {
+        this.log(`WARNING: Sheet name '${sheetName}' not found in sheet map, using default sheetId=${defaultSheetId}`);
+      }
+    }
+
     // Parse cell range (e.g., "A1:B10" or "A1")
     const rangeMatch = rangeOnly?.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/);
     if (!rangeMatch) {
-      return toGridRange(buildGridRangeInput(defaultSheetId));
+      return toGridRange(buildGridRangeInput(resolvedSheetId));
     }
 
     const startCol = this.columnToIndex(rangeMatch[1]!);
@@ -909,7 +938,7 @@ export class TransactionManager {
     const endCol = rangeMatch[3] ? this.columnToIndex(rangeMatch[3]) + 1 : startCol + 1;
     const endRow = rangeMatch[4] ? parseInt(rangeMatch[4], 10) : startRow + 1;
 
-    return toGridRange(buildGridRangeInput(defaultSheetId, startRow, endRow, startCol, endCol));
+    return toGridRange(buildGridRangeInput(resolvedSheetId, startRow, endRow, startCol, endCol));
   }
 
   /**
@@ -921,6 +950,41 @@ export class TransactionManager {
       index = index * 26 + (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
     }
     return index - 1;
+  }
+
+  /**
+   * Fetch spreadsheet metadata and build a sheet name → sheetId map.
+   * Used at commit time to resolve sheet names in A1 notation ranges.
+   */
+  private async buildSheetNameMap(spreadsheetId: string): Promise<Map<string, number>> {
+    const nameMap = new Map<string, number>();
+
+    if (!this.googleClient) {
+      this.log('No Google API client available, cannot resolve sheet names');
+      return nameMap;
+    }
+
+    try {
+      const response = await this.googleClient.sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: 'sheets.properties(sheetId,title)',
+      });
+
+      const sheets = response.data.sheets || [];
+      for (const sheet of sheets) {
+        const title = sheet.properties?.title;
+        const sheetId = sheet.properties?.sheetId;
+        if (title != null && sheetId != null) {
+          nameMap.set(title, sheetId);
+        }
+      }
+
+      this.log(`Built sheet name map with ${nameMap.size} entries`);
+    } catch (error) {
+      this.log(`WARNING: Failed to fetch sheet metadata for name resolution: ${error}`);
+    }
+
+    return nameMap;
   }
 
   /**

@@ -52,6 +52,10 @@ import {
  * Registers ServalSheets prompts with the MCP server
  *
  * Prompts provide guided workflows and templates for common operations.
+ * Note: prompts/list uses SDK's built-in handler which returns all prompts
+ * in a single page. With ~40 prompts, cursor pagination is not needed per
+ * MCP 2025-11-25 spec. If prompt count grows significantly, consider
+ * implementing a custom ListPromptsRequestSchema handler with cursor support.
  *
  * @param server - McpServer instance
  */
@@ -73,7 +77,7 @@ export function registerServalSheetsPrompts(server: McpServer): void {
               type: 'text' as const,
               text: `🎉 Welcome to ServalSheets!
 
-I'm your Google Sheets assistant with 21 powerful tools and 293 actions.
+I'm your Google Sheets assistant with 21 powerful tools and 294 actions.
 
 ## 🚀 Quick Start
 Test spreadsheet: \`1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\`

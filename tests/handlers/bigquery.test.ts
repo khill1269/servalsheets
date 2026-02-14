@@ -304,9 +304,9 @@ describe('SheetsBigQueryHandler', () => {
       }
     });
 
-    it.skip('should handle query errors', async () => {
-      // Skip: Testing mock behavior more than handler logic
-      mockBigQueryApi.jobs.query.mockRejectedValue(new Error('Syntax error near SELECT'));
+    it('should handle query errors', async () => {
+      // Query action uses Connected Sheets batchUpdate under the hood
+      mockSheetsApi.spreadsheets.batchUpdate.mockRejectedValue(new Error('Syntax error near SELECT'));
 
       const result = await handler.handle({
         request: {
@@ -1067,19 +1067,26 @@ describe('SheetsBigQueryHandler', () => {
       expect(result.response.error?.code).toBe('PERMISSION_DENIED');
     });
 
-    it.skip('should require authentication', async () => {
-      // Skip: Auth check happens at base handler level, difficult to mock
-      mockContext.authService.isAuthenticated = vi.fn().mockReturnValue(false);
+    it('should require authentication', async () => {
+      // Auth requirement is enforced by BaseHandler.requireAuth() when googleClient is missing
+      const noAuthContext = {
+        ...mockContext,
+        googleClient: null,
+      };
+      const noAuthHandler = new SheetsBigQueryHandler(noAuthContext, mockSheetsApi, mockBigQueryApi);
 
-      const result = await handler.handle({
-        request: {
-          action: 'list_datasets',
-          projectId: 'my-project',
+      await expect(
+        noAuthHandler.handle({
+          request: {
+            action: 'list_datasets',
+            projectId: 'my-project',
+          },
+        })
+      ).rejects.toMatchObject({
+        error: {
+          code: 'AUTH_REQUIRED',
         },
       });
-
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
     });
   });
 });

@@ -12,7 +12,7 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { randomUUID, randomBytes, createHash, createHmac } from 'crypto';
+import { randomUUID, randomBytes, createHash, createHmac, timingSafeEqual } from 'crypto';
 import { rateLimit } from 'express-rate-limit';
 import { SessionStore, createSessionStore } from './storage/session-store.js';
 import { getSessionStoreConfig } from './config/env.js';
@@ -21,6 +21,7 @@ import { CircuitBreaker } from './utils/circuit-breaker.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import { VERSION, SERVER_ICONS } from './version.js';
 import { getRecommendedScopes, formatScopesForAuth } from './config/oauth-scopes.js';
+import { registerCleanup } from './utils/resource-cleanup.js';
 
 // ============================================================================
 // SECURITY CONSTANTS
@@ -206,6 +207,15 @@ export class OAuthProvider {
 
     // Start cleanup task for expired entries
     this.cleanupInterval = setInterval(() => this.cleanupExpired(), 60000); // Every minute
+
+    // Register cleanup to prevent memory leak
+    registerCleanup(
+      'OAuthProvider',
+      () => {
+        clearInterval(this.cleanupInterval);
+      },
+      'oauth-cleanup-interval'
+    );
   }
 
   /**
@@ -538,10 +548,11 @@ export class OAuthProvider {
           codeChallenge: code_challenge,
           codeChallengeMethod: code_challenge_method,
         };
-        googleAuthUrl.searchParams.set(
-          'state',
-          Buffer.from(JSON.stringify(stateData)).toString('base64')
-        );
+        const stateBase64 = Buffer.from(JSON.stringify(stateData)).toString('base64');
+        const stateSignature = createHmac('sha256', this.config.stateSecret)
+          .update(stateBase64)
+          .digest('hex');
+        googleAuthUrl.searchParams.set('state', `${stateBase64}.${stateSignature}`);
 
         res.redirect(googleAuthUrl.toString());
         return;
@@ -589,11 +600,30 @@ export class OAuthProvider {
       }
 
       try {
-        // ✅ SECURITY FIX: Verify signed state token
-        // Note: For Google callback, we're using a different state format (base64 StateData)
-        // This is internal state, not user-provided, so we keep the old format here
-        // but add validation that it came from our own authorize endpoint
-        const stateData = JSON.parse(Buffer.from(state, 'base64').toString()) as StateData;
+        // ✅ SECURITY: Verify HMAC-signed state token (defense-in-depth)
+        const dotIndex = state.lastIndexOf('.');
+        if (dotIndex === -1) {
+          res
+            .status(400)
+            .json({ error: 'invalid_request', error_description: 'Invalid state format' });
+          return;
+        }
+        const stateBase64 = state.substring(0, dotIndex);
+        const stateSignature = state.substring(dotIndex + 1);
+        const expectedSignature = createHmac('sha256', this.config.stateSecret)
+          .update(stateBase64)
+          .digest('hex');
+        if (
+          stateSignature.length !== expectedSignature.length ||
+          !timingSafeEqual(Buffer.from(stateSignature), Buffer.from(expectedSignature))
+        ) {
+          logger.warn('OAuth state signature mismatch — possible CSRF attempt');
+          res
+            .status(400)
+            .json({ error: 'invalid_request', error_description: 'Invalid state signature' });
+          return;
+        }
+        const stateData = JSON.parse(Buffer.from(stateBase64, 'base64').toString()) as StateData;
 
         // Validate the redirect URI is in our allowlist
         if (!this.validateRedirectUri(stateData.redirectUri)) {

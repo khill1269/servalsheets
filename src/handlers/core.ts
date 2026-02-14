@@ -56,19 +56,6 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
   }
 
   /**
-   * Execute an API call with request deduplication
-   * Prevents duplicate concurrent and sequential requests within TTL
-   * Expected savings: 30-50% API call reduction
-   */
-  private async deduplicatedApiCall<T>(cacheKey: string, apiCall: () => Promise<T>): Promise<T> {
-    const deduplicator = this.context.requestDeduplicator;
-    if (deduplicator) {
-      return deduplicator.deduplicate(cacheKey, apiCall);
-    }
-    return apiCall();
-  }
-
-  /**
    * Validate scopes for an operation
    * Returns error response if scopes are insufficient, null if valid
    */
@@ -125,7 +112,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         return null;
       }
       return state;
-    } catch {
+    } catch (err) {
+      this.context.logger?.warn?.('Failed to decode pagination cursor', { error: String(err) });
       return null;
     }
   }
@@ -255,6 +243,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}. Available actions: get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, clear_sheet, move_sheet, batch_delete_sheets, batch_update_sheets`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -482,6 +471,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         message: 'Sheets API returned incomplete data - missing spreadsheetId',
         details: { inputSpreadsheetId: input.spreadsheetId },
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
       });
     }
@@ -519,6 +509,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         category: 'auth',
         severity: 'high',
         retryable: false,
+        suggestedFix:
+          'Check that the spreadsheet is shared with the right account, or verify sharing settings',
         retryStrategy: 'manual',
         details: {
           operation,
@@ -590,6 +582,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         message: 'Sheets API returned incomplete data after creating spreadsheet',
         details: { title: input.title },
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
       });
     }
@@ -621,6 +614,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           requiredScope: 'https://www.googleapis.com/auth/drive.file',
         },
         retryable: false,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution:
           'Ensure Drive API client is initialized with drive.file scope. Check Google API credentials configuration.',
         resolutionSteps: [
@@ -631,6 +625,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
+    // BUG-007 FIX: Copy operations can take >30s on large spreadsheets
+    // For long-running copies, set COMPOSITE_TIMEOUT_MS env var to extend timeout
+    // This operation uses Drive API's files.copy which is inherently slow for large datasets
     // Get current title if newTitle not provided
     let title = input.newTitle;
     if (!title) {
@@ -664,6 +661,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             copyParams,
           },
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
           resolution:
             'Retry the copy operation. If the issue persists, check Google Drive API status.',
         });
@@ -715,6 +713,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'No properties to update',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -745,6 +744,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         message: 'Sheets API returned incomplete data after update',
         details: { spreadsheetId: input.spreadsheetId },
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
       });
     }
@@ -817,8 +817,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
             timeZone: data.properties?.timeZone ?? undefined,
             sheets,
           };
-        } catch {
+        } catch (err) {
           // Return minimal info for failed fetches
+          this.context.logger?.warn?.('Batch get: failed to fetch spreadsheet', { spreadsheetId: id, error: String(err) });
           return {
             spreadsheetId: id,
             title: '(error)',
@@ -858,6 +859,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'Invalid pagination cursor: sheet index out of bounds',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
         details: { cursor: input.cursor, sheetIndex: paginationState.sheetIndex, totalSheets },
       });
     }
@@ -970,6 +972,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         message: 'Sheets API returned incomplete data - missing spreadsheetId',
         details: { inputSpreadsheetId: input.spreadsheetId },
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
       });
     }
@@ -977,17 +980,27 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     return this.success('get_comprehensive', {
       comprehensiveMetadata: {
         spreadsheetId: data.spreadsheetId,
-        properties: data.properties as Record<string, unknown>,
-        namedRanges: data.namedRanges as Array<Record<string, unknown>>,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        properties: data.properties as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        namedRanges: data.namedRanges as any,
         sheets: paginatedSheets.map((s) => ({
-          properties: s.properties as Record<string, unknown>,
-          conditionalFormats: s.conditionalFormats as Array<Record<string, unknown>>,
-          protectedRanges: s.protectedRanges as Array<Record<string, unknown>>,
-          charts: s.charts as Array<Record<string, unknown>>,
-          filterViews: s.filterViews as Array<Record<string, unknown>>,
-          basicFilter: s.basicFilter as Record<string, unknown>,
-          merges: s.merges as Array<Record<string, unknown>>,
-          data: s.data as Array<Record<string, unknown>>,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          properties: s.properties as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          conditionalFormats: s.conditionalFormats as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          protectedRanges: s.protectedRanges as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          charts: s.charts as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          filterViews: s.filterViews as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          basicFilter: s.basicFilter as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          merges: s.merges as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: s.data as any,
         })),
         stats: {
           sheetsCount,
@@ -1026,6 +1039,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           requiredScope: 'https://www.googleapis.com/auth/drive.readonly',
         },
         retryable: false,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
         resolution:
           'Ensure Drive API client is initialized. Check Google API credentials configuration.',
         resolutionSteps: [
@@ -1119,7 +1133,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
-    const newSheet = response.data.replies?.[0]?.addSheet?.properties;
+    const newSheet = response.data?.replies?.[0]?.addSheet?.properties;
     const sheet: SheetInfo = {
       sheetId: newSheet?.sheetId ?? 0,
       title: newSheet?.title ?? input.title,
@@ -1163,6 +1177,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -1212,7 +1227,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
-    const newSheet = response.data.replies?.[0]?.duplicateSheet?.properties;
+    const newSheet = response.data?.replies?.[0]?.duplicateSheet?.properties;
     const sheet: SheetInfo = {
       sheetId: newSheet?.sheetId ?? 0,
       title: newSheet?.title ?? '',
@@ -1262,7 +1277,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         (s) => s.properties?.title?.toLowerCase() === sheetName.toLowerCase()
       );
 
-      if (!matchingSheet?.properties?.sheetId) {
+      const matchingSheetId = matchingSheet?.properties?.sheetId;
+      if (matchingSheetId === undefined || matchingSheetId === null) {
         return this.error(
           createNotFoundError({
             resourceType: 'sheet',
@@ -1273,7 +1289,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         );
       }
 
-      resolvedSheetId = matchingSheet.properties.sheetId;
+      resolvedSheetId = matchingSheetId;
     }
 
     if (resolvedSheetId === undefined) {
@@ -1281,6 +1297,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'Either sheetId (number) or sheetName (string) is required',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1328,6 +1345,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           hint: 'Properties can be at root level or nested in a "properties" object',
         },
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1518,7 +1536,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         fields: 'sheets.properties.sheetId',
       });
       return response.data.sheets?.some((s) => s.properties?.sheetId === sheetId) ?? false;
-    } catch {
+    } catch (err) {
+      this.context.logger?.warn?.('Failed to check sheet existence', { spreadsheetId, sheetId, error: String(err) });
       return false;
     }
   }
@@ -1680,7 +1699,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         (s) => s.properties?.title?.toLowerCase() === input.sheetName!.toLowerCase()
       );
 
-      if (!matchingSheet?.properties?.sheetId) {
+      const matchingSheetId = matchingSheet?.properties?.sheetId;
+      if (matchingSheetId === undefined || matchingSheetId === null) {
         return this.error(
           createNotFoundError({
             resourceType: 'sheet',
@@ -1691,7 +1711,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         );
       }
 
-      resolvedSheetId = matchingSheet.properties.sheetId;
+      resolvedSheetId = matchingSheetId;
     }
 
     if (resolvedSheetId === undefined) {
@@ -1699,6 +1719,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'Either sheetId (number) or sheetName (string) is required',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1771,6 +1792,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'Nothing to clear. Set at least one of: clearValues, clearFormats, clearNotes',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1807,7 +1829,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         (s) => s.properties?.title?.toLowerCase() === input.sheetName!.toLowerCase()
       );
 
-      if (!matchingSheet?.properties?.sheetId) {
+      const matchingSheetId = matchingSheet?.properties?.sheetId;
+      if (matchingSheetId === undefined || matchingSheetId === null) {
         return this.error(
           createNotFoundError({
             resourceType: 'sheet',
@@ -1818,7 +1841,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         );
       }
 
-      resolvedSheetId = matchingSheet.properties.sheetId;
+      resolvedSheetId = matchingSheetId;
     }
 
     if (resolvedSheetId === undefined) {
@@ -1826,6 +1849,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'Either sheetId (number) or sheetName (string) is required',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1834,6 +1858,7 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         code: 'INVALID_PARAMS',
         message: 'newIndex is required - the 0-based position to move the sheet to',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 

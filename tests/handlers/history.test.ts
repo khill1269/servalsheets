@@ -489,26 +489,25 @@ describe('HistoryHandler', () => {
   });
 
   describe('redo action', () => {
-    it('should return feature unavailable error', async () => {
+    it('should redo a previously undone operation', async () => {
       const mockOperation = createMockOperation({
         spreadsheetId: 'sheet-123',
       });
 
       mockHistoryService.getLastRedoable = vi.fn().mockReturnValue(mockOperation);
+      mockSnapshotService.restore = vi.fn().mockResolvedValue('sheet-restored');
 
       const result = await handler.handle({
         action: 'redo',
         spreadsheetId: 'sheet-123',
       });
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('FEATURE_UNAVAILABLE');
-        expect(result.response.error.message).toContain(
-          'Redo functionality is not yet implemented'
-        );
-        expect(result.response.error.retryable).toBe(false);
-        expect(result.response.error.details).toBeDefined();
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.restoredSpreadsheetId).toBe('sheet-restored');
+        expect(result.response.operationRestored).toBeDefined();
+        expect(result.response.operationRestored!.id).toBe('op-123');
+        expect(result.response.message).toContain('Redid');
       }
 
       // Validate schema

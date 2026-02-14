@@ -56,13 +56,9 @@ import type {
   DimensionsDeleteSlicerInput,
   DimensionsListSlicersInput,
 } from '../schemas/index.js';
-import type { RangeInput } from '../schemas/shared.js';
 import {
-  buildGridRangeInput,
-  parseA1Notation,
   parseCellReference,
   toGridRange,
-  type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
@@ -72,6 +68,21 @@ type ApiFilterCriteria = sheets_v4.Schema$FilterCriteria;
 
 export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, SheetsDimensionsOutput> {
   private sheetsApi: sheets_v4.Sheets;
+  private static readonly ACTIONS_REQUIRING_SHEET_ID = new Set<string>([
+    'insert',
+    'delete',
+    'move',
+    'resize',
+    'auto_resize',
+    'hide',
+    'show',
+    'freeze',
+    'group',
+    'ungroup',
+    'append',
+    'clear_basic_filter',
+    'get_basic_filter',
+  ]);
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_dimensions', context);
@@ -126,6 +137,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     const req = this.inferRequestParameters(rawReq) as DimensionsRequest;
 
     try {
+      const sheetResolutionError = await this.resolveSheetIdIfNeeded(req);
+      if (sheetResolutionError) {
+        return { response: sheetResolutionError };
+      }
+
       let response: DimensionsResponse;
       switch (req.action) {
         // Consolidated dimension actions (11)
@@ -220,6 +236,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -247,6 +264,33 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     } catch (err) {
       return { response: this.mapError(err) };
     }
+  }
+
+  private async resolveSheetIdIfNeeded(req: DimensionsRequest): Promise<DimensionsResponse | null> {
+    const request = req as Record<string, unknown>;
+    const hasSheetId = typeof request['sheetId'] === 'number';
+    const actionNeedsSheetId =
+      DimensionsHandler.ACTIONS_REQUIRING_SHEET_ID.has(req.action) ||
+      (req.action === 'set_basic_filter' && request['range'] === undefined) ||
+      (req.action === 'create_filter_view' && request['range'] === undefined);
+
+    if (!actionNeedsSheetId || hasSheetId) {
+      return null;
+    }
+
+    const sheetName = request['sheetName'];
+    if (typeof sheetName !== 'string' || sheetName.trim().length === 0) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Either sheetId (number) or sheetName (string) is required',
+        retryable: false,
+        suggestedFix: 'Provide sheetId from sheets_core.list_sheets or a valid sheetName',
+      });
+    }
+
+    const resolvedSheetId = await this.getSheetId(req.spreadsheetId, sheetName, this.sheetsApi);
+    request['sheetId'] = resolvedSheetId;
+    return null;
   }
 
   protected createIntents(input: SheetsDimensionsInput): Intent[] {
@@ -341,6 +385,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
             code: 'PRECONDITION_FAILED',
             message: `${isRows ? 'Row' : 'Column'} deletion cancelled by user`,
             retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
           });
         }
       } catch (err) {
@@ -414,7 +459,8 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     if (snapshot) {
       const snapshotInfo = this.snapshotInfo(snapshot);
       if (snapshotInfo) {
-        meta.snapshot = snapshotInfo;
+        const metaWithSnapshot = meta as Record<string, unknown>;
+        metaWithSnapshot['snapshot'] = snapshotInfo;
       }
     }
     if (warnings.length > 0) {
@@ -708,6 +754,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           category: 'client',
           severity: 'medium',
           retryable: false,
+          suggestedFix: 'Ensure all preconditions are met before retrying',
           resolution:
             'Create a filter first using set_basic_filter without columnIndex, then add criteria',
         });
@@ -743,7 +790,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
     // Full filter replacement (original behavior)
     const gridRange = input.range
-      ? await this.toGridRange(input.spreadsheetId, input.range)
+      ? await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi)
       : { sheetId: input.sheetId };
 
     await this.sheetsApi.spreadsheets.batchUpdate({
@@ -798,7 +845,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       if (sheet.properties?.sheetId === input.sheetId && sheet.basicFilter) {
         return this.success('get_basic_filter', {
           filter: {
-            range: this.toGridRangeOutput(sheet.basicFilter.range ?? { sheetId: input.sheetId }),
+            range: this.gridRangeToOutput(sheet.basicFilter.range ?? { sheetId: input.sheetId }),
             criteria: sheet.basicFilter.criteria ?? {},
           },
         });
@@ -813,7 +860,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // ============================================================
 
   private async handleSortRange(input: DimensionsSortRangeInput): Promise<DimensionsResponse> {
-    const gridRange = await this.toGridRange(input.spreadsheetId, input.range);
+    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -848,7 +895,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('trim_whitespace', { cellsChanged: 0 }, undefined, true);
     }
 
-    const gridRange = await this.toGridRange(input.spreadsheetId, input.range);
+    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -863,7 +910,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const cellsChanged = response.data.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
+    const cellsChanged = response.data?.replies?.[0]?.trimWhitespace?.cellsChangedCount ?? 0;
     return this.success('trim_whitespace', { cellsChanged });
   }
 
@@ -874,7 +921,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('randomize_range', {}, undefined, true);
     }
 
-    const gridRange = await this.toGridRange(input.spreadsheetId, input.range);
+    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -899,7 +946,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('text_to_columns', {}, undefined, true);
     }
 
-    const gridRange = await this.toGridRange(input.spreadsheetId, input.source);
+    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.source, this.sheetsApi);
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -931,7 +978,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
     if (input.sourceRange && input.fillLength !== undefined) {
       // SourceAndDestination mode: explicit source and fill direction
-      const sourceGridRange = await this.toGridRange(input.spreadsheetId, input.sourceRange);
+      const sourceGridRange = await this.rangeToGridRange(input.spreadsheetId, input.sourceRange, this.sheetsApi);
       autoFillRequest.sourceAndDestination = {
         source: toGridRange(sourceGridRange),
         dimension: input.dimension ?? 'ROWS',
@@ -939,7 +986,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       };
     } else if (input.range) {
       // Range mode: auto-detect source data within range
-      const gridRange = await this.toGridRange(input.spreadsheetId, input.range);
+      const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
       autoFillRequest.range = toGridRange(gridRange);
     } else {
       return this.error({
@@ -949,6 +996,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
           '(1) "range" only - fills within range using first row/column as pattern. Example: { "range": "A1:A10" } ' +
           '(2) "sourceRange" + "fillLength" - extends pattern beyond source. Example: { "sourceRange": "A1:A3", "fillLength": 7 }',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -970,7 +1018,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
     input: DimensionsCreateFilterViewInput
   ): Promise<DimensionsResponse> {
     const gridRange = input.range
-      ? await this.toGridRange(input.spreadsheetId, input.range)
+      ? await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi)
       : { sheetId: input.sheetId };
 
     const response = await this.sheetsApi.spreadsheets.batchUpdate({
@@ -994,7 +1042,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const filterViewId = response.data.replies?.[0]?.addFilterView?.filter?.filterViewId;
+    const filterViewId = response.data?.replies?.[0]?.addFilterView?.filter?.filterViewId;
     return this.success('create_filter_view', {
       filterViewId: filterViewId ?? undefined,
     });
@@ -1081,7 +1129,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
         filterViews.push({
           filterViewId: fv.filterViewId ?? 0,
           title: fv.title ?? '',
-          range: this.toGridRangeOutput(fv.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
+          range: this.gridRangeToOutput(fv.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }),
         });
       }
     }
@@ -1105,7 +1153,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
               {
                 filterViewId: fv.filterViewId ?? 0,
                 title: fv.title ?? '',
-                range: this.toGridRangeOutput(
+                range: this.gridRangeToOutput(
                   fv.range ?? { sheetId: sheet.properties?.sheetId ?? 0 }
                 ),
               },
@@ -1125,7 +1173,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   private async handleCreateSlicer(
     input: DimensionsCreateSlicerInput
   ): Promise<DimensionsResponse> {
-    const dataRange = await this.toGridRange(input.spreadsheetId, input.dataRange);
+    const dataRange = await this.rangeToGridRange(input.spreadsheetId, input.dataRange, this.sheetsApi);
     const anchor = parseCellReference(input.position.anchorCell);
 
     const batchResponse = await this.sheetsApi.spreadsheets.batchUpdate({
@@ -1160,7 +1208,7 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       },
     });
 
-    const slicerId = batchResponse.data.replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
+    const slicerId = batchResponse.data?.replies?.[0]?.addSlicer?.slicer?.slicerId ?? undefined;
     return this.success('create_slicer', { slicerId });
   }
 
@@ -1243,33 +1291,6 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   // ============================================================
   // Helper Methods (merged from filter-sort.ts)
   // ============================================================
-
-  /**
-   * Convert Google API GridRange to application format
-   */
-  private toGridRangeOutput(range: sheets_v4.Schema$GridRange): GridRangeInput {
-    return buildGridRangeInput(
-      range.sheetId ?? 0,
-      range.startRowIndex ?? undefined,
-      range.endRowIndex ?? undefined,
-      range.startColumnIndex ?? undefined,
-      range.endColumnIndex ?? undefined
-    );
-  }
-
-  private async toGridRange(spreadsheetId: string, range: RangeInput): Promise<GridRangeInput> {
-    const a1 = await this.resolveRange(spreadsheetId, range);
-    const parsed = parseA1Notation(a1);
-    const sheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
-
-    return buildGridRangeInput(
-      sheetId,
-      parsed.startRow,
-      parsed.endRow,
-      parsed.startCol,
-      parsed.endCol
-    );
-  }
 
   private mapCriteria(
     input: Record<

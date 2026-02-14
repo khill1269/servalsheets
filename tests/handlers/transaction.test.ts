@@ -491,16 +491,70 @@ describe('TransactionHandler', () => {
   });
 
   describe('list action', () => {
-    it('should return list of active transactions', async () => {
-      // Note: Current implementation returns UNIMPLEMENTED error
+    it('should return list of all active transactions', async () => {
+      const mockTransactions = [
+        {
+          id: 'txn-001',
+          spreadsheetId: 'sheet-1',
+          status: 'pending',
+          operations: [{ id: 'op_1', type: 'custom' }],
+          startTime: Date.now() - 5000,
+          isolationLevel: 'read_committed',
+          snapshot: { id: 'snap-001' },
+        } as Transaction,
+        {
+          id: 'txn-002',
+          spreadsheetId: 'sheet-2',
+          status: 'queued',
+          operations: [{ id: 'op_2', type: 'custom' }, { id: 'op_3', type: 'custom' }],
+          startTime: Date.now() - 3000,
+          isolationLevel: 'serializable',
+          snapshot: { id: 'snap-002' },
+        } as Transaction,
+      ];
+
+      mockTransactionManager.getActiveTransactions = vi.fn().mockReturnValue(mockTransactions);
+
       const result = await handler.handle({
         action: 'list',
       });
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('UNIMPLEMENTED');
-        expect(result.response.error.message).toContain('not yet implemented');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.action).toBe('list');
+        expect(result.response.transactions).toBeDefined();
+        expect(result.response.transactions?.length).toBe(2);
+
+        // Verify first transaction details
+        expect(result.response.transactions?.[0]).toMatchObject({
+          id: 'txn-002', // Should be sorted newest first
+          spreadsheetId: 'sheet-2',
+          status: 'queued',
+          operationCount: 2,
+          isolationLevel: 'serializable',
+          snapshotId: 'snap-002',
+        });
+
+        // Verify second transaction details
+        expect(result.response.transactions?.[1]).toMatchObject({
+          id: 'txn-001',
+          spreadsheetId: 'sheet-1',
+          status: 'pending',
+          operationCount: 1,
+          isolationLevel: 'read_committed',
+          snapshotId: 'snap-001',
+        });
+
+        // Verify timestamps are ISO strings
+        expect(result.response.transactions?.[0].created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+        // Verify summary metadata
+        expect(result.response._meta?.summary).toBeDefined();
+        expect(result.response._meta?.summary.total).toBe(2);
+        expect(result.response._meta?.summary.byStatus.pending).toBe(1);
+        expect(result.response._meta?.summary.byStatus.queued).toBe(1);
+
+        expect(result.response.message).toContain('2 active transaction(s)');
       }
 
       // Validate schema compliance
@@ -508,15 +562,184 @@ describe('TransactionHandler', () => {
       expect(parseResult.success).toBe(true);
     });
 
-    it('should accept optional spreadsheetId filter', async () => {
+    it('should return empty list when no transactions exist', async () => {
+      mockTransactionManager.getActiveTransactions = vi.fn().mockReturnValue([]);
+
       const result = await handler.handle({
         action: 'list',
-        spreadsheetId: 'filter-sheet-123',
       });
 
-      expect(result.response.success).toBe(false);
-      if (!result.response.success) {
-        expect(result.response.error.code).toBe('UNIMPLEMENTED');
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.transactions?.length).toBe(0);
+        expect(result.response.message).toContain('0 active transaction(s)');
+        expect(result.response._meta).toBeUndefined(); // No summary for empty list
+      }
+
+      // Validate schema compliance
+      const parseResult = SheetsTransactionOutputSchema.safeParse(result);
+      expect(parseResult.success).toBe(true);
+    });
+
+    it('should filter transactions by spreadsheetId', async () => {
+      const mockTransactions = [
+        {
+          id: 'txn-001',
+          spreadsheetId: 'sheet-1',
+          status: 'pending',
+          operations: [],
+          startTime: Date.now() - 5000,
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-002',
+          spreadsheetId: 'sheet-2',
+          status: 'queued',
+          operations: [],
+          startTime: Date.now() - 3000,
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-003',
+          spreadsheetId: 'sheet-1',
+          status: 'executing',
+          operations: [],
+          startTime: Date.now() - 1000,
+          isolationLevel: 'read_committed',
+        } as Transaction,
+      ];
+
+      mockTransactionManager.getActiveTransactions = vi.fn().mockReturnValue(mockTransactions);
+
+      const result = await handler.handle({
+        action: 'list',
+        spreadsheetId: 'sheet-1',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response.transactions?.length).toBe(2);
+        expect(result.response.transactions?.every(tx => tx.spreadsheetId === 'sheet-1')).toBe(true);
+
+        // Should be sorted by creation time (newest first)
+        expect(result.response.transactions?.[0].id).toBe('txn-003');
+        expect(result.response.transactions?.[1].id).toBe('txn-001');
+
+        // Verify summary counts
+        expect(result.response._meta?.summary.total).toBe(2);
+        expect(result.response._meta?.summary.byStatus.pending).toBe(1);
+        expect(result.response._meta?.summary.byStatus.executing).toBe(1);
+      }
+
+      // Validate schema compliance
+      const parseResult = SheetsTransactionOutputSchema.safeParse(result);
+      expect(parseResult.success).toBe(true);
+    });
+
+    it('should include duration for active and completed transactions', async () => {
+      const startTime = Date.now() - 10000;
+      const endTime = Date.now() - 5000;
+
+      const mockTransactions = [
+        {
+          id: 'txn-active',
+          spreadsheetId: 'sheet-1',
+          status: 'queued',
+          operations: [],
+          startTime,
+          endTime: undefined, // Still active
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-completed',
+          spreadsheetId: 'sheet-1',
+          status: 'committed',
+          operations: [],
+          startTime,
+          endTime,
+          duration: endTime - startTime,
+          isolationLevel: 'read_committed',
+        } as Transaction,
+      ];
+
+      mockTransactionManager.getActiveTransactions = vi.fn().mockReturnValue(mockTransactions);
+
+      const result = await handler.handle({
+        action: 'list',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        const transactions = result.response.transactions || [];
+        const active = transactions.find(tx => tx.id === 'txn-active');
+        const completed = transactions.find(tx => tx.id === 'txn-completed');
+
+        // Active transaction should have calculated duration (current time - start time)
+        expect(active?.duration).toBeGreaterThan(0);
+        expect(active?.updated).toBeUndefined(); // No updated field for active
+
+        // Completed transaction should have stored duration
+        expect(completed?.duration).toBe(endTime - startTime);
+        expect(completed?.updated).toBeDefined(); // Has updated field
+      }
+    });
+
+    it('should generate status counts in summary', async () => {
+      const mockTransactions = [
+        {
+          id: 'txn-1',
+          spreadsheetId: 'sheet-1',
+          status: 'pending',
+          operations: [],
+          startTime: Date.now(),
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-2',
+          spreadsheetId: 'sheet-1',
+          status: 'pending',
+          operations: [],
+          startTime: Date.now(),
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-3',
+          spreadsheetId: 'sheet-1',
+          status: 'queued',
+          operations: [],
+          startTime: Date.now(),
+          isolationLevel: 'read_committed',
+        } as Transaction,
+        {
+          id: 'txn-4',
+          spreadsheetId: 'sheet-1',
+          status: 'committed',
+          operations: [],
+          startTime: Date.now(),
+          endTime: Date.now(),
+          isolationLevel: 'read_committed',
+        } as Transaction,
+      ];
+
+      mockTransactionManager.getActiveTransactions = vi.fn().mockReturnValue(mockTransactions);
+
+      const result = await handler.handle({
+        action: 'list',
+      });
+
+      expect(result.response.success).toBe(true);
+      if (result.response.success) {
+        expect(result.response._meta?.summary).toEqual({
+          total: 4,
+          byStatus: {
+            pending: 2,
+            queued: 1,
+            executing: 0,
+            committed: 1,
+            rolled_back: 0,
+            failed: 0,
+          },
+        });
       }
     });
   });

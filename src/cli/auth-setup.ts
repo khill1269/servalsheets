@@ -19,7 +19,8 @@ import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 import { EncryptedFileTokenStore } from '../services/token-store.js';
 import { getRecommendedScopes, SCOPE_DESCRIPTIONS } from '../config/oauth-scopes.js';
-import * as fs from 'fs';
+import { EMBEDDED_OAUTH, isEmbeddedOAuthConfigured } from '../config/embedded-oauth.js';
+import { promises as fsPromises } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import { randomBytes } from 'crypto';
@@ -52,27 +53,42 @@ interface AuthStatus {
 /**
  * Check current authentication status
  */
-function getAuthStatus(): AuthStatus {
+async function getAuthStatus(): Promise<AuthStatus> {
   const envPath = path.join(process.cwd(), '.env');
   const tokenPath = path.join(process.env['HOME'] || '', '.servalsheets', 'tokens.encrypted');
 
   let hasClientId = false;
   let hasClientSecret = false;
+  let hasEnvFile = false;
 
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf-8');
+  // Check if .env exists
+  try {
+    await fsPromises.access(envPath);
+    hasEnvFile = true;
+    const envContent = await fsPromises.readFile(envPath, 'utf-8');
     hasClientId =
       /OAUTH_CLIENT_ID=.+/.test(envContent) && !/OAUTH_CLIENT_ID=PASTE_YOUR/.test(envContent);
     hasClientSecret =
       /OAUTH_CLIENT_SECRET=.+/.test(envContent) &&
       !/OAUTH_CLIENT_SECRET=PASTE_YOUR/.test(envContent);
+  } catch {
+    // File does not exist
+  }
+
+  // Check if token file exists
+  let hasTokens = false;
+  try {
+    await fsPromises.access(tokenPath);
+    hasTokens = true;
+  } catch {
+    // File does not exist
   }
 
   return {
-    hasEnvFile: fs.existsSync(envPath),
+    hasEnvFile,
     hasClientId,
     hasClientSecret,
-    hasTokens: fs.existsSync(tokenPath),
+    hasTokens,
     envPath,
     tokenPath,
   };
@@ -81,7 +97,7 @@ function getAuthStatus(): AuthStatus {
 /**
  * Try to find credentials.json in common locations
  */
-function findCredentials(): string | null {
+async function findCredentials(): Promise<string | null> {
   const possiblePaths = [
     path.join(process.cwd(), 'credentials.json'),
     path.join(process.cwd(), 'client_secret.json'),
@@ -91,8 +107,11 @@ function findCredentials(): string | null {
   ];
 
   for (const credPath of possiblePaths) {
-    if (fs.existsSync(credPath)) {
+    try {
+      await fsPromises.access(credPath);
       return credPath;
+    } catch {
+      // File does not exist, continue to next path
     }
   }
 
@@ -102,11 +121,12 @@ function findCredentials(): string | null {
 /**
  * Extract OAuth credentials from credentials.json
  */
-function extractCredentialsFromJson(
+async function extractCredentialsFromJson(
   jsonPath: string
-): { clientId: string; clientSecret: string; redirectUri: string } | null {
+): Promise<{ clientId: string; clientSecret: string; redirectUri: string } | null> {
   try {
-    const content = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    const fileContent = await fsPromises.readFile(jsonPath, 'utf-8');
+    const content = JSON.parse(fileContent);
 
     // Handle both installed app and web app formats
     const creds = content.installed || content.web;
@@ -134,12 +154,17 @@ function extractCredentialsFromJson(
 /**
  * Update .env file with OAuth credentials
  */
-function updateEnvFile(clientId: string, clientSecret: string, redirectUri: string): void {
+async function updateEnvFile(
+  clientId: string,
+  clientSecret: string,
+  redirectUri: string
+): Promise<void> {
   const envPath = path.join(process.cwd(), '.env');
   let envContent = '';
 
-  if (fs.existsSync(envPath)) {
-    envContent = fs.readFileSync(envPath, 'utf-8');
+  try {
+    await fsPromises.access(envPath);
+    envContent = await fsPromises.readFile(envPath, 'utf-8');
 
     // Update existing values
     envContent = envContent.replace(/OAUTH_CLIENT_ID=.*/, `OAUTH_CLIENT_ID=${clientId}`);
@@ -148,7 +173,7 @@ function updateEnvFile(clientId: string, clientSecret: string, redirectUri: stri
       `OAUTH_CLIENT_SECRET=${clientSecret}`
     );
     envContent = envContent.replace(/OAUTH_REDIRECT_URI=.*/, `OAUTH_REDIRECT_URI=${redirectUri}`);
-  } else {
+  } catch {
     // Create new .env file
     envContent = `# ServalSheets OAuth Configuration
 OAUTH_CLIENT_ID=${clientId}
@@ -171,18 +196,21 @@ RATE_LIMIT_MAX_REQUESTS=100
 `;
   }
 
-  fs.writeFileSync(envPath, envContent, 'utf-8');
+  await fsPromises.writeFile(envPath, envContent, 'utf-8');
 }
 
 /**
  * Start temporary HTTP server to receive OAuth callback
  */
-function startCallbackServer(port: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // Load branded HTML templates
-    const successHtml = fs.readFileSync(path.join(__dirname, 'auth-success.html'), 'utf-8');
-    const errorHtmlTemplate = fs.readFileSync(path.join(__dirname, 'auth-error.html'), 'utf-8');
+async function startCallbackServer(port: number): Promise<string> {
+  // Load branded HTML templates first
+  const successHtml = await fsPromises.readFile(path.join(__dirname, 'auth-success.html'), 'utf-8');
+  const errorHtmlTemplate = await fsPromises.readFile(
+    path.join(__dirname, 'auth-error.html'),
+    'utf-8'
+  );
 
+  return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       if (req.url?.startsWith('/callback')) {
         const url = new URL(req.url, `http://localhost:${port}`);
@@ -279,7 +307,7 @@ async function main(): Promise<void> {
   console.log(`${colors.cyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
   console.log('');
 
-  const status = getAuthStatus();
+  const status = await getAuthStatus();
 
   console.log(
     `Environment file:    ${status.hasEnvFile ? colors.green + '✓' : colors.red + '✗'} ${status.envPath}${colors.reset}`
@@ -320,11 +348,11 @@ async function main(): Promise<void> {
   if (!status.hasClientId || !status.hasClientSecret) {
     // Try to auto-find credentials.json
     console.log('Looking for credentials.json in common locations...');
-    const credPath = findCredentials();
+    const credPath = await findCredentials();
 
     if (credPath) {
       console.log(`${colors.green}✓ Found credentials file: ${credPath}${colors.reset}`);
-      const creds = extractCredentialsFromJson(credPath);
+      const creds = await extractCredentialsFromJson(credPath);
 
       if (creds) {
         console.log(`${colors.green}✓ Extracted OAuth credentials${colors.reset}`);
@@ -333,7 +361,7 @@ async function main(): Promise<void> {
         redirectUri = creds.redirectUri;
 
         // Update .env file
-        updateEnvFile(clientId, clientSecret, redirectUri);
+        await updateEnvFile(clientId, clientSecret, redirectUri);
         console.log(`${colors.green}✓ Updated .env file${colors.reset}`);
       } else {
         console.log(`${colors.red}✗ Could not parse credentials file${colors.reset}`);
@@ -341,25 +369,38 @@ async function main(): Promise<void> {
     }
 
     if (!clientId || !clientSecret) {
-      console.log(`${colors.yellow}No credentials found automatically.${colors.reset}`);
-      console.log('');
-      console.log('Please create OAuth credentials in Google Cloud Console:');
-      console.log(
-        `  ${colors.cyan}1.${colors.reset} Go to: https://console.cloud.google.com/apis/credentials`
-      );
-      console.log(`  ${colors.cyan}2.${colors.reset} Create OAuth client ID (Web application)`);
-      console.log(
-        `  ${colors.cyan}3.${colors.reset} Add redirect URI: ${colors.yellow}http://localhost:3000/callback${colors.reset}`
-      );
-      console.log(`  ${colors.cyan}4.${colors.reset} Download the JSON file as credentials.json`);
-      console.log(`  ${colors.cyan}5.${colors.reset} Place it in the current directory`);
-      console.log(`  ${colors.cyan}6.${colors.reset} Run this script again`);
-      console.log('');
-      process.exit(1);
+      // Try embedded credentials (published app — zero-config for end users)
+      if (isEmbeddedOAuthConfigured()) {
+        console.log(
+          `${colors.green}✓ Using ServalSheets published OAuth credentials${colors.reset}`
+        );
+        clientId = EMBEDDED_OAUTH.clientId;
+        clientSecret = EMBEDDED_OAUTH.clientSecret;
+        redirectUri = EMBEDDED_OAUTH.redirectUri;
+      } else {
+        console.log(`${colors.yellow}No credentials found automatically.${colors.reset}`);
+        console.log('');
+        console.log('The embedded OAuth credentials have not been configured yet.');
+        console.log('You can either:');
+        console.log('');
+        console.log(`  ${colors.cyan}Option A:${colors.reset} Create your own OAuth credentials:`);
+        console.log(
+          `    1. Go to: ${colors.cyan}https://console.cloud.google.com/apis/credentials${colors.reset}`
+        );
+        console.log(`    2. Create OAuth client ID (Desktop application)`);
+        console.log(`    3. Download the JSON file as credentials.json`);
+        console.log(`    4. Place it in the current directory and run this script again`);
+        console.log('');
+        console.log(`  ${colors.cyan}Option B:${colors.reset} Wait for the published app release`);
+        console.log(`    The maintainer is setting up Google-verified OAuth credentials.`);
+        console.log(`    Once available, this script will use them automatically.`);
+        console.log('');
+        process.exit(1);
+      }
     }
   } else {
     // Load from .env
-    const envContent = fs.readFileSync(status.envPath, 'utf-8');
+    const envContent = await fsPromises.readFile(status.envPath, 'utf-8');
     const clientIdMatch = envContent.match(/OAUTH_CLIENT_ID=(.+)/);
     const clientSecretMatch = envContent.match(/OAUTH_CLIENT_SECRET=(.+)/);
     const redirectUriMatch = envContent.match(/OAUTH_REDIRECT_URI=(.+)/);
@@ -440,9 +481,9 @@ async function main(): Promise<void> {
     // If we generated a new encryption key, add it to .env
     if (!process.env['ENCRYPTION_KEY']) {
       const envPath = path.join(process.cwd(), '.env');
-      let envContent = fs.readFileSync(envPath, 'utf-8');
+      let envContent = await fsPromises.readFile(envPath, 'utf-8');
       envContent += `\n# Token Encryption Key (auto-generated)\nENCRYPTION_KEY=${encryptionKey}\n`;
-      fs.writeFileSync(envPath, envContent, 'utf-8');
+      await fsPromises.writeFile(envPath, envContent, 'utf-8');
     }
 
     const tokenStore = new EncryptedFileTokenStore(tokenPath, encryptionKey);
@@ -499,4 +540,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-export { main as runAuthSetup, getAuthStatus };
+export { main as runAuthSetup };

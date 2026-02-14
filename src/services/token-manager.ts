@@ -16,6 +16,7 @@
 
 import type { OAuth2Client } from 'google-auth-library';
 import { logger } from '../utils/logger.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 export interface TokenStatus {
   hasAccessToken: boolean;
@@ -351,6 +352,17 @@ export class TokenManager {
         });
       });
     }, this.checkIntervalMs);
+
+    // Register cleanup to prevent memory leak
+    registerCleanup(
+      'TokenManager',
+      () => {
+        if (this.intervalId) {
+          clearInterval(this.intervalId);
+        }
+      },
+      'token-check-interval'
+    );
   }
 
   /**

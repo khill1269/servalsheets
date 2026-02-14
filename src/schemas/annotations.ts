@@ -168,6 +168,331 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
 // This file contains only TOOL_ANNOTATIONS and ACTION_COUNTS
 
 /**
+ * Per-action intelligence annotations.
+ * Helps Claude understand action cost, idempotency, and best usage patterns.
+ *
+ * Fields:
+ * - apiCalls: Typical number of Google API calls this action makes
+ * - idempotent: true if calling twice produces the same result (safe to retry)
+ * - batchAlternative: More efficient batch version of this action (if available)
+ * - prerequisites: Actions that should run first
+ * - commonMistakes: Array of pitfalls Claude should avoid
+ * - whenToUse: Short decision guidance
+ * - whenNotToUse: When a different action is better
+ */
+export const ACTION_ANNOTATIONS: Record<
+  string,
+  {
+    apiCalls?: number;
+    idempotent?: boolean;
+    batchAlternative?: string;
+    prerequisites?: string[];
+    commonMistakes?: string[];
+    whenToUse?: string;
+    whenNotToUse?: string;
+  }
+> = {
+  // DATA TOOL
+  'sheets_data.read': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_data.batch_read (for 3+ ranges)',
+    whenToUse: 'Reading 1-2 ranges from a spreadsheet',
+    whenNotToUse: 'Reading 3+ ranges — use batch_read instead (1 API call vs N)',
+  },
+  'sheets_data.write': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_data.batch_write (for 3+ ranges)',
+    whenToUse: 'Writing to 1-2 ranges',
+    whenNotToUse:
+      'Writing 3+ ranges — use batch_write. Appending rows — use append instead',
+    commonMistakes: [
+      'Forgetting sheet name in range: use "Sheet1!A1:D10" not "A1:D10"',
+      'Using write to add rows at bottom — use append instead (auto-finds last row)',
+    ],
+  },
+  'sheets_data.append': {
+    apiCalls: 1,
+    idempotent: false, // CRITICAL
+    whenToUse: 'Adding new rows at the bottom of existing data',
+    whenNotToUse: 'Updating existing rows — use write with specific range instead',
+    commonMistakes: [
+      'DANGER: append is NOT idempotent — calling twice creates duplicate rows',
+      'Provide range as "Sheet1!A:Z" to let Sheets find the insertion point',
+    ],
+  },
+  'sheets_data.batch_read': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Reading 3+ ranges in one call (same API cost as single read)',
+    commonMistakes: [
+      'Each range must include sheet name: ["Sheet1!A1:D10", "Sheet2!A1:B5"]',
+    ],
+  },
+  'sheets_data.batch_write': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Writing to 3+ ranges in one call',
+  },
+  'sheets_data.batch_clear': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Clearing multiple ranges in one call',
+    commonMistakes: [
+      'Clears values only — formatting is preserved. Use sheets_format.clear_format for formatting',
+    ],
+  },
+  'sheets_data.find_replace': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Bulk find-and-replace across a sheet or workbook',
+    commonMistakes: [
+      'Set allSheets:true carefully — it affects ALL sheets, not just the active one',
+    ],
+  },
+
+  // FORMAT TOOL
+  'sheets_format.set_background': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_format.batch_format (for 3+ format operations)',
+    whenToUse: 'Coloring 1-2 ranges',
+    whenNotToUse:
+      'Formatting 3+ ranges — use batch_format (1 API call for all)',
+  },
+  'sheets_format.set_text_format': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_format.batch_format',
+    whenToUse: 'Setting bold/italic/font on 1-2 ranges',
+  },
+  'sheets_format.batch_format': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Applying 3+ format operations (background, text, borders, etc.) in ONE API call',
+    whenNotToUse:
+      'Single format change — just use the specific action (set_background, etc.)',
+    commonMistakes: [
+      'Max 100 operations per batch',
+      'Each operation needs its own range — cannot share ranges across operations',
+    ],
+  },
+  'sheets_format.apply_preset': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Quick professional formatting: header_row, alternating_rows, currency, etc.',
+    commonMistakes: [
+      'alternating_rows preset works best when applied to the full data range including headers',
+    ],
+  },
+  'sheets_format.set_borders': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_format.batch_format (type: "borders")',
+  },
+
+  // DIMENSIONS TOOL
+  'sheets_dimensions.insert': {
+    apiCalls: 1,
+    idempotent: false, // CRITICAL
+    whenToUse: 'Adding empty rows or columns at a specific position',
+    commonMistakes: [
+      'NOT idempotent: calling insert(count:5) twice = 10 rows, not 5',
+      'Use startIndex (0-based), not row number. Row 1 = startIndex 0',
+    ],
+  },
+  'sheets_dimensions.delete': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Removing rows or columns by index',
+    commonMistakes: [
+      'Deleting shifts indices — delete from bottom to top to avoid index skew',
+      'Uses 0-based index: to delete row 5, use startIndex: 4',
+    ],
+  },
+  'sheets_dimensions.sort_range': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Sorting data by one or more columns',
+    commonMistakes: [
+      'Sort range should NOT include header row — exclude it from the range',
+    ],
+  },
+  'sheets_dimensions.freeze': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Freezing header rows or left columns for scrolling',
+  },
+  'sheets_dimensions.auto_resize': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Auto-fitting column widths to content',
+  },
+
+  // CORE TOOL
+  'sheets_core.create': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Creating a brand new spreadsheet',
+    commonMistakes: [
+      'Returns spreadsheetId — save it for all subsequent operations',
+    ],
+  },
+  'sheets_core.get': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Getting spreadsheet metadata (sheet names, IDs, properties)',
+    commonMistakes: [
+      'Use includeGridData:false (default) unless you need cell data — grid data is large',
+    ],
+  },
+  'sheets_core.add_sheet': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Adding a new tab to an existing spreadsheet',
+    commonMistakes: [
+      'Sheet names must be unique — check existing sheets first with list_sheets',
+    ],
+  },
+
+  // COMPOSITE TOOL
+  'sheets_composite.setup_sheet': {
+    apiCalls: 2,
+    idempotent: false,
+    whenToUse:
+      'Creating a new formatted sheet with headers, column widths, and optional data in just 2 API calls',
+    whenNotToUse:
+      'Sheet already exists — use individual format/data tools instead',
+    commonMistakes: [
+      'Sheet name must not already exist — check with sheets_core.list_sheets first',
+    ],
+  },
+  'sheets_composite.smart_append': {
+    apiCalls: 2,
+    idempotent: false,
+    whenToUse:
+      'Adding rows that auto-match columns by header name (handles column reordering)',
+    whenNotToUse:
+      'Simple append where columns are already aligned — use sheets_data.append',
+    commonMistakes: [
+      'Headers must match exactly (case-sensitive) or use matchHeaders option',
+    ],
+  },
+  'sheets_composite.import_csv': {
+    apiCalls: 2,
+    idempotent: false,
+    whenToUse: 'Importing CSV data into a sheet with auto-parsing',
+  },
+  'sheets_composite.deduplicate': {
+    apiCalls: 2,
+    idempotent: true,
+    whenToUse: 'Removing duplicate rows based on key columns',
+    commonMistakes: [
+      'Always use preview:true first to see what will be removed before committing',
+    ],
+  },
+
+  // TRANSACTION TOOL
+  'sheets_transaction.begin': {
+    apiCalls: 0,
+    idempotent: false,
+    whenToUse:
+      'When you need 5+ operations to be atomic (all succeed or all fail)',
+    whenNotToUse:
+      'For 1-4 simple operations — transaction overhead exceeds benefit',
+    prerequisites: ['sheets_session.set_active'],
+  },
+  'sheets_transaction.queue': {
+    apiCalls: 0,
+    idempotent: false,
+    whenToUse: 'Adding operations to an active transaction (no API calls until commit)',
+  },
+  'sheets_transaction.commit': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Executing all queued operations in a single batched API call',
+    commonMistakes: [
+      'If commit fails, use rollback — do NOT retry commit (may duplicate operations)',
+    ],
+  },
+
+  // ANALYZE TOOL
+  'sheets_analyze.comprehensive': {
+    apiCalls: 2,
+    idempotent: true,
+    whenToUse:
+      'FIRST action on any spreadsheet — gives complete overview in one call',
+    commonMistakes: [
+      'Use depth:"sample" (default) for initial analysis — "full" loads ALL data and may be slow for large sheets',
+      'If MCP Sampling is unavailable, falls back to statistical analysis without AI insights',
+    ],
+  },
+  'sheets_analyze.scout': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Ultra-fast metadata-only check (sheet names, row counts, column types)',
+    whenNotToUse:
+      'When you need actual data or patterns — use comprehensive instead',
+  },
+  'sheets_analyze.suggest_visualization': {
+    apiCalls: 1,
+    idempotent: true,
+    prerequisites: [
+      'sheets_analyze.comprehensive or sheets_analyze.analyze_data',
+    ],
+    whenToUse: 'Getting chart recommendations based on data patterns',
+  },
+
+  // COLLABORATE TOOL
+  'sheets_collaborate.share_add': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse: 'Granting access to a user',
+    commonMistakes: [
+      'Requires Drive API scope — may need re-auth if only Sheets scope is active',
+    ],
+  },
+  'sheets_collaborate.comment_add': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Adding a comment to a cell or range',
+  },
+
+  // SESSION TOOL
+  'sheets_session.set_active': {
+    apiCalls: 0,
+    idempotent: true,
+    whenToUse:
+      'ALWAYS call this at the start of a multi-step workflow — sets context so you can use sheet names instead of IDs',
+    commonMistakes: [
+      'Must be called before sheets that reference "active spreadsheet" implicitly',
+    ],
+  },
+
+  // QUALITY TOOL
+  'sheets_quality.validate': {
+    apiCalls: 1,
+    idempotent: true,
+    whenToUse:
+      'Before large writes — validates data format and catches errors before they hit the API',
+  },
+
+  // HISTORY TOOL
+  'sheets_history.undo': {
+    apiCalls: 1,
+    idempotent: false,
+    whenToUse: 'Reverting the last operation',
+    commonMistakes: [
+      'Only undoes operations tracked by ServalSheets — not manual user edits in the Sheets UI',
+    ],
+  },
+};
+
+/**
  * Action counts per tool
  */
 export const ACTION_COUNTS: Record<string, number> = {
@@ -184,7 +509,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_dependencies: 7,
   sheets_dimensions: 28,
   sheets_fix: 1,
-  sheets_format: 21,
+  sheets_format: 22,
   sheets_history: 7,
   sheets_quality: 4,
   sheets_session: 26,

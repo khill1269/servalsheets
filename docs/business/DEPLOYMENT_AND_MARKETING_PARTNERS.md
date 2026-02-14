@@ -13,7 +13,7 @@ _Compiled January 29, 2026_
 
 ## Executive Summary
 
-This document identifies companies that can assist with deploying and marketing ServalSheets MCP server. Given that ServalSheets is a developer tool with 293 actions and 21 tools, I've focused on:
+This document identifies companies that can assist with deploying and marketing ServalSheets MCP server. Given that ServalSheets is a developer tool with 294 actions and 21 tools, I've focused on:
 
 1. **MCP-specific hosting platforms** (purpose-built for Model Context Protocol)
 2. **Cloud deployment platforms** (general serverless/edge deployment)

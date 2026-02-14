@@ -25,7 +25,7 @@ ServalSheets is a **production-grade Google Sheets MCP (Model Context Protocol) 
 | ----------------------- | ------------------------------------------------------ | ---------- |
 | **Technical Quality**   | Exceptional - 92% test coverage, 129K+ LOC, TypeScript | ⭐⭐⭐⭐⭐ |
 | **Market Position**     | First-mover in MCP + Sheets automation niche           | ⭐⭐⭐⭐⭐ |
-| **Competitive Moat**    | Strong - 293 actions vs ~40 for competitors            | ⭐⭐⭐⭐⭐ |
+| **Competitive Moat**    | Strong - 294 actions vs ~40 for competitors            | ⭐⭐⭐⭐⭐ |
 | **Monetization Ready**  | Framework designed, not yet deployed                   | ⭐⭐⭐⭐   |
 | **Enterprise Features** | Helm, Terraform, Redis, webhooks                       | ⭐⭐⭐⭐⭐ |
 
@@ -70,7 +70,7 @@ ServalSheets is a **production-grade Google Sheets MCP (Model Context Protocol) 
 
 ### 1.2 Feature Depth
 
-ServalSheets offers **21 specialized tools** with **293 actions** covering:
+ServalSheets offers **21 specialized tools** with **294 actions** covering:
 
 | Tool               | Actions | Coverage                                  |
 | ------------------ | ------- | ----------------------------------------- |
@@ -115,7 +115,7 @@ ServalSheets offers **21 specialized tools** with **293 actions** covering:
 
 | Server           | Stars/Downloads | Tools                      | Enterprise | Monetization    |
 | ---------------- | --------------- | -------------------------- | ---------- | --------------- |
-| **ServalSheets** | New             | **21 tools / 293 actions** | ✅ Full    | Planned tiers   |
+| **ServalSheets** | New             | **21 tools / 294 actions** | ✅ Full    | Planned tiers   |
 | MindsDB          | 37,300+         | 200+ integrations          | ✅         | Enterprise      |
 | GitHub MCP       | Official        | ~40 tools                  | ✅         | Free (platform) |
 | Anthropic Suite  | 66K+ (org)      | 8 across 5 servers         | ❌         | Free            |
@@ -267,7 +267,7 @@ ServalSheets could command **15-25x revenue multiples** (vs industry average 4-8
 3. **Technical Moat**
    - 129K+ LOC of refined code
    - 1,800+ tests (92% coverage)
-   - 293 actions (years of development)
+   - 294 actions (years of development)
 
 ---
 

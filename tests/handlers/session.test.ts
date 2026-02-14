@@ -142,6 +142,33 @@ describe('SessionHandler', () => {
     });
   });
 
+  describe('defensive validation', () => {
+    it('should return a clear error when set_active is missing spreadsheetId', async () => {
+      const result = await handler.handle({
+        action: 'set_active',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.message).toContain('spreadsheetId');
+      }
+    });
+
+    it('should return a clear error when find_by_reference is missing reference', async () => {
+      const result = await handler.handle({
+        action: 'find_by_reference',
+        referenceType: 'spreadsheet',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
+      expect(result.response.success).toBe(false);
+      if (!result.response.success) {
+        expect(result.response.error.message).toContain('reference');
+      }
+    });
+  });
+
   describe('preferences', () => {
     it('should update and retrieve preferences', async () => {
       const updateResult = await handler.handle({

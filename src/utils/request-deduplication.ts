@@ -66,6 +66,9 @@ export class RequestDeduplicator {
   private options: Required<DeduplicationOptions>;
   private cleanupTimer?: NodeJS.Timeout;
 
+  /** Maps hash → original request key for pattern-based cache invalidation */
+  private keyMap: Map<string, string> = new Map();
+
   // Metrics
   private totalRequests = 0;
   private deduplicatedRequests = 0;
@@ -90,6 +93,10 @@ export class RequestDeduplicator {
       ttl: this.options.resultCacheTTL,
       updateAgeOnGet: false, // Don't refresh TTL on get
       updateAgeOnHas: false,
+      dispose: (_value, key) => {
+        // Clean up keyMap when entries are evicted or expired
+        this.keyMap.delete(key);
+      },
     });
 
     // Start cleanup timer if enabled
@@ -169,6 +176,7 @@ export class RequestDeduplicator {
         // Cache successful result
         if (this.options.resultCacheEnabled) {
           this.resultCache.set(key, result);
+          this.keyMap.set(key, requestKey);
           logger.debug('Result cached', {
             key: requestKey,
             hash: key.substring(0, 8),
@@ -272,6 +280,7 @@ export class RequestDeduplicator {
     const cacheCount = this.resultCache.size;
     this.pendingRequests.clear();
     this.resultCache.clear();
+    this.keyMap.clear();
     logger.debug('Cleared all pending requests and cached results', {
       pendingCount,
       cacheCount,
@@ -296,14 +305,12 @@ export class RequestDeduplicator {
 
     let invalidated = 0;
 
-    // We need to check the original request keys, not the hashed keys
-    // Unfortunately LRU cache doesn't store metadata, so we'll match against hashes
-    // This is a limitation - for full pattern matching, we'd need to store key mapping
-    for (const key of keys) {
-      // For now, we can only do simple pattern matching on the hash
-      // In production, consider storing a key mapping if pattern invalidation is critical
-      if (regex.test(key)) {
-        this.resultCache.delete(key);
+    for (const hash of keys) {
+      // Match pattern against original request key (via keyMap), not the hash
+      const originalKey = this.keyMap.get(hash);
+      if (originalKey && regex.test(originalKey)) {
+        this.resultCache.delete(hash);
+        // keyMap entry cleaned up by dispose callback
         invalidated++;
       }
     }
@@ -324,16 +331,8 @@ export class RequestDeduplicator {
    * Convenience method for the most common invalidation pattern
    */
   invalidateSpreadsheet(spreadsheetId: string): number {
-    // Since we hash keys, we can't directly match the spreadsheetId
-    // Clear all cache as a safe fallback
-    // In production, consider adding a spreadsheet->keys mapping
-    const count = this.resultCache.size;
-    this.resultCache.clear();
-    logger.info('Invalidated cache for spreadsheet (full clear)', {
-      spreadsheetId,
-      entriesCleared: count,
-    });
-    return count;
+    // Use keyMap to match original request keys containing the spreadsheetId
+    return this.invalidateCache(new RegExp(spreadsheetId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 
   /**

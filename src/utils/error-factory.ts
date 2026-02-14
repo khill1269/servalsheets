@@ -812,7 +812,19 @@ export function formatZodErrors(
 
       // For discriminated union errors, explain the action/type mismatch
       if (err.code === 'invalid_union' || err.code === 'invalid_union_discriminator') {
-        return `Invalid discriminator at '${pathStr}'. Check that '${pathStr}' matches one of the valid action/type values for this tool.`;
+        const actionPath = pathStr || 'action';
+        let message = `Invalid action at '${actionPath}'.`;
+
+        // If options provided (from parseForHandler enhancement), list them
+        if (err.options && Array.isArray(err.options) && err.options.length > 0) {
+          const actionList = (err.options as string[]).slice(0, 20).join(', ');
+          const more = err.options.length > 20 ? ` (and ${err.options.length - 20} more)` : '';
+          message += ` Valid actions: ${actionList}${more}`;
+        } else {
+          message += ` Check that '${actionPath}' matches one of the valid action values for this tool.`;
+        }
+
+        return message;
       }
 
       // For type mismatch errors, be specific
@@ -858,12 +870,20 @@ export function createZodValidationError(
 
   // Add specific guidance for common error types
   const hasEnumError = errors.some(
-    (e) => e.code === 'invalid_enum_value' || e.code === 'invalid_union_discriminator'
+    (e) =>
+      e.code === 'invalid_enum_value' ||
+      e.code === 'invalid_union' ||
+      e.code === 'invalid_union_discriminator'
   );
   const hasTypeError = errors.some((e) => e.code === 'invalid_type');
 
   if (hasEnumError) {
-    resolutionSteps.push('3. For enum fields, use one of the valid options listed in the error');
+    resolutionSteps.push(
+      '3. For action/enum fields, use one of the valid options listed in the error'
+    );
+    resolutionSteps.push(
+      '4. If making parallel tool calls, ensure all actions are valid to avoid cascading failures'
+    );
   }
   if (hasTypeError) {
     resolutionSteps.push(

@@ -318,17 +318,18 @@ export class ImpactAnalyzer {
   /**
    * Get chart type from chart spec
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private getChartType(spec: any): string {
-    if (spec.basicChart) return spec.basicChart.chartType || 'BASIC';
-    if (spec.pieChart) return 'PIE';
-    if (spec.bubbleChart) return 'BUBBLE';
-    if (spec.candlestickChart) return 'CANDLESTICK';
-    if (spec.orgChart) return 'ORG';
-    if (spec.histogramChart) return 'HISTOGRAM';
-    if (spec.waterfallChart) return 'WATERFALL';
-    if (spec.treemapChart) return 'TREEMAP';
-    if (spec.scorecardChart) return 'SCORECARD';
+  private getChartType(spec: unknown): string {
+    const specObj = spec as Record<string, unknown>;
+    if (specObj['basicChart'])
+      return ((specObj['basicChart'] as Record<string, unknown>)['chartType'] as string) || 'BASIC';
+    if (specObj['pieChart']) return 'PIE';
+    if (specObj['bubbleChart']) return 'BUBBLE';
+    if (specObj['candlestickChart']) return 'CANDLESTICK';
+    if (specObj['orgChart']) return 'ORG';
+    if (specObj['histogramChart']) return 'HISTOGRAM';
+    if (specObj['waterfallChart']) return 'WATERFALL';
+    if (specObj['treemapChart']) return 'TREEMAP';
+    if (specObj['scorecardChart']) return 'SCORECARD';
     return 'UNKNOWN';
   }
 

@@ -167,7 +167,8 @@ export async function listCheckpointsForSession(sessionId: string): Promise<Chec
     }
 
     return summaries.sort((a, b) => b.timestamp - a.timestamp);
-  } catch {
+  } catch (error) {
+    logger.error('Failed to list checkpoints for session', { sessionId, error });
     return [];
   }
 }
@@ -198,7 +199,8 @@ export async function listAllCheckpoints(): Promise<CheckpointSummary[]> {
     }
 
     return summaries.sort((a, b) => b.timestamp - a.timestamp);
-  } catch {
+  } catch (error) {
+    logger.error('Failed to list all checkpoints', { error });
     return [];
   }
 }

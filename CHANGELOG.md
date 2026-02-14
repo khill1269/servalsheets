@@ -138,7 +138,7 @@ This release upgrades two critical dependencies to their latest major versions, 
   - Fixed `z.record()` API breaking change (now requires 2 arguments: key type + value type)
   - Updated 10+ schema files to use `z.record(z.string(), valueType)` instead of `z.record(valueType)`
   - Added `isZodUnion()` helper function for robust union schema detection
-  - All 21 tools (293 actions) fully compatible with Zod v4
+  - All 21 tools (294 actions) fully compatible with Zod v4
   - All 1,830+ passing tests remain passing
   - Performance improvements: 14x faster string parsing, 7x faster arrays, 6.5x faster objects
   - Bundle size reduction: ~57% smaller
@@ -284,7 +284,7 @@ This release refactors AI and planning capabilities to use MCP protocol-native f
   - Error handling with retry support
   - Statistics tracking for analysis operations
 
-- **Tool Count**: 21 tools with 293 actions
+- **Tool Count**: 21 tools with 294 actions
 
 ---
 
@@ -589,7 +589,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 
 ### Added
 
-- **21 Unified Tools** (293 actions total) with comprehensive Google Sheets operations:
+- **21 Unified Tools** (294 actions total) with comprehensive Google Sheets operations:
   - `sheets_core`: Create, get, update, delete, list, copy spreadsheets
   - `sheets_core`: Create, get, update, delete, list, copy, move sheets
   - `sheets_data`: Read, write, append, clear, batch operations
@@ -640,7 +640,7 @@ This release completes the comprehensive production readiness plan (Phases 1-7),
 - **Expected State Preconditions**: Row count, sheet title, checksum validation
 - **Reduced Drive Permissions**: Minimum required scopes by default
 - **Dry-Run Support**: Test operations without side effects
-- **Input Validation**: Zod schemas for all 293 actions
+- **Input Validation**: Zod schemas for all 294 actions
 
 ### Infrastructure
 

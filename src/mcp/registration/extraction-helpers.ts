@@ -61,13 +61,23 @@ export function extractAction(args: Record<string, unknown>): string {
  */
 export function extractSpreadsheetId(args: Record<string, unknown>): string | undefined {
   const request = args['request'] as Record<string, unknown> | undefined;
+
+  // Check nested params first (legacy format: request.params.spreadsheetId)
   const params = request?.['params'] as Record<string, unknown> | undefined;
   if (params && typeof params['spreadsheetId'] === 'string') {
     return params['spreadsheetId'];
   }
+
+  // Check flat within request (current MCP format: request.spreadsheetId)
+  if (request && typeof request['spreadsheetId'] === 'string') {
+    return request['spreadsheetId'];
+  }
+
+  // Check top-level (unit test format: spreadsheetId)
   if (typeof args['spreadsheetId'] === 'string') {
     return args['spreadsheetId'];
   }
+
   // OK: Explicit empty - typed as optional, spreadsheetId field not found in args
   return undefined;
 }
@@ -91,13 +101,23 @@ export function extractSpreadsheetId(args: Record<string, unknown>): string | un
  */
 export function extractSheetId(args: Record<string, unknown>): number | undefined {
   const request = args['request'] as Record<string, unknown> | undefined;
+
+  // Check nested params first (legacy format: request.params.sheetId)
   const params = request?.['params'] as Record<string, unknown> | undefined;
   if (params && typeof params['sheetId'] === 'number') {
     return params['sheetId'];
   }
+
+  // Check flat within request (current MCP format: request.sheetId)
+  if (request && typeof request['sheetId'] === 'number') {
+    return request['sheetId'];
+  }
+
+  // Check top-level (unit test format: sheetId)
   if (typeof args['sheetId'] === 'number') {
     return args['sheetId'];
   }
+
   // OK: Explicit empty - typed as optional, sheetId field not found in args
   return undefined;
 }

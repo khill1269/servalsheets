@@ -47,7 +47,9 @@ export const WebhookRegisterInputSchema = z.object({
     .string()
     .min(16, 'Secret must be at least 16 characters')
     .optional()
-    .describe('Secret for HMAC signature verification'),
+    .describe(
+      'Secret for HMAC signature verification. If not provided, one will be auto-generated.'
+    ),
   expirationMs: z
     .number()
     .int()
@@ -200,7 +202,17 @@ export const WebhookDeliverySchema = z.object({
   webhookId: z.string(),
   timestamp: z.string(),
   eventType: WebhookEventTypeSchema,
-  payload: z.record(z.string(), z.unknown()),
+  payload: z.record(
+    z.string(),
+    z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.any()),
+      z.record(z.string(), z.any()),
+    ])
+  ),
   status: z.enum(['pending', 'success', 'failed', 'retrying']),
   statusCode: z.number().int().optional(),
   error: z.string().optional(),

@@ -17,6 +17,7 @@ import {
   MutationSummarySchema,
   ColorSchema,
   ResponseMetaSchema,
+  GridRangeSchema,
   type ToolAnnotations,
 } from './shared.js';
 
@@ -127,7 +128,11 @@ const GetUrlActionSchema = CommonFieldsSchema.extend({
 });
 
 const BatchGetActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('batch_get').describe('Get metadata for multiple spreadsheets'),
+  action: z
+    .literal('batch_get')
+    .describe(
+      'Fetch metadata from multiple spreadsheets at once. Pass an array of spreadsheetIds. This is NOT for reading multiple ranges from one spreadsheet (use sheets_data:batch_read for that).'
+    ),
   spreadsheetIds: z
     .array(SpreadsheetIdSchema)
     .min(1)
@@ -414,33 +419,149 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
     comprehensiveMetadata: z
       .object({
         spreadsheetId: z.string(),
-        properties: z.record(z.string(), z.unknown()).optional(),
-        namedRanges: z.array(z.record(z.string(), z.unknown())).optional(),
+        properties: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('Spreadsheet properties (Google API passthrough, may contain nested objects)'),
+        namedRanges: z
+          .array(
+            z.record(
+              z.string(),
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.lazy(() => z.record(z.string(), z.any())),
+              ])
+            )
+          )
+          .optional()
+          .describe('Named ranges with metadata'),
         sheets: z
           .array(
             z.object({
-              properties: z.record(z.string(), z.unknown()).optional(),
-              conditionalFormats: z.array(z.record(z.string(), z.unknown())).optional(),
-              protectedRanges: z.array(z.record(z.string(), z.unknown())).optional(),
-              charts: z.array(z.record(z.string(), z.unknown())).optional(),
-              filterViews: z.array(z.record(z.string(), z.unknown())).optional(),
-              basicFilter: z.record(z.string(), z.unknown()).optional(),
-              merges: z.array(z.record(z.string(), z.unknown())).optional(),
-              data: z.array(z.record(z.string(), z.unknown())).optional(),
+              properties: z
+                .record(z.string(), z.unknown())
+                .optional()
+                .describe('Sheet properties (Google API passthrough, may contain nested objects)'),
+              conditionalFormats: z
+                .array(
+                  z.object({
+                    ranges: z.array(GridRangeSchema).optional(),
+                    booleanRule: z
+                      .object({
+                        condition: z.record(z.string(), z.any()).optional(),
+                        format: z.record(z.string(), z.any()).optional(),
+                      })
+                      .optional(),
+                    gradientRule: z
+                      .object({
+                        minpoint: z.record(z.string(), z.any()).optional(),
+                        midpoint: z.record(z.string(), z.any()).optional(),
+                        maxpoint: z.record(z.string(), z.any()).optional(),
+                      })
+                      .optional(),
+                  })
+                )
+                .optional()
+                .describe('Conditional formatting rules applied to sheet'),
+              protectedRanges: z
+                .array(
+                  z.object({
+                    protectedRangeId: z.number().int().optional(),
+                    range: GridRangeSchema.optional(),
+                    description: z.string().optional(),
+                    warningOnly: z.boolean().optional(),
+                    editors: z
+                      .object({
+                        users: z.array(z.string()).optional(),
+                        groups: z.array(z.string()).optional(),
+                      })
+                      .optional(),
+                  })
+                )
+                .optional()
+                .describe('Protected ranges on this sheet'),
+              charts: z
+                .array(
+                  z.object({
+                    chartId: z.number().int().optional(),
+                    position: z
+                      .object({
+                        sheetId: z.number().int().optional(),
+                        rowIndex: z.number().int().optional(),
+                        columnIndex: z.number().int().optional(),
+                      })
+                      .optional(),
+                    title: z.string().optional(),
+                    chartType: z.string().optional(),
+                  })
+                )
+                .optional()
+                .describe('Charts embedded in this sheet'),
+              filterViews: z
+                .array(
+                  z.object({
+                    filterViewId: z.number().int().optional(),
+                    title: z.string().optional(),
+                    range: GridRangeSchema.optional(),
+                    criteria: z.record(z.string(), z.any()).optional(),
+                  })
+                )
+                .optional()
+                .describe('Filter views defined on this sheet'),
+              basicFilter: z
+                .object({
+                  range: GridRangeSchema.optional(),
+                  sortSpecs: z.array(z.record(z.string(), z.any())).optional(),
+                  filterSpecs: z.array(z.record(z.string(), z.any())).optional(),
+                })
+                .optional()
+                .describe('Basic filter configuration if applied'),
+              merges: z.array(GridRangeSchema).optional().describe('Merged cell ranges'),
+              data: z
+                .array(
+                  z.object({
+                    rowData: z
+                      .array(
+                        z.object({
+                          values: z
+                            .array(
+                              z.object({
+                                userEnteredValue: z.any().optional(),
+                                effectiveValue: z.any().optional(),
+                                formattedValue: z.string().optional(),
+                                userEnteredFormat: z.record(z.string(), z.any()).optional(),
+                              })
+                            )
+                            .optional(),
+                        })
+                      )
+                      .optional(),
+                  })
+                )
+                .optional()
+                .describe('Cell data for rows in this sheet'),
             })
           )
-          .optional(),
+          .optional()
+          .describe('Sheet metadata including properties and content'),
         stats: z
           .object({
-            sheetsCount: z.coerce.number().int(),
-            namedRangesCount: z.coerce.number().int(),
-            totalCharts: z.coerce.number().int(),
-            totalConditionalFormats: z.coerce.number().int(),
-            totalProtectedRanges: z.coerce.number().int(),
-            cacheHit: z.boolean(),
-            fetchTime: z.coerce.number().int(),
+            sheetsCount: z.coerce.number().int().describe('Total number of sheets'),
+            namedRangesCount: z.coerce.number().int().describe('Total named ranges'),
+            totalCharts: z.coerce.number().int().describe('Total embedded charts'),
+            totalConditionalFormats: z.coerce
+              .number()
+              .int()
+              .describe('Total conditional format rules'),
+            totalProtectedRanges: z.coerce.number().int().describe('Total protected ranges'),
+            cacheHit: z.boolean().describe('True if result came from cache'),
+            fetchTime: z.coerce.number().int().describe('Time to fetch metadata in milliseconds'),
           })
-          .optional(),
+          .optional()
+          .describe('Statistics about the spreadsheet'),
         pagination: z
           .object({
             hasMore: z.boolean().describe('True if more sheets available'),
@@ -451,16 +572,18 @@ const CoreResponseSchema = z.discriminatedUnion('success', [
             totalSheets: z.coerce.number().int().describe('Total sheets in workbook'),
             currentPage: z
               .object({
-                startIndex: z.coerce.number().int(),
-                endIndex: z.coerce.number().int(),
-                count: z.coerce.number().int(),
+                startIndex: z.coerce.number().int().describe('Index of first sheet in page'),
+                endIndex: z.coerce.number().int().describe('Index of last sheet in page'),
+                count: z.coerce.number().int().describe('Number of sheets in this page'),
               })
-              .optional(),
+              .optional()
+              .describe('Current page information'),
           })
           .optional()
           .describe('Pagination metadata for sheet-level pagination'),
       })
-      .optional(),
+      .optional()
+      .describe('Comprehensive metadata including properties, rules, and sheet details'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

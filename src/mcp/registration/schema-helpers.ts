@@ -105,27 +105,154 @@ function stripSchemaDescriptions(schema: unknown): unknown {
  * IMPORTANT: Must match the actual schema structure: { request: { action, ... } }
  * All tool schemas use this wrapper pattern for the discriminated union.
  */
-// Use z.looseObject() instead of deprecated .passthrough()
-const MinimalInputPassthroughSchema = z
-  .object({
-    request: z
-      .looseObject({
-        action: z
-          .string()
-          .describe(
-            'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
-          ),
-      })
-      .describe('Request object - read schema://tools/{toolName} for full parameter documentation'),
-  })
-  .describe(
-    'Schema deferred for token efficiency. Read schema://tools/{toolName} resource for full schema before calling.'
-  );
+/**
+ * Extracts all property names from a JSON Schema, recursing into oneOf/anyOf/allOf.
+ * Used to build flat deferred schemas that list all possible properties.
+ */
+function extractPropertyNames(jsonSchema: unknown): Set<string> {
+  const props = new Set<string>();
+  if (!jsonSchema || typeof jsonSchema !== 'object') return props;
+  const schema = jsonSchema as Record<string, unknown>;
+
+  if (schema['properties'] && typeof schema['properties'] === 'object') {
+    for (const key of Object.keys(schema['properties'] as object)) {
+      props.add(key);
+    }
+  }
+  for (const key of ['oneOf', 'anyOf', 'allOf']) {
+    if (Array.isArray(schema[key])) {
+      for (const sub of schema[key] as unknown[]) {
+        for (const p of extractPropertyNames(sub)) props.add(p);
+      }
+    }
+  }
+  return props;
+}
+
+/**
+ * Extracts action enum values from a tool's JSON Schema.
+ * Handles two patterns:
+ * 1. Discriminated union: oneOf with { properties: { action: { const: "value" } } }
+ * 2. Direct enum: { properties: { action: { enum: ["a", "b", ...] } } }
+ */
+function extractActionEnum(innerSchema: Record<string, unknown>): string[] {
+  const actions: string[] = [];
+
+  // Pattern 1: Discriminated union with oneOf
+  const variants = innerSchema['oneOf'] as unknown[] | undefined;
+  if (Array.isArray(variants)) {
+    for (const variant of variants) {
+      if (!variant || typeof variant !== 'object') continue;
+      const v = variant as Record<string, unknown>;
+      const props = v['properties'] as Record<string, unknown> | undefined;
+      const actionProp = props?.['action'] as Record<string, unknown> | undefined;
+      if (actionProp?.['const'] && typeof actionProp['const'] === 'string') {
+        actions.push(actionProp['const'] as string);
+      }
+    }
+  }
+
+  // Pattern 2: Direct enum on action property
+  if (actions.length === 0) {
+    const props = innerSchema['properties'] as Record<string, unknown> | undefined;
+    const actionProp = props?.['action'] as Record<string, unknown> | undefined;
+    if (actionProp && Array.isArray(actionProp['enum'])) {
+      for (const val of actionProp['enum'] as unknown[]) {
+        if (typeof val === 'string') actions.push(val);
+      }
+    }
+  }
+
+  return actions.sort();
+}
+
+/**
+ * Brief descriptions for commonly-used properties across tools.
+ * These help the MCP client/LLM understand what each parameter does
+ * without needing the full schema.
+ */
+const COMMON_PROPERTY_DESCRIPTIONS: Record<string, string> = {
+  spreadsheetId: 'Google Sheets spreadsheet ID',
+  sheetId: 'Numeric sheet/tab ID within the spreadsheet',
+  sheetName: 'Sheet/tab name within the spreadsheet',
+  range: 'A1 notation range (e.g. "Sheet1!A1:D10")',
+  ranges: 'Array of A1 notation ranges',
+  values: 'Array of row arrays to write',
+  verbosity: 'Response detail: minimal, standard, or detailed',
+  safety: 'Safety options for destructive operations',
+  cursor: 'Pagination cursor from previous response',
+};
+
+/**
+ * Builds a flat deferred schema for a tool from its full schema.
+ *
+ * Instead of using z.looseObject() (which the MCP client ignores for property discovery),
+ * this extracts ALL property names from ALL action variants in the full schema
+ * and creates a flat z.object() with z.any().optional() for each property.
+ *
+ * Result: ~300-800 bytes per tool (vs 2-90KB for full schemas) while still
+ * listing every possible parameter so the MCP client sends them correctly.
+ *
+ * Total across 21 tools: ~12KB / ~3K tokens (vs 385KB / ~99K tokens for full).
+ */
+function buildFlatDeferredSchema(fullSchema: ZodSchema, schemaType: SchemaType): ZodSchema {
+  try {
+    const jsonSchema = z.toJSONSchema(fullSchema, { io: 'input' }) as Record<string, unknown>;
+    const wrapperKey = schemaType === 'output' ? 'response' : 'request';
+
+    // Extract request/response sub-schema
+    const properties = jsonSchema['properties'] as Record<string, unknown> | undefined;
+    const innerSchema = properties?.[wrapperKey] as Record<string, unknown> | undefined;
+
+    if (!innerSchema) {
+      // Fallback to generic passthrough
+      return schemaType === 'output'
+        ? z.object({ response: z.looseObject({ success: z.boolean() }) })
+        : z.object({ request: z.looseObject({ action: z.string() }) });
+    }
+
+    // Extract all property names from all action variants
+    const allProps = extractPropertyNames(innerSchema);
+    const requiredKey = schemaType === 'output' ? 'success' : 'action';
+    allProps.delete(requiredKey);
+
+    // Build flat shape: required key + all other props as z.any().optional()
+    const shape: Record<string, z.ZodType> = {};
+    if (schemaType === 'output') {
+      shape['success'] = z.boolean();
+    } else {
+      // Extract action enum for this tool's valid actions
+      const actionValues = extractActionEnum(innerSchema);
+      if (actionValues.length > 0) {
+        // Use z.enum so the client knows valid action values
+        shape['action'] = z.enum(actionValues as [string, ...string[]]).describe(
+          'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+        );
+      } else {
+        shape['action'] = z.string().describe(
+          'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+        );
+      }
+    }
+    for (const prop of allProps) {
+      // Add descriptions for common properties to aid the LLM
+      const desc = COMMON_PROPERTY_DESCRIPTIONS[prop];
+      shape[prop] = desc ? z.any().optional().describe(desc) : z.any().optional();
+    }
+
+    const innerObj = z.object(shape).catchall(z.any());
+    return z.object({ [wrapperKey]: innerObj });
+  } catch {
+    // Fallback to generic passthrough on any error
+    return schemaType === 'output'
+      ? z.object({ response: z.looseObject({ success: z.boolean() }) })
+      : z.object({ request: z.looseObject({ action: z.string() }) });
+  }
+}
 
 /**
  * Minimal passthrough schema for OUTPUT schemas in deferred loading mode
- *
- * Output schemas use `response` instead of `request` and are discriminated by `success`.
+ * (used as fallback when full schema is not available)
  */
 const MinimalOutputPassthroughSchema = z
   .object({
@@ -174,13 +301,16 @@ export function prepareSchemaForRegistration(
   schema: ZodSchema,
   schemaType: SchemaType = 'input'
 ): AnySchema {
-  // Deferred schema mode - return minimal passthrough schema
+  // Deferred schema mode - return flat property-list schema
   // Full schemas accessible via schema://tools/{toolName} resources
   if (DEFER_SCHEMAS) {
-    // Use the appropriate minimal schema based on type
-    const minimalSchema =
-      schemaType === 'output' ? MinimalOutputPassthroughSchema : MinimalInputPassthroughSchema;
-    return minimalSchema as unknown as AnySchema;
+    if (schemaType === 'output') {
+      return MinimalOutputPassthroughSchema as unknown as AnySchema;
+    }
+    // Build flat schema listing ALL property names from the full schema
+    // This ensures the MCP client sends all parameters (not just 'action')
+    // Size: ~300-800 bytes per tool vs 2-90KB for full schemas
+    return buildFlatDeferredSchema(schema, schemaType) as unknown as AnySchema;
   }
 
   if (USE_SCHEMA_REFS || STRIP_SCHEMA_DESCRIPTIONS) {
@@ -245,8 +375,8 @@ export function prepareSchemaForRegistrationCached(
 export function wrapInputSchemaForLegacyRequest(schema: ZodSchema): ZodSchema {
   const legacyParamsSchema = z.object({
     action: z.string(),
-    params: z.record(z.string(), z.unknown()).optional(),
-  });
+    params: z.record(z.string(), z.unknown()),
+  }).strict();
 
   const legacyRequestSchema = z.object({
     request: z.union([schema, legacyParamsSchema]),

@@ -399,6 +399,8 @@ console.log('✅ Updated src/mcp/completions.ts TOOL_ACTIONS');
 // ============================================================================
 
 const serverJson = {
+  $schema:
+    'https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json',
   name: pkg.mcpName || pkg.name,
   version: pkg.version,
   description: `Production-grade Google Sheets MCP server with ${TOOL_COUNT} tools and ${ACTION_COUNT} actions`,
@@ -408,10 +410,31 @@ const serverJson = {
       mimeType: 'image/png',
       sizes: ['1536x1024'],
     },
+    {
+      src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-512.png',
+      mimeType: 'image/png',
+      sizes: ['512x512'],
+    },
   ],
   mcpProtocol: '2025-11-25',
-  packages: [],
-  tools: [],
+  instructions:
+    'ServalSheets provides ' +
+    TOOL_COUNT +
+    ' tools for Google Sheets operations. Use sheets_analyze with action "comprehensive" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.',
+  packages: [
+    {
+      name: 'servalsheets',
+      version: pkg.version,
+      description: pkg.description,
+    },
+  ],
+  tools: analyses
+    .filter((a) => a.actionCount > 0)
+    .map((a) => ({
+      name: `sheets_${a.toolName}`,
+      description: `${a.toolName} operations (${a.actionCount} actions)`,
+      actions: a.actions,
+    })),
   capabilities: [
     'tools',
     'resources',

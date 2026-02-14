@@ -121,20 +121,25 @@ export class ImpactAnalyzer {
             .filter(Boolean) || [];
       }
 
-      // Fetch formulas from all sheets
+      // Fetch formulas from all sheets (parallel with concurrency limit)
       const totalSheets = sheetNames.length;
-      for (let i = 0; i < sheetNames.length; i++) {
-        const sheetName = sheetNames[i];
-        if (!sheetName) continue; // Skip if sheet name is undefined
+      const CONCURRENCY_LIMIT = 5; // Process up to 5 sheets in parallel
 
-        // Emit progress notification
+      // Process sheets in parallel batches
+      for (let i = 0; i < sheetNames.length; i += CONCURRENCY_LIMIT) {
+        const batch = sheetNames.slice(i, i + CONCURRENCY_LIMIT).filter(Boolean);
+
+        // Emit progress notification for batch start
         await sendProgress(
           i,
           totalSheets,
-          `Processing sheet ${i + 1}/${totalSheets}: ${sheetName}`
+          `Processing sheets ${i + 1}-${Math.min(i + CONCURRENCY_LIMIT, totalSheets)}/${totalSheets}`
         );
 
-        await this.buildFromSheet(sheetsApi, spreadsheetId, sheetName);
+        // Process batch in parallel
+        await Promise.all(
+          batch.map((sheetName) => this.buildFromSheet(sheetsApi, spreadsheetId, sheetName))
+        );
       }
 
       // Emit completion progress

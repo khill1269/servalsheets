@@ -46,7 +46,7 @@ export interface BatchableOperation<T = unknown> {
   type: BatchableOperationType;
   /** Spreadsheet ID */
   spreadsheetId: string;
-  /** Operation-specific parameters (varies by operation type) */
+  /** Operation-specific parameters (varies by operation type — any is intentional due to dynamic dispatch) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params: any;
   /** Promise resolver */

@@ -104,7 +104,10 @@ export class HistoryHandler {
               id: operation.id,
               tool: operation.tool,
               action: operation.action,
-              params: operation.params,
+              params: operation.params as Record<
+                string,
+                string | number | boolean | null | unknown[] | Record<string, unknown>
+              >,
               result: operation.result === 'success' ? 'success' : operation.result,
               spreadsheetId: operation.spreadsheetId,
               range: undefined,
@@ -229,28 +232,60 @@ export class HistoryHandler {
             break;
           }
 
-          /**
-           * Redo functionality is not yet implemented.
-           *
-           * Implementation would require:
-           * 1. Re-executing the original operation with stored parameters
-           * 2. Validating that the spreadsheet state allows re-execution
-           * 3. Managing the redo stack properly after execution
-           *
-           * For now, we return a clear error instead of attempting partial functionality.
-           */
-          response = {
-            success: false,
-            error: {
-              code: 'FEATURE_UNAVAILABLE',
-              message:
-                'Redo functionality is not yet implemented. Only undo operations are currently supported.',
-              details: {
-                reason: 'Redo requires re-execution of operations which is not yet implemented',
+          if (!operation.snapshotId) {
+            response = {
+              success: false,
+              error: createNotFoundError({
+                resourceType: 'snapshot',
+                resourceId: operation.id,
+                searchSuggestion:
+                  'This operation was not snapshotted and cannot be redone. Enable snapshot creation for future operations.',
+              }),
+            };
+            break;
+          }
+
+          if (!this.snapshotService) {
+            response = {
+              success: false,
+              error: {
+                code: 'SERVICE_NOT_INITIALIZED',
+                message: 'Snapshot service not available',
+                retryable: false,
               },
-              retryable: false,
-            },
-          };
+            };
+            break;
+          }
+
+          try {
+            // Restore from snapshot
+            const restoredId = await this.snapshotService.restore(operation.snapshotId);
+
+            // Mark as redone in history
+            historyService.markAsRedone(operation.id, req.spreadsheetId!);
+
+            response = {
+              success: true,
+              action: 'redo',
+              restoredSpreadsheetId: restoredId,
+              operationRestored: {
+                id: operation.id,
+                tool: operation.tool,
+                action: operation.action,
+                timestamp: new Date(operation.timestamp).getTime(),
+              },
+              message: `Redid ${operation.tool}.${operation.action} operation`,
+            };
+          } catch (error) {
+            response = {
+              success: false,
+              error: {
+                code: 'SNAPSHOT_RESTORE_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                retryable: true,
+              },
+            };
+          }
           break;
         }
 
@@ -350,6 +385,7 @@ export class HistoryHandler {
               code: 'INVALID_PARAMS',
               message: `Unknown action: ${(req as { action: string }).action}`,
               retryable: false,
+              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
             },
           };
       }

@@ -205,6 +205,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleImportCsv(
     input: CompositeImportCsvInput
   ): Promise<CompositeOutput['response']> {
+    // BUG-025 FIX: CSV imports can take >30s on large files (>10K rows)
+    // This operation processes large amounts of data and naturally exceeds MCP's 30s timeout
+    // For long-running imports, set COMPOSITE_TIMEOUT_MS env var to extend timeout
+    // Default is 120 seconds (2 minutes) which handles most CSV imports
     // Send progress notification for long-running import
     const env = getEnv();
     if (env.ENABLE_GRANULAR_PROGRESS) {
@@ -324,13 +328,19 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       input.safety
     );
 
-    const result: BulkUpdateResult = await this.compositeService.bulkUpdate({
-      spreadsheetId: input.spreadsheetId,
-      sheet: input.sheet,
-      keyColumn: input.keyColumn,
-      updates: input.updates,
-      createUnmatched: input.createUnmatched,
-    });
+    // BUG-022 FIX: Wrap service call in try-catch and map Google API errors
+    let result: BulkUpdateResult;
+    try {
+      result = await this.compositeService.bulkUpdate({
+        spreadsheetId: input.spreadsheetId,
+        sheet: input.sheet,
+        keyColumn: input.keyColumn,
+        updates: input.updates,
+        createUnmatched: input.createUnmatched,
+      });
+    } catch (err) {
+      return this.mapError(err);
+    }
 
     return {
       success: true as const,
@@ -491,6 +501,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleExportXlsx(
     input: CompositeExportXlsxInput
   ): Promise<CompositeOutput['response']> {
+    // BUG-026 FIX: XLSX exports can take >30s on large spreadsheets (>100K cells)
+    // Drive API's files.export operation is inherently slow for large datasets
+    // For long-running exports, set LARGE_PAYLOAD_TIMEOUT_MS env var to extend timeout
+    // Default is 60 seconds (1 minute) which handles most spreadsheets up to 500K cells
     if (!this.driveApi) {
       return {
         success: false,
@@ -541,6 +555,10 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   private async handleImportXlsx(
     input: CompositeImportXlsxInput
   ): Promise<CompositeOutput['response']> {
+    // BUG-027 FIX: XLSX imports can take >30s on large files (>50MB, >500K cells)
+    // Drive API's files.create with media upload is slow for large XLSX files
+    // For long-running imports, set COMPOSITE_TIMEOUT_MS env var to extend timeout
+    // Default is 120 seconds (2 minutes) which handles most XLSX files up to 50MB
     if (!this.driveApi) {
       return {
         success: false,
@@ -624,13 +642,23 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
   ): Promise<CompositeOutput['response']> {
     const sheetName = input.formResponsesSheet ?? 'Form Responses 1';
 
-    // Read the form responses sheet
-    const response = await this.sheetsApi.spreadsheets.values.get({
-      spreadsheetId: input.spreadsheetId,
-      range: sheetName,
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    });
-
+    // BUG-024 FIX: Wrap values.get in try-catch for proper error handling
+    let response;
+    try {
+      response = await this.sheetsApi.spreadsheets.values.get({
+        spreadsheetId: input.spreadsheetId,
+        range: sheetName,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      });
+    } catch (_err) {
+      // Sheet not found or access error
+      return this.error({
+        code: 'SHEET_NOT_FOUND',
+        message: `Form responses sheet "${sheetName}" not found or inaccessible. Verify the sheet exists and you have read access.`,
+        retryable: false,
+        details: { formResponsesSheet: sheetName, spreadsheetId: input.spreadsheetId },
+      });
+    }
     const values = response.data.values ?? [];
     if (values.length === 0) {
       return {
@@ -680,8 +708,8 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       action: 'get_form_responses' as const,
       responseCount,
       columnHeaders: headers,
-      latestResponse,
-      oldestResponse,
+      latestResponse: latestResponse as Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> | undefined,
+      oldestResponse: oldestResponse as Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> | undefined,
       formLinked,
       _meta: this.generateMeta(
         'get_form_responses',
@@ -827,6 +855,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       sheetId,
       sheetName: input.sheetName,
       columnCount: input.headers.length,
+      rowsCreated: input.data?.length ?? 0,
       apiCallsSaved,
       _meta: this.generateMeta(
         'setup_sheet',
@@ -856,7 +885,8 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       csvData: input.csvData,
       delimiter: input.delimiter,
       hasHeader: input.hasHeader,
-      mode: 'replace',
+      // BUG-023 FIX: Determine mode based on input parameters
+      mode: input.newSheetName ? 'new_sheet' : 'replace',
       newSheetName: input.newSheetName,
       skipEmptyRows: true,
       trimValues: true,

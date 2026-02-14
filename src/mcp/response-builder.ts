@@ -279,6 +279,31 @@ export function buildErrorResponse(
 }
 
 /**
+ * Build a resource_link content block per MCP 2025-11-25 spec.
+ *
+ * Used to reference large resources by URI instead of embedding them,
+ * allowing clients to fetch the full data via the resource system.
+ */
+export function buildResourceLinkContent(
+  spreadsheetId: string,
+  range?: string,
+  mimeType = 'application/json'
+): Record<string, unknown> {
+  const uri = range
+    ? `sheets:///${spreadsheetId}/${encodeURIComponent(range)}`
+    : `sheets:///${spreadsheetId}`;
+
+  return {
+    type: 'resource_link' as const,
+    uri,
+    mimeType,
+    description: range
+      ? `Full data for range ${range} in spreadsheet ${spreadsheetId}`
+      : `Full data for spreadsheet ${spreadsheetId}`,
+  };
+}
+
+/**
  * Build response for large/truncated data
  */
 function buildTruncatedResponse<T extends Record<string, unknown>>(
@@ -315,8 +340,20 @@ function buildTruncatedResponse<T extends Record<string, unknown>>(
 
   const structured = { response };
 
+  // Build content array with text + optional resource_link for full data access
+  const contentBlocks: Array<Record<string, unknown>> = [
+    { type: 'text', text: JSON.stringify(structured, null, 2) },
+  ];
+
+  // Include resource_link content block per MCP 2025-11-25 spec
+  // This allows clients to fetch the full dataset via the resource system
+  if (options.includeResourceUri !== false && options.spreadsheetId) {
+    const range = options.range ?? (data['range'] as string);
+    contentBlocks.push(buildResourceLinkContent(options.spreadsheetId, range));
+  }
+
   return {
-    content: [{ type: 'text', text: JSON.stringify(structured, null, 2) }],
+    content: contentBlocks as CallToolResult['content'],
     structuredContent: structured,
   };
 }

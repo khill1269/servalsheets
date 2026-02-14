@@ -21,7 +21,7 @@ import { SetLevelRequestSchema, isInitializeRequest } from '@modelcontextprotoco
 
 import { OAuthProvider } from './oauth-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
-import { createGoogleApiClient } from './services/google-api.js';
+import { createGoogleApiClient, GoogleApiClient } from './services/google-api.js';
 import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
 import { initImpactAnalyzer } from './services/impact-analyzer.js';
@@ -32,6 +32,7 @@ import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
 import { metricsHandler } from './observability/metrics.js';
 import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
+import { responseRedactionMiddleware } from './middleware/redaction.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
 import {
   BatchCompiler,
@@ -141,7 +142,7 @@ async function createMcpServerInstance(
   );
 
   let handlers = null;
-  let googleClient = null;
+  let googleClient: GoogleApiClient | null = null;
 
   if (googleToken) {
     googleClient = await createGoogleApiClient({
@@ -200,8 +201,14 @@ async function createMcpServerInstance(
       queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
       snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
       auth: {
-        hasElevatedAccess: googleClient.hasElevatedAccess,
-        scopes: googleClient.scopes,
+        // Use getters to always read live values from GoogleApiClient
+        // This ensures re-auth with broader scopes takes effect immediately
+        get hasElevatedAccess() {
+          return googleClient?.hasElevatedAccess ?? false;
+        },
+        get scopes() {
+          return googleClient?.scopes ?? [];
+        },
       },
       samplingServer: mcpServer.server, // Pass underlying Server instance for sampling
       server: mcpServer.server, // Pass Server instance for elicitation/sampling (SEP-1036, SEP-1577)
@@ -318,6 +325,10 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     })
   );
 
+  // Response redaction middleware (strips tokens, API keys from error responses)
+  // Enabled by default in production, or when ENABLE_RESPONSE_REDACTION=true
+  app.use(responseRedactionMiddleware());
+
   // HTTPS Enforcement (Production Only)
   if (process.env['NODE_ENV'] === 'production') {
     app.use((req: Request, res: Response, next: NextFunction) => {
@@ -404,6 +415,53 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         details: {
           received: requestOrigin,
           allowed: corsOrigins,
+        },
+      });
+      return;
+    }
+
+    next();
+  });
+
+  // DNS Rebinding Protection - Host header validation
+  // Ensures requests target expected hostnames, preventing DNS rebinding attacks
+  // that could bypass Origin checks by pointing a malicious domain at localhost
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const host = req.get('host');
+
+    // Skip for requests without Host header (non-standard but possible)
+    if (!host) {
+      next();
+      return;
+    }
+
+    // Extract hostname (strip port)
+    const hostname = (host.split(':')[0] ?? host).toLowerCase();
+
+    // Allow localhost variants and configured hostnames
+    const allowedHosts = new Set([
+      'localhost',
+      '127.0.0.1',
+      '::1',
+      '0.0.0.0',
+      ...(process.env['SERVAL_ALLOWED_HOSTS']?.split(',').map((h) => h.trim().toLowerCase()) ?? []),
+    ]);
+
+    if (!allowedHosts.has(hostname)) {
+      logger.warn('Rejected request with invalid Host header (DNS rebinding protection)', {
+        host,
+        hostname,
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+      });
+
+      res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Invalid Host header',
+        details: {
+          received: hostname,
+          hint: 'Set SERVAL_ALLOWED_HOSTS env var to allow additional hostnames',
         },
       });
       return;
@@ -742,6 +800,14 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       endpoints,
     });
   });
+
+  // Explicit HEAD support for directory compliance testing
+  // Express auto-handles HEAD for GET routes, but explicit handlers
+  // ensure consistent behavior for Anthropic directory health checks
+  app.head('/health', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/health/live', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/health/ready', (_req: Request, res: Response) => res.status(200).end());
+  app.head('/info', (_req: Request, res: Response) => res.status(200).end());
 
   // Prometheus metrics endpoint
   app.get('/metrics', metricsHandler);
@@ -2283,7 +2349,7 @@ export async function startRemoteServer(options: { port?: number } = {}): Promis
     host: env.HOST,
     enableOAuth: true,
     oauthConfig,
-    corsOrigins: env.CORS_ORIGINS.split(','),
+    corsOrigins: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
   });
 
   await server.start();

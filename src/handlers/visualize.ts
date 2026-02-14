@@ -158,6 +158,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(_exhaustiveCheck as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
         }
       }
@@ -259,7 +260,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
       },
     });
 
-    const chartId = response.data.replies?.[0]?.addChart?.chart?.chartId ?? undefined;
+    const chartId = response.data?.replies?.[0]?.addChart?.chart?.chartId ?? undefined;
     return this.success('chart_create', { chartId });
   }
 
@@ -276,6 +277,8 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
         message:
           'Chart suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
         retryable: false,
+        suggestedFix:
+          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
       });
     }
 
@@ -284,6 +287,7 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
         code: 'INVALID_PARAMS',
         message: 'Range is required for chart suggestions',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -311,6 +315,8 @@ export class VisualizeHandler extends BaseHandler<SheetsVisualizeInput, SheetsVi
           code: 'INVALID_PARAMS',
           message: 'Range contains no data',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -385,6 +391,7 @@ Always return valid JSON in the exact format requested.`;
           code: 'INTERNAL_ERROR',
           message: 'Could not parse chart suggestions from AI response',
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
         });
       }
 
@@ -405,6 +412,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INTERNAL_ERROR',
         message: `Chart suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -434,6 +442,7 @@ Always return valid JSON in the exact format requested.`;
           code: 'RANGE_NOT_FOUND',
           message: `Chart with ID ${input.chartId} not found`,
           retryable: false,
+          suggestedFix: 'Verify the range reference is correct and the sheet exists',
         });
       }
 
@@ -499,6 +508,7 @@ Always return valid JSON in the exact format requested.`;
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -672,12 +682,84 @@ Always return valid JSON in the exact format requested.`;
   private async handleChartUpdateDataRange(
     input: ChartUpdateDataRangeInput
   ): Promise<VisualizeResponse> {
+    // Fetch existing chart spec to preserve axis configuration
+    const getResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.charts',
+    });
+
+    let existingChart: sheets_v4.Schema$EmbeddedChart | undefined;
+    for (const sheet of getResponse.data.sheets ?? []) {
+      const chart = sheet.charts?.find((c) => c.chartId === input.chartId);
+      if (chart) {
+        existingChart = chart;
+        break;
+      }
+    }
+
+    if (!existingChart?.spec?.basicChart) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
+        retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
     const dataRange = await this.toGridRange(input.spreadsheetId, input.data.sourceRange);
-    const spec = this.buildBasicChartSpec(dataRange, undefined, input.data, undefined);
+    const toGridRangeHelper = toGridRange(dataRange);
+
+    // Update data ranges while preserving existing chart configuration
+    const domainColumn = input.data.categories ?? 0;
+    const newDomainRange: sheets_v4.Schema$GridRange = {
+      ...toGridRangeHelper,
+      startColumnIndex: (dataRange.startColumnIndex ?? 0) + domainColumn,
+      endColumnIndex: (dataRange.startColumnIndex ?? 0) + domainColumn + 1,
+    };
+
+    const newSeriesRanges =
+      input.data.series && input.data.series.length > 0
+        ? input.data.series.map((s) => ({
+            ...toGridRangeHelper,
+            startColumnIndex: (dataRange.startColumnIndex ?? 0) + s.column,
+            endColumnIndex: (dataRange.startColumnIndex ?? 0) + s.column + 1,
+          }))
+        : [
+            {
+              ...toGridRangeHelper,
+              startColumnIndex: (dataRange.startColumnIndex ?? 0) + 1,
+              endColumnIndex: (dataRange.startColumnIndex ?? 0) + 2,
+            },
+          ];
+
+    // Preserve existing axis titles, labels, and domain/series assignment
+    const existingSeries = existingChart.spec.basicChart.series ?? [];
+    const updatedSeries = newSeriesRanges.map((range, idx) => {
+      const existingSeriesData = existingSeries[idx];
+      return {
+        ...existingSeriesData,
+        series: { sourceRange: { sources: [range] } },
+      };
+    });
 
     if (input.safety?.dryRun) {
       return this.success('chart_update_data_range', {}, undefined, true);
     }
+
+    const updatedSpec: sheets_v4.Schema$ChartSpec = {
+      ...existingChart.spec,
+      basicChart: {
+        ...existingChart.spec.basicChart,
+        domains: [
+          {
+            domain: {
+              sourceRange: { sources: [newDomainRange] },
+            },
+          },
+        ],
+        series: updatedSeries,
+      },
+    };
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -686,7 +768,7 @@ Always return valid JSON in the exact format requested.`;
           {
             updateChartSpec: {
               chartId: input.chartId,
-              spec,
+              spec: updatedSpec,
             },
           },
         ],
@@ -720,6 +802,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -729,6 +812,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: `Trendlines are not supported on ${chartType} charts. Use LINE, AREA, SCATTER, STEPPED_AREA, or COLUMN charts.`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -738,6 +822,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -821,6 +906,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: `Chart with ID ${input.chartId} not found or is not a basic chart type`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -831,6 +917,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: `Series index ${input.seriesIndex} out of range. Chart has ${series.length} series.`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -839,6 +926,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'NOT_FOUND',
         message: `No trendline found on series ${input.seriesIndex}`,
         retryable: false,
+        suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
       });
     }
 
@@ -944,6 +1032,8 @@ Always return valid JSON in the exact format requested.`;
         message:
           'Pivot table suggestions require MCP Sampling capability (SEP-1577) or LLM API key. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY environment variable.',
         retryable: false,
+        suggestedFix:
+          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
       });
     }
 
@@ -952,6 +1042,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INVALID_PARAMS',
         message: 'Range is required for pivot table suggestions',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -980,6 +1071,8 @@ Always return valid JSON in the exact format requested.`;
           code: 'INVALID_PARAMS',
           message: 'Range contains no data',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -1057,6 +1150,7 @@ Always return valid JSON in the exact format requested.`;
           code: 'INTERNAL_ERROR',
           message: 'Could not parse pivot table suggestions from AI response',
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
         });
       }
 
@@ -1077,6 +1171,7 @@ Always return valid JSON in the exact format requested.`;
         code: 'INTERNAL_ERROR',
         message: `Pivot table suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -1149,6 +1244,7 @@ Always return valid JSON in the exact format requested.`;
           code: 'PRECONDITION_FAILED',
           message: confirmation.reason || 'User cancelled the operation',
           retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
         });
       }
     }
@@ -1574,7 +1670,7 @@ Always return valid JSON in the exact format requested.`;
         ],
       },
     });
-    const sheetId = newSheet.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0;
+    const sheetId = newSheet.data?.replies?.[0]?.addSheet?.properties?.sheetId ?? 0;
     return { sheetId, rowIndex: 0, columnIndex: 0 };
   }
 

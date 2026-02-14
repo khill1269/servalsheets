@@ -63,7 +63,19 @@ const QueueActionSchema = CommonFieldsSchema.extend({
         .min(1)
         .max(100, 'Action name exceeds 100 character limit')
         .describe('Action name (e.g., write, update, format)'),
-      params: z.record(z.string(), z.unknown()).describe('Operation parameters'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        )
+        .describe('Operation parameters (string, number, boolean, null, array, or object)'),
     })
     .describe('Operation to queue for batch execution'),
 });
@@ -153,10 +165,17 @@ const TransactionResponseSchema = z.discriminatedUnion('success', [
           status: z.string(),
           operationCount: z.coerce.number(),
           created: z.string(),
+          updated: z.string().optional().describe('Last update time'),
+          duration: z.coerce.number().optional().describe('Transaction duration in ms'),
+          isolationLevel: z
+            .enum(['read_uncommitted', 'read_committed', 'serializable'])
+            .optional()
+            .describe('Transaction isolation level'),
+          snapshotId: z.string().optional().describe('Associated snapshot ID'),
         })
       )
       .optional()
-      .describe('List of transactions'),
+      .describe('List of active transactions'),
     _meta: ResponseMetaSchema.optional(),
   }),
   z.object({

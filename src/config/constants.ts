@@ -240,6 +240,9 @@ export const TOOL_MODE: ToolMode = (() => {
   if (mode === 'lite' || mode === 'standard' || mode === 'full') {
     return mode;
   }
+  // Default to 'full' for all transports — all 21 tools available
+  // Previously defaulted to 'standard' (12 tools) for STDIO, but this caused
+  // 9 tools to be silently unavailable in Claude Desktop / Cowork
   return 'full';
 })();
 
@@ -299,7 +302,16 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  * Recommended Claude Desktop configuration:
  *   "SERVAL_DEFER_DESCRIPTIONS": "true"
  */
-export const DEFER_DESCRIPTIONS = process.env['SERVAL_DEFER_DESCRIPTIONS'] === 'true';
+function resolveDeferDescriptions(): boolean {
+  const envVal = process.env['SERVAL_DEFER_DESCRIPTIONS'];
+  // Explicit env var takes precedence
+  if (envVal === 'true') return true;
+  if (envVal === 'false') return false;
+  // Auto-detect: enable for STDIO (Claude Desktop optimization), disable for HTTP
+  const isHttp = process.argv.includes('--http');
+  return !isHttp;
+}
+export const DEFER_DESCRIPTIONS = resolveDeferDescriptions();
 
 /**
  * Strip inline descriptions from JSON schemas

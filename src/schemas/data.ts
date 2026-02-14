@@ -352,7 +352,7 @@ const ClearNoteActionSchema = CommonFieldsSchema.extend({
 
 const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_hyperlink').describe('Add a clickable hyperlink to a cell'),
-  cell: z.string().describe('Cell reference in A1 notation'),
+  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
   url: z
     .string()
     .regex(URL_REGEX, 'Invalid URL format')
@@ -373,7 +373,7 @@ const SetHyperlinkActionSchema = CommonFieldsSchema.extend({
 
 const ClearHyperlinkActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear_hyperlink').describe('Remove a hyperlink from a cell'),
-  cell: z.string().describe('Cell reference in A1 notation'),
+  cell: z.string().describe("Cell reference in A1 notation. Also accepts 'range' as alias."),
 });
 
 const MergeCellsActionSchema = CommonFieldsSchema.extend({
@@ -439,13 +439,14 @@ const normalizeDataRequest = (val: unknown): unknown => {
   const action = obj['action'] as string;
 
   // Check for deprecated actions and throw helpful error
-  if (action && DEPRECATED_ACTIONS[action]) {
+  // Use Object.hasOwn to prevent prototype pollution (e.g., __proto__, constructor)
+  if (action && Object.hasOwn(DEPRECATED_ACTIONS, action)) {
     throw new Error(DEPRECATED_ACTIONS[action]);
   }
 
-  // Alias: 'range' → 'cell' for note actions (LLM compatibility)
-  const noteActions = ['add_note', 'get_note', 'clear_note'];
-  if (noteActions.includes(action) && obj['range'] && !obj['cell']) {
+  // Alias: 'range' → 'cell' for cell-based actions (LLM compatibility)
+  const cellActions = ['add_note', 'get_note', 'clear_note', 'set_hyperlink', 'clear_hyperlink'];
+  if (cellActions.includes(action) && obj['range'] && !obj['cell']) {
     return { ...obj, cell: obj['range'] };
   }
 

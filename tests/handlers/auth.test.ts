@@ -9,6 +9,17 @@ import { AuthHandler } from '../../src/handlers/auth.js';
 import { SheetsAuthOutputSchema } from '../../src/schemas/auth.js';
 import type { GoogleApiClient } from '../../src/services/google-api.js';
 
+// Make auth tests deterministic by disabling embedded OAuth fallback in this suite.
+vi.mock('../../src/utils/oauth-config.js', () => ({
+  getOAuthEnvConfig: () => ({
+    clientId: undefined,
+    clientSecret: undefined,
+    redirectUri: undefined,
+    configured: false,
+    source: 'none',
+  }),
+}));
+
 // Mock googleapis with proper OAuth2Client class
 // Note: Class must be defined inside factory to avoid hoisting issues
 // See tests/helpers/oauth-mocks.ts for the reference implementation

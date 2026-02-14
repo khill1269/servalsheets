@@ -113,9 +113,23 @@ export const SmartAppendInputSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
   sheet: SheetReferenceSchema.describe('Target sheet - name or ID'),
   data: z
-    .array(z.record(z.string(), z.unknown()))
+    .array(
+      z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      )
+    )
     .min(1)
-    .describe('Array of objects with column headers as keys'),
+    .describe(
+      'Array of objects with column headers as keys (values can be string, number, boolean, null, array, or object)'
+    ),
   matchHeaders: z
     .boolean()
     .default(true)
@@ -165,9 +179,23 @@ export const BulkUpdateInputSchema = z.object({
   sheet: SheetReferenceSchema.describe('Target sheet - name or ID'),
   keyColumn: z.string().min(1).describe('Column header to match rows by'),
   updates: z
-    .array(z.record(z.string(), z.unknown()))
+    .array(
+      z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      )
+    )
     .min(1)
-    .describe('Array of objects with key column and update values'),
+    .describe(
+      'Array of objects with key column and update values (can be string, number, boolean, null, array, or object)'
+    ),
   createUnmatched: z
     .boolean()
     .default(false)
@@ -230,7 +258,17 @@ export const DeduplicateInputSchema = z.object({
 
 export const DuplicatePreviewItemSchema = z.object({
   rowNumber: z.coerce.number().int().min(1),
-  keyValues: z.record(z.string(), z.unknown()),
+  keyValues: z.record(
+    z.string(),
+    z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.any()),
+      z.record(z.string(), z.any()),
+    ])
+  ),
   keepStatus: z.enum(['keep', 'delete']),
 });
 
@@ -327,10 +365,37 @@ export const GetFormResponsesOutputSchema = z.object({
   responseCount: z.coerce.number().int().describe('Total number of form responses'),
   columnHeaders: z.array(z.string()).describe('Form question headers'),
   latestResponse: z
-    .record(z.string(), z.unknown())
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
     .optional()
-    .describe('Most recent form response'),
-  oldestResponse: z.record(z.string(), z.unknown()).optional().describe('First form response'),
+    .describe(
+      'Most recent form response (values can be string, number, boolean, null, array, or object)'
+    ),
+  oldestResponse: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .optional()
+    .describe(
+      'First form response (values can be string, number, boolean, null, array, or object)'
+    ),
   formLinked: z.boolean().describe('Whether the sheet appears to be form-linked'),
   _meta: ResponseMetaSchema.optional(),
 });
@@ -372,6 +437,39 @@ export const SetupSheetInputSchema = z.object({
     })
     .optional()
     .describe('Header row formatting'),
+  alternatingRows: z
+    .object({
+      headerColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional()
+        .describe('Header row background color'),
+      firstBandColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional()
+        .describe('First band row background color'),
+      secondBandColor: z
+        .object({
+          red: z.number().min(0).max(1),
+          green: z.number().min(0).max(1),
+          blue: z.number().min(0).max(1),
+        })
+        .optional()
+        .describe('Second band row background color'),
+    })
+    .optional()
+    .describe('Optional alternating row banding colors'),
+  data: z
+    .array(z.array(z.string()))
+    .optional()
+    .describe('Optional initial data rows to write (beyond headers) in same call'),
   freezeHeaderRow: z.boolean().optional().default(true).describe('Freeze the header row'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
@@ -386,6 +484,7 @@ export const SetupSheetOutputSchema = z.object({
   sheetId: SheetIdSchema,
   sheetName: SheetNameSchema,
   columnCount: z.coerce.number().int(),
+  rowsCreated: z.coerce.number().int().describe('Number of data rows created (beyond header)'),
   apiCallsSaved: z.coerce.number().int().describe('Number of API calls saved vs manual setup'),
   _meta: ResponseMetaSchema.optional(),
 });

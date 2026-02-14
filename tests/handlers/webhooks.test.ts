@@ -676,6 +676,21 @@ describe('WebhookHandler', () => {
       expect(result.response.success).toBe(false);
       expect(result.response.error?.code).toBe('INTERNAL_ERROR');
     });
+
+    it('maps Redis dependency failures to CONFIG_ERROR with guidance', async () => {
+      mockWebhookManager.list.mockRejectedValue(new Error('Redis required for webhook functionality'));
+
+      const result = await handler.handle({
+        request: {
+          action: 'list',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error?.code).toBe('CONFIG_ERROR');
+      expect(result.response.error?.message).toContain('Redis backend is required');
+      expect(result.response.error?.resolutionSteps?.join(' ')).toContain('REDIS_URL');
+    });
   });
 
   describe('handler factory', () => {

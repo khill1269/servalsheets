@@ -99,6 +99,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -136,6 +137,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
           message: error.message,
           category: 'auth',
           retryable: true,
+          suggestedFix: 'Grant the required permissions when prompted',
           details: {
             operation: error.operation,
             requiredScopes: error.requiredScopes,
@@ -192,6 +194,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to list templates: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -216,6 +219,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'NOT_FOUND',
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         return this.success('get', {
@@ -236,6 +240,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
           code: 'NOT_FOUND',
           message: `Template not found: ${req.templateId}`,
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -246,6 +251,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to get template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -297,6 +303,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to create template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -326,6 +333,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'NOT_FOUND',
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         templateData = { sheets: builtin.sheets };
@@ -336,6 +344,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'NOT_FOUND',
             message: `Template not found: ${req.templateId}`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         templateData = template;
@@ -377,6 +386,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             hasSpreadsheetUrl: !!response.data.spreadsheetUrl,
           },
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
           resolution: 'Retry the operation. If the issue persists, check Google Sheets API status.',
         });
       }
@@ -489,6 +499,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to apply template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -507,6 +518,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
           code: 'INVALID_REQUEST',
           message: 'Cannot update builtin templates. Use import_builtin first.',
           retryable: false,
+          suggestedFix: 'Verify the request format is correct',
         });
       }
 
@@ -526,6 +538,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -544,6 +557,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
           code: 'INVALID_REQUEST',
           message: 'Cannot delete builtin templates.',
           retryable: false,
+          suggestedFix: 'Verify the request format is correct',
         });
       }
 
@@ -556,6 +570,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to delete template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -587,6 +602,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'NOT_FOUND',
             message: `Builtin template not found: ${builtinId}`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         templateData = {
@@ -601,6 +617,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             code: 'NOT_FOUND',
             message: `Template not found: ${req.templateId}`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
           });
         }
         templateData = template;
@@ -625,6 +642,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to preview template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -644,6 +662,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
           code: 'NOT_FOUND',
           message: `Builtin template not found: ${req.builtinName}`,
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -665,6 +684,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
         code: 'INTERNAL_ERROR',
         message: `Failed to import builtin template: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }

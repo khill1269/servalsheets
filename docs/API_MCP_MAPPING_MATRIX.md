@@ -218,7 +218,7 @@ tags: [api, mcp, sheets]
 │                                                                                  │
 │  DECLARED CAPABILITIES                                                           │
 │  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ tools ...................... ✅ 21 tools, 293 actions                 │     │
+│  │ tools ...................... ✅ 21 tools, 294 actions                 │     │
 │  │ resources .................. ✅ URI templates + knowledge             │     │
 │  │ prompts .................... ✅ 6 guided workflows                    │     │
 │  │ completions ................ ✅ Argument autocompletion               │     │
@@ -298,7 +298,7 @@ ServalSheets v1.6.0 MCP Server
 ├── sheets_composite (4 actions) ────────── High-level Operations
 └── sheets_session (13 actions) ─────────── Context Management
     ═══════════════════════════════════════
-    Total: 21 tools, 293 actions
+    Total: 21 tools, 294 actions
 ```
 
 ## Verification Commands

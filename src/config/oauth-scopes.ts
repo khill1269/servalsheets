@@ -8,16 +8,40 @@
  */
 
 /**
- * FULL_ACCESS_SCOPES - Complete scope set for all ServalSheets features
+ * STANDARD_SCOPES - Recommended scope set for most users
  *
- * This is the RECOMMENDED scope set for normal use. It includes:
- * - Full Sheets API access (read/write)
- * - Full Drive access (required for sharing, comments, templates)
- * - Drive AppData (required for template storage)
- * - BigQuery (required for sheets_bigquery tool)
- * - Apps Script (required for sheets_appsscript tool)
+ * This is the DEFAULT scope set for the published ServalSheets app.
+ * Uses `drive.file` (sensitive) instead of `drive` (restricted) to:
+ * - Avoid Google's restricted scope security assessment ($15K-75K, 4-8 weeks)
+ * - Speed up Google app verification (3-5 business days vs 4-6 weeks)
+ * - Follow principle of least privilege
  *
- * Users are prompted ONCE for all permissions upfront.
+ * Features that need broader scopes (sharing, BigQuery, Apps Script)
+ * use incremental consent via src/security/incremental-scope.ts.
+ */
+export const STANDARD_SCOPES = [
+  // Core Sheets (read/write)
+  'https://www.googleapis.com/auth/spreadsheets',
+  // Drive: only files created or opened by this app
+  'https://www.googleapis.com/auth/drive.file',
+  // Drive AppData: template storage in hidden app folder
+  'https://www.googleapis.com/auth/drive.appdata',
+] as const;
+
+/**
+ * FULL_ACCESS_SCOPES - Complete scope set for power users
+ *
+ * Includes ALL scopes for every ServalSheets feature. This set includes
+ * RESTRICTED scopes (drive, cloud-platform) which require Google's
+ * most rigorous verification process including third-party security assessment.
+ *
+ * Use this ONLY if you:
+ * - Need sharing/collaboration features (requires full drive scope)
+ * - Need BigQuery Connected Sheets (requires bigquery + cloud-platform)
+ * - Need Apps Script automation (requires script.* scopes)
+ * - Are using your own GCP project with completed verification
+ *
+ * Enable via: OAUTH_SCOPE_MODE=full
  */
 export const FULL_ACCESS_SCOPES = [
   // Core Sheets & Drive
@@ -58,17 +82,24 @@ export const READONLY_SCOPES = [
 
 /**
  * Get the recommended scope set for ServalSheets
- * This is what should be used in 99% of cases.
+ *
+ * Returns STANDARD_SCOPES by default (uses drive.file, avoids restricted scopes).
+ * This ensures faster Google verification and follows least-privilege.
+ *
+ * To get full scopes, set OAUTH_SCOPE_MODE=full in environment.
  */
 export function getRecommendedScopes(): readonly string[] {
-  return FULL_ACCESS_SCOPES;
+  return getConfiguredScopes();
 }
 
 /**
  * Get scopes based on environment or configuration
+ *
+ * Defaults to 'standard' which uses drive.file (sensitive scope).
+ * Set OAUTH_SCOPE_MODE=full for all features including sharing & BigQuery.
  */
 export function getConfiguredScopes(): readonly string[] {
-  const scopeMode = process.env['OAUTH_SCOPE_MODE'] ?? 'full';
+  const scopeMode = process.env['OAUTH_SCOPE_MODE'] ?? 'standard';
 
   switch (scopeMode) {
     case 'minimal':
@@ -76,8 +107,10 @@ export function getConfiguredScopes(): readonly string[] {
     case 'readonly':
       return READONLY_SCOPES;
     case 'full':
-    default:
       return FULL_ACCESS_SCOPES;
+    case 'standard':
+    default:
+      return STANDARD_SCOPES;
   }
 }
 

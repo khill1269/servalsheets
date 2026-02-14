@@ -45,7 +45,8 @@ for OLD_COUNT in "${OLD_COUNTS[@]}"; do
     --exclude-dir=.git \
     --exclude-dir=bundle \
     --exclude-dir=.plan \
-    . 2>/dev/null || true)
+    --exclude-dir=archive \
+    . 2>/dev/null | grep -v "docs/archive/" || true)
 
   if [ -n "$FOUND" ]; then
     echo "❌ Found incorrect count '$OLD_COUNT actions' in markdown files:"
@@ -82,7 +83,8 @@ ALL_ACTION_REFS=$(grep -rn "[0-9]\+ actions" \
   --exclude-dir=bundle \
   --exclude-dir=.plan \
   --exclude-dir=tests \
-  . 2>/dev/null | grep -v "$EXPECTED actions" | grep -v "test" || true)
+  --exclude-dir=archive \
+  . 2>/dev/null | grep -v "$EXPECTED actions" | grep -v "test" | grep -v "docs/archive/" || true)
 
 if [ -n "$ALL_ACTION_REFS" ]; then
   echo "⚠️  Found references with counts other than $EXPECTED:"
