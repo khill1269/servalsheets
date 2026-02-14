@@ -32,7 +32,12 @@ import { ServiceError } from '../core/errors.js';
 import { TokenManager } from './token-manager.js';
 import { logHTTP2Capabilities, validateHTTP2Config } from '../utils/http2-detector.js';
 
-import { getConfiguredScopes, getRecommendedScopes } from '../config/oauth-scopes.js';
+import {
+  FULL_ACCESS_SCOPES,
+  getConfiguredScopes,
+  getRecommendedScopes,
+} from '../config/oauth-scopes.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 export interface GoogleApiClientOptions {
   credentials?: {
@@ -44,7 +49,7 @@ export interface GoogleApiClientOptions {
   refreshToken?: string;
   serviceAccountKeyPath?: string;
   scopes?: string[];
-  /** @deprecated Use scopes array directly. This option is ignored. */
+  /** @deprecated Use scopes array directly. Retained for backward compatibility. */
   elevatedAccess?: boolean;
   /** Retry/backoff options for API calls */
   retryOptions?: RetryOptions;
@@ -68,9 +73,9 @@ export type GoogleAuthType = 'service_account' | 'oauth' | 'access_token' | 'app
 export const DEFAULT_SCOPES = Array.from(getRecommendedScopes());
 
 /**
- * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
+ * @deprecated Use FULL_ACCESS_SCOPES from config/oauth-scopes.ts instead
  */
-export const ELEVATED_SCOPES = Array.from(getRecommendedScopes());
+export const ELEVATED_SCOPES = Array.from(FULL_ACCESS_SCOPES);
 
 /**
  * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
@@ -98,9 +103,9 @@ export const APPSSCRIPT_SCOPES = [
 ];
 
 /**
- * @deprecated Use getRecommendedScopes() from config/oauth-scopes.ts instead
+ * @deprecated Use FULL_ACCESS_SCOPES from config/oauth-scopes.ts instead
  */
-export const FULL_SCOPES = Array.from(getRecommendedScopes());
+export const FULL_SCOPES = Array.from(FULL_ACCESS_SCOPES);
 
 /**
  * Create HTTP agents with connection pooling
@@ -168,9 +173,10 @@ export class GoogleApiClient {
         : options.accessToken
           ? 'access_token'
           : 'application_default';
-    // Determine scopes based on options
-    // Default to configured scopes (usually FULL_ACCESS_SCOPES for best user experience)
-    this._scopes = options.scopes ?? Array.from(getConfiguredScopes());
+    // Determine scopes based on options (explicit scopes > legacy elevated flag > configured defaults)
+    this._scopes =
+      options.scopes ??
+      (options.elevatedAccess ? Array.from(ELEVATED_SCOPES) : Array.from(getConfiguredScopes()));
     this.retryOptions = options.retryOptions;
     this.timeoutMs = options.timeoutMs;
     this.tokenStore = options.tokenStore;
@@ -541,6 +547,17 @@ export class GoogleApiClient {
     // Don't prevent process exit
     this.keepaliveInterval.unref();
 
+    // Register cleanup to prevent memory leak
+    registerCleanup(
+      'GoogleApiClient',
+      () => {
+        if (this.keepaliveInterval) {
+          clearInterval(this.keepaliveInterval);
+        }
+      },
+      'keepalive-interval'
+    );
+
     logger.debug('Keepalive started', { intervalMs });
   }
 
@@ -744,6 +761,11 @@ export class GoogleApiClient {
   }
 
   private mergeTokens(base: StoredTokens | null, updates: StoredTokens): StoredTokens {
+    // For scope: prefer incoming scope, then current in-memory scopes (set by setScopes()),
+    // then fall back to base scope. This ensures re-auth with broader scopes takes effect
+    // even when Google's token response omits the scope field.
+    const mergedScope =
+      updates.scope ?? (this._scopes.length > 0 ? this._scopes.join(' ') : base?.scope);
     return {
       ...(base ?? {}),
       ...updates,
@@ -751,7 +773,7 @@ export class GoogleApiClient {
       refresh_token: updates.refresh_token ?? base?.refresh_token,
       expiry_date: updates.expiry_date ?? base?.expiry_date,
       token_type: updates.token_type ?? base?.token_type,
-      scope: updates.scope ?? base?.scope,
+      scope: mergedScope,
       id_token: updates.id_token ?? base?.id_token,
     };
   }
@@ -1096,6 +1118,17 @@ export class GoogleApiClient {
     this.poolMonitorInterval = setInterval(() => {
       this.logConnectionPoolStats();
     }, intervalMs);
+
+    // Register cleanup to prevent memory leak
+    registerCleanup(
+      'GoogleApiClient',
+      () => {
+        if (this.poolMonitorInterval) {
+          clearInterval(this.poolMonitorInterval);
+        }
+      },
+      'pool-monitor-interval'
+    );
 
     logger.info('HTTP/2 connection pool monitoring enabled', {
       intervalMs,

@@ -219,11 +219,7 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
   });
 
   describe('authentication requirement', () => {
-    it.skip('should require authentication', async () => {
-      // TODO: This test is being skipped due to vitest serialization issue
-      // The test logic is correct and passes, but vitest reports it as failing
-      // The actual bug fix (enhanced error messages for API prerequisites) is verified by other tests
-
+    it('should require authentication', async () => {
       // Create new context without googleClient
       const noAuthContext = {
         ...mockContext,
@@ -233,17 +229,17 @@ describe('SheetsAppsScriptHandler - API Prerequisites (BUG FIX 0.9)', () => {
       // Create new handler with no-auth context
       const noAuthHandler = new SheetsAppsScriptHandler(noAuthContext);
 
-      const result = await noAuthHandler.handle({
-        request: {
-          action: 'list_processes',
+      await expect(
+        noAuthHandler.handle({
+          request: {
+            action: 'list_processes',
+          },
+        })
+      ).rejects.toMatchObject({
+        error: {
+          code: 'AUTH_REQUIRED',
         },
       });
-
-      expect(result).toBeDefined();
-      expect(result.response).toBeDefined();
-      expect(result.response.success).toBe(false);
-      expect(result.response.error).toBeDefined();
-      expect(result.response.error?.code).toBe('AUTH_REQUIRED');
     });
 
     it('should require OAuth access token', async () => {

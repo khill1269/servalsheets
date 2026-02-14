@@ -13,7 +13,7 @@ import type { ToolTaskHandler } from '@modelcontextprotocol/sdk/experimental/tas
 import { randomUUID } from 'crypto';
 import { recordToolCall, recordToolCallLatency, recordError } from '../../observability/metrics.js';
 import { withToolSpan } from '../../utils/tracing.js';
-import type { ZodSchema, ZodTypeAny } from 'zod';
+import { z, type ZodSchema, type ZodTypeAny } from 'zod';
 
 import type { Handlers } from '../../handlers/index.js';
 import { AuthHandler } from '../../handlers/auth.js';
@@ -25,7 +25,7 @@ import {
   getRequestContext,
 } from '../../utils/request-context.js';
 import { compactResponse, isCompactModeEnabled } from '../../utils/response-compactor.js';
-import { recordSpreadsheetId } from '../completions.js';
+import { recordSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
 import { getSessionContext } from '../../services/session-context.js';
@@ -46,6 +46,8 @@ import {
   extractErrorCode,
   isSuccessResult,
 } from './extraction-helpers.js';
+import { createZodValidationError } from '../../utils/error-factory.js';
+import { logger } from '../../utils/logger.js';
 import {
   SheetsAuthInputSchema,
   SheetsCoreInputSchema,
@@ -111,8 +113,140 @@ const SheetsDependenciesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
   SheetsDependenciesInputSchema
 );
 
-const parseForHandler = <T>(schema: ZodTypeAny, args: unknown, schemaName: string): T =>
-  parseWithCache(schema as ZodSchema<T>, args, schemaName);
+const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
+  'VALIDATION_ERROR',
+  'INVALID_PARAMS',
+  'NOT_FOUND',
+  'PRECONDITION_FAILED',
+  'FAILED_PRECONDITION',
+  'INCREMENTAL_SCOPE_REQUIRED',
+  'PERMISSION_DENIED',
+  'ELICITATION_UNAVAILABLE',
+  'CONFIG_ERROR',
+  'FEATURE_UNAVAILABLE',
+]);
+
+function extractAttemptedAction(args: unknown): string | null {
+  if (!args || typeof args !== 'object') {
+    return null;
+  }
+
+  const record = args as Record<string, unknown>;
+  if (typeof record['action'] === 'string') {
+    return record['action'];
+  }
+
+  const request = record['request'];
+  if (!request || typeof request !== 'object') {
+    return null;
+  }
+
+  const requestRecord = request as Record<string, unknown>;
+  return typeof requestRecord['action'] === 'string' ? requestRecord['action'] : null;
+}
+
+function getIssueCode(issue: z.ZodIssue): string {
+  return String((issue as { code?: unknown }).code ?? '');
+}
+
+function normalizeIssuePath(path: readonly PropertyKey[]): Array<string | number> {
+  return path.map((segment) =>
+    typeof segment === 'string' || typeof segment === 'number' ? segment : String(segment)
+  );
+}
+
+function isActionValidationIssue(issue: z.ZodIssue): boolean {
+  const issueRecord = issue as unknown as Record<string, unknown>;
+  const issueCode = getIssueCode(issue);
+  const hasActionInPath = normalizeIssuePath(issue.path).some((segment) => segment === 'action');
+  const isActionDiscriminator = issueRecord['discriminator'] === 'action';
+
+  return (
+    (hasActionInPath &&
+      (issueCode === 'invalid_union' ||
+        issueCode === 'invalid_union_discriminator' ||
+        issueCode === 'invalid_literal' ||
+        issueCode === 'invalid_value')) ||
+    isActionDiscriminator
+  );
+}
+
+function formatActionValidationMessage(
+  path: readonly PropertyKey[],
+  availableActions: string[]
+): string {
+  const normalizedPath = normalizeIssuePath(path);
+  const pathStr = normalizedPath.length > 0 ? normalizedPath.join('.') : 'action';
+  const preview = availableActions.slice(0, 20).join(', ');
+  const more = availableActions.length > 20 ? ` (and ${availableActions.length - 20} more)` : '';
+  return `Invalid action at '${pathStr}'. Valid actions: ${preview}${more}`;
+}
+
+function shouldEnhanceActionIssue(issue: z.ZodIssue, attemptedAction: string | null): boolean {
+  if (isActionValidationIssue(issue)) {
+    return true;
+  }
+
+  if (!attemptedAction) {
+    return false;
+  }
+
+  const issueCode = getIssueCode(issue);
+  return issueCode === 'invalid_union' || issueCode === 'invalid_union_discriminator';
+}
+
+const parseForHandler = <T>(
+  schema: ZodTypeAny,
+  args: unknown,
+  schemaName: string,
+  toolName?: string
+): T => {
+  try {
+    return parseWithCache(schema as ZodSchema<T>, args, schemaName);
+  } catch (error) {
+    if (!(error instanceof z.ZodError) || !toolName) {
+      throw error;
+    }
+
+    const availableActions = TOOL_ACTIONS[toolName] ?? [];
+    if (availableActions.length === 0) {
+      throw error;
+    }
+
+    const attemptedAction = extractAttemptedAction(args);
+    const hasActionIssue = error.issues.some((issue) =>
+      shouldEnhanceActionIssue(issue, attemptedAction)
+    );
+
+    if (!hasActionIssue) {
+      throw error;
+    }
+
+    const enhancedIssues = error.issues.map((issue) => {
+      if (!shouldEnhanceActionIssue(issue, attemptedAction)) {
+        return issue;
+      }
+
+      const messagePath = issue.path.length > 0 ? issue.path : (['action'] as PropertyKey[]);
+
+      return {
+        ...issue,
+        message: formatActionValidationMessage(messagePath, availableActions),
+        options: availableActions,
+      } as unknown as z.ZodIssue;
+    });
+
+    if (attemptedAction && attemptedAction.toLowerCase().includes('rename')) {
+      enhancedIssues.push({
+        code: 'custom',
+        path: ['_hint'],
+        message: 'Hint: To rename a sheet, use action="update_sheet" with the "title" parameter.',
+      } as z.ZodIssue);
+    }
+
+    throw new z.ZodError(enhancedIssues);
+  }
+};
 
 // ============================================================================
 // HANDLER MAPPING
@@ -134,7 +268,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['core']['handle']>[0]>(
           SheetsCoreInputSchemaLegacy,
           args,
-          'SheetsCoreInput'
+          'SheetsCoreInput',
+          'sheets_core'
         )
       ),
     sheets_data: (args) =>
@@ -142,7 +277,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['data']['handle']>[0]>(
           SheetsDataInputSchemaLegacy,
           args,
-          'SheetsDataInput'
+          'SheetsDataInput',
+          'sheets_data'
         )
       ),
     sheets_format: (args) =>
@@ -150,7 +286,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['format']['handle']>[0]>(
           SheetsFormatInputSchemaLegacy,
           args,
-          'SheetsFormatInput'
+          'SheetsFormatInput',
+          'sheets_format'
         )
       ),
     sheets_dimensions: (args) =>
@@ -158,7 +295,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['dimensions']['handle']>[0]>(
           SheetsDimensionsInputSchemaLegacy,
           args,
-          'SheetsDimensionsInput'
+          'SheetsDimensionsInput',
+          'sheets_dimensions'
         )
       ),
     sheets_visualize: (args) =>
@@ -166,7 +304,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['visualize']['handle']>[0]>(
           SheetsVisualizeInputSchemaLegacy,
           args,
-          'SheetsVisualizeInput'
+          'SheetsVisualizeInput',
+          'sheets_visualize'
         )
       ),
     sheets_collaborate: (args) =>
@@ -174,7 +313,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['collaborate']['handle']>[0]>(
           SheetsCollaborateInputSchemaLegacy,
           args,
-          'SheetsCollaborateInput'
+          'SheetsCollaborateInput',
+          'sheets_collaborate'
         )
       ),
     sheets_advanced: (args) =>
@@ -182,7 +322,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['advanced']['handle']>[0]>(
           SheetsAdvancedInputSchemaLegacy,
           args,
-          'SheetsAdvancedInput'
+          'SheetsAdvancedInput',
+          'sheets_advanced'
         )
       ),
     sheets_transaction: (args) =>
@@ -190,7 +331,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['transaction']['handle']>[0]>(
           SheetsTransactionInputSchemaLegacy,
           args,
-          'SheetsTransactionInput'
+          'SheetsTransactionInput',
+          'sheets_transaction'
         )
       ),
     sheets_quality: (args) =>
@@ -198,7 +340,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['quality']['handle']>[0]>(
           SheetsQualityInputSchemaLegacy,
           args,
-          'SheetsQualityInput'
+          'SheetsQualityInput',
+          'sheets_quality'
         )
       ),
     sheets_history: (args) =>
@@ -206,7 +349,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['history']['handle']>[0]>(
           SheetsHistoryInputSchemaLegacy,
           args,
-          'SheetsHistoryInput'
+          'SheetsHistoryInput',
+          'sheets_history'
         )
       ),
     // MCP-native tools (use Server instance from context for Elicitation/Sampling)
@@ -215,7 +359,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['confirm']['handle']>[0]>(
           SheetsConfirmInputSchemaLegacy,
           args,
-          'SheetsConfirmInput'
+          'SheetsConfirmInput',
+          'sheets_confirm'
         )
       ),
     sheets_analyze: (args) =>
@@ -223,7 +368,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['analyze']['handle']>[0]>(
           SheetsAnalyzeInputSchemaLegacy,
           args,
-          'SheetsAnalyzeInput'
+          'SheetsAnalyzeInput',
+          'sheets_analyze'
         )
       ),
     sheets_fix: (args) =>
@@ -231,7 +377,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['fix']['handle']>[0]>(
           SheetsFixInputSchemaLegacy,
           args,
-          'SheetsFixInput'
+          'SheetsFixInput',
+          'sheets_fix'
         )
       ),
     // Composite operations
@@ -240,7 +387,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['composite']['handle']>[0]>(
           CompositeInputSchemaLegacy,
           args,
-          'CompositeInput'
+          'CompositeInput',
+          'sheets_composite'
         )
       ),
     // Session context for NL excellence
@@ -249,7 +397,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['session']['handle']>[0]>(
           SheetsSessionInputSchemaLegacy,
           args,
-          'SheetsSessionInput'
+          'SheetsSessionInput',
+          'sheets_session'
         )
       ),
     // Tier 7 Enterprise tools
@@ -258,7 +407,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['templates']['handle']>[0]>(
           SheetsTemplatesInputSchemaLegacy,
           args,
-          'SheetsTemplatesInput'
+          'SheetsTemplatesInput',
+          'sheets_templates'
         )
       ),
     sheets_bigquery: (args) =>
@@ -266,7 +416,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['bigquery']['handle']>[0]>(
           SheetsBigQueryInputSchemaLegacy,
           args,
-          'SheetsBigQueryInput'
+          'SheetsBigQueryInput',
+          'sheets_bigquery'
         )
       ),
     sheets_appsscript: (args) =>
@@ -274,7 +425,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['appsscript']['handle']>[0]>(
           SheetsAppsScriptInputSchemaLegacy,
           args,
-          'SheetsAppsScriptInput'
+          'SheetsAppsScriptInput',
+          'sheets_appsscript'
         )
       ),
     sheets_webhook: (args) =>
@@ -282,7 +434,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['webhooks']['handle']>[0]>(
           SheetsWebhookInputSchemaLegacy,
           args,
-          'SheetsWebhookInput'
+          'SheetsWebhookInput',
+          'sheets_webhook'
         )
       ),
     sheets_dependencies: (args) =>
@@ -290,7 +443,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<Handlers['dependencies']['handle']>[0]>(
           SheetsDependenciesInputSchemaLegacy,
           args,
-          'SheetsDependenciesInput'
+          'SheetsDependenciesInput',
+          'sheets_dependencies'
         )
       ),
   };
@@ -301,7 +455,8 @@ export function createToolHandlerMap(
         parseForHandler<Parameters<AuthHandler['handle']>[0]>(
           SheetsAuthInputSchemaLegacy,
           args,
-          'SheetsAuthInput'
+          'SheetsAuthInput',
+          'sheets_auth'
         )
       );
   }
@@ -352,6 +507,68 @@ function truncateForPreview(data: unknown, maxChars: number): unknown {
 }
 
 /**
+ * Validate handler result against tool's output Zod schema.
+ * In dev mode: logs detailed warnings. In prod mode: logs concise warnings.
+ * Never rejects responses — validation is advisory only.
+ *
+ * @param toolName - The tool name for schema lookup
+ * @param result - The handler result to validate
+ * @param outputSchema - The Zod output schema for this tool
+ */
+function validateOutputSchema(
+  toolName: string,
+  result: unknown,
+  outputSchema: ZodTypeAny | undefined
+): void {
+  // Skip if disabled or no schema available
+  if (process.env['VALIDATE_OUTPUT_SCHEMAS'] === 'false' || !outputSchema) {
+    return;
+  }
+
+  // Only validate object results (errors and non-objects skip validation)
+  if (!result || typeof result !== 'object') {
+    return;
+  }
+
+  try {
+    const parseResult = outputSchema.safeParse(result);
+    if (!parseResult.success) {
+      const isDev = process.env['NODE_ENV'] !== 'production';
+      const issues = parseResult.error.issues;
+
+      if (isDev) {
+        // Detailed logging in development
+        logger.warn('Output schema validation failed', {
+          tool: toolName,
+          issueCount: issues.length,
+          issues: issues.slice(0, 5).map((issue) => ({
+            path: issue.path.join('.'),
+            code: issue.code,
+            message: issue.message,
+          })),
+          hint: 'Handler response does not match output schema. Fix the handler or update the schema.',
+        });
+      } else {
+        // Concise logging in production
+        logger.debug('Output schema validation mismatch', {
+          tool: toolName,
+          issueCount: issues.length,
+          firstIssue: issues[0]
+            ? `${issues[0].path.join('.')}: ${issues[0].message}`
+            : 'unknown',
+        });
+      }
+    }
+  } catch (err) {
+    // Validation itself should never crash the response pipeline
+    logger.debug('Output schema validation error', {
+      tool: toolName,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Builds a compliant MCP tool response
  *
  * MCP 2025-11-25 Response Requirements:
@@ -360,9 +577,19 @@ function truncateForPreview(data: unknown, maxChars: number): unknown {
  * - isError: true for tool errors (LLM can retry), undefined for success
  *
  * @param result - The handler result (should match output schema)
+ * @param toolName - Optional tool name for output schema validation
+ * @param outputSchema - Optional Zod output schema for validation
  * @returns CallToolResult with content, structuredContent, and optional isError
  */
-export function buildToolResponse(result: unknown): CallToolResult {
+export function buildToolResponse(
+  result: unknown,
+  toolName?: string,
+  outputSchema?: ZodTypeAny
+): CallToolResult {
+  // Validate output against schema if available (advisory only, never blocks)
+  if (toolName && outputSchema) {
+    validateOutputSchema(toolName, result, outputSchema);
+  }
   let structuredContent: Record<string, unknown>;
 
   if (typeof result !== 'object' || result === null) {
@@ -422,9 +649,30 @@ export function buildToolResponse(result: unknown): CallToolResult {
     response && typeof response === 'object'
       ? (response as { success?: boolean }).success
       : undefined;
+  const responseErrorCode =
+    response && typeof response === 'object'
+      ? (response as { error?: { code?: unknown } }).error?.code
+      : undefined;
 
   // Detect errors from success: false in response (or legacy top-level success)
-  const isError = responseSuccess === false || structuredContent['success'] === false;
+  const hasFailure = responseSuccess === false || structuredContent['success'] === false;
+  const treatAsNonFatal =
+    hasFailure &&
+    process.env['MCP_NON_FATAL_TOOL_ERRORS'] !== 'false' &&
+    typeof responseErrorCode === 'string' &&
+    NON_FATAL_TOOL_ERROR_CODES.has(responseErrorCode);
+  const isError = hasFailure && !treatAsNonFatal;
+
+  if (treatAsNonFatal && response && typeof response === 'object') {
+    const responseRecord = response as Record<string, unknown>;
+    responseRecord['_meta'] = {
+      ...(typeof responseRecord['_meta'] === 'object'
+        ? (responseRecord['_meta'] as Record<string, unknown>)
+        : {}),
+      nonFatalError: true,
+      nonFatalReason: `error_code:${responseErrorCode}`,
+    };
+  }
 
   // DEBUG: Log sheets_collaborate responses to diagnose validation issue
   if (typeof result === 'object' && result !== null && 'response' in result) {
@@ -513,12 +761,20 @@ export function buildToolResponse(result: unknown): CallToolResult {
 // TOOL CALL HANDLER
 // ============================================================================
 
-function normalizeToolArgs(args: unknown): Record<string, unknown> {
+export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== 'object') {
     // OK: Explicit empty - invalid args will be caught by Zod validation downstream
     return {};
   }
   const record = args as Record<string, unknown>;
+
+  // Legacy root-level wrapper: { action, params: {...} }
+  const rootParams = record['params'];
+  if (rootParams && typeof rootParams === 'object') {
+    const action = typeof record['action'] === 'string' ? { action: record['action'] } : {};
+    return { request: { ...(rootParams as Record<string, unknown>), ...action } };
+  }
+
   const request = record['request'];
   if (!request || typeof request !== 'object') {
     return { request: record };
@@ -688,10 +944,60 @@ function createToolCallHandler(
         recordToolCall(tool.name, action, status, durationSeconds);
         recordToolCallLatency(tool.name, action, durationSeconds);
 
-        return buildToolResponse(result);
+        return buildToolResponse(result, tool.name, tool.outputSchema);
       } catch (error) {
         const duration = Date.now() - startTime;
         const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorCodeFromThrown =
+          typeof (error as { code?: unknown } | null)?.code === 'string'
+            ? String((error as { code?: unknown }).code)
+            : undefined;
+
+        let errorCode = errorCodeFromThrown ?? 'INTERNAL_ERROR';
+        const errorPayload: Record<string, unknown> = {
+          code: errorCode,
+          message: errorMessage,
+          retryable: false,
+        };
+
+        if (error instanceof z.ZodError) {
+          const validationError = createZodValidationError(
+            error.issues.map((issue) => ({
+              code: getIssueCode(issue),
+              path: normalizeIssuePath(issue.path),
+              message: issue.message,
+              options: Array.isArray((issue as { options?: unknown }).options)
+                ? ((issue as { options?: unknown[] }).options ?? [])
+                : undefined,
+              expected:
+                typeof (issue as { expected?: unknown }).expected === 'string'
+                  ? String((issue as { expected?: unknown }).expected)
+                  : undefined,
+              received:
+                typeof (issue as { received?: unknown }).received === 'string'
+                  ? String((issue as { received?: unknown }).received)
+                  : undefined,
+            })),
+            tool.name
+          );
+
+          errorCode = validationError.code;
+          errorPayload['code'] = validationError.code;
+          errorPayload['message'] = validationError.message;
+          errorPayload['retryable'] = validationError.retryable;
+          if (validationError.category) {
+            errorPayload['category'] = validationError.category;
+          }
+          if (validationError.severity) {
+            errorPayload['severity'] = validationError.severity;
+          }
+          if (validationError.resolution) {
+            errorPayload['resolution'] = validationError.resolution;
+          }
+          if (validationError.resolutionSteps) {
+            errorPayload['resolutionSteps'] = validationError.resolutionSteps;
+          }
+        }
 
         // Record failed operation in history
         const historyService = getHistoryService();
@@ -704,7 +1010,7 @@ function createToolCallHandler(
           result: 'error',
           duration,
           errorMessage,
-          errorCode: 'INTERNAL_ERROR',
+          errorCode,
           requestId,
           spreadsheetId: extractSpreadsheetId(args),
         });
@@ -715,15 +1021,11 @@ function createToolCallHandler(
         recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
 
         // Return structured error instead of throwing (Task 1.2)
-        // This ensures MCP clients receive tool errors (isError: true) not protocol errors
+        // buildToolResponse classifies recoverable error codes as non-fatal MCP results.
         const errorResponse = {
           response: {
             success: false,
-            error: {
-              code: 'INTERNAL_ERROR',
-              message: errorMessage,
-              retryable: false,
-            },
+            error: errorPayload,
           },
         };
 
@@ -831,7 +1133,8 @@ export async function registerServalSheetsTools(
             parseForHandler<Parameters<AuthHandler['handle']>[0]>(
               SheetsAuthInputSchema,
               args,
-              'SheetsAuthInput'
+              'SheetsAuthInput',
+              'sheets_auth'
             )
           ),
       };

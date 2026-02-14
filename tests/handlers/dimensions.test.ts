@@ -151,6 +151,42 @@ describe('DimensionsHandler', () => {
       const call = mockApi.spreadsheets.batchUpdate.mock.calls[0][0];
       expect(call.requestBody.requests[0].insertDimension.range.endIndex).toBe(1);
     });
+
+    it('should resolve sheetName when sheetId is omitted', async () => {
+      mockApi.spreadsheets.batchUpdate.mockResolvedValue({ data: { replies: [{}] } });
+
+      const result = await handler.handle({
+        action: 'insert',
+        dimension: 'ROWS',
+        spreadsheetId: 'test-sheet-id',
+        sheetName: 'Sheet1',
+        startIndex: 1,
+        count: 2,
+      } as any);
+
+      expect(result.response.success).toBe(true);
+      expect(result.response).toHaveProperty('action', 'insert');
+      expect(result.response).toHaveProperty('rowsAffected', 2);
+
+      expect(mockApi.spreadsheets.batchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-id',
+        requestBody: {
+          requests: [
+            {
+              insertDimension: {
+                range: {
+                  sheetId: 0,
+                  dimension: 'ROWS',
+                  startIndex: 1,
+                  endIndex: 3,
+                },
+                inheritFromBefore: false,
+              },
+            },
+          ],
+        },
+      });
+    });
   });
 
   describe('Delete Operations (Destructive)', () => {

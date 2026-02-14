@@ -1,282 +1,274 @@
 /**
- * Protocol Tracer - Capture full MCP protocol messages and track feature usage
- * Provides deep observability into MCP protocol interactions
+ * Protocol tracer for MCP and Google API request/response flows used in test infrastructure.
  */
 
-export interface MCPMessage {
-  jsonrpc: string;
-  id?: number;
-  method?: string;
-  params?: any;
-  result?: any;
-  error?: any;
-}
+import { randomUUID } from 'crypto';
+import type { ErrorDetail } from '../../src/schemas/shared.js';
 
-export interface MCPFeatures {
-  usedElicitation: boolean;
-  usedTasks: boolean;
-  usedLogging: boolean;
-  usedResources: boolean;
-  resourcesAccessed: string[];
-  completionsRequested: number;
-  tasksCreated: number;
-  logsReceived: number;
-  samplingRequests: number;
-  promptsShown: number;
-}
+type TraceProtocol = 'mcp' | 'google-api';
+type TraceFormat = 'json' | 'jsonl' | 'har';
 
 export interface ProtocolTrace {
-  requestId: string;
-  tool: string;
-  action: string;
-
-  // Full protocol messages
-  request: MCPMessage;
-  response: MCPMessage;
-
-  // Feature detection
-  features: MCPFeatures;
-
-  // Performance
-  performance: {
-    clientLatency: number;
-    serverProcessing: number;
-    totalDuration: number;
-  };
-
-  // Metadata
+  traceId: string;
+  correlationId: string;
+  method: string;
+  protocol: TraceProtocol;
+  request: unknown;
+  response?: unknown;
+  error?: ErrorDetail;
+  duration?: number;
   timestamp: string;
-  protocolVersion: string;
+  metadata: Record<string, unknown>;
 }
 
+export interface ProtocolTracerOptions {
+  enabled?: boolean;
+  maxBufferSize?: number;
+}
+
+interface StartTraceOptions {
+  protocol?: TraceProtocol;
+  metadata?: Record<string, unknown>;
+}
+
+interface CompleteTraceInput {
+  response?: unknown;
+  error?: ErrorDetail;
+  metadata?: Record<string, unknown>;
+}
+
+interface ProtocolTraceStats {
+  total: number;
+  byProtocol: Record<string, number>;
+  byMethod: Record<string, number>;
+  errorCount: number;
+  averageDuration: number;
+}
+
+const DEFAULT_MAX_BUFFER = 1000;
+
 export class ProtocolTracer {
-  private traces = new Map<string, ProtocolTrace>();
-  private startTimes = new Map<string, number>();
+  private readonly enabled: boolean;
+  private readonly maxBufferSize: number;
+  private readonly traces = new Map<string, ProtocolTrace>();
+  private readonly startTimes = new Map<string, number>();
 
-  /**
-   * Start tracing a request
-   */
-  startTrace(requestId: string, tool: string, action: string, request: MCPMessage): void {
-    this.startTimes.set(requestId, Date.now());
+  constructor(options: ProtocolTracerOptions = {}) {
+    this.enabled = options.enabled ?? false;
+    this.maxBufferSize = Math.max(1, options.maxBufferSize ?? DEFAULT_MAX_BUFFER);
+  }
 
-    this.traces.set(requestId, {
-      requestId,
-      tool,
-      action,
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  startTrace(
+    correlationId: string,
+    method: string,
+    request: unknown,
+    options: StartTraceOptions = {}
+  ): string {
+    if (!this.enabled) {
+      return '';
+    }
+
+    const traceId = randomUUID();
+    const protocol = options.protocol ?? 'mcp';
+
+    this.ensureBufferCapacity();
+    this.startTimes.set(traceId, Date.now());
+    this.traces.set(traceId, {
+      traceId,
+      correlationId,
+      method,
+      protocol,
       request,
-      response: {} as MCPMessage,
-      features: {
-        usedElicitation: false,
-        usedTasks: false,
-        usedLogging: false,
-        usedResources: false,
-        resourcesAccessed: [],
-        completionsRequested: 0,
-        tasksCreated: 0,
-        logsReceived: 0,
-        samplingRequests: 0,
-        promptsShown: 0,
-      },
-      performance: {
-        clientLatency: 0,
-        serverProcessing: 0,
-        totalDuration: 0,
-      },
       timestamp: new Date().toISOString(),
-      protocolVersion: request.jsonrpc || '2.0',
+      metadata: { ...(options.metadata ?? {}) },
     });
+
+    return traceId;
   }
 
-  /**
-   * Complete trace with response
-   */
-  completeTrace(requestId: string, response: MCPMessage): void {
-    const trace = this.traces.get(requestId);
-    if (!trace) return;
-
-    const startTime = this.startTimes.get(requestId);
-    if (startTime) {
-      trace.performance.totalDuration = Date.now() - startTime;
+  completeTrace(traceId: string, completion: CompleteTraceInput): void {
+    if (!this.enabled) {
+      return;
     }
 
-    trace.response = response;
-
-    // Analyze response for feature usage
-    this.detectFeatures(trace, response);
-  }
-
-  /**
-   * Detect MCP features used in response
-   */
-  private detectFeatures(trace: ProtocolTrace, response: MCPMessage): void {
-    const features = trace.features;
-
-    // Check for sampling/elicitation
-    if (response.result?.meta?.sampling || response.result?.sampling) {
-      features.usedElicitation = true;
-      features.samplingRequests++;
+    const trace = this.traces.get(traceId);
+    if (!trace) {
+      return;
     }
 
-    // Check for prompts (elicitation)
-    if (response.result?.meta?.prompt || response.result?.prompt) {
-      features.usedElicitation = true;
-      features.promptsShown++;
+    if (completion.response !== undefined) {
+      trace.response = completion.response;
+    }
+    if (completion.error !== undefined) {
+      trace.error = completion.error;
+    }
+    if (completion.metadata) {
+      trace.metadata = { ...trace.metadata, ...completion.metadata };
     }
 
-    // Check for task creation
-    if (response.result?.task || response.result?.taskId) {
-      features.usedTasks = true;
-      features.tasksCreated++;
-    }
-
-    // Check for logging
-    if (response.result?.logs || Array.isArray(response.result?.content)) {
-      const content = response.result.content;
-      if (content) {
-        for (const item of content) {
-          if (item.type === 'log' || item.type === 'logging') {
-            features.usedLogging = true;
-            features.logsReceived++;
-          }
-        }
-      }
-    }
-
-    // Check for resource access
-    if (response.result?.resources) {
-      features.usedResources = true;
-      const resources = response.result.resources;
-      if (Array.isArray(resources)) {
-        for (const resource of resources) {
-          if (resource.uri) {
-            features.resourcesAccessed.push(resource.uri);
-          }
-        }
-      }
-    }
-
-    // Check response content for resource references
-    if (response.result?.content) {
-      const content = JSON.stringify(response.result.content);
-      const resourcePattern =
-        /(?:history|cache|metrics|transaction|conflict|impact|validation|confirm|analyze|knowledge|chart|pivot|quality):\/\/\S+/g;
-      const matches = content.match(resourcePattern);
-      if (matches) {
-        features.usedResources = true;
-        features.resourcesAccessed.push(...matches);
-      }
+    const startedAt = this.startTimes.get(traceId);
+    if (startedAt !== undefined) {
+      trace.duration = Date.now() - startedAt;
+      this.startTimes.delete(traceId);
     }
   }
 
-  /**
-   * Get trace by request ID
-   */
-  getTrace(requestId: string): ProtocolTrace | undefined {
-    return this.traces.get(requestId);
+  getTrace(traceId: string): ProtocolTrace | undefined {
+    return this.traces.get(traceId);
   }
 
-  /**
-   * Get all traces
-   */
   getAllTraces(): ProtocolTrace[] {
     return Array.from(this.traces.values());
   }
 
-  /**
-   * Get feature usage summary
-   */
-  getFeatureSummary(): {
-    totalTraces: number;
-    toolsUsingElicitation: Set<string>;
-    toolsUsingTasks: Set<string>;
-    toolsUsingLogging: Set<string>;
-    toolsAccessingResources: Set<string>;
-    totalSamplingRequests: number;
-    totalTasksCreated: number;
-    totalLogsReceived: number;
-    uniqueResourcesAccessed: Set<string>;
-  } {
-    const toolsUsingElicitation = new Set<string>();
-    const toolsUsingTasks = new Set<string>();
-    const toolsUsingLogging = new Set<string>();
-    const toolsAccessingResources = new Set<string>();
-    const uniqueResourcesAccessed = new Set<string>();
+  getTracesForCorrelation(correlationId: string): ProtocolTrace[] {
+    return this.getAllTraces().filter((trace) => trace.correlationId === correlationId);
+  }
 
-    let totalSamplingRequests = 0;
-    let totalTasksCreated = 0;
-    let totalLogsReceived = 0;
+  exportTraces(format: TraceFormat = 'json', traceIds?: string[]): string {
+    const traces = this.selectTraces(traceIds);
 
-    for (const trace of this.traces.values()) {
-      const { tool, features } = trace;
+    if (format === 'json') {
+      return JSON.stringify(traces, null, 2);
+    }
 
-      if (features.usedElicitation) {
-        toolsUsingElicitation.add(tool);
-        totalSamplingRequests += features.samplingRequests;
+    if (format === 'jsonl') {
+      return traces.map((trace) => JSON.stringify(trace)).join('\n');
+    }
+
+    return JSON.stringify(this.toHar(traces), null, 2);
+  }
+
+  getStats(): ProtocolTraceStats {
+    const traces = this.getAllTraces();
+    const byProtocol: Record<string, number> = { mcp: 0, 'google-api': 0 };
+    const byMethod: Record<string, number> = {};
+    let errorCount = 0;
+    let durationTotal = 0;
+
+    for (const trace of traces) {
+      byProtocol[trace.protocol] = (byProtocol[trace.protocol] ?? 0) + 1;
+      byMethod[trace.method] = (byMethod[trace.method] ?? 0) + 1;
+
+      if (trace.error) {
+        errorCount += 1;
       }
-
-      if (features.usedTasks) {
-        toolsUsingTasks.add(tool);
-        totalTasksCreated += features.tasksCreated;
-      }
-
-      if (features.usedLogging) {
-        toolsUsingLogging.add(tool);
-        totalLogsReceived += features.logsReceived;
-      }
-
-      if (features.usedResources) {
-        toolsAccessingResources.add(tool);
-        features.resourcesAccessed.forEach((r) => uniqueResourcesAccessed.add(r));
+      if (typeof trace.duration === 'number') {
+        durationTotal += trace.duration;
       }
     }
 
     return {
-      totalTraces: this.traces.size,
-      toolsUsingElicitation,
-      toolsUsingTasks,
-      toolsUsingLogging,
-      toolsAccessingResources,
-      totalSamplingRequests,
-      totalTasksCreated,
-      totalLogsReceived,
-      uniqueResourcesAccessed,
+      total: traces.length,
+      byProtocol,
+      byMethod,
+      errorCount,
+      averageDuration: traces.length > 0 ? durationTotal / traces.length : 0,
     };
   }
 
-  /**
-   * Generate feature usage matrix
-   */
-  generateFeatureMatrix(): Array<{
-    tool: string;
-    action: string;
-    elicitation: boolean;
-    tasks: boolean;
-    logging: boolean;
-    resources: number;
-    samplingRequests: number;
-  }> {
-    const matrix: Array<any> = [];
-
-    for (const trace of this.traces.values()) {
-      matrix.push({
-        tool: trace.tool,
-        action: trace.action,
-        elicitation: trace.features.usedElicitation,
-        tasks: trace.features.usedTasks,
-        logging: trace.features.usedLogging,
-        resources: trace.features.resourcesAccessed.length,
-        samplingRequests: trace.features.samplingRequests,
-      });
-    }
-
-    return matrix;
-  }
-
-  /**
-   * Clear all traces
-   */
   clear(): void {
     this.traces.clear();
     this.startTimes.clear();
   }
+
+  private ensureBufferCapacity(): void {
+    if (this.traces.size < this.maxBufferSize) {
+      return;
+    }
+
+    const oldest = this.traces.keys().next().value;
+    if (typeof oldest === 'string') {
+      this.traces.delete(oldest);
+      this.startTimes.delete(oldest);
+    }
+  }
+
+  private selectTraces(traceIds?: string[]): ProtocolTrace[] {
+    if (!traceIds || traceIds.length === 0) {
+      return this.getAllTraces();
+    }
+
+    const idSet = new Set(traceIds);
+    return this.getAllTraces().filter((trace) => idSet.has(trace.traceId));
+  }
+
+  private toHar(traces: ProtocolTrace[]): unknown {
+    const entries = traces
+      .filter((trace) => trace.protocol === 'google-api')
+      .map((trace) => {
+        const payload = trace.response ?? trace.error ?? {};
+
+        return {
+          startedDateTime: trace.timestamp,
+          time: trace.duration ?? 0,
+          request: {
+            method: 'POST',
+            url: trace.method,
+            httpVersion: 'HTTP/2',
+            headers: [],
+            queryString: [],
+            cookies: [],
+            headersSize: -1,
+            bodySize: -1,
+          },
+          response: {
+            status: trace.error ? 500 : 200,
+            statusText: trace.error ? 'Error' : 'OK',
+            httpVersion: 'HTTP/2',
+            headers: [],
+            cookies: [],
+            content: {
+              size: JSON.stringify(payload).length,
+              mimeType: 'application/json',
+              text: JSON.stringify(payload),
+            },
+            redirectURL: '',
+            headersSize: -1,
+            bodySize: -1,
+          },
+          cache: {},
+          timings: {
+            send: 0,
+            wait: trace.duration ?? 0,
+            receive: 0,
+          },
+        };
+      });
+
+    return {
+      log: {
+        version: '1.2',
+        creator: {
+          name: 'ServalSheets ProtocolTracer',
+          version: '1.0.0',
+        },
+        entries,
+      },
+    };
+  }
+}
+
+let globalTracer: ProtocolTracer | null = null;
+
+export function getProtocolTracer(): ProtocolTracer {
+  if (globalTracer) {
+    return globalTracer;
+  }
+
+  const enabled = process.env['PROTOCOL_TRACE_ENABLED'] === 'true';
+  const parsedBuffer = Number.parseInt(process.env['PROTOCOL_TRACE_BUFFER_SIZE'] ?? '', 10);
+  const maxBufferSize =
+    Number.isFinite(parsedBuffer) && parsedBuffer > 0 ? parsedBuffer : DEFAULT_MAX_BUFFER;
+
+  globalTracer = new ProtocolTracer({ enabled, maxBufferSize });
+  return globalTracer;
+}
+
+export function resetProtocolTracer(): void {
+  globalTracer = null;
 }

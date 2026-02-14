@@ -21,6 +21,7 @@ import { getWorkerPool } from '../services/worker-pool.js';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { memoizeWithStats } from '../utils/memoization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -91,12 +92,10 @@ const PATTERNS = {
 };
 
 /**
- * Extract all cell references from a formula
- *
- * @param formula - Google Sheets formula (with or without leading =)
- * @returns Parsed formula with all references extracted
+ * Internal implementation of formula parsing (non-memoized)
+ * Used by memoized wrapper to do the actual parsing work
  */
-export function parseFormula(formula: string): ParsedFormula {
+function parseFormulaInternal(formula: string): ParsedFormula {
   // Remove leading = if present
   const cleanFormula = formula.startsWith('=') ? formula.slice(1) : formula;
 
@@ -250,6 +249,28 @@ export function parseFormula(formula: string): ParsedFormula {
     functions,
     namedRanges,
   };
+}
+
+/**
+ * Memoized formula parser with cache statistics
+ * Cache size: 500 formulas with 1 hour TTL
+ */
+const memoizedParseFormula = memoizeWithStats(parseFormulaInternal, {
+  maxSize: 500,
+  ttl: 3600000, // 1 hour
+});
+
+/**
+ * Extract all cell references from a formula
+ *
+ * Memoized for performance - repeated parses of the same formula string
+ * are served from cache. Cache supports up to 500 unique formulas with 1 hour TTL.
+ *
+ * @param formula - Google Sheets formula (with or without leading =)
+ * @returns Parsed formula with all references extracted
+ */
+export function parseFormula(formula: string): ParsedFormula {
+  return memoizedParseFormula(formula);
 }
 
 /**
@@ -424,6 +445,7 @@ function indexToColumn(index: number): string {
  * Get all unique cells referenced by a formula
  *
  * Expands ranges up to maxCells limit.
+ * Formula parsing results are memoized for performance.
  *
  * @param formula - Google Sheets formula
  * @param maxCells - Maximum cells to expand per range
@@ -447,4 +469,32 @@ export function getReferencedCells(formula: string, maxCells = 1000): Set<string
   }
 
   return cells;
+}
+
+/**
+ * Get memoization cache statistics for formula parsing
+ *
+ * Useful for performance monitoring and cache optimization.
+ * Returns hit rate, cache size, and utilization metrics.
+ *
+ * @returns Cache statistics including hits, misses, and hitRate
+ *
+ * @example
+ * ```typescript
+ * const stats = getFormulaCacheStats();
+ * console.log(`Cache hit rate: ${(stats.hitRate * 100).toFixed(1)}%`);
+ * console.log(`Cache size: ${stats.cacheSize} / 500`);
+ * ```
+ */
+export function getFormulaCacheStats() {
+  return memoizedParseFormula.getStats();
+}
+
+/**
+ * Clear the formula parsing cache
+ *
+ * Use when reconfiguring formula parsing behavior or to reset statistics.
+ */
+export function clearFormulaCache(): void {
+  memoizedParseFormula.clearCache();
 }

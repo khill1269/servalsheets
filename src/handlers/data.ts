@@ -79,19 +79,6 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   }
 
   /**
-   * Execute an API call with request deduplication
-   * Prevents duplicate concurrent and sequential requests within TTL
-   * Expected savings: 30-50% API call reduction
-   */
-  private async deduplicatedApiCall<T>(cacheKey: string, apiCall: () => Promise<T>): Promise<T> {
-    const deduplicator = this.context.requestDeduplicator;
-    if (deduplicator) {
-      return deduplicator.deduplicate(cacheKey, apiCall);
-    }
-    return apiCall();
-  }
-
-  /**
    * Record access pattern and trigger background prefetch (Phase 3)
    * Non-blocking - errors are logged but don't affect the main operation
    */
@@ -323,6 +310,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'INVALID_PARAMS',
           message: `Unknown action: ${action}. Available actions: read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste`,
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
     }
@@ -465,7 +454,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
       const offset = Number.parseInt(decoded, 10);
       return Number.isFinite(offset) ? offset : null;
-    } catch {
+    } catch (error) {
+      this.context.logger?.warn?.('Failed to decode pagination cursor', {
+        error: error instanceof Error ? error.message : String(error),
+        cursor,
+      });
       return null;
     }
   }
@@ -504,7 +497,11 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         return null;
       }
       return state;
-    } catch {
+    } catch (error) {
+      this.context.logger?.warn?.('Failed to decode multi-range cursor', {
+        error: error instanceof Error ? error.message : String(error),
+        cursor,
+      });
       return null;
     }
   }
@@ -537,6 +534,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             code: 'INVALID_PARAMS',
             message: 'Pagination is not supported for this range format',
             retryable: false,
+            suggestedFix:
+              'Check the parameter format and ensure all required parameters are provided',
             details: {
               range,
               reason: error instanceof Error ? error.message : String(error),
@@ -567,6 +566,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'INVALID_PARAMS',
           message: 'Invalid pagination cursor',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
           details: { cursor },
         }),
       };
@@ -626,6 +627,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'INVALID_PARAMS',
           message: 'Invalid pagination cursor: range index out of bounds',
           retryable: false,
+          suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           details: { cursor, rangeIndex: state.rangeIndex, totalRanges: ranges.length },
         }),
       };
@@ -1073,6 +1075,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'FEATURE_UNAVAILABLE',
           message: 'Table appends are disabled. Set ENABLE_TABLE_APPENDS=true to enable.',
           retryable: false,
+          suggestedFix:
+            'Enable the feature by setting the appropriate environment variable, or contact your administrator',
         });
       }
 
@@ -1208,6 +1212,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         code: 'INVALID_PARAMS',
         message: 'Range is required when tableId is not provided for append',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1388,6 +1393,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'INVALID_PARAMS',
           message: 'Pagination is not supported with dataFilters in batch_read',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
       if (!input.ranges || input.ranges.length === 0) {
@@ -1395,6 +1402,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'INVALID_PARAMS',
           message: 'Pagination in batch_read requires at least one range',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -1423,6 +1432,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           `Reading range ${i + 1}/${paginationPlan.rangesToFetch.length} in current page`
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const resolvedRange = await this.resolveRangeToA1(input.spreadsheetId, range as any);
         const dedupKey = `values:get:${input.spreadsheetId}:${resolvedRange}:${input.valueRenderOption ?? 'FORMATTED_VALUE'}:${input.majorDimension ?? 'ROWS'}`;
 
@@ -1473,6 +1483,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'FEATURE_UNAVAILABLE',
           message: 'DataFilter batch reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
           retryable: false,
+          suggestedFix:
+            'Enable the feature by setting the appropriate environment variable, or contact your administrator',
         });
       }
 
@@ -1618,6 +1630,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         code: 'FEATURE_UNAVAILABLE',
         message: 'DataFilter batch writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
         retryable: false,
+        suggestedFix:
+          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
       });
     }
 
@@ -1677,6 +1691,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         code: 'INVALID_PARAMS',
         message: 'Do not mix range-based and dataFilter-based entries in batch_write',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1686,6 +1701,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         code: 'INVALID_PARAMS',
         message: 'Missing range for batch_write entry',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1769,6 +1785,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           code: 'FEATURE_UNAVAILABLE',
           message: 'DataFilter batch clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
           retryable: false,
+          suggestedFix:
+            'Enable the feature by setting the appropriate environment variable, or contact your administrator',
         });
       }
 
@@ -1941,7 +1959,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       })
     );
 
-    const reply = response.data.replies?.[0]?.findReplace;
+    const reply = response.data?.replies?.[0]?.findReplace;
     const replacementsCount = reply?.occurrencesChanged ?? 0;
 
     return this.success('find_replace', {
@@ -2205,7 +2223,18 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       return this.success('cut_paste', {}, undefined, true);
     }
 
-    const destParsed = parseCellReference(input.destination);
+    let destParsed;
+    try {
+      destParsed = parseCellReference(input.destination);
+    } catch (_error) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Invalid destination cell reference: ${input.destination}. Expected format: 'Sheet1!A1' or 'A1'`,
+        retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
     const destinationSheetId = destParsed.sheetName
       ? await this.getSheetId(input.spreadsheetId, destParsed.sheetName, this.sheetsApi)
       : sourceRange.sheetId;
@@ -2241,7 +2270,19 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   ): Promise<DataResponse> {
     const rangeA1 = await this.resolveRangeToA1(input.spreadsheetId, input.source);
     const sourceRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
-    const destParsed = parseCellReference(input.destination);
+
+    let destParsed;
+    try {
+      destParsed = parseCellReference(input.destination);
+    } catch (_error) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: `Invalid destination cell reference: ${input.destination}. Expected format: 'Sheet1!A1' or 'A1'`,
+        retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
+      });
+    }
+
     const destinationSheetId = destParsed.sheetName
       ? await this.getSheetId(input.spreadsheetId, destParsed.sheetName, this.sheetsApi)
       : sourceRange.sheetId;

@@ -34,6 +34,7 @@ import {
   MAX_PAGE_SIZE,
 } from '../config/constants.js';
 import { storeAnalysisResult } from '../resources/analyze.js';
+import type { AnalyzeResponse } from '../schemas/analyze.js';
 
 // Import analysis helpers
 import { detectDataType } from './helpers.js';
@@ -551,7 +552,7 @@ export class ComprehensiveAnalyzer {
       });
 
       // Store full result as resource
-      const analysisId = storeAnalysisResult(spreadsheetId, result);
+      const analysisId = storeAnalysisResult(spreadsheetId, result as unknown as AnalyzeResponse);
       const resourceUri = `analyze://results/${analysisId}`;
 
       // Return minimal response with resource URI
@@ -586,7 +587,7 @@ export class ComprehensiveAnalyzer {
         });
 
         // Store full result as resource
-        const analysisId = storeAnalysisResult(spreadsheetId, result);
+        const analysisId = storeAnalysisResult(spreadsheetId, result as unknown as AnalyzeResponse);
         const resourceUri = `analyze://results/${analysisId}`;
 
         // Return minimal response with resource URI
@@ -619,7 +620,7 @@ export class ComprehensiveAnalyzer {
         });
 
         // Store full result as resource
-        const analysisId = storeAnalysisResult(spreadsheetId, result);
+        const analysisId = storeAnalysisResult(spreadsheetId, result as unknown as AnalyzeResponse);
         const resourceUri = `analyze://results/${analysisId}`;
 
         // Return minimal response with resource URI
@@ -700,7 +701,11 @@ export class ComprehensiveAnalyzer {
       logger.debug('Cached spreadsheet info', { spreadsheetId });
 
       return result;
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to fetch spreadsheet metadata, returning empty named ranges', {
+        error,
+        spreadsheetId,
+      });
       return { namedRanges: [] };
     }
   }

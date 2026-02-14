@@ -82,15 +82,17 @@ const EditorsSchema = z.object({
 });
 
 const MetadataLocationSchema = z.object({
-  sheetId: SheetIdSchema.optional(),
+  spreadsheet: z.boolean().optional().describe('If true, metadata applies to entire spreadsheet'),
+  sheetId: SheetIdSchema.optional().describe('Sheet ID if metadata applies to a specific sheet'),
   dimensionRange: z
     .object({
-      sheetId: SheetIdSchema,
-      dimension: z.enum(['ROWS', 'COLUMNS']),
-      startIndex: z.coerce.number().int().min(0),
-      endIndex: z.coerce.number().int().min(1),
+      sheetId: SheetIdSchema.describe('Sheet ID containing the dimension'),
+      dimension: z.enum(['ROWS', 'COLUMNS']).describe('Apply to rows or columns'),
+      startIndex: z.coerce.number().int().min(0).describe('Start index (0-based, inclusive)'),
+      endIndex: z.coerce.number().int().min(1).describe('End index (0-based, exclusive)'),
     })
-    .optional(),
+    .optional()
+    .describe('Apply metadata to a specific range of rows or columns'),
 });
 
 // ============================================================================

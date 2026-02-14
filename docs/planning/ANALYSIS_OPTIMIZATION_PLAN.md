@@ -26,7 +26,7 @@ tags: [sheets]
 | **MCP Sampling**           | `src/mcp/sampling.ts`              | Excellent - AI-powered analysis via client LLM       |
 | **MCP Elicitation**        | `src/mcp/elicitation.ts`           | Good - User input forms, wizard support              |
 | **Comprehensive Analysis** | `src/analysis/comprehensive.ts`    | Good foundation - needs progressive enhancement      |
-| **Tool Coverage**          | 21 tools, 293 actions              | Comprehensive Google Sheets API coverage             |
+| **Tool Coverage**          | 21 tools, 294 actions              | Comprehensive Google Sheets API coverage             |
 | **Task Support**           | Background task execution          | Good for long-running operations                     |
 
 ### Problems Identified

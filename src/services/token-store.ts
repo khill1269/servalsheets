@@ -41,6 +41,7 @@ interface EncryptedRecord {
   tag: string;
   ciphertext: string;
   createdAt: string;
+  cleared?: boolean; // Flag indicating tokens were explicitly cleared
 }
 
 export class EncryptedFileTokenStore implements TokenStore {
@@ -66,6 +67,12 @@ export class EncryptedFileTokenStore implements TokenStore {
     try {
       const data = await fs.readFile(this.filePath, 'utf8');
       const record = JSON.parse(data) as EncryptedRecord;
+      
+      // If the file was explicitly cleared, return null
+      if (record.cleared) {
+        return null;
+      }
+      
       if (record.version !== 1) {
         throw new DataError(
           `Unsupported token store version: ${record.version}`,
@@ -118,9 +125,32 @@ export class EncryptedFileTokenStore implements TokenStore {
 
   async clear(): Promise<void> {
     try {
+      // Try to delete the file first
       await fs.unlink(this.filePath);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      const errno = (error as NodeJS.ErrnoException).code;
+      // If deletion fails due to permission issues, write a cleared marker instead
+      if (errno === 'EPERM') {
+        // Write a minimal cleared record to mark as cleared
+        const clearedRecord: EncryptedRecord = {
+          version: 1,
+          iv: '',
+          tag: '',
+          ciphertext: '',
+          createdAt: new Date().toISOString(),
+          cleared: true,
+        };
+        try {
+          const tempPath = `${this.filePath}.tmp`;
+          await fs.writeFile(tempPath, JSON.stringify(clearedRecord, null, 2), {
+            mode: 0o600,
+          });
+          await fs.rename(tempPath, this.filePath);
+        } catch {
+          // If even the write fails, silently continue - the file will be overwritten on next save
+        }
+      } else if (errno !== 'ENOENT') {
+        // Re-throw other errors
         throw error;
       }
     }

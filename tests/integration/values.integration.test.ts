@@ -25,7 +25,7 @@ const permissionTest = process.env['TEST_FORBIDDEN_SPREADSHEET_ID'] ? it : it.sk
 
 describe.skipIf(SKIP_INTEGRATION)('Values Handler Integration', () => {
   let credentials: TestCredentials;
-  let harness: McpTestHarness;
+  let harness: McpTestHarness | undefined;
   let testSpreadsheetId: string;
   let testSheetTitle: string;
   let testSheetId: number | undefined;
@@ -67,19 +67,40 @@ describe.skipIf(SKIP_INTEGRATION)('Values Handler Integration', () => {
     testSpreadsheetId = credentials.testSpreadsheet.id;
     testSheetTitle = `IntegrationTest_${Date.now()}`;
 
-    tempDir = await mkdtemp(join(process.cwd(), 'tests/.tmp-'));
-    const keyPath = join(tempDir, 'service-account.json');
-    await writeFile(keyPath, JSON.stringify(credentials.serviceAccount, null, 2));
+    if (credentials.serviceAccount) {
+      tempDir = await mkdtemp(join(process.cwd(), 'tests/.tmp-'));
+      const keyPath = join(tempDir, 'service-account.json');
+      await writeFile(keyPath, JSON.stringify(credentials.serviceAccount, null, 2));
 
-    harness = await createServalSheetsTestHarness({
-      serverOptions: {
-        name: 'servalsheets-test',
-        version: '1.0.0-test',
-        googleApiOptions: {
-          serviceAccountKeyPath: keyPath,
+      harness = await createServalSheetsTestHarness({
+        serverOptions: {
+          name: 'servalsheets-test',
+          version: '1.0.0-test',
+          googleApiOptions: {
+            serviceAccountKeyPath: keyPath,
+          },
         },
-      },
-    });
+      });
+    } else if (credentials.oauth) {
+      harness = await createServalSheetsTestHarness({
+        serverOptions: {
+          name: 'servalsheets-test',
+          version: '1.0.0-test',
+          googleApiOptions: {
+            credentials: {
+              clientId: credentials.oauth.client_id,
+              clientSecret: credentials.oauth.client_secret,
+              redirectUri: credentials.oauth.redirect_uri,
+            },
+            accessToken: credentials.oauth.tokens.access_token,
+            refreshToken: credentials.oauth.tokens.refresh_token,
+            scopes: credentials.oauth.tokens.scope.split(' ').filter(Boolean),
+          },
+        },
+      });
+    } else {
+      throw new Error('No usable credentials found for integration harness setup');
+    }
 
     const addSheet = await callSheets({
       action: 'add_sheet',
@@ -103,7 +124,9 @@ describe.skipIf(SKIP_INTEGRATION)('Values Handler Integration', () => {
       });
     }
 
-    await harness.close();
+    if (harness) {
+      await harness.close();
+    }
 
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });

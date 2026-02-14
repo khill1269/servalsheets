@@ -297,7 +297,10 @@ class LoadTestExecutor {
 /**
  * Test Suite
  */
-describe('Load Testing - 1000+ Concurrent Requests', () => {
+// Load tests require a real server — skip when not in CI with full infra
+const ENABLE_LOAD = process.env.LOAD_TEST === 'true';
+
+describe.skipIf(!ENABLE_LOAD)('Load Testing - 1000+ Concurrent Requests', () => {
   let server: ServerProcess;
   let executor: LoadTestExecutor;
   const results: TestResult[] = [];

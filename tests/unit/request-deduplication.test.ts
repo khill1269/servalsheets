@@ -171,13 +171,14 @@ describe('RequestDeduplicator', () => {
     it('should invalidate spreadsheet cache', async () => {
       const fn = async () => ({ data: 'test' });
 
-      await deduplicator.deduplicate('key1', fn);
-      await deduplicator.deduplicate('key2', fn);
+      // Use keys that contain the spreadsheet ID so targeted invalidation matches
+      await deduplicator.deduplicate('spreadsheet:123:values', fn);
+      await deduplicator.deduplicate('spreadsheet:123:metadata', fn);
 
       const countBefore = deduplicator.getStats().resultCacheSize;
       expect(countBefore).toBeGreaterThan(0);
 
-      // Invalidate spreadsheet (clears all cache currently)
+      // Invalidate spreadsheet (targeted — matches keys containing '123')
       const invalidated = deduplicator.invalidateSpreadsheet('123');
       expect(invalidated).toBe(countBefore);
 

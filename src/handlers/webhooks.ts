@@ -27,6 +27,49 @@ import { logger } from '../utils/logger.js';
  * Webhook handler
  */
 export class WebhookHandler {
+  private createErrorDetail(
+    error: unknown,
+    fallbackMessage: string,
+    action: string
+  ): Extract<SheetsWebhookOutput['response'], { success: false }>['error'] {
+    const message = error instanceof Error ? error.message : String(error);
+    const lowerMessage = message.toLowerCase();
+    const isRedisConfigError =
+      lowerMessage.includes('redis required') ||
+      (lowerMessage.includes('redis') &&
+        (lowerMessage.includes('not initialized') ||
+          lowerMessage.includes('not configured') ||
+          lowerMessage.includes('not available')));
+
+    if (isRedisConfigError) {
+      return {
+        code: 'CONFIG_ERROR',
+        message: 'Redis required: Redis backend is required for sheets_webhook operations',
+        details: {
+          action,
+          dependency: 'redis',
+          originalError: message,
+        },
+        retryable: false,
+        resolution:
+          'Configure a reachable Redis instance, then retry webhook registration, listing, or delivery tests.',
+        resolutionSteps: [
+          '1. Set REDIS_URL (or equivalent Redis connection env vars)',
+          '2. Ensure Redis is reachable from this ServalSheets process',
+          '3. Restart ServalSheets so webhook services initialize with Redis',
+          '4. Retry the webhook operation',
+        ],
+      };
+    }
+
+    return {
+      code: 'INTERNAL_ERROR',
+      message: message || fallbackMessage,
+      details: { action, error: String(error) },
+      retryable: false,
+    };
+  }
+
   /**
    * Handle sheets_webhook tool calls
    */
@@ -60,6 +103,8 @@ export class WebhookHandler {
                 code: 'INVALID_PARAMS',
                 message: `Unknown action: ${(req as { action: string }).action}`,
                 retryable: false,
+                suggestedFix:
+                  "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
               },
             },
           };
@@ -73,12 +118,7 @@ export class WebhookHandler {
       return {
         response: {
           success: false,
-          error: {
-            code: 'INTERNAL_ERROR',
-            message: error instanceof Error ? error.message : 'Unknown error',
-            details: { error: String(error) },
-            retryable: false,
-          },
+          error: this.createErrorDetail(error, 'Unknown error', req.action),
         },
       };
     }
@@ -101,12 +141,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to register webhook',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to register webhook', input.action),
       };
     }
   }
@@ -128,12 +163,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to unregister webhook',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to unregister webhook', input.action),
       };
     }
   }
@@ -155,12 +185,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to list webhooks',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to list webhooks', input.action),
       };
     }
   }
@@ -182,6 +207,7 @@ export class WebhookHandler {
             code: 'NOT_FOUND',
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
           },
         };
       }
@@ -193,12 +219,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to get webhook',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to get webhook', input.action),
       };
     }
   }
@@ -220,6 +241,7 @@ export class WebhookHandler {
             code: 'NOT_FOUND',
             message: `Webhook ${input.webhookId} not found`,
             retryable: false,
+            suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
           },
         };
       }
@@ -259,12 +281,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to send test webhook',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to send test webhook', input.action),
       };
     }
   }
@@ -337,12 +354,7 @@ export class WebhookHandler {
     } catch (error) {
       return {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to get webhook stats',
-          details: { error: String(error) },
-          retryable: false,
-        },
+        error: this.createErrorDetail(error, 'Failed to get webhook stats', input.action),
       };
     }
   }

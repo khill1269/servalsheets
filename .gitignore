@@ -123,3 +123,18 @@ src/__tests__/
 
 # Python cache
 .mypy_cache/
+
+# Production cleanup - temporary test directories
+/.probe-delete-*/
+/.test-discovery-cache-*/
+/.test-custom-cache/
+
+# Bundle directory (duplicate build artifact)
+/bundle/
+
+# Root-level office documents (development artifacts)
+/*.docx
+/*.xlsx
+
+# Root-level HTML reports
+/*.html

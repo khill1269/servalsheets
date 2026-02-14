@@ -14,19 +14,19 @@
 export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
   sheets_auth: `🔐 AUTH - OAuth 2.1 (4 actions). status, login, callback, logout. ALWAYS call status first.`,
 
-  sheets_core: `📋 CORE - Spreadsheet/sheet management (17 actions). create, get, list_sheets, add_sheet, delete_sheet, etc. For cell values use sheets_data.`,
+  sheets_core: `📋 CORE - Spreadsheet/sheet management (19 actions). create, get, list_sheets, add_sheet, update_sheet, delete_sheet, etc. For cell values use sheets_data.`,
 
   sheets_data: `📝 DATA - Read/write cell values (18 actions). read, write, append, batch_read, batch_write, notes, hyperlinks, merge. Range format: "Sheet1!A1:D10"`,
 
   sheets_format: `🎨 FORMAT - Cell styling (21 actions). set_format, backgrounds, borders, number formats, conditional rules. For values use sheets_data.`,
 
-  sheets_dimensions: `📐 DIMENSIONS - Rows/columns (28 actions). insert, delete, resize, hide, freeze, sort, filter. Use dimension:"ROWS" or "COLUMNS".`,
+  sheets_dimensions: `📐 DIMENSIONS - Rows/columns (28 actions). insert, delete, resize, hide, freeze, sort, filter. Use dimension:"ROWS"/"COLUMNS". sheetId preferred, sheetName supported.`,
 
   sheets_visualize: `📊 VISUALIZE - Charts & pivots (18 actions). chart_create, chart_update, pivot_create. Use sheets_analyze first for recommendations.`,
 
-  sheets_collaborate: `👥 COLLABORATE - Sharing/comments/versions (28 actions). share_add, comment_add, version_create_snapshot. Create snapshot before destructive ops.`,
+  sheets_collaborate: `👥 COLLABORATE - Sharing/comments/versions (35 actions). share_add, comment_add, version_create_snapshot, approval_*. Requires elevated Drive scopes.`,
 
-  sheets_advanced: `⚙️ ADVANCED - Named ranges/protection/banding (23 actions). add_named_range, add_protected_range, banding, tables, smart_chips.`,
+  sheets_advanced: `⚙️ ADVANCED - Named ranges/protection/banding (26 actions). add_named_range, add_protected_range, banding, tables, smart_chips.`,
 
   sheets_transaction: `🔄 TRANSACTION - Atomic batch ops (6 actions). begin, queue, commit, rollback. Use for 5+ operations - 80-95% API savings.`,
 
@@ -42,7 +42,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_composite: `🔗 COMPOSITE - High-level workflows (10 actions). import_csv, smart_append, deduplicate, setup_sheet. 60-80% API savings.`,
 
-  sheets_session: `📋 SESSION - Conversation context (17 actions). set_active, get_context, find_by_reference, save_checkpoint. Enables natural language refs.`,
+  sheets_session: `📋 SESSION - Conversation context (26 actions). set_active, get_context, find_by_reference, checkpoints, alerts, profile. save_checkpoint needs ENABLE_CHECKPOINTS=true.`,
 
   sheets_templates: `📄 TEMPLATES - Reusable templates (8 actions). list, create, apply, import_builtin. Stored in Drive appDataFolder.`,
 
@@ -50,7 +50,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_appsscript: `⚡ APPSSCRIPT - Apps Script (14 actions). run, deploy, get_content. USER OAuth only. ⚠️ run executes with side effects.`,
 
-  sheets_webhook: `🔔 WEBHOOK - Change notifications (6 actions). register, unregister, list, test. HMAC signature verification.`,
+  sheets_webhook: `🔔 WEBHOOK - Change notifications (6 actions). register, unregister, list, test. Requires Redis backend + HTTPS endpoint. HMAC signature verification.`,
 
   sheets_dependencies: `🔗 DEPENDENCIES - Formula graph (7 actions). build, analyze_impact, detect_cycles, export_dot.`,
 };

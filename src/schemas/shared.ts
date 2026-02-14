@@ -856,38 +856,67 @@ export const RangeInputSchema = z.preprocess(
 export const ErrorDetailSchema = z.object({
   code: ErrorCodeSchema,
   message: z.string(),
-  details: z.record(z.string(), z.unknown()).optional(),
+  details: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null(), z.any()]))
+    .optional()
+    .describe('Error details as key-value pairs with primitive or generic values'),
   retryable: z.boolean().optional().default(false),
   retryAfterMs: z.number().int().positive().optional(),
   suggestedFix: z.string().optional(),
   alternatives: z
     .array(
       z.object({
-        tool: z.string(),
-        action: z.string(),
-        description: z.string(),
+        tool: z.string().describe('Tool name as alternative'),
+        action: z.string().describe('Action name in the alternative tool'),
+        description: z.string().describe('Description of the alternative approach'),
       })
     )
-    .optional(),
+    .optional()
+    .describe('Alternative tools/actions to try'),
   // Agent-actionable fields
-  resolution: z.string().optional(),
-  resolutionSteps: z.array(z.string()).optional(),
+  resolution: z.string().optional().describe('Recommended resolution strategy'),
+  resolutionSteps: z
+    .array(z.string())
+    .optional()
+    .describe('Step-by-step instructions to resolve the error'),
   category: z
     .enum(['client', 'server', 'network', 'auth', 'quota', 'transient', 'unknown'])
-    .optional(),
-  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+    .optional()
+    .describe('Error category for routing/handling'),
+  severity: z
+    .enum(['low', 'medium', 'high', 'critical'])
+    .optional()
+    .describe('Error severity level'),
   retryStrategy: z
     .enum(['exponential_backoff', 'wait_for_reset', 'manual', 'reauthorize', 'none'])
-    .optional(),
-  suggestedTools: z.array(z.string()).optional(),
+    .optional()
+    .describe('Recommended retry strategy'),
+  suggestedTools: z
+    .array(z.string())
+    .optional()
+    .describe('Tools that might help resolve this error'),
   // Automated error recovery
   fixableVia: z
     .object({
-      tool: z.string(),
-      action: z.string(),
-      params: z.record(z.string(), z.unknown()).optional(),
+      tool: z.string().describe('Tool name to fix the error'),
+      action: z.string().describe('Action name to execute'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        )
+        .optional()
+        .describe('Parameters ready to execute the fix action'),
     })
-    .optional(),
+    .optional()
+    .describe('Automated fix action with complete parameters'),
   // Quick Win #2: Resource links for error guidance
   resources: z
     .array(
@@ -997,14 +1026,42 @@ export const QuotaStatusSchema = z.object({
 
 /** Response metadata with suggestions and cost info */
 export const ResponseMetaSchema = z.object({
-  suggestions: z.array(ToolSuggestionSchema).optional(),
-  costEstimate: CostEstimateSchema.optional(),
-  relatedTools: z.array(z.string()).optional(),
-  documentation: z.string().regex(URL_REGEX, 'Invalid URL format').optional(),
-  nextSteps: z.array(z.string()).optional(),
-  warnings: z.array(z.string()).optional(), // Safety warnings
-  snapshot: z.record(z.string(), z.unknown()).optional(), // Snapshot info for undo
-  quotaStatus: QuotaStatusSchema.optional(), // Predictive quota management
+  suggestions: z
+    .array(ToolSuggestionSchema)
+    .optional()
+    .describe('Follow-up tool suggestions and optimizations'),
+  costEstimate: CostEstimateSchema.optional().describe('API call cost estimate'),
+  relatedTools: z.array(z.string()).optional().describe('Related tools that might be useful'),
+  documentation: z
+    .string()
+    .regex(URL_REGEX, 'Invalid URL format')
+    .optional()
+    .describe('URL to relevant documentation'),
+  nextSteps: z.array(z.string()).optional().describe('Recommended next steps'),
+  warnings: z.array(z.string()).optional().describe('Safety warnings or considerations'),
+  snapshot: z
+    .object({
+      snapshotId: z.string().describe('Unique snapshot identifier'),
+      timestamp: z.string().describe('ISO 8601 timestamp of snapshot creation'),
+      description: z.string().optional().describe('Human-readable snapshot description'),
+      metadata: z
+        .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+        .optional()
+        .describe('Additional snapshot metadata'),
+    })
+    .optional()
+    .describe('Snapshot info for undo/rollback'),
+  quotaStatus: QuotaStatusSchema.optional().describe('Predictive quota management'),
+  summary: z
+    .object({
+      total: z.number().int().describe('Total item count'),
+      byStatus: z
+        .record(z.string(), z.number().int())
+        .optional()
+        .describe('Counts grouped by status'),
+    })
+    .optional()
+    .describe('Summary statistics for list-type responses'),
 });
 
 // ============================================================================
@@ -1110,8 +1167,20 @@ export const ExecutableActionSchema = z.object({
     .describe('Tool name (e.g., "sheets_fix", "sheets_data", "sheets_format")'),
   action: z.string().min(1).describe('Action name within the tool'),
   params: z
-    .record(z.string(), z.unknown())
-    .describe('Complete parameters ready to execute - all values must be concrete'),
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe(
+      'Complete parameters ready to execute - all values must be concrete (strings, numbers, booleans, arrays, or objects)'
+    ),
 
   // Human-readable context
   title: z.string().max(80).describe('Short action title for display'),
@@ -1214,8 +1283,18 @@ export const DrillDownOptionSchema = z.object({
     .optional()
     .describe('Severity if this is a potential problem'),
   params: z
-    .record(z.string(), z.unknown())
-    .describe('Ready-to-use params for sheets_analyze:drill_down action'),
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe('Ready-to-use params for sheets_analyze:drill_down action with concrete values'),
 });
 
 /**

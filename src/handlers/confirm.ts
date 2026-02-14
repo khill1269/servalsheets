@@ -292,6 +292,7 @@ export class ConfirmHandler {
                 code: 'NOT_FOUND',
                 message: `Wizard "${stepInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
+                suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
               },
             };
             break;
@@ -306,6 +307,8 @@ export class ConfirmHandler {
                 code: 'INVALID_PARAMS',
                 message: `Step "${stepInput.stepId}" not found in wizard.`,
                 retryable: false,
+                suggestedFix:
+                  "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
               },
             };
             break;
@@ -340,7 +343,10 @@ export class ConfirmHandler {
             totalSteps: session.steps.length,
             currentStepId: currentStep.stepId,
             completedSteps: session.completedSteps,
-            collectedValues: session.collectedValues,
+            collectedValues: session.collectedValues as Record<
+              string,
+              string | number | boolean | unknown[] | Record<string, unknown> | null
+            >,
             isComplete,
           };
 
@@ -367,6 +373,7 @@ export class ConfirmHandler {
                 code: 'NOT_FOUND',
                 message: `Wizard "${completeInput.wizardId}" not found. It may have expired.`,
                 retryable: false,
+                suggestedFix: 'Verify the spreadsheet ID is correct and the spreadsheet exists',
               },
             };
             break;
@@ -380,7 +387,10 @@ export class ConfirmHandler {
             totalSteps: session.steps.length,
             currentStepId: session.steps[session.steps.length - 1]!.stepId,
             completedSteps: session.completedSteps,
-            collectedValues: session.collectedValues,
+            collectedValues: session.collectedValues as Record<
+              string,
+              string | number | boolean | unknown[] | Record<string, unknown> | null
+            >,
             isComplete: true,
           };
 

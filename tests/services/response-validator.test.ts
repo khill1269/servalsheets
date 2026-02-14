@@ -188,9 +188,24 @@ describe('ResponseValidator', () => {
       ).resolves.toBeDefined();
     });
 
-    it.skip('should handle validation exceptions gracefully', async () => {
-      // Skip: Difficult to mock module behavior after initialization
-      // The validator fail-safe mechanism is tested in other tests
+    it('should handle validation exceptions gracefully', async () => {
+      // Override internal discovery client to force schema fetch failure
+      (validator as unknown as { discoveryClient: { isEnabled: () => boolean; getApiSchema: () => Promise<unknown> } }).discoveryClient = {
+        isEnabled: () => true,
+        getApiSchema: vi.fn().mockRejectedValue(new Error('Discovery offline')),
+      };
+
+      const response: sheets_v4.Schema$BatchUpdateSpreadsheetResponse = {
+        spreadsheetId: 'test-id',
+        replies: [],
+      };
+
+      const result = await validator.validateBatchUpdateResponse(response);
+
+      expect(result.valid).toBe(true); // Fail-safe
+      expect(result.validated).toBe(false);
+      expect(result.skipReason).toContain('Validation exception');
+      expect(result.skipReason).toContain('Discovery offline');
     });
   });
 
@@ -513,9 +528,22 @@ describe('ResponseValidator', () => {
       expect(result.validated).toBe(true);
     });
 
-    it.skip('should handle disabled discovery client', async () => {
-      // Skip: Difficult to mock module behavior after initialization
-      // The validator handles disabled discovery client via skipReason in actual use
+    it('should handle disabled discovery client', async () => {
+      // Override internal discovery client to simulate disabled state
+      (validator as unknown as { discoveryClient: { isEnabled: () => boolean } }).discoveryClient = {
+        isEnabled: () => false,
+      };
+
+      const response: sheets_v4.Schema$BatchUpdateSpreadsheetResponse = {
+        spreadsheetId: 'test-id',
+        replies: [],
+      };
+
+      const result = await validator.validateBatchUpdateResponse(response);
+
+      expect(result.valid).toBe(true);
+      expect(result.validated).toBe(false);
+      expect(result.skipReason).toContain('Discovery API is not enabled');
     });
   });
 });

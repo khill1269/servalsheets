@@ -504,18 +504,15 @@ export class ConflictDetector {
 
   /**
    * Check if there's a conflict between versions
+   *
+   * LOGIC: A conflict exists only if the DATA has changed (checksums differ).
+   * Timestamps and version numbers are secondary - they reflect the API's internal
+   * state, not the user's actual data. If checksums match, the data is identical,
+   * so there's no real conflict regardless of when the API updated.
    */
   private hasConflict(expected: RangeVersion, current: RangeVersion): boolean {
-    // Conflict exists if:
-    // 1. Timestamps differ
-    // 2. Checksums differ
-    // 3. Versions differ
-
-    return (
-      current.lastModified > expected.lastModified ||
-      current.checksum !== expected.checksum ||
-      current.version > expected.version
-    );
+    // PRIMARY: Data must be different (checksum mismatch)
+    return current.checksum !== expected.checksum;
   }
 
   /**

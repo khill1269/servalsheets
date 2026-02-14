@@ -115,7 +115,17 @@ const WizardStepDefSchema = z.object({
         type: z.enum(['text', 'number', 'boolean', 'select', 'multiselect']).describe('Field type'),
         required: z.boolean().default(true),
         options: z.array(z.string()).optional().describe('Options for select/multiselect'),
-        default: z.unknown().optional().describe('Default value'),
+        default: z
+          .union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+          .optional()
+          .describe('Default value'),
         validation: z.string().optional().describe('Validation regex pattern'),
       })
     )
@@ -133,9 +143,21 @@ const WizardStartActionSchema = z.object({
   description: z.string().describe('Wizard description'),
   steps: z.array(WizardStepDefSchema).min(1).max(10).describe('Wizard steps (max 10)'),
   context: z
-    .record(z.string(), z.unknown())
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
     .optional()
-    .describe('Context data available to all steps'),
+    .describe(
+      'Context data available to all steps (can be string, number, boolean, null, array, or object)'
+    ),
   verbosity: VerbositySchema,
 });
 
@@ -146,7 +168,21 @@ const WizardStepActionSchema = z.object({
   action: z.literal('wizard_step').describe('Process a wizard step'),
   wizardId: z.string().describe('Wizard ID'),
   stepId: z.string().describe('Current step ID'),
-  values: z.record(z.string(), z.unknown()).describe('Field values for this step'),
+  values: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe(
+      'Field values for this step (can be string, number, boolean, null, array, or object)'
+    ),
   direction: z.enum(['next', 'back', 'skip']).default('next').describe('Navigation direction'),
   verbosity: VerbositySchema,
 });
@@ -203,7 +239,17 @@ const WizardStateSchema = z.object({
   totalSteps: z.number(),
   currentStepId: z.string(),
   completedSteps: z.array(z.string()),
-  collectedValues: z.record(z.string(), z.unknown()),
+  collectedValues: z.record(
+    z.string(),
+    z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.any()),
+      z.record(z.string(), z.any()),
+    ])
+  ),
   isComplete: z.boolean(),
 });
 

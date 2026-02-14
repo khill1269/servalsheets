@@ -1094,8 +1094,11 @@ describe('SheetsAppsScriptHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('userProcessFilter.scriptId=script-123'),
-        expect.any(Object)
+        expect.stringContaining('/processes:listScriptProcesses'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"scriptId":"script-123"'),
+        })
       );
     });
 
@@ -1115,12 +1118,18 @@ describe('SheetsAppsScriptHandler', () => {
 
       expect(result.response.success).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('userProcessFilter.functionName=myFunction'),
-        expect.any(Object)
+        expect.stringContaining('/processes:listScriptProcesses'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"functionName":"myFunction"'),
+        })
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('userProcessFilter.types=WEBAPP'),
-        expect.any(Object)
+        expect.stringContaining('/processes:listScriptProcesses'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"types":["WEBAPP"]'),
+        })
       );
     });
 
@@ -1146,8 +1155,11 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.success).toBe(true);
       expect(result.response.nextPageToken).toBe('token-next');
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('pageSize=50'),
-        expect.any(Object)
+        expect.stringContaining('/processes:listScriptProcesses'),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"pageSize":50'),
+        })
       );
     });
   });

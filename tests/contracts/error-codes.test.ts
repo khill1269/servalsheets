@@ -166,9 +166,12 @@ describe('Error Code Coverage', () => {
             resourceId: `${resourceType}-123`,
           });
 
-          expect(['SPREADSHEET_NOT_FOUND', 'SHEET_NOT_FOUND', 'RANGE_NOT_FOUND', 'NOT_FOUND']).toContain(
-            error.code
-          );
+          expect([
+            'SPREADSHEET_NOT_FOUND',
+            'SHEET_NOT_FOUND',
+            'RANGE_NOT_FOUND',
+            'NOT_FOUND',
+          ]).toContain(error.code);
           expect(error.category).toBe('client');
           expect(error.retryable).toBe(false);
           expect(error.message).toContain(resourceType);
@@ -201,7 +204,12 @@ describe('Error Code Coverage', () => {
     });
 
     describe('createAuthenticationError', () => {
-      const reasons = ['missing_token', 'invalid_token', 'expired_token', 'insufficient_scopes'] as const;
+      const reasons = [
+        'missing_token',
+        'invalid_token',
+        'expired_token',
+        'insufficient_scopes',
+      ] as const;
 
       for (const reason of reasons) {
         it(`should create error for ${reason}`, () => {
@@ -400,13 +408,15 @@ describe('Error Code Coverage', () => {
 
   describe('Error Pattern Detection', () => {
     it('should detect rate limit pattern', () => {
-      const errors: ErrorDetail[] = Array(5).fill(null).map(() => ({
-        code: 'RATE_LIMITED',
-        message: 'Rate limit exceeded',
-        category: 'quota',
-        severity: 'medium',
-        retryable: true,
-      }));
+      const errors: ErrorDetail[] = Array(5)
+        .fill(null)
+        .map(() => ({
+          code: 'RATE_LIMITED',
+          message: 'Rate limit exceeded',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        }));
 
       const pattern = detectErrorPattern(errors);
 
@@ -417,9 +427,27 @@ describe('Error Code Coverage', () => {
 
     it('should detect permission pattern', () => {
       const errors: ErrorDetail[] = [
-        { code: 'PERMISSION_DENIED', message: 'No access', category: 'auth', severity: 'high', retryable: false },
-        { code: 'PERMISSION_DENIED', message: 'Cannot edit', category: 'auth', severity: 'high', retryable: false },
-        { code: 'FORBIDDEN', message: 'Forbidden', category: 'auth', severity: 'high', retryable: false },
+        {
+          code: 'PERMISSION_DENIED',
+          message: 'No access',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+        },
+        {
+          code: 'PERMISSION_DENIED',
+          message: 'Cannot edit',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+        },
+        {
+          code: 'FORBIDDEN',
+          message: 'Forbidden',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+        },
       ];
 
       const pattern = detectErrorPattern(errors);
@@ -432,9 +460,27 @@ describe('Error Code Coverage', () => {
       // Auth expiry pattern requires errors with 'token' or 'auth' in the message
       // and category 'auth' but code is NOT PERMISSION_DENIED or FORBIDDEN
       const errors: ErrorDetail[] = [
-        { code: 'TOKEN_EXPIRED', message: 'Token has expired', category: 'auth', severity: 'high', retryable: true },
-        { code: 'INVALID_TOKEN', message: 'Invalid auth token provided', category: 'auth', severity: 'high', retryable: false },
-        { code: 'AUTH_FAILED', message: 'Authentication token failed', category: 'auth', severity: 'high', retryable: false },
+        {
+          code: 'TOKEN_EXPIRED',
+          message: 'Token has expired',
+          category: 'auth',
+          severity: 'high',
+          retryable: true,
+        },
+        {
+          code: 'INVALID_TOKEN',
+          message: 'Invalid auth token provided',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+        },
+        {
+          code: 'AUTH_FAILED',
+          message: 'Authentication token failed',
+          category: 'auth',
+          severity: 'high',
+          retryable: false,
+        },
       ];
 
       const pattern = detectErrorPattern(errors);
@@ -450,13 +496,15 @@ describe('Error Code Coverage', () => {
     });
 
     it('should detect network pattern', () => {
-      const errors: ErrorDetail[] = Array(4).fill(null).map(() => ({
-        code: 'UNAVAILABLE',
-        message: 'Network error',
-        category: 'network',
-        severity: 'high',
-        retryable: true,
-      }));
+      const errors: ErrorDetail[] = Array(4)
+        .fill(null)
+        .map(() => ({
+          code: 'UNAVAILABLE',
+          message: 'Network error',
+          category: 'network',
+          severity: 'high',
+          retryable: true,
+        }));
 
       const pattern = detectErrorPattern(errors);
 
@@ -471,8 +519,20 @@ describe('Error Code Coverage', () => {
 
     it('should return null when no clear pattern', () => {
       const errors: ErrorDetail[] = [
-        { code: 'INVALID_REQUEST', message: 'Bad request', category: 'client', severity: 'medium', retryable: false },
-        { code: 'NOT_FOUND', message: 'Not found', category: 'client', severity: 'medium', retryable: false },
+        {
+          code: 'INVALID_REQUEST',
+          message: 'Bad request',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+        },
+        {
+          code: 'NOT_FOUND',
+          message: 'Not found',
+          category: 'client',
+          severity: 'medium',
+          retryable: false,
+        },
       ];
 
       const pattern = detectErrorPattern(errors);
@@ -481,9 +541,30 @@ describe('Error Code Coverage', () => {
 
     it('should track affected operations', () => {
       const errors: ErrorDetail[] = [
-        { code: 'RATE_LIMITED', message: 'Limit', category: 'quota', severity: 'medium', retryable: true, details: { operation: 'read' } },
-        { code: 'RATE_LIMITED', message: 'Limit', category: 'quota', severity: 'medium', retryable: true, details: { operation: 'write' } },
-        { code: 'RATE_LIMITED', message: 'Limit', category: 'quota', severity: 'medium', retryable: true, details: { operation: 'read' } },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+          details: { operation: 'read' },
+        },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+          details: { operation: 'write' },
+        },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+          details: { operation: 'read' },
+        },
       ];
 
       const pattern = detectErrorPattern(errors);
@@ -517,7 +598,9 @@ describe('Error Code Coverage', () => {
           code: 'invalid_enum_value',
           path: ['action'],
           message: 'Invalid',
-          options: Array(15).fill(null).map((_, i) => `option${i}`),
+          options: Array(15)
+            .fill(null)
+            .map((_, i) => `option${i}`),
         },
       ];
 
@@ -544,19 +627,35 @@ describe('Error Code Coverage', () => {
       expect(formatted).toContain('spreadsheetId');
     });
 
-    it('should format union discriminator errors', () => {
+    it('should format union discriminator errors with valid actions', () => {
       const errors = [
         {
           code: 'invalid_union_discriminator',
           path: ['request', 'action'],
           message: 'Invalid discriminator value',
+          options: ['get', 'create', 'update_sheet', 'delete_sheet'],
         },
       ];
 
       const formatted = formatZodErrors(errors);
 
-      expect(formatted).toContain('discriminator');
+      expect(formatted).toContain('Valid actions:');
       expect(formatted).toContain('action');
+      expect(formatted).toContain('update_sheet');
+    });
+
+    it('should truncate long action lists for discriminator errors', () => {
+      const errors = [
+        {
+          code: 'invalid_union_discriminator',
+          path: ['request', 'action'],
+          message: 'Invalid discriminator value',
+          options: Array.from({ length: 25 }, (_, i) => `action_${i}`),
+        },
+      ];
+
+      const formatted = formatZodErrors(errors);
+      expect(formatted).toContain('(and 5 more)');
     });
   });
 
@@ -591,7 +690,8 @@ describe('Error Code Coverage', () => {
 
       const error = createZodValidationError(zodErrors);
 
-      expect(error.resolutionSteps!.join(' ')).toContain('enum');
+      expect(error.resolutionSteps!.join(' ')).toContain('action/enum');
+      expect(error.resolutionSteps!.join(' ')).toContain('parallel tool calls');
     });
   });
 
@@ -629,12 +729,30 @@ describe('Error Code Coverage', () => {
 
     it('should include error history', () => {
       const previousErrors: ErrorDetail[] = [
-        { code: 'RATE_LIMITED', message: 'Limit 1', category: 'quota', severity: 'medium', retryable: true },
-        { code: 'RATE_LIMITED', message: 'Limit 2', category: 'quota', severity: 'medium', retryable: true },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit 1',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit 2',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        },
       ];
 
       const enriched = enrichErrorWithContext(
-        { code: 'RATE_LIMITED', message: 'Limit 3', category: 'quota', severity: 'medium', retryable: true },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit 3',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        },
         { previousErrors }
       );
 
@@ -642,16 +760,24 @@ describe('Error Code Coverage', () => {
     });
 
     it('should limit error history to 10 entries', () => {
-      const previousErrors: ErrorDetail[] = Array(15).fill(null).map((_, i) => ({
-        code: 'ERROR',
-        message: `Error ${i}`,
-        category: 'client',
-        severity: 'low',
-        retryable: false,
-      }));
+      const previousErrors: ErrorDetail[] = Array(15)
+        .fill(null)
+        .map((_, i) => ({
+          code: 'ERROR',
+          message: `Error ${i}`,
+          category: 'client',
+          severity: 'low',
+          retryable: false,
+        }));
 
       const enriched = enrichErrorWithContext(
-        { code: 'ERROR', message: 'Current', category: 'client', severity: 'low', retryable: false },
+        {
+          code: 'ERROR',
+          message: 'Current',
+          category: 'client',
+          severity: 'low',
+          retryable: false,
+        },
         { previousErrors }
       );
 
@@ -659,16 +785,24 @@ describe('Error Code Coverage', () => {
     });
 
     it('should detect patterns from previous errors', () => {
-      const previousErrors: ErrorDetail[] = Array(5).fill(null).map(() => ({
-        code: 'RATE_LIMITED',
-        message: 'Limit exceeded',
-        category: 'quota',
-        severity: 'medium',
-        retryable: true,
-      }));
+      const previousErrors: ErrorDetail[] = Array(5)
+        .fill(null)
+        .map(() => ({
+          code: 'RATE_LIMITED',
+          message: 'Limit exceeded',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        }));
 
       const enriched = enrichErrorWithContext(
-        { code: 'RATE_LIMITED', message: 'Limit', category: 'quota', severity: 'medium', retryable: true },
+        {
+          code: 'RATE_LIMITED',
+          message: 'Limit',
+          category: 'quota',
+          severity: 'medium',
+          retryable: true,
+        },
         { previousErrors }
       );
 
@@ -694,11 +828,22 @@ describe('Error Code Coverage', () => {
       producedCodes.add(createPermissionError({ operation: 'test' }).code);
       producedCodes.add(createRateLimitError({}).code);
 
-      for (const resourceType of ['spreadsheet', 'sheet', 'range', 'operation', 'snapshot'] as const) {
+      for (const resourceType of [
+        'spreadsheet',
+        'sheet',
+        'range',
+        'operation',
+        'snapshot',
+      ] as const) {
         producedCodes.add(createNotFoundError({ resourceType, resourceId: 'x' }).code);
       }
 
-      for (const reason of ['missing_token', 'invalid_token', 'expired_token', 'insufficient_scopes'] as const) {
+      for (const reason of [
+        'missing_token',
+        'invalid_token',
+        'expired_token',
+        'insufficient_scopes',
+      ] as const) {
         producedCodes.add(createAuthenticationError({ reason }).code);
       }
 
@@ -720,11 +865,19 @@ describe('Error Code Coverage', () => {
       }
 
       // Parse specific error scenarios
-      producedCodes.add(parseGoogleApiError({ code: 400, errors: [{ reason: 'invalidRange' }] }).code!);
-      producedCodes.add(parseGoogleApiError({ code: 400, errors: [{ reason: 'circularReference' }] }).code!);
-      producedCodes.add(parseGoogleApiError({ code: 400, errors: [{ reason: 'duplicateSheetName' }] }).code!);
+      producedCodes.add(
+        parseGoogleApiError({ code: 400, errors: [{ reason: 'invalidRange' }] }).code!
+      );
+      producedCodes.add(
+        parseGoogleApiError({ code: 400, errors: [{ reason: 'circularReference' }] }).code!
+      );
+      producedCodes.add(
+        parseGoogleApiError({ code: 400, errors: [{ reason: 'duplicateSheetName' }] }).code!
+      );
       producedCodes.add(parseGoogleApiError({ code: 400, message: 'formula error' }).code!);
-      producedCodes.add(parseGoogleApiError({ code: 403, errors: [{ reason: 'protectedRange' }] }).code!);
+      producedCodes.add(
+        parseGoogleApiError({ code: 403, errors: [{ reason: 'protectedRange' }] }).code!
+      );
 
       // Add Zod validation error code
       producedCodes.add(createZodValidationError([{ code: 'x', path: [], message: 'x' }]).code);

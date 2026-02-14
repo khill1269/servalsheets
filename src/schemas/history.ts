@@ -149,8 +149,27 @@ const HistoryResponseSchema = z.discriminatedUnion('success', [
         id: z.string(),
         tool: z.string(),
         action: z.string(),
-        params: z.record(z.string(), z.unknown()),
-        result: z.unknown().optional(),
+        params: z.record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        ),
+        result: z
+          .union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+          .optional(),
         spreadsheetId: z.string().optional(),
         range: z.string().optional(),
         success: z.boolean(),

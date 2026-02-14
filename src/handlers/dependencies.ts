@@ -72,6 +72,8 @@ export class DependenciesHandler {
                 code: 'INVALID_PARAMS',
                 message: `Unknown action: ${(req as { action: string }).action}`,
                 retryable: false,
+                suggestedFix:
+                  "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
               },
             },
           };

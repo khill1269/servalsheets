@@ -9,6 +9,7 @@ import type { sheets_v4 } from 'googleapis';
 import { createHash } from 'crypto';
 import type { DiffResult, DiffOptions, CellValue } from '../schemas/shared.js';
 import PQueue from 'p-queue';
+import { logger } from '../utils/logger.js';
 
 type CellChangeRecord = {
   cell: string;
@@ -743,7 +744,12 @@ export class DiffEngine {
         valueRenderOption: 'UNFORMATTED_VALUE',
       });
       return (response.data.values ?? []) as CellValue[][];
-    } catch {
+    } catch (error) {
+      logger.error('Failed to fetch range values for diff', {
+        error,
+        spreadsheetId,
+        range,
+      });
       return [];
     }
   }

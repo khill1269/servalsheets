@@ -183,8 +183,8 @@ describe('Schema Contracts', () => {
       expect(TOOL_SCHEMAS).toHaveLength(21);
     });
 
-    it('should have 291 total actions across all tools', () => {
-      expect(ACTION_COUNT).toBe(291);
+    it('should have 294 total actions across all tools', () => {
+      expect(ACTION_COUNT).toBe(294);
     });
 
     it('should not have duplicate tool names', () => {

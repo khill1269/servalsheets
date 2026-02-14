@@ -22,6 +22,9 @@ import { createAuthRequiredError, createResourceReadError } from '../../utils/mc
  * Registers ServalSheets resources with the MCP server
  *
  * Resources provide read-only access to spreadsheet metadata via URI templates.
+ * Note: resources/list uses SDK's built-in handler. Cursor pagination is not needed
+ * with <10 resource templates. The SDK returns all resources in a single page per
+ * MCP 2025-11-25 spec (cursor pagination is optional for small collections).
  *
  * @param server - McpServer instance
  * @param googleClient - Google API client (null if not authenticated)

@@ -65,7 +65,20 @@ const TemplateDefinitionSchema = z.object({
   updated: z.string().datetime().optional().describe('ISO timestamp of last update'),
   sheets: z.array(TemplateSheetSchema).min(1).describe('Sheet definitions'),
   namedRanges: z.array(TemplateNamedRangeSchema).optional().describe('Named ranges to create'),
-  metadata: z.record(z.string(), z.unknown()).optional().describe('Custom metadata'),
+  metadata: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .optional()
+    .describe('Custom metadata (string, number, boolean, null, array, or object)'),
 });
 
 /**
@@ -149,7 +162,20 @@ const UpdateActionSchema = z.object({
   category: z.string().optional().describe('New category'),
   sheets: z.array(TemplateSheetSchema).optional().describe('Updated sheet definitions'),
   namedRanges: z.array(TemplateNamedRangeSchema).optional().describe('Updated named ranges'),
-  metadata: z.record(z.string(), z.unknown()).optional().describe('Updated metadata'),
+  metadata: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .optional()
+    .describe('Updated metadata (string, number, boolean, null, array, or object)'),
   verbosity: VerbositySchema,
 });
 

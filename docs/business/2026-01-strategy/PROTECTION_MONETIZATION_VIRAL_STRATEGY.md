@@ -751,7 +751,7 @@ async function generateShareCard(userId: string): Promise<string> {
 
 ### Launch Campaign: "The 272 Challenge"
 
-**Concept:** Showcase that you have 293 actions by challenging users to find a Sheets task you can't do.
+**Concept:** Showcase that you have 294 actions by challenging users to find a Sheets task you can't do.
 
 **Campaign Flow:**
 

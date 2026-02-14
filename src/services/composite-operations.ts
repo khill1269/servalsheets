@@ -160,10 +160,12 @@ export interface DeduplicateResult {
   duplicatesFound: number;
   /** Rows deleted (0 if preview) */
   rowsDeleted: number;
+  /** Message explaining result (when empty or invalid data) */
+  message?: string;
   /** Preview of duplicates (if preview mode) */
   duplicatePreview?: Array<{
     rowNumber: number;
-    keyValues: Record<string, unknown>;
+    keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>;
     keepStatus: 'keep' | 'delete';
   }>;
 }
@@ -291,7 +293,7 @@ export class CompositeOperationsService {
       sheet,
       data,
       matchHeaders: _matchHeaders = true,
-      createMissingColumns = false,
+      createMissingColumns: optionsCreateMissing = false,
       skipEmptyRows = true,
     } = options;
 
@@ -323,6 +325,10 @@ export class CompositeOperationsService {
       String(h ?? '').trim()
     );
 
+
+    // BUG-020 FIX: When sheet is empty (no headers), auto-set createMissingColumns=true
+    // so that data keys become headers instead of being skipped
+    const createMissingColumns = existingHeaders.length === 0 ? true : optionsCreateMissing;
     // Get all column keys from data
     const dataKeys = new Set<string>();
     for (const row of data) {
@@ -584,11 +590,17 @@ export class CompositeOperationsService {
 
     const allRows = dataResponse.data.values ?? [];
     if (allRows.length <= 1) {
+      // BUG-021 FIX: Return with informative message instead of silently reporting 0
+      const message = allRows.length === 0
+        ? "Cannot deduplicate: sheet is empty"
+        : "Cannot deduplicate: sheet has only headers, no data rows";
+      logger.info(message, { spreadsheetId, sheet: targetSheet.title });
       return {
         totalRows: Math.max(0, allRows.length - 1),
         uniqueRows: Math.max(0, allRows.length - 1),
         duplicatesFound: 0,
         rowsDeleted: 0,
+        message,
       };
     }
 
@@ -610,7 +622,7 @@ export class CompositeOperationsService {
     const duplicateRows: number[] = [];
     const duplicatePreview: Array<{
       rowNumber: number;
-      keyValues: Record<string, unknown>;
+      keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>;
       keepStatus: 'keep' | 'delete';
     }> = [];
 
@@ -632,7 +644,7 @@ export class CompositeOperationsService {
         }
 
         if (preview) {
-          const keyValues: Record<string, unknown> = {};
+          const keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> = {};
           keyColumns.forEach((col, idx) => {
             keyValues[col] = row[keyColIndices[idx] ?? 0];
           });

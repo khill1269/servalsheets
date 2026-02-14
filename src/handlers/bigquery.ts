@@ -163,6 +163,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
             code: 'INVALID_PARAMS',
             message: `Unknown action: ${(req as { action: string }).action}`,
             retryable: false,
+            suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
           });
       }
 
@@ -249,7 +250,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       });
 
-      const addedDataSource = response.data.replies?.[0]?.addDataSource?.dataSource;
+      const addedDataSource = response.data?.replies?.[0]?.addDataSource?.dataSource;
 
       logger.info('Created BigQuery connection', {
         spreadsheetId: req.spreadsheetId,
@@ -309,7 +310,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       });
 
-      const addedDataSource = response.data.replies?.[0]?.addDataSource?.dataSource;
+      const addedDataSource = response.data?.replies?.[0]?.addDataSource?.dataSource;
 
       logger.info('Created Looker connection', {
         spreadsheetId: req.spreadsheetId,
@@ -444,6 +445,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           code: 'NOT_FOUND',
           message: `Data source not found: ${req.dataSourceId}`,
           retryable: false,
+          suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
         });
       }
 
@@ -551,7 +553,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       });
 
-      const addedDataSource = response.data.replies?.[0]?.addDataSource?.dataSource;
+      const addedDataSource = response.data?.replies?.[0]?.addDataSource?.dataSource;
 
       return this.success('query', {
         connection: {
@@ -800,6 +802,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           code: 'INVALID_PARAMS',
           message: 'Range must be a string, A1 notation object, or named range',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -814,6 +818,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           code: 'INVALID_PARAMS',
           message: 'No data found in the specified range',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -975,9 +981,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           },
         });
         targetSheetId =
-          addSheetResponse.data.replies?.[0]?.addSheet?.properties?.sheetId ?? undefined;
+          addSheetResponse.data?.replies?.[0]?.addSheet?.properties?.sheetId ?? undefined;
         targetSheetName =
-          addSheetResponse.data.replies?.[0]?.addSheet?.properties?.title ?? targetSheetName;
+          addSheetResponse.data?.replies?.[0]?.addSheet?.properties?.title ?? targetSheetName;
       }
 
       // Write data to sheet

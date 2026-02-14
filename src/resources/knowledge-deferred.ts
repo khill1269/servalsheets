@@ -25,6 +25,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { createResourceNotFoundError, createInvalidResourceUriError } from '../utils/mcp-errors.js';
 import { logger } from '../utils/logger.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -118,8 +119,40 @@ function cleanCache(): void {
   }
 }
 
-// Run cache cleanup every minute
-setInterval(cleanCache, 60 * 1000);
+// Store interval ID for cleanup
+let cacheCleanupInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Start the cache cleanup interval
+ * Called during module initialization to start the periodic cleanup task
+ */
+function startCacheCleanupInterval(): void {
+  if (cacheCleanupInterval !== null) {
+    logger.warn('Cache cleanup interval already running');
+    return;
+  }
+
+  // Run cache cleanup every minute
+  cacheCleanupInterval = setInterval(cleanCache, 60 * 1000);
+
+  // Register cleanup function to ensure interval is cleared on shutdown
+  registerCleanup(
+    'knowledge-deferred',
+    () => {
+      if (cacheCleanupInterval !== null) {
+        clearInterval(cacheCleanupInterval);
+        cacheCleanupInterval = null;
+        logger.debug('Knowledge cache cleanup interval cleared');
+      }
+    },
+    'cache-cleanup-interval'
+  );
+
+  logger.debug('Knowledge cache cleanup interval started (1 minute)');
+}
+
+// Start the cleanup interval when the module loads
+startCacheCleanupInterval();
 
 /**
  * Register deferred knowledge resource with URI template support

@@ -51,26 +51,34 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
   protocolServer.setRequestHandler(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK schema is runtime-validated
     ListToolsRequestSchema as any,
-    () => ({
-      tools: Object.entries(registeredTools ?? {})
-        .filter(([, tool]) => tool?.enabled !== false)
-        .map(([name, tool]) => {
-          const toolDefinition: Record<string, unknown> = {
-            name,
-            title: tool.title,
-            description: tool.description,
-            inputSchema: toJsonSchema(tool.inputSchema),
-            annotations: tool.annotations,
-            execution: tool.execution,
-            _meta: tool._meta,
-          };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accept cursor param for MCP spec compliance
+    (request: any) => {
+      // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤21 tools)
+      const _cursor: string | undefined = request?.params?.cursor;
 
-          if (tool.outputSchema) {
-            toolDefinition['outputSchema'] = toJsonSchema(tool.outputSchema);
-          }
+      return {
+        tools: Object.entries(registeredTools ?? {})
+          .filter(([, tool]) => tool?.enabled !== false)
+          .map(([name, tool]) => {
+            const toolDefinition: Record<string, unknown> = {
+              name,
+              title: tool.title,
+              description: tool.description,
+              inputSchema: toJsonSchema(tool.inputSchema),
+              annotations: tool.annotations,
+              execution: tool.execution,
+              _meta: tool._meta,
+            };
 
-          return toolDefinition;
-        }),
-    })
+            if (tool.outputSchema) {
+              toolDefinition['outputSchema'] = toJsonSchema(tool.outputSchema);
+            }
+
+            return toolDefinition;
+          }),
+        // MCP spec compliance: include nextCursor (undefined = no more pages)
+        nextCursor: undefined,
+      };
+    }
   );
 }

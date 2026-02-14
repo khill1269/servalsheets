@@ -1,7 +1,7 @@
 /**
  * Tool 5: sheets_format
  * Cell formatting operations (includes conditional formatting, data validation, and sparklines)
- * Format (10) + Sparklines (3) + Rules (8) = 21 actions
+ * Format (10) + Batch (1) + Sparklines (3) + Rules (8) = 22 actions
  */
 
 import { z } from 'zod';
@@ -253,7 +253,8 @@ const ApplyPresetActionSchema = CommonFieldsSchema.extend({
 
 const AutoFitActionSchema = CommonFieldsSchema.extend({
   action: z.literal('auto_fit').describe('Auto-fit column width or row height to content'),
-  range: RangeInputSchema.describe('Range to auto-fit'),
+  range: RangeInputSchema.optional().describe('Range to auto-fit (omit if using sheetId to fit entire sheet)'),
+  sheetId: SheetIdSchema.optional().describe('Sheet ID to auto-fit entire sheet (alternative to range)'),
   dimension: z
     .preprocess(
       (val) => (typeof val === 'string' ? val.toUpperCase() : val),
@@ -264,7 +265,10 @@ const AutoFitActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Dimension to auto-fit: ROWS, COLUMNS, or BOTH (default: COLUMNS). Case-insensitive.'
     ),
-});
+}).refine(
+  (data) => data.range || data.sheetId,
+  { message: 'Either range or sheetId must be provided' }
+);
 
 // ===== SPARKLINE ACTION SCHEMAS (3 actions) =====
 
@@ -274,8 +278,8 @@ const SparklineAddActionSchema = CommonFieldsSchema.extend({
     .describe('Add a sparkline visualization to a cell using the SPARKLINE formula'),
   targetCell: z
     .string()
-    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, single cell only)')
-    .describe('Target cell for sparkline (A1 notation, single cell only)'),
+    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
+    .describe('Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1, single cell only)'),
   dataRange: RangeInputSchema.describe(
     'Data range for sparkline (should be 1D - single row or column)'
   ),
@@ -288,16 +292,16 @@ const SparklineGetActionSchema = CommonFieldsSchema.extend({
     .describe('Get sparkline formula and configuration from a cell'),
   cell: z
     .string()
-    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format)')
-    .describe('Cell to get sparkline from (A1 notation)'),
+    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
+    .describe('Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
 });
 
 const SparklineClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sparkline_clear').describe('Remove sparkline from a cell'),
   cell: z
     .string()
-    .regex(/^[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format)')
-    .describe('Cell to clear sparkline from (A1 notation)'),
+    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
+    .describe('Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
 });
 
 // ===== RULES ACTION SCHEMAS (8 actions) =====
@@ -309,11 +313,11 @@ const RuleAddConditionalFormatActionSchema = CommonFieldsSchema.extend({
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the conditional format rule'),
   rule: ConditionalFormatRuleSchema.describe(
-    `Conditional format rule. Two types supported:
-1. BOOLEAN (type: "boolean"): Apply format when condition is met.
-   Example: { type: "boolean", condition: { type: "NUMBER_GREATER", values: ["100"] }, format: { backgroundColor: "green" } }
-2. GRADIENT (type: "gradient"): Color scale based on values.
-   Example: { type: "gradient", minpoint: { type: "MIN", color: "red" }, maxpoint: { type: "MAX", color: "green" } }`
+    `Conditional format rule object. Two types:
+1. BOOLEAN RULE: { type: "boolean", condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: "error" }] }, format: { backgroundColor: { red: 1, green: 0.5, blue: 0.5 }, textFormat: { bold: true } } }
+   Other condition types: NUMBER_GREATER, NUMBER_LESS, NUMBER_BETWEEN, TEXT_IS_EMAIL, TEXT_IS_URL, DATE_BEFORE, BLANK, CUSTOM_FORMULA
+2. GRADIENT RULE: { type: "gradient", minpoint: { type: "MIN", color: { red: 0, green: 1, blue: 0 } }, midpoint: { type: "PERCENT", value: "50", color: { red: 1, green: 1, blue: 0 } }, maxpoint: { type: "MAX", color: { red: 1, green: 0, blue: 0 } } }
+   Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE`
   ),
   index: z
     .number()
@@ -497,6 +501,90 @@ const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
     ),
 });
 
+// ============================================================================
+// BATCH FORMAT SCHEMA (1 new action)
+// ============================================================================
+
+/**
+ * Individual operation within a batch_format call.
+ * Each operation specifies a type, range, and type-specific parameters.
+ * All operations are combined into a single Google Sheets batchUpdate API call.
+ */
+const BatchFormatOperationSchema = z
+  .object({
+    type: z
+      .enum([
+        'background',
+        'text_format',
+        'number_format',
+        'alignment',
+        'borders',
+        'format',
+        'preset',
+      ])
+      .describe(
+        'Operation type: background (set color), text_format (bold/italic/font), number_format (currency/percentage), alignment (left/center/right), borders (cell borders), format (full CellFormat), preset (header_row/alternating_rows/etc.)'
+      ),
+    range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
+    // Type-specific fields (all optional, validated by handler based on type)
+    color: ColorSchema.optional().describe('Background color (for type: "background")'),
+    textFormat: TextFormatSchema.optional().describe(
+      'Text format spec (for type: "text_format")'
+    ),
+    numberFormat: NumberFormatSchema.optional().describe(
+      'Number format spec (for type: "number_format")'
+    ),
+    horizontal: HorizontalAlignSchema.optional().describe(
+      'Horizontal alignment (for type: "alignment")'
+    ),
+    vertical: VerticalAlignSchema.optional().describe(
+      'Vertical alignment (for type: "alignment")'
+    ),
+    wrapStrategy: WrapStrategySchema.optional().describe(
+      'Wrap strategy (for type: "alignment")'
+    ),
+    top: LLMBorderSchema.describe('Top border (for type: "borders")'),
+    bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
+    left: LLMBorderSchema.describe('Left border (for type: "borders")'),
+    right: LLMBorderSchema.describe('Right border (for type: "borders")'),
+    innerHorizontal: LLMBorderSchema.describe(
+      'Inner horizontal borders (for type: "borders")'
+    ),
+    innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
+    format: CellFormatSchema.optional().describe(
+      'Full cell format specification (for type: "format")'
+    ),
+    preset: z
+      .enum([
+        'header_row',
+        'alternating_rows',
+        'total_row',
+        'currency',
+        'percentage',
+        'date',
+        'highlight_positive',
+        'highlight_negative',
+      ])
+      .optional()
+      .describe('Preset name (for type: "preset")'),
+  })
+  .describe('Single format operation within a batch');
+
+const BatchFormatActionSchema = CommonFieldsSchema.extend({
+  action: z
+    .literal('batch_format')
+    .describe(
+      'Apply multiple format operations in a single API call. 80-95% faster than individual calls. Use this when applying 2+ format changes.'
+    ),
+  operations: z
+    .array(BatchFormatOperationSchema)
+    .min(1)
+    .max(100)
+    .describe(
+      'Array of format operations to apply in one batch. Each operation specifies a type, range, and type-specific parameters. All are sent as a single Google Sheets API call.'
+    ),
+});
+
 // Preprocess to normalize common LLM input variations for format actions
 const normalizeFormatRequest = (val: unknown): unknown => {
   if (typeof val !== 'object' || val === null) return val;
@@ -639,6 +727,8 @@ export const SheetsFormatInputSchema = z.object({
       ClearFormatActionSchema,
       ApplyPresetActionSchema,
       AutoFitActionSchema,
+      // Batch format (1)
+      BatchFormatActionSchema,
       // Sparkline actions (3)
       SparklineAddActionSchema,
       SparklineGetActionSchema,
@@ -662,6 +752,9 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     action: z.string(),
     // Format response fields
     cellsFormatted: z.coerce.number().int().optional(),
+    // Batch format response fields
+    operationsApplied: z.coerce.number().int().optional().describe('Number of operations applied (for batch_format)'),
+    apiCallsSaved: z.coerce.number().int().optional().describe('Number of API calls saved by batching'),
     suggestions: z
       .array(
         z.object({

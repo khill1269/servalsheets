@@ -79,13 +79,39 @@ const DataQualityIssueSchema = z.object({
   autoFixable: z.boolean(),
   fixTool: z.string().optional(),
   fixAction: z.string().optional(),
-  fixParams: z.record(z.string(), z.unknown()).optional(),
+  fixParams: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+      ])
+    )
+    .optional(),
   // NEW: Ready-to-execute fix parameters
   executableFix: z
     .object({
       tool: z.string().describe('Tool to use for fix (e.g., sheets_fix, sheets_data)'),
       action: z.string().describe('Action to perform'),
-      params: z.record(z.string(), z.unknown()).describe('Complete parameters ready to execute'),
+      params: z
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          ])
+        )
+        .describe(
+          'Complete parameters ready to execute (can be string, number, boolean, null, array, or object)'
+        ),
       description: z.string().describe('Human-readable fix description'),
       estimatedTime: z.string().optional().describe('Estimated time to complete fix'),
     })
@@ -119,7 +145,19 @@ const TemplateDetectionSchema = z.object({
         type: z.enum(['formula', 'formatting', 'validation', 'chart', 'pivot', 'structure']),
         suggestion: z.string(),
         benefit: z.string(),
-        executionParams: z.record(z.string(), z.unknown()).optional(),
+        executionParams: z
+          .record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            ])
+          )
+          .optional(),
       })
     )
     .optional()
@@ -150,7 +188,17 @@ export const PerformanceRecommendationSchema = z.object({
     .object({
       tool: z.string(),
       action: z.string(),
-      params: z.record(z.string(), z.unknown()),
+      params: z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        ])
+      ),
       description: z.string(),
     })
     .optional()
@@ -445,7 +493,17 @@ const ExplainAnalysisActionSchema = z
   .object({
     action: z.literal('explain_analysis').describe('Conversational explanations'),
     analysisResult: z
-      .record(z.string(), z.unknown())
+      .record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        ])
+      )
       .optional()
       .describe('Previous analysis result to explain'),
     question: z.string().optional().describe('Specific question about the analysis'),
@@ -508,7 +566,17 @@ const PlanActionSchema = CommonFieldsSchema.extend({
     ),
   intent: AnalysisIntentSchema.default('auto'),
   scoutResult: z
-    .record(z.string(), z.unknown())
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+      ])
+    )
     .optional()
     .describe('Result from previous scout action (optional, will scout if not provided)'),
   constraints: z
@@ -606,7 +674,8 @@ const DrillDownActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Deep dive into specific finding, issue, sheet, column, or pattern. Use after initial analysis to explore further.'
     ),
-  target: z.discriminatedUnion('type', [
+  target: z
+    .discriminatedUnion('type', [
     z.object({
       type: z.literal('issue').describe('Drill into a specific quality issue'),
       issueId: z.string().describe('Issue ID from previous analysis'),
@@ -688,7 +757,10 @@ const DrillDownActionSchema = CommonFieldsSchema.extend({
         .describe('Two column names to analyze correlation'),
       sheetIndex: z.number().int().min(0).optional().describe('Sheet index (0 if not specified)'),
     }),
-  ]),
+  ])
+    .describe(
+      'Target to drill into. Valid types: issue, sheet, column, formula, pattern, anomaly, correlation. Each type has its own required fields.'
+    ),
   limit: z
     .number()
     .int()
@@ -712,16 +784,32 @@ const GenerateActionsActionSchema = CommonFieldsSchema.extend({
       'Generate executable action plan from analysis findings. Returns prioritized actions with complete params.'
     ),
   findings: z
-    .record(z.string(), z.unknown())
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+        z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+      ])
+    )
     .optional()
-    .describe('Previous analysis findings (will analyze if not provided)'),
-  intent: z.enum([
-    'fix_critical', // Only critical/high severity issues
-    'fix_all', // All fixable issues
-    'optimize', // Performance improvements
-    'visualize', // Create recommended charts/pivots
-    'format', // Apply formatting suggestions
-  ]),
+    .describe(
+      'Previous analysis findings as a record object (key-value pairs). Each key represents a finding category with its corresponding value. Will run analyze if not provided.'
+    ),
+  intent: z
+    .enum([
+      'fix_critical', // Only critical/high severity issues
+      'fix_all', // All fixable issues
+      'optimize', // Performance improvements
+      'visualize', // Create recommended charts/pivots
+      'format', // Apply formatting suggestions
+    ])
+    .describe(
+      'Intended action type. Valid values: fix_critical (high severity issues only), fix_all (all fixable issues), optimize (performance improvements), visualize (create charts/pivots), format (apply styling)'
+    ),
   preview: z
     .boolean()
     .optional()
@@ -1161,7 +1249,26 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .object({
         overallScore: z.coerce.number().min(0).max(100).optional(),
         score: z.coerce.number().min(0).max(100).optional(), // Comprehensive uses 'score'
-        recommendations: z.array(z.any()), // Allow different recommendation formats
+        recommendations: z.array(
+          z
+            .object({
+              type: z
+                .enum([
+                  'VOLATILE_FORMULAS',
+                  'EXCESSIVE_FORMULAS',
+                  'LARGE_RANGES',
+                  'CIRCULAR_REFERENCES',
+                  'INEFFICIENT_STRUCTURE',
+                  'TOO_MANY_SHEETS',
+                ])
+                .optional(),
+              severity: z.enum(['low', 'medium', 'high']).optional(),
+              description: z.string().optional(),
+              estimatedImpact: z.string().optional(),
+              recommendation: z.string().optional(),
+            })
+            .passthrough()
+        ),
         estimatedImprovementPotential: z.string().optional(),
       })
       .optional(),
@@ -1231,7 +1338,18 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
         data: z
           .object({
             headers: z.array(z.string()),
-            rows: z.array(z.array(z.unknown())),
+            rows: z.array(
+              z.array(
+                z.union([
+                  z.string(),
+                  z.number(),
+                  z.boolean(),
+                  z.null(),
+                  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                  z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                ])
+              )
+            ),
           })
           .optional(),
         visualizationSuggestion: z
@@ -1271,21 +1389,62 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           rowCount: z.coerce.number(),
           columnCount: z.coerce.number(),
           dataRowCount: z.coerce.number(),
-          columns: z.array(z.any()), // Column stats - detailed type omitted for brevity
+          columns: z.array(
+            z
+              .object({
+                index: z.coerce.number(),
+                name: z.string(),
+                type: z.string(),
+                nonBlankCount: z.coerce.number().optional(),
+                uniqueCount: z.coerce.number().optional(),
+              })
+              .passthrough()
+          ), // Column stats - detailed type
           qualityScore: z.coerce.number(),
           completeness: z.coerce.number(),
           consistency: z.coerce.number(),
-          issues: z.array(z.any()), // Quality issues
-          trends: z.array(z.any()), // Trend results
-          anomalies: z.array(z.any()), // Anomaly results
-          correlations: z.array(z.any()), // Correlation results
+          issues: z.array(DataQualityIssueSchema), // Quality issues
+          trends: z.array(
+            z.object({
+              column: z.string(),
+              direction: z.enum(['increasing', 'decreasing', 'stable', 'seasonal']),
+              confidence: z.coerce.number(),
+              description: z.string(),
+            })
+          ), // Trend results
+          anomalies: z.array(
+            z.object({
+              location: z.string(),
+              value: z.union([z.string(), z.coerce.number()]),
+              expectedRange: z.string().optional(),
+              severity: z.enum(['low', 'medium', 'high']),
+            })
+          ), // Anomaly results
+          correlations: z.array(
+            z
+              .object({
+                column1: z.string(),
+                column2: z.string(),
+                coefficient: z.coerce.number(),
+              })
+              .passthrough()
+          ), // Correlation results
           formulas: z
             .object({
               total: z.coerce.number(),
               unique: z.coerce.number(),
               volatile: z.coerce.number(),
               complex: z.coerce.number(),
-              issues: z.array(z.any()),
+              issues: z.array(
+                z
+                  .object({
+                    cell: z.string(),
+                    formula: z.string(),
+                    errorType: z.string(),
+                    severity: z.enum(['low', 'medium', 'high', 'critical']),
+                  })
+                  .passthrough()
+              ),
             })
             .optional(),
         })
@@ -1309,8 +1468,28 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           chartType: z.string(),
           suitabilityScore: z.coerce.number(),
           reasoning: z.string(),
-          suggestedConfig: z.any(),
-          executionParams: z.any(),
+          suggestedConfig: z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+            ])
+          ),
+          executionParams: z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+            ])
+          ),
         })
       )
       .optional(),
@@ -1466,7 +1645,19 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
           type: z.string(),
           status: z.enum(['completed', 'skipped', 'failed']),
           duration: z.coerce.number(),
-          findings: z.record(z.string(), z.unknown()).optional(),
+          findings: z
+            .record(
+              z.string(),
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              ])
+            )
+            .optional(),
           issuesFound: z.coerce.number().optional(),
           error: z.string().optional(),
         })
@@ -1479,9 +1670,45 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .object({
         targetType: z.string(),
         targetId: z.string(),
-        context: z.record(z.string(), z.unknown()).optional(),
-        details: z.record(z.string(), z.unknown()),
-        relatedItems: z.array(z.record(z.string(), z.unknown())).optional(),
+        context: z
+          .record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            ])
+          )
+          .optional(),
+        details: z.record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+          ])
+        ),
+        relatedItems: z
+          .array(
+            z.record(
+              z.string(),
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              ])
+            )
+          )
+          .optional(),
         suggestions: z.array(z.string()).optional(),
       })
       .optional()
@@ -1492,12 +1719,36 @@ const AnalyzeResponseSchema = z.discriminatedUnion('success', [
       .object({
         totalActions: z.coerce.number(),
         estimatedTotalImpact: z.string(),
-        actions: z.array(z.record(z.string(), z.unknown())), // ExecutableAction objects
+        actions: z.array(
+          z.record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+              z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+            ])
+          )
+        ), // ExecutableAction objects
         groupedActions: z
           .array(
             z.object({
               category: z.string(),
-              actions: z.array(z.record(z.string(), z.unknown())),
+              actions: z.array(
+                z.record(
+                  z.string(),
+                  z.union([
+                    z.string(),
+                    z.number(),
+                    z.boolean(),
+                    z.null(),
+                    z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                    z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+                  ])
+                )
+              ),
               combinedImpact: z.string(),
             })
           )

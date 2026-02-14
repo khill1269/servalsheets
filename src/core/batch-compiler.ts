@@ -1013,7 +1013,12 @@ export class BatchCompiler {
               suggestedFix: 'Data changed since last read. Re-read and retry.',
             };
           }
-        } catch {
+        } catch (error) {
+          logger.error('Checksum validation failed', {
+            error,
+            spreadsheetId,
+            checksumRange: expected.checksumRange,
+          });
           return {
             code: 'INTERNAL_ERROR',
             message: 'Failed to validate checksum',
@@ -1045,7 +1050,12 @@ export class BatchCompiler {
               };
             }
           }
-        } catch {
+        } catch (error) {
+          logger.error('Header validation failed', {
+            error,
+            spreadsheetId,
+            sheetTitle: expected.sheetTitle,
+          });
           return {
             code: 'INTERNAL_ERROR',
             message: 'Failed to validate headers',
@@ -1055,7 +1065,11 @@ export class BatchCompiler {
       }
 
       return null;
-    } catch {
+    } catch (error) {
+      logger.error('Expected state check failed', {
+        error,
+        spreadsheetId,
+      });
       return {
         code: 'INTERNAL_ERROR',
         message: 'Failed to check expected state',
@@ -1066,10 +1080,11 @@ export class BatchCompiler {
 
   private mapGoogleError(error: unknown): ErrorDetail {
     if (error instanceof Error) {
-      const message = error.message;
+      const messageLower = error.message.toLowerCase();
 
-      // Rate limit
-      if (message.includes('429') || message.includes('rate limit')) {
+      // Rate limit (check before quota — real Google errors like
+      // "rate limit exceeded for quota group ..." contain both patterns)
+      if (messageLower.includes('429') || messageLower.includes('rate limit')) {
         // Dynamically throttle rate limiter for 60 seconds
         this.rateLimiter.throttle(60000);
 
@@ -1083,7 +1098,7 @@ export class BatchCompiler {
       }
 
       // Permission
-      if (message.includes('403') || message.includes('permission')) {
+      if (messageLower.includes('403') || messageLower.includes('permission')) {
         return {
           code: 'PERMISSION_DENIED',
           message: 'Permission denied',
@@ -1093,7 +1108,7 @@ export class BatchCompiler {
       }
 
       // Not found
-      if (message.includes('404') || message.includes('not found')) {
+      if (messageLower.includes('404') || messageLower.includes('not found')) {
         return {
           code: 'SPREADSHEET_NOT_FOUND',
           message: 'Spreadsheet not found',
@@ -1103,7 +1118,7 @@ export class BatchCompiler {
       }
 
       // Quota
-      if (message.includes('quota')) {
+      if (messageLower.includes('quota')) {
         return {
           code: 'QUOTA_EXCEEDED',
           message: 'API quota exceeded',

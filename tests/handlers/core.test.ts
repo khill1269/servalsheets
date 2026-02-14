@@ -713,6 +713,45 @@ describe('SheetsCoreHandler', () => {
         const parseResult = SheetsCoreOutputSchema.safeParse(result);
         expect(parseResult.success).toBe(true);
       });
+
+      it('should resolve sheetName to sheetId 0 for first sheet', async () => {
+        mockApi.spreadsheets.get
+          .mockResolvedValueOnce({
+            data: {
+              spreadsheetId: 'test-spreadsheet-id',
+              sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
+            },
+          })
+          .mockResolvedValueOnce({
+            data: {
+              spreadsheetId: 'test-spreadsheet-id',
+              sheets: [
+                {
+                  properties: {
+                    sheetId: 0,
+                    title: 'Summary',
+                    index: 0,
+                    gridProperties: { rowCount: 1000, columnCount: 26 },
+                  },
+                },
+              ],
+            },
+          });
+
+        const result = await handler.handle({
+          action: 'update_sheet',
+          spreadsheetId: 'test-spreadsheet-id',
+          sheetName: 'Sheet1',
+          title: 'Summary',
+        } as any);
+
+        expect(result.response.success).toBe(true);
+
+        const batchUpdateArgs = mockApi.spreadsheets.batchUpdate.mock.calls[0]?.[0] as any;
+        expect(batchUpdateArgs.requestBody.requests[0].updateSheetProperties.properties.sheetId).toBe(
+          0
+        );
+      });
     });
 
     describe('copy_sheet_to action', () => {

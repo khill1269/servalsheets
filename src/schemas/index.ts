@@ -523,8 +523,8 @@ export const TOOL_REGISTRY = {
 export const TOOL_COUNT = 21;
 
 // Action count
-export const ACTION_COUNT = 293;
+export const ACTION_COUNT = 294;
 
-// Last updated: 2026-02-04
+// Last updated: 2026-02-13
 // See ACTION_COUNTS in annotations.ts for per-tool breakdown
-// Sum: 293 actions across 21 tools
+// Sum: 294 actions across 21 tools

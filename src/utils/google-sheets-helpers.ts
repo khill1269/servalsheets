@@ -5,6 +5,20 @@
  */
 
 import type { sheets_v4 } from 'googleapis';
+import { memoize } from './memoization.js';
+
+// ============================================================================
+// PRE-COMPILED REGEX PATTERNS (hot path — avoid recompilation per call)
+// ============================================================================
+
+/** Matches full-column A1 notation like "Sheet1!A:C" or "A:Z" */
+const A1_FULL_COL_RE = /^(?:'([^']+)'!|([^!]+)!)?([A-Z]+):([A-Z]+)$/i;
+
+/** Matches standard A1 range notation like "Sheet1!A1:C10" or "B5" */
+const A1_RANGE_RE = /^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i;
+
+/** Matches single cell reference like "Sheet1!A1" or "B5" */
+const CELL_REF_RE = /^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)$/i;
 
 // ============================================================================
 // COLOR CONVERSION
@@ -64,14 +78,14 @@ export interface ParsedCell {
  * Parse A1 notation range (e.g., "Sheet1!A1:C10" or "A1:B5")
  * Supports emoji sheet names and special characters when properly quoted.
  */
-export function parseA1Notation(a1: string): ParsedA1 {
+function _parseA1Notation(a1: string): ParsedA1 {
   // Defensive: ensure input is a string
   if (typeof a1 !== 'string' || !a1.trim()) {
     throw new Error(`Invalid A1 notation: expected non-empty string, got ${typeof a1}`);
   }
 
   // Handle full column notation (A:A, A:C)
-  const fullColMatch = a1.match(/^(?:'([^']+)'!|([^!]+)!)?([A-Z]+):([A-Z]+)$/i);
+  const fullColMatch = a1.match(A1_FULL_COL_RE);
   if (fullColMatch) {
     const sheetName = fullColMatch[1] ?? fullColMatch[2];
     const startColLetter = fullColMatch[3];
@@ -89,7 +103,7 @@ export function parseA1Notation(a1: string): ParsedA1 {
   }
 
   // Standard range notation - supports emoji sheet names in quotes
-  const match = a1.match(/^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i);
+  const match = a1.match(A1_RANGE_RE);
   if (!match) {
     throw new Error(
       `Invalid A1 notation: ${a1}. Expected format: "A1", "A1:B10", "Sheet1!A1:B10", or "'Sheet Name'!A1:B10"`
@@ -126,10 +140,20 @@ export function parseA1Notation(a1: string): ParsedA1 {
 }
 
 /**
+ * Memoized A1 notation parser — caches results for repeated range lookups.
+ * Uses string identity as cache key (no JSON.stringify overhead).
+ */
+export const parseA1Notation = memoize(_parseA1Notation, {
+  maxSize: 500,
+  ttl: 60_000,
+  keyFn: (a1: string) => a1,
+});
+
+/**
  * Parse single cell reference (e.g., "Sheet1!A1" or "B5")
  */
-export function parseCellReference(cell: string): ParsedCell {
-  const match = cell.match(/^(?:'([^']+)'!|([^!]+)!)?([A-Z]+)(\d+)$/i);
+function _parseCellReference(cell: string): ParsedCell {
+  const match = cell.match(CELL_REF_RE);
   if (!match) {
     throw new Error(`Invalid cell reference: ${cell}`);
   }
@@ -144,6 +168,15 @@ export function parseCellReference(cell: string): ParsedCell {
     row: parseInt(rowStr, 10) - 1,
   };
 }
+
+/**
+ * Memoized cell reference parser — caches results for repeated lookups.
+ */
+export const parseCellReference = memoize(_parseCellReference, {
+  maxSize: 500,
+  ttl: 60_000,
+  keyFn: (cell: string) => cell,
+});
 
 /**
  * Convert column letter to 0-based index (A=0, B=1, Z=25, AA=26)
@@ -437,9 +470,9 @@ export function buildRichLinkChip(uri: string, displayText?: string): sheets_v4.
     throw new Error('URI exceeds 2000 bytes limit');
   }
 
-  // Only Drive file links can be written as rich link chips
-  if (!uri.startsWith('https://drive.google.com/')) {
-    throw new Error('Only Google Drive links can be written as rich link chips');
+  // Accept both Google Drive and Google Docs URLs (Sheets, Docs, Slides, Forms)
+  if (!uri.startsWith('https://drive.google.com/') && !uri.startsWith('https://docs.google.com/')) {
+    throw new Error('Only Google Drive and Google Docs links can be written as rich link chips');
   }
 
   const hostname = displayText ?? new URL(uri).hostname;

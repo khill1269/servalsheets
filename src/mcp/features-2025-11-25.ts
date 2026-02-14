@@ -11,18 +11,18 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 21 tools with 293 actions (current consolidated set)
+ * - tools: 21 tools with 294 actions (current consolidated set)
  * - resources: 2 URI templates + 7 knowledge resources
  * - prompts: 6 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
  * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
  * - logging: Dynamic log level control via logging/setLevel handler
  *
- * IMPLEMENTED BUT NOT DECLARED (SDK v1.25.1 limitations):
- * - elicitation (SEP-1036): sheets_confirm uses extra.elicit for plan confirmation
- * - sampling (SEP-1577): sheets_analyze uses extra.sample for AI-powered analysis
- * Note: These features work correctly but cannot be declared in ServerCapabilities
- * until the SDK adds support for these capability fields.
+ * CLIENT-SIDE CAPABILITIES (checked, not declared):
+ * - elicitation (SEP-1036): sheets_confirm checks clientCapabilities.elicitation
+ * - sampling (SEP-1577): sheets_analyze checks clientCapabilities.sampling
+ * Note: These are CLIENT capabilities per MCP spec — the server sends requests,
+ * the client declares support. No ServerCapabilities declaration needed.
  *
  * NOT APPLICABLE:
  * - roots: Not applicable for Google Sheets (cloud-based, no filesystem)
@@ -188,35 +188,35 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
   ],
   sheets_templates: [
     {
-      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJNMTQgMkg2YTIgMiAwIDAgMC0yIDJ2MTZhMiAyIDAgMCAwIDIgMmgxMmEyIDIgMCAwIDAgMi0yVjhsLTYtNnoiLz48cG9seWxpbmUgcG9pbnRzPSIxNCAyIDE0IDggMjAgOCIvPjxsaW5lIHgxPSIxNiIgeTE9IjEzIiB4Mj0iOCIgeTI9IjEzIi8+PGxpbmUgeDE9IjE2IiB5MT0iMTciIHgyPSI4IiB5Mj0iMTciLz48cG9seWxpbmUgcG9pbnRzPSIxMCA5IDkgOSA4IDkiLz48L3N2Zz4=',
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHJ4PSIxIi8+PHJlY3QgeD0iMTMiIHk9IjMiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHJ4PSIxIi8+PHJlY3QgeD0iMyIgeT0iMTMiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHJ4PSIxIi8+PHJlY3QgeD0iMTMiIHk9IjEzIiB3aWR0aD0iOCIgaGVpZ2h0PSI4IiByeD0iMSIvPjwvc3ZnPg==',
       mimeType: 'image/svg+xml',
       sizes: ['24x24'],
     },
   ],
   sheets_bigquery: [
     {
-      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48ZWxsaXBzZSBjeD0iMTIiIGN5PSI1IiByeD0iOSIgcnk9IjMiLz48cGF0aCBkPSJNMyA1djE0YzAgMS42NiA0IDE0IDkgM3M5LTEuMzQgOS0zVjUiLz48cGF0aCBkPSJNMyAxMmMwIDEuNjYgNCAzIDkgM3M5LTEuMzQgOS0zIi8+PC9zdmc+',
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iNiIgcj0iMi41Ii8+PGNpcmNsZSBjeD0iNyIgY3k9IjEzIiByPSIyLjUiLz48Y2lyY2xlIGN4PSIxNyIgY3k9IjEzIiByPSIyLjUiLz48cGF0aCBkPSJNMTEuNSA4LjVMMTAgMTAuNW0xIDAtMy41LjVMMTAgMTAuNW0wIDAgMy41LjVNMTIgOXY0Ii8+PC9zdmc+',
       mimeType: 'image/svg+xml',
       sizes: ['24x24'],
     },
   ],
   sheets_appsscript: [
     {
-      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cG9seWxpbmUgcG9pbnRzPSIxNiAxOCAxOCAyMCAyMiAxNiAyMCAxNCAxOCAxNCIvPjxwb2x5Z29uIHBvaW50cz0iOCAxMiAxMiAyMCAxNiAxMiAxMiA0Ii8+PC9zdmc+',
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik05IDMgMTIgNiAxNSAzIi8+PHBhdGggZD0iTTkgOCAxMiAxMSAxNSA4Ii8+PHBhdGggZD0iTTkgMTMgMTIgMTYgMTUgMTMiLz48cGF0aCBkPSJNOSAxOCAxMiAyMSAxNSAxOCIvPjwvc3ZnPg==',
       mimeType: 'image/svg+xml',
       sizes: ['24x24'],
     },
   ],
   sheets_webhook: [
     {
-      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cmVjdCB4PSIyIiB5PSI2IiB3aWR0aD0iMjAiIGhlaWdodD0iOCIgcng9IjEiLz48cGF0aCBkPSJNNiAxMGgyIi8+PHBhdGggZD0iTTEwIDEwaDIiLz48cGF0aCBkPSJNMTQgMTBoMiIvPjwvc3ZnPg==',
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjQiIGN5PSI4IiByPSIyIi8+PHBhdGggZD0iTTYuNSA5LjVsOC41IC41Ii8+PGNpcmNsZSBjeD0iMjAiIGN5PSI4IiByPSIyIi8+PHBhdGggZD0iTTYgMTZoMTJ2MyIvPjxwYXRoIGQ9Ik0xMiAxMnYzIi8+PC9zdmc+',
       mimeType: 'image/svg+xml',
       sizes: ['24x24'],
     },
   ],
   sheets_dependencies: [
     {
-      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48Y2lyY2xlIGN4PSI1IiBjeT0iNiIgcj0iMyIvPjxjaXJjbGUgY3g9IjE5IiBjeT0iNiIgcj0iMyIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTgiIHI9IjMiLz48cGF0aCBkPSJNNS40IDguNmw1LjIgNS4yIi8+PHBhdGggZD0iTTE4LjYgOC42TDEzLjQgMTMuOCIvPjwvc3ZnPg==',
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjMiIGN5PSI2IiByPSIyIi8+PGNpcmNsZSBjeD0iMjEiIGN5PSI2IiByPSIyIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxOCIgcj0iMiIvPjxwYXRoIGQ9Ik01IDE4bDcgLTEwIi8+PHBhdGggZD0iTTE5IDE4bC03IC0xMCIvPjwvc3ZnPg==',
       mimeType: 'image/svg+xml',
       sizes: ['24x24'],
     },
@@ -294,24 +294,24 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
  * - tasks: Task-augmented execution (SEP-1686)
  * - logging: Dynamic log level control via logging/setLevel handler
  *
- * NOT DECLARED (but used):
- * - elicitation (SEP-1036): Sheets_confirm uses it, but SDK doesn't expose capability declaration
- * - sampling (SEP-1577): Sheets_analyze uses it, but SDK doesn't expose capability declaration
+ * CLIENT CAPABILITIES (not declared by server — this is correct per MCP spec):
+ * - elicitation (SEP-1036): Client declares support; server checks before sending requests
+ * - sampling (SEP-1577): Client declares support; server checks before sending requests
  *
  * ARCHITECTURAL NOTE:
- * This server USES elicitation and sampling in handlers, but cannot DECLARE them
- * as capabilities because the SDK v1.25.x doesn't expose the capability types yet.
- * When the SDK adds these capability types, we should declare them here.
+ * Sampling and elicitation are CLIENT capabilities in MCP 2025-11-25.
+ * The server sends sampling/createMessage and elicitation/create requests,
+ * and the client declares it can handle them. See checkSamplingSupport()
+ * and checkElicitationSupport() in sampling.ts and elicitation.ts.
  */
 export function createServerCapabilities(): ServerCapabilities {
   return {
-    // Completions support - enables argument autocompletion for prompts/resources
-    // NOTE: MCP SDK v1.25.x only supports completions for prompts/resources, NOT tool arguments
-    // Tool argument completions will be added when SDK supports them
+    // Completions support - argument autocompletion for prompts/resources
     completions: {},
 
-    // Task support (SEP-1686) - Enables task-augmented execution
-    // Tools with taskSupport: 'optional' can be invoked with task mode
+    // Task support (MCP 2025-11-25 standard capability)
+    // Tools with taskSupport: 'optional'/'required' can be invoked with task mode
+    // Registered via server.experimental.tasks.registerToolTask() SDK API
     tasks: {
       list: {},
       cancel: {},
@@ -325,6 +325,12 @@ export function createServerCapabilities(): ServerCapabilities {
     // Logging support - Dynamic log level control
     // Clients can use logging/setLevel to adjust server verbosity
     logging: {},
+
+    // Extensions framework (MCP 2025-11-25)
+    // Declares non-standard experimental capabilities the server supports.
+    // Currently empty — all ServalSheets capabilities use standard spec fields.
+    // Add entries here when adopting future experimental MCP features.
+    experimental: {},
 
     // Note: tools, prompts, resources capabilities are auto-registered by McpServer
     // when using registerTool(), registerPrompt(), registerResource()
@@ -377,6 +383,88 @@ Benefits:
 - Omit spreadsheetId from subsequent calls
 - Use column names instead of A1 notation: \`range:"Sales column"\`
 - Server tracks your working context
+
+## 🔄 WORKFLOW CHAIN (Optimal Tool Sequence)
+
+Follow this order for maximum efficiency and clarity:
+
+**1. sheets_session.set_active** → Set spreadsheet context (0 API calls)
+   - Enables natural language ranges and context memory
+
+**2. sheets_analyze.scout** → Quick metadata scan (1 API call)
+   - Get structure: sheets, columns, data types, row count
+   - Fastest way to understand the spreadsheet
+
+**3. sheets_analyze.comprehensive** → Full analysis if needed (2 API calls)
+   - Get structure + sample data + quality metrics + suggestions
+   - Use only if you need detailed insights (slower, more context)
+
+**4. Plan your changes** using analysis results
+   - Decide which tool chain to use
+   - Check impact with sheets_dependencies if modifying structure
+
+**5. sheets_quality.validate** → Validate before large writes
+   - Check data types, required fields, patterns
+   - Run before sheets_data write if >100 cells affected
+
+**6. Execute changes** using appropriate tool
+   - For 1-2 operations: Direct sheets_data/sheets_format call
+   - For 3+ operations: Use batch or sheets_transaction
+   - For complex workflows: Use sheets_composite helpers
+
+**7. sheets_history** → Undo if something goes wrong
+   - Undo last operation: action:"undo"
+   - View operation history: action:"list"
+
+## 📊 QUICK DECISION TREE (What to Use?)
+
+**Reading data?**
+├─ 1-2 ranges → \`sheets_data.read\`
+├─ 3+ ranges → \`sheets_data.batch_read\` (same API cost as single read!)
+└─ Need structure info only → \`sheets_analyze.scout\` (no data, just metadata)
+
+**Writing data?**
+├─ Update existing cells → \`sheets_data.write\`
+├─ Add rows at bottom → \`sheets_data.append\` (WARNING: NOT idempotent!)
+├─ 3+ ranges → \`sheets_data.batch_write\` (70% faster)
+├─ Match by column headers → \`sheets_composite.smart_append\`
+└─ Import CSV file → \`sheets_composite.import_csv\`
+
+**Formatting cells?**
+├─ 1-2 format changes → Specific action (set_background, set_text_format, etc.)
+├─ 3+ format changes → \`sheets_format.batch_format\` (1 API call for ALL)
+├─ Quick preset → \`sheets_format.apply_preset\` (header_row, currency, percentages)
+└─ New sheet + formatting → \`sheets_composite.setup_sheet\` (2 API calls total)
+
+**Creating a sheet?**
+├─ Empty sheet → \`sheets_core.add_sheet\`
+├─ With headers + formatting → \`sheets_composite.setup_sheet\` (includes freeze)
+└─ Copy structure → \`sheets_core.duplicate_sheet\`
+
+**5+ operations?**
+├─ All formatting → \`sheets_format.batch_format\`
+├─ Mixed operations → \`sheets_transaction\` (begin → queue → commit)
+└─ Sheet from scratch → \`sheets_composite.setup_sheet\`
+
+## ⚡ CRITICAL RULES (Avoid Common Mistakes)
+
+1. **append is NOT idempotent** — Never retry on timeout. It will duplicate data.
+2. **Always include sheet name** in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
+3. **Use 0-based indices** for insert/delete: row 1 = index 0
+4. **batch_format max 100** operations per call
+5. **Use verbosity:"minimal"** to save tokens when you don't need full response
+6. **sheets_transaction overhead** only pays off for 5+ operations
+
+## 💡 COMMON PATTERNS (Copy-Paste Ready)
+
+**Pattern: Format a data table**
+\`sheets_format.batch_format with [header_row preset, alternating_rows preset, auto_fit columns]\`
+
+**Pattern: Add validated data safely**
+\`sheets_quality.validate → sheets_data.append → sheets_analyze.scout (verify)\`
+
+**Pattern: Build a dashboard**
+\`sheets_composite.setup_sheet → sheets_data.write formulas → sheets_format.batch_format → sheets_visualize.chart_create\`
 
 ## 🎯 TOOL SELECTION DECISION TREE
 

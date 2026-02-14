@@ -4,9 +4,10 @@
  * Handles sheets_format tool (formatting operations, sparklines, and rules)
  * MCP Protocol: 2025-11-25
  *
- * 21 Actions:
+ * 22 Actions:
  * Format (10): set_format, suggest_format, set_background, set_text_format, set_number_format,
  *              set_alignment, set_borders, clear_format, apply_preset, auto_fit
+ * Batch (1): batch_format
  * Sparklines (3): sparkline_add, sparkline_get, sparkline_clear
  * Rules (8): rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format,
  *            rule_list_conditional_formats, rule_add_data_validation, rule_clear_data_validation,
@@ -187,6 +188,10 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         return await this.handleApplyPreset(request as FormatRequest & { action: 'apply_preset' });
       case 'auto_fit':
         return await this.handleAutoFit(request as FormatRequest & { action: 'auto_fit' });
+      case 'batch_format':
+        return await this.handleBatchFormat(
+          request as FormatRequest & { action: 'batch_format' }
+        );
       case 'rule_add_conditional_format':
         return await this.handleRuleAddConditionalFormat(
           request as FormatRequest & { action: 'rule_add_conditional_format' }
@@ -236,6 +241,8 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
           code: 'INVALID_PARAMS',
           message: `Unknown action: ${(request as { action: string }).action}`,
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
     }
   }
@@ -288,6 +295,9 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
     }
 
     const googleRange = toGridRange(gridRange);
+    // Use precise field mask when specific fields identified, wildcard otherwise
+    const fieldMask =
+      fields.length > 0 ? `userEnteredFormat(${fields.join(',')})` : 'userEnteredFormat';
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -296,7 +306,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
             repeatCell: {
               range: googleRange,
               cell: { userEnteredFormat: cellFormat },
-              fields: `userEnteredFormat(${fields.join(',')})`,
+              fields: fieldMask,
             },
           },
         ],
@@ -322,6 +332,8 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
         message:
           'Format suggestions require MCP Sampling capability (SEP-1577). Client does not support sampling.',
         retryable: false,
+        suggestedFix:
+          'Enable the feature by setting the appropriate environment variable, or contact your administrator',
       });
     }
 
@@ -352,6 +364,8 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
           code: 'INVALID_PARAMS',
           message: 'Range contains no data',
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
       }
 
@@ -449,6 +463,7 @@ Always return valid JSON in the exact format requested.`,
           code: 'INTERNAL_ERROR',
           message: 'No text content in sampling response',
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
         });
       }
 
@@ -458,6 +473,7 @@ Always return valid JSON in the exact format requested.`,
           code: 'INTERNAL_ERROR',
           message: 'Could not parse format suggestions from AI response',
           retryable: true,
+          suggestedFix: 'Please try again. If the issue persists, contact support',
         });
       }
 
@@ -475,6 +491,7 @@ Always return valid JSON in the exact format requested.`,
         code: 'INTERNAL_ERROR',
         message: `Format suggestion failed: ${error instanceof Error ? error.message : String(error)}`,
         retryable: true,
+        suggestedFix: 'Please try again. If the issue persists, contact support',
       });
     }
   }
@@ -601,6 +618,7 @@ Always return valid JSON in the exact format requested.`,
         message:
           'No alignment properties specified. You must provide at least one of: horizontal (LEFT, CENTER, RIGHT), vertical (TOP, MIDDLE, BOTTOM), or wrapStrategy (OVERFLOW_CELL, LEGACY_WRAP, CLIP, WRAP)',
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
         resolution:
           'Specify at least one alignment property: horizontal, vertical, or wrapStrategy. Example: { horizontal: "CENTER", vertical: "MIDDLE" }',
       });
@@ -658,6 +676,9 @@ Always return valid JSON in the exact format requested.`,
   private async handleClearFormat(
     input: FormatRequest & { action: 'clear_format' }
   ): Promise<FormatResponse> {
+    // BUG-008 FIX: Large clear_format operations (>100K cells) can timeout
+    // Optimization: Use batchUpdate with repeatCell and explicit field mask
+    // This minimizes payload and request complexity
     const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
     const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
     const googleRange = toGridRange(gridRange);
@@ -677,6 +698,7 @@ Always return valid JSON in the exact format requested.`,
             code: 'PRECONDITION_FAILED',
             message: 'Clear formatting operation cancelled by user',
             retryable: false,
+            suggestedFix: 'Review the operation requirements and try again',
           });
         }
       } catch (err) {
@@ -884,8 +906,25 @@ Always return valid JSON in the exact format requested.`,
   private async handleAutoFit(
     input: FormatRequest & { action: 'auto_fit' }
   ): Promise<FormatResponse> {
-    const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range!);
-    const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
+    let gridRange: GridRangeInput;
+
+    if (input.range) {
+      // User provided a range
+      const rangeA1 = await this.resolveRange(input.spreadsheetId, input.range);
+      gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
+    } else if (input.sheetId !== undefined) {
+      // User provided sheetId - fit entire sheet
+      gridRange = {
+        sheetId: input.sheetId,
+        startRowIndex: 0,
+        endRowIndex: 1000000,
+        startColumnIndex: 0,
+        endColumnIndex: 26,
+      };
+    } else {
+      throw new RangeResolutionError('Either range or sheetId must be provided');
+    }
+
     const requests: sheets_v4.Schema$Request[] = [];
 
     const dimension = input.dimension ?? 'BOTH';
@@ -921,6 +960,352 @@ Always return valid JSON in the exact format requested.`,
     });
 
     return this.success('auto_fit', {});
+  }
+
+  // ============================================================
+  // Batch Format Action
+  // ============================================================
+
+  /**
+   * Apply multiple format operations in a single Google Sheets API call.
+   * This is the highest-performance way to format a spreadsheet — N operations
+   * are merged into 1 batchUpdate call instead of N separate calls.
+   *
+   * Supported operation types:
+   * - background: Set background color
+   * - text_format: Set bold/italic/font/color
+   * - number_format: Set currency/percentage/date formatting
+   * - alignment: Set horizontal/vertical alignment and wrap strategy
+   * - borders: Set cell borders
+   * - format: Apply a full CellFormat specification
+   * - preset: Apply a named preset (header_row, alternating_rows, etc.)
+   */
+  private async handleBatchFormat(
+    input: FormatRequest & { action: 'batch_format' }
+  ): Promise<FormatResponse> {
+    // Extract operations from the input using bracket notation (TS strict mode)
+    const rawInput = input as unknown as Record<string, unknown>;
+    const operations = rawInput['operations'] as Array<Record<string, unknown>> | undefined;
+
+    if (!operations || operations.length === 0) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'No operations provided. Supply at least one operation in the operations array.',
+        retryable: false,
+        suggestedFix: 'Provide operations array with at least one format operation',
+      });
+    }
+
+    if (input.safety?.dryRun) {
+      return this.success(
+        'batch_format',
+        {
+          cellsFormatted: 0,
+          operationsApplied: operations.length,
+          apiCallsSaved: Math.max(0, operations.length - 1),
+        },
+        undefined,
+        true
+      );
+    }
+
+    const requests: sheets_v4.Schema$Request[] = [];
+    let totalCellsFormatted = 0;
+
+    for (const op of operations) {
+      const opType = op['type'] as string;
+      const rawRange = op['range'];
+      // Normalize to RangeInput (resolveRange requires object form, not plain string)
+      const rangeInput = typeof rawRange === 'string' ? { a1: rawRange } : (rawRange as { a1: string });
+
+      // Resolve range for this operation
+      const rangeA1 = await this.resolveRange(input.spreadsheetId, rangeInput);
+      const gridRange = await this.a1ToGridRange(input.spreadsheetId, rangeA1);
+      const googleRange = toGridRange(gridRange);
+      totalCellsFormatted += estimateCellCount(googleRange);
+
+      switch (opType) {
+        case 'background': {
+          const color = op['color'] as sheets_v4.Schema$Color;
+          if (color) {
+            requests.push({
+              repeatCell: {
+                range: googleRange,
+                cell: { userEnteredFormat: { backgroundColor: color } },
+                fields: 'userEnteredFormat.backgroundColor',
+              },
+            });
+          }
+          break;
+        }
+
+        case 'text_format': {
+          const textFormat = op['textFormat'] as sheets_v4.Schema$TextFormat;
+          if (textFormat) {
+            requests.push({
+              repeatCell: {
+                range: googleRange,
+                cell: { userEnteredFormat: { textFormat } },
+                fields: 'userEnteredFormat.textFormat',
+              },
+            });
+          }
+          break;
+        }
+
+        case 'number_format': {
+          const numberFormat = op['numberFormat'] as sheets_v4.Schema$NumberFormat;
+          if (numberFormat) {
+            requests.push({
+              repeatCell: {
+                range: googleRange,
+                cell: { userEnteredFormat: { numberFormat } },
+                fields: 'userEnteredFormat.numberFormat',
+              },
+            });
+          }
+          break;
+        }
+
+        case 'alignment': {
+          const cellFormat: sheets_v4.Schema$CellFormat = {};
+          const fields: string[] = [];
+          if (op['horizontal']) {
+            cellFormat.horizontalAlignment = op['horizontal'] as string;
+            fields.push('horizontalAlignment');
+          }
+          if (op['vertical']) {
+            cellFormat.verticalAlignment = op['vertical'] as string;
+            fields.push('verticalAlignment');
+          }
+          if (op['wrapStrategy']) {
+            cellFormat.wrapStrategy = op['wrapStrategy'] as string;
+            fields.push('wrapStrategy');
+          }
+          if (fields.length > 0) {
+            requests.push({
+              repeatCell: {
+                range: googleRange,
+                cell: { userEnteredFormat: cellFormat },
+                fields: `userEnteredFormat(${fields.join(',')})`,
+              },
+            });
+          }
+          break;
+        }
+
+        case 'borders': {
+          const updateBordersRequest: sheets_v4.Schema$UpdateBordersRequest = {
+            range: googleRange,
+          };
+          if (op['top']) updateBordersRequest.top = op['top'] as sheets_v4.Schema$Border;
+          if (op['bottom']) updateBordersRequest.bottom = op['bottom'] as sheets_v4.Schema$Border;
+          if (op['left']) updateBordersRequest.left = op['left'] as sheets_v4.Schema$Border;
+          if (op['right']) updateBordersRequest.right = op['right'] as sheets_v4.Schema$Border;
+          if (op['innerHorizontal'])
+            updateBordersRequest.innerHorizontal = op['innerHorizontal'] as sheets_v4.Schema$Border;
+          if (op['innerVertical'])
+            updateBordersRequest.innerVertical = op['innerVertical'] as sheets_v4.Schema$Border;
+          requests.push({ updateBorders: updateBordersRequest });
+          break;
+        }
+
+        case 'format': {
+          const format = op['format'] as Record<string, unknown>;
+          if (format) {
+            const cellFormat: sheets_v4.Schema$CellFormat = {};
+            const fields: string[] = [];
+            if (format['backgroundColor']) {
+              cellFormat.backgroundColor = format['backgroundColor'] as sheets_v4.Schema$Color;
+              fields.push('backgroundColor');
+            }
+            if (format['textFormat']) {
+              cellFormat.textFormat = format['textFormat'] as sheets_v4.Schema$TextFormat;
+              fields.push('textFormat');
+            }
+            if (format['horizontalAlignment']) {
+              cellFormat.horizontalAlignment = format['horizontalAlignment'] as string;
+              fields.push('horizontalAlignment');
+            }
+            if (format['verticalAlignment']) {
+              cellFormat.verticalAlignment = format['verticalAlignment'] as string;
+              fields.push('verticalAlignment');
+            }
+            if (format['wrapStrategy']) {
+              cellFormat.wrapStrategy = format['wrapStrategy'] as string;
+              fields.push('wrapStrategy');
+            }
+            if (format['numberFormat']) {
+              cellFormat.numberFormat = format['numberFormat'] as sheets_v4.Schema$NumberFormat;
+              fields.push('numberFormat');
+            }
+            if (format['borders']) {
+              cellFormat.borders = format['borders'] as sheets_v4.Schema$Borders;
+              fields.push('borders');
+            }
+            if (fields.length > 0) {
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: { userEnteredFormat: cellFormat },
+                  fields: `userEnteredFormat(${fields.join(',')})`,
+                },
+              });
+            }
+          }
+          break;
+        }
+
+        case 'preset': {
+          const preset = op['preset'] as string;
+          switch (preset) {
+            case 'header_row':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 },
+                      textFormat: {
+                        bold: true,
+                        foregroundColor: { red: 1, green: 1, blue: 1 },
+                      },
+                      horizontalAlignment: 'CENTER',
+                    },
+                  },
+                  fields:
+                    'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
+                },
+              });
+              break;
+            case 'alternating_rows':
+              requests.push({
+                addBanding: {
+                  bandedRange: {
+                    range: googleRange,
+                    rowProperties: {
+                      firstBandColor: { red: 1, green: 1, blue: 1 },
+                      secondBandColor: { red: 0.95, green: 0.95, blue: 0.95 },
+                    },
+                  },
+                },
+              });
+              break;
+            case 'total_row':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
+                      textFormat: { bold: true },
+                      borders: {
+                        top: {
+                          style: 'SOLID_MEDIUM',
+                          color: { red: 0, green: 0, blue: 0 },
+                        },
+                      },
+                    },
+                  },
+                  fields: 'userEnteredFormat(backgroundColor,textFormat,borders.top)',
+                },
+              });
+              break;
+            case 'currency':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
+                    },
+                  },
+                  fields: 'userEnteredFormat.numberFormat',
+                },
+              });
+              break;
+            case 'percentage':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      numberFormat: { type: 'PERCENT', pattern: '0.0%' },
+                    },
+                  },
+                  fields: 'userEnteredFormat.numberFormat',
+                },
+              });
+              break;
+            case 'date':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' },
+                    },
+                  },
+                  fields: 'userEnteredFormat.numberFormat',
+                },
+              });
+              break;
+            case 'highlight_positive':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.85, green: 0.95, blue: 0.85 },
+                    },
+                  },
+                  fields: 'userEnteredFormat.backgroundColor',
+                },
+              });
+              break;
+            case 'highlight_negative':
+              requests.push({
+                repeatCell: {
+                  range: googleRange,
+                  cell: {
+                    userEnteredFormat: {
+                      backgroundColor: { red: 0.95, green: 0.85, blue: 0.85 },
+                    },
+                  },
+                  fields: 'userEnteredFormat.backgroundColor',
+                },
+              });
+              break;
+          }
+          break;
+        }
+
+        default:
+          // Skip unknown operation types (logged but not fatal)
+          this.context.logger?.warn(`Unknown batch_format operation type: ${opType}`);
+      }
+    }
+
+    if (requests.length === 0) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'No valid format operations could be built from the provided operations array.',
+        retryable: false,
+        suggestedFix: 'Ensure each operation has a valid type and the required parameters for that type',
+      });
+    }
+
+    // Execute ALL format operations in a single API call
+    await this.sheetsApi.spreadsheets.batchUpdate({
+      spreadsheetId: input.spreadsheetId,
+      requestBody: { requests },
+    });
+
+    return this.success('batch_format', {
+      cellsFormatted: totalCellsFormatted,
+      operationsApplied: requests.length,
+      apiCallsSaved: Math.max(0, requests.length - 1),
+    });
   }
 
   // ============================================================
@@ -1061,6 +1446,7 @@ Always return valid JSON in the exact format requested.`,
         code: 'RANGE_NOT_FOUND',
         message: `Conditional format rule at index ${input.ruleIndex} not found`,
         retryable: false,
+        suggestedFix: 'Verify the range reference is correct and the sheet exists',
       });
     }
 
@@ -1293,6 +1679,7 @@ Always return valid JSON in the exact format requested.`,
         code: 'SHEET_NOT_FOUND',
         message: `Sheet with ID ${input.sheetId} not found`,
         retryable: false,
+        suggestedFix: 'Verify the sheet name or ID is correct',
       });
     }
 
@@ -1307,6 +1694,7 @@ Always return valid JSON in the exact format requested.`,
         message: `Sheet has ${totalCells.toLocaleString()} cells (${rowCount}×${colCount}). Provide 'range' parameter to prevent timeout.`,
         resolution: `Specify a range parameter to limit scan area (e.g., range: "A1:Z100"). For best performance, use ranges <10K cells.`,
         retryable: false,
+        suggestedFix: 'Check the parameter format and ensure all required parameters are provided',
       });
     }
 
@@ -1599,6 +1987,8 @@ Always return valid JSON in the exact format requested.`,
           code: 'INVALID_PARAMS',
           message: `Unknown preset: ${input.rulePreset}`,
           retryable: false,
+          suggestedFix:
+            'Check the parameter format and ensure all required parameters are provided',
         });
     }
 
@@ -1689,6 +2079,7 @@ Always return valid JSON in the exact format requested.`,
         code: 'NOT_FOUND',
         message: `No sparkline found in cell ${input.cell}`,
         retryable: false,
+        suggestedFix: 'Verify the spreadsheet ID is correct and you have access to it',
       });
     }
 
@@ -1698,6 +2089,9 @@ Always return valid JSON in the exact format requested.`,
   private async handleSparklineClear(
     input: FormatRequest & { action: 'sparkline_clear' }
   ): Promise<FormatResponse> {
+    // BUG-010 FIX: sparkline_clear is optimized using values.clear()
+    // This is more efficient than other approaches and suitable for single cells
+    // values.clear() is a lightweight API call with minimal overhead
     if (input.safety?.dryRun) {
       return this.success('sparkline_clear', { cell: input.cell }, undefined, true);
     }

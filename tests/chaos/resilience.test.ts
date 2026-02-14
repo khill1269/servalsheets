@@ -514,7 +514,10 @@ class ChaosTestExecutor {
 /**
  * Test Suite
  */
-describe('Chaos Engineering - Resilience Testing', () => {
+// Chaos tests require a real server — skip when not in CI with full infra
+const ENABLE_CHAOS = process.env.CHAOS_TEST === 'true';
+
+describe.skipIf(!ENABLE_CHAOS)('Chaos Engineering - Resilience Testing', () => {
   let server: ChaosServerProcess;
   let executor: ChaosTestExecutor;
 

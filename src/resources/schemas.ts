@@ -15,12 +15,23 @@ import { TOOL_DEFINITIONS } from '../mcp/registration/tool-definitions.js';
 import { zodSchemaToJsonSchema } from '../utils/schema-compat.js';
 import { logger } from '../utils/logger.js';
 import { createInvalidResourceUriError, createResourceNotFoundError } from '../utils/mcp-errors.js';
+import { BoundedCache } from '../utils/bounded-cache.js';
 
 /**
  * Schema resource content cache
- * Caches converted JSON schemas to avoid repeated conversions
+ * Caches converted JSON schemas to avoid repeated conversions.
+ * Uses BoundedCache to prevent unbounded memory growth with LRU eviction.
  */
-const schemaCache = new Map<string, string>();
+const schemaCache = new BoundedCache<string, { content: string }>({
+  maxSize: 150,
+  ttl: 10 * 60 * 1000, // 10 minutes
+  onEviction: (key) => {
+    logger.debug('Schema cache evicted', {
+      component: 'resources/schemas',
+      toolName: key,
+    });
+  },
+});
 
 /**
  * Get the full JSON Schema for a tool
@@ -30,9 +41,9 @@ const schemaCache = new Map<string, string>();
  */
 export function getToolSchema(toolName: string): string | null {
   // Check cache first
-  const cached = schemaCache.get(toolName);
+  const cached = schemaCache.get(toolName as string);
   if (cached) {
-    return cached;
+    return cached.content;
   }
 
   // Find the tool definition
@@ -56,7 +67,7 @@ export function getToolSchema(toolName: string): string | null {
   const content = JSON.stringify(schemaDoc, null, 2);
 
   // Cache for future requests
-  schemaCache.set(toolName, content);
+  schemaCache.set(toolName as string, { content });
 
   return content;
 }

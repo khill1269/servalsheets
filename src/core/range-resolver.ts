@@ -10,35 +10,11 @@
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { LRUCache } from 'lru-cache';
-import type { RangeInput, ResolvedRange, GridRange, ErrorDetail } from '../schemas/shared.js';
+import type { RangeInput, ResolvedRange, GridRange } from '../schemas/shared.js';
+import { RangeResolutionError } from './errors.js';
 
-export class RangeResolutionError extends Error {
-  public readonly code: string;
-  public readonly details: Record<string, unknown>;
-  public readonly retryable: boolean;
-
-  constructor(
-    message: string,
-    code: string,
-    details: Record<string, unknown> = {},
-    retryable: boolean = false
-  ) {
-    super(message);
-    this.name = 'RangeResolutionError';
-    this.code = code;
-    this.details = details;
-    this.retryable = retryable;
-  }
-
-  toErrorDetail(): ErrorDetail {
-    return {
-      code: this.code as ErrorDetail['code'],
-      message: this.message,
-      details: Object.keys(this.details).length > 0 ? this.details : undefined,
-      retryable: this.retryable,
-    };
-  }
-}
+// Re-export for backward compatibility
+export { RangeResolutionError };
 
 interface HeaderCache {
   headers: Map<string, number>; // header -> column index
@@ -89,7 +65,22 @@ export class RangeResolver {
   /**
    * Resolve a range input to A1 notation
    */
-  async resolve(spreadsheetId: string, input: RangeInput): Promise<ResolvedRange> {
+  async resolve(
+    spreadsheetId: string,
+    input: RangeInput | string | null | undefined
+  ): Promise<ResolvedRange> {
+    if (typeof input === 'string') {
+      return this.resolveA1(spreadsheetId, input);
+    }
+
+    if (!input || typeof input !== 'object') {
+      throw new RangeResolutionError(
+        'Range input is required. Provide A1 notation (for example "Sheet1!A1:D10") or a structured range object.',
+        'INVALID_RANGE',
+        { range: input === undefined ? 'undefined' : String(input) }
+      );
+    }
+
     // Direct A1 notation
     if ('a1' in input) {
       return this.resolveA1(spreadsheetId, input.a1);

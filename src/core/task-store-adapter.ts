@@ -4,7 +4,7 @@
  * Adapter that bridges SDK TaskStore interface with custom InMemoryTaskStore
  * Handles parameter mapping and type conversions while preserving custom features
  *
- * MCP Protocol: 2025-11-25 (SEP-1686)
+ * MCP Protocol: 2025-11-25 (Tasks - standard capability, origin: SEP-1686)
  */
 
 import type { Task, RequestId, Result, Request } from '@modelcontextprotocol/sdk/types.js';

@@ -53,6 +53,21 @@ describe('Action Equivalence Map - Quick Win #4', () => {
       const results = completeAction('sheets_core', 'delete tab');
       expect(results).toContain('delete_sheet');
     });
+
+    it('should map "rename sheet" to "update_sheet"', () => {
+      const results = completeAction('sheets_core', 'rename sheet');
+      expect(results).toContain('update_sheet');
+    });
+
+    it('should map "rename tab" to "update_sheet"', () => {
+      const results = completeAction('sheets_core', 'rename tab');
+      expect(results).toContain('update_sheet');
+    });
+
+    it('should map generic "rename" to "update_sheet"', () => {
+      const results = completeAction('sheets_core', 'rename');
+      expect(results).toContain('update_sheet');
+    });
   });
 
   describe('Formatting operations aliases', () => {

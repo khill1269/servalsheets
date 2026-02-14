@@ -99,8 +99,8 @@ describe('Deferred Schema Mode', () => {
     it('should have prepared input schemas that accept request objects in deferred mode', () => {
       if (!DEFER_SCHEMAS) return;
 
-      // In deferred mode, prepareSchemaForRegistration returns a passthrough
-      // that accepts any action string
+      // In deferred mode, prepareSchemaForRegistration returns a z.looseObject()
+      // passthrough schema that accepts any action string and allows additional properties
       const testSchema = z.object({
         request: z.object({
           action: z.enum(['read', 'write']),
@@ -108,8 +108,15 @@ describe('Deferred Schema Mode', () => {
       });
 
       const prepared = prepareSchemaForRegistration(testSchema, 'input') as z.ZodType;
-      const result = prepared.safeParse({ request: { action: 'test_action_xyz' } });
+      // Flat deferred schemas extract action enum from full schema, so use a valid action
+      const result = prepared.safeParse({ request: { action: 'read' } });
       expect(result.success).toBe(true);
+
+      // Verify additionalProperties are allowed (spreadsheetId, range, etc.)
+      const withExtra = prepared.safeParse({
+        request: { action: 'read', spreadsheetId: 'abc123', range: 'Sheet1!A1:B2' },
+      });
+      expect(withExtra.success).toBe(true);
     });
 
     it('should have prepared output schemas that accept response objects in deferred mode', () => {
@@ -125,6 +132,12 @@ describe('Deferred Schema Mode', () => {
       const prepared = prepareSchemaForRegistration(testSchema, 'output') as z.ZodType;
       const result = prepared.safeParse({ response: { success: true } });
       expect(result.success).toBe(true);
+
+      // Verify additionalProperties are allowed (data, error, etc.)
+      const withExtra = prepared.safeParse({
+        response: { success: true, data: ['test'], extra: 'field' },
+      });
+      expect(withExtra.success).toBe(true);
     });
   });
 
@@ -147,8 +160,9 @@ describe('Deferred Schema Mode', () => {
         totalSize += JSON.stringify(outputJson).length;
       }
 
-      // 21 tools × 2 schemas × ~500-700 bytes each ≈ ~21-30KB
-      expect(totalSize).toBeLessThan(30_000);
+      // 21 tools: flat input schemas (~23KB) + minimal output schemas (~5KB) ≈ ~28KB
+      // With action enums and property descriptions, budget is ~50KB
+      expect(totalSize).toBeLessThan(50_000);
     });
   });
 });

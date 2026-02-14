@@ -2,6 +2,171 @@
 
 **Auto-read file for Claude Code** - These rules are enforced by CI.
 
+## Project Overview
+
+ServalSheets is a production-grade MCP (Model Context Protocol) server for Google Sheets with 21 tools and 294 actions. It provides AI-powered spreadsheet operations with safety rails, transactions, batch operations, and enterprise features.
+
+**Version:** 1.6.0 | **Protocol:** MCP 2025-11-25 | **Runtime:** Node.js + TypeScript (strict)
+
+## Complete Architecture Map
+
+### Entrypoints (3 transport modes)
+
+| File | Transport | Usage |
+|------|-----------|-------|
+| `src/cli.ts` → `src/server.ts` | STDIO | Claude Desktop, CLI (default) |
+| `src/http-server.ts` | HTTP/SSE/Streamable | Cloud deployment, connectors |
+| `src/remote-server.ts` | HTTP + OAuth 2.1 | Multi-tenant remote access |
+
+### Core Pipeline (request flow)
+
+```
+MCP Request → src/server.ts:handleToolCall()
+  → src/mcp/registration/tool-handlers.ts:createToolCallHandler()
+    → normalizeToolArgs() (legacy envelope handling)
+    → Zod schema validation (src/schemas/*.ts)
+    → src/handlers/*.ts:executeAction() (business logic)
+      → src/services/google-api.ts (auto-retry + circuit breaker via Proxy)
+        → Google Sheets/Drive/BigQuery API
+    → buildToolResponse() (output schema validation + MCP formatting)
+  → CallToolResult to client
+```
+
+### Directory Structure
+
+```
+src/
+├── cli.ts                    # CLI entry + auth setup wizard
+├── server.ts                 # STDIO MCP server (~900 lines)
+├── http-server.ts            # HTTP MCP server + middleware chain
+├── remote-server.ts          # OAuth wrapper over http-server
+├── schemas/                  # Zod schemas (SOURCE OF TRUTH for actions)
+│   ├── index.ts              # Re-exports + TOOL_COUNT/ACTION_COUNT constants
+│   ├── annotations.ts        # Per-tool + per-action annotations (SEP-973)
+│   ├── descriptions.ts       # LLM-optimized tool descriptions with decision guides
+│   ├── fast-validators.ts    # Pre-Zod fast validation (0.1ms)
+│   ├── auth.ts               # sheets_auth (4 actions)
+│   ├── core.ts               # sheets_core (19 actions)
+│   ├── data.ts               # sheets_data (18 actions)
+│   ├── format.ts             # sheets_format (22 actions)
+│   ├── dimensions.ts         # sheets_dimensions (28 actions)
+│   ├── visualize.ts          # sheets_visualize (18 actions)
+│   ├── collaborate.ts        # sheets_collaborate (35 actions)
+│   ├── advanced.ts           # sheets_advanced (26 actions)
+│   ├── transaction.ts        # sheets_transaction (6 actions)
+│   ├── quality.ts            # sheets_quality (4 actions)
+│   ├── history.ts            # sheets_history (7 actions)
+│   ├── confirm.ts            # sheets_confirm (5 actions)
+│   ├── analyze.ts            # sheets_analyze (16 actions)
+│   ├── fix.ts                # sheets_fix (1 action)
+│   ├── composite.ts          # sheets_composite (10 actions)
+│   ├── session.ts            # sheets_session (26 actions)
+│   ├── templates.ts          # sheets_templates (8 actions)
+│   ├── bigquery.ts           # sheets_bigquery (14 actions)
+│   ├── appsscript.ts         # sheets_appsscript (14 actions)
+│   ├── webhook.ts            # sheets_webhook (6 actions)
+│   └── dependencies.ts       # sheets_dependencies (7 actions)
+├── handlers/                 # Business logic (1 per tool)
+│   ├── base.ts               # BaseHandler (circuit breaker, instrumented API calls)
+│   ├── auth.ts ... deps.ts   # 21 handler files matching schemas
+│   └── index.ts              # Handler factory + registry
+├── mcp/                      # MCP protocol layer
+│   ├── registration/
+│   │   ├── tool-definitions.ts    # TOOL_DEFINITIONS array (21 entries with input/output schemas)
+│   │   ├── tool-handlers.ts       # createToolCallHandler + buildToolResponse
+│   │   ├── schema-helpers.ts      # Zod → JSON Schema conversion + caching
+│   │   ├── tools-list-compat.ts   # tools/list response formatting
+│   │   └── extraction-helpers.ts  # Action/spreadsheetId/error extraction
+│   ├── completions.ts        # TOOL_ACTIONS map for autocomplete
+│   └── features-2025-11-25.ts # Server instructions + execution config
+├── services/                 # Infrastructure services
+│   ├── google-api.ts         # GoogleApiClient (auto-retry, circuit breaker, HTTP/2)
+│   ├── transaction-manager.ts # Atomic batch operations
+│   ├── user-rate-limiter.ts  # Per-user rate limiting (Redis)
+│   ├── request-merger.ts     # Overlapping read merging
+│   ├── circuit-breaker-registry.ts # Global circuit breaker tracking
+│   ├── history-service.ts    # Operation history (undo/redo)
+│   ├── session-context.ts    # Per-conversation state
+│   ├── token-manager.ts      # Proactive OAuth token refresh
+│   └── webhook-*.ts          # Webhook manager/queue/worker
+├── middleware/               # HTTP middleware
+│   └── redaction.ts          # Auto-redact tokens/keys from responses
+├── utils/                    # Shared utilities
+│   ├── retry.ts              # executeWithRetry (exponential backoff + jitter)
+│   ├── circuit-breaker.ts    # CircuitBreaker (CLOSED/OPEN/HALF_OPEN)
+│   ├── request-deduplication.ts # In-flight + result cache dedup
+│   ├── action-intelligence.ts # Per-action hints, batch suggestions
+│   ├── schema-compat.ts      # Zod v4 → JSON Schema conversion
+│   ├── error-factory.ts      # Structured error creation (40+ codes)
+│   ├── enhanced-errors.ts    # Google API error → ServalSheets error mapping
+│   ├── request-context.ts    # Per-request context (tracing, deadline)
+│   ├── response-compactor.ts # Context window pressure reduction
+│   └── logger.ts             # Structured logging (Winston)
+├── knowledge/                # AI knowledge base (40 files)
+│   ├── api/                  # Google API guides
+│   │   ├── error-handling.md           # Error recovery patterns (994 lines)
+│   │   └── limits/quotas.json          # Quota details + optimization (622 lines)
+│   ├── formulas/             # Spreadsheet formula reference
+│   ├── masterclass/          # Deep-dive performance/security guides
+│   ├── templates/            # Industry CRM/inventory/project templates
+│   └── workflow-intelligence.json # Decision trees + anti-patterns (629 lines)
+├── observability/            # Metrics + tracing
+│   └── metrics.ts            # Prometheus metrics (prom-client)
+├── resources/                # MCP resources
+│   ├── schemas.ts            # schema://tools/{name} resource provider
+│   └── temporary-storage.ts  # Large response overflow storage
+├── config/                   # Configuration
+│   ├── env.ts                # Environment variable parsing + defaults
+│   └── oauth-scopes.ts       # Google OAuth scope management
+└── core/                     # Core types + errors
+    └── errors.ts             # Base error classes
+```
+
+### Test Structure
+
+```
+tests/
+├── contracts/     # 667 schema guarantee tests (MUST always pass)
+├── security/      # 34 security tests (redaction, input sanitization, resource indicators)
+├── handlers/      # Handler unit tests (per-tool)
+├── schemas/       # Schema validation tests
+├── utils/         # Utility function tests
+├── services/      # Service integration tests
+├── unit/          # Pure unit tests
+├── compliance/    # MCP protocol compliance tests
+├── property/      # Property-based (fuzz) tests
+├── safety/        # Safety rail tests
+├── benchmarks/    # Performance benchmarks
+├── live-api/      # Real Google API tests (requires TEST_REAL_API=true)
+└── snapshots/     # Response snapshot tests
+```
+
+### Key Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `server.json` | MCP registry metadata + AI instructions (sent to all clients) |
+| `package.json` | Dependencies, scripts, version |
+| `tsconfig.json` | TypeScript strict mode config |
+| `tsconfig.build.json` | Build-specific TS config |
+| `eslint.config.js` | ESLint flat config |
+| `vitest.config.ts` | Test runner config |
+| `.dependency-cruiser.cjs` | Architecture rule enforcement |
+
+### Reliability Infrastructure (automatic, opt-out)
+
+| Feature | File | Default |
+|---------|------|---------|
+| Auto-retry (3x, exponential backoff) | `src/services/google-api.ts` via `wrapGoogleApi()` | ON |
+| Circuit breaker (per-client) | `src/services/google-api.ts` via `wrapGoogleApi()` | ON |
+| Request deduplication | `src/utils/request-deduplication.ts` | ON |
+| Read merging (overlapping ranges) | `src/services/request-merger.ts` | ON |
+| Output schema validation | `src/mcp/registration/tool-handlers.ts` | ON (advisory) |
+| Response redaction (tokens/keys) | `src/middleware/redaction.ts` | ON in production |
+| Per-user rate limiting | `src/http-server.ts` + `src/services/user-rate-limiter.ts` | ON (requires Redis) |
+| HTTP/2 connection pooling | `src/services/google-api.ts` | ON |
+| Proactive token refresh | `src/services/token-manager.ts` | ON |
+
 ## NO Documentation File Creation
 
 **NEVER create these files:**
@@ -120,11 +285,11 @@ When starting work, operate as an auditor:
 
 | Metric               | Source File            | Current Value  |
 | -------------------- | ---------------------- | -------------- |
-| **ACTION_COUNT**     | `src/schemas/index.ts` | 293 actions    |
+| **ACTION_COUNT**     | `src/schemas/index.ts` | 294 actions    |
 | **TOOL_COUNT**       | `src/schemas/index.ts` | 21 tools       |
 | **Protocol Version** | `src/version.ts:14`    | MCP 2025-11-25 |
-| **Zod Version**      | `package.json`         | 4.3.5          |
-| **SDK Version**      | `package.json`         | ^1.25.2        |
+| **Zod Version**      | `package.json`         | 4.3.6          |
+| **SDK Version**      | `package.json`         | 1.26.0         |
 
 **How to verify:**
 
@@ -198,7 +363,7 @@ All verification checks passing:
 2. Added sheets_session tool to all registry locations
 3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced)
 4. Added Tier 7 enterprise tools (sheets_appsscript, sheets_bigquery, sheets_templates)
-5. Current state: 21 tools with 293 actions
+5. Current state: 21 tools with 294 actions
 6. Synchronized metadata across all files
 7. Fixed TypeScript strict mode issues in handlers
 
@@ -246,10 +411,10 @@ The `sheets_session` tool provides conversational context management.
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
 - ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 21 tools"
 - ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 21 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "293 actions across 21 tools"
+- ✅ `src/mcp/completions.ts` - Comment updated to "294 actions across 21 tools"
 - ✅ Tool is functional and working
 
-**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 293 actions (as of 2026-02-01)
+**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 294 actions (as of 2026-02-14)
 
 ---
 

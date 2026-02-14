@@ -7,6 +7,7 @@
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { logger } from '../utils/logger.js';
+import { registerCleanup } from '../utils/resource-cleanup.js';
 
 export type TaskStatus = 'working' | 'input_required' | 'completed' | 'failed' | 'cancelled';
 
@@ -28,7 +29,7 @@ export interface TaskResult {
 /**
  * Task store interface for MCP task system
  *
- * MCP Spec Reference: SEP-1686 (experimental)
+ * MCP Spec Reference: MCP 2025-11-25 Tasks (standard capability, origin: SEP-1686)
  * - Tasks have lifecycle: working → input_required → completed/failed/cancelled
  * - TTL determines retention after creation
  * - Poll interval suggests client polling frequency
@@ -92,6 +93,15 @@ export class InMemoryTaskStore implements TaskStore {
     this.cleanupInterval = setInterval(() => {
       void this.cleanupExpiredTasks();
     }, cleanupIntervalMs);
+
+    // Register cleanup to prevent memory leak
+    registerCleanup(
+      'InMemoryTaskStore',
+      () => {
+        clearInterval(this.cleanupInterval);
+      },
+      'task-cleanup-interval'
+    );
   }
 
   /**

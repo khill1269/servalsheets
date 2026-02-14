@@ -417,7 +417,23 @@ const BigQueryResponseSchema = z.discriminatedUnion('success', [
     // Query results
     rowCount: z.coerce.number().int().optional().describe('Number of rows returned'),
     columns: z.array(z.string()).optional().describe('Column names'),
-    rows: z.array(z.array(z.unknown())).optional().describe('Result rows (for preview)'),
+    rows: z
+      .array(
+        z.array(
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        )
+      )
+      .optional()
+      .describe(
+        'Result rows (for preview) - each cell can be string, number, boolean, null, array, or object'
+      ),
     bytesProcessed: z.coerce.number().optional().describe('Bytes processed by query'),
     // Schema discovery results
     datasets: z

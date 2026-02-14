@@ -24,6 +24,7 @@ import { randomUUID } from 'crypto';
 import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
 import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
+import { generateWebhookSecret } from '../security/webhook-signature.js';
 import type {
   WebhookEventType,
   WebhookInfo,
@@ -93,6 +94,9 @@ export class WebhookManager {
     const webhookId = `webhook_${randomUUID()}`;
     const channelId = `channel_${randomUUID()}`;
 
+    // Generate webhook secret if not provided
+    const secret = input.secret || generateWebhookSecret();
+
     // Clamp expiration to Drive API limit (1 day for files.watch)
     const MAX_EXPIRATION_MS = 86400000; // 1 day
     const requestedExpiration = input.expirationMs;
@@ -154,7 +158,7 @@ export class WebhookManager {
         createdAt: Date.now(),
         expiresAt,
         active: true,
-        secret: input.secret,
+        secret, // Use generated or provided secret
         deliveryCount: 0,
         failureCount: 0,
         deliveryTimings: [],
@@ -183,7 +187,7 @@ export class WebhookManager {
         channelId,
         expiresAt: new Date(expiresAt).toISOString(),
         active: true,
-        secret: input.secret,
+        secret, // Return the generated or provided secret
       };
     } catch (error) {
       logger.error('Failed to register webhook', {

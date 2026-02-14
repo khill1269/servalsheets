@@ -8,6 +8,7 @@
 
 import type { SheetsSessionInput, SheetsSessionOutput } from '../schemas/session.js';
 import { getSessionContext, type SpreadsheetContext } from '../services/session-context.js';
+import { getHistoryService } from '../services/history-service.js';
 import { unwrapRequest } from './base.js';
 import { ValidationError } from '../core/errors.js';
 import {
@@ -78,11 +79,14 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
     switch (action) {
       case 'set_active': {
         const { spreadsheetId, title, sheetNames } = req;
+        if (typeof spreadsheetId !== 'string' || spreadsheetId.trim().length === 0) {
+          throw new ValidationError('Missing required parameter: spreadsheetId', 'spreadsheetId');
+        }
         // Title is optional - use spreadsheetId as fallback if not provided
         // This allows LLMs to quickly set active without knowing the title
-        const resolvedTitle = title ?? `Spreadsheet ${spreadsheetId!.slice(0, 8)}...`;
+        const resolvedTitle = title ?? `Spreadsheet ${spreadsheetId.slice(0, 8)}...`;
         const context: SpreadsheetContext = {
-          spreadsheetId: spreadsheetId!,
+          spreadsheetId,
           title: resolvedTitle,
           sheetNames: sheetNames ?? [],
           activatedAt: Date.now(),
@@ -124,7 +128,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             lastOperation: session.getLastOperation(),
             pendingOperation: session.getPendingOperation(),
             suggestedActions: session.suggestNextActions(),
-          },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
         };
       }
 
@@ -150,6 +155,25 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           undoable: undoable!,
           snapshotId,
           cellsAffected,
+        });
+
+        // Sync operation to HistoryService so sheets_history:get can find it
+        const historyService = getHistoryService();
+        historyService.record({
+          id: operationId,
+          timestamp: new Date().toISOString(),
+          tool: tool!,
+          action: toolAction!,
+          params: {
+            range,
+            description,
+            undoable,
+          },
+          result: 'success',
+          duration: 0,
+          spreadsheetId: spreadsheetId!,
+          cellsAffected,
+          snapshotId,
         });
 
         return {
@@ -184,10 +208,13 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
 
       case 'find_by_reference': {
         const { reference, referenceType } = req;
+        if (typeof reference !== 'string' || reference.trim().length === 0) {
+          throw new ValidationError('Missing required parameter: reference', 'reference');
+        }
 
         // Type assertion: refine() validates these are defined for find_by_reference action
         if (referenceType === 'spreadsheet') {
-          const spreadsheet = session.findSpreadsheetByReference(reference!);
+          const spreadsheet = session.findSpreadsheetByReference(reference);
           return {
             response: {
               success: true,
@@ -197,7 +224,7 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             },
           };
         } else {
-          const operation = session.findOperationByReference(reference!);
+          const operation = session.findOperationByReference(reference);
           return {
             response: {
               success: true,
@@ -252,14 +279,18 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           type: type!,
           step: step!,
           totalSteps: totalSteps!,
-          context: context!,
+          context: context! as Record<
+            string,
+            string | number | boolean | unknown[] | Record<string, unknown> | null
+          >,
         });
         return {
           response: {
             success: true,
             action: 'set_pending',
             pending: session.getPendingOperation(),
-          },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
         };
       }
 
@@ -269,7 +300,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             success: true,
             action: 'get_pending',
             pending: session.getPendingOperation(),
-          },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
         };
       }
 
@@ -314,7 +346,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
           sheetNames: activeSpreadsheet?.sheetNames,
           lastRange: activeSpreadsheet?.lastRange,
           context: {},
-          preferences: session.getPreferences() as unknown as Record<string, unknown>,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          preferences: session.getPreferences() as any as Record<string, unknown>,
         };
 
         const filepath = await saveCheckpoint(checkpoint);
@@ -478,7 +511,8 @@ export async function handleSheetsSession(input: SheetsSessionInput): Promise<Sh
             alerts,
             count: alerts.length,
             hasCritical: alerts.some((a) => a.severity === 'critical'),
-          },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
         };
       }
 

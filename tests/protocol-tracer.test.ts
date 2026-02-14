@@ -6,11 +6,7 @@ import {
 } from '../scripts/test-infrastructure/protocol-tracer.js';
 import type { ErrorDetail } from '../src/utils/error-factory.js';
 
-// SKIP: Protocol tracer implementation is incomplete
-// Missing: singleton functions, getStats(), getTracesForCorrelation(), exportTraces()
-// Constructor signature doesn't match tests
-// See: Test Failure Fix Plan for details
-describe.skip('ProtocolTracer', () => {
+describe('ProtocolTracer', () => {
   let tracer: ProtocolTracer;
 
   beforeEach(() => {

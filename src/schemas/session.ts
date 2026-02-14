@@ -118,7 +118,19 @@ const SetPendingActionSchema = CommonFieldsSchema.extend({
   type: z.string().describe('Type of pending operation'),
   step: z.coerce.number().describe('Current step number'),
   totalSteps: z.coerce.number().describe('Total number of steps'),
-  context: z.record(z.string(), z.unknown()).describe('Operation context data'),
+  context: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe('Operation context data (string, number, boolean, null, array, or object)'),
 });
 
 const GetPendingActionSchema = CommonFieldsSchema.extend({
@@ -198,7 +210,19 @@ const GetProfileActionSchema = CommonFieldsSchema.extend({
 
 const UpdateProfilePreferencesActionSchema = CommonFieldsSchema.extend({
   action: z.literal('update_profile_preferences').describe('Update user profile preferences'),
-  preferences: z.record(z.string(), z.unknown()).describe('Preferences to update'),
+  preferences: z
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
+    .describe('Preferences to update (can be string, number, boolean, null, array, or object)'),
 });
 
 const RecordSuccessfulFormulaActionSchema = CommonFieldsSchema.extend({
@@ -310,7 +334,17 @@ const PendingOperationSchema = z
     type: z.string(),
     step: z.coerce.number(),
     totalSteps: z.coerce.number(),
-    context: z.record(z.string(), z.unknown()),
+    context: z.record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    ),
   })
   .nullable();
 
@@ -399,7 +433,17 @@ const SessionSuccessSchema = z.object({
           .object({
             tool: z.string(),
             action: z.string(),
-            params: z.record(z.string(), z.unknown()),
+            params: z.record(
+              z.string(),
+              z.union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.any()),
+                z.record(z.string(), z.any()),
+              ])
+            ),
           })
           .optional(),
         acknowledged: z.boolean(),
@@ -414,9 +458,39 @@ const SessionSuccessSchema = z.object({
   profile: z
     .object({
       userId: z.string(),
-      preferences: z.record(z.string(), z.unknown()),
-      learnings: z.record(z.string(), z.unknown()),
-      history: z.record(z.string(), z.unknown()),
+      preferences: z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      ),
+      learnings: z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      ),
+      history: z.record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ])
+      ),
       lastUpdated: z.number(),
     })
     .nullable()

@@ -42,7 +42,16 @@ const CommonFieldsSchema = z.object({
 
 const ValidateActionSchema = CommonFieldsSchema.extend({
   action: z.literal('validate').describe('Validate data using built-in validators'),
-  value: z.unknown().describe('Value to validate'),
+  value: z
+    .union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.any()),
+      z.record(z.string(), z.any()),
+    ])
+    .describe('Value to validate (can be string, number, boolean, null, array, or object)'),
   rules: z
     .array(z.string())
     .optional()
@@ -50,7 +59,17 @@ const ValidateActionSchema = CommonFieldsSchema.extend({
       'Built-in rule IDs to apply (all if omitted). Available: builtin_string, builtin_number, builtin_boolean, builtin_date (type checks); builtin_positive, builtin_non_negative (range checks); builtin_email, builtin_url, builtin_phone (format checks); builtin_required, builtin_non_empty_string (presence checks). Example: ["builtin_email", "builtin_required"]'
     ),
   context: z
-    .record(z.string(), z.unknown())
+    .record(
+      z.string(),
+      z.union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.null(),
+        z.array(z.any()),
+        z.record(z.string(), z.any()),
+      ])
+    )
     .optional()
     .describe('Validation context: spreadsheetId, sheetName, range, etc.'),
   stopOnFirstError: z
@@ -104,9 +123,19 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
         .optional()
         .describe('Action name within the tool (e.g., "write", "clear", "format")'),
       params: z
-        .record(z.string(), z.unknown())
+        .record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        )
         .optional()
-        .describe('Operation parameters that will be passed to the tool'),
+        .describe('Operation parameters that will be passed to the tool. Expected shape: { spreadsheetId: string, range: string, values?: any[], ... } or other tool-specific parameters'),
       description: z
         .string()
         .optional()
@@ -117,7 +146,7 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
       'At least one of type, tool, action, or description must be provided'
     )
     .describe(
-      'Operation to analyze. Provide tool+action+params for precise analysis, or description for natural language. Example: { "tool": "sheets_data", "action": "write", "params": { "range": "A1:B10", "values": [[1,2]] } }'
+      'Operation to analyze. Expected shape: { tool: string, action: string, params: Record<string, unknown> }. Example: { "tool": "sheets_data", "action": "write", "params": { "spreadsheetId": "abc123", "range": "Sheet1!A1:B10", "values": [[1,2]] } }. For clear operations: { "tool": "sheets_data", "action": "clear", "params": { "spreadsheetId": "...", "range": "Sheet1!A1:Z100" } }'
     ),
 });
 
@@ -177,8 +206,26 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
           ruleName: z.string(),
           severity: z.enum(['error', 'warning', 'info']),
           message: z.string(),
-          actualValue: z.unknown().optional(),
-          expectedValue: z.unknown().optional(),
+          actualValue: z
+            .union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.any()),
+              z.record(z.string(), z.any()),
+            ])
+            .optional(),
+          expectedValue: z
+            .union([
+              z.string(),
+              z.number(),
+              z.boolean(),
+              z.null(),
+              z.array(z.any()),
+              z.record(z.string(), z.any()),
+            ])
+            .optional(),
           path: z.string().optional(),
         })
       )
@@ -224,8 +271,22 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
           range: z.string(),
           localVersion: z.coerce.number(),
           remoteVersion: z.coerce.number(),
-          localValue: z.unknown(),
-          remoteValue: z.unknown(),
+          localValue: z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ]),
+          remoteValue: z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ]),
           conflictType: z.enum(['concurrent_write', 'version_mismatch', 'data_race']),
           severity: z.enum(['low', 'medium', 'high', 'critical']),
           detectedAt: z.coerce.number(),
@@ -239,7 +300,14 @@ const QualityResponseSchema = z.discriminatedUnion('success', [
     resolution: z
       .object({
         strategy: z.string(),
-        finalValue: z.unknown(),
+        finalValue: z.union([
+          z.string(),
+          z.number(),
+          z.boolean(),
+          z.null(),
+          z.array(z.any()),
+          z.record(z.string(), z.any()),
+        ]),
         version: z.coerce.number(),
       })
       .optional(),

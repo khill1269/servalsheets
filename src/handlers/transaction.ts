@@ -207,21 +207,85 @@ export class TransactionHandler {
         }
 
         case 'list': {
-          // Phase 1 Fix: Return explicit feature unavailable error instead of silent empty list
-          response = {
-            success: false,
-            error: {
-              code: 'UNIMPLEMENTED',
-              message:
-                'Transaction listing is not yet implemented. TransactionManager does not expose listTransactions() method.',
-              retryable: false,
-              suggestedFix:
-                'Use status action with a specific transactionId to check individual transaction status.',
-              details: {
-                reason: 'TransactionManager API limitation',
-                workaround: 'Track transaction IDs from begin/queue/commit operations',
-              },
+          const allTransactions = transactionManager.getActiveTransactions();
+
+          // Apply optional filters
+          let filteredTransactions = allTransactions;
+
+          if (req.spreadsheetId) {
+            filteredTransactions = allTransactions.filter(
+              (tx) => tx.spreadsheetId === req.spreadsheetId
+            );
+          }
+
+          // Sort by creation time (newest first)
+          filteredTransactions.sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+
+          // Map transactions to response format with additional details
+          const transactions = filteredTransactions.map((tx) => {
+            const duration = tx.endTime
+              ? tx.endTime - (tx.startTime || 0)
+              : Date.now() - (tx.startTime || 0);
+
+            return {
+              id: tx.id,
+              spreadsheetId: tx.spreadsheetId,
+              status: tx.status,
+              operationCount: tx.operations.length,
+              created: new Date(tx.startTime || 0).toISOString(),
+              updated: tx.endTime ? new Date(tx.endTime).toISOString() : undefined,
+              duration: tx.status === 'pending' || tx.status === 'queued' ? duration : tx.duration,
+              isolationLevel: tx.isolationLevel,
+              snapshotId: tx.snapshot?.id,
+            };
+          });
+
+          // Generate summary statistics
+          const summary = {
+            total: transactions.length,
+            byStatus: {
+              pending: transactions.filter((t) => t.status === 'pending').length,
+              queued: transactions.filter((t) => t.status === 'queued').length,
+              executing: transactions.filter((t) => t.status === 'executing').length,
+              committed: transactions.filter((t) => t.status === 'committed').length,
+              rolled_back: transactions.filter((t) => t.status === 'rolled_back').length,
+              failed: transactions.filter((t) => t.status === 'failed').length,
             },
+          };
+
+          // Generate summary info for metadata
+          const summaryMessage = [
+            `Total: ${summary.total}`,
+            `Pending: ${summary.byStatus.pending}`,
+            `Queued: ${summary.byStatus.queued}`,
+            `Executing: ${summary.byStatus.executing}`,
+            `Committed: ${summary.byStatus.committed}`,
+            `Rolled Back: ${summary.byStatus.rolled_back}`,
+            `Failed: ${summary.byStatus.failed}`,
+          ].join(' | ');
+
+          response = {
+            success: true,
+            action: 'list',
+            transactions,
+            message: `Found ${transactions.length} active transaction(s). ${summaryMessage}`,
+            _meta:
+              transactions.length > 0
+                ? {
+                    summary,
+                    suggestions:
+                      summary.byStatus.pending > 0 || summary.byStatus.queued > 0
+                        ? [
+                            {
+                              type: 'follow_up' as const,
+                              message: `${summary.byStatus.pending + summary.byStatus.queued} transaction(s) awaiting execution`,
+                              reason: 'Transactions in pending or queued state',
+                              priority: 'medium' as const,
+                            },
+                          ]
+                        : undefined,
+                  }
+                : undefined,
           };
           break;
         }
@@ -235,6 +299,7 @@ export class TransactionHandler {
               code: 'INVALID_PARAMS',
               message: `Unsupported action: ${(req as { action: string }).action}`,
               retryable: false,
+              suggestedFix: "Check parameter format - ranges use A1 notation like 'Sheet1!A1:D10'",
             },
           };
         }

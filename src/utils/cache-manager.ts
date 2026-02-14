@@ -476,7 +476,10 @@ export class CacheManager {
     try {
       // Accurate UTF-8 byte length calculation
       return Buffer.byteLength(JSON.stringify(value), 'utf8');
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to estimate cache entry size, using default', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Fallback to a conservative estimate
       return 1024; // 1KB default
     }

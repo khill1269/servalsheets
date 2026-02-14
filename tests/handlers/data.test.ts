@@ -563,8 +563,7 @@ describe('SheetsDataHandler', () => {
         expect(parseResult.success).toBe(true);
       });
 
-      // SKIPPED: Snapshot creation disabled in handler for reliability (see src/handlers/data.ts:458)
-      it.skip('should create snapshot when requested', async () => {
+      it('should ignore snapshot request when snapshot feature is disabled', async () => {
         // Recreate handler with proper snapshot service
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
@@ -588,12 +587,11 @@ describe('SheetsDataHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect(snapshotService.create).toHaveBeenCalled();
-        expect((result.response as any).snapshotId).toBe('snapshot-123');
+        expect(snapshotService.create).not.toHaveBeenCalled();
+        expect((result.response as any).snapshotId).toBeUndefined();
       });
 
-      // SKIPPED: Elicitation confirmation disabled in handler (see src/handlers/data.ts:446)
-      it.skip('should handle cancelled clear', async () => {
+      it('should proceed even when elicitation returns cancel because confirmation is disabled', async () => {
         // Use a range > 100 cells to trigger confirmation
         mockContext.rangeResolver = {
           resolve: vi.fn().mockResolvedValue({
@@ -635,9 +633,8 @@ describe('SheetsDataHandler', () => {
           range: 'Sheet1!A1:Z10',
         });
 
-        expect(result.response.success).toBe(false);
-        expect((result.response as any).error.code).toBe('PRECONDITION_FAILED');
-        expect(mockApi.spreadsheets.values.clear).not.toHaveBeenCalled();
+        expect(result.response.success).toBe(true);
+        expect(mockApi.spreadsheets.values.clear).toHaveBeenCalled();
       });
 
       it('should support dryRun mode', async () => {
@@ -901,8 +898,7 @@ describe('SheetsDataHandler', () => {
         expect(parseResult.success).toBe(true);
       });
 
-      // SKIPPED: Snapshot creation disabled in handler for reliability (see src/handlers/data.ts:976)
-      it.skip('should create snapshot when requested', async () => {
+      it('should ignore snapshot request when snapshot feature is disabled', async () => {
         // Recreate handler with proper snapshot service
         const snapshotService = {
           create: vi.fn().mockResolvedValue({
@@ -927,8 +923,8 @@ describe('SheetsDataHandler', () => {
         });
 
         expect(result.response.success).toBe(true);
-        expect(snapshotService.create).toHaveBeenCalled();
-        expect((result.response as any).snapshotId).toBe('snapshot-123');
+        expect(snapshotService.create).not.toHaveBeenCalled();
+        expect((result.response as any).snapshotId).toBeUndefined();
       });
 
       it('should support dryRun mode', async () => {
@@ -973,8 +969,7 @@ describe('SheetsDataHandler', () => {
     });
 
     describe('copy action', () => {
-      it.skip('should copy cells - SKIPPED: handler bug with action routing', async () => {
-        // Note: The handler previously had a bug where copy actions were misrouted.
+      it('should copy cells', async () => {
         const result = await handler.handle({
           action: 'copy_paste',
           spreadsheetId: 'test-id',
@@ -991,7 +986,7 @@ describe('SheetsDataHandler', () => {
         expect(parseResult.success).toBe(true);
       });
 
-      it.skip('should support paste type options - SKIPPED: handler bug with action routing', async () => {
+      it('should support paste type options', async () => {
         const result = await handler.handle({
           action: 'copy_paste',
           spreadsheetId: 'test-id',

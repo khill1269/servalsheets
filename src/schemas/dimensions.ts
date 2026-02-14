@@ -26,7 +26,8 @@ import {
 
 const CommonFieldsSchema = z.object({
   spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID from URL'),
-  sheetId: SheetIdSchema.describe('Numeric sheet ID'),
+  sheetId: SheetIdSchema.optional().describe('Numeric sheet ID (use this OR sheetName)'),
+  sheetName: z.string().optional().describe('Sheet name/title (use this OR sheetId)'),
   verbosity: z
     .enum(['minimal', 'standard', 'detailed'])
     .optional()
@@ -625,7 +626,17 @@ const DimensionsResponseSchema = z.discriminatedUnion('success', [
     filter: z
       .object({
         range: GridRangeSchema,
-        criteria: z.record(z.string(), z.unknown()),
+        criteria: z.record(
+          z.string(),
+          z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(z.any()),
+            z.record(z.string(), z.any()),
+          ])
+        ),
       })
       .optional(),
     filterViews: z
