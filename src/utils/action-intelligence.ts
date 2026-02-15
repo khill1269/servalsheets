@@ -21,15 +21,11 @@ export function getActionHints(toolName: string, actionName: string): string[] {
   const hints: string[] = [];
 
   if (ann.batchAlternative) {
-    hints.push(
-      `💡 For multiple operations, use ${ann.batchAlternative} to save API calls`
-    );
+    hints.push(`💡 For multiple operations, use ${ann.batchAlternative} to save API calls`);
   }
 
   if (ann.idempotent === false) {
-    hints.push(
-      `⚠️  This action is NOT idempotent — calling it again will duplicate the effect`
-    );
+    hints.push(`⚠️  This action is NOT idempotent — calling it again will duplicate the effect`);
   }
 
   if (ann.commonMistakes && ann.commonMistakes.length > 0) {
@@ -43,10 +39,7 @@ export function getActionHints(toolName: string, actionName: string): string[] {
  * Get the batch alternative suggestion when Claude is making
  * multiple sequential calls to the same action.
  */
-export function getBatchSuggestion(
-  toolName: string,
-  actionName: string
-): string | undefined {
+export function getBatchSuggestion(toolName: string, actionName: string): string | undefined {
   const key = `${toolName}.${actionName}`;
   return ACTION_ANNOTATIONS[key]?.batchAlternative;
 }
@@ -72,10 +65,7 @@ export function getApiCallCount(toolName: string, actionName: string): number {
 /**
  * Get prerequisites for an action (actions that should run first).
  */
-export function getPrerequisites(
-  toolName: string,
-  actionName: string
-): string[] {
+export function getPrerequisites(toolName: string, actionName: string): string[] {
   const key = `${toolName}.${actionName}`;
   return ACTION_ANNOTATIONS[key]?.prerequisites ?? [];
 }
@@ -89,10 +79,7 @@ export interface ActionGuidance {
   commonMistakes?: string[];
 }
 
-export function getActionGuidance(
-  toolName: string,
-  actionName: string
-): ActionGuidance {
+export function getActionGuidance(toolName: string, actionName: string): ActionGuidance {
   const key = `${toolName}.${actionName}`;
   const ann = ACTION_ANNOTATIONS[key];
   if (!ann) return {};
@@ -108,10 +95,7 @@ export function getActionGuidance(
  * Check if an action should be warned about for specific conditions.
  * Useful for safety checks before execution.
  */
-export function shouldWarnAboutIdempotency(
-  toolName: string,
-  actionName: string
-): boolean {
+export function shouldWarnAboutIdempotency(toolName: string, actionName: string): boolean {
   const key = `${toolName}.${actionName}`;
   const ann = ACTION_ANNOTATIONS[key];
   return ann?.idempotent === false;
@@ -121,21 +105,14 @@ export function shouldWarnAboutIdempotency(
  * Get all annotation keys for a tool.
  * Useful for introspection and documentation.
  */
-export function getActionAnnotationKeysForTool(
-  toolName: string
-): string[] {
-  return Object.keys(ACTION_ANNOTATIONS).filter((key) =>
-    key.startsWith(`${toolName}.`)
-  );
+export function getActionAnnotationKeysForTool(toolName: string): string[] {
+  return Object.keys(ACTION_ANNOTATIONS).filter((key) => key.startsWith(`${toolName}.`));
 }
 
 /**
  * Check if an action has annotations (i.e., is in the intelligence database).
  */
-export function hasActionAnnotations(
-  toolName: string,
-  actionName: string
-): boolean {
+export function hasActionAnnotations(toolName: string, actionName: string): boolean {
   const key = `${toolName}.${actionName}`;
   return key in ACTION_ANNOTATIONS;
 }

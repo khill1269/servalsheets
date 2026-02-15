@@ -676,88 +676,88 @@ const DrillDownActionSchema = CommonFieldsSchema.extend({
     ),
   target: z
     .discriminatedUnion('type', [
-    z.object({
-      type: z.literal('issue').describe('Drill into a specific quality issue'),
-      issueId: z.string().describe('Issue ID from previous analysis'),
-      includeContext: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Include surrounding data context'),
-      showSimilar: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Find similar issues in other locations'),
-    }),
-    z.object({
-      type: z.literal('sheet').describe('Drill into a specific sheet'),
-      sheetIndex: z.number().int().min(0).describe('Sheet index (0-based)'),
-      analyses: z
-        .array(z.enum(['quality', 'formulas', 'patterns', 'performance']))
-        .optional()
-        .describe('Specific analyses to run (all if not specified)'),
-    }),
-    z.object({
-      type: z.literal('column').describe('Drill into a specific column'),
-      sheetIndex: z.number().int().min(0).describe('Sheet index'),
-      column: z.string().describe('Column name or letter (e.g., "Name" or "B")'),
-      depth: z
-        .enum(['stats', 'quality', 'patterns', 'all'])
-        .optional()
-        .default('all')
-        .describe('Analysis depth'),
-    }),
-    z.object({
-      type: z.literal('formula').describe('Drill into a specific formula'),
-      cell: z.string().describe('Cell reference (e.g., "Sheet1!B5")'),
-      includeDependencies: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Include formula dependency graph'),
-      includeImpact: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Include cells affected by this formula'),
-    }),
-    z.object({
-      type: z.literal('anomaly').describe('Drill into a detected anomaly'),
-      anomalyId: z.string().describe('Anomaly ID from previous analysis'),
-      includeNeighbors: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Include neighboring values for context'),
-      explainDetection: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe('Explain why this was flagged'),
-    }),
-    z.object({
-      type: z.literal('pattern').describe('Drill into a detected pattern'),
-      patternId: z.string().describe('Pattern ID from previous analysis'),
-      showExamples: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
-        .optional()
-        .default(10)
-        .describe('Number of examples to show'),
-    }),
-    z.object({
-      type: z.literal('correlation').describe('Drill into a correlation'),
-      columns: z
-        .array(z.string())
-        .min(2)
-        .max(2)
-        .describe('Two column names to analyze correlation'),
-      sheetIndex: z.number().int().min(0).optional().describe('Sheet index (0 if not specified)'),
-    }),
-  ])
+      z.object({
+        type: z.literal('issue').describe('Drill into a specific quality issue'),
+        issueId: z.string().describe('Issue ID from previous analysis'),
+        includeContext: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Include surrounding data context'),
+        showSimilar: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Find similar issues in other locations'),
+      }),
+      z.object({
+        type: z.literal('sheet').describe('Drill into a specific sheet'),
+        sheetIndex: z.number().int().min(0).describe('Sheet index (0-based)'),
+        analyses: z
+          .array(z.enum(['quality', 'formulas', 'patterns', 'performance']))
+          .optional()
+          .describe('Specific analyses to run (all if not specified)'),
+      }),
+      z.object({
+        type: z.literal('column').describe('Drill into a specific column'),
+        sheetIndex: z.number().int().min(0).describe('Sheet index'),
+        column: z.string().describe('Column name or letter (e.g., "Name" or "B")'),
+        depth: z
+          .enum(['stats', 'quality', 'patterns', 'all'])
+          .optional()
+          .default('all')
+          .describe('Analysis depth'),
+      }),
+      z.object({
+        type: z.literal('formula').describe('Drill into a specific formula'),
+        cell: z.string().describe('Cell reference (e.g., "Sheet1!B5")'),
+        includeDependencies: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Include formula dependency graph'),
+        includeImpact: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Include cells affected by this formula'),
+      }),
+      z.object({
+        type: z.literal('anomaly').describe('Drill into a detected anomaly'),
+        anomalyId: z.string().describe('Anomaly ID from previous analysis'),
+        includeNeighbors: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Include neighboring values for context'),
+        explainDetection: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe('Explain why this was flagged'),
+      }),
+      z.object({
+        type: z.literal('pattern').describe('Drill into a detected pattern'),
+        patternId: z.string().describe('Pattern ID from previous analysis'),
+        showExamples: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .default(10)
+          .describe('Number of examples to show'),
+      }),
+      z.object({
+        type: z.literal('correlation').describe('Drill into a correlation'),
+        columns: z
+          .array(z.string())
+          .min(2)
+          .max(2)
+          .describe('Two column names to analyze correlation'),
+        sheetIndex: z.number().int().min(0).optional().describe('Sheet index (0 if not specified)'),
+      }),
+    ])
     .describe(
       'Target to drill into. Valid types: issue, sheet, column, formula, pattern, anomaly, correlation. Each type has its own required fields.'
     ),

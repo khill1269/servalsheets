@@ -67,12 +67,12 @@ export class EncryptedFileTokenStore implements TokenStore {
     try {
       const data = await fs.readFile(this.filePath, 'utf8');
       const record = JSON.parse(data) as EncryptedRecord;
-      
+
       // If the file was explicitly cleared, return null
       if (record.cleared) {
         return null;
       }
-      
+
       if (record.version !== 1) {
         throw new DataError(
           `Unsupported token store version: ${record.version}`,

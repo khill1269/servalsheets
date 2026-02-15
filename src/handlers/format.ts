@@ -189,9 +189,7 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
       case 'auto_fit':
         return await this.handleAutoFit(request as FormatRequest & { action: 'auto_fit' });
       case 'batch_format':
-        return await this.handleBatchFormat(
-          request as FormatRequest & { action: 'batch_format' }
-        );
+        return await this.handleBatchFormat(request as FormatRequest & { action: 'batch_format' });
       case 'rule_add_conditional_format':
         return await this.handleRuleAddConditionalFormat(
           request as FormatRequest & { action: 'rule_add_conditional_format' }
@@ -1016,7 +1014,8 @@ Always return valid JSON in the exact format requested.`,
       const opType = op['type'] as string;
       const rawRange = op['range'];
       // Normalize to RangeInput (resolveRange requires object form, not plain string)
-      const rangeInput = typeof rawRange === 'string' ? { a1: rawRange } : (rawRange as { a1: string });
+      const rangeInput =
+        typeof rawRange === 'string' ? { a1: rawRange } : (rawRange as { a1: string });
 
       // Resolve range for this operation
       const rangeA1 = await this.resolveRange(input.spreadsheetId, rangeInput);
@@ -1173,8 +1172,7 @@ Always return valid JSON in the exact format requested.`,
                       horizontalAlignment: 'CENTER',
                     },
                   },
-                  fields:
-                    'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
+                  fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
                 },
               });
               break;
@@ -1291,7 +1289,8 @@ Always return valid JSON in the exact format requested.`,
         code: 'INVALID_PARAMS',
         message: 'No valid format operations could be built from the provided operations array.',
         retryable: false,
-        suggestedFix: 'Ensure each operation has a valid type and the required parameters for that type',
+        suggestedFix:
+          'Ensure each operation has a valid type and the required parameters for that type',
       });
     }
 

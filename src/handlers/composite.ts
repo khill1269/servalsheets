@@ -708,8 +708,12 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       action: 'get_form_responses' as const,
       responseCount,
       columnHeaders: headers,
-      latestResponse: latestResponse as Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> | undefined,
-      oldestResponse: oldestResponse as Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> | undefined,
+      latestResponse: latestResponse as
+        | Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>
+        | undefined,
+      oldestResponse: oldestResponse as
+        | Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>
+        | undefined,
       formLinked,
       _meta: this.generateMeta(
         'get_form_responses',

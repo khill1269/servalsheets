@@ -1504,5 +1504,4 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
         : undefined,
     };
   }
-
 }

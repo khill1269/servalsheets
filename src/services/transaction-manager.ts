@@ -923,7 +923,9 @@ export class TransactionManager {
       if (mappedId !== undefined) {
         resolvedSheetId = mappedId;
       } else {
-        this.log(`WARNING: Sheet name '${sheetName}' not found in sheet map, using default sheetId=${defaultSheetId}`);
+        this.log(
+          `WARNING: Sheet name '${sheetName}' not found in sheet map, using default sheetId=${defaultSheetId}`
+        );
       }
     }
 

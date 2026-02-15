@@ -46,13 +46,15 @@ const REDACTION_PATTERNS: Array<{
   // Generic long base64 tokens (40+ chars, likely secrets)
   {
     name: 'long_token',
-    pattern: /(?<="[^"]*(?:token|secret|key|password|credential)[^"]*"\s*:\s*")[A-Za-z0-9+/=\-._]{40,}(?=")/gi,
+    pattern:
+      /(?<="[^"]*(?:token|secret|key|password|credential)[^"]*"\s*:\s*")[A-Za-z0-9+/=\-._]{40,}(?=")/gi,
     replacement: '[REDACTED]',
   },
   // Email addresses in stack traces (prevent PII leakage)
   {
     name: 'stack_trace_email',
-    pattern: /(?<=(?:Error|at|stack|trace|caused by)[^\n]{0,200})[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
+    pattern:
+      /(?<=(?:Error|at|stack|trace|caused by)[^\n]{0,200})[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
     replacement: '[EMAIL_REDACTED]',
   },
 ];
@@ -88,7 +90,8 @@ export function redactSensitiveData(input: string): { output: string; redactionC
 export function responseRedactionMiddleware() {
   const isEnabled =
     process.env['ENABLE_RESPONSE_REDACTION'] !== 'false' &&
-    (process.env['NODE_ENV'] === 'production' || process.env['ENABLE_RESPONSE_REDACTION'] === 'true');
+    (process.env['NODE_ENV'] === 'production' ||
+      process.env['ENABLE_RESPONSE_REDACTION'] === 'true');
 
   if (!isEnabled) {
     // Return no-op middleware when disabled
