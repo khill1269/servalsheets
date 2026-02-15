@@ -165,7 +165,10 @@ export interface DeduplicateResult {
   /** Preview of duplicates (if preview mode) */
   duplicatePreview?: Array<{
     rowNumber: number;
-    keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>;
+    keyValues: Record<
+      string,
+      string | number | boolean | unknown[] | Record<string, unknown> | null
+    >;
     keepStatus: 'keep' | 'delete';
   }>;
 }
@@ -324,7 +327,6 @@ export class CompositeOperationsService {
     const existingHeaders: string[] = (headerResponse.data.values?.[0] ?? []).map((h) =>
       String(h ?? '').trim()
     );
-
 
     // BUG-020 FIX: When sheet is empty (no headers), auto-set createMissingColumns=true
     // so that data keys become headers instead of being skipped
@@ -591,9 +593,10 @@ export class CompositeOperationsService {
     const allRows = dataResponse.data.values ?? [];
     if (allRows.length <= 1) {
       // BUG-021 FIX: Return with informative message instead of silently reporting 0
-      const message = allRows.length === 0
-        ? "Cannot deduplicate: sheet is empty"
-        : "Cannot deduplicate: sheet has only headers, no data rows";
+      const message =
+        allRows.length === 0
+          ? 'Cannot deduplicate: sheet is empty'
+          : 'Cannot deduplicate: sheet has only headers, no data rows';
       logger.info(message, { spreadsheetId, sheet: targetSheet.title });
       return {
         totalRows: Math.max(0, allRows.length - 1),
@@ -622,7 +625,10 @@ export class CompositeOperationsService {
     const duplicateRows: number[] = [];
     const duplicatePreview: Array<{
       rowNumber: number;
-      keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null>;
+      keyValues: Record<
+        string,
+        string | number | boolean | unknown[] | Record<string, unknown> | null
+      >;
       keepStatus: 'keep' | 'delete';
     }> = [];
 
@@ -644,7 +650,10 @@ export class CompositeOperationsService {
         }
 
         if (preview) {
-          const keyValues: Record<string, string | number | boolean | unknown[] | Record<string, unknown> | null> = {};
+          const keyValues: Record<
+            string,
+            string | number | boolean | unknown[] | Record<string, unknown> | null
+          > = {};
           keyColumns.forEach((col, idx) => {
             keyValues[col] = row[keyColIndices[idx] ?? 0];
           });

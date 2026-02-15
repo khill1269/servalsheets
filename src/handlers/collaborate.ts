@@ -1746,7 +1746,11 @@ export class CollaborateHandler extends BaseHandler<
 
       return JSON.parse(item.developerMetadata.metadataValue) as Approval;
     } catch (err) {
-      logger.debug('Failed to get approval metadata', { approvalId, spreadsheetId, error: String(err) });
+      logger.debug('Failed to get approval metadata', {
+        approvalId,
+        spreadsheetId,
+        error: String(err),
+      });
       return null;
     }
   }

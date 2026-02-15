@@ -56,10 +56,7 @@ import type {
   DimensionsDeleteSlicerInput,
   DimensionsListSlicersInput,
 } from '../schemas/index.js';
-import {
-  parseCellReference,
-  toGridRange,
-} from '../utils/google-sheets-helpers.js';
+import { parseCellReference, toGridRange } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
 import { getBackgroundAnalyzer } from '../services/background-analyzer.js';
 import { getBackgroundAnalysisConfig } from '../config/env.js';
@@ -946,7 +943,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('text_to_columns', {}, undefined, true);
     }
 
-    const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.source, this.sheetsApi);
+    const gridRange = await this.rangeToGridRange(
+      input.spreadsheetId,
+      input.source,
+      this.sheetsApi
+    );
 
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
@@ -978,7 +979,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
 
     if (input.sourceRange && input.fillLength !== undefined) {
       // SourceAndDestination mode: explicit source and fill direction
-      const sourceGridRange = await this.rangeToGridRange(input.spreadsheetId, input.sourceRange, this.sheetsApi);
+      const sourceGridRange = await this.rangeToGridRange(
+        input.spreadsheetId,
+        input.sourceRange,
+        this.sheetsApi
+      );
       autoFillRequest.sourceAndDestination = {
         source: toGridRange(sourceGridRange),
         dimension: input.dimension ?? 'ROWS',
@@ -986,7 +991,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       };
     } else if (input.range) {
       // Range mode: auto-detect source data within range
-      const gridRange = await this.rangeToGridRange(input.spreadsheetId, input.range, this.sheetsApi);
+      const gridRange = await this.rangeToGridRange(
+        input.spreadsheetId,
+        input.range,
+        this.sheetsApi
+      );
       autoFillRequest.range = toGridRange(gridRange);
     } else {
       return this.error({
@@ -1173,7 +1182,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   private async handleCreateSlicer(
     input: DimensionsCreateSlicerInput
   ): Promise<DimensionsResponse> {
-    const dataRange = await this.rangeToGridRange(input.spreadsheetId, input.dataRange, this.sheetsApi);
+    const dataRange = await this.rangeToGridRange(
+      input.spreadsheetId,
+      input.dataRange,
+      this.sheetsApi
+    );
     const anchor = parseCellReference(input.position.anchorCell);
 
     const batchResponse = await this.sheetsApi.spreadsheets.batchUpdate({

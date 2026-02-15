@@ -410,8 +410,7 @@ export class AuthHandler {
     oauthClient.setCredentials(tokens);
 
     // Use granted scope from Google, or fall back to client's current scopes
-    const callbackScope =
-      tokens.scope ?? (this.googleClient?.scopes?.join(' ') || undefined);
+    const callbackScope = tokens.scope ?? (this.googleClient?.scopes?.join(' ') || undefined);
 
     if (this.tokenStoreKey) {
       const tokenStore = new EncryptedFileTokenStore(this.tokenStorePath!, this.tokenStoreKey);

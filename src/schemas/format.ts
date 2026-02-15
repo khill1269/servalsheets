@@ -253,8 +253,12 @@ const ApplyPresetActionSchema = CommonFieldsSchema.extend({
 
 const AutoFitActionSchema = CommonFieldsSchema.extend({
   action: z.literal('auto_fit').describe('Auto-fit column width or row height to content'),
-  range: RangeInputSchema.optional().describe('Range to auto-fit (omit if using sheetId to fit entire sheet)'),
-  sheetId: SheetIdSchema.optional().describe('Sheet ID to auto-fit entire sheet (alternative to range)'),
+  range: RangeInputSchema.optional().describe(
+    'Range to auto-fit (omit if using sheetId to fit entire sheet)'
+  ),
+  sheetId: SheetIdSchema.optional().describe(
+    'Sheet ID to auto-fit entire sheet (alternative to range)'
+  ),
   dimension: z
     .preprocess(
       (val) => (typeof val === 'string' ? val.toUpperCase() : val),
@@ -265,10 +269,9 @@ const AutoFitActionSchema = CommonFieldsSchema.extend({
     .describe(
       'Dimension to auto-fit: ROWS, COLUMNS, or BOTH (default: COLUMNS). Case-insensitive.'
     ),
-}).refine(
-  (data) => data.range || data.sheetId,
-  { message: 'Either range or sheetId must be provided' }
-);
+}).refine((data) => data.range || data.sheetId, {
+  message: 'Either range or sheetId must be provided',
+});
 
 // ===== SPARKLINE ACTION SCHEMAS (3 actions) =====
 
@@ -278,8 +281,13 @@ const SparklineAddActionSchema = CommonFieldsSchema.extend({
     .describe('Add a sparkline visualization to a cell using the SPARKLINE formula'),
   targetCell: z
     .string()
-    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
-    .describe('Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1, single cell only)'),
+    .regex(
+      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
+      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
+    )
+    .describe(
+      'Target cell for sparkline (A1 notation or sheet-qualified like Sheet1!A1, single cell only)'
+    ),
   dataRange: RangeInputSchema.describe(
     'Data range for sparkline (should be 1D - single row or column)'
   ),
@@ -292,7 +300,10 @@ const SparklineGetActionSchema = CommonFieldsSchema.extend({
     .describe('Get sparkline formula and configuration from a cell'),
   cell: z
     .string()
-    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
+    .regex(
+      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
+      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
+    )
     .describe('Cell to get sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
 });
 
@@ -300,7 +311,10 @@ const SparklineClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('sparkline_clear').describe('Remove sparkline from a cell'),
   cell: z
     .string()
-    .regex(/^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/, 'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)')
+    .regex(
+      /^(?:(?:'[^']+'|[A-Za-z0-9_ ]+)!)?[A-Z]{1,3}\d+$/,
+      'Invalid cell reference (expected A1 format, optionally with sheet like Sheet1!A1)'
+    )
     .describe('Cell to clear sparkline from (A1 notation or sheet-qualified like Sheet1!A1)'),
 });
 
@@ -528,28 +542,20 @@ const BatchFormatOperationSchema = z
     range: RangeInputSchema.describe('Range to apply this format operation to (A1 notation)'),
     // Type-specific fields (all optional, validated by handler based on type)
     color: ColorSchema.optional().describe('Background color (for type: "background")'),
-    textFormat: TextFormatSchema.optional().describe(
-      'Text format spec (for type: "text_format")'
-    ),
+    textFormat: TextFormatSchema.optional().describe('Text format spec (for type: "text_format")'),
     numberFormat: NumberFormatSchema.optional().describe(
       'Number format spec (for type: "number_format")'
     ),
     horizontal: HorizontalAlignSchema.optional().describe(
       'Horizontal alignment (for type: "alignment")'
     ),
-    vertical: VerticalAlignSchema.optional().describe(
-      'Vertical alignment (for type: "alignment")'
-    ),
-    wrapStrategy: WrapStrategySchema.optional().describe(
-      'Wrap strategy (for type: "alignment")'
-    ),
+    vertical: VerticalAlignSchema.optional().describe('Vertical alignment (for type: "alignment")'),
+    wrapStrategy: WrapStrategySchema.optional().describe('Wrap strategy (for type: "alignment")'),
     top: LLMBorderSchema.describe('Top border (for type: "borders")'),
     bottom: LLMBorderSchema.describe('Bottom border (for type: "borders")'),
     left: LLMBorderSchema.describe('Left border (for type: "borders")'),
     right: LLMBorderSchema.describe('Right border (for type: "borders")'),
-    innerHorizontal: LLMBorderSchema.describe(
-      'Inner horizontal borders (for type: "borders")'
-    ),
+    innerHorizontal: LLMBorderSchema.describe('Inner horizontal borders (for type: "borders")'),
     innerVertical: LLMBorderSchema.describe('Inner vertical borders (for type: "borders")'),
     format: CellFormatSchema.optional().describe(
       'Full cell format specification (for type: "format")'
@@ -753,8 +759,16 @@ const FormatResponseSchema = z.discriminatedUnion('success', [
     // Format response fields
     cellsFormatted: z.coerce.number().int().optional(),
     // Batch format response fields
-    operationsApplied: z.coerce.number().int().optional().describe('Number of operations applied (for batch_format)'),
-    apiCallsSaved: z.coerce.number().int().optional().describe('Number of API calls saved by batching'),
+    operationsApplied: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Number of operations applied (for batch_format)'),
+    apiCallsSaved: z.coerce
+      .number()
+      .int()
+      .optional()
+      .describe('Number of API calls saved by batching'),
     suggestions: z
       .array(
         z.object({

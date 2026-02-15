@@ -135,7 +135,9 @@ const AnalyzeImpactActionSchema = CommonFieldsSchema.extend({
           ])
         )
         .optional()
-        .describe('Operation parameters that will be passed to the tool. Expected shape: { spreadsheetId: string, range: string, values?: any[], ... } or other tool-specific parameters'),
+        .describe(
+          'Operation parameters that will be passed to the tool. Expected shape: { spreadsheetId: string, range: string, values?: any[], ... } or other tool-specific parameters'
+        ),
       description: z
         .string()
         .optional()

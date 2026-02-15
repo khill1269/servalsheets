@@ -819,7 +819,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
           };
         } catch (err) {
           // Return minimal info for failed fetches
-          this.context.logger?.warn?.('Batch get: failed to fetch spreadsheet', { spreadsheetId: id, error: String(err) });
+          this.context.logger?.warn?.('Batch get: failed to fetch spreadsheet', {
+            spreadsheetId: id,
+            error: String(err),
+          });
           return {
             spreadsheetId: id,
             title: '(error)',
@@ -1537,7 +1540,11 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
       return response.data.sheets?.some((s) => s.properties?.sheetId === sheetId) ?? false;
     } catch (err) {
-      this.context.logger?.warn?.('Failed to check sheet existence', { spreadsheetId, sheetId, error: String(err) });
+      this.context.logger?.warn?.('Failed to check sheet existence', {
+        spreadsheetId,
+        sheetId,
+        error: String(err),
+      });
       return false;
     }
   }

@@ -1156,7 +1156,8 @@ export class AnalyzeHandler {
               logger.error('MCP Sampling call failed for query_natural_language', {
                 component: 'analyze-handler',
                 action: 'query_natural_language',
-                error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+                error:
+                  samplingError instanceof Error ? samplingError.message : String(samplingError),
               });
               response = {
                 success: false,
@@ -1265,7 +1266,8 @@ export class AnalyzeHandler {
               logger.error('MCP Sampling call failed for explain_analysis', {
                 component: 'analyze-handler',
                 action: 'explain_analysis',
-                error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+                error:
+                  samplingError instanceof Error ? samplingError.message : String(samplingError),
               });
               response = {
                 success: false,
