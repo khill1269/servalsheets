@@ -7,16 +7,12 @@
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
       "mimeType": "image/png",
-      "sizes": [
-        "1536x1024"
-      ]
+      "sizes": ["1536x1024"]
     },
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-512.png",
       "mimeType": "image/png",
-      "sizes": [
-        "512x512"
-      ]
+      "sizes": ["512x512"]
     }
   ],
   "mcpProtocol": "2025-11-25",
@@ -106,12 +102,7 @@
     {
       "name": "sheets_auth",
       "description": "auth operations (4 actions)",
-      "actions": [
-        "status",
-        "login",
-        "callback",
-        "logout"
-      ]
+      "actions": ["status", "login", "callback", "logout"]
     },
     {
       "name": "sheets_bigquery",
@@ -193,13 +184,7 @@
     {
       "name": "sheets_confirm",
       "description": "confirm operations (5 actions)",
-      "actions": [
-        "request",
-        "get_stats",
-        "wizard_start",
-        "wizard_step",
-        "wizard_complete"
-      ]
+      "actions": ["request", "get_stats", "wizard_start", "wizard_step", "wizard_complete"]
     },
     {
       "name": "sheets_core",
@@ -300,9 +285,7 @@
     {
       "name": "sheets_fix",
       "description": "fix operations (1 actions)",
-      "actions": [
-        "fix"
-      ]
+      "actions": ["fix"]
     },
     {
       "name": "sheets_format",
@@ -335,25 +318,12 @@
     {
       "name": "sheets_history",
       "description": "history operations (7 actions)",
-      "actions": [
-        "list",
-        "get",
-        "stats",
-        "undo",
-        "redo",
-        "revert_to",
-        "clear"
-      ]
+      "actions": ["list", "get", "stats", "undo", "redo", "revert_to", "clear"]
     },
     {
       "name": "sheets_quality",
       "description": "quality operations (4 actions)",
-      "actions": [
-        "validate",
-        "detect_conflicts",
-        "resolve_conflict",
-        "analyze_impact"
-      ]
+      "actions": ["validate", "detect_conflicts", "resolve_conflict", "analyze_impact"]
     },
     {
       "name": "sheets_session",
@@ -390,28 +360,12 @@
     {
       "name": "sheets_templates",
       "description": "templates operations (8 actions)",
-      "actions": [
-        "list",
-        "get",
-        "create",
-        "apply",
-        "update",
-        "delete",
-        "preview",
-        "import_builtin"
-      ]
+      "actions": ["list", "get", "create", "apply", "update", "delete", "preview", "import_builtin"]
     },
     {
       "name": "sheets_transaction",
       "description": "transaction operations (6 actions)",
-      "actions": [
-        "begin",
-        "queue",
-        "commit",
-        "rollback",
-        "status",
-        "list"
-      ]
+      "actions": ["begin", "queue", "commit", "rollback", "status", "list"]
     },
     {
       "name": "sheets_visualize",
@@ -440,14 +394,7 @@
     {
       "name": "sheets_webhook",
       "description": "webhook operations (6 actions)",
-      "actions": [
-        "register",
-        "unregister",
-        "list",
-        "get",
-        "test",
-        "get_stats"
-      ]
+      "actions": ["register", "unregister", "list", "get", "test", "get_stats"]
     }
   ],
   "capabilities": [
