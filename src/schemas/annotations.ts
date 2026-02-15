@@ -205,8 +205,7 @@ export const ACTION_ANNOTATIONS: Record<
     idempotent: true,
     batchAlternative: 'sheets_data.batch_write (for 3+ ranges)',
     whenToUse: 'Writing to 1-2 ranges',
-    whenNotToUse:
-      'Writing 3+ ranges — use batch_write. Appending rows — use append instead',
+    whenNotToUse: 'Writing 3+ ranges — use batch_write. Appending rows — use append instead',
     commonMistakes: [
       'Forgetting sheet name in range: use "Sheet1!A1:D10" not "A1:D10"',
       'Using write to add rows at bottom — use append instead (auto-finds last row)',
@@ -226,9 +225,7 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Reading 3+ ranges in one call (same API cost as single read)',
-    commonMistakes: [
-      'Each range must include sheet name: ["Sheet1!A1:D10", "Sheet2!A1:B5"]',
-    ],
+    commonMistakes: ['Each range must include sheet name: ["Sheet1!A1:D10", "Sheet2!A1:B5"]'],
   },
   'sheets_data.batch_write': {
     apiCalls: 1,
@@ -258,8 +255,7 @@ export const ACTION_ANNOTATIONS: Record<
     idempotent: true,
     batchAlternative: 'sheets_format.batch_format (for 3+ format operations)',
     whenToUse: 'Coloring 1-2 ranges',
-    whenNotToUse:
-      'Formatting 3+ ranges — use batch_format (1 API call for all)',
+    whenNotToUse: 'Formatting 3+ ranges — use batch_format (1 API call for all)',
   },
   'sheets_format.set_text_format': {
     apiCalls: 1,
@@ -270,10 +266,8 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_format.batch_format': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse:
-      'Applying 3+ format operations (background, text, borders, etc.) in ONE API call',
-    whenNotToUse:
-      'Single format change — just use the specific action (set_background, etc.)',
+    whenToUse: 'Applying 3+ format operations (background, text, borders, etc.) in ONE API call',
+    whenNotToUse: 'Single format change — just use the specific action (set_background, etc.)',
     commonMistakes: [
       'Max 100 operations per batch',
       'Each operation needs its own range — cannot share ranges across operations',
@@ -282,8 +276,7 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_format.apply_preset': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse:
-      'Quick professional formatting: header_row, alternating_rows, currency, etc.',
+    whenToUse: 'Quick professional formatting: header_row, alternating_rows, currency, etc.',
     commonMistakes: [
       'alternating_rows preset works best when applied to the full data range including headers',
     ],
@@ -317,9 +310,7 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Sorting data by one or more columns',
-    commonMistakes: [
-      'Sort range should NOT include header row — exclude it from the range',
-    ],
+    commonMistakes: ['Sort range should NOT include header row — exclude it from the range'],
   },
   'sheets_dimensions.freeze': {
     apiCalls: 1,
@@ -337,9 +328,7 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 1,
     idempotent: false,
     whenToUse: 'Creating a brand new spreadsheet',
-    commonMistakes: [
-      'Returns spreadsheetId — save it for all subsequent operations',
-    ],
+    commonMistakes: ['Returns spreadsheetId — save it for all subsequent operations'],
   },
   'sheets_core.get': {
     apiCalls: 1,
@@ -353,9 +342,7 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 1,
     idempotent: false,
     whenToUse: 'Adding a new tab to an existing spreadsheet',
-    commonMistakes: [
-      'Sheet names must be unique — check existing sheets first with list_sheets',
-    ],
+    commonMistakes: ['Sheet names must be unique — check existing sheets first with list_sheets'],
   },
 
   // COMPOSITE TOOL
@@ -364,8 +351,7 @@ export const ACTION_ANNOTATIONS: Record<
     idempotent: false,
     whenToUse:
       'Creating a new formatted sheet with headers, column widths, and optional data in just 2 API calls',
-    whenNotToUse:
-      'Sheet already exists — use individual format/data tools instead',
+    whenNotToUse: 'Sheet already exists — use individual format/data tools instead',
     commonMistakes: [
       'Sheet name must not already exist — check with sheets_core.list_sheets first',
     ],
@@ -373,13 +359,9 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_composite.smart_append': {
     apiCalls: 2,
     idempotent: false,
-    whenToUse:
-      'Adding rows that auto-match columns by header name (handles column reordering)',
-    whenNotToUse:
-      'Simple append where columns are already aligned — use sheets_data.append',
-    commonMistakes: [
-      'Headers must match exactly (case-sensitive) or use matchHeaders option',
-    ],
+    whenToUse: 'Adding rows that auto-match columns by header name (handles column reordering)',
+    whenNotToUse: 'Simple append where columns are already aligned — use sheets_data.append',
+    commonMistakes: ['Headers must match exactly (case-sensitive) or use matchHeaders option'],
   },
   'sheets_composite.import_csv': {
     apiCalls: 2,
@@ -390,19 +372,15 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 2,
     idempotent: true,
     whenToUse: 'Removing duplicate rows based on key columns',
-    commonMistakes: [
-      'Always use preview:true first to see what will be removed before committing',
-    ],
+    commonMistakes: ['Always use preview:true first to see what will be removed before committing'],
   },
 
   // TRANSACTION TOOL
   'sheets_transaction.begin': {
     apiCalls: 0,
     idempotent: false,
-    whenToUse:
-      'When you need 5+ operations to be atomic (all succeed or all fail)',
-    whenNotToUse:
-      'For 1-4 simple operations — transaction overhead exceeds benefit',
+    whenToUse: 'When you need 5+ operations to be atomic (all succeed or all fail)',
+    whenNotToUse: 'For 1-4 simple operations — transaction overhead exceeds benefit',
     prerequisites: ['sheets_session.set_active'],
   },
   'sheets_transaction.queue': {
@@ -423,8 +401,7 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_analyze.comprehensive': {
     apiCalls: 2,
     idempotent: true,
-    whenToUse:
-      'FIRST action on any spreadsheet — gives complete overview in one call',
+    whenToUse: 'FIRST action on any spreadsheet — gives complete overview in one call',
     commonMistakes: [
       'Use depth:"sample" (default) for initial analysis — "full" loads ALL data and may be slow for large sheets',
       'If MCP Sampling is unavailable, falls back to statistical analysis without AI insights',
@@ -433,17 +410,13 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_analyze.scout': {
     apiCalls: 1,
     idempotent: true,
-    whenToUse:
-      'Ultra-fast metadata-only check (sheet names, row counts, column types)',
-    whenNotToUse:
-      'When you need actual data or patterns — use comprehensive instead',
+    whenToUse: 'Ultra-fast metadata-only check (sheet names, row counts, column types)',
+    whenNotToUse: 'When you need actual data or patterns — use comprehensive instead',
   },
   'sheets_analyze.suggest_visualization': {
     apiCalls: 1,
     idempotent: true,
-    prerequisites: [
-      'sheets_analyze.comprehensive or sheets_analyze.analyze_data',
-    ],
+    prerequisites: ['sheets_analyze.comprehensive or sheets_analyze.analyze_data'],
     whenToUse: 'Getting chart recommendations based on data patterns',
   },
 
@@ -452,9 +425,7 @@ export const ACTION_ANNOTATIONS: Record<
     apiCalls: 1,
     idempotent: true,
     whenToUse: 'Granting access to a user',
-    commonMistakes: [
-      'Requires Drive API scope — may need re-auth if only Sheets scope is active',
-    ],
+    commonMistakes: ['Requires Drive API scope — may need re-auth if only Sheets scope is active'],
   },
   'sheets_collaborate.comment_add': {
     apiCalls: 1,
@@ -468,9 +439,7 @@ export const ACTION_ANNOTATIONS: Record<
     idempotent: true,
     whenToUse:
       'ALWAYS call this at the start of a multi-step workflow — sets context so you can use sheet names instead of IDs',
-    commonMistakes: [
-      'Must be called before sheets that reference "active spreadsheet" implicitly',
-    ],
+    commonMistakes: ['Must be called before sheets that reference "active spreadsheet" implicitly'],
   },
 
   // QUALITY TOOL
