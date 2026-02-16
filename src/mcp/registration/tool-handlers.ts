@@ -75,6 +75,7 @@ import {
 } from '../../schemas/index.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
+import { wrapToolMapWithIdempotency } from '../../middleware/idempotency-middleware.js';
 
 // Wrap input schemas for legacy envelopes during validation.
 // Keep registration schemas unwrapped to avoid MCP SDK tools/list empty schema bug.
@@ -474,7 +475,8 @@ export function createToolHandlerMap(
       );
   }
 
-  return map;
+  // Wrap all handlers with idempotency middleware
+  return wrapToolMapWithIdempotency(map);
 }
 
 // ============================================================================

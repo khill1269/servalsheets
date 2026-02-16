@@ -32,7 +32,12 @@ export interface ActionFieldMask {
   estimatedReduction: number;
 
   /** Operation type (affects which API methods use this) */
-  operationType: 'spreadsheets.get' | 'spreadsheets.values.get' | 'spreadsheets.batchUpdate' | 'spreadsheets.values.batchGet' | 'other';
+  operationType:
+    | 'spreadsheets.get'
+    | 'spreadsheets.values.get'
+    | 'spreadsheets.batchUpdate'
+    | 'spreadsheets.values.batchGet'
+    | 'other';
 }
 
 /**
