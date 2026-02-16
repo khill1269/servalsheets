@@ -11,7 +11,7 @@
  * ============================================================================
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
- * - tools: 21 tools with 294 actions (current consolidated set)
+ * - tools: 22 tools with 298 actions (current consolidated set)
  * - resources: 2 URI templates + 7 knowledge resources
  * - prompts: 6 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
@@ -221,6 +221,13 @@ export const TOOL_ICONS: Record<string, Icon[]> = {
       sizes: ['24x24'],
     },
   ],
+  sheets_federation: [
+    {
+      src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iNCIgcj0iMiIvPjxjaXJjbGUgY3g9IjQiIGN5PSIxMiIgcj0iMiIvPjxjaXJjbGUgY3g9IjIwIiBjeT0iMTIiIHI9IjIiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjIwIiByPSIyIi8+PGxpbmUgeDE9IjEyIiB5MT0iNiIgeDI9IjEyIiB5Mj0iMTgiLz48bGluZSB4MT0iNi40IiB5MT0iMTAuNCIgeDI9IjEwLjQiIHkyPSI2LjQiLz48bGluZSB4MT0iMTcuNiIgeTE9IjEwLjQiIHgyPSIxMy42IiB5Mj0iNi40Ii8+PGxpbmUgeDE9IjYuNCIgeTE9IjEzLjYiIHgyPSIxMC40IiB5Mj0iMTcuNiIvPjxsaW5lIHgxPSIxNy42IiB5MT0iMTMuNiIgeDI9IjEzLjYiIHkyPSIxNy42Ii8+PC9zdmc+',
+      mimeType: 'image/svg+xml',
+      sizes: ['24x24'],
+    },
+  ],
 };
 
 // ============================================================================
@@ -277,6 +284,7 @@ export const TOOL_EXECUTION_CONFIG: Record<string, ToolExecution> = {
   sheets_templates: { taskSupport: 'optional' },
   sheets_webhook: { taskSupport: 'forbidden' },
   sheets_dependencies: { taskSupport: 'forbidden' },
+  sheets_federation: { taskSupport: 'optional' }, // Network calls to remote MCP servers
 };
 
 // ============================================================================
@@ -573,6 +581,9 @@ Never leave debug strings (e.g., "test123", task markers, "temp") in production 
 
 → **Set up change notifications (webhooks)?**
   Use \`sheets_webhook\` (register, list, delete)
+
+→ **Call remote MCP servers or federate operations?**
+  Use \`sheets_federation\` (call_remote, list_servers, get_server_tools)
 
 ## 🔗 TOOL CHAINING (Always-Use Patterns)
 

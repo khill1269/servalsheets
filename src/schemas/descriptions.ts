@@ -8,17 +8,19 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 21 tools, 294 actions
+ * Total: 22 tools, 298 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * PREREQUISITES documented for each tool to prevent wrong-order calls.
  */
+
+import { ACTION_COUNTS } from './action-counts.js';
 
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
   //=============================================================================
   // AUTHENTICATION
   //=============================================================================
 
-  sheets_auth: `🔐 AUTH - Authenticate with Google Sheets via OAuth 2.1 (4 actions). Call status first.
+  sheets_auth: `🔐 AUTH - Authenticate with Google Sheets via OAuth 2.1 (${ACTION_COUNTS['sheets_auth']} actions). Call status first.
 
 **Use when:** Checking auth state, logging in/out, managing OAuth token lifecycle
 **NOT this tool - use instead:**
@@ -33,7 +35,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   // CORE DATA OPERATIONS
   //=============================================================================
 
-  sheets_core: `📋 CORE - Create and manage spreadsheets and sheets/tabs (19 actions). Get metadata and URLs.
+  sheets_core: `📋 CORE - Create and manage spreadsheets and sheets/tabs (${ACTION_COUNTS['sheets_core']} actions). Get metadata and URLs.
 
 **⚠️ FIRST TIME WITH THIS SPREADSHEET?**
 Use sheets_analyze action:"comprehensive" or action:"scout" instead of sheets_core.get for richer metadata + quality insights in same API cost. scout is fastest for structure-only needs.
@@ -69,7 +71,7 @@ EXAMPLE: Getting 5 spreadsheet metadata = 1 API call with batch_get, NOT 5 separ
 - Just checking sheet names? → Use sheets_analyze.scout (faster, includes column info)
 - Managing 3+ sheets? → Use batch_delete_sheets or batch_update_sheets (80%+ savings!)`,
 
-  sheets_data: `📝 DATA - Read and write cell values, notes, and hyperlinks (18 actions). Append rows, find/replace text, merge cells.
+  sheets_data: `📝 DATA - Read and write cell values, notes, and hyperlinks (${ACTION_COUNTS['sheets_data']} actions). Append rows, find/replace text, merge cells.
 
 **⚠️ FIRST TIME WITH THIS SPREADSHEET?**
 If you haven't analyzed this spreadsheet yet, START with sheets_analyze action:"comprehensive" or action:"scout" to understand structure, data quality, and column types. Prevents mistakes and saves time (70%+ faster).
@@ -161,7 +163,7 @@ EXAMPLE: Reading 5 ranges = 1 API call with batch_read, NOT 5 separate calls.
   // FORMATTING & STYLING
   //=============================================================================
 
-  sheets_format: `🎨 FORMAT - Cell styling, sparklines & conditional rules (22 actions). set_format, suggest_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit, batch_format, sparkline_add, sparkline_get, sparkline_clear, rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats, set_data_validation, clear_data_validation, list_data_validations, add_conditional_format_rule
+  sheets_format: `🎨 FORMAT - Cell styling, sparklines & conditional rules (${ACTION_COUNTS['sheets_format']} actions). set_format, suggest_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit, batch_format, sparkline_add, sparkline_get, sparkline_clear, rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats, set_data_validation, clear_data_validation, list_data_validations, add_conditional_format_rule
 
 **⚠️ FIRST TIME WITH THIS SPREADSHEET?**
 If you haven't analyzed this spreadsheet yet, call sheets_analyze action:"comprehensive" first to understand structure and get formatting recommendations. Use sheets_format.suggest_format for AI-powered format suggestions.
@@ -242,7 +244,7 @@ Combine both in sequence (2 calls total) for professional table look, OR use she
   // DIMENSIONS & STRUCTURE
   //=============================================================================
 
-  sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (28 actions).
+  sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (${ACTION_COUNTS['sheets_dimensions']} actions).
 
 **DECISION GUIDE - Which action should I use?**
 → **Need 3+ dimension changes?** Use sheets_transaction to batch them (1 API call, 80%+ savings vs sequential)
@@ -329,7 +331,7 @@ SOLUTION: Get current row count first, then insert once with precise count.
   // VISUALIZATION
   //=============================================================================
 
-  sheets_visualize: `📊 VISUALIZE - Charts, trendlines & pivot tables (18 actions).
+  sheets_visualize: `📊 VISUALIZE - Charts, trendlines & pivot tables (${ACTION_COUNTS['sheets_visualize']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Recommended: Use sheets_analyze action:"suggest_chart" or "suggest_pivot" first.
 
@@ -369,7 +371,7 @@ SOLUTION: Get current row count first, then insert once with precise count.
   // COLLABORATION
   //=============================================================================
 
-  sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions & snapshots (35 actions).
+  sheets_collaborate: `👥 COLLABORATE - Sharing, comments, versions & snapshots (${ACTION_COUNTS['sheets_collaborate']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Requires elevated Drive scope for sharing/comments/version actions (e.g. OAUTH_SCOPE_MODE=full or incremental consent). Recommended: sheets_collaborate action:"version_create_snapshot" before destructive operations.
 
@@ -413,7 +415,7 @@ SOLUTION: Get current row count first, then insert once with precise count.
   // ANALYSIS & INTELLIGENCE
   //=============================================================================
 
-  sheets_analyze: `🤖 ANALYZE - Spreadsheet analysis, insights & AI-powered suggestions (16 actions). START HERE.
+  sheets_analyze: `🤖 ANALYZE - Spreadsheet analysis, insights & AI-powered suggestions (${ACTION_COUNTS['sheets_analyze']} actions). START HERE.
 
 **🚀 ALWAYS START HERE:**
 For any spreadsheet you haven't seen before, ALWAYS call action:"comprehensive" FIRST. It gives you metadata + data quality + formula health + recommended actions in just 1-2 API calls.
@@ -459,7 +461,7 @@ Example: {"action":"scout","spreadsheetId":"1ABC..."} → Returns sheet list wit
   // ADVANCED FEATURES
   //=============================================================================
 
-  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding, tables (26 actions).
+  sheets_advanced: `⚙️ ADVANCED - Named ranges, protection, metadata, banding, tables (${ACTION_COUNTS['sheets_advanced']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated.
 
@@ -507,7 +509,7 @@ Example: {"action":"scout","spreadsheetId":"1ABC..."} → Returns sheet list wit
   // ENTERPRISE / SAFETY
   //=============================================================================
 
-  sheets_transaction: `🔄 TRANSACTION - Atomic batch operations (6 actions).
+  sheets_transaction: `🔄 TRANSACTION - Atomic batch operations (${ACTION_COUNTS['sheets_transaction']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Recommended: sheets_quality action:"analyze_impact" for large operations.
 
@@ -577,7 +579,7 @@ NOT: begin → queue → commit → queue → commit (expensive, multiple API ca
 
 **RULE:** Only use transactions for 5+ operations OR when atomicity is critical!`,
 
-  sheets_quality: `✅ QUALITY - Data validation & conflict detection (4 actions).
+  sheets_quality: `✅ QUALITY - Data validation & conflict detection (${ACTION_COUNTS['sheets_quality']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Use BEFORE sheets_data/sheets_transaction writes.
 
@@ -622,7 +624,7 @@ Example: {"action":"validate","value":"test@email.com","rules":["not_empty","val
 
 **USE BEFORE:** Large writes, deletes, or concurrent editing scenarios. Use analyze_impact to check formula dependencies.`,
 
-  sheets_history: `📜 HISTORY - Operation audit & undo/redo (7 actions).
+  sheets_history: `📜 HISTORY - Operation audit & undo/redo (${ACTION_COUNTS['sheets_history']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. History is populated by previous tool calls in this session.
 
@@ -666,7 +668,7 @@ For across-session recovery, use sheets_collaborate.version_* actions (file vers
 - Session recovery: Use sheets_history.undo/revert_to
 - Cross-session recovery: Use sheets_collaborate.version_restore_revision or version_restore_snapshot`,
 
-  sheets_confirm: `⚠️ CONFIRM - User confirmation before destructive operations (5 actions).
+  sheets_confirm: `⚠️ CONFIRM - User confirmation before destructive operations (${ACTION_COUNTS['sheets_confirm']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Use AFTER planning but BEFORE executing destructive operations.
 
@@ -719,7 +721,7 @@ For across-session recovery, use sheets_collaborate.version_* actions (file vers
 
 **TIP:** Always include risk levels and isDestructive flags for each step.`,
 
-  sheets_fix: `🔧 FIX - Automated issue resolution (1 action).
+  sheets_fix: `🔧 FIX - Automated issue resolution (${ACTION_COUNTS['sheets_fix']} action).
 
 **PREREQUISITES:** sheets_auth must be authenticated. REQUIRED: sheets_analyze action:"comprehensive" first to detect issues.
 
@@ -748,7 +750,7 @@ For across-session recovery, use sheets_collaborate.version_* actions (file vers
   // COMPOSITE OPERATIONS
   //=============================================================================
 
-  sheets_composite: `🔗 COMPOSITE - Pre-optimized workflows for common operations (10 actions). Combines multiple steps into single calls for 60-80% API savings.
+  sheets_composite: `🔗 COMPOSITE - Pre-optimized workflows for common operations (${ACTION_COUNTS['sheets_composite']} actions). Combines multiple steps into single calls for 60-80% API savings.
 
 **⚡ BEFORE DOING MANUAL OPERATIONS:**
 BEFORE using 3+ separate tools (sheets_data + sheets_format + sheets_dimensions), check if sheets_composite can do it in 1-2 calls. This is the efficiency hub — most common multi-step workflows are here.
@@ -821,7 +823,7 @@ BEFORE using sheets_data + sheets_format + sheets_dimensions separately, check i
   // SESSION CONTEXT
   //=============================================================================
 
-  sheets_session: `📋 SESSION - Conversation context for natural language (26 actions).
+  sheets_session: `📋 SESSION - Conversation context for natural language (${ACTION_COUNTS['sheets_session']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Call action:"set_active" EARLY to enable natural language references. Checkpoint actions require ENABLE_CHECKPOINTS=true.
 
@@ -872,7 +874,7 @@ Example workflow:
   // ENTERPRISE TIER 7
   //=============================================================================
 
-  sheets_templates: `📄 TEMPLATES - Reusable spreadsheet templates (8 actions).
+  sheets_templates: `📄 TEMPLATES - Reusable spreadsheet templates (${ACTION_COUNTS['sheets_templates']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Templates stored in Google Drive appDataFolder (private).
 
@@ -910,7 +912,7 @@ Example workflow:
 
 **TIP:** Use import_builtin to import pre-built templates from ServalSheets knowledge base.`,
 
-  sheets_bigquery: `📊 BIGQUERY - Connected Sheets integration (14 actions).
+  sheets_bigquery: `📊 BIGQUERY - Connected Sheets integration (${ACTION_COUNTS['sheets_bigquery']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. BigQuery API must be enabled in GCP project. OAuth scopes: bigquery.readonly or bigquery.
 
@@ -953,7 +955,7 @@ Example workflow:
 
 **TIP:** Use preview action to test expensive queries before running full execution. Requires BigQuery API enabled.`,
 
-  sheets_appsscript: `⚡ APPSSCRIPT - Apps Script automation (14 actions).
+  sheets_appsscript: `⚡ APPSSCRIPT - Apps Script automation (${ACTION_COUNTS['sheets_appsscript']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated (USER OAuth only, NOT service accounts). Apps Script API must be enabled in GCP project.
 
@@ -1008,7 +1010,7 @@ Example workflow:
 
 **TIP:** Use devMode:true in run action to test latest saved code (owner only) before deploying.`,
 
-  sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (6 actions).
+  sheets_webhook: `🔔 WEBHOOK - Event-driven automation and real-time notifications (${ACTION_COUNTS['sheets_webhook']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Requires Redis backend for queue/state. Webhook endpoint must accept HTTPS POST requests and return 200 OK within 10s.
 
@@ -1061,7 +1063,7 @@ Example workflow:
 
 **TIP:** Use the secret parameter for HMAC signature verification to ensure webhook authenticity. Store expiration time and re-register daily.`,
 
-  sheets_dependencies: `🔗 DEPENDENCIES - Formula dependency analysis and impact assessment (7 actions).
+  sheets_dependencies: `🔗 DEPENDENCIES - Formula dependency analysis and impact assessment (${ACTION_COUNTS['sheets_dependencies']} actions).
 
 **PREREQUISITES:** sheets_auth must be authenticated. Spreadsheet should contain formulas for meaningful analysis.
 
@@ -1109,7 +1111,7 @@ Example workflow:
 
 **TIP:** Run detect_cycles first to identify circular references, then use analyze_impact before modifying cells with many dependents to understand scope.`,
 
-  sheets_federation: `🌐 FEDERATION - Call external MCP servers for composite workflows (4 actions).
+  sheets_federation: `🌐 FEDERATION - Call external MCP servers for composite workflows (${ACTION_COUNTS['sheets_federation']} actions).
 
 **PREREQUISITES:** Set MCP_FEDERATION_ENABLED=true and MCP_FEDERATION_SERVERS in environment. Remote servers must be running and accessible.
 

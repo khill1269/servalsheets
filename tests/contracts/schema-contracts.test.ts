@@ -38,6 +38,8 @@ import {
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
+import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
+import { calculateTotalActions } from '../helpers/count-actions.js';
 
 // Sample valid inputs for each tool (using first action from each schema)
 // All inputs are now wrapped in "request:" property
@@ -186,8 +188,15 @@ describe('Schema Contracts', () => {
       expect(TOOL_SCHEMAS).toHaveLength(22);
     });
 
-    it('should have 294 total actions across all tools', () => {
-      expect(ACTION_COUNT).toBe(294);
+    it('should have correct total action count (dynamically validated)', () => {
+      // Calculate actual action count from TOOL_ACTIONS (single source of truth)
+      const actualActionCount = calculateTotalActions(TOOL_ACTIONS);
+
+      // ACTION_COUNT constant must match the sum of all tool actions
+      expect(ACTION_COUNT).toBe(actualActionCount);
+
+      // For reference: as of 2026-02-16, this is 298 actions across 22 tools
+      expect(actualActionCount).toBeGreaterThan(290); // Sanity check: at least 290 actions
     });
 
     it('should not have duplicate tool names', () => {

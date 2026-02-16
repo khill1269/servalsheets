@@ -136,10 +136,26 @@ const ResizeDimensionActionSchema = CommonFieldsSchema.extend({
 });
 
 const AutoResizeActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('auto_resize').describe('Auto-resize rows or columns to fit content'),
+  action: z
+    .literal('auto_resize')
+    .describe(
+      'Auto-resize rows or columns to fit content. If startIndex/endIndex omitted, resizes all (0 to 1000).'
+    ),
   dimension: DimensionSchema.describe('ROWS or COLUMNS'),
-  startIndex: z.coerce.number().int().min(0).describe('Zero-based index of first to resize'),
-  endIndex: z.coerce.number().int().min(1).describe('Zero-based index after last, exclusive'),
+  startIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .default(0)
+    .describe('Zero-based index of first to resize (default: 0)'),
+  endIndex: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .default(1000)
+    .describe('Zero-based index after last, exclusive (default: 1000)'),
 });
 
 const HideDimensionActionSchema = CommonFieldsSchema.extend({

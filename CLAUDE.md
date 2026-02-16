@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP (Model Context Protocol) server for Google Sheets with 21 tools and 294 actions. It provides AI-powered spreadsheet operations with safety rails, transactions, batch operations, and enterprise features.
+ServalSheets is a production-grade MCP (Model Context Protocol) server for Google Sheets with 22 tools and 298 actions. It provides AI-powered spreadsheet operations with safety rails, transactions, batch operations, and enterprise features.
 
 **Version:** 1.6.0 | **Protocol:** MCP 2025-11-25 | **Runtime:** Node.js + TypeScript (strict)
 
@@ -12,11 +12,11 @@ ServalSheets is a production-grade MCP (Model Context Protocol) server for Googl
 
 ### Entrypoints (3 transport modes)
 
-| File | Transport | Usage |
-|------|-----------|-------|
-| `src/cli.ts` → `src/server.ts` | STDIO | Claude Desktop, CLI (default) |
-| `src/http-server.ts` | HTTP/SSE/Streamable | Cloud deployment, connectors |
-| `src/remote-server.ts` | HTTP + OAuth 2.1 | Multi-tenant remote access |
+| File | Lines | Transport | Usage |
+|------|-------|-----------|-------|
+| `src/cli.ts` → `src/server.ts` | 1289 | STDIO | Claude Desktop, CLI (default) |
+| `src/http-server.ts` | 2390 | HTTP/SSE/Streamable | Cloud deployment, connectors |
+| `src/remote-server.ts` | 11 | HTTP + OAuth 2.1 | Multi-tenant remote access |
 
 ### Core Pipeline (request flow)
 
@@ -32,14 +32,115 @@ MCP Request → src/server.ts:handleToolCall()
   → CallToolResult to client
 ```
 
+### Request Flow Checkpoints (Execution Tracing)
+
+**When modifying handlers or debugging, verify these 4 layers:**
+
+#### Layer 1: Input Validation (3 stages)
+
+```
+src/mcp/registration/tool-handlers.ts:81-118
+├─ normalizeToolArgs() - Legacy envelope unwrapping
+│  Converts { request: { action, ...params } } → { action, ...params }
+├─ src/schemas/fast-validators.ts - Pre-Zod validation (0.1ms)
+│  Fast fail on invalid spreadsheetId format, missing required fields
+└─ Handler Zod schema - Full validation via parseWithCache()
+   Strict schema validation with detailed error messages
+```
+
+**Why 3 stages?** Performance optimization - reject invalid requests in 0.1ms before expensive Zod parsing.
+
+#### Layer 2: Handler Execution
+
+```
+src/handlers/{tool-name}.ts:executeAction()
+├─ Extract discriminated union action
+│  const { action, ...params } = unwrapRequest(request);
+├─ Switch statement dispatches to action handler
+│  switch (action) { case 'read_range': return this.handleReadRange(params); }
+└─ Returns structured response (NOT MCP format yet)
+   { response: { success: true, data: {...} } }
+```
+
+**Key pattern:** ALL 22 handlers follow this exact structure (verified in src/handlers/*.ts).
+
+#### Layer 3: Response Building
+
+```
+src/mcp/registration/tool-handlers.ts:500+
+├─ buildToolResponse() - Converts to MCP CallToolResult format
+│  Adds { content: [...], structuredContent: {...}, isError: false }
+├─ Output validation (ADVISORY, not blocking)
+│  Logs warnings if response doesn't match output schema
+└─ Returns MCP-compliant response
+   { content: [{ type: 'text', text: 'Success' }], ... }
+```
+
+**Critical:** Handlers NEVER call `buildToolResponse()` - only the tool layer does this.
+
+#### Layer 4: Service Layer (Auto-instrumented)
+
+```
+src/services/google-api.ts
+├─ wrapGoogleApi() - Proxy pattern wraps all Google API calls
+│  Automatically applied to sheets, drive, bigquery clients
+├─ Auto-retry (3x exponential backoff + jitter)
+│  Retries on 429 (rate limit), 500, 502, 503, 504
+├─ Circuit breaker per endpoint
+│  Opens after 5 failures, half-opens after 30s
+└─ HTTP/2 connection pooling + metrics
+   Prometheus metrics for latency, errors, circuit breaker state
+```
+
+**Why automatic?** All handlers extend `BaseHandler` which provides instrumented `this.context.googleClient`.
+
+#### Example Complete Trace
+
+```
+Client: sheets_data tool with action=read_range
+  ↓
+server.ts:428 → handleToolCall('sheets_data', args)
+  ↓
+tool-handlers.ts:85 → createToolCallHandler()
+  ↓
+tool-handlers.ts:102 → normalizeToolArgs(args)
+  → Unwraps { request: { action: 'read_range', ... } }
+  ↓
+tool-handlers.ts:115 → parseWithCache(schema, normalizedArgs)
+  → Zod validates input against sheets_data schema
+  ↓
+handlers/data.ts:34 → executeAction(validatedInput)
+  ↓
+handlers/data.ts:48 → switch (action) → handleReadRange(params)
+  ↓
+handlers/data.ts:156 → this.context.googleClient.sheets.spreadsheets.values.get(...)
+  → wrapGoogleApi() intercepts call
+  → Auto-retry logic + circuit breaker check
+  → HTTP/2 request to Google Sheets API
+  ↓
+handlers/data.ts:170 → return { response: { success: true, data: values } }
+  ↓
+tool-handlers.ts:520 → buildToolResponse(result)
+  → Converts to MCP format
+  → Output validation (advisory)
+  ↓
+server.ts:435 → Returns CallToolResult to client
+```
+
+**Use this trace pattern when:**
+- Debugging handler execution
+- Adding new tools/actions
+- Understanding where errors originate
+- Optimizing performance bottlenecks
+
 ### Directory Structure
 
 ```
 src/
 ├── cli.ts                    # CLI entry + auth setup wizard
-├── server.ts                 # STDIO MCP server (~900 lines)
-├── http-server.ts            # HTTP MCP server + middleware chain
-├── remote-server.ts          # OAuth wrapper over http-server
+├── server.ts                 # STDIO MCP server (1289 lines)
+├── http-server.ts            # HTTP MCP server + middleware chain (2390 lines)
+├── remote-server.ts          # OAuth wrapper over http-server (11 lines)
 ├── schemas/                  # Zod schemas (SOURCE OF TRUTH for actions)
 │   ├── index.ts              # Re-exports + TOOL_COUNT/ACTION_COUNT constants
 │   ├── annotations.ts        # Per-tool + per-action annotations (SEP-973)
@@ -67,7 +168,7 @@ src/
 │   ├── webhook.ts            # sheets_webhook (6 actions)
 │   └── dependencies.ts       # sheets_dependencies (7 actions)
 ├── handlers/                 # Business logic (1 per tool)
-│   ├── base.ts               # BaseHandler (circuit breaker, instrumented API calls)
+│   ├── base.ts               # BaseHandler (1425 lines - circuit breaker, instrumented API calls)
 │   ├── auth.ts ... deps.ts   # 21 handler files matching schemas
 │   └── index.ts              # Handler factory + registry
 ├── mcp/                      # MCP protocol layer
@@ -227,11 +328,163 @@ npm run check:silent-fallbacks  # No silent {} returns
 npm run verify:build        # Build + validate + smoke
 ```
 
+## Fast Development Workflows
+
+### Schema Changes (ONE command)
+
+When modifying any schema file in `src/schemas/*.ts`, use this single command:
+
+```bash
+npm run schema:commit
+```
+
+This command automatically:
+1. Regenerates metadata (`gen:metadata`)
+2. Verifies no drift (`check:drift`)
+3. Runs TypeScript checks (`typecheck`)
+4. Runs fast tests (`test:fast`)
+5. Stages all changed files for commit
+
+**Impact:** Reduces 5 manual steps to 1 command, saves ~2 minutes per schema change.
+
+### Quick Verification Commands (< 10 seconds)
+
+Before claiming "verified", run these fast checks:
+
+```bash
+npm run check:drift        # Verify metadata sync (2-3 seconds)
+npm run test:fast          # Run unit + contract tests (5-8 seconds)
+npm run typecheck          # Check TypeScript errors (10-15 seconds)
+```
+
+### Verification Requirements
+
+**ALWAYS include proof with claims:**
+- File references: `src/server.ts:42` (specific line)
+- Command output: Show actual output snippet
+- NEVER claim "verified" without running at least `npm run check:drift`
+
+**Example of proper verification:**
+```bash
+$ npm run check:drift
+✓ No metadata drift detected
+
+$ wc -l src/server.ts
+1289 src/server.ts
+```
+
+## Common Gotchas & Solutions
+
+**⚠️ These are the top causes of CI failures and development friction:**
+
+### 1. Metadata Drift After Schema Changes
+
+**Symptom:** CI fails with "metadata drift detected"
+
+**Cause:** Modified `src/schemas/*.ts` without regenerating metadata files
+
+**Solution:** Run `npm run schema:commit` after ANY schema change
+
+**Prevention:** This is the #1 cause of CI failures (15+ occurrences in last 2 months)
+
+**Why it happens:** Metadata is auto-generated in 5 files:
+- `src/schemas/index.ts` - TOOL_COUNT/ACTION_COUNT constants
+- `src/schemas/annotations.ts` - Per-tool action counts
+- `src/mcp/completions.ts` - TOOL_ACTIONS autocomplete map
+- `server.json` - Full MCP metadata
+- `package.json` - Description with counts
+
+### 2. Response Builder Anti-Pattern
+
+**Symptom:** MCP SDK logs "invalid response structure" warnings
+
+**Cause:** Handler returns raw object instead of using `buildToolResponse()`
+
+**Solution:**
+```typescript
+// ❌ Wrong - manual construction
+return { content: [{ type: 'text', text: 'result' }] };
+
+// ✅ Correct - use response builder
+return buildToolResponse({ response: { success: true, data } });
+```
+
+**Why it matters:** Response building happens in `src/mcp/registration/tool-handlers.ts`, NOT in handlers. Handlers return structured data, tool layer converts to MCP format.
+
+### 3. Hardcoded Counts in Documentation
+
+**Symptom:** README shows outdated counts but CI says "22 tools, 298 actions"
+
+**Cause:** Using hardcoded numbers instead of source file references
+
+**Solution:** Always reference the source:
+- Tool count: See `src/schemas/index.ts:63` → `TOOL_COUNT`
+- Action count: See `src/schemas/index.ts:63` → `ACTION_COUNT`
+
+**Example:** "Currently 22 tools with 298 actions (see src/schemas/index.ts:63)"
+
+**Prevention:** CI checks 42+ documentation files for hardcoded count mismatches
+
+### 4. Line Count Claims Without Verification
+
+**Symptom:** Documentation says "~900 lines" but file is actually 1289 lines
+
+**Cause:** Using estimates ("~", "approximately") instead of running `wc -l`
+
+**Solution:** Always include actual command output:
+```bash
+$ wc -l src/server.ts
+1289 src/server.ts
+```
+
+**Never use:** "approximately", "roughly", "around", "~" for line counts
+
+### 5. Silent Fallback Pattern
+
+**Symptom:** Handler returns empty object `{}` without throwing error
+
+**Cause:** Missing error handling, guard clauses without logging, or early returns
+
+**Solution:** Use structured errors with `ErrorCode` enum:
+```typescript
+// ❌ Wrong - silent failure
+if (!sheet) return {};
+
+// ✅ Correct - explicit error
+if (!sheet) {
+  throw new SheetNotFoundError('Sheet not found', {
+    spreadsheetId,
+    sheetName
+  });
+}
+```
+
+**Detection:** Run `npm run check:silent-fallbacks` to find these patterns
+
+### 6. Legacy Envelope Wrapping Confusion
+
+**Symptom:** Tests fail with "action is required" but action is clearly provided
+
+**Cause:** Legacy compatibility layer expects `{ request: { action, ...params } }` format
+
+**Location:** `src/mcp/registration/tool-handlers.ts:81-118` - `normalizeToolArgs()`
+
+**Solution:** Most test inputs need wrapping:
+```typescript
+// ❌ Wrong - direct input
+const input = { action: 'read_range', spreadsheetId: '...' };
+
+// ✅ Correct - wrapped input (for tests)
+const input = { request: { action: 'read_range', spreadsheetId: '...' } };
+```
+
+**Note:** Production MCP requests are automatically wrapped, only affects test code.
+
 ## Key Files to Focus On
 
-- `src/server.ts` - MCP server entrypoint
+- `src/server.ts` - MCP server entrypoint (1289 lines)
 - `src/mcp/registration/*` - Tool + schema registration
-- `src/handlers/*` - Tool handlers (21 tools)
+- `src/handlers/*` - Tool handlers (22 tools)
 - `src/schemas/*` - Zod schemas (validation source of truth)
 - `src/utils/schema-compat.ts` - Schema transformation layer
 - `tests/contracts/*` - Contract tests (schema guarantees)
@@ -285,8 +538,8 @@ When starting work, operate as an auditor:
 
 | Metric               | Source File            | Current Value  |
 | -------------------- | ---------------------- | -------------- |
-| **ACTION_COUNT**     | `src/schemas/index.ts` | 294 actions    |
-| **TOOL_COUNT**       | `src/schemas/index.ts` | 21 tools       |
+| **ACTION_COUNT**     | `src/schemas/index.ts` | 298 actions    |
+| **TOOL_COUNT**       | `src/schemas/index.ts` | 22 tools       |
 | **Protocol Version** | `src/version.ts:14`    | MCP 2025-11-25 |
 | **Zod Version**      | `package.json`         | 4.3.6          |
 | **SDK Version**      | `package.json`         | 1.26.0         |
@@ -305,6 +558,100 @@ grep "MCP_PROTOCOL_VERSION" src/version.ts
 ```
 
 **⚠️ NEVER hardcode these values in documentation** - always reference the source file with `file:line`.
+
+---
+
+## Tool Usage Decision Tree (Claude Code)
+
+**Use this guide to choose the right tool for file operations:**
+
+### START: What do you need to do?
+
+#### ✅ Know the exact file path?
+→ **Use `Read` tool**
+- Fastest option when path is known
+- Supports line offsets for large files
+- Can read images, PDFs, Jupyter notebooks
+- Example: `Read("src/server.ts")`
+
+#### ✅ Need to find files by pattern?
+→ **Use `Glob` tool** (NOT `find` or `ls`)
+- Pattern-based file discovery
+- Much faster than Bash find/ls
+- Examples:
+  - Find all test files: `**/*.test.ts`
+  - Find handler files: `src/handlers/*.ts`
+  - Find schema files: `src/schemas/*.ts`
+
+#### ✅ Need to search file contents?
+→ **Use `Grep` tool** (NOT bash `grep` or `rg`)
+- Regex pattern search across files
+- Supports context lines (-A, -B, -C)
+- Output modes:
+  - `content` - Show matching lines
+  - `files_with_matches` - List files only
+  - `count` - Count matches per file
+- Examples:
+  - Find function usage: `Grep("handleReadRange", output_mode="content")`
+  - Find TODO comments: `Grep("TODO|FIXME", output_mode="files_with_matches")`
+  - Count action occurrences: `Grep("action:", output_mode="count")`
+- Add `-i` flag for case-insensitive search
+
+#### ✅ Need to run npm scripts or git commands?
+→ **Use `Bash` tool**
+- Git operations: `git status`, `git log`, `git diff`
+- npm scripts: `npm run verify`, `npm test`, `npm run check:drift`
+- Line counts: `wc -l file.ts`
+- Build commands: `npm run build`
+
+#### ❌ NEVER use Bash for:
+- **File reading** (cat, head, tail) → Use `Read` tool
+- **Text search** (grep, rg, ag) → Use `Grep` tool
+- **File finding** (find, ls) → Use `Glob` tool
+- **File manipulation** (sed, awk) → Use `Edit` tool
+- **File writing** (echo >, cat <<EOF) → Use `Write` tool
+
+### Performance Guide
+
+| Operation | Slow ❌ | Fast ✅ |
+|-----------|---------|---------|
+| Read known file | `Bash("cat src/server.ts")` | `Read("src/server.ts")` |
+| Find test files | `Bash("find . -name '*.test.ts'")` | `Glob("**/*.test.ts")` |
+| Search for text | `Bash("grep -r 'pattern' src/")` | `Grep("pattern", path="src/")` |
+| Count lines | `Bash("cat file \| wc -l")` | `Read("file")` then count |
+
+### Parallel Operations
+
+When operations are independent, call multiple tools in one message:
+
+```
+✅ Correct - Parallel reads (3 simultaneous calls)
+Read("src/server.ts")
+Read("src/handlers/data.ts")
+Read("src/schemas/data.ts")
+
+❌ Wrong - Sequential reads (3x slower)
+Read("src/server.ts") → wait → Read("src/handlers/data.ts") → wait → ...
+```
+
+**Rule:** If operations don't depend on each other, make all calls in a single message.
+
+### MCP-Specific Patterns
+
+**When adding new tools to ServalSheets:**
+
+1. **Define schema:** Use `Glob("src/schemas/*.ts")` to see existing patterns
+2. **Create handler:** Use `Read("src/handlers/base.ts")` to see base structure
+3. **Register tool:** Use `Grep("TOOL_DEFINITIONS", path="src/mcp/registration/")` to find registry
+4. **Run metadata:** `Bash("npm run schema:commit")` to regenerate + verify + test
+
+**When debugging handler execution:**
+
+1. **Trace flow:** Use execution path checkpoints (see Layer 1-4 above)
+2. **Find handler:** `Glob("src/handlers/**/your-tool.ts")`
+3. **Read handler:** `Read("src/handlers/your-tool.ts")`
+4. **Check tests:** `Glob("tests/handlers/**/your-tool.test.ts")`
+5. **Run tests:** `Bash("npm test tests/handlers/your-tool.test.ts")`
 
 ---
 
@@ -363,7 +710,7 @@ All verification checks passing:
 2. Added sheets_session tool to all registry locations
 3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced)
 4. Added Tier 7 enterprise tools (sheets_appsscript, sheets_bigquery, sheets_templates)
-5. Current state: 21 tools with 294 actions
+5. Current state: 22 tools with 298 actions
 6. Synchronized metadata across all files
 7. Fixed TypeScript strict mode issues in handlers
 
@@ -409,12 +756,12 @@ The `sheets_session` tool provides conversational context management.
 - ✅ `src/handlers/session.ts` - Handler implementation
 - ✅ `src/mcp/registration/tool-definitions.ts` - Registered
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
-- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 21 tools"
-- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 21 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "294 actions across 21 tools"
+- ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 22 tools"
+- ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 22 entries
+- ✅ `src/mcp/completions.ts` - Comment updated to "298 actions across 22 tools"
 - ✅ Tool is functional and working
 
-**Note:** After Wave 5 consolidation and Tier 7 additions, we have 21 total tools with 294 actions (as of 2026-02-14)
+**Note:** After Wave 5 consolidation and Tier 7 additions, we have 22 total tools with 298 actions (as of 2026-02-14)
 
 ---
 

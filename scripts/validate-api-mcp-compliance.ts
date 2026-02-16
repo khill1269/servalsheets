@@ -2,7 +2,7 @@
 /**
  * ServalSheets - API & MCP Compliance Validator
  *
- * Validates all 21 tools and 294 actions against:
+ * Validates all registered tools/actions against:
  * 1. Google Sheets API v4 requirements
  * 2. MCP Protocol 2025-11-25 compliance
  * 3. Common implementation pitfalls

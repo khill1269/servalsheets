@@ -211,7 +211,7 @@ export const MAX_PAGE_SIZE = 50;
  * Large schema payloads (500KB+) can overwhelm some MCP clients.
  *
  * Modes:
- * - 'full': All 21 tools (default, ~527KB schema payload)
+ * - 'full': All 22 tools (default, ~527KB schema payload)
  * - 'standard': 12 tools - removes MCP-native + Tier 7 (~444KB)
  * - 'lite': 8 essential tools (~199KB, recommended for Claude Desktop)
  *
@@ -240,7 +240,7 @@ export const TOOL_MODE: ToolMode = (() => {
   if (mode === 'lite' || mode === 'standard' || mode === 'full') {
     return mode;
   }
-  // Default to 'full' for all transports — all 21 tools available
+  // Default to 'full' for all transports — all 22 tools available
   // Previously defaulted to 'standard' (12 tools) for STDIO, but this caused
   // 9 tools to be silently unavailable in Claude Desktop / Cowork
   return 'full';
@@ -255,7 +255,7 @@ export const TOOL_MODE: ToolMode = (() => {
  *
  * Benefits:
  * - Reduces initial tools/list payload from ~231KB to ~5KB
- * - All 21 tools available immediately
+ * - All 22 tools available immediately
  * - Claude fetches full schema only when needed via resources
  * - Optimal for Claude Desktop and other token-conscious clients
  *
@@ -290,7 +290,7 @@ export const DEFER_SCHEMAS = resolveDeferSchemas();
  * Benefits:
  * - Reduces tool description payload from ~31KB to ~3KB (~90% reduction)
  * - ~7,700 tokens saved per conversation
- * - All 21 tools available with essential routing info
+ * - All 22 tools available with essential routing info
  * - Full docs available on-demand via resources
  *
  * Trade-offs:

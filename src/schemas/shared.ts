@@ -515,6 +515,19 @@ export const NumberFormatSchema = z
       if (typeof val === 'string') {
         return inferNumberFormatType(val);
       }
+      // Fix QA-1.1: Auto-infer type when object has pattern but no type
+      // Google Sheets API requires numberFormat.type alongside pattern
+      if (val && typeof val === 'object') {
+        const obj = val as Record<string, unknown>;
+        if (
+          'pattern' in obj &&
+          typeof obj['pattern'] === 'string' &&
+          !('type' in obj && obj['type'])
+        ) {
+          const inferred = inferNumberFormatType(obj['pattern'] as string);
+          return { ...obj, type: inferred.type };
+        }
+      }
       return val;
     },
     z.object({

@@ -813,15 +813,28 @@ export function formatZodErrors(
       // For discriminated union errors, explain the action/type mismatch
       if (err.code === 'invalid_union' || err.code === 'invalid_union_discriminator') {
         const actionPath = pathStr || 'action';
-        let message = `Invalid action at '${actionPath}'.`;
+        let message = '';
 
-        // If options provided (from parseForHandler enhancement), list them
-        if (err.options && Array.isArray(err.options) && err.options.length > 0) {
-          const actionList = (err.options as string[]).slice(0, 20).join(', ');
-          const more = err.options.length > 20 ? ` (and ${err.options.length - 20} more)` : '';
-          message += ` Valid actions: ${actionList}${more}`;
+        // Fix QA: Provide field-specific guidance instead of raw Zod dump
+        if (actionPath.includes('rule') && actionPath.includes('type')) {
+          message = `Missing or invalid "type" in rule object. The rule MUST include type: "boolean" or type: "gradient". Example: { "type": "boolean", "condition": { "type": "TEXT_CONTAINS", "values": ["error"] }, "format": { "backgroundColor": { "red": 1 } } }`;
+        } else if (actionPath === 'action' || actionPath === 'request.action') {
+          message = `Invalid action at '${actionPath}'.`;
+          if (err.options && Array.isArray(err.options) && err.options.length > 0) {
+            const actionList = (err.options as string[]).slice(0, 20).join(', ');
+            const more = err.options.length > 20 ? ` (and ${err.options.length - 20} more)` : '';
+            message += ` Valid actions: ${actionList}${more}`;
+          } else {
+            message += ` Check that '${actionPath}' matches one of the valid action values for this tool.`;
+          }
         } else {
-          message += ` Check that '${actionPath}' matches one of the valid action values for this tool.`;
+          message = `Invalid value at '${actionPath}'.`;
+          if (err.options && Array.isArray(err.options) && err.options.length > 0) {
+            const optionList = (err.options as string[]).slice(0, 10).join(', ');
+            message += ` Valid options: ${optionList}`;
+          } else {
+            message += ` ${err.message}. Check that the value matches one of the expected types.`;
+          }
         }
 
         return message;
@@ -835,6 +848,11 @@ export function formatZodErrors(
       // For missing required fields
       if (err.code === 'invalid_type' && err.received === 'undefined') {
         return `Missing required field '${pathStr}'`;
+      }
+
+      // Fix QA: Provide field-specific human-readable guidance for common dimension/format errors
+      if (err.code === 'too_small' || err.code === 'too_big') {
+        return `Value out of range at '${pathStr}': ${err.message}`;
       }
 
       // Default: include path for context

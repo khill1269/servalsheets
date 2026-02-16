@@ -23,69 +23,9 @@ describe('Response Format Compliance', () => {
     await harness.close();
   });
 
-  describe('Success Response Structure', () => {
-    // NOTE: structuredContent IS set by the response builder (src/mcp/response-builder.ts)
-    // but the MCP SDK Client doesn't expose it in the callTool() return value.
-    // These tests would need to use a different testing approach (e.g., direct JSON-RPC)
-    // to verify structuredContent. Skipping until SDK exposes this field.
-    it.skip('should return structuredContent for successful operations', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      // structuredContent should always be defined for successful calls
-      expect(result.structuredContent).toBeDefined();
-    });
-
-    it.skip('should have response wrapper in structuredContent', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      const structured = result.structuredContent as {
-        response?: { success?: boolean };
-      };
-
-      expect(structured).toBeDefined();
-      expect(structured.response).toBeDefined();
-    });
-
-    it.skip('should have success boolean in response', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      const structured = result.structuredContent as {
-        response: { success: boolean };
-      };
-
-      expect(typeof structured.response.success).toBe('boolean');
-    });
-
-    it.skip('should include action name on success', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      const structured = result.structuredContent as {
-        response: { action?: string };
-      };
-
-      expect(structured.response.action).toBe('status');
-    });
-  });
+  // NOTE: structuredContent IS set by the response builder (src/mcp/registration/tool-handlers.ts)
+  // but the MCP SDK Client doesn't expose it in the callTool() return value.
+  // structuredContent tests are in response-format-jsonrpc.test.ts which uses direct JSON-RPC.
 
   describe('Content Array Format', () => {
     it('should return content array', async () => {
@@ -98,7 +38,7 @@ describe('Response Format Compliance', () => {
 
       expect(result.content).toBeDefined();
       expect(Array.isArray(result.content)).toBe(true);
-      expect(result.content.length).toBeGreaterThan(0);
+      expect((result.content as unknown[]).length).toBeGreaterThan(0);
     });
 
     it('should have text content type', async () => {
@@ -109,7 +49,8 @@ describe('Response Format Compliance', () => {
         },
       });
 
-      const textContent = result.content.find((c: { type: string }) => c.type === 'text');
+      const content = result.content as Array<{ type: string }>;
+      const textContent = content.find((c) => c.type === 'text');
       expect(textContent).toBeDefined();
     });
 
@@ -121,9 +62,11 @@ describe('Response Format Compliance', () => {
         },
       });
 
-      const textContent = result.content.find(
-        (c: { type: string; text?: string }) => c.type === 'text'
-      ) as { type: string; text: string };
+      const content = result.content as Array<{ type: string; text?: string }>;
+      const textContent = content.find((c) => c.type === 'text') as {
+        type: string;
+        text: string;
+      };
 
       expect(textContent.text).toBeDefined();
       expect(typeof textContent.text).toBe('string');
@@ -185,18 +128,18 @@ describe('Response Format Compliance', () => {
   });
 
   describe('Response Consistency', () => {
-    it.skip('should return consistent format for sheets_auth', async () => {
+    it('should return consistent format for sheets_auth', async () => {
       const result = await harness.client.callTool({
         name: 'sheets_auth',
         arguments: { request: { action: 'status' } },
       });
 
-      expect(result.structuredContent).toBeDefined();
       expect(result.content).toBeDefined();
       expect(Array.isArray(result.content)).toBe(true);
+      expect((result.content as unknown[]).length).toBeGreaterThan(0);
     });
 
-    it.skip('should return consistent format across multiple calls', async () => {
+    it('should return consistent format across multiple calls', async () => {
       const results = await Promise.all([
         harness.client.callTool({
           name: 'sheets_auth',
@@ -209,16 +152,12 @@ describe('Response Format Compliance', () => {
       ]);
 
       for (const result of results) {
-        expect(result.structuredContent).toBeDefined();
         expect(result.content).toBeDefined();
-
-        const structured = result.structuredContent as {
-          response: { success: boolean; action: string };
-        };
-
-        expect(structured.response.success).toBeDefined();
-        expect(structured.response.action).toBe('status');
+        expect(Array.isArray(result.content)).toBe(true);
+        expect((result.content as unknown[]).length).toBeGreaterThan(0);
       }
     });
+
+    // NOTE: structuredContent consistency tests are in response-format-jsonrpc.test.ts
   });
 });

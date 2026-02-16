@@ -860,25 +860,44 @@ Always return valid JSON in the exact format requested.`;
     };
 
     // Update the chart spec
-    await this.sheetsApi.spreadsheets.batchUpdate({
-      spreadsheetId: input.spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            updateChartSpec: {
-              chartId: input.chartId,
-              spec: {
-                ...existingChart.spec,
-                basicChart: {
-                  ...existingChart.spec.basicChart,
-                  series,
+    // NOTE: The Google Sheets REST API v4 has limited support for the trendline field.
+    // The field exists in the internal API but may not be accepted via batchUpdate.
+    // If the API rejects the trendline field, we return a helpful error.
+    try {
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId: input.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateChartSpec: {
+                chartId: input.chartId,
+                spec: {
+                  ...existingChart.spec,
+                  basicChart: {
+                    ...existingChart.spec.basicChart,
+                    series,
+                  },
                 },
               },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('trendline') || message.includes('Unknown name')) {
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message:
+            'Trendlines cannot be added programmatically via the Google Sheets REST API. ' +
+            'This is a Google API limitation. Add trendlines manually via the Google Sheets UI: ' +
+            'Chart menu → Customize → Series → Trendline.',
+          retryable: false,
+          suggestedFix: 'Add the trendline manually in the Google Sheets chart editor',
+        });
+      }
+      throw error;
+    }
 
     return this.success('chart_add_trendline', { chartId: input.chartId });
   }

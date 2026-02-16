@@ -399,7 +399,7 @@ describe('ConfirmHandler', () => {
       expect(result.response.success).toBe(false);
       if (!result.response.success) {
         expect(result.response.error.code).toBe('ELICITATION_UNAVAILABLE');
-        expect(result.response.error.message).toContain('client must support elicitation');
+        expect(result.response.error.message).toContain('MCP Elicitation not available');
         expect(result.response.error.retryable).toBe(false);
       }
 

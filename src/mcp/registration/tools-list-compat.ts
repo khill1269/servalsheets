@@ -53,7 +53,7 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
     ListToolsRequestSchema as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accept cursor param for MCP spec compliance
     (request: any) => {
-      // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤21 tools)
+      // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤22 tools)
       const _cursor: string | undefined = request?.params?.cursor;
 
       return {

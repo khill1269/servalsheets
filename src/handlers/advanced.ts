@@ -17,6 +17,7 @@ import type {
 import {
   buildA1Notation,
   parseA1Notation,
+  buildGridRangeInput,
   toGridRange,
   type GridRangeInput,
   buildPersonChip,
@@ -1210,13 +1211,15 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
       // Add setDataValidation request
       requests.push({
         setDataValidation: {
-          range: {
-            sheetId: tableRange.sheetId,
-            startRowIndex: (tableRange.startRowIndex ?? 0) + 1, // Skip header row
-            endRowIndex: tableRange.endRowIndex,
-            startColumnIndex,
-            endColumnIndex,
-          },
+          range: toGridRange(
+            buildGridRangeInput(
+              tableRange.sheetId ?? 0,
+              (tableRange.startRowIndex ?? 0) + 1, // Skip header row
+              tableRange.endRowIndex ?? undefined,
+              startColumnIndex,
+              endColumnIndex
+            )
+          ),
           rule: validationRule,
         },
       });
@@ -1281,18 +1284,21 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_drive_chip' }>
   ): Promise<AdvancedResponse> {
     // Validate Drive scope (P3-5: Drive file access required for Drive chips)
-    const hasDriveScope = this.context.auth?.scopes?.includes(
-      'https://www.googleapis.com/auth/drive.file'
-    );
+    // Accept either drive.file or the broader drive scope (which is a superset)
+    const scopes = this.context.auth?.scopes ?? [];
+    const hasDriveScope =
+      scopes.includes('https://www.googleapis.com/auth/drive.file') ||
+      scopes.includes('https://www.googleapis.com/auth/drive');
     if (!hasDriveScope) {
       return this.error({
         code: 'INCREMENTAL_SCOPE_REQUIRED',
-        message: 'Drive file access required. Please grant drive.file scope to write Drive chips.',
+        message:
+          'Drive file access required. Please grant drive.file or drive scope to write Drive chips.',
         retryable: true,
         suggestedFix: 'Grant the required permissions when prompted',
         details: {
           requiredScope: 'https://www.googleapis.com/auth/drive.file',
-          currentScopes: this.context.auth?.scopes ?? [],
+          currentScopes: scopes,
         },
       });
     }
@@ -1341,19 +1347,21 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
     req: Extract<SheetsAdvancedInput['request'], { action: 'add_rich_link_chip' }>
   ): Promise<AdvancedResponse> {
     // Validate Drive scope (P3-5: Drive file access required for rich link chips)
-    const hasDriveScope = this.context.auth?.scopes?.includes(
-      'https://www.googleapis.com/auth/drive.file'
-    );
+    // Accept either drive.file or the broader drive scope (which is a superset)
+    const scopes = this.context.auth?.scopes ?? [];
+    const hasDriveScope =
+      scopes.includes('https://www.googleapis.com/auth/drive.file') ||
+      scopes.includes('https://www.googleapis.com/auth/drive');
     if (!hasDriveScope) {
       return this.error({
         code: 'INCREMENTAL_SCOPE_REQUIRED',
         message:
-          'Drive file access required. Please grant drive.file scope to write rich link chips.',
+          'Drive file access required. Please grant drive.file or drive scope to write rich link chips.',
         retryable: true,
         suggestedFix: 'Grant the required permissions when prompted',
         details: {
           requiredScope: 'https://www.googleapis.com/auth/drive.file',
-          currentScopes: this.context.auth?.scopes ?? [],
+          currentScopes: scopes,
         },
       });
     }

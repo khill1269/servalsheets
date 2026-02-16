@@ -1,6 +1,6 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 21 tools, 294 actions, safety rails, and enterprise features.
+Production-grade Google Sheets MCP Server with 22 tools, 298 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -70,7 +70,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 21 tools with 294 actions using discriminated unions
+- ✅ **Tools**: 22 tools with 298 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -260,7 +260,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (21 tools, 294 actions)
+### Tool Summary (22 tools, 298 actions)
 
 | Tool                  | Actions | Description                                                       |
 | --------------------- | ------- | ----------------------------------------------------------------- |
@@ -896,7 +896,7 @@ npm run start:remote
 
 ```
 src/
-├── schemas/           # Zod schemas for all 21 tools
+├── schemas/           # Zod schemas for all 22 tools
 ├── core/              # Core infrastructure
 │   ├── intent.ts          # Intent types and mappings
 │   ├── batch-compiler.ts  # Compiles intents to API requests
@@ -1001,7 +1001,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 21 tools and 294 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 298 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -1029,7 +1029,7 @@ const SheetsAuthInputSchema = z.object({
 
 ### Tool Structure
 
-All 21 tools follow this pattern:
+All 22 tools follow this pattern:
 
 ```
 Tool: sheets_[category]
@@ -1805,7 +1805,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 | Feature | Status | Version | Implementation |
 |---------|--------|---------|-----------------|
 | **JSON-RPC 2.0** | ✅ Full | 2.0 | @modelcontextprotocol/sdk v1.26.0 |
-| **Tools** | ✅ Full | 2025-11-25 | 21 tools, 294 actions, discriminated unions |
+| **Tools** | ✅ Full | 2025-11-25 | 22 tools, 298 actions, discriminated unions |
 | **Resources** | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources |
 | **Prompts** | ✅ Full | 2025-11-25 | 6 guided workflows with arguments |
 | **Completions** | ✅ Full | 2025-11-25 | Argument autocompletion |
@@ -1818,9 +1818,9 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 
 ### Feature Checklist
 
-#### Tools (21 tools ✅)
+#### Tools (22 tools ✅)
 
-**Implemented & Tested** (all 21 tools):
+**Implemented & Tested** (all 22 tools):
 ```
 ✅ sheets_auth (4 actions) - OAuth, login, logout, status
 ✅ sheets_core (17 actions) - Spreadsheet CRUD, metadata
@@ -2041,7 +2041,7 @@ Test Suites: 78 ✅
 Coverage: 92% ✅
 
 By Component:
-├─ Tools: 1200 tests (21 tools × ~57 tests each)
+├─ Tools: 1200 tests (22 tools × ~55 tests each)
 ├─ Schemas: 340 tests (validation, discriminated unions)
 ├─ Error Handling: 150 tests (all error types)
 ├─ Performance: 71 tests (batching, caching, rate limits)

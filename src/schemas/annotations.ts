@@ -7,6 +7,7 @@
 
 import type { ToolAnnotations } from './shared.js';
 import { TOOL_DESCRIPTIONS } from './descriptions.js';
+import { ACTION_COUNTS } from './action-counts.js';
 
 /**
  * All tool annotations with MCP compliance
@@ -510,32 +511,9 @@ export const ACTION_ANNOTATIONS: Record<
 };
 
 /**
- * Action counts per tool
+ * Action counts per tool (re-exported for convenience)
  */
-export const ACTION_COUNTS: Record<string, number> = {
-  sheets_advanced: 26,
-  sheets_analyze: 16,
-  sheets_appsscript: 14,
-  sheets_auth: 4,
-  sheets_bigquery: 14,
-  sheets_collaborate: 35,
-  sheets_composite: 10,
-  sheets_confirm: 5,
-  sheets_core: 19,
-  sheets_data: 18,
-  sheets_dependencies: 7,
-  sheets_dimensions: 28,
-  sheets_federation: 4,
-  sheets_fix: 1,
-  sheets_format: 22,
-  sheets_history: 7,
-  sheets_quality: 4,
-  sheets_session: 26,
-  sheets_templates: 8,
-  sheets_transaction: 6,
-  sheets_visualize: 18,
-  sheets_webhook: 6,
-};
+export { ACTION_COUNTS };
 
 /**
  * Tool metadata for MCP registration
@@ -559,9 +537,4 @@ export function getToolMetadata(): Record<string, unknown>[] {
     actionCount: ACTION_COUNTS[name] ?? 0,
   }));
 }
-
-/**
- * Constants
- */
-export const TOOL_COUNT = Object.keys(TOOL_ANNOTATIONS).length;
-export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
+// ACTION_COUNTS, TOOL_COUNT, ACTION_COUNT are exported from action-counts.ts (via index.ts)

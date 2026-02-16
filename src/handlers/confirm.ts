@@ -166,7 +166,7 @@ export class ConfirmHandler {
               error: {
                 code: 'ELICITATION_UNAVAILABLE',
                 message:
-                  'MCP Elicitation capability not available. The client must support elicitation (SEP-1036).',
+                  'MCP Elicitation not available. The MCP client must declare elicitation capability during initialize (SEP-1036). Claude Desktop does not yet support this. Use sheets_confirm.wizard_start for multi-step confirmation flows as an alternative, or use the HTTP transport with an elicitation-capable client.',
                 retryable: false,
               },
             };

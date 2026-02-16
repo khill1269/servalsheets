@@ -252,7 +252,14 @@ export class QualityHandler {
    */
   private async handleAnalyzeImpact(input: QualityAnalyzeImpactInput): Promise<QualityResponse> {
     const impactAnalyzer = getImpactAnalyzer();
-    const analysis = await impactAnalyzer.analyzeOperation(input.operation);
+    // Provide defaults for optional operation fields (schema allows all optional)
+    const operation = {
+      type: input.operation.type ?? 'unknown',
+      tool: input.operation.tool ?? 'unknown',
+      action: input.operation.action ?? 'unknown',
+      params: input.operation.params ?? {},
+    };
+    const analysis = await impactAnalyzer.analyzeOperation(operation);
 
     return {
       success: true,
@@ -266,12 +273,18 @@ export class QualityHandler {
           sheets: [],
         },
         affectedResources: {
-          formulas: analysis.formulasAffected.map((f) => f.cell),
-          charts: analysis.chartsAffected.map((c) => c.title),
-          pivotTables: analysis.pivotTablesAffected.map((p) => `PivotTable ${p.pivotTableId}`),
-          validationRules: analysis.validationRulesAffected.map((v) => v.range),
-          namedRanges: analysis.namedRangesAffected.map((n) => n.name),
-          protectedRanges: analysis.protectedRangesAffected.map((p) => p.range),
+          formulas: (analysis.formulasAffected ?? []).map((f) => f?.cell).filter(Boolean),
+          charts: (analysis.chartsAffected ?? []).map((c) => c?.title).filter(Boolean),
+          pivotTables: (analysis.pivotTablesAffected ?? [])
+            .map((p) => (p ? `PivotTable ${p.pivotTableId}` : ''))
+            .filter(Boolean),
+          validationRules: (analysis.validationRulesAffected ?? [])
+            .map((v) => v?.range)
+            .filter(Boolean),
+          namedRanges: (analysis.namedRangesAffected ?? []).map((n) => n?.name).filter(Boolean),
+          protectedRanges: (analysis.protectedRangesAffected ?? [])
+            .map((p) => p?.range)
+            .filter(Boolean),
         },
         estimatedExecutionTime: analysis.estimatedExecutionTime,
         warnings: analysis.warnings.map((w) => ({
