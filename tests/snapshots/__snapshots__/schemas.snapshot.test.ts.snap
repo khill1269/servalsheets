@@ -290,6 +290,16 @@ exports[`Schema Snapshots > Input Schemas > SheetsDimensionsInputSchema should m
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > SheetsFederationInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFederationInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFederationInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > SheetsFixInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/SheetsFixInputSchema",
@@ -676,6 +686,16 @@ exports[`Schema Snapshots > Output Schemas > SheetsDimensionsOutputSchema should
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "SheetsDimensionsOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > SheetsFederationOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/SheetsFederationOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "SheetsFederationOutputSchema": {},
   },
 }
 `;

@@ -34,6 +34,7 @@ import {
   SheetsAppsScriptInputSchema,
   SheetsWebhookInputSchema,
   SheetsDependenciesInputSchema,
+  SheetsFederationInputSchema,
   TOOL_COUNT,
   ACTION_COUNT,
 } from '../../src/schemas/index.js';
@@ -149,9 +150,10 @@ const VALID_INPUTS: Record<string, unknown> = {
     },
   },
   sheets_dependencies: { request: { action: 'build', spreadsheetId: 'test123' } },
+  sheets_federation: { request: { action: 'list_servers' } },
 };
 
-// All tool input schemas (21 tools - includes Tier 7 enterprise tools)
+// All tool input schemas (22 tools - includes Tier 7 enterprise tools + federation)
 const TOOL_SCHEMAS = [
   { name: 'sheets_auth', schema: SheetsAuthInputSchema },
   { name: 'sheets_core', schema: SheetsCoreInputSchema },
@@ -174,13 +176,14 @@ const TOOL_SCHEMAS = [
   { name: 'sheets_appsscript', schema: SheetsAppsScriptInputSchema },
   { name: 'sheets_webhook', schema: SheetsWebhookInputSchema },
   { name: 'sheets_dependencies', schema: SheetsDependenciesInputSchema },
+  { name: 'sheets_federation', schema: SheetsFederationInputSchema },
 ];
 
 describe('Schema Contracts', () => {
   describe('Tool Registry Integrity', () => {
-    it('should have exactly 21 tools (includes Tier 7 enterprise tools)', () => {
-      expect(TOOL_COUNT).toBe(21);
-      expect(TOOL_SCHEMAS).toHaveLength(21);
+    it('should have exactly 22 tools (includes Tier 7 enterprise tools + federation)', () => {
+      expect(TOOL_COUNT).toBe(22);
+      expect(TOOL_SCHEMAS).toHaveLength(22);
     });
 
     it('should have 294 total actions across all tools', () => {

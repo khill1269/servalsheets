@@ -267,12 +267,12 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // =========================================================================
   describe('Tool Definitions', () => {
     it('should define exactly 21 tools', () => {
-      expect(TOOL_DEFINITIONS.length).toBe(21);
+      expect(TOOL_DEFINITIONS.length).toBe(22);
     });
 
     it('should have unique names', () => {
       const names = TOOL_DEFINITIONS.map((t) => t.name);
-      expect(new Set(names).size).toBe(21);
+      expect(new Set(names).size).toBe(22);
     });
 
     it('should use snake_case naming (SEP-986)', () => {
@@ -331,7 +331,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // TOOL EXECUTION CONFIG (SEP-1686 Tasks)
   // =========================================================================
   describe('Task Support (SEP-1686)', () => {
-    it('should have execution config for all 21 tools', () => {
+    it('should have execution config for all 22 tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_EXECUTION_CONFIG[tool]).toBeDefined();
       }
@@ -385,14 +385,14 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // DESCRIPTIONS
   // =========================================================================
   describe('Tool Descriptions', () => {
-    it('should have full descriptions for all 21 tools', () => {
+    it('should have full descriptions for all 22 tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_DESCRIPTIONS[tool]).toBeDefined();
         expect(TOOL_DESCRIPTIONS[tool]!.length).toBeGreaterThan(50);
       }
     });
 
-    it('should have minimal descriptions for all 21 tools', () => {
+    it('should have minimal descriptions for all 22 tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_DESCRIPTIONS_MINIMAL[tool]).toBeDefined();
         expect(TOOL_DESCRIPTIONS_MINIMAL[tool]!.length).toBeGreaterThan(10);
@@ -413,7 +413,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // =========================================================================
   describe('Metadata Counts', () => {
     it('should have correct tool count', () => {
-      expect(TOOL_COUNT).toBe(21);
+      expect(TOOL_COUNT).toBe(22);
     });
 
     it('should have correct action count', () => {
