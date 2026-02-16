@@ -129,6 +129,11 @@ const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
   'ELICITATION_UNAVAILABLE',
   'CONFIG_ERROR',
   'FEATURE_UNAVAILABLE',
+  'AUTHENTICATION_REQUIRED',
+  'NOT_AUTHENTICATED',
+  'NOT_CONFIGURED',
+  'TOKEN_EXPIRED',
+  'QUOTA_EXCEEDED',
 ]);
 
 function extractAttemptedAction(args: unknown): string | null {

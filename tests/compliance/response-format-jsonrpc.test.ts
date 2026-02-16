@@ -32,9 +32,10 @@ describe('Response Format Compliance (JSON-RPC)', () => {
    * Send a JSON-RPC request and get the raw response
    */
   async function sendJsonRpcRequest(method: string, params: unknown): Promise<unknown> {
+    const requestId = Math.random().toString(36).substring(7);
     const request = {
-      jsonrpc: '2.0',
-      id: Math.random().toString(36).substring(7),
+      jsonrpc: '2.0' as const,
+      id: requestId,
       method,
       params,
     };
@@ -44,14 +45,25 @@ describe('Response Format Compliance (JSON-RPC)', () => {
         reject(new Error('Request timeout'));
       }, 5000);
 
-      // Set up response handler
-      clientTransport.onmessage = (message: unknown) => {
-        clearTimeout(timeout);
-        resolve(message);
+      // Store original handler to restore after
+      const originalHandler = clientTransport.onmessage;
+
+      // Create a message handler that matches the request ID
+      const messageHandler = (message: unknown) => {
+        const response = message as { id?: string };
+        if (response.id === requestId) {
+          clearTimeout(timeout);
+          clientTransport.onmessage = originalHandler; // Restore handler
+          resolve(message);
+        }
       };
+
+      // Set up response handler
+      clientTransport.onmessage = messageHandler;
 
       clientTransport.onerror = (error: Error) => {
         clearTimeout(timeout);
+        clientTransport.onmessage = originalHandler; // Restore handler
         reject(error);
       };
 
@@ -147,16 +159,18 @@ describe('Response Format Compliance (JSON-RPC)', () => {
     });
 
     it('should return consistent structuredContent format across multiple calls', async () => {
-      const responses = await Promise.all([
-        sendJsonRpcRequest('tools/call', {
-          name: 'sheets_auth',
-          arguments: { request: { action: 'status' } },
-        }),
-        sendJsonRpcRequest('tools/call', {
-          name: 'sheets_auth',
-          arguments: { request: { action: 'status' } },
-        }),
-      ]);
+      // Run sequentially to avoid InMemoryTransport race conditions
+      const response1 = await sendJsonRpcRequest('tools/call', {
+        name: 'sheets_auth',
+        arguments: { request: { action: 'status' } },
+      });
+
+      const response2 = await sendJsonRpcRequest('tools/call', {
+        name: 'sheets_auth',
+        arguments: { request: { action: 'status' } },
+      });
+
+      const responses = [response1, response2];
 
       for (const response of responses) {
         const result = (

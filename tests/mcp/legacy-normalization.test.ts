@@ -68,14 +68,14 @@ describe('legacy schema wrapper hardening', () => {
     const handlers = createMockHandlers();
     const map = createToolHandlerMap(handlers);
 
-    expect(() =>
+    await expect(
       map.sheets_core({
         request: {
           action: 'not_a_real_action',
           spreadsheetId: 'sheet-123',
         },
       })
-    ).toThrow();
+    ).rejects.toThrow();
 
     expect(handlers.core.handle).not.toHaveBeenCalled();
   });
