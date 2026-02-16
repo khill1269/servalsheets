@@ -152,6 +152,13 @@ export interface SessionState {
   startedAt: number;
   /** Last activity time */
   lastActivityAt: number;
+  /** Recent read operations for redundancy detection (last 20 operations) */
+  recentReads: Array<{
+    spreadsheetId: string;
+    range: string;
+    timestamp: number;
+    operationIndex: number;
+  }>;
 }
 
 // ============================================================================
@@ -180,6 +187,7 @@ function createDefaultState(): SessionState {
     pendingOperation: null,
     startedAt: Date.now(),
     lastActivityAt: Date.now(),
+    recentReads: [],
   };
 }
 
@@ -393,6 +401,74 @@ export class SessionContextManager {
    */
   getLastUndoableOperation(): OperationRecord | null {
     return this.state.operationHistory.find((op) => op.undoable) ?? null;
+  }
+
+  /**
+   * Track a read operation for redundancy detection
+   * Audit optimization: Detects 174 instances of redundant reads
+   */
+  trackReadOperation(spreadsheetId: string, range: string): void {
+    const operationIndex = this.state.operationHistory.length;
+
+    this.state.recentReads.push({
+      spreadsheetId,
+      range,
+      timestamp: Date.now(),
+      operationIndex,
+    });
+
+    // Keep only last 20 reads
+    if (this.state.recentReads.length > 20) {
+      this.state.recentReads.shift();
+    }
+  }
+
+  /**
+   * Check if a read operation is redundant (same range read twice within 20 operations with no write)
+   * Returns the previous read timestamp if redundant, null otherwise
+   */
+  checkRedundantRead(spreadsheetId: string, range: string): number | null {
+    const currentIndex = this.state.operationHistory.length;
+
+    // Find previous read of the same range
+    const previousRead = this.state.recentReads.find(
+      (read) =>
+        read.spreadsheetId === spreadsheetId &&
+        read.range === range &&
+        read.operationIndex !== currentIndex &&
+        // Within last 20 operations
+        currentIndex - read.operationIndex <= 20
+    );
+
+    if (previousRead) {
+      // Check if there was a write operation between the two reads
+      const writesBetween = this.state.operationHistory.filter((op) => {
+        return (
+          op.spreadsheetId === spreadsheetId &&
+          op.range === range &&
+          op.timestamp > previousRead.timestamp &&
+          op.timestamp < Date.now() &&
+          (op.action === 'write' ||
+            op.action === 'batch_write' ||
+            op.action === 'append' ||
+            op.action === 'clear')
+        );
+      });
+
+      // If no writes between, this is redundant
+      if (writesBetween.length === 0) {
+        logger.warn('Redundant read detected', {
+          spreadsheetId,
+          range,
+          timeSincePreviousRead: Date.now() - previousRead.timestamp,
+          operationsSince: currentIndex - previousRead.operationIndex,
+          suggestion: 'Consider caching read results or using batch_read',
+        });
+        return previousRead.timestamp;
+      }
+    }
+
+    return null;
   }
 
   /**

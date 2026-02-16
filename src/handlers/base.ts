@@ -83,6 +83,7 @@ export interface HandlerContext {
   taskStore?: import('../core/task-store-adapter.js').TaskStoreAdapter; // For task-based execution (SEP-1686)
   metrics?: import('../services/metrics.js').MetricsService; // For tracking confirmation skips and performance
   metadataCache?: import('../services/metadata-cache.js').MetadataCache; // Session-level metadata cache (N+1 elimination)
+  sessionContext?: import('../services/session-context.js').SessionContextManager; // For redundant read detection
   logger?: {
     info: (message: string, ...args: unknown[]) => void;
     warn: (message: string, ...args: unknown[]) => void;

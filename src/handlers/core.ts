@@ -1887,9 +1887,47 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
+    // Fix 3.2: Verify the move actually happened by reading back the sheet
+    const verifyResponse = await this.sheetsApi.spreadsheets.get({
+      spreadsheetId: input.spreadsheetId,
+      fields: 'sheets.properties(sheetId,title,index)',
+    });
+
+    const movedSheet = verifyResponse.data.sheets?.find(
+      (s) => s.properties?.sheetId === resolvedSheetId
+    );
+
+    if (!movedSheet) {
+      return this.error({
+        code: 'SHEET_NOT_FOUND',
+        message: `Sheet with ID ${resolvedSheetId} not found after move operation`,
+        retryable: false,
+        suggestedFix: 'Verify the sheet still exists in the spreadsheet',
+      });
+    }
+
+    const actualIndex = movedSheet.properties?.index ?? -1;
+    const verified = actualIndex === input.newIndex;
+
+    if (!verified) {
+      this.context.logger?.warn('move_sheet verification failed', {
+        requestedIndex: input.newIndex,
+        actualIndex,
+        sheetId: resolvedSheetId,
+      });
+    }
+
     return this.success('move_sheet', {
       sheetId: resolvedSheetId,
-      newIndex: input.newIndex,
+      sheetTitle: movedSheet.properties?.title,
+      requestedIndex: input.newIndex,
+      actualIndex,
+      verified,
+      ...(verified
+        ? {}
+        : {
+            warning: `Sheet moved but ended at index ${actualIndex} instead of ${input.newIndex}. This may happen if the newIndex was out of range.`,
+          }),
     });
   }
 }

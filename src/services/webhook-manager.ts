@@ -25,6 +25,7 @@ import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
 import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import { generateWebhookSecret } from '../security/webhook-signature.js';
+import { resourceNotifications } from '../resources/notifications.js';
 import type {
   WebhookEventType,
   WebhookInfo,
@@ -625,18 +626,45 @@ export class WebhookManager {
       return;
     }
 
+    // Retrieve old state for change detection
+    const oldState = await this.getCachedState(spreadsheetId);
+
     const key = `webhook:state:${spreadsheetId}`;
     try {
       await this.redis.set(key, JSON.stringify(state), {
         EX: 3600, // 1 hour TTL
       });
       logger.debug('Spreadsheet state cached', { spreadsheetId, key });
+
+      // Detect changes and notify MCP clients (Feature 1: Real-Time Notifications)
+      if (oldState && this.hasStateChanged(oldState, state)) {
+        resourceNotifications.notifyResourceListChanged(`spreadsheet changed: ${spreadsheetId}`);
+        logger.debug('Resource list changed notification sent for spreadsheet change', {
+          spreadsheetId,
+        });
+      }
     } catch (error) {
       logger.warn('Failed to cache spreadsheet state', {
         spreadsheetId,
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  /**
+   * Check if spreadsheet state has changed
+   * (Feature 1: Real-Time Notifications)
+   * @private
+   */
+  private hasStateChanged(old: SpreadsheetState, current: SpreadsheetState): boolean {
+    // Compare critical fields: sheet count, cell values, formatting
+    if (old.sheets.length !== current.sheets.length) {
+      return true;
+    }
+
+    // Deep comparison of sheet data
+    // Using JSON.stringify for simplicity - in production could use more efficient comparison
+    return JSON.stringify(old.sheets) !== JSON.stringify(current.sheets);
   }
 
   /**

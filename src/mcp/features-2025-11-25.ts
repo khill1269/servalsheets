@@ -448,12 +448,68 @@ Follow this order for maximum efficiency and clarity:
 
 ## ⚡ CRITICAL RULES (Avoid Common Mistakes)
 
-1. **append is NOT idempotent** — Never retry on timeout. It will duplicate data.
-2. **Always include sheet name** in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
-3. **Use 0-based indices** for insert/delete: row 1 = index 0
-4. **batch_format max 100** operations per call
-5. **Use verbosity:"minimal"** to save tokens when you don't need full response
-6. **sheets_transaction overhead** only pays off for 5+ operations
+1. **START with sheets_analyze** — For any new spreadsheet, ALWAYS call \`sheets_analyze action:"comprehensive"\` or \`action:"scout"\` FIRST. Gives you structure, data types, quality, and recommended actions. Prevents 70%+ of mistakes. Skip this = wasted effort.
+2. **append is NOT idempotent** — Never retry on timeout. It will duplicate data.
+3. **Always include sheet name** in ranges: \`"Sheet1!A1:D10"\` not \`"A1:D10"\`
+4. **NEVER type emoji sheet names manually** — Always copy sheet names from \`sheets_core.list_sheets\` response. Emoji characters may look identical but have different Unicode (📊 U+1F4CA vs 📈 U+1F4C8). Quote sheet names with spaces or emoji: \`"'📊 Dashboard'!A1"\`
+5. **Use 0-based indices** for insert/delete: row 1 = index 0
+6. **batch_format max 100** operations per call
+7. **Use verbosity:"minimal"** to save tokens when you don't need full response
+8. **Use sheets_transaction for 5+ operations** — Saves 80-95% API calls and ensures atomicity. Example: Updating 50 rows = 1 transaction call instead of 50 individual writes. Don't use for 1-4 operations (overhead exceeds benefit)
+
+## 🔁 ERROR RECOVERY & LEARNING
+
+⚠️ **CRITICAL: If you make the SAME mistake twice, STOP and analyze**
+
+**After ANY error:**
+1. Read the error message completely (don't skim!)
+2. Check if you've made THIS EXACT ERROR before in this conversation
+3. If YES (same tool + same error code):
+   - **DO NOT retry the same approach** — Einstein said insanity is doing the same thing expecting different results
+   - Read the tool schema: \`schema://tools/{toolName}\` for correct parameter format
+   - Or ask the user for clarification: "I'm getting repeated errors on {tool}. Can you clarify what you need?"
+4. If NO (first time seeing this error):
+   - Analyze the error message carefully
+   - Adjust parameters based on error guidance
+   - Try once more with corrections
+
+**Error Pattern Recognition - If you see these patterns, STOP immediately:**
+- Same error code 2+ times on same tool → Read schema, don't retry again
+- \`"invalid_union"\` on conditional format → Use \`add_conditional_format_rule\` with preset instead
+- \`"range is required"\` → Check if using object \`{a1: "..."}\` instead of string \`"Sheet1!A1"\`
+- Timeout on \`append\` → Don't retry (NOT idempotent, will duplicate data)
+- Timeout on \`auto_resize\` → Skip and move on (non-critical operation, column widths acceptable without)
+- **Auth timeout/failure → CRITICAL: Follow strict protocol (see below)**
+
+**🔐 AUTH RETRY PROTOCOL (MANDATORY):**
+⚠️ **NEVER exceed 2 login attempts** — Audit showed 11 consecutive attempts caused 67% of all timeouts
+
+1. First \`sheets_auth login\` → If timeout/error, WAIT 30 seconds
+2. Second \`sheets_auth login\` → If still fails, **STOP IMMEDIATELY**
+3. Tell user: "Authentication failed after 2 attempts. Possible causes:
+   - Network connectivity issues (check internet connection)
+   - Firewall blocking OAuth traffic (check firewall/proxy settings)
+   - Google OAuth servers temporarily unavailable (try again in 5 minutes)
+   - DNS resolution failures (try flushing DNS cache)"
+4. **DO NOT attempt a 3rd login** — OAuth token exchange has automatic retry (3 attempts with backoff)
+5. If user insists, suggest: \`sheets_auth status\` to check current auth state first
+
+**Your Error History (track mentally during session):**
+- Keep count of errors per tool as you work
+- After 3 errors on same tool → Switch approach or ask user
+- After 5 total errors in short time → Slow down, review context, maybe read comprehensive docs
+
+**Self-Correction Checkpoint (every 10-15 tool calls):**
+Ask yourself:
+- Have I made any mistakes in the last few calls?
+- Did I repeat any mistakes?
+- Should I read documentation before my next call?
+- Am I rushing? Should I slow down and verify parameters?
+
+**Remember:** Errors are learning opportunities. Use them to improve your approach, not to blindly retry.
+
+**⚠️ DEBUG ARTIFACT WARNING:**
+Never leave debug strings (e.g., "test123", task markers, "temp") in production cells. Always verify final values before completing operations.
 
 ## 💡 COMMON PATTERNS (Copy-Paste Ready)
 

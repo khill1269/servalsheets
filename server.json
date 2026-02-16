@@ -2,7 +2,7 @@
   "$schema": "https://cdn.jsdelivr.net/npm/@anthropic-ai/mcp-registry@latest/dist/registry-schema.json",
   "name": "io.github.khill1269/servalsheets",
   "version": "1.6.0",
-  "description": "Production-grade Google Sheets MCP server with 21 tools and 294 actions",
+  "description": "Production-grade Google Sheets MCP server with 22 tools and 298 actions",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/serval-icon.png",
@@ -16,12 +16,12 @@
     }
   ],
   "mcpProtocol": "2025-11-25",
-  "instructions": "ServalSheets provides 21 tools for Google Sheets operations. Use sheets_analyze with action \"comprehensive\" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
+  "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ WRONG format (causes INVALID_PARAMS):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nThis rule applies to EVERY tool call. No exceptions.\n\n---\n\nServalSheets provides 22 tools for Google Sheets operations. Use sheets_analyze with action \"comprehensive\" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
       "name": "servalsheets",
       "version": "1.6.0",
-      "description": "Production-grade Google Sheets MCP server - 21 tools, 294 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
+      "description": "Production-grade Google Sheets MCP server - 22 tools, 298 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],
   "tools": [
@@ -283,6 +283,11 @@
       ]
     },
     {
+      "name": "sheets_federation",
+      "description": "federation operations (4 actions)",
+      "actions": ["call_remote", "list_servers", "get_server_tools", "validate_connection"]
+    },
+    {
       "name": "sheets_fix",
       "description": "fix operations (1 actions)",
       "actions": ["fix"]
@@ -408,8 +413,8 @@
     "sampling"
   ],
   "metadata": {
-    "toolCount": 21,
-    "actionCount": 294,
+    "toolCount": 22,
+    "actionCount": 298,
     "categories": [
       "Core Operations (5 tools): auth, core, data, format, dimensions",
       "Visualizations (1 tool): visualize",

@@ -225,13 +225,17 @@ function buildFlatDeferredSchema(fullSchema: ZodSchema, schemaType: SchemaType):
       const actionValues = extractActionEnum(innerSchema);
       if (actionValues.length > 0) {
         // Use z.enum so the client knows valid action values
-        shape['action'] = z.enum(actionValues as [string, ...string[]]).describe(
-          'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
-        );
+        shape['action'] = z
+          .enum(actionValues as [string, ...string[]])
+          .describe(
+            'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+          );
       } else {
-        shape['action'] = z.string().describe(
-          'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
-        );
+        shape['action'] = z
+          .string()
+          .describe(
+            'IMPORTANT: Read schema://tools/{toolName} first to see available actions and required parameters'
+          );
       }
     }
     for (const prop of allProps) {
@@ -373,10 +377,12 @@ export function prepareSchemaForRegistrationCached(
  * - { request: { action, params } } (legacy params wrapper)
  */
 export function wrapInputSchemaForLegacyRequest(schema: ZodSchema): ZodSchema {
-  const legacyParamsSchema = z.object({
-    action: z.string(),
-    params: z.record(z.string(), z.unknown()),
-  }).strict();
+  const legacyParamsSchema = z
+    .object({
+      action: z.string(),
+      params: z.record(z.string(), z.unknown()),
+    })
+    .strict();
 
   const legacyRequestSchema = z.object({
     request: z.union([schema, legacyParamsSchema]),

@@ -57,6 +57,10 @@ const SPECIAL_CASE_TOOLS: Record<string, { count: number; actions: string[] }> =
     count: 5,
     actions: ['request', 'get_stats', 'wizard_start', 'wizard_step', 'wizard_complete'],
   },
+  federation: {
+    count: 4,
+    actions: ['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'],
+  },
 };
 
 // ============================================================================
@@ -418,6 +422,14 @@ const serverJson = {
   ],
   mcpProtocol: '2025-11-25',
   instructions:
+    '⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\n' +
+    'NEVER wrap arguments in {"request":{...}} object.\n\n' +
+    '✅ CORRECT format for ALL tools:\n' +
+    '{"action":"...", "spreadsheetId":"...", "range":"..."}\n\n' +
+    '❌ WRONG format (causes INVALID_PARAMS):\n' +
+    '{"request": {"action":"...", "spreadsheetId":"..."}}\n\n' +
+    'This rule applies to EVERY tool call. No exceptions.\n\n' +
+    '---\n\n' +
     'ServalSheets provides ' +
     TOOL_COUNT +
     ' tools for Google Sheets operations. Use sheets_analyze with action "comprehensive" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.',

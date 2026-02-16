@@ -67,12 +67,269 @@ type ConditionType =
   | 'CUSTOM_FORMULA'
   | 'BOOLEAN';
 
+// Fix 1.4: Format operation batching queue
+interface QueuedFormatOperation {
+  request: FormatRequest;
+  timestamp: number;
+  resolve: (value: FormatResponse) => void;
+  reject: (error: unknown) => void;
+}
+
 export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOutput> {
   private sheetsApi: sheets_v4.Sheets;
+  // Fix 1.4: Track format operations for auto-consolidation
+  private formatQueue = new Map<string, QueuedFormatOperation[]>();
+  private flushTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_format', context);
     this.sheetsApi = sheetsApi;
+  }
+
+  /**
+   * Fix 1.4: Check if format operation should be batched
+   * Queues sequential format operations on the same sheet within 500ms window
+   */
+  private shouldBatchFormat(request: FormatRequest): boolean {
+    const batchableActions = [
+      'set_number_format',
+      'set_background',
+      'set_text_format',
+      'set_borders',
+      'set_alignment',
+    ];
+    return batchableActions.includes(request.action);
+  }
+
+  /**
+   * Fix 1.4: Get batching key for grouping operations
+   */
+  private getBatchKey(request: FormatRequest): string | null {
+    if (!('spreadsheetId' in request) || !('sheetId' in request)) {
+      return null;
+    }
+    return `${request.spreadsheetId}:${request.sheetId}`;
+  }
+
+  /**
+   * Fix 1.4 COMPLETION: Merge multiple format operations into one set_format call
+   */
+  private mergeFormatOperations(operations: FormatRequest[]): FormatRequest {
+    if (operations.length === 0) {
+      throw new Error('Cannot merge empty operations array');
+    }
+
+    // Start with the first operation as base
+    const base = operations[0]!;
+    const merged: Partial<FormatRequest> & { format: Record<string, unknown> } = {
+      action: 'set_format',
+      spreadsheetId: base.spreadsheetId,
+      range: 'range' in base ? base.range : undefined,
+      format: {},
+    };
+
+    // Merge format properties from all operations
+    for (const op of operations) {
+      switch (op.action) {
+        case 'set_background':
+          if (
+            'backgroundColor' in op &&
+            op.backgroundColor &&
+            typeof op.backgroundColor === 'object' &&
+            'red' in op.backgroundColor &&
+            'green' in op.backgroundColor &&
+            'blue' in op.backgroundColor &&
+            'alpha' in op.backgroundColor
+          ) {
+            merged.format.backgroundColor = op.backgroundColor as {
+              red: number;
+              green: number;
+              blue: number;
+              alpha: number;
+            };
+          }
+          break;
+        case 'set_text_format':
+          if ('textFormat' in op && op.textFormat) {
+            merged.format.textFormat = {
+              ...merged.format.textFormat,
+              ...op.textFormat,
+            };
+          }
+          break;
+        case 'set_number_format':
+          if ('numberFormat' in op && op.numberFormat) {
+            merged.format.numberFormat = op.numberFormat;
+          }
+          break;
+        case 'set_borders':
+          if ('borders' in op && op.borders) {
+            merged.format.borders = {
+              ...merged.format.borders,
+              ...op.borders,
+            };
+          }
+          break;
+        case 'set_alignment':
+          if (
+            'horizontalAlignment' in op &&
+            (op.horizontalAlignment === 'LEFT' ||
+              op.horizontalAlignment === 'CENTER' ||
+              op.horizontalAlignment === 'RIGHT')
+          ) {
+            merged.format.horizontalAlignment = op.horizontalAlignment;
+          }
+          if (
+            'verticalAlignment' in op &&
+            (op.verticalAlignment === 'TOP' ||
+              op.verticalAlignment === 'MIDDLE' ||
+              op.verticalAlignment === 'BOTTOM')
+          ) {
+            merged.format.verticalAlignment = op.verticalAlignment;
+          }
+          if (
+            'wrapStrategy' in op &&
+            (op.wrapStrategy === 'OVERFLOW_CELL' ||
+              op.wrapStrategy === 'LEGACY_WRAP' ||
+              op.wrapStrategy === 'CLIP' ||
+              op.wrapStrategy === 'WRAP')
+          ) {
+            merged.format.wrapStrategy = op.wrapStrategy;
+          }
+          break;
+        case 'set_format':
+          // Already a consolidated format - merge its format object
+          if ('format' in op && op.format) {
+            merged.format = {
+              ...merged.format,
+              ...op.format,
+            };
+          }
+          break;
+      }
+    }
+
+    return merged as FormatRequest;
+  }
+
+  /**
+   * Detect adjacent ranges that could be merged (audit optimization: 90 instances)
+   * Logs warnings for ranges like D2:D30 + E2:E30 that could be D2:E30
+   */
+  private detectAdjacentRanges(ranges: string[]): void {
+    const logger = this.context.logger;
+    if (!logger || ranges.length < 2) return;
+
+    // Simple adjacent column detection (e.g., D2:D30 + E2:E30)
+    for (let i = 0; i < ranges.length; i++) {
+      for (let j = i + 1; j < ranges.length; j++) {
+        const range1 = ranges[i]!;
+        const range2 = ranges[j]!;
+
+        try {
+          const parsed1 = parseA1Notation(range1);
+          const parsed2 = parseA1Notation(range2);
+
+          // Check if ranges are on same sheet and have same row span
+          if (
+            parsed1.sheetName === parsed2.sheetName &&
+            parsed1.startRow === parsed2.startRow &&
+            parsed1.endRow === parsed2.endRow
+          ) {
+            // Check if columns are adjacent
+            if (parsed1.endCol + 1 === parsed2.startCol) {
+              const mergedRange = `${parsed1.sheetName}!${this.columnToLetter(parsed1.startCol)}${parsed1.startRow}:${this.columnToLetter(parsed2.endCol)}${parsed2.endRow}`;
+              logger.info('Adjacent ranges detected - could be merged', {
+                range1,
+                range2,
+                mergedRange,
+                apiCallSavings: 1,
+              });
+            }
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+    }
+  }
+
+  /**
+   * Helper: Convert column index to letter (0=A, 25=Z, 26=AA)
+   */
+  protected columnToLetter(col: number): string {
+    let letter = '';
+    while (col >= 0) {
+      letter = String.fromCharCode((col % 26) + 65) + letter;
+      col = Math.floor(col / 26) - 1;
+    }
+    return letter;
+  }
+
+  /**
+   * Fix 1.4: Flush queued format operations as a consolidated batch
+   */
+  private async flushFormatQueue(key: string): Promise<void> {
+    const operations = this.formatQueue.get(key);
+    if (!operations || operations.length === 0) {
+      return;
+    }
+
+    this.formatQueue.delete(key);
+    const timer = this.flushTimers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.flushTimers.delete(key);
+    }
+
+    const logger = this.context.logger;
+    logger?.info(`Auto-consolidating ${operations.length} format operations`, { key });
+
+    // Fix 1.4 COMPLETION: Actually consolidate operations instead of executing sequentially
+    // Group operations by range to merge format properties
+    const rangeGroups = new Map<string, QueuedFormatOperation[]>();
+
+    for (const op of operations) {
+      const range =
+        'range' in op.request && op.request.range ? String(op.request.range) : 'default';
+      const group = rangeGroups.get(range) || [];
+      group.push(op);
+      rangeGroups.set(range, group);
+    }
+
+    // Check for adjacent ranges that could be merged (audit optimization: 90 instances)
+    this.detectAdjacentRanges(Array.from(rangeGroups.keys()));
+
+    // Process each range group
+    for (const [range, group] of rangeGroups.entries()) {
+      try {
+        if (group.length === 1) {
+          // Single operation - execute directly
+          const result = await this.executeFormatOperationDirect(group[0]!.request);
+          group[0]!.resolve(result);
+        } else {
+          // Multiple operations on same range - consolidate into set_format
+          const merged = this.mergeFormatOperations(group.map((g) => g.request));
+          const result = await this.executeFormatOperationDirect(merged);
+
+          // Resolve all operations with the consolidated result
+          for (const op of group) {
+            op.resolve(result);
+          }
+
+          logger?.info(`Consolidated ${group.length} operations into 1 set_format call`, {
+            range,
+            actions: group.map((g) => g.request.action),
+            savingsPercent: Math.round((1 - 1 / group.length) * 100),
+          });
+        }
+      } catch (error) {
+        // Reject all operations in this group
+        for (const op of group) {
+          op.reject(error);
+        }
+      }
+    }
   }
 
   /**
@@ -157,6 +414,50 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
    * Execute action and return response (extracted for task/non-task paths)
    */
   private async executeAction(request: FormatRequest): Promise<FormatResponse> {
+    // Fix 1.4: Intercept batchable format operations for auto-consolidation
+    if (this.shouldBatchFormat(request)) {
+      const batchKey = this.getBatchKey(request);
+      if (batchKey) {
+        return new Promise<FormatResponse>((resolve, reject) => {
+          // Add operation to queue
+          const operations = this.formatQueue.get(batchKey) || [];
+          operations.push({
+            request,
+            timestamp: Date.now(),
+            resolve,
+            reject,
+          });
+          this.formatQueue.set(batchKey, operations);
+
+          // Set or reset flush timer (500ms consolidation window)
+          const existingTimer = this.flushTimers.get(batchKey);
+          if (existingTimer) {
+            clearTimeout(existingTimer);
+          }
+
+          const timer = setTimeout(() => {
+            void this.flushFormatQueue(batchKey);
+          }, 500);
+          this.flushTimers.set(batchKey, timer);
+
+          // Log queuing for visibility
+          this.context.logger?.info('Format operation queued for consolidation', {
+            action: request.action,
+            batchKey,
+            queueSize: operations.length,
+          });
+        });
+      }
+    }
+
+    // Non-batchable or batching not applicable - execute directly
+    return this.executeFormatOperationDirect(request);
+  }
+
+  /**
+   * Fix 1.4: Execute format operation directly (bypasses batching)
+   */
+  private async executeFormatOperationDirect(request: FormatRequest): Promise<FormatResponse> {
     switch (request.action) {
       case 'set_format':
         return await this.handleSetFormat(request as FormatRequest & { action: 'set_format' });

@@ -321,17 +321,45 @@ const SparklineClearActionSchema = CommonFieldsSchema.extend({
 // ===== RULES ACTION SCHEMAS (8 actions) =====
 
 const RuleAddConditionalFormatActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('rule_add_conditional_format')
-    .describe('Add a conditional formatting rule to a sheet'),
+  action: z.literal('rule_add_conditional_format').describe(
+    `Add a conditional formatting rule to a sheet.
+
+⚠️ COMPLEX SCHEMA: This action has strict schema requirements. For simpler usage, consider add_conditional_format_rule with presets instead.
+
+⚠️ CRITICAL: The "rule" parameter MUST have type:"boolean" OR type:"gradient" — no other types allowed!`
+  ),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the conditional format rule'),
   rule: ConditionalFormatRuleSchema.describe(
-    `Conditional format rule object. Two types:
-1. BOOLEAN RULE: { type: "boolean", condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: "error" }] }, format: { backgroundColor: { red: 1, green: 0.5, blue: 0.5 }, textFormat: { bold: true } } }
-   Other condition types: NUMBER_GREATER, NUMBER_LESS, NUMBER_BETWEEN, TEXT_IS_EMAIL, TEXT_IS_URL, DATE_BEFORE, BLANK, CUSTOM_FORMULA
-2. GRADIENT RULE: { type: "gradient", minpoint: { type: "MIN", color: { red: 0, green: 1, blue: 0 } }, midpoint: { type: "PERCENT", value: "50", color: { red: 1, green: 1, blue: 0 } }, maxpoint: { type: "MAX", color: { red: 1, green: 0, blue: 0 } } }
-   Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE`
+    `Conditional format rule object. MUST specify type first!
+
+✅ TYPE 1: BOOLEAN RULE (condition-based)
+{
+  type: "boolean",  ← REQUIRED
+  condition: {
+    type: "TEXT_CONTAINS",  ← Condition type
+    values: [{ userEnteredValue: "error" }]  ← Values as objects
+  },
+  format: {
+    backgroundColor: { red: 1, green: 0.5, blue: 0.5 },
+    textFormat: { bold: true }
+  }
+}
+
+Other condition types: NUMBER_GREATER, NUMBER_LESS, NUMBER_BETWEEN, TEXT_IS_EMAIL, TEXT_IS_URL, DATE_BEFORE, BLANK, NOT_BLANK, CUSTOM_FORMULA
+
+✅ TYPE 2: GRADIENT RULE (color scale/heat map)
+{
+  type: "gradient",  ← REQUIRED
+  minpoint: { type: "MIN", color: { red: 0, green: 1, blue: 0 } },
+  midpoint: { type: "PERCENT", value: "50", color: { red: 1, green: 1, blue: 0 } },  ← Optional
+  maxpoint: { type: "MAX", color: { red: 1, green: 0, blue: 0 } }
+}
+
+Minpoint/maxpoint types: MIN, MAX, NUMBER, PERCENT, PERCENTILE
+
+❌ COMMON MISTAKE: Omitting type field or using wrong type value causes "invalid_union" error
+✅ SIMPLER ALTERNATIVE: Use add_conditional_format_rule with rulePreset for common cases (highlight_duplicates, color_scale_green_red, etc.)`
   ),
   index: z
     .number()
@@ -413,9 +441,15 @@ const ListDataValidationsActionSchema = CommonFieldsSchema.extend({
 });
 
 const AddConditionalFormatRuleActionSchema = CommonFieldsSchema.extend({
-  action: z
-    .literal('add_conditional_format_rule')
-    .describe('Add a preset conditional formatting rule'),
+  action: z.literal('add_conditional_format_rule').describe(
+    `Add a preset conditional formatting rule (RECOMMENDED over rule_add_conditional_format).
+
+✅ SIMPLER ALTERNATIVE: This action uses presets instead of complex rule objects — much easier than rule_add_conditional_format!
+
+Common presets: highlight_duplicates, highlight_blanks, highlight_errors, color_scale_green_red, data_bars, top_10_percent, bottom_10_percent
+
+Use this UNLESS you need highly custom rules (then use rule_add_conditional_format).`
+  ),
   sheetId: SheetIdSchema.describe('Numeric sheet ID where rule will be applied'),
   range: RangeInputSchema.describe('Range for the preset rule'),
   rulePreset: z

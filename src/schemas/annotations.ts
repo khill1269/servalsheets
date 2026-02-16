@@ -162,6 +162,13 @@ export const TOOL_ANNOTATIONS: Record<string, ToolAnnotations> = {
     idempotentHint: true, // Same input = same output
     openWorldHint: false, // Local graph analysis
   },
+  sheets_federation: {
+    title: 'MCP Server Federation',
+    readOnlyHint: false, // Depends on remote tool behavior
+    destructiveHint: false, // Federation itself is not destructive
+    idempotentHint: false, // Remote tools may not be idempotent
+    openWorldHint: true, // Calls external MCP servers
+  },
 };
 
 // NOTE: Tool descriptions are now in descriptions.ts
@@ -196,19 +203,44 @@ export const ACTION_ANNOTATIONS: Record<
   'sheets_data.read': {
     apiCalls: 1,
     idempotent: true,
-    batchAlternative: 'sheets_data.batch_read (for 3+ ranges)',
-    whenToUse: 'Reading 1-2 ranges from a spreadsheet',
-    whenNotToUse: 'Reading 3+ ranges — use batch_read instead (1 API call vs N)',
+    batchAlternative: 'sheets_data.batch_read (for 3+ ranges or dataFilters)',
+    prerequisites: ['sheets_auth.login'],
+    whenToUse:
+      'Read cell values from a specific range OR query by dataFilter (survives insertions/deletions)',
+    whenNotToUse: 'For multiple ranges use batch_read; for analysis use sheets_analyze',
+    commonMistakes: [
+      'Using hard-coded A1 ranges in production (use dataFilter with developerMetadataLookup instead)',
+      'Not setting developer metadata before attempting dataFilter queries',
+      'Reading very large ranges without pagination (use cursor/pageSize)',
+    ],
   },
   'sheets_data.write': {
     apiCalls: 1,
     idempotent: true,
-    batchAlternative: 'sheets_data.batch_write (for 3+ ranges)',
-    whenToUse: 'Writing to 1-2 ranges',
-    whenNotToUse: 'Writing 3+ ranges — use batch_write. Appending rows — use append instead',
+    batchAlternative: 'sheets_data.batch_write (for 3+ ranges or dataFilters)',
+    prerequisites: ['sheets_auth.login'],
+    whenToUse: 'Write values to a specific range OR update by dataFilter (dynamic location)',
+    whenNotToUse: 'For appending rows use append action; for multiple ranges use batch_write',
     commonMistakes: [
       'Forgetting sheet name in range: use "Sheet1!A1:D10" not "A1:D10"',
       'Using write to add rows at bottom — use append instead (auto-finds last row)',
+      'Using hard-coded A1 ranges in production (use dataFilter for resilient updates)',
+      'Writing without dataFilter.developerMetadataLookup when target location is dynamic',
+      'Forgetting to tag ranges with sheets_advanced.set_metadata before dataFilter writes',
+    ],
+  },
+  'sheets_data.clear': {
+    apiCalls: 1,
+    idempotent: true,
+    batchAlternative: 'sheets_data.batch_clear (for multiple ranges or dataFilters)',
+    prerequisites: ['sheets_auth.login'],
+    whenToUse: 'Clear values from a range OR clear by dataFilter (dynamic targeting)',
+    whenNotToUse:
+      'For formatting changes use sheets_format; for deleting rows use sheets_dimensions',
+    commonMistakes: [
+      'Clearing hard-coded ranges that shift after insertions (use dataFilter instead)',
+      'Not confirming deletion in production (use safety.dryRun first)',
+      'Clears values only — formatting is preserved. Use sheets_format.clear_format for formatting',
     ],
   },
   'sheets_data.append': {
@@ -419,6 +451,22 @@ export const ACTION_ANNOTATIONS: Record<
     prerequisites: ['sheets_analyze.comprehensive or sheets_analyze.analyze_data'],
     whenToUse: 'Getting chart recommendations based on data patterns',
   },
+  'sheets_analyze.query_natural_language': {
+    apiCalls: 3, // Metadata read + sample read + LLM call
+    idempotent: false, // AI responses vary
+    batchAlternative: 'For analyzing multiple sheets, use sheets_composite.multi_sheet_analysis',
+    prerequisites: ['sheets_auth.login', 'sheets_analyze.scout to understand schema'],
+    whenToUse:
+      'User asks natural language questions about data they don\'t understand the schema for. Examples: "What are top 5 customers by revenue?", "Show me sales trends last quarter"',
+    whenNotToUse:
+      'When modification is needed (use sheets_data instead); when data schema is known and simple query suffices (use sheets_data.read with filter)',
+    commonMistakes: [
+      'Asking LLM to modify data (query_natural_language is read-only analysis)',
+      'Using with very large datasets without range specification (causes timeout)',
+      'Expecting real-time data when only sample is analyzed',
+      'Not providing conversationId for multi-turn queries',
+    ],
+  },
 
   // COLLABORATE TOOL
   'sheets_collaborate.share_add': {
@@ -477,6 +525,7 @@ export const ACTION_COUNTS: Record<string, number> = {
   sheets_data: 18,
   sheets_dependencies: 7,
   sheets_dimensions: 28,
+  sheets_federation: 4,
   sheets_fix: 1,
   sheets_format: 22,
   sheets_history: 7,

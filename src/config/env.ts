@@ -152,6 +152,15 @@ const EnvSchema = z.object({
   WEBHOOK_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
 
+  // MCP Federation Configuration (Feature 3: Server Federation)
+  // Enables calling external MCP servers for composite workflows
+  // Example: Weather APIs, ML servers, database connectors
+  MCP_FEDERATION_ENABLED: z.coerce.boolean().default(false),
+  MCP_FEDERATION_TIMEOUT_MS: z.coerce.number().positive().default(30000), // 30 seconds
+  MCP_FEDERATION_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
+  // JSON array of server configs: [{"name":"weather-api","url":"http://localhost:3001"}]
+  MCP_FEDERATION_SERVERS: z.string().optional(),
+
   // Context Optimization
   // Disables 800KB of embedded knowledge resources to reduce context usage
   // Knowledge files still available in dist/knowledge/ if needed
@@ -416,4 +425,38 @@ export function getDistributedCacheConfig(): {
  */
 export function shouldDeferResourceDiscovery(): boolean {
   return ensureEnv().DEFER_RESOURCE_DISCOVERY;
+}
+
+/**
+ * Get MCP federation configuration
+ *
+ * When enabled:
+ * - ServalSheets can call tools on external MCP servers
+ * - Enables composite workflows (e.g., weather data → Sheets)
+ * - Requires MCP_FEDERATION_SERVERS JSON configuration
+ *
+ * Example MCP_FEDERATION_SERVERS:
+ * ```json
+ * [
+ *   {
+ *     "name": "weather-api",
+ *     "url": "http://localhost:3001",
+ *     "auth": {"type": "bearer", "token": "sk-..."}
+ *   }
+ * ]
+ * ```
+ */
+export function getFederationConfig(): {
+  enabled: boolean;
+  timeoutMs: number;
+  maxConnections: number;
+  serversJson?: string;
+} {
+  const current = ensureEnv();
+  return {
+    enabled: current.MCP_FEDERATION_ENABLED,
+    timeoutMs: current.MCP_FEDERATION_TIMEOUT_MS,
+    maxConnections: current.MCP_FEDERATION_MAX_CONNECTIONS,
+    serversJson: current.MCP_FEDERATION_SERVERS,
+  };
 }

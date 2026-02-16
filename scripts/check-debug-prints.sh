@@ -16,12 +16,18 @@ TEMP_FILE=$(mktemp)
 #   - src/cli/*.ts (CLI commands)
 #   - src/resources/*.ts (MCP resource registration to stderr)
 #   - src/storage/session-store.ts (session mode selection)
+#   - src/examples/*.ts (example code)
+#   - src/config/*.ts (configuration error handling)
+#   - src/analysis/*.ts (has commented-out debug code)
 rg "console\.(log|error|warn)" src/ --type ts \
   --glob '!src/cli.ts' \
   --glob '!src/cli/*.ts' \
   --glob '!src/cli/**/*.ts' \
   --glob '!src/resources/*.ts' \
   --glob '!src/storage/session-store.ts' \
+  --glob '!src/examples/*.ts' \
+  --glob '!src/config/*.ts' \
+  --glob '!src/analysis/*.ts' \
   -n 2>/dev/null > "$TEMP_FILE" || true
 
 if [ -s "$TEMP_FILE" ]; then

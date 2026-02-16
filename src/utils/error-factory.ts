@@ -877,6 +877,14 @@ export function createZodValidationError(
   );
   const hasTypeError = errors.some((e) => e.code === 'invalid_type');
 
+  // Check for range-specific errors (Fix 1.2: Range format guidance)
+  const hasRangeError = errors.some(
+    (e) =>
+      e.path.some(
+        (segment) => typeof segment === 'string' && segment.toLowerCase().includes('range')
+      ) || e.message.toLowerCase().includes('range')
+  );
+
   if (hasEnumError) {
     resolutionSteps.push(
       '3. For action/enum fields, use one of the valid options listed in the error'
@@ -888,6 +896,19 @@ export function createZodValidationError(
   if (hasTypeError) {
     resolutionSteps.push(
       '3. For type errors, ensure the value is the correct data type (string, number, object, etc.)'
+    );
+  }
+  if (hasRangeError) {
+    resolutionSteps.push(
+      '',
+      '⚠️ RANGE FORMAT REQUIREMENTS:',
+      '   ✅ CORRECT: {"range": "Sheet1!A1:D10"}  ← String value',
+      '   ✅ CORRECT: {"range": "\'My Sheet\'!A1"}  ← Quoted sheet name for spaces',
+      '   ❌ WRONG: {"range": {"a1": "Sheet1!A1"}}  ← Object (only works in batch operations)',
+      '   ❌ WRONG: {"range": "A1:D10"}  ← Missing sheet name',
+      '',
+      '   Always include the sheet name: "SheetName!CellRange"',
+      '   Quote sheet names with spaces: "\'Sheet Name\'!A1"'
     );
   }
 

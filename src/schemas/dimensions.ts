@@ -75,13 +75,21 @@ const SortSpecSchema = z.object({
   backgroundColor: ColorSchema.optional().describe('Sort by cells with this background color'),
 });
 
-const SlicerPositionSchema = z.object({
-  anchorCell: z.string(),
-  offsetX: z.coerce.number().min(0, 'Offset X must be non-negative').optional().default(0),
-  offsetY: z.coerce.number().min(0, 'Offset Y must be non-negative').optional().default(0),
-  width: z.coerce.number().positive('Width must be positive').optional().default(200),
-  height: z.coerce.number().positive('Height must be positive').optional().default(150),
-});
+const SlicerPositionSchema = z
+  .object({
+    anchorCell: z
+      .string()
+      .describe(
+        'Cell anchor like "P1" or "AB5". Simple cell reference (NOT rowIndex/columnIndex object)'
+      ),
+    offsetX: z.coerce.number().min(0, 'Offset X must be non-negative').optional().default(0),
+    offsetY: z.coerce.number().min(0, 'Offset Y must be non-negative').optional().default(0),
+    width: z.coerce.number().positive('Width must be positive').optional().default(200),
+    height: z.coerce.number().positive('Height must be positive').optional().default(150),
+  })
+  .describe(
+    'Position of slicer. Use simple cell reference for anchorCell (e.g., "P1" NOT {rowIndex, columnIndex})'
+  );
 
 // ============================================================================
 // Consolidated Dimension Action Schemas (11 actions - reduced from 21)
@@ -152,6 +160,21 @@ const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
   action: z.literal('freeze').describe('Freeze rows from top or columns from left'),
   dimension: DimensionSchema.describe('ROWS or COLUMNS'),
   count: z.number().int().min(0).describe('Number to freeze (0 = unfreeze all)'),
+  position: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('DEPRECATED: Use "count" instead. Auto-converted to count for compatibility.'),
+}).transform((val) => {
+  // Fix 2.2: Auto-fix common parameter name mistake
+  if (val.position !== undefined && val.count === undefined) {
+    val.count = val.position;
+  }
+  // Remove the deprecated field from the output
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { position: _position, ...rest } = val;
+  return rest;
 });
 
 const GroupDimensionActionSchema = CommonFieldsSchema.extend({
@@ -393,11 +416,25 @@ const GetFilterViewActionSchema = z.object({
 });
 
 const CreateSlicerActionSchema = CommonFieldsSchema.extend({
-  action: z.literal('create_slicer').describe('Create a slicer'),
+  action: z.literal('create_slicer').describe(
+    `Create interactive slicer for filtering data.
+
+⚠️ POSITION FORMAT: Use simple cell reference in anchorCell, NOT overlayPosition object!
+
+✅ CORRECT: {"position": {"anchorCell": "P1", "width": 200, "height": 150}}
+❌ WRONG: {"position": {"overlayPosition": {"anchorCell": {sheetId, rowIndex, columnIndex}}}}
+
+⚠️ NOTE: Slicers conflict with basic filters on the same range!
+If the range has basic filters, remove them first or use sheets_dimensions.create_filter_view instead.
+
+Alternative: Consider sheets_dimensions.create_filter_view for more reliable filtering.`
+  ),
   title: z.string().optional().describe('Title for the slicer'),
-  dataRange: RangeInputSchema.describe('Data range for the slicer'),
-  filterColumn: z.coerce.number().int().min(0).describe('Filter column index'),
-  position: SlicerPositionSchema.describe('Slicer position'),
+  dataRange: RangeInputSchema.describe('Data range for the slicer (e.g., "Sheet1!A1:Z100")'),
+  filterColumn: z.coerce.number().int().min(0).describe('0-indexed column number to filter on'),
+  position: SlicerPositionSchema.describe(
+    'Slicer position. Use simple cell reference like "P1" or "AB5" for anchorCell'
+  ),
 });
 
 const UpdateSlicerActionSchema = z.object({

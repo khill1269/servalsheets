@@ -66,7 +66,7 @@ describe('Tool Routing - Description Quality', () => {
 
 describe('Tool Routing - Annotation Consistency', () => {
   it('read-only tools should also be non-destructive', () => {
-    for (const [tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
+    for (const [_tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
       if (ann.readOnlyHint) {
         expect(ann.destructiveHint).toBe(false);
       }
@@ -74,7 +74,7 @@ describe('Tool Routing - Annotation Consistency', () => {
   });
 
   it('destructive tools should not be read-only', () => {
-    for (const [tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
+    for (const [_tool, ann] of Object.entries(TOOL_ANNOTATIONS)) {
       if (ann.destructiveHint) {
         expect(ann.readOnlyHint).toBe(false);
       }
@@ -97,7 +97,7 @@ describe('Tool Routing - Annotation Consistency', () => {
 });
 
 describe('Tool Routing - Completions', () => {
-  it('should have action completions for all 21 tools', () => {
+  it('should have action completions for all 22 tools', () => {
     for (const tool of ALL_TOOLS) {
       expect(TOOL_ACTIONS[tool]).toBeDefined();
       expect(TOOL_ACTIONS[tool]!.length).toBeGreaterThan(0);
@@ -113,7 +113,7 @@ describe('Tool Routing - Completions', () => {
   });
 
   it('should have unique action names within each tool', () => {
-    for (const [tool, actions] of Object.entries(TOOL_ACTIONS)) {
+    for (const [_tool, actions] of Object.entries(TOOL_ACTIONS)) {
       const unique = new Set(actions);
       expect(unique.size).toBe(actions.length);
     }

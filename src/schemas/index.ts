@@ -44,6 +44,7 @@ export * from './bigquery.js'; // BigQuery Connected Sheets (Tier 7)
 export * from './appsscript.js'; // Apps Script automation (Tier 7)
 export * from './webhook.js'; // Webhook notifications
 export * from './dependencies.js'; // Formula dependency analysis
+export * from './federation.js'; // MCP server federation (Feature 3)
 
 // Action-level metadata for AI cost-aware decision making
 export * from './action-metadata.js';
@@ -517,14 +518,24 @@ export const TOOL_REGISTRY = {
       'export_dot',
     ],
   },
+  sheets_federation: {
+    name: 'sheets_federation',
+    title: 'MCP Server Federation',
+    description:
+      'Call external MCP servers for composite workflows: call remote tools | list configured servers | get available tools on remote servers | validate connections to remote servers.',
+    schema: 'SheetsFederationInputSchema',
+    output: 'SheetsFederationOutputSchema',
+    annotations: 'SHEETS_FEDERATION_ANNOTATIONS',
+    actions: ['call_remote', 'list_servers', 'get_server_tools', 'validate_connection'],
+  },
 } as const;
 
 // Tool count
-export const TOOL_COUNT = 21;
+export const TOOL_COUNT = 22;
 
 // Action count
-export const ACTION_COUNT = 294;
+export const ACTION_COUNT = 298;
 
-// Last updated: 2026-02-13
+// Last updated: 2026-02-16
 // See ACTION_COUNTS in annotations.ts for per-tool breakdown
-// Sum: 294 actions across 21 tools
+// Sum: 298 actions across 22 tools (added sheets_federation with 4 actions)
