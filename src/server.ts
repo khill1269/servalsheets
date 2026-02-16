@@ -67,6 +67,7 @@ import {
 import { logger as baseLogger } from './utils/logger.js';
 import { createRequestContext, runWithRequestContext } from './utils/request-context.js';
 import { verifyJsonSchema } from './utils/schema-compat.js';
+import { extractIdempotencyKeyFromHeaders } from './utils/idempotency-key-generator.js';
 import {
   TOOL_DEFINITIONS,
   createToolHandlerMap,
@@ -651,6 +652,11 @@ export class ServalSheetsServer {
 
     // Wrap in queue to enforce concurrency limits
     return this.requestQueue.add(async () => {
+      // Extract idempotency key from headers (if HTTP transport)
+      const headers = (extra as { headers?: Record<string, string | string[] | undefined> })
+        ?.headers;
+      const idempotencyKey = headers ? extractIdempotencyKeyFromHeaders(headers) : undefined;
+
       const requestContext = createRequestContext({
         sendNotification: extra?.sendNotification,
         progressToken: extra?.progressToken,
@@ -658,6 +664,8 @@ export class ServalSheetsServer {
         traceId: (extra as { traceId?: string })?.traceId,
         spanId: (extra as { spanId?: string })?.spanId,
         parentSpanId: (extra as { parentSpanId?: string })?.parentSpanId,
+        // Idempotency key from X-Idempotency-Key header
+        idempotencyKey,
       });
       return runWithRequestContext(requestContext, async () => {
         const logger = requestContext.logger;

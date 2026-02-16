@@ -69,6 +69,11 @@ export interface RequestContext {
   traceId?: string;
   spanId?: string;
   parentSpanId?: string;
+  /**
+   * Idempotency key for preventing duplicate operation execution
+   * Can be client-provided or auto-generated for non-idempotent operations
+   */
+  idempotencyKey?: string;
 }
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -86,6 +91,7 @@ export function createRequestContext(options?: {
   traceId?: string;
   spanId?: string;
   parentSpanId?: string;
+  idempotencyKey?: string;
 }): RequestContext {
   const requestId = options?.requestId ?? randomUUID();
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -114,6 +120,7 @@ export function createRequestContext(options?: {
     traceId: options?.traceId,
     spanId: options?.spanId,
     parentSpanId: options?.parentSpanId,
+    idempotencyKey: options?.idempotencyKey,
   };
 }
 
