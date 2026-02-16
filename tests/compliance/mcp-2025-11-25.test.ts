@@ -47,20 +47,6 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
   });
 
   describe('Tool Call Response Format', () => {
-    // NOTE: structuredContent IS set by response builder, but SDK Client doesn't expose it
-    it.skip('should return structuredContent for tool calls', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      // MCP 2025-11-25 requires structuredContent
-      expect(result.structuredContent).toBeDefined();
-      expect(result.structuredContent).toHaveProperty('response');
-    });
-
     it('should return content array for display', async () => {
       const result = await harness.client.callTool({
         name: 'sheets_auth',
@@ -75,21 +61,8 @@ describe('MCP Protocol 2025-11-25 Compliance', () => {
       expect(result.content.length).toBeGreaterThan(0);
     });
 
-    it.skip('should have consistent response envelope structure', async () => {
-      const result = await harness.client.callTool({
-        name: 'sheets_auth',
-        arguments: {
-          request: { action: 'status' },
-        },
-      });
-
-      const structured = result.structuredContent as { response: unknown };
-      expect(structured).toHaveProperty('response');
-
-      const response = structured.response as { success: boolean };
-      expect(response).toHaveProperty('success');
-      expect(typeof response.success).toBe('boolean');
-    });
+    // NOTE: structuredContent tests are in response-format-jsonrpc.test.ts
+    // The SDK Client doesn't expose structuredContent, so we test at the JSON-RPC level
   });
 
   describe('Error Response Format', () => {

@@ -2,12 +2,15 @@
  * Validate Action Count Consistency
  *
  * Ensures action counts are synchronized across all files:
- * 1. src/schemas/index.ts (TOOL_REGISTRY)
+ * 1. src/schemas/index.ts (TOOL_COUNT / ACTION_COUNT constants)
  * 2. src/schemas/action-metadata.ts (ACTION_METADATA)
  * 3. src/mcp/completions.ts (TOOL_ACTIONS)
- * 4. src/schemas/annotations.ts (ACTION_COUNTS)
- * 5. package.json (description)
- * 6. server.json (metadata)
+ * 4. package.json (description)
+ * 5. server.json (metadata)
+ *
+ * Source of truth:
+ * - TOOL_DEFINITIONS.length for tool count
+ * - Sum of TOOL_ACTIONS arrays for action count
  *
  * Run: npx tsx scripts/validate-action-counts.ts
  * CI: npm run validate:actions
@@ -18,6 +21,8 @@
  */
 
 import { readFileSync } from 'fs';
+import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
+import { TOOL_ACTIONS } from '../src/mcp/completions.js';
 
 interface ValidationResult {
   file: string;
@@ -27,9 +32,9 @@ interface ValidationResult {
 }
 
 /**
- * Extract action count from TOOL_REGISTRY in src/schemas/index.ts
+ * Validate src/schemas/index.ts constants against source-of-truth maps
  */
-function validateSchemaIndex(): ValidationResult {
+function validateSchemaIndex(expectedToolCount: number, expectedActionCount: number): ValidationResult {
   const filePath = './src/schemas/index.ts';
   const content = readFileSync(filePath, 'utf-8');
 
@@ -43,13 +48,15 @@ function validateSchemaIndex(): ValidationResult {
   const actionCountMatch = content.match(/export const ACTION_COUNT = (\d+);/);
   const actionCount = actionCountMatch ? parseInt(actionCountMatch[1]) : 0;
 
-  // Extract individual tool entries from TOOL_REGISTRY
-  const toolMatches = content.match(/\s+sheets_\w+:\s+\{/g);
-  const actualToolCount = toolMatches ? toolMatches.length : 0;
-
-  if (toolCount !== actualToolCount) {
+  if (toolCount !== expectedToolCount) {
     issues.push(
-      `TOOL_COUNT constant (${toolCount}) doesn't match actual tools in registry (${actualToolCount})`
+      `TOOL_COUNT constant (${toolCount}) doesn't match source of truth (${expectedToolCount})`
+    );
+  }
+
+  if (actionCount !== expectedActionCount) {
+    issues.push(
+      `ACTION_COUNT constant (${actionCount}) doesn't match source of truth (${expectedActionCount})`
     );
   }
 
@@ -172,7 +179,7 @@ function validateServerJson(expectedTools: number, expectedActions: number): Val
 /**
  * Validate src/mcp/completions.ts TOOL_ACTIONS
  */
-function validateCompletions(expectedToolCount: number): ValidationResult {
+function validateCompletions(expectedToolCount: number, expectedActionCount: number): ValidationResult {
   const filePath = './src/mcp/completions.ts';
   const content = readFileSync(filePath, 'utf-8');
 
@@ -200,8 +207,10 @@ function validateCompletions(expectedToolCount: number): ValidationResult {
     );
   }
 
-  if (actionCount === 0) {
-    issues.push('No actions found in TOOL_ACTIONS');
+  if (actionCount !== expectedActionCount) {
+    issues.push(
+      `Action count in TOOL_ACTIONS (${actionCount}) doesn't match expected (${expectedActionCount})`
+    );
   }
 
   return {
@@ -222,10 +231,18 @@ function runValidation(): void {
   console.log();
 
   const results: ValidationResult[] = [];
+  const sourceOfTruthToolCount = TOOL_DEFINITIONS.length;
+  const sourceOfTruthActionCount = Object.values(TOOL_ACTIONS).reduce(
+    (sum, actions) => sum + actions.length,
+    0
+  );
+
+  console.log(`Source of truth: ${sourceOfTruthToolCount} tools, ${sourceOfTruthActionCount} actions`);
+  console.log();
 
   // 1. Validate schema index (source of truth)
   console.log('📝 Validating src/schemas/index.ts...');
-  const schemaResult = validateSchemaIndex();
+  const schemaResult = validateSchemaIndex(sourceOfTruthToolCount, sourceOfTruthActionCount);
   results.push(schemaResult);
 
   if (schemaResult.issues.length > 0) {
@@ -241,7 +258,7 @@ function runValidation(): void {
 
   // 2. Validate action metadata
   console.log('📝 Validating src/schemas/action-metadata.ts...');
-  const metadataResult = validateActionMetadata(schemaResult.toolCount);
+  const metadataResult = validateActionMetadata(sourceOfTruthToolCount);
   results.push(metadataResult);
 
   if (metadataResult.issues.length > 0) {
@@ -256,7 +273,7 @@ function runValidation(): void {
 
   // 3. Validate package.json
   console.log('📝 Validating package.json...');
-  const packageResult = validatePackageJson(schemaResult.toolCount, schemaResult.actionCount);
+  const packageResult = validatePackageJson(sourceOfTruthToolCount, sourceOfTruthActionCount);
   results.push(packageResult);
 
   if (packageResult.issues.length > 0) {
@@ -269,7 +286,7 @@ function runValidation(): void {
 
   // 4. Validate server.json
   console.log('📝 Validating server.json...');
-  const serverResult = validateServerJson(schemaResult.toolCount, schemaResult.actionCount);
+  const serverResult = validateServerJson(sourceOfTruthToolCount, sourceOfTruthActionCount);
   results.push(serverResult);
 
   if (serverResult.issues.length > 0) {
@@ -282,7 +299,10 @@ function runValidation(): void {
 
   // 5. Validate completions
   console.log('📝 Validating src/mcp/completions.ts...');
-  const completionsResult = validateCompletions(schemaResult.toolCount);
+  const completionsResult = validateCompletions(
+    sourceOfTruthToolCount,
+    sourceOfTruthActionCount
+  );
   results.push(completionsResult);
 
   if (completionsResult.issues.length > 0) {
@@ -310,7 +330,7 @@ function runValidation(): void {
     process.exit(1);
   } else {
     console.log('✅ ALL VALIDATIONS PASSED');
-    console.log(`   ${schemaResult.toolCount} tools with ${schemaResult.actionCount} actions`);
+    console.log(`   ${sourceOfTruthToolCount} tools with ${sourceOfTruthActionCount} actions`);
     process.exit(0);
   }
 }

@@ -373,7 +373,7 @@ export class ServalSheetsServer {
   }
 
   /**
-   * Register all 21 tools with proper annotations
+   * Register all 22 tools with proper annotations
    */
   private registerTools(): void {
     for (const tool of TOOL_DEFINITIONS) {

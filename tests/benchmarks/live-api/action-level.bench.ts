@@ -1,7 +1,7 @@
 /**
  * Action-Level Performance Benchmarks
  *
- * Comprehensive benchmarks for all 294 actions across 21 tools.
+ * Comprehensive benchmarks for representative actions across all tools.
  * Run with: npm run bench:action-level
  *
  * Note: This is a more granular benchmark than tool-level.bench.ts.
@@ -32,7 +32,7 @@ import {
   createServalSheetsTestHarness,
   type McpTestHarness,
 } from '../../helpers/mcp-test-harness.js';
-import { TOOL_REGISTRY } from '../../../src/schemas/index.js';
+import { TOOL_ACTIONS } from '../../../src/mcp/completions.js';
 
 const runBenchmarks = process.env['RUN_BENCHMARKS'] === 'true' && isLiveApiEnabled();
 const describeOrSkip = runBenchmarks ? describe : describe.skip;
@@ -240,8 +240,8 @@ describeOrSkip('Action-Level Performance Benchmarks', () => {
     await harness.close();
   }, 60000);
 
-  // Dynamically create tests for each tool and action
-  for (const [toolName, toolDef] of Object.entries(TOOL_REGISTRY)) {
+  // Dynamically create tests for each configured tool
+  for (const toolName of Object.keys(TOOL_ACTIONS)) {
     const configs = actionConfigs.get(toolName) || [];
 
     if (configs.length === 0) {

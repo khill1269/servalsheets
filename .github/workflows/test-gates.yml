@@ -56,12 +56,14 @@ jobs:
           npm run build
           node -e "
             const { getAllToolSchemas } = require('./dist/mcp/tool-schemas.js');
+            const { TOOL_COUNT } = require('./dist/schemas/index.js');
             const schemas = getAllToolSchemas();
-            console.log('Tool count:', schemas.length);
-            if (schemas.length < 15) {
-              console.error('Expected at least 15 tool schemas');
+            console.log('Tool count:', schemas.length, '(expected:', TOOL_COUNT + ')');
+            if (schemas.length !== TOOL_COUNT) {
+              console.error(\`❌ Expected exactly \${TOOL_COUNT} tool schemas, got \${schemas.length}\`);
               process.exit(1);
             }
+            console.log(\`✅ Schema validation passed: \${TOOL_COUNT} tools\`);
           "
 
   # Gate 2: Unit Tests
@@ -159,35 +161,27 @@ jobs:
           npm run build
           node -e "
             const { getAllToolSchemas } = require('./dist/mcp/tool-schemas.js');
+            const { TOOL_DEFINITIONS } = require('./dist/mcp/registration/tool-definitions.js');
             const schemas = getAllToolSchemas();
 
-            // Verify required tools exist
-            const requiredTools = [
-              'sheets_auth',
-              'sheets_core',
-              'sheets_data',
-              'sheets_format',
-              'sheets_dimensions',
-              'sheets_visualize',
-              'sheets_collaborate',
-              'sheets_advanced',
-              'sheets_transaction',
-              'sheets_quality',
-              'sheets_history',
-              'sheets_confirm',
-              'sheets_analyze',
-              'sheets_fix',
-              'sheets_composite'
-            ];
+            // Verify schema output matches source-of-truth tool definitions
+            const requiredTools = TOOL_DEFINITIONS.map(t => t.name);
 
             const toolNames = schemas.map(s => s.name);
             const missing = requiredTools.filter(t => !toolNames.includes(t));
+            const extra = toolNames.filter(t => !requiredTools.includes(t));
 
             if (missing.length > 0) {
               console.error('Missing required tools:', missing);
               process.exit(1);
             }
-            console.log('All required tools present');
+
+            if (extra.length > 0) {
+              console.error('Unexpected extra tools in schemas:', extra);
+              process.exit(1);
+            }
+
+            console.log('All required tools present and synchronized:', requiredTools.length);
           "
 
   # Gate 5: Safety Tests

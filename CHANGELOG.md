@@ -284,7 +284,7 @@ This release refactors AI and planning capabilities to use MCP protocol-native f
   - Error handling with retry support
   - Statistics tracking for analysis operations
 
-- **Tool Count**: 21 tools with 294 actions
+- **Tool Count**: 22 tools with 298 actions
 
 ---
 

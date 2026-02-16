@@ -10,7 +10,7 @@
 
 const TEST_SPREADSHEET_ID = process.argv[2] || '1GGSb44zvzRa6z7z7q6CrfGj94ALeZEbXb9AGA_wRkQA';
 
-// All 21 tools with their actions based on TOOL_REGISTRY
+// Tool action fixtures for manual end-to-end testing
 const TOOL_DEFINITIONS = {
   sheets_auth: {
     actions: ['status', 'login', 'callback', 'logout'],

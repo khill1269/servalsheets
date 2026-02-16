@@ -47,7 +47,7 @@ export function registerDecisionResources(server: McpServer): void {
     'servalsheets://decisions/tool-selection',
     {
       description:
-        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 21 tools with use case guidance and examples.',
+        'Decision tree for selecting the right ServalSheets tool for your task. Covers all 22 tools with use case guidance and examples.',
       mimeType: 'application/json',
     },
     async (uri) => readDecisionResource(typeof uri === 'string' ? uri : uri.toString())

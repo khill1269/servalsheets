@@ -1,7 +1,7 @@
 /**
  * Action-Level Metadata for AI Cost-Aware Decision Making
  *
- * Provides detailed metadata for all 294 actions across 21 tools.
+ * Provides detailed metadata for all 298 actions across 22 tools.
  * This enables AI to make informed decisions about:
  * - API quota costs
  * - Read-only vs destructive operations
@@ -30,7 +30,7 @@ export interface ActionMetadata {
 }
 
 /**
- * Complete action metadata for all 294 actions
+ * Complete action metadata for all 298 actions
  */
 export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
   sheets_advanced: {
@@ -2432,6 +2432,45 @@ export const ACTION_METADATA: Record<string, Record<string, ActionMetadata>> = {
       destructive: false,
       idempotent: true,
       typicalLatency: '500-3000ms',
+    },
+  },
+
+  sheets_federation: {
+    call_remote: {
+      readOnly: false,
+      apiCalls: 1,
+      quotaCost: 1,
+      requiresConfirmation: true,
+      destructive: false,
+      idempotent: false,
+      typicalLatency: '500-5000ms',
+    },
+    list_servers: {
+      readOnly: true,
+      apiCalls: 0,
+      quotaCost: 0,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '50-150ms',
+    },
+    get_server_tools: {
+      readOnly: true,
+      apiCalls: 1,
+      quotaCost: 1,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '200-2000ms',
+    },
+    validate_connection: {
+      readOnly: true,
+      apiCalls: 1,
+      quotaCost: 1,
+      requiresConfirmation: false,
+      destructive: false,
+      idempotent: true,
+      typicalLatency: '100-2000ms',
     },
   },
 };

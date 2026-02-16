@@ -75,8 +75,8 @@ describe('Schema Transformation', () => {
         if (tool.name === 'sheets_composite' || tool.name === 'sheets_session') {
           expect(isZodUnion(shape?.['response'])).toBe(true);
         } else if (tool.name === 'sheets_federation') {
-          // sheets_federation uses a plain object with optional fields (TODO: refactor to discriminated union)
-          expect(isZodObject(shape?.['response'])).toBe(true);
+          // sheets_federation uses z.discriminatedUnion on 'success' field
+          expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
         } else {
           expect(isDiscriminatedUnion(shape?.['response'])).toBe(true);
         }

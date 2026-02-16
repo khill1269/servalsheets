@@ -1310,8 +1310,10 @@ Always return valid JSON in the exact format requested.`,
 
     const requests: sheets_v4.Schema$Request[] = [];
     let totalCellsFormatted = 0;
+    const skippedOps: string[] = [];
 
-    for (const op of operations) {
+    for (let opIdx = 0; opIdx < operations.length; opIdx++) {
+      const op = operations[opIdx]!;
       const opType = op['type'] as string;
       const rawRange = op['range'];
       // Normalize to RangeInput (resolveRange requires object form, not plain string)
@@ -1335,6 +1337,10 @@ Always return valid JSON in the exact format requested.`,
                 fields: 'userEnteredFormat.backgroundColor',
               },
             });
+          } else {
+            skippedOps.push(
+              `Operation ${opIdx}: type 'background' requires 'color' (e.g. {red:1, green:0, blue:0})`
+            );
           }
           break;
         }
@@ -1349,6 +1355,10 @@ Always return valid JSON in the exact format requested.`,
                 fields: 'userEnteredFormat.textFormat',
               },
             });
+          } else {
+            skippedOps.push(
+              `Operation ${opIdx}: type 'text_format' requires 'textFormat' (e.g. {bold:true, fontSize:12})`
+            );
           }
           break;
         }
@@ -1363,6 +1373,10 @@ Always return valid JSON in the exact format requested.`,
                 fields: 'userEnteredFormat.numberFormat',
               },
             });
+          } else {
+            skippedOps.push(
+              `Operation ${opIdx}: type 'number_format' requires 'numberFormat' (e.g. {type:"CURRENCY", pattern:"$#,##0.00"})`
+            );
           }
           break;
         }
@@ -1390,6 +1404,10 @@ Always return valid JSON in the exact format requested.`,
                 fields: `userEnteredFormat(${fields.join(',')})`,
               },
             });
+          } else {
+            skippedOps.push(
+              `Operation ${opIdx}: type 'alignment' requires at least one of: 'horizontal', 'vertical', 'wrapStrategy'`
+            );
           }
           break;
         }
@@ -1586,12 +1604,16 @@ Always return valid JSON in the exact format requested.`,
     }
 
     if (requests.length === 0) {
+      const diagnostics =
+        skippedOps.length > 0
+          ? `\n${skippedOps.join('\n')}`
+          : '\nEnsure each operation has a valid type and the required parameters for that type.';
       return this.error({
         code: 'INVALID_PARAMS',
-        message: 'No valid format operations could be built from the provided operations array.',
+        message: `No valid format operations could be built from ${operations.length} operation(s).${diagnostics}`,
         retryable: false,
         suggestedFix:
-          'Ensure each operation has a valid type and the required parameters for that type',
+          'Each operation needs: type (background|text_format|number_format|alignment|borders|format|preset) + type-specific params. Example: {type:"background", range:"A1:B5", color:{red:1,green:0,blue:0}}',
       });
     }
 
@@ -1615,9 +1637,10 @@ Always return valid JSON in the exact format requested.`,
   private async handleRuleAddConditionalFormat(
     input: FormatRequest & { action: 'rule_add_conditional_format' }
   ): Promise<FormatResponse> {
+    // Fix QA-2.2: Pass sheetId as-is (may be undefined), resolveGridRange will look it up from range
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
-      input.sheetId!,
+      input.sheetId as number,
       input.range!
     );
 
@@ -2089,9 +2112,10 @@ Always return valid JSON in the exact format requested.`,
   private async handleAddConditionalFormatRule(
     input: FormatRequest & { action: 'add_conditional_format_rule' }
   ): Promise<FormatResponse> {
+    // Fix QA-2.2: Pass sheetId as-is (may be undefined), resolveGridRange will look it up from range
     const gridRange = await this.resolveGridRange(
       input.spreadsheetId,
-      input.sheetId!,
+      input.sheetId as number,
       input.range!
     );
     const googleRange = toGridRange(gridRange);
@@ -2457,8 +2481,22 @@ Always return valid JSON in the exact format requested.`,
     // Handle string input (A1 notation passed directly instead of { a1: "..." })
     if (typeof range === 'string') {
       const parsed = parseA1Notation(range);
+      // Fix QA-2.2: When sheetId is NaN/undefined, resolve from parsed sheet name
+      let resolvedSheetId = sheetId;
+      if (
+        resolvedSheetId === undefined ||
+        resolvedSheetId === null ||
+        Number.isNaN(resolvedSheetId)
+      ) {
+        if (parsed.sheetName) {
+          resolvedSheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
+        } else {
+          // No sheetId and no sheet name in range - get first sheet
+          resolvedSheetId = await this.getSheetId(spreadsheetId, undefined, this.sheetsApi);
+        }
+      }
       return buildGridRangeInput(
-        sheetId,
+        resolvedSheetId,
         parsed.startRow,
         parsed.endRow,
         parsed.startCol,
@@ -2469,8 +2507,21 @@ Always return valid JSON in the exact format requested.`,
     // Handle object with a1 property
     if ('a1' in range && range.a1) {
       const parsed = parseA1Notation(range.a1);
+      // Fix QA-2.2: When sheetId is NaN/undefined, resolve from parsed sheet name
+      let resolvedSheetId = sheetId;
+      if (
+        resolvedSheetId === undefined ||
+        resolvedSheetId === null ||
+        Number.isNaN(resolvedSheetId)
+      ) {
+        if (parsed.sheetName) {
+          resolvedSheetId = await this.getSheetId(spreadsheetId, parsed.sheetName, this.sheetsApi);
+        } else {
+          resolvedSheetId = await this.getSheetId(spreadsheetId, undefined, this.sheetsApi);
+        }
+      }
       return buildGridRangeInput(
-        sheetId,
+        resolvedSheetId,
         parsed.startRow,
         parsed.endRow,
         parsed.startCol,

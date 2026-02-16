@@ -1554,7 +1554,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             })
           ),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Clear operation timed out after 10 seconds')), 10000)
+            setTimeout(() => reject(new Error('Clear operation timed out after 30 seconds')), 30000)
           ),
         ]);
 
@@ -1608,7 +1608,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         if (error instanceof Error && error.message.includes('timed out')) {
           return this.error({
             code: 'DEADLINE_EXCEEDED',
-            message: `Clear operation (dataFilter) timed out after ${duration}ms.`,
+            message: `Clear operation (dataFilter) timed out after ${duration}ms. Consider using a more specific filter.`,
             retryable: false,
             suggestedFix: 'Try using a more specific dataFilter or clearing by A1 range instead',
             details: {
@@ -1646,7 +1646,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     });
 
     try {
-      // Direct API call with explicit 10s timeout
+      // Direct API call with 30s timeout (increased from 10s to match other mutation operations)
       // Protected with circuit breaker to prevent cascade failures during API degradation
       const response = await Promise.race([
         this.withCircuitBreaker('values.clear', () =>
@@ -1657,7 +1657,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
           })
         ),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Clear operation timed out after 10 seconds')), 10000)
+          setTimeout(() => reject(new Error('Clear operation timed out after 30 seconds')), 30000)
         ),
       ]);
 
@@ -1703,7 +1703,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       if (error instanceof Error && error.message.includes('timed out')) {
         return this.error({
           code: 'DEADLINE_EXCEEDED',
-          message: `Clear operation timed out after ${duration}ms. This is a known issue with the clear action.`,
+          message: `Clear operation timed out after ${duration}ms.`,
           retryable: false,
           suggestedFix:
             `Workaround: Use sheets_data.write with empty values instead:\n` +

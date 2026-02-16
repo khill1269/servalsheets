@@ -33,8 +33,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
 
-      - name: Check metadata drift
-        run: npx turbo run check:drift
+      - name: Validate action metadata consistency
+        run: npm run validate:actions
 
       - name: Build (required for dynamic imports)
         run: npx turbo run build
@@ -64,6 +64,29 @@ jobs:
           fi
 
           echo "✅ Documentation action counts are correct (${EXPECTED_TOOLS} tools, ${EXPECTED_ACTIONS} actions)"
+
+      - name: Validate metadata consistency (strict mode)
+        run: npm run check:metadata-strict
+
+      - name: Validate cross-map completeness
+        run: npm test -- --run tests/contracts/cross-map-consistency.test.ts
+
+      - name: Check for hardcoded count references
+        run: bash scripts/check-hardcoded-counts.sh
+
+      - name: Validate exact tool count
+        run: |
+          node -e "
+          const { TOOL_DEFINITIONS } = require('./dist/mcp/registration/tool-definitions.js');
+          const { TOOL_COUNT } = require('./dist/schemas/index.js');
+
+          if (TOOL_DEFINITIONS.length !== TOOL_COUNT) {
+            console.error(\`❌ TOOL_DEFINITIONS length (\${TOOL_DEFINITIONS.length}) !== TOOL_COUNT (\${TOOL_COUNT})\`);
+            process.exit(1);
+          }
+
+          console.log(\`✅ Tool count validated: \${TOOL_COUNT} tools\`);
+          "
 
       - name: Check placeholders
         run: npx turbo run check:placeholders
@@ -151,6 +174,9 @@ jobs:
 
       - name: Validate server.json
         run: npm run validate:server-json
+
+      - name: Validate server.json (extended)
+        run: npm run validate:server-json-extended
 
       - name: Check package can be packed
         run: npm pack --dry-run

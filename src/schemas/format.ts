@@ -676,6 +676,24 @@ const normalizeFormatRequest = (val: unknown): unknown => {
     }
   }
 
+  // Fix QA-2.4: Auto-infer rule.type for rule_add_conditional_format when missing
+  // LLMs often send rule without discriminator 'type' field, causing "No matching discriminator" error
+  if (action === 'rule_add_conditional_format' && obj['rule'] && typeof obj['rule'] === 'object') {
+    const rule = obj['rule'] as Record<string, unknown>;
+    if (!rule['type']) {
+      // Infer type from shape: if it has condition+format, it's boolean; if it has minpoint/maxpoint, it's gradient
+      if (rule['minpoint'] || rule['maxpoint'] || rule['gradientRule']) {
+        rule['type'] = 'gradient';
+      } else if (rule['condition'] || rule['format'] || rule['booleanRule']) {
+        rule['type'] = 'boolean';
+      }
+      // If we still can't infer, default to boolean (most common)
+      if (!rule['type']) {
+        rule['type'] = 'boolean';
+      }
+    }
+  }
+
   // Handle rulePreset: "custom" - convert to rule_add_conditional_format with proper rule structure
   // Claude often sends: { action: "add_conditional_format_rule", rulePreset: "custom", customFormula: "=...", backgroundColor: {...} }
   // or: { action: "add_conditional_format_rule", rulePreset: "custom", customRule: { type, formula, format } }

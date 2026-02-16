@@ -3,10 +3,11 @@
  * This measures the JSON schemas that Claude receives via MCP
  */
 
-import { TOOL_REGISTRY } from '../src/schemas/index.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { TOOL_ANNOTATIONS } from '../src/schemas/annotations.js';
 import { TOOL_DESCRIPTIONS } from '../src/schemas/descriptions.js';
+import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
+import { TOOL_ACTIONS } from '../src/mcp/completions.js';
 
 interface ToolMeasurement {
   name: string;
@@ -42,12 +43,17 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════════════\n');
 
   const measurements: ToolMeasurement[] = [];
+  const totalActionCount = Object.values(TOOL_ACTIONS).reduce(
+    (sum, actions) => sum + actions.length,
+    0,
+  );
 
   // Measure each tool's JSON schema
-  for (const [name, schema] of Object.entries(TOOL_REGISTRY)) {
+  for (const toolDef of TOOL_DEFINITIONS) {
+    const name = toolDef.name;
     try {
       // Generate JSON Schema
-      const jsonSchema = zodToJsonSchema(schema, { name, errorMessages: true });
+      const jsonSchema = zodToJsonSchema(toolDef.inputSchema, { name, errorMessages: true });
       const schemaStr = JSON.stringify(jsonSchema);
       const schemaChars = schemaStr.length;
       const schemaTokens = estimateTokens(schemaStr);
@@ -226,7 +232,7 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════════════\n');
 
   console.log('✅ SUMMARY:');
-  console.log(`   • ${measurements.length} tools with 267 total actions`);
+  console.log(`   • ${measurements.length} tools with ${formatNum(totalActionCount)} total actions`);
   console.log(`   • Total MCP payload: ~${formatNum(grandTotalTokens)} tokens`);
   console.log(`   • Context usage: ${((grandTotalTokens / 200000) * 100).toFixed(2)}%`);
   console.log(`   • Remaining for conversation: ~${formatNum(200000 - grandTotalTokens)} tokens`);
@@ -234,7 +240,7 @@ async function main() {
 
   console.log('📊 AVERAGES:');
   console.log(`   • Per tool: ~${Math.round(totalTokens / measurements.length)} tokens`);
-  console.log(`   • Per action: ~${Math.round(totalTokens / 267)} tokens`);
+  console.log(`   • Per action: ~${Math.round(totalTokens / totalActionCount)} tokens`);
   console.log('');
 
   console.log('🔝 TOP 5 LARGEST TOOLS:');

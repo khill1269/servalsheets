@@ -19,8 +19,12 @@
   "instructions": "⚠️ CRITICAL PARAMETER FORMAT (read this first) ⚠️\n\nNEVER wrap arguments in {\"request\":{...}} object.\n\n✅ CORRECT format for ALL tools:\n{\"action\":\"...\", \"spreadsheetId\":\"...\", \"range\":\"...\"}\n\n❌ WRONG format (causes INVALID_PARAMS):\n{\"request\": {\"action\":\"...\", \"spreadsheetId\":\"...\"}}\n\nThis rule applies to EVERY tool call. No exceptions.\n\n---\n\nServalSheets provides 22 tools for Google Sheets operations. Use sheets_analyze with action \"comprehensive\" to start. For token efficiency, read schema://tools/{toolName} before calling tools with complex parameters.",
   "packages": [
     {
-      "name": "servalsheets",
+      "registryType": "npm",
+      "identifier": "servalsheets",
       "version": "1.6.0",
+      "transport": {
+        "type": "stdio"
+      },
       "description": "Production-grade Google Sheets MCP server - 22 tools, 298 actions - AI-powered analysis, transactions, workflows, safety rails, and enterprise features"
     }
   ],

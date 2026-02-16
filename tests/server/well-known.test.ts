@@ -27,10 +27,10 @@ vi.mock('../../src/version.js', () => ({
   MCP_PROTOCOL_VERSION: '2025-11-25',
 }));
 
-// Mock schemas
+// Mock schemas (reflects actual counts as of 2026-02-16)
 vi.mock('../../src/schemas/index.js', () => ({
-  TOOL_COUNT: 21,
-  ACTION_COUNT: 272,
+  TOOL_COUNT: 22,  // 22 tools (includes Tier 7 enterprise + federation)
+  ACTION_COUNT: 298, // 298 actions total
 }));
 
 // Mock google-api
@@ -96,8 +96,9 @@ describe('buildMcpConfiguration', () => {
     expect(config.version).toBe('1.6.0');
     expect(config.protocol_version).toBeDefined();
     expect(config.capabilities).toBeDefined();
-    expect(config.capabilities.tools.count).toBe(21);
-    expect(config.capabilities.tools.actions).toBe(272);
+    // These match the mocked values above (22 tools, 298 actions as of 2026-02-16)
+    expect(config.capabilities.tools.count).toBe(22);
+    expect(config.capabilities.tools.actions).toBe(298);
     expect(config.transports).toContain('stdio');
   });
 

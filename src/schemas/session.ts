@@ -115,9 +115,17 @@ const GetPreferencesActionSchema = CommonFieldsSchema.extend({
 
 const SetPendingActionSchema = CommonFieldsSchema.extend({
   action: z.literal('set_pending').describe('Set pending multi-step operation state'),
-  type: z.string().describe('Type of pending operation'),
-  step: z.coerce.number().describe('Current step number'),
-  totalSteps: z.coerce.number().describe('Total number of steps'),
+  type: z
+    .string()
+    .optional()
+    .default('general')
+    .describe('Type of pending operation (default: "general")'),
+  step: z
+    .preprocess((val) => (val === undefined || val === null ? 1 : Number(val)), z.number())
+    .describe('Current step number (default: 1)'),
+  totalSteps: z
+    .preprocess((val) => (val === undefined || val === null ? 1 : Number(val)), z.number())
+    .describe('Total number of steps (default: 1)'),
   context: z
     .record(
       z.string(),
@@ -130,6 +138,8 @@ const SetPendingActionSchema = CommonFieldsSchema.extend({
         z.record(z.string(), z.any()),
       ])
     )
+    .optional()
+    .default({})
     .describe('Operation context data (string, number, boolean, null, array, or object)'),
 });
 

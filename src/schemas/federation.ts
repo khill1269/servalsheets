@@ -39,39 +39,53 @@ export const SheetsFederationInputSchema = z.object({
 /**
  * Federation output schema
  */
+const FederationSuccessResponseSchema = z.object({
+  /** Whether the operation succeeded */
+  success: z.literal(true),
+  /** Action that was performed */
+  action: FederationActionSchema,
+  /** Remote server name (if applicable) */
+  remoteServer: z.string().optional(),
+  /** Result data from remote call */
+  data: z.unknown().optional(),
+  /** List of available tools on remote server */
+  tools: z
+    .array(
+      z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        inputSchema: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .optional(),
+  /** List of configured servers */
+  servers: z
+    .array(
+      z.object({
+        name: z.string(),
+        url: z.string(),
+        connected: z.boolean(),
+      })
+    )
+    .optional(),
+});
+
+const FederationErrorResponseSchema = z.object({
+  /** Whether the operation succeeded */
+  success: z.literal(false),
+  /** Action that was performed */
+  action: FederationActionSchema,
+  /** Remote server name (if applicable) */
+  remoteServer: z.string().optional(),
+  /** Error message */
+  error: z.string(),
+});
+
 export const SheetsFederationOutputSchema = z.object({
-  response: z.object({
-    /** Whether the operation succeeded */
-    success: z.boolean(),
-    /** Action that was performed */
-    action: z.string(),
-    /** Remote server name (if applicable) */
-    remoteServer: z.string().optional(),
-    /** Result data from remote call */
-    data: z.unknown().optional(),
-    /** List of available tools on remote server */
-    tools: z
-      .array(
-        z.object({
-          name: z.string(),
-          description: z.string().optional(),
-          inputSchema: z.record(z.string(), z.unknown()).optional(),
-        })
-      )
-      .optional(),
-    /** List of configured servers */
-    servers: z
-      .array(
-        z.object({
-          name: z.string(),
-          url: z.string(),
-          connected: z.boolean(),
-        })
-      )
-      .optional(),
-    /** Error message (if success is false) */
-    error: z.string().optional(),
-  }),
+  response: z.discriminatedUnion('success', [
+    FederationSuccessResponseSchema,
+    FederationErrorResponseSchema,
+  ]),
 });
 
 /**

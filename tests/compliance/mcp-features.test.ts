@@ -20,8 +20,10 @@ import {
   getServerInstructions,
 } from '../../src/mcp/features-2025-11-25.js';
 import { TOOL_DEFINITIONS } from '../../src/mcp/registration/tool-definitions.js';
+import { TOOL_ACTIONS } from '../../src/mcp/completions.js';
+import { calculateTotalActions } from '../helpers/count-actions.js';
 
-// All 21 tools
+// All tools (includes Tier 7 enterprise tools + federation)
 const ALL_TOOLS = [
   'sheets_auth',
   'sheets_core',
@@ -44,6 +46,7 @@ const ALL_TOOLS = [
   'sheets_appsscript',
   'sheets_webhook',
   'sheets_dependencies',
+  'sheets_federation',
 ];
 
 describe('MCP 2025-11-25 Feature Compliance', () => {
@@ -74,7 +77,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
       expect(instructions).toContain('TOOL SELECTION DECISION TREE');
     });
 
-    it('should route all 21 tools in decision tree or advanced sections', () => {
+    it('should route all tools in decision tree or advanced sections', () => {
       for (const tool of ALL_TOOLS) {
         expect(instructions).toContain(tool);
       }
@@ -141,7 +144,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // ICONS (SEP-973)
   // =========================================================================
   describe('Icons (SEP-973)', () => {
-    it('should have icons for all 21 tools', () => {
+    it('should have icons for all tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_ICONS[tool]).toBeDefined();
         expect(TOOL_ICONS[tool]!.length).toBeGreaterThan(0);
@@ -172,7 +175,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // ANNOTATIONS
   // =========================================================================
   describe('Tool Annotations', () => {
-    it('should have annotations for all 21 tools', () => {
+    it('should have annotations for all tools', () => {
       for (const tool of ALL_TOOLS) {
         expect(TOOL_ANNOTATIONS[tool]).toBeDefined();
       }
@@ -266,7 +269,7 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // TOOL DEFINITIONS
   // =========================================================================
   describe('Tool Definitions', () => {
-    it('should define exactly 21 tools', () => {
+    it('should define exactly 22 tools (includes Tier 7 enterprise + federation)', () => {
       expect(TOOL_DEFINITIONS.length).toBe(22);
     });
 
@@ -413,11 +416,21 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
   // =========================================================================
   describe('Metadata Counts', () => {
     it('should have correct tool count', () => {
-      expect(TOOL_COUNT).toBe(22);
+      // TOOL_COUNT must match TOOL_DEFINITIONS length
+      expect(TOOL_COUNT).toBe(TOOL_DEFINITIONS.length);
+      expect(TOOL_COUNT).toBe(22); // As of 2026-02-16
     });
 
-    it('should have correct action count', () => {
-      expect(ACTION_COUNT).toBe(294);
+    it('should have correct action count (dynamically validated)', () => {
+      // Calculate actual action count from TOOL_ACTIONS (single source of truth)
+      const actualActionCount = calculateTotalActions(TOOL_ACTIONS);
+
+      // ACTION_COUNT constant must match the sum of all tool actions
+      expect(ACTION_COUNT).toBe(actualActionCount);
+
+      // Sanity check: we should have a reasonable number of actions
+      expect(actualActionCount).toBeGreaterThan(290);
+      expect(actualActionCount).toBeLessThan(350);
     });
   });
 });

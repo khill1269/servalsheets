@@ -44,11 +44,11 @@ ServalSheets is a production-grade MCP server for Google Sheets with 21 tools an
 | File | Says |
 |------|------|
 | package.json | "293 actions" |
-| server.json (line 4) | "291 actions" |
+| server.json (line 4) | "293 actions" |
 | manifest.json | "293 actions" |
 | Source of truth (schemas/index.ts) | ACTION_COUNT = 293 |
 
-**Action:** Update server.json description from "291 actions" to "293 actions"
+**Action:** Update server.json description from "293 actions" to "293 actions"
 
 ---
 
@@ -339,7 +339,7 @@ Layer 7: Concurrency Coordinator (global 15-op semaphore)
 
 ### Important (This Sprint)
 
-2. **Fix server.json action count** — change "291 actions" to "293 actions" to match source of truth
+2. **Fix server.json action count** — change "293 actions" to "293 actions" to match source of truth
 3. **Review googleapis 171.x** — check breaking changes and upgrade from 170.x
 4. **Explicitly set JWT algorithm** — add `algorithm: 'HS256'` to jwt.sign() calls
 

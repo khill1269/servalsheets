@@ -1826,10 +1826,12 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
     // Resolve sheet ID from name if needed
     let resolvedSheetId = input.sheetId;
 
+    // Fix QA-9.1/9.3: Look up sheet metadata including hidden status
+    let sheetHidden = false;
     if (resolvedSheetId === undefined && input.sheetName) {
       const lookupResponse = await this.sheetsApi.spreadsheets.get({
         spreadsheetId: input.spreadsheetId,
-        fields: 'sheets.properties(sheetId,title,index)',
+        fields: 'sheets.properties(sheetId,title,index,hidden)',
       });
 
       const matchingSheet = lookupResponse.data.sheets?.find(
@@ -1849,6 +1851,21 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       }
 
       resolvedSheetId = matchingSheetId;
+      sheetHidden = matchingSheet?.properties?.hidden === true;
+    } else if (resolvedSheetId !== undefined) {
+      // Also check hidden status when using sheetId
+      try {
+        const lookupResponse = await this.sheetsApi.spreadsheets.get({
+          spreadsheetId: input.spreadsheetId,
+          fields: 'sheets.properties(sheetId,hidden)',
+        });
+        const sheet = lookupResponse.data.sheets?.find(
+          (s) => s.properties?.sheetId === resolvedSheetId
+        );
+        sheetHidden = sheet?.properties?.hidden === true;
+      } catch {
+        // Non-critical - continue without hidden check
+      }
     }
 
     if (resolvedSheetId === undefined) {
@@ -1917,17 +1934,27 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       });
     }
 
+    // Fix QA-9.3: Include hidden sheet warning
+    const warnings: string[] = [];
+    if (!verified) {
+      warnings.push(
+        `Sheet moved but ended at index ${actualIndex} instead of ${input.newIndex}. Google Sheets uses 0-based indexing and adjusts if newIndex exceeds sheet count.`
+      );
+    }
+    if (sheetHidden) {
+      warnings.push(
+        `Warning: Sheet "${movedSheet.properties?.title}" is hidden. Moving a hidden sheet may not have the expected visual effect. Consider unhiding it first with sheets_dimensions action:"show".`
+      );
+    }
+
     return this.success('move_sheet', {
       sheetId: resolvedSheetId,
       sheetTitle: movedSheet.properties?.title,
       requestedIndex: input.newIndex,
       actualIndex,
       verified,
-      ...(verified
-        ? {}
-        : {
-            warning: `Sheet moved but ended at index ${actualIndex} instead of ${input.newIndex}. This may happen if the newIndex was out of range.`,
-          }),
+      hidden: sheetHidden,
+      ...(warnings.length > 0 ? { warning: warnings.join(' | ') } : {}),
     });
   }
 }

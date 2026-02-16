@@ -26,7 +26,7 @@ import { initTransactionManager } from './services/transaction-manager.js';
 import { initConflictDetector } from './services/conflict-detector.js';
 import { initImpactAnalyzer } from './services/impact-analyzer.js';
 import { initValidationEngine } from './services/validation-engine.js';
-import { ACTION_COUNT, TOOL_COUNT } from './schemas/annotations.js';
+import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
 import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
