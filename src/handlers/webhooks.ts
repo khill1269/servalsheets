@@ -22,6 +22,7 @@ import type {
   WebhookEventType,
 } from '../schemas/webhook.js';
 import { logger } from '../utils/logger.js';
+import { resourceNotifications } from '../resources/notifications.js';
 
 /**
  * Webhook handler
@@ -133,6 +134,9 @@ export class WebhookHandler {
     try {
       const manager = getWebhookManager();
       const result = await manager.register(input);
+
+      // Notify MCP clients that webhook was registered (Feature 1: Real-Time Notifications)
+      resourceNotifications.notifyResourceListChanged('webhook registered');
 
       return {
         success: true,

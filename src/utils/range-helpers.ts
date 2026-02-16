@@ -157,3 +157,83 @@ export function getRangeParseStats(): {
 export function clearRangeParseCache(): void {
   rangeParseCache.clear();
 }
+
+/**
+ * Check if string contains emoji or special characters that require quoting
+ *
+ * @param str - String to check
+ * @returns True if string contains emoji, spaces, or special chars
+ */
+function containsEmojiOrSpecialChars(str: string): boolean {
+  // Check for emoji (Unicode ranges), spaces, or common special chars
+  return (
+    /[\u{1F300}-\u{1F9FF}]/u.test(str) || // Emoji range
+    str.includes(' ') || // Spaces
+    str.includes('-') || // Hyphens
+    str.includes('°') || // Degree symbol
+    str.includes('•') || // Bullet
+    /[^\w\d]/.test(str) // Any non-word, non-digit character
+  );
+}
+
+/**
+ * Normalize sheet reference by auto-quoting sheet names with emoji or special characters
+ * (Fix 1.5: Emoji sheet name quoting)
+ *
+ * Ensures sheet names with emoji or special characters are properly quoted to prevent
+ * reference failures due to Unicode differences.
+ *
+ * @param range - Range string (e.g., "📊 Dashboard!A1" or "'Sheet1'!A1")
+ * @returns Normalized range with quoted sheet name if needed
+ *
+ * @example
+ * ```typescript
+ * normalizeSheetReference("📊 Dashboard!A1")
+ * // "'📊 Dashboard'!A1"
+ *
+ * normalizeSheetReference("'📊 Dashboard'!A1")
+ * // "'📊 Dashboard'!A1" (already quoted, unchanged)
+ *
+ * normalizeSheetReference("SimpleSheet!A1")
+ * // "SimpleSheet!A1" (no quoting needed)
+ *
+ * normalizeSheetReference("360° Lookup!A1")
+ * // "'360° Lookup'!A1" (special char, needs quoting)
+ * ```
+ */
+export function normalizeSheetReference(range: string): string {
+  // Extract sheet name and cell reference
+  const match = range.match(/^([^!]+)!(.+)$/);
+  if (!match) {
+    // No ! separator, might be just a sheet name or invalid
+    return range;
+  }
+
+  let [, sheetName, cellRef] = match;
+
+  // Safe to assert non-null: regex guarantees these capture groups exist
+  sheetName = sheetName!;
+  cellRef = cellRef!;
+
+  // Check if sheet name contains emoji or special chars
+  if (containsEmojiOrSpecialChars(sheetName)) {
+    // Remove existing quotes if present
+    const unquoted = sheetName.replace(/^'|'$/g, '');
+
+    // Add proper quotes (escape internal single quotes by doubling them)
+    const escaped = unquoted.replaceAll("'", "''");
+    sheetName = `'${escaped}'`;
+  }
+
+  return `${sheetName}!${cellRef}`;
+}
+
+/**
+ * Apply range normalization to an array of ranges
+ *
+ * @param ranges - Array of range strings
+ * @returns Array of normalized range strings
+ */
+export function normalizeSheetReferences(ranges: string[]): string[] {
+  return ranges.map(normalizeSheetReference);
+}

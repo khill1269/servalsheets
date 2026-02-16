@@ -42,6 +42,8 @@ export type { SheetsAppsScriptHandler } from './appsscript.js';
 export type { WebhookHandler } from './webhooks.js';
 // Dependencies handler
 export type { DependenciesHandler } from './dependencies.js';
+// Federation handler (Feature 3)
+export type { FederationHandler } from './federation.js';
 
 import type { sheets_v4, drive_v3 } from 'googleapis';
 import type { bigquery_v2 } from 'googleapis';
@@ -84,6 +86,8 @@ export interface Handlers {
   webhooks: import('./webhooks.js').WebhookHandler;
   // Dependencies handler
   dependencies: import('./dependencies.js').DependenciesHandler;
+  // Federation handler (Feature 3)
+  federation: import('./federation.js').FederationHandler;
 }
 
 /**
@@ -181,6 +185,11 @@ export function createHandlers(options: HandlerFactoryOptions): Handlers {
     async dependencies() {
       const { createDependenciesHandler } = await import('./dependencies.js');
       return createDependenciesHandler(options.sheetsApi);
+    },
+    // Federation handler (Feature 3)
+    async federation() {
+      const { FederationHandler } = await import('./federation.js');
+      return new FederationHandler();
     },
   };
 

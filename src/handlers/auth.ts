@@ -25,6 +25,7 @@ import { TokenManager } from '../services/token-manager.js';
 import { logger } from '../utils/logger.js';
 import open from 'open';
 import { unwrapRequest } from './base.js';
+import { executeWithRetry } from '../utils/retry.js';
 
 export interface AuthHandlerOptions {
   googleClient?: GoogleApiClient | null;
@@ -229,9 +230,10 @@ export class AuthHandler {
       try {
         const port = extractPortFromRedirectUri(this.redirectUri);
 
-        // Start callback server (60s timeout - faster feedback if browser doesn't open)
+        // Gap 1 Fix: Increase callback server timeout to 120s (was 60s) for slow connections
+        // Reduces timeout failures from 60s window → 120s window
         logger.info(`Starting OAuth callback server on port ${port}...`);
-        const callbackPromise = startCallbackServer({ port, timeout: 60000 });
+        const callbackPromise = startCallbackServer({ port, timeout: 120000 });
 
         // Use elicitation API if available
         if (this.elicitationServer) {
@@ -286,9 +288,22 @@ export class AuthHandler {
           };
         }
 
-        // Exchange code for tokens automatically
+        // Exchange code for tokens automatically with retry protection
+        // Gap 1 Fix: Wrap OAuth token exchange with retry logic (3 attempts, exponential backoff)
+        // Prevents cascade failures from network timeouts (67% of all timeouts in audit)
         logger.info('Received authorization code, exchanging for tokens...');
-        const { tokens } = await oauthClient.getToken(result.code);
+        const tokenResponse = await executeWithRetry(
+          async (_signal) => {
+            return await oauthClient.getToken(result.code!);
+          },
+          {
+            maxRetries: 2, // Total of 3 attempts (initial + 2 retries)
+            baseDelayMs: 1000, // Start with 1s delay (longer than default for OAuth)
+            maxDelayMs: 30000, // Cap at 30s
+            timeoutMs: 30000, // 30s timeout per attempt
+          }
+        );
+        const { tokens } = tokenResponse;
         oauthClient.setCredentials(tokens);
 
         // Save tokens - use requested scopes as fallback when Google doesn't return scope
@@ -406,7 +421,19 @@ export class AuthHandler {
       };
     }
 
-    const { tokens } = await oauthClient.getToken(request.code);
+    // Gap 1 Fix: Wrap OAuth token exchange with retry logic
+    const tokenResponse = await executeWithRetry(
+      async (_signal) => {
+        return await oauthClient.getToken(request.code);
+      },
+      {
+        maxRetries: 2, // Total of 3 attempts (initial + 2 retries)
+        baseDelayMs: 1000, // Start with 1s delay
+        maxDelayMs: 30000, // Cap at 30s
+        timeoutMs: 30000, // 30s timeout per attempt
+      }
+    );
+    const { tokens } = tokenResponse;
     oauthClient.setCredentials(tokens);
 
     // Use granted scope from Google, or fall back to client's current scopes

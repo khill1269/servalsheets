@@ -71,6 +71,7 @@ import {
   SheetsAppsScriptInputSchema,
   SheetsWebhookInputSchema,
   SheetsDependenciesInputSchema,
+  SheetsFederationInputSchema,
 } from '../../schemas/index.js';
 import { parseWithCache } from '../../utils/schema-cache.js';
 import { registerToolsListCompatibilityHandler } from './tools-list-compat.js';
@@ -111,6 +112,9 @@ const SheetsAppsScriptInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
 const SheetsWebhookInputSchemaLegacy = wrapInputSchemaForLegacyRequest(SheetsWebhookInputSchema);
 const SheetsDependenciesInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
   SheetsDependenciesInputSchema
+);
+const SheetsFederationInputSchemaLegacy = wrapInputSchemaForLegacyRequest(
+  SheetsFederationInputSchema
 );
 
 const NON_FATAL_TOOL_ERROR_CODES = new Set<string>([
@@ -447,6 +451,15 @@ export function createToolHandlerMap(
           'sheets_dependencies'
         )
       ),
+    sheets_federation: (args) =>
+      handlers.federation.handle(
+        parseForHandler<Parameters<Handlers['federation']['handle']>[0]>(
+          SheetsFederationInputSchemaLegacy,
+          args,
+          'SheetsFederationInput',
+          'sheets_federation'
+        )
+      ),
   };
 
   if (authHandler) {
@@ -553,9 +566,7 @@ function validateOutputSchema(
         logger.debug('Output schema validation mismatch', {
           tool: toolName,
           issueCount: issues.length,
-          firstIssue: issues[0]
-            ? `${issues[0].path.join('.')}: ${issues[0].message}`
-            : 'unknown',
+          firstIssue: issues[0] ? `${issues[0].path.join('.')}: ${issues[0].message}` : 'unknown',
         });
       }
     }

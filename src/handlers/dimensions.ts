@@ -1187,6 +1187,11 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       input.dataRange,
       this.sheetsApi
     );
+
+    // Slicer Position Enhancement: Convert simple anchorCell format to Google API's overlayPosition
+    // User provides: anchorCell: "P1" (string)
+    // Google API expects: overlayPosition.anchorCell: {sheetId, rowIndex, columnIndex} (object)
+    // This conversion allows simpler AI instruction format while maintaining API compatibility
     const anchor = parseCellReference(input.position.anchorCell);
 
     const batchResponse = await this.sheetsApi.spreadsheets.batchUpdate({

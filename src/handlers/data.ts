@@ -72,10 +72,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     super('sheets_data', context);
     this.sheetsApi = sheetsApi;
     const env = getEnv();
+    // Use context feature flags if available (for testing), otherwise use environment
+    const contextFlags = (context as any).featureFlags;
     this.featureFlags = {
-      enableDataFilterBatch: env.ENABLE_DATAFILTER_BATCH,
-      enableTableAppends: env.ENABLE_TABLE_APPENDS,
-      enablePayloadValidation: env.ENABLE_PAYLOAD_VALIDATION,
+      enableDataFilterBatch: contextFlags?.enableDataFilterBatch ?? env.ENABLE_DATAFILTER_BATCH,
+      enableTableAppends: contextFlags?.enableTableAppends ?? env.ENABLE_TABLE_APPENDS,
+      enablePayloadValidation:
+        contextFlags?.enablePayloadValidation ?? env.ENABLE_PAYLOAD_VALIDATION,
     };
     // No circuit breaker registration - direct API calls only
   }
@@ -797,6 +800,13 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
       // Extract first (and only) matched range
       const matchedValueRange = valueRanges[0];
+      if (!matchedValueRange) {
+        return this.error({
+          code: 'NO_DATA',
+          message: 'No data found matching the filter',
+          retryable: false,
+        });
+      }
       const range = matchedValueRange.valueRange?.range ?? '';
       const values = (matchedValueRange.valueRange?.values ?? []) as ValuesArray;
 
@@ -1002,7 +1012,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
             {
               dataFilter: input.dataFilter,
               values: input.values,
-              majorDimension: input.majorDimension,
+              majorDimension: (input as any).majorDimension,
             },
           ],
         },
@@ -1019,7 +1029,8 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
 
       // Extract matched range from response if available
       if (response.data.responses && response.data.responses.length > 0) {
-        responseData.updatedRange = response.data.responses[0]?.updatedRange ?? '(dataFilter)';
+        responseData['updatedRange'] =
+          response.data.responses[0]?.['updatedRange'] ?? '(dataFilter)';
       }
 
       const warnings = this.buildPayloadWarnings('write', payloadValidation);
@@ -1494,6 +1505,131 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       destructive: true,
     });
 
+    // NEW: DataFilter path (uses batch API with single filter)
+    if (input.dataFilter) {
+      if (!this.featureFlags.enableDataFilterBatch) {
+        this.context.metrics?.recordFeatureFlagBlock({
+          flag: 'dataFilterBatch',
+          tool: this.toolName,
+          action: 'clear',
+        });
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'DataFilter clears are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+          retryable: false,
+          suggestedFix: 'Enable the feature by setting the appropriate environment variable',
+        });
+      }
+
+      // Check for dryRun
+      if (input.safety?.dryRun) {
+        return this.success(
+          'clear',
+          {
+            clearedRanges: ['(dataFilter - dry run)'],
+            _dryRun: true,
+          },
+          undefined,
+          true
+        );
+      }
+
+      const logger = this.context.logger || getRequestLogger();
+      const startTime = Date.now();
+      logger.info('Clear operation starting (dataFilter)', {
+        dataFilter: input.dataFilter,
+        spreadsheetId: input.spreadsheetId,
+      });
+
+      try {
+        // API call with timeout
+        const response = await Promise.race([
+          this.withCircuitBreaker('values.batchClearByDataFilter', () =>
+            this.sheetsApi.spreadsheets.values.batchClearByDataFilter({
+              spreadsheetId: input.spreadsheetId,
+              fields: 'clearedRanges',
+              requestBody: {
+                dataFilters: [input.dataFilter!], // Single-entry array (non-null: inside if block at line 1505)
+              },
+            })
+          ),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Clear operation timed out after 10 seconds')), 10000)
+          ),
+        ]);
+
+        const duration = Date.now() - startTime;
+        logger.info('Clear operation completed (dataFilter)', { duration });
+
+        // Invalidate ETag cache after mutation
+        getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+        const clearedRanges = response.data.clearedRanges ?? [];
+        if (clearedRanges.length === 0) {
+          return this.error({
+            code: 'NOT_FOUND',
+            message: 'No data matched the provided DataFilter for clear',
+            retryable: false,
+            suggestedFix:
+              'Check that developer metadata exists for the given lookup criteria. Use sheets_advanced.set_metadata to tag ranges first.',
+          });
+        }
+
+        // Trigger background quality analysis for first cleared range
+        const analysisConfig = getBackgroundAnalysisConfig();
+        if (analysisConfig.enabled && clearedRanges.length > 0) {
+          const analyzer = getBackgroundAnalyzer();
+          analyzer.analyzeInBackground(
+            input.spreadsheetId,
+            clearedRanges[0]!, // Non-null: inside length > 0 check
+            100, // Conservative estimate for cleared cells
+            this.sheetsApi,
+            {
+              qualityThreshold: 70,
+              minCellsChanged: analysisConfig.minCells,
+              debounceMs: analysisConfig.debounceMs,
+            }
+          );
+        }
+
+        return this.success('clear', {
+          clearedRanges,
+          updatedRange: clearedRanges[0] ?? '(dataFilter)',
+        });
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        logger.error('Clear operation failed (dataFilter)', {
+          error: error instanceof Error ? error.message : String(error),
+          duration,
+          spreadsheetId: input.spreadsheetId,
+        });
+
+        // Provide helpful error with workaround if timeout
+        if (error instanceof Error && error.message.includes('timed out')) {
+          return this.error({
+            code: 'DEADLINE_EXCEEDED',
+            message: `Clear operation (dataFilter) timed out after ${duration}ms.`,
+            retryable: false,
+            suggestedFix: 'Try using a more specific dataFilter or clearing by A1 range instead',
+            details: {
+              duration,
+              workaround: 'Use A1 range-based clear if possible',
+            },
+          });
+        }
+
+        throw error;
+      }
+    }
+
+    // EXISTING: Traditional range-based path
+    if (!input.range) {
+      return this.error({
+        code: 'INVALID_PARAMS',
+        message: 'Range is required for clear operation',
+        retryable: false,
+      });
+    }
     const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
 
     // Check for dryRun
@@ -1819,7 +1955,7 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
               spreadsheetId: input.spreadsheetId,
               range,
               valueRenderOption: input.valueRenderOption,
-              majorDimension: input.majorDimension,
+              majorDimension: (input as any).majorDimension,
               fields: 'range,values',
             })
           );

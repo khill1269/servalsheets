@@ -476,13 +476,57 @@ export const TextFormatSchema = z.object({
   strikethrough: z.boolean().optional(),
 });
 
-/** Number format */
-export const NumberFormatSchema = z.object({
-  type: z
-    .enum(['TEXT', 'NUMBER', 'PERCENT', 'CURRENCY', 'DATE', 'TIME', 'DATE_TIME', 'SCIENTIFIC'])
-    .optional(),
-  pattern: z.string().optional(),
-});
+/**
+ * Infer number format type from pattern string
+ * Fix 2.1: Accept string shorthand for numberFormat
+ */
+function inferNumberFormatType(pattern: string): {
+  type?: string;
+  pattern: string;
+} {
+  if (pattern.includes('%')) {
+    return { type: 'PERCENT', pattern };
+  }
+  if (
+    pattern.includes('$') ||
+    pattern.includes('€') ||
+    pattern.includes('£') ||
+    pattern.includes('¥')
+  ) {
+    return { type: 'CURRENCY', pattern };
+  }
+  if (pattern.match(/[dmy]/i) || pattern.includes('/')) {
+    return { type: 'DATE', pattern };
+  }
+  if (pattern.match(/[hms]/i) || pattern.includes(':')) {
+    return { type: 'TIME', pattern };
+  }
+  if (pattern.includes('#') || pattern.includes('0') || pattern.includes(',')) {
+    return { type: 'NUMBER', pattern };
+  }
+  return { type: 'TEXT', pattern };
+}
+
+/** Number format - accepts string pattern or object with type and pattern */
+export const NumberFormatSchema = z
+  .preprocess(
+    (val) => {
+      // Fix 2.1: Auto-convert string pattern to object
+      if (typeof val === 'string') {
+        return inferNumberFormatType(val);
+      }
+      return val;
+    },
+    z.object({
+      type: z
+        .enum(['TEXT', 'NUMBER', 'PERCENT', 'CURRENCY', 'DATE', 'TIME', 'DATE_TIME', 'SCIENTIFIC'])
+        .optional(),
+      pattern: z.string().optional(),
+    })
+  )
+  .describe(
+    'Number format: string pattern like "MMM d, yyyy" or "0.0%" (auto-infers type), or object {type, pattern}'
+  );
 
 /** Cell format */
 export const CellFormatSchema = z.object({

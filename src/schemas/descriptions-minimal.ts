@@ -53,4 +53,6 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
   sheets_webhook: `🔔 WEBHOOK - Change notifications (6 actions). register, unregister, list, test. Requires Redis backend + HTTPS endpoint. HMAC signature verification.`,
 
   sheets_dependencies: `🔗 DEPENDENCIES - Formula graph (7 actions). build, analyze_impact, detect_cycles, export_dot.`,
+
+  sheets_federation: `🌐 FEDERATION - Call external MCP servers (4 actions). call_remote, list_servers, get_server_tools, validate_connection. Requires MCP_FEDERATION_SERVERS env var.`,
 };

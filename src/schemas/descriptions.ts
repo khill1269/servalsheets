@@ -35,6 +35,14 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
   sheets_core: `📋 CORE - Create and manage spreadsheets and sheets/tabs (19 actions). Get metadata and URLs.
 
+**⚠️ FIRST TIME WITH THIS SPREADSHEET?**
+Use sheets_analyze action:"comprehensive" or action:"scout" instead of sheets_core.get for richer metadata + quality insights in same API cost. scout is fastest for structure-only needs.
+
+**DECISION GUIDE - Which action should I use?**
+→ **Need metadata from 3+ spreadsheets?** Use batch_get (1 API call for all, NOT 3+ separate get calls)
+→ **Deleting 3+ sheets?** Use batch_delete_sheets (1 API call, 80%+ savings)
+→ **Updating 3+ sheet properties?** Use batch_update_sheets (1 call vs N calls)
+
 **Use when:** Creating/copying spreadsheets, adding/deleting/renaming sheets, getting metadata
 **NOT this tool - use instead:**
 > sheets_data - Reading/writing CELL VALUES
@@ -42,18 +50,29 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 > sheets_analyze - For metadata + data + analysis in 1 call (faster!)
 **ACTIONS (19):** get, create, copy, update_properties, get_url, batch_get, get_comprehensive, list, add_sheet, delete_sheet, duplicate_sheet, update_sheet, copy_sheet_to, list_sheets, get_sheet, batch_delete_sheets, batch_update_sheets, clear_sheet, move_sheet
 **Key parameter:** sheetId (numeric ID from list_sheets, not sheet name: 0, 123456789, etc.)
+
+**⚡ BATCH OPERATION THRESHOLD:**
+WHEN TO BATCH: If getting metadata from 3+ spreadsheets OR managing 3+ sheets, ALWAYS use batch_* operations — same Google API quota cost, 1 API call instead of N (80-95% fewer round trips).
+EXAMPLE: Getting 5 spreadsheet metadata = 1 API call with batch_get, NOT 5 separate get calls.
+
 **Parameter format examples:**
 - Create: {"action":"create","title":"My Spreadsheet"}
 - Get metadata: {"action":"get","spreadsheetId":"1ABC..."}
+- Batch get metadata: {"action":"batch_get","spreadsheetIds":["1ABC...","1DEF...","1GHI..."]} ← 3 spreadsheets in 1 call!
 - Add sheet: {"action":"add_sheet","spreadsheetId":"1ABC...","title":"New Sheet"}
+- Batch delete sheets: {"action":"batch_delete_sheets","spreadsheetId":"1ABC...","sheetIds":[123,456,789]} ← 3 sheets deleted in 1 call!
 **Tip:** Use sheets_analyze comprehensive instead of get for metadata + data + analysis in 1 call
 
 **SMART ROUTING:**
 - Need sheet with headers + formatting? → Use sheets_composite.setup_sheet (not add_sheet + write + format separately)
 - Clone structure? → Use sheets_core.duplicate_sheet or sheets_composite.clone_structure
-- Just checking sheet names? → Use sheets_analyze.scout (faster, includes column info)`,
+- Just checking sheet names? → Use sheets_analyze.scout (faster, includes column info)
+- Managing 3+ sheets? → Use batch_delete_sheets or batch_update_sheets (80%+ savings!)`,
 
   sheets_data: `📝 DATA - Read and write cell values, notes, and hyperlinks (18 actions). Append rows, find/replace text, merge cells.
+
+**⚠️ FIRST TIME WITH THIS SPREADSHEET?**
+If you haven't analyzed this spreadsheet yet, START with sheets_analyze action:"comprehensive" or action:"scout" to understand structure, data quality, and column types. Prevents mistakes and saves time (70%+ faster).
 
 **DECISION GUIDE - Which action should I use?**
 → **Need to add rows?** Use append (auto-finds last row at bottom) OR sheets_composite.smart_append (column-matched)
@@ -69,7 +88,12 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 **ACTIONS (18):** read, write, append, clear, batch_read, batch_write, batch_clear, find_replace, add_note, get_note, clear_note, set_hyperlink, clear_hyperlink, merge_cells, unmerge_cells, get_merges, cut_paste, copy_paste
 **Batch operations:** 3+ ranges? Use batch_read/batch_write (1 call vs N calls, 80%+ quota savings)
 **Common actions:** read, write, append, batch_read, batch_write, find_replace, clear
-**Range format:** Always include sheet name: "Sheet1!A1:D10" (case-sensitive, use quotes for spaces: "'My Sheet'!A1:D10")
+**Range format:** Always include sheet name: "Sheet1!A1:D10" (case-sensitive, use quotes for spaces/emoji: "'My Sheet'!A1:D10" or "'📊 Dashboard'!A1:D10")
+
+⚠️ **EMOJI SHEET NAMES:** ALWAYS use single quotes: "'📊 Dashboard'!A1:Z30" NOT "📊 Dashboard!A1:Z30"
+
+ℹ️ **SPARKLINE NOTE:** SPARKLINE formulas render visually but API reads return empty values (expected behavior). Don't retry or investigate empty SPARKLINE reads.
+
 **Parameter format examples:**
 - Read single: {"action":"read","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10"}
 - Read batch: {"action":"batch_read","spreadsheetId":"1ABC...","ranges":["Sheet1!A1:D100","Sheet2!A1:B50"]} ← Same API cost as read, but gets 2 ranges!
@@ -78,6 +102,41 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 - Append: {"action":"append","spreadsheetId":"1ABC...","range":"Sheet1!A:D","values":[["Bob",25]]}
 **spreadsheetId format:** "1abc123def456..." (long alphanumeric from URL)
 **Safety:** write/clear are destructive - use dryRun:true to preview, sheets_confirm for >100 cells
+
+**🎯 DYNAMIC RANGES WITH DATAFILTER:**
+
+Hard-coded ranges (A1:B10) break when rows/columns are inserted or deleted. DataFilter provides resilient alternatives:
+
+**1. Developer Metadata Lookup (RECOMMENDED for production):**
+Tag your data ranges first (use sheets_advanced.set_metadata), then query by metadata instead of A1 notation. The metadata moves with your data!
+
+Example - Tag a range:
+{"tool":"sheets_advanced","action":"set_metadata","spreadsheetId":"1ABC...","metadataKey":"dataset:sales_2024","metadataValue":"Q1 revenue data","location":{"sheetId":0,"dimensionRange":{"dimension":"ROWS","startIndex":0,"endIndex":100}}}
+
+Example - Read by metadata:
+{"action":"read","spreadsheetId":"1ABC...","dataFilter":{"developerMetadataLookup":{"metadataKey":"dataset:sales_2024","locationType":"SHEET"}}}
+
+Example - Write by metadata:
+{"action":"write","spreadsheetId":"1ABC...","dataFilter":{"developerMetadataLookup":{"metadataKey":"summary:totals"}},"values":[["Total Sales",1250000]]}
+
+**2. Grid Range (row/column indices, 0-indexed):**
+{"action":"read","spreadsheetId":"1ABC...","dataFilter":{"gridRange":{"sheetId":0,"startRowIndex":0,"endRowIndex":100,"startColumnIndex":0,"endColumnIndex":5}}}
+
+**3. A1 Range (fallback for dynamic batch operations):**
+{"action":"batch_read","spreadsheetId":"1ABC...","dataFilters":[{"a1Range":"Sheet1!A1:D10"}]}
+
+**WHEN TO USE DATAFILTER:**
+✓ Production systems with frequent structural changes (rows/columns inserted/deleted)
+✓ Multi-user spreadsheets where data grows dynamically
+✓ Semantic data organization (tag ranges by purpose, not position: "current_month", "totals_row")
+✓ Automated reports that need to find "Q4 sales data" or "summary section"
+
+**WHEN NOT TO USE DATAFILTER:**
+✗ Static templates with fixed structure (A1 notation is simpler)
+✗ One-time scripts or ad-hoc queries (overhead not justified)
+✗ When you need specific cell references (dataFilter returns matched ranges, not specific cells)
+
+**NOTE:** DataFilter requires sheets_advanced.set_metadata to tag ranges first. Use sheets_advanced.get_metadata to list all tagged ranges.
 
 **⚡ BATCH OPERATION THRESHOLD:**
 WHEN TO BATCH: If reading/writing 3+ ranges, ALWAYS use batch_read/batch_write — same Google API quota cost, 1 API call instead of N (80-95% fewer round trips).
@@ -92,6 +151,8 @@ EXAMPLE: Reading 5 ranges = 1 API call with batch_read, NOT 5 separate calls.
 **SMART ROUTING:**
 - Need to add rows? → Use append (auto-finds last row) NOT write
 - 3+ ranges to read/write? → Use batch_read/batch_write (same API cost!)
+- 5+ operations that must succeed together? → Use sheets_transaction (1 API call, 80%+ savings)
+- Bulk updating 50+ rows? → Use sheets_transaction OR sheets_composite.bulk_update
 - Need column matching? → Use sheets_composite.smart_append instead
 - Want to validate first? → Run sheets_quality.validate before write
 - Need structure first? → Run sheets_analyze.scout (0 data transfer)`,
@@ -101,6 +162,9 @@ EXAMPLE: Reading 5 ranges = 1 API call with batch_read, NOT 5 separate calls.
   //=============================================================================
 
   sheets_format: `🎨 FORMAT - Cell styling, sparklines & conditional rules (22 actions). set_format, suggest_format, set_background, set_text_format, set_number_format, set_alignment, set_borders, clear_format, apply_preset, auto_fit, batch_format, sparkline_add, sparkline_get, sparkline_clear, rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats, set_data_validation, clear_data_validation, list_data_validations, add_conditional_format_rule
+
+**⚠️ FIRST TIME WITH THIS SPREADSHEET?**
+If you haven't analyzed this spreadsheet yet, call sheets_analyze action:"comprehensive" first to understand structure and get formatting recommendations. Use sheets_format.suggest_format for AI-powered format suggestions.
 
 **DECISION GUIDE - Which action should I use?**
 → **Formatting 3+ ranges?** ALWAYS use batch_format — 1 API call for all, 80%+ savings vs sequential calls
@@ -145,7 +209,7 @@ EXAMPLE: Reading 5 ranges = 1 API call with batch_read, NOT 5 separate calls.
 **ACTIONS BY CATEGORY:**
 [Style] set_format, set_background, set_text_format, set_number_format, set_alignment, set_borders
 [Helpers] suggest_format, clear_format, apply_preset, auto_fit
-[Conditional] rule_add_conditional_format, rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats, add_conditional_format_rule
+[Conditional] add_conditional_format_rule (RECOMMENDED - uses presets), rule_add_conditional_format (advanced - complex schema), rule_update_conditional_format, rule_delete_conditional_format, rule_list_conditional_formats
 [Validation] set_data_validation, clear_data_validation, list_data_validations
 [Batch] batch_format ← Use for 3+ format changes (80%+ savings!)
 
@@ -154,7 +218,9 @@ EXAMPLE: Reading 5 ranges = 1 API call with batch_read, NOT 5 separate calls.
 2. apply_preset: {"action":"apply_preset","spreadsheetId":"1ABC...","range":"Sheet1!A1:D10","preset":"header_row"} ← Quick professional look
 3. set_background: {"action":"set_background","spreadsheetId":"1ABC...","range":"Sheet1!A1:D1","color":"#4285F4"}
 
-**RANGE FORMAT:** Always include sheet name! "Sheet1!A1:D10" not "A1:D10". Case-sensitive. For named sheets: "'My Sheet'!A1:D10"
+**RANGE FORMAT:** Always include sheet name! "Sheet1!A1:D10" not "A1:D10". Case-sensitive. For spaces/emoji use quotes: "'My Sheet'!A1:D10" or "'📊 Dashboard'!A1:D10"
+
+⚠️ **CRITICAL:** Copy sheet names from API responses, never type emoji manually (lookalikes like 📨/📈 or 💠/💰 cause silent failures)
 **spreadsheetId format:** "1abc123def456..." (from Google Sheets URL)
 **sheetId:** Numeric ID from sheets_core.list_sheets (e.g., 0, 123456789), not sheet name
 
@@ -167,6 +233,7 @@ Combine both in sequence (2 calls total) for professional table look, OR use she
 **SMART ROUTING:**
 - 1-2 format ranges? → Use individual set_format (simple, fast)
 - 3+ ranges with same format? → Use batch_format (1 API call for ALL, 80%+ savings!)
+- Conditional formatting? → Use add_conditional_format_rule with presets (SIMPLER than rule_add_conditional_format)
 - Need professional look? → Use apply_preset: header_row + alternating_rows (2 calls)
 - Brand new sheet setup? → Use sheets_composite.setup_sheet (includes format, 2 calls total)
 - Complex multi-step? → Use sheets_transaction for atomic batch`,
@@ -176,6 +243,11 @@ Combine both in sequence (2 calls total) for professional table look, OR use she
   //=============================================================================
 
   sheets_dimensions: `📐 DIMENSIONS - Rows, columns, filters, sorting (28 actions).
+
+**DECISION GUIDE - Which action should I use?**
+→ **Need 3+ dimension changes?** Use sheets_transaction to batch them (1 API call, 80%+ savings vs sequential)
+→ **Setting up a new sheet?** Use sheets_composite.setup_sheet (includes freeze, format, headers in 2 calls)
+→ **Just 1-2 operations?** Use individual actions (simple, fast)
 
 **PREREQUISITES:** sheets_auth must be authenticated. Recommended: Get sheetId from sheets_core.list_sheets first.
 
@@ -194,16 +266,20 @@ Combine both in sequence (2 calls total) for professional table look, OR use she
 
 **ACTIONS (28):** insert, append, delete, move, resize, auto_resize, hide, show, freeze, unfreeze, group, ungroup, set_basic_filter, clear_basic_filter, get_basic_filter, create_filter_view, update_filter_view, delete_filter_view, list_filter_views, sort_range, trim_whitespace, randomize_range, text_to_columns, auto_fill, create_slicer, update_slicer, delete_slicer, list_slicers
 
-**COST COMPARISON (Quick Win #3):**
+**⚡ BATCH OPERATION THRESHOLD:**
+WHEN TO BATCH: If making 3+ dimension changes (insert + hide + freeze, or multiple inserts), ALWAYS use sheets_transaction — same Google API quota cost, 1 API call instead of N (80-95% fewer round trips).
+EXAMPLE: Insert 3 rows + hide 2 columns + freeze row 1 = 1 transaction call, NOT 3 separate calls.
+
+**COST COMPARISON:**
 ┌─────────────────────────────────────────────────────────────────┐
 │ EXAMPLE: Insert 3 rows + hide 2 columns + freeze row 1         │
 ├─────────────────────────────────────────────────────────────────┤
 │ ❌ BAD:  3 separate calls = 3 API calls, ~600ms                │
-│ ✅ GOOD: Combined batch = 1 API call, ~250ms (58% savings!)    │
+│ ✅ GOOD: sheets_transaction = 1 API call, ~250ms (58% faster!) │
 └─────────────────────────────────────────────────────────────────┘
 - Single operations: 1 call each (~200ms)
-- Multiple dimension changes: Combine in 1 request when possible
-- **TIP:** Plan your row/column operations and batch them together
+- Multiple dimension changes: Use sheets_transaction (1 call for all)
+- **TIP:** Plan your row/column operations and batch them with sheets_transaction
 
 **CONSOLIDATED ACTIONS (use dimension parameter):**
 All row/column operations use dimension:"ROWS" or dimension:"COLUMNS":
@@ -401,6 +477,8 @@ Example: {"action":"scout","spreadsheetId":"1ABC..."} → Returns sheet list wit
 > sheets_dimensions - Hiding or freezing rows/columns
 
 **ACTIONS (26):** add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range, add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges, set_metadata, get_metadata, delete_metadata, add_banding, update_banding, delete_banding, list_banding, create_table, delete_table, list_tables, update_table, rename_table_column, set_table_column_properties, add_person_chip, add_drive_chip, add_rich_link_chip, list_chips
+
+⚠️ **BANDING PRE-CHECK:** Always call \`list_banding\` before \`add_banding\` to check if banding already exists. Adding banding to a range that already has it will fail.
 
 **ACTIONS BY CATEGORY:**
 [Named Ranges] add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
@@ -1030,6 +1108,65 @@ Example workflow:
 **export_dot output:** Graphviz DOT format for visualizing dependency graphs
 
 **TIP:** Run detect_cycles first to identify circular references, then use analyze_impact before modifying cells with many dependents to understand scope.`,
+
+  sheets_federation: `🌐 FEDERATION - Call external MCP servers for composite workflows (4 actions).
+
+**PREREQUISITES:** Set MCP_FEDERATION_ENABLED=true and MCP_FEDERATION_SERVERS in environment. Remote servers must be running and accessible.
+
+**ROUTING - Pick this tool when:**
+> Integrating EXTERNAL data sources (weather, ML models, databases)
+> Chaining operations across MULTIPLE services (analyze → transform → write to Sheets)
+> Calling specialized MCP SERVERS (Python analytics, SQL databases)
+> Building COMPOSITE workflows that combine different MCP tools
+> Connecting to THIRD-PARTY APIs via their MCP server implementations
+
+**NOT this tool - use instead:**
+> sheets_data - For direct Sheets read/write operations
+> sheets_bigquery - For BigQuery integration (built-in)
+> sheets_webhook - For receiving notifications FROM external services
+> sheets_appsscript - For custom JavaScript automation WITHIN Sheets
+
+**ACTIONS (4):** call_remote, list_servers, get_server_tools, validate_connection
+
+**ACTIONS BY CATEGORY:**
+[Execution] call_remote (invoke remote tool)
+[Discovery] list_servers (configured servers), get_server_tools (available tools on server)
+[Health] validate_connection (test connectivity)
+
+**Parameter format examples:**
+- Call remote: {"action":"call_remote","serverName":"weather-api","toolName":"get_forecast","toolInput":{"location":"San Francisco"}}
+- List servers: {"action":"list_servers"}
+- Get tools: {"action":"get_server_tools","serverName":"ml-server"}
+- Validate: {"action":"validate_connection","serverName":"weather-api"}
+
+**TOP 3 ACTIONS:**
+1. call_remote: {"action":"call_remote","serverName":"weather-api","toolName":"get_forecast","toolInput":{"location":"SF","days":7}} -> Call remote MCP tool
+2. list_servers: {"action":"list_servers"} -> See configured remote servers
+3. validate_connection: {"action":"validate_connection","serverName":"weather-api"} -> Test connection
+
+**CONFIGURATION:**
+Set MCP_FEDERATION_SERVERS environment variable with JSON array:
+[{"name":"weather-api","url":"http://localhost:3001","auth":{"type":"bearer","token":"sk-..."}}]
+
+**USE CASES:**
+- 🌤️ Weather dashboards: Call weather API → write forecast to Sheets
+- 🤖 ML predictions: Read historical data → send to ML server → write predictions back
+- 🗄️ Database sync: Query external database → update Sheets with results
+- 🔗 Multi-step ETL: Chain data transformations across specialized servers
+
+**SECURITY:**
+⚠️ Only call TRUSTED MCP servers
+⚠️ Validate responses before writing to Sheets
+⚠️ Use bearer tokens for authenticated servers
+⚠️ Set timeouts to prevent hanging (default: 30s)
+
+**WORKFLOW EXAMPLE:**
+1. validate_connection → Test remote server
+2. get_server_tools → Discover available tools
+3. call_remote → Execute tool on remote server
+4. sheets_data.write → Write results to Sheets
+
+**TIP:** Always test with validate_connection first, then use get_server_tools to discover remote capabilities before calling. Results are cached for 5 minutes automatically.`,
 };
 
 // Type export for other modules

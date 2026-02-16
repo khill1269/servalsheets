@@ -18,6 +18,7 @@ import { getWebhookQueue, type WebhookDeliveryJob } from './webhook-queue.js';
 import { getWebhookManager } from './webhook-manager.js';
 import { recordWebhookDelivery } from '../observability/metrics.js';
 import { signWebhookPayload } from '../security/webhook-signature.js';
+import { resourceNotifications } from '../resources/notifications.js';
 
 /**
  * Webhook worker configuration
@@ -195,6 +196,11 @@ export class WebhookWorker {
           // Update webhook stats
           const manager = getWebhookManager();
           await manager.recordDelivery(job.webhookId, true, duration);
+
+          // Notify MCP clients of webhook delivery (Feature 1: Real-Time Notifications)
+          resourceNotifications.notifyResourceListChanged(
+            `webhook delivered: ${job.eventType} for ${job.webhookId.slice(0, 8)}`
+          );
 
           // Record metrics
           recordWebhookDelivery(

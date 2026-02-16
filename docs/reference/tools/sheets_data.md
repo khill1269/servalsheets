@@ -283,6 +283,226 @@ Batch operations can use either `ranges` or `dataFilters` (choose one).
 
 ---
 
+## Single-Range Operations with DataFilter
+
+DataFilter enables dynamic range queries that survive row/column insertions and deletions. Instead of hard-coded A1 notation, use semantic metadata tags to identify ranges by purpose.
+
+### Read by Developer Metadata
+
+Query data by semantic tags instead of cell addresses:
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "read",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilter": {
+    "developerMetadataLookup": {
+      "metadataKey": "dataset:customers",
+      "locationType": "SHEET"
+    }
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "range": "Sheet1!A1:C150",
+  "values": [["Name", "Email", "Region"], ...],
+  "rowCount": 150,
+  "columnCount": 3
+}
+```
+
+### Write by Developer Metadata
+
+Update a tagged range without knowing its exact location:
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "write",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilter": {
+    "developerMetadataLookup": {
+      "metadataKey": "summary:totals"
+    }
+  },
+  "values": [["Total Sales", 1250000]]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "updatedCells": 2,
+  "updatedRows": 1,
+  "updatedColumns": 2,
+  "updatedRange": "Sheet1!A10:B10"
+}
+```
+
+### Clear by Developer Metadata
+
+Clear a tagged range dynamically:
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "clear",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilter": {
+    "developerMetadataLookup": {
+      "metadataKey": "temp:scratch_space"
+    }
+  }
+}
+```
+
+### Read by Grid Range
+
+Query by row/column indices (0-indexed):
+
+```json
+{
+  "tool": "sheets_data",
+  "action": "read",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "dataFilter": {
+    "gridRange": {
+      "sheetId": 0,
+      "startRowIndex": 0,
+      "endRowIndex": 100
+    }
+  }
+}
+```
+
+---
+
+## Tagging Ranges with Developer Metadata
+
+Before using DataFilter with `developerMetadataLookup`, tag your ranges using the `sheets_advanced` tool:
+
+### Set Metadata on a Range
+
+```json
+{
+  "tool": "sheets_advanced",
+  "action": "set_metadata",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
+  "metadataKey": "dataset:sales_2024",
+  "metadataValue": "Q1 revenue",
+  "location": {
+    "sheetId": 0,
+    "dimensionRange": {
+      "dimension": "ROWS",
+      "startIndex": 0,
+      "endIndex": 1000
+    }
+  },
+  "visibility": "DOCUMENT"
+}
+```
+
+### List All Tagged Ranges
+
+```json
+{
+  "tool": "sheets_advanced",
+  "action": "get_metadata",
+  "spreadsheetId": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "metadata": [
+    {
+      "metadataId": "1234567890",
+      "metadataKey": "dataset:sales_2024",
+      "metadataValue": "Q1 revenue",
+      "location": {
+        "locationType": "ROW",
+        "dimensionRange": {
+          "sheetId": 0,
+          "dimension": "ROWS",
+          "startIndex": 0,
+          "endIndex": 1000
+        }
+      }
+    }
+  ]
+}
+```
+
+### DataFilter Resilience Example
+
+This example shows how DataFilter maintains correct references even after structural changes:
+
+```bash
+# 1. Tag a footer range at rows 20-21
+{
+  "tool": "sheets_advanced",
+  "action": "set_metadata",
+  "metadataKey": "summary:footer",
+  "location": {
+    "sheetId": 0,
+    "dimensionRange": {
+      "dimension": "ROWS",
+      "startIndex": 20,
+      "endIndex": 21
+    }
+  }
+}
+
+# 2. Write to tagged range
+{
+  "tool": "sheets_data",
+  "action": "write",
+  "dataFilter": {
+    "developerMetadataLookup": {
+      "metadataKey": "summary:footer"
+    }
+  },
+  "values": [["Total", 1000]]
+}
+
+# 3. Insert 10 rows above (rows shift down)
+{
+  "tool": "sheets_dimensions",
+  "action": "insert",
+  "sheetId": 0,
+  "dimension": "ROWS",
+  "startIndex": 5,
+  "endIndex": 15
+}
+
+# 4. Read still works! (metadata moved with data)
+{
+  "tool": "sheets_data",
+  "action": "read",
+  "dataFilter": {
+    "developerMetadataLookup": {
+      "metadataKey": "summary:footer"
+    }
+  }
+}
+# Returns: range="Sheet1!A30:B30" (moved from A20:B20)
+```
+
+**Key Benefit:** With A1 notation (`Sheet1!A20:B20`), step 3 would break your reference. With DataFilter, the metadata moves with the data automatically.
+
+---
+
 ## Semantic Range Resolution
 
 ServalSheets supports semantic range queries in addition to A1 notation:

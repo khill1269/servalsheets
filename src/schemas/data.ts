@@ -71,7 +71,12 @@ const CommonFieldsSchema = z.object({
 
 const ReadActionSchema = CommonFieldsSchema.extend({
   action: z.literal('read').describe('Read cell values from a range'),
-  range: RangeInputSchema.describe('Range to read in A1 notation or semantic'),
+  range: RangeInputSchema.optional().describe(
+    'Range to read in A1 notation or semantic (e.g., "Sheet1!A1:B10"). Use dataFilter for dynamic queries that survive insertions/deletions.'
+  ),
+  dataFilter: DataFilterSchema.optional().describe(
+    'Dynamic range filter (survives insertions/deletions). Use developerMetadataLookup to query by metadata tags instead of hard-coded ranges.'
+  ),
   valueRenderOption: ValueRenderOptionSchema.optional()
     .default('FORMATTED_VALUE')
     .describe('How values should be rendered (FORMATTED_VALUE, UNFORMATTED_VALUE, FORMULA)'),
@@ -94,13 +99,34 @@ const ReadActionSchema = CommonFieldsSchema.extend({
     .max(10000)
     .optional()
     .describe('Maximum number of rows per page (default: 1000, max: 10000)'),
+}).superRefine((val, ctx) => {
+  // Exactly ONE of range or dataFilter must be provided
+  if (!val.range && !val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter for read',
+      path: ['range'],
+    });
+  }
+  if (val.range && val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter (not both) for read',
+      path: ['dataFilter'],
+    });
+  }
 });
 
 const WriteActionSchema = CommonFieldsSchema.extend({
   action: z
     .literal('write')
     .describe('Write values to a specific range (overwrites existing data)'),
-  range: RangeInputSchema.describe('Range to write to in A1 notation or semantic'),
+  range: RangeInputSchema.optional().describe(
+    'Range to write to in A1 notation or semantic (e.g., "Sheet1!A1:B10"). Use dataFilter for dynamic location that survives insertions/deletions.'
+  ),
+  dataFilter: DataFilterSchema.optional().describe(
+    'Dynamic range filter for write target (survives insertions/deletions). Use developerMetadataLookup to write to tagged ranges without knowing exact location.'
+  ),
   values: ValuesArraySchema.describe('2D array of cell values (rows × columns)'),
   valueInputOption: ValueInputOptionSchema.optional()
     .default('USER_ENTERED')
@@ -111,6 +137,22 @@ const WriteActionSchema = CommonFieldsSchema.extend({
     .default(false)
     .describe('Return the written values for verification'),
   diffOptions: DiffOptionsSchema.optional().describe('Diff generation options'),
+}).superRefine((val, ctx) => {
+  // Exactly ONE of range or dataFilter must be provided
+  if (!val.range && !val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter for write',
+      path: ['range'],
+    });
+  }
+  if (val.range && val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter (not both) for write',
+      path: ['dataFilter'],
+    });
+  }
 });
 
 const AppendActionSchema = CommonFieldsSchema.extend({
@@ -136,12 +178,33 @@ const AppendActionSchema = CommonFieldsSchema.extend({
 
 const ClearActionSchema = CommonFieldsSchema.extend({
   action: z.literal('clear').describe('Clear cell values from a range (keeps formatting)'),
-  range: RangeInputSchema.describe('Range to clear'),
+  range: RangeInputSchema.optional().describe(
+    'Range to clear in A1 notation or semantic (e.g., "Sheet1!A1:B10"). Use dataFilter for dynamic targeting that survives insertions/deletions.'
+  ),
+  dataFilter: DataFilterSchema.optional().describe(
+    'Dynamic range filter for clear target (survives insertions/deletions). Use developerMetadataLookup to clear tagged ranges without knowing exact location.'
+  ),
   previewMode: z
     .boolean()
     .optional()
     .default(false)
     .describe('Show what would change without applying'),
+}).superRefine((val, ctx) => {
+  // Exactly ONE of range or dataFilter must be provided
+  if (!val.range && !val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter for clear',
+      path: ['range'],
+    });
+  }
+  if (val.range && val.dataFilter) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Provide either range or dataFilter (not both) for clear',
+      path: ['dataFilter'],
+    });
+  }
 });
 
 const BatchWriteEntrySchema = z
@@ -648,13 +711,15 @@ export type DataResponse = z.infer<typeof DataResponseSchema>;
 export type DataReadInput = SheetsDataInput['request'] & {
   action: 'read';
   spreadsheetId: string;
-  range: RangeInput;
+  range?: RangeInput;
+  dataFilter?: DataFilter;
 };
 
 export type DataWriteInput = SheetsDataInput['request'] & {
   action: 'write';
   spreadsheetId: string;
-  range: RangeInput;
+  range?: RangeInput;
+  dataFilter?: DataFilter;
   values: unknown[][];
 };
 
@@ -669,7 +734,8 @@ export type DataAppendInput = SheetsDataInput['request'] & {
 export type DataClearInput = SheetsDataInput['request'] & {
   action: 'clear';
   spreadsheetId: string;
-  range: RangeInput;
+  range?: RangeInput;
+  dataFilter?: DataFilter;
 };
 
 export type DataBatchReadInput = SheetsDataInput['request'] & {

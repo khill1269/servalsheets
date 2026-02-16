@@ -85,6 +85,10 @@ import {
   SheetsDependenciesInputSchema,
   SheetsDependenciesOutputSchema,
   SHEETS_DEPENDENCIES_ANNOTATIONS,
+  // Feature 3: Federation
+  SheetsFederationInputSchema,
+  SheetsFederationOutputSchema,
+  SHEETS_FEDERATION_ANNOTATIONS,
   // LLM-optimized descriptions
   TOOL_DESCRIPTIONS,
   TOOL_DESCRIPTIONS_MINIMAL,
@@ -309,6 +313,16 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
     inputSchema: SheetsDependenciesInputSchema,
     outputSchema: SheetsDependenciesOutputSchema,
     annotations: SHEETS_DEPENDENCIES_ANNOTATIONS,
+  },
+  // ============================================================================
+  // FEATURE 3: MCP SERVER FEDERATION
+  // ============================================================================
+  {
+    name: 'sheets_federation',
+    description: getDescription('sheets_federation'),
+    inputSchema: SheetsFederationInputSchema,
+    outputSchema: SheetsFederationOutputSchema,
+    annotations: SHEETS_FEDERATION_ANNOTATIONS,
   },
 ] as const;
 
