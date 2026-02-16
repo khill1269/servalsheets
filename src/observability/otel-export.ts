@@ -19,6 +19,7 @@
 
 import { logger } from '../utils/logger.js';
 import { VERSION } from '../version.js';
+import { getOtlpExportConfig } from '../config/env.js';
 
 /**
  * OpenTelemetry span status codes
@@ -116,14 +117,14 @@ export interface ServalSpan {
   parentId?: string;
   name: string;
   kind: 'server' | 'client' | 'internal';
-  startTime: number; // ms since epoch
-  endTime: number; // ms since epoch
+  startTime: number; // microseconds since epoch (Date.now() * 1000)
+  endTime: number; // microseconds since epoch
   attributes: Record<string, OtelAttributeValue>;
   status: 'ok' | 'error' | 'unset';
   statusMessage?: string;
   events?: Array<{
     name: string;
-    time: number;
+    time: number; // microseconds
     attributes?: Record<string, OtelAttributeValue>;
   }>;
 }
@@ -146,13 +147,14 @@ export class OtlpExporter {
   };
 
   constructor(config?: Partial<OtlpExporterConfig>) {
+    const envConfig = getOtlpExportConfig();
     this.config = {
-      endpoint: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://localhost:4318',
-      serviceName: process.env['OTEL_SERVICE_NAME'] ?? 'servalsheets',
-      serviceVersion: process.env['OTEL_SERVICE_VERSION'] ?? VERSION,
-      enabled: process.env['OTEL_EXPORT_ENABLED'] === 'true',
-      batchSize: parseInt(process.env['OTEL_EXPORT_BATCH_SIZE'] ?? '100', 10),
-      exportIntervalMs: parseInt(process.env['OTEL_EXPORT_INTERVAL_MS'] ?? '5000', 10),
+      endpoint: envConfig.endpoint,
+      serviceName: envConfig.serviceName,
+      serviceVersion: VERSION,
+      enabled: envConfig.enabled,
+      batchSize: envConfig.batchSize,
+      exportIntervalMs: envConfig.exportIntervalMs,
       ...config,
     };
 
@@ -371,10 +373,12 @@ export class OtlpExporter {
   }
 
   /**
-   * Convert milliseconds to nanoseconds string
+   * Convert microseconds to nanoseconds string
+   * Input: microseconds (Date.now() * 1000)
+   * Output: nanoseconds as string for OTLP
    */
-  private msToNano(ms: number): string {
-    return (BigInt(ms) * BigInt(1000000)).toString();
+  private msToNano(microseconds: number): string {
+    return (BigInt(microseconds) * BigInt(1000)).toString();
   }
 
   /**

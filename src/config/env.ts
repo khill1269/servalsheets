@@ -90,6 +90,17 @@ const EnvSchema = z.object({
   // Tracing & Observability (OTEL enabled by default for production observability)
   TRACING_ENABLED: z.coerce.boolean().default(true),
   TRACING_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+  OTEL_ENABLED: z.coerce.boolean().default(true), // Internal tracing infrastructure
+  OTEL_LOG_SPANS: z.coerce.boolean().default(false), // Debug logging of spans
+
+  // OTLP Export Configuration (production observability)
+  OTEL_EXPORT_ENABLED: z.coerce.boolean().default(false), // Opt-in OTLP export
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default('http://localhost:4318'), // OTLP collector endpoint
+  OTEL_EXPORTER_OTLP_HEADERS: z.string().optional(), // Additional headers (comma-separated key=value pairs)
+  OTEL_SERVICE_NAME: z.string().default('servalsheets'),
+  OTEL_EXPORT_BATCH_SIZE: z.coerce.number().int().positive().default(100),
+  OTEL_EXPORT_INTERVAL_MS: z.coerce.number().int().positive().default(5000), // 5 seconds
+  OTEL_EXPORT_MAX_QUEUE_SIZE: z.coerce.number().int().positive().default(1000),
 
   // Circuit Breaker
   CIRCUIT_BREAKER_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(5),
@@ -458,5 +469,47 @@ export function getFederationConfig(): {
     timeoutMs: current.MCP_FEDERATION_TIMEOUT_MS,
     maxConnections: current.MCP_FEDERATION_MAX_CONNECTIONS,
     serversJson: current.MCP_FEDERATION_SERVERS,
+  };
+}
+
+/**
+ * Get OpenTelemetry OTLP export configuration
+ *
+ * When enabled:
+ * - Exports spans to OTLP collector (Jaeger, Zipkin, Honeycomb, etc.)
+ * - Provides production observability and distributed tracing
+ * - Batches spans for efficient export
+ *
+ * Example setup:
+ * ```bash
+ * # Local Jaeger (all-in-one)
+ * docker run -d -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one:latest
+ * export OTEL_EXPORT_ENABLED=true
+ * export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+ *
+ * # Honeycomb
+ * export OTEL_EXPORT_ENABLED=true
+ * export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
+ * export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
+ * ```
+ */
+export function getOtlpExportConfig(): {
+  enabled: boolean;
+  endpoint: string;
+  serviceName: string;
+  headers?: string;
+  batchSize: number;
+  exportIntervalMs: number;
+  maxQueueSize: number;
+} {
+  const current = ensureEnv();
+  return {
+    enabled: current.OTEL_EXPORT_ENABLED,
+    endpoint: current.OTEL_EXPORTER_OTLP_ENDPOINT,
+    serviceName: current.OTEL_SERVICE_NAME,
+    headers: current.OTEL_EXPORTER_OTLP_HEADERS,
+    batchSize: current.OTEL_EXPORT_BATCH_SIZE,
+    exportIntervalMs: current.OTEL_EXPORT_INTERVAL_MS,
+    maxQueueSize: current.OTEL_EXPORT_MAX_QUEUE_SIZE,
   };
 }
