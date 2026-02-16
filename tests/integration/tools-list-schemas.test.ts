@@ -39,13 +39,13 @@ describe('tools/list Schema Serialization', () => {
     await server.shutdown();
   });
 
-  it('should return non-empty schemas for all 21 tools', async () => {
+  it('should return non-empty schemas for all 22 tools', async () => {
     // Call tools/list via MCP protocol
     const response = await requestToolsList(server);
 
     expect(response).toBeDefined();
     expect(response.tools).toBeInstanceOf(Array);
-    expect(response.tools).toHaveLength(21);
+    expect(response.tools).toHaveLength(22);
 
     // Check each tool has non-empty schema
     for (const tool of response.tools) {

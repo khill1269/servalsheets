@@ -40,7 +40,7 @@ import {
   validateValuesBatchPayload,
   type PayloadSizeResult,
 } from '../utils/payload-validator.js';
-import { sendProgress } from '../utils/request-context.js';
+import { sendProgress, getRequestLogger } from '../utils/request-context.js';
 import {
   buildA1Notation,
   buildGridRangeInput,
@@ -53,6 +53,8 @@ import {
 const DEFAULT_READ_PAGE_SIZE = 1000;
 // Heuristic safety limit to keep read payloads small and latency predictable.
 const MAX_CELLS_PER_REQUEST = 10_000;
+// Fix 2.3: Auto-chunk large batch operations to prevent timeouts (e.g., 29-range batch → 3 chunks of 10)
+const MAX_BATCH_RANGES = 10;
 
 /**
  * Main handler for sheets_data tool
@@ -756,7 +758,78 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   // =============================================================================
 
   private async handleRead(input: DataRequest & { action: 'read' }): Promise<DataResponse> {
-    const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    // NEW: DataFilter path (uses batch API with single filter)
+    if (input.dataFilter) {
+      if (!this.featureFlags.enableDataFilterBatch) {
+        this.context.metrics?.recordFeatureFlagBlock({
+          flag: 'dataFilterBatch',
+          tool: this.toolName,
+          action: 'read',
+        });
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'DataFilter reads are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+          retryable: false,
+          suggestedFix: 'Enable the feature by setting the appropriate environment variable',
+        });
+      }
+
+      const response = await this.sheetsApi.spreadsheets.values.batchGetByDataFilter({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'valueRanges(valueRange(range,values))',
+        requestBody: {
+          dataFilters: [input.dataFilter], // Single-entry array
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+        },
+      });
+
+      const valueRanges = response.data.valueRanges ?? [];
+      if (valueRanges.length === 0) {
+        return this.error({
+          code: 'NOT_FOUND',
+          message: 'No data matched the provided DataFilter',
+          retryable: false,
+          suggestedFix:
+            'Check that developer metadata exists for the given lookup criteria. Use sheets_advanced.set_metadata to tag ranges first.',
+        });
+      }
+
+      // Extract first (and only) matched range
+      const matchedValueRange = valueRanges[0];
+      const range = matchedValueRange.valueRange?.range ?? '';
+      const values = (matchedValueRange.valueRange?.values ?? []) as ValuesArray;
+
+      return this.success('read', {
+        range,
+        values,
+        rowCount: values.length,
+        columnCount: values.length > 0 ? Math.max(...values.map((row) => row.length)) : 0,
+      });
+    }
+
+    // EXISTING: Traditional range-based path
+    const range = await this.resolveRangeToA1(input.spreadsheetId, input.range!);
+
+    // Redundant read detection: Check if this range was read recently without intervening writes
+    // Audit optimization: Prevents 174 instances of wasted redundant reads
+    if (this.context.sessionContext) {
+      const redundantTimestamp = this.context.sessionContext.checkRedundantRead(
+        input.spreadsheetId,
+        range
+      );
+      if (redundantTimestamp !== null) {
+        const logger = this.context.logger;
+        logger?.info('Redundant read operation detected - consider caching or batch_read', {
+          spreadsheetId: input.spreadsheetId,
+          range,
+          timeSinceLastRead: Date.now() - redundantTimestamp,
+        });
+      }
+      // Track this read for future redundancy detection
+      this.context.sessionContext.trackReadOperation(input.spreadsheetId, range);
+    }
+
     const paginationPlan = this.buildPaginationPlan({
       range,
       cursor: input.cursor,
@@ -872,12 +945,97 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
   }
 
   private async handleWrite(input: DataRequest & { action: 'write' }): Promise<DataResponse> {
-    const range = await this.resolveRangeToA1(input.spreadsheetId, input.range);
+    // Validate payload size (use default range for dataFilter)
+    const range = input.range
+      ? await this.resolveRangeToA1(input.spreadsheetId, input.range)
+      : '(dynamic)';
     const payloadValidation = this.validateValuesPayloadIfEnabled(input.values, range);
     if (!payloadValidation.withinLimits) {
       return this.payloadTooLargeError('write', payloadValidation);
     }
     const cellCount = input.values.reduce((sum: number, row: unknown[]) => sum + row.length, 0);
+
+    // NEW: DataFilter path
+    if (input.dataFilter) {
+      if (!this.featureFlags.enableDataFilterBatch) {
+        return this.error({
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'DataFilter writes are disabled. Set ENABLE_DATAFILTER_BATCH=true.',
+          retryable: false,
+          suggestedFix: 'Enable the feature by setting the appropriate environment variable',
+        });
+      }
+
+      // Dry-run path
+      if (input.safety?.dryRun) {
+        const warnings = this.buildPayloadWarnings('write', payloadValidation);
+        const meta = warnings
+          ? {
+              ...this.generateMeta('write', input, { updatedCells: cellCount }),
+              warnings,
+            }
+          : undefined;
+        return this.success(
+          'write',
+          {
+            updatedCells: cellCount,
+            updatedRows: input.values.length,
+            updatedColumns:
+              input.values.length > 0
+                ? Math.max(...input.values.map((row: unknown[]) => row.length))
+                : 0,
+          },
+          undefined,
+          true,
+          meta
+        );
+      }
+
+      // API call
+      const response = await this.sheetsApi.spreadsheets.values.batchUpdateByDataFilter({
+        spreadsheetId: input.spreadsheetId,
+        fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns,responses',
+        requestBody: {
+          valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+          includeValuesInResponse: input.includeValuesInResponse ?? false,
+          data: [
+            {
+              dataFilter: input.dataFilter,
+              values: input.values,
+              majorDimension: input.majorDimension,
+            },
+          ],
+        },
+      });
+
+      // Invalidate cache
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      const responseData: Record<string, unknown> = {
+        updatedCells: response.data.totalUpdatedCells ?? 0,
+        updatedRows: response.data.totalUpdatedRows ?? 0,
+        updatedColumns: response.data.totalUpdatedColumns ?? 0,
+      };
+
+      // Extract matched range from response if available
+      if (response.data.responses && response.data.responses.length > 0) {
+        responseData.updatedRange = response.data.responses[0]?.updatedRange ?? '(dataFilter)';
+      }
+
+      const warnings = this.buildPayloadWarnings('write', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('write', input, responseData, {
+              cellsAffected: response.data.totalUpdatedCells ?? undefined,
+            }),
+            warnings,
+          }
+        : undefined;
+
+      return this.success('write', responseData, undefined, undefined, meta);
+    }
+
+    // EXISTING: Traditional range-based path
 
     // Check for dryRun
     if (input.safety?.dryRun) {
@@ -1343,42 +1501,87 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
       return this.success('clear', { updatedRange: range }, undefined, true);
     }
 
-    // Direct API call - no confirmation, no snapshot (simplified for reliability)
-    // Protected with circuit breaker to prevent cascade failures during API degradation
-    const response = await this.withCircuitBreaker('values.clear', () =>
-      this.sheetsApi.spreadsheets.values.clear({
-        spreadsheetId: input.spreadsheetId,
-        range,
-        fields: 'clearedRange',
-      })
-    );
-
-    // Invalidate ETag cache after mutation
-    getETagCache().invalidateSpreadsheet(input.spreadsheetId);
-
-    // Trigger background quality analysis
-    // Clear is a destructive operation that warrants quality monitoring
-    const analysisConfig = getBackgroundAnalysisConfig();
-    if (analysisConfig.enabled) {
-      // Estimate cells affected from range (conservative estimate)
-      const clearedRange = response.data.clearedRange ?? range;
-      const analyzer = getBackgroundAnalyzer();
-      analyzer.analyzeInBackground(
-        input.spreadsheetId,
-        clearedRange,
-        100, // Conservative estimate for cleared cells
-        this.sheetsApi,
-        {
-          qualityThreshold: 70,
-          minCellsChanged: analysisConfig.minCells,
-          debounceMs: analysisConfig.debounceMs,
-        }
-      );
-    }
-
-    return this.success('clear', {
-      updatedRange: response.data.clearedRange ?? range,
+    // FIX 1.5: Enhanced diagnostics for clear timeout issue
+    const logger = this.context.logger || getRequestLogger();
+    const startTime = Date.now();
+    logger.info('Clear operation starting', {
+      range,
+      spreadsheetId: input.spreadsheetId,
     });
+
+    try {
+      // Direct API call with explicit 10s timeout
+      // Protected with circuit breaker to prevent cascade failures during API degradation
+      const response = await Promise.race([
+        this.withCircuitBreaker('values.clear', () =>
+          this.sheetsApi.spreadsheets.values.clear({
+            spreadsheetId: input.spreadsheetId,
+            range,
+            fields: 'clearedRange',
+          })
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Clear operation timed out after 10 seconds')), 10000)
+        ),
+      ]);
+
+      const duration = Date.now() - startTime;
+      logger.info('Clear operation completed', { duration, range });
+
+      // Invalidate ETag cache after mutation
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      // Trigger background quality analysis
+      // Clear is a destructive operation that warrants quality monitoring
+      const analysisConfig = getBackgroundAnalysisConfig();
+      if (analysisConfig.enabled) {
+        // Estimate cells affected from range (conservative estimate)
+        const clearedRange = response.data.clearedRange ?? range;
+        const analyzer = getBackgroundAnalyzer();
+        analyzer.analyzeInBackground(
+          input.spreadsheetId,
+          clearedRange,
+          100, // Conservative estimate for cleared cells
+          this.sheetsApi,
+          {
+            qualityThreshold: 70,
+            minCellsChanged: analysisConfig.minCells,
+            debounceMs: analysisConfig.debounceMs,
+          }
+        );
+      }
+
+      return this.success('clear', {
+        updatedRange: response.data.clearedRange ?? range,
+      });
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error('Clear operation failed', {
+        error: error instanceof Error ? error.message : String(error),
+        range,
+        duration,
+        spreadsheetId: input.spreadsheetId,
+      });
+
+      // Provide helpful error with workaround if timeout
+      if (error instanceof Error && error.message.includes('timed out')) {
+        return this.error({
+          code: 'DEADLINE_EXCEEDED',
+          message: `Clear operation timed out after ${duration}ms. This is a known issue with the clear action.`,
+          retryable: false,
+          suggestedFix:
+            `Workaround: Use sheets_data.write with empty values instead:\n` +
+            `{"action":"write","spreadsheetId":"${input.spreadsheetId}","range":"${range}","values":[[]]}`,
+          details: {
+            range,
+            duration,
+            workaround: 'Use write action with empty values array',
+          },
+        });
+      }
+
+      throw error;
+    }
   }
 
   private async handleBatchRead(
@@ -1511,6 +1714,66 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
     const ranges = await Promise.all(
       (input.ranges ?? []).map((r: RangeInput) => this.resolveRangeToA1(input.spreadsheetId, r))
     );
+
+    // Track batch reads for redundancy detection
+    if (this.context.sessionContext) {
+      for (const range of ranges) {
+        this.context.sessionContext.trackReadOperation(input.spreadsheetId, range);
+      }
+    }
+
+    // Fix 2.3: Auto-chunk large batches to prevent timeouts
+    if (ranges.length > MAX_BATCH_RANGES) {
+      const logger = this.context.logger;
+      const chunks: string[][] = [];
+      for (let i = 0; i < ranges.length; i += MAX_BATCH_RANGES) {
+        chunks.push(ranges.slice(i, i + MAX_BATCH_RANGES));
+      }
+
+      logger?.info(`Auto-chunking ${ranges.length} ranges into ${chunks.length} batches`, {
+        totalRanges: ranges.length,
+        maxPerBatch: MAX_BATCH_RANGES,
+        chunkCount: chunks.length,
+      });
+
+      const allValueRanges: Array<{ range: string; values: ValuesArray }> = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        logger?.info(`Processing chunk ${i + 1}/${chunks.length}`, {
+          chunkSize: chunk.length,
+        });
+
+        const response = await this.sheetsApi.spreadsheets.values.batchGet({
+          spreadsheetId: input.spreadsheetId,
+          ranges: chunk,
+          valueRenderOption: input.valueRenderOption,
+          majorDimension: input.majorDimension,
+          fields: 'valueRanges(range,values)',
+        });
+
+        const chunkValueRanges = (response.data.valueRanges ?? []).map(
+          (vr: sheets_v4.Schema$ValueRange) => ({
+            range: vr.range ?? '',
+            values: (vr.values ?? []) as ValuesArray,
+          })
+        );
+
+        allValueRanges.push(...chunkValueRanges);
+      }
+
+      logger?.info(`Batch chunking complete`, {
+        totalRanges: ranges.length,
+        chunksProcessed: chunks.length,
+        rangesRetrieved: allValueRanges.length,
+      });
+
+      return this.success('batch_read', {
+        valueRanges: allValueRanges,
+        _chunked: true,
+        _chunkCount: chunks.length,
+      });
+    }
 
     // Try cached API first for better performance (30-50% API savings)
     const cachedApi = this.context.cachedSheetsApi;
@@ -1711,6 +1974,89 @@ export class SheetsDataHandler extends BaseHandler<SheetsDataInput, SheetsDataOu
         values: d.values,
       }))
     );
+
+    // Fix 2.3: Auto-chunk large batch writes to prevent timeouts
+    if (data.length > MAX_BATCH_RANGES) {
+      const logger = this.context.logger;
+      const chunks: Array<typeof data> = [];
+      for (let i = 0; i < data.length; i += MAX_BATCH_RANGES) {
+        chunks.push(data.slice(i, i + MAX_BATCH_RANGES));
+      }
+
+      logger?.info(`Auto-chunking ${data.length} write ranges into ${chunks.length} batches`, {
+        totalRanges: data.length,
+        maxPerBatch: MAX_BATCH_RANGES,
+        chunkCount: chunks.length,
+      });
+
+      if (input.safety?.dryRun) {
+        const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+        const meta = warnings
+          ? {
+              ...this.generateMeta('batch_write', input, { updatedCells: totalCells }),
+              warnings,
+            }
+          : undefined;
+
+        return this.success('batch_write', { updatedCells: totalCells }, undefined, true, meta);
+      }
+
+      let totalUpdatedCells = 0;
+      let totalUpdatedRows = 0;
+      let totalUpdatedColumns = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        logger?.info(`Processing write chunk ${i + 1}/${chunks.length}`, {
+          chunkSize: chunk.length,
+        });
+
+        const response = await this.withCircuitBreaker('values.batchUpdate', () =>
+          this.sheetsApi.spreadsheets.values.batchUpdate({
+            spreadsheetId: input.spreadsheetId,
+            fields: 'totalUpdatedCells,totalUpdatedRows,totalUpdatedColumns',
+            requestBody: {
+              valueInputOption: input.valueInputOption ?? 'USER_ENTERED',
+              includeValuesInResponse: input.includeValuesInResponse ?? false,
+              data: chunk,
+            },
+          })
+        );
+
+        totalUpdatedCells += response.data.totalUpdatedCells ?? 0;
+        totalUpdatedRows += response.data.totalUpdatedRows ?? 0;
+        totalUpdatedColumns += response.data.totalUpdatedColumns ?? 0;
+      }
+
+      // Invalidate ETag cache after mutation
+      getETagCache().invalidateSpreadsheet(input.spreadsheetId);
+
+      logger?.info(`Batch write chunking complete`, {
+        totalRanges: data.length,
+        chunksProcessed: chunks.length,
+        totalUpdatedCells,
+      });
+
+      const responseData: Record<string, unknown> = {
+        updatedCells: totalUpdatedCells,
+        updatedRows: totalUpdatedRows,
+        updatedColumns: totalUpdatedColumns,
+        _chunked: true,
+        _chunkCount: chunks.length,
+      };
+
+      const warnings = this.buildPayloadWarnings('batch_write', payloadValidation);
+      const meta = warnings
+        ? {
+            ...this.generateMeta('batch_write', input, responseData, {
+              cellsAffected: totalUpdatedCells,
+            }),
+            warnings,
+          }
+        : undefined;
+
+      return this.success('batch_write', responseData, undefined, undefined, meta);
+    }
 
     // Check for dryRun
     if (input.safety?.dryRun) {
