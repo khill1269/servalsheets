@@ -55,7 +55,6 @@ import {
   type SnapshotResult,
 } from '../utils/safety-helpers.js';
 import { createEnhancedError, enhanceError } from '../utils/enhanced-errors.js';
-import { memoize } from '../utils/memoization.js';
 import { withApiSpan } from '../utils/tracing.js';
 import { recordGoogleApiCall } from '../observability/metrics.js';
 import {
@@ -64,10 +63,20 @@ import {
   OPERATION_SCOPES,
   ScopeCategory,
 } from '../security/incremental-scope.js';
+import {
+  getFieldMask as getFieldMaskHelper,
+  applyVerbosityFilter as applyVerbosityFilterHelper,
+} from './helpers/validation-helpers.js';
+import {
+  columnToLetter as columnToLetterHelper,
+  letterToColumn as letterToColumnHelper,
+} from './helpers/column-helpers.js';
+import { unwrapRequest } from './helpers/request-helpers.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
   rangeResolver: RangeResolver;
+  sheetResolver?: import('../services/sheet-resolver.js').SheetResolver; // For sheet name/ID resolution
   googleClient?: import('../services/google-api.js').GoogleApiClient | null; // For authentication checks
   batchingSystem?: import('../services/batching-system.js').BatchingSystem;
   snapshotService?: import('../services/snapshot.js').SnapshotService; // For undo/revert operations
@@ -77,6 +86,7 @@ export interface HandlerContext {
   prefetchPredictor?: import('../services/prefetch-predictor.js').PrefetchPredictor; // Phase 3: Predictive prefetching
   accessPatternTracker?: import('../services/access-pattern-tracker.js').AccessPatternTracker; // Phase 3: Access pattern learning
   queryOptimizer?: import('../services/query-optimizer.js').AdaptiveQueryOptimizer; // Phase 3B: Adaptive query optimization
+  prefetchingSystem?: import('../services/prefetching-system.js').PrefetchingSystem | null; // Pattern-based prefetching (80% latency reduction)
   auth?: {
     hasElevatedAccess: boolean;
     scopes: string[];
@@ -99,21 +109,8 @@ export interface HandlerContext {
   requestId?: string;
 }
 
-/**
- * Unwrap legacy direct inputs to the request envelope.
- */
-export function unwrapRequest<TRequest extends Record<string, unknown>>(
-  input: { request?: TRequest } | TRequest
-): TRequest {
-  if (input && typeof input === 'object' && 'request' in input) {
-    const container = input as { request?: TRequest };
-    if (container.request && typeof container.request === 'object') {
-      return container.request;
-    }
-  }
-
-  return input as TRequest;
-}
+// Re-export unwrapRequest from helpers for backward compatibility
+export { unwrapRequest } from './helpers/request-helpers.js';
 
 /**
  * Success result type - flat structure matching outputSchema
@@ -140,48 +137,29 @@ export interface HandlerError {
  */
 export type HandlerOutput<T extends Record<string, unknown>> = HandlerResult<T> | HandlerError;
 
-/**
- * Memoized column conversion functions for performance
- * Shared across all handler instances
- */
-const memoizedColumnToLetter = memoize(
-  (index: number): string => {
-    let letter = '';
-    let temp = index + 1;
-    while (temp > 0) {
-      const mod = (temp - 1) % 26;
-      letter = String.fromCharCode(65 + mod) + letter;
-      temp = Math.floor((temp - 1) / 26);
-    }
-    return letter;
-  },
-  { maxSize: 500, ttl: 300000 }
-); // Cache 500 entries for 5 minutes
-
-const memoizedLetterToColumn = memoize(
-  (letter: string): number => {
-    let index = 0;
-    for (let i = 0; i < letter.length; i++) {
-      index = index * 26 + (letter.charCodeAt(i) - 64);
-    }
-    return index - 1;
-  },
-  { maxSize: 500, ttl: 300000 }
-);
 
 /**
  * Base handler with common utilities
+ * Now using mixin pattern for better modularity
  */
 export abstract class BaseHandler<TInput, TOutput> {
   protected context: HandlerContext;
   protected toolName: string;
   protected currentSpreadsheetId?: string; // Track current request for better error messages
-  protected currentVerbosity: 'minimal' | 'standard' | 'detailed' = 'standard'; // LLM optimization: skip metadata for minimal
+  protected currentVerbosity: 'minimal' | 'standard' | 'detailed' = 'standard';
   private lastProgressTime = 0; // Throttle progress events to max 1/sec
 
   constructor(toolName: string, context: HandlerContext) {
     this.toolName = toolName;
     this.context = context;
+  }
+
+  /**
+   * Get appropriate field mask for Google API calls (Priority 8)
+   * Delegates to pure helper function for better testability.
+   */
+  protected getFieldMask(operation: 'metadata' | 'sheets_list' | 'full'): string | undefined {
+    return getFieldMaskHelper(operation);
   }
 
   /**
@@ -302,10 +280,6 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
   }
 
-  /**
-   * Handle the input and return output
-   */
-  abstract handle(input: TInput): Promise<TOutput>;
 
   /**
    * Execute an API call with circuit breaker protection
@@ -391,10 +365,6 @@ export abstract class BaseHandler<TInput, TOutput> {
     );
   }
 
-  /**
-   * Create intents from input
-   */
-  protected abstract createIntents(input: TInput): Intent[];
 
   /**
    * Execute intents through the batch compiler
@@ -466,20 +436,6 @@ export abstract class BaseHandler<TInput, TOutput> {
       }
     }
     // Note: No _meta field added when verbosity is minimal - this is intentional
-
-    // DEBUG: Log response structure for sheets_collaborate to diagnose validation issue
-    if (this.toolName === 'sheets_collaborate') {
-      const logger = getRequestLogger();
-      logger.info('[DEBUG] sheets_collaborate response', {
-        toolName: this.toolName,
-        action,
-        successField: result.success,
-        successType: typeof result.success,
-        successValue: JSON.stringify(result.success),
-        keys: Object.keys(result),
-        fullResponse: JSON.stringify(result),
-      });
-    }
 
     // Apply response compaction to reduce token usage for LLM consumption
     // Respects verbosity level and COMPACT_RESPONSES environment variable
@@ -940,18 +896,18 @@ export abstract class BaseHandler<TInput, TOutput> {
 
   /**
    * Convert column index (0-based) to letter (A, B, ..., Z, AA, AB, ...)
-   * Uses memoization for performance on frequently-accessed columns
+   * Delegates to helper with memoization for performance.
    */
   protected columnToLetter(index: number): string {
-    return memoizedColumnToLetter(index);
+    return columnToLetterHelper(index);
   }
 
   /**
    * Convert column letter to 0-based index
-   * Uses memoization for performance on frequently-accessed columns
+   * Delegates to helper with memoization for performance.
    */
   protected letterToColumn(letter: string): number {
-    return memoizedLetterToColumn(letter);
+    return letterToColumnHelper(letter);
   }
 
   /**
@@ -993,6 +949,66 @@ export abstract class BaseHandler<TInput, TOutput> {
   }): void {
     const contextManager = getContextManager();
     contextManager.updateContext(params);
+  }
+
+  /**
+   * Record access pattern and trigger predictive prefetch
+   *
+   * Integrates with the prefetching system to enable 80% latency reduction
+   * on sequential operations. Non-blocking - errors don't affect main operation.
+   *
+   * When to call:
+   * - After successful read operations (sheet data, metadata)
+   * - After spreadsheet open/list operations
+   * - Not needed for write operations (they invalidate cache)
+   *
+   * @param params - Operation parameters for pattern tracking
+   */
+  protected recordAccessAndPrefetch(params: {
+    spreadsheetId: string;
+    sheetId?: number;
+    range?: string;
+    action?: 'read' | 'write' | 'open';
+  }): void {
+    const prefetchingSystem = this.context.prefetchingSystem;
+    if (!prefetchingSystem) {
+      return; // Feature not enabled or not initialized
+    }
+
+    try {
+      // Record access pattern for learning
+      const tracker = this.context.accessPatternTracker;
+      if (tracker) {
+        tracker.recordAccess({
+          spreadsheetId: params.spreadsheetId,
+          sheetId: params.sheetId,
+          range: params.range,
+          action: params.action ?? 'read',
+        });
+      }
+
+      // Trigger prefetch for likely next operations (non-blocking)
+      void prefetchingSystem
+        .prefetch({
+          spreadsheetId: params.spreadsheetId,
+          sheetId: params.sheetId,
+          range: params.range,
+        })
+        .catch((err) => {
+          // Log but don't propagate prefetch errors
+          const logger = this.context.logger || getRequestLogger();
+          logger?.warn?.('Prefetch failed', {
+            error: err instanceof Error ? err.message : String(err),
+            spreadsheetId: params.spreadsheetId,
+          });
+        });
+    } catch (err) {
+      // Non-blocking - log but don't affect main operation
+      const logger = this.context.logger || getRequestLogger();
+      logger?.warn?.('Access pattern recording failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   /**
@@ -1291,70 +1307,6 @@ export abstract class BaseHandler<TInput, TOutput> {
     }
   }
 
-  /**
-   * Apply verbosity filtering to optimize token usage (Phase 1 LLM optimization)
-   *
-   * Generic implementation that can be overridden by handlers for custom filtering.
-   * Handles the most common verbosity filtering patterns:
-   * - minimal: Remove _meta, limit arrays to first 5 items, strip technical details
-   * - standard: No filtering (return as-is)
-   * - detailed: Future enhancement for additional metadata
-   *
-   * @param response - Response object to filter
-   * @param verbosity - Verbosity level
-   * @returns Filtered response
-   */
-  protected applyVerbosityFilter<T extends { success: boolean; _meta?: unknown }>(
-    response: T,
-    verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'
-  ): T {
-    // No filtering for errors or standard verbosity
-    if (!response.success || verbosity === 'standard') {
-      return response;
-    }
-
-    if (verbosity === 'minimal') {
-      // Minimal: Return only essential fields (60-80% token reduction)
-      // OPTIMIZATION: Modify in place instead of spreading entire object (saves 300-600 tokens)
-      const filtered = response as Record<string, unknown>;
-
-      // Remove technical metadata
-      if ('_meta' in filtered) {
-        delete filtered['_meta'];
-      }
-
-      // Remove optional verbose fields that aren't essential for LLM decision-making
-      const verboseFields = [
-        'suggestions',
-        'nextSteps',
-        'documentation',
-        'warnings',
-        'relatedTools',
-      ];
-      for (const field of verboseFields) {
-        if (field in filtered) {
-          delete filtered[field];
-        }
-      }
-
-      // Limit large arrays more aggressively (3 items for minimal, with truncation indicator)
-      // Preserve: 'values' (essential data), 'headers' (column names), 'sheets' (tab list)
-      const preservedArrays = ['values', 'headers', 'sheets', 'rows', 'columns'];
-      for (const [key, value] of Object.entries(filtered)) {
-        if (Array.isArray(value) && value.length > 3 && !preservedArrays.includes(key)) {
-          const truncatedCount = value.length - 3;
-          filtered[key] = value.slice(0, 3);
-          // Add truncation indicator
-          filtered[`${key}Truncated`] = truncatedCount;
-        }
-      }
-
-      return filtered as T;
-    }
-
-    // Detailed: Future enhancement for additional metadata
-    return response;
-  }
 
   /**
    * Get sheet ID by name with caching
@@ -1521,4 +1473,25 @@ export abstract class BaseHandler<TInput, TOutput> {
       range.endColumnIndex ?? undefined
     );
   }
+
+  /**
+   * Apply verbosity filtering to optimize token usage (Phase 1 LLM optimization)
+   * Delegates to pure helper function for better testability.
+   */
+  protected applyVerbosityFilter<T extends { success: boolean; _meta?: unknown }>(
+    response: T,
+    verbosity: 'minimal' | 'standard' | 'detailed' = 'standard'
+  ): T {
+    return applyVerbosityFilterHelper(response, verbosity);
+  }
+
+  /**
+   * Handle the input and return output (abstract method to be implemented by subclasses)
+   */
+  abstract handle(input: TInput): Promise<TOutput>;
+
+  /**
+   * Create intents from input (abstract method to be implemented by subclasses)
+   */
+  protected abstract createIntents(input: TInput): Intent[];
 }
