@@ -58,6 +58,12 @@ import { createEnhancedError, enhanceError } from '../utils/enhanced-errors.js';
 import { memoize } from '../utils/memoization.js';
 import { withApiSpan } from '../utils/tracing.js';
 import { recordGoogleApiCall } from '../observability/metrics.js';
+import {
+  ScopeValidator,
+  IncrementalScopeRequiredError,
+  OPERATION_SCOPES,
+  ScopeCategory,
+} from '../security/incremental-scope.js';
 
 export interface HandlerContext {
   batchCompiler: BatchCompiler;
@@ -176,6 +182,48 @@ export abstract class BaseHandler<TInput, TOutput> {
   constructor(toolName: string, context: HandlerContext) {
     this.toolName = toolName;
     this.context = context;
+  }
+
+  /**
+   * Check that current OAuth scopes include required permissions for an operation.
+   *
+   * This provides graceful degradation when using standard scopes (260/298 actions):
+   * - Operations with required scopes work normally
+   * - Operations missing scopes throw IncrementalScopeRequiredError with auth URL
+   * - User can grant additional permissions and retry
+   *
+   * Only active when INCREMENTAL_CONSENT_ENABLED=true (opt-in for SaaS deployments).
+   * Self-hosted deployments with full scopes (default) skip validation.
+   *
+   * @param operation - Operation identifier (e.g., 'sheets_collaborate.share_add')
+   * @throws {IncrementalScopeRequiredError} When scopes are insufficient
+   */
+  protected checkOperationScopes(operation: string): void {
+    // Skip validation if incremental consent is disabled or auth context missing
+    if (!process.env['INCREMENTAL_CONSENT_ENABLED'] || !this.context.auth) {
+      return;
+    }
+
+    const validator = new ScopeValidator({
+      scopes: this.context.auth.scopes,
+    });
+
+    if (!validator.hasRequiredScopes(operation)) {
+      const missingScopes = validator.getMissingScopes(operation);
+
+      // Get operation config for required scopes and category
+      const opConfig = OPERATION_SCOPES[operation];
+      const requiredScopes = opConfig?.required ?? missingScopes;
+      const category = opConfig?.category ?? ScopeCategory.SPREADSHEET;
+
+      throw new IncrementalScopeRequiredError({
+        operation,
+        requiredScopes,
+        currentScopes: this.context.auth.scopes,
+        authorizationUrl: '#', // URL generation happens in ScopeValidator
+        category,
+      });
+    }
   }
 
   /**
@@ -701,17 +749,29 @@ export abstract class BaseHandler<TInput, TOutput> {
 
     // Rate limit (429)
     if (message.includes('429') || message.includes('rate limit')) {
+      const circuitBreakerState =
+        this.context.googleClient &&
+        typeof this.context.googleClient.getCircuitBreakerState === 'function'
+          ? this.context.googleClient.getCircuitBreakerState()
+          : undefined;
       return createRateLimitError({
         quotaType: 'requests',
         retryAfterMs: 60000,
+        circuitBreakerState,
       });
     }
 
     // Quota exceeded
     if (message.includes('quota exceeded') || message.includes('quota')) {
+      const circuitBreakerState =
+        this.context.googleClient &&
+        typeof this.context.googleClient.getCircuitBreakerState === 'function'
+          ? this.context.googleClient.getCircuitBreakerState()
+          : undefined;
       return createRateLimitError({
         quotaType: 'requests',
         retryAfterMs: 3600000,
+        circuitBreakerState,
       });
     }
 
@@ -793,6 +853,45 @@ export abstract class BaseHandler<TInput, TOutput> {
           errorCode: errorCode || 'HTTP2_ERROR',
           originalMessage: error.message,
           recoveryAction: 'automatic',
+        },
+      };
+    }
+
+    // DNS / Network errors (ENOTFOUND, ECONNREFUSED, ETIMEDOUT, ECONNRESET, etc.)
+    // These surface when internet is unavailable or Google API is unreachable
+    if (
+      errorCode === 'ENOTFOUND' ||
+      errorCode === 'ECONNREFUSED' ||
+      errorCode === 'ETIMEDOUT' ||
+      errorCode === 'ECONNRESET' ||
+      errorCode === 'EAI_AGAIN' ||
+      message.includes('getaddrinfo') ||
+      message.includes('network') ||
+      message.includes('dns')
+    ) {
+      const isTimeout = errorCode === 'ETIMEDOUT' || message.includes('timeout');
+      return {
+        code: 'CONNECTION_ERROR',
+        message: isTimeout
+          ? 'Request to Google Sheets API timed out. The network may be slow or unavailable.'
+          : 'Cannot reach Google Sheets API. Check your internet connection.',
+        category: 'transient',
+        severity: 'high',
+        retryable: true,
+        retryAfterMs: 5000,
+        resolution: 'Check your internet connection and retry.',
+        resolutionSteps: [
+          '1. Check your internet connection (try opening a webpage)',
+          '2. If on VPN, verify it allows access to googleapis.com',
+          '3. Try flushing DNS cache: sudo dscacheutil -flushcache (macOS) or sudo resolvectl flush-caches (Linux)',
+          '4. Wait a few seconds and retry the operation',
+          '5. If persistent, check firewall/proxy settings for sheets.googleapis.com',
+        ],
+        details: {
+          errorCode: errorCode || 'NETWORK_ERROR',
+          hostname: 'sheets.googleapis.com',
+          originalMessage: error.message,
+          recoveryAction: 'automatic_retry',
         },
       };
     }

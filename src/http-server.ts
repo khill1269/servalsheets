@@ -2227,8 +2227,17 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // Error handler
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error('HTTP server error', { error: err });
+  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+    logger.error('HTTP server error', {
+      error: err,
+      request: {
+        method: req.method,
+        path: req.path,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+      },
+      stack: err.stack,
+    });
     res.status(500).json({
       error: {
         code: 'INTERNAL_ERROR',
