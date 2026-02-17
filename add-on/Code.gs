@@ -275,10 +275,57 @@ function clearSession() {
 // ============================================================================
 
 /**
+ * Format error messages for better user experience
+ */
+function formatErrorMessage(error) {
+  const errorMessages = {
+    'NO_API_KEY': 'API key not configured. Go to ServalSheets > Settings.',
+    'UNAUTHORIZED': 'Invalid API key. Please check Settings and try again.',
+    'QUOTA_EXCEEDED': 'Monthly quota exceeded. Upgrade at servalsheets.com/upgrade',
+    'NETWORK_ERROR': 'Cannot reach ServalSheets API. Check your internet connection.',
+    'TIMEOUT': 'Request timed out. The operation is taking too long - try again or contact support.',
+    'INVALID_REQUEST': 'Invalid request format. This may be a bug - please report it.',
+    'SPREADSHEET_NOT_FOUND': 'Spreadsheet not found. It may have been deleted or you may not have access.',
+    'PERMISSION_DENIED': 'You don\'t have permission to access this spreadsheet.',
+    'SESSION_ERROR': 'Failed to establish connection. Please try again.',
+    'API_ERROR': 'Server error occurred. Please try again in a few moments.'
+  };
+
+  const code = error.code || 'UNKNOWN_ERROR';
+  const customMessage = errorMessages[code];
+
+  if (customMessage) {
+    return customMessage;
+  }
+
+  return error.message || 'An unknown error occurred. Please try again.';
+}
+
+/**
+ * Check if API is reachable (connection test)
+ */
+function checkConnection() {
+  try {
+    const url = `${CONFIG.API_URL}/health`;
+    const options = {
+      method: 'get',
+      muteHttpExceptions: true,
+      timeout: 5000  // 5 second timeout for health check
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    return response.getResponseCode() === 200;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
  * Core function to call ServalSheets API via MCP protocol
  * Uses JSON-RPC 2.0 format as required by /mcp endpoint
+ * Includes automatic retry with exponential backoff for transient failures
  */
-function callServalSheets(tool, request) {
+function callServalSheets(tool, request, maxRetries = 3) {
   const apiKey = getApiKey();
 
   if (!apiKey) {
@@ -286,7 +333,7 @@ function callServalSheets(tool, request) {
       success: false,
       error: {
         code: 'NO_API_KEY',
-        message: 'API key not configured. Go to ServalSheets > Settings to add your API key.'
+        message: formatErrorMessage({ code: 'NO_API_KEY' })
       }
     };
   }
@@ -299,53 +346,57 @@ function callServalSheets(tool, request) {
       success: false,
       error: {
         code: 'SESSION_ERROR',
-        message: 'Failed to establish MCP session'
+        message: formatErrorMessage({ code: 'SESSION_ERROR' })
       }
     };
   }
 
-  try {
-    // Use actual /mcp endpoint (MCP protocol over HTTP)
-    const url = `${CONFIG.API_URL}/mcp`;
+  // Retry logic with exponential backoff
+  let lastError = null;
 
-    // Use JSON-RPC 2.0 format required by MCP protocol
-    const payload = {
-      jsonrpc: '2.0',
-      id: Date.now(),  // Unique request ID
-      method: 'tools/call',
-      params: {
-        name: tool,
-        arguments: { request }
-      }
-    };
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Use actual /mcp endpoint (MCP protocol over HTTP)
+      const url = `${CONFIG.API_URL}/mcp`;
 
-    const options = {
-      method: 'post',
-      contentType: 'application/json',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'X-MCP-Client': 'workspace-addon/1.0.0',
-        'Accept': 'application/json, text/event-stream',  // Required by MCP protocol
-        'Mcp-Session-Id': sessionId  // Required for all tool calls
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-
-    const response = UrlFetchApp.fetch(url, options);
-    const statusCode = response.getResponseCode();
-    const result = JSON.parse(response.getContentText());
-
-    // Handle common errors
-    if (statusCode === 401) {
-      return {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid API key. Please check your settings.'
+      // Use JSON-RPC 2.0 format required by MCP protocol
+      const payload = {
+        jsonrpc: '2.0',
+        id: Date.now(),  // Unique request ID
+        method: 'tools/call',
+        params: {
+          name: tool,
+          arguments: { request }
         }
       };
-    }
+
+      const options = {
+        method: 'post',
+        contentType: 'application/json',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'X-MCP-Client': 'workspace-addon/1.0.0',
+          'Accept': 'application/json, text/event-stream',  // Required by MCP protocol
+          'Mcp-Session-Id': sessionId  // Required for all tool calls
+        },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+
+      const response = UrlFetchApp.fetch(url, options);
+      const statusCode = response.getResponseCode();
+      const result = JSON.parse(response.getContentText());
+
+      // Handle common errors (non-retryable)
+      if (statusCode === 401) {
+        return {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: formatErrorMessage({ code: 'UNAUTHORIZED' })
+          }
+        };
+      }
 
     if (statusCode === 400 && result.error?.code === 'INVALID_REQUEST') {
       // Session might be invalid - retry once with new session
@@ -392,57 +443,103 @@ function callServalSheets(tool, request) {
       };
     }
 
-    if (statusCode === 429) {
-      return {
-        success: false,
-        error: {
-          code: 'QUOTA_EXCEEDED',
-          message: 'Monthly quota exceeded. Upgrade your plan at https://servalsheets.com/upgrade'
-        }
-      };
-    }
+      // Don't retry quota errors
+      if (statusCode === 429) {
+        return {
+          success: false,
+          error: {
+            code: 'QUOTA_EXCEEDED',
+            message: formatErrorMessage({ code: 'QUOTA_EXCEEDED' })
+          }
+        };
+      }
 
-    if (statusCode !== 200) {
-      return {
-        success: false,
-        error: {
+      // Retry on 5xx server errors
+      if (statusCode >= 500 && statusCode < 600) {
+        lastError = {
           code: 'API_ERROR',
-          message: result.error?.message || `API returned status ${statusCode}`
-        }
-      };
-    }
+          message: formatErrorMessage({ code: 'API_ERROR' })
+        };
 
-    // Handle JSON-RPC 2.0 response format
-    // Response: { jsonrpc: '2.0', id: X, result: { content: [...] } }
-    if (result.result && result.result.content && result.result.content[0]) {
-      const content = result.result.content[0];
-
-      if (content.text) {
-        try {
-          const parsed = JSON.parse(content.text);
-          return parsed;
-        } catch (e) {
-          // Not JSON, return as-is
+        if (attempt < maxRetries) {
+          // Exponential backoff: 1s, 2s, 4s
+          const backoffMs = Math.pow(2, attempt - 1) * 1000;
+          Logger.log(`Attempt ${attempt} failed with ${statusCode}, retrying in ${backoffMs}ms...`);
+          Utilities.sleep(backoffMs);
+          continue;  // Retry
+        } else {
+          // Max retries reached
           return {
-            success: true,
-            response: { text: content.text }
+            success: false,
+            error: lastError
           };
         }
       }
-    }
 
-    // Fallback: return result as-is
-    return result.result || result;
-
-  } catch (error) {
-    return {
-      success: false,
-      error: {
-        code: 'NETWORK_ERROR',
-        message: `Failed to connect to ServalSheets API: ${error.message}`
+      // Other non-200 responses (don't retry)
+      if (statusCode !== 200) {
+        return {
+          success: false,
+          error: {
+            code: 'API_ERROR',
+            message: result.error?.message || formatErrorMessage({ code: 'API_ERROR' })
+          }
+        };
       }
-    };
+
+      // Success! Handle JSON-RPC 2.0 response format
+      // Response: { jsonrpc: '2.0', id: X, result: { content: [...] } }
+      if (result.result && result.result.content && result.result.content[0]) {
+        const content = result.result.content[0];
+
+        if (content.text) {
+          try {
+            const parsed = JSON.parse(content.text);
+            return parsed;
+          } catch (e) {
+            // Not JSON, return as-is
+            return {
+              success: true,
+              response: { text: content.text }
+            };
+          }
+        }
+      }
+
+      // Fallback: return result as-is
+      return result.result || result;
+
+    } catch (error) {
+      // Network errors are retryable
+      lastError = {
+        code: 'NETWORK_ERROR',
+        message: formatErrorMessage({ code: 'NETWORK_ERROR' })
+      };
+
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const backoffMs = Math.pow(2, attempt - 1) * 1000;
+        Logger.log(`Network error on attempt ${attempt}, retrying in ${backoffMs}ms...`);
+        Utilities.sleep(backoffMs);
+        continue;  // Retry
+      } else {
+        // Max retries reached
+        return {
+          success: false,
+          error: lastError
+        };
+      }
+    }
   }
+
+  // Should never reach here, but return last error just in case
+  return {
+    success: false,
+    error: lastError || {
+      code: 'UNKNOWN_ERROR',
+      message: formatErrorMessage({ code: 'UNKNOWN_ERROR' })
+    }
+  };
 }
 
 /**

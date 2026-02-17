@@ -818,7 +818,67 @@ const CONFIG = {
 };
 ```
 
-## 📊 Current Status - Phases 1, 3, & 4.1 COMPLETE ✅
+### Phase 5.1: Error Handling Improvements ✅
+
+**Date:** 2026-02-17 (Complete)
+
+**Feature:** Enhanced error handling with retry logic, better error messages, and offline detection.
+
+**Key Improvements:**
+
+1. **Retry Logic with Exponential Backoff:**
+   - Automatic retry for transient failures (5xx errors, network errors)
+   - 3 attempts max with exponential backoff: 1s, 2s, 4s
+   - Only retries appropriate errors (not 4xx client errors)
+   - Logging of retry attempts for debugging
+
+2. **Better Error Messages:**
+   - formatErrorMessage() function with user-friendly messages
+   - Maps error codes to helpful, actionable text
+   - Consistent error formatting across all tool calls
+   - Removes technical jargon for better UX
+
+3. **Offline Detection:**
+   - checkConnection() function to verify API reachability
+   - Health check endpoint with 5 second timeout
+   - Connection test on sidebar load
+   - User-friendly offline warnings
+
+**Error Types Handled:**
+
+| Code           | User Message                                                |
+| -------------- | ----------------------------------------------------------- |
+| NO_API_KEY     | API key not configured. Go to Settings.                     |
+| UNAUTHORIZED   | Invalid API key. Check Settings and try again.              |
+| QUOTA_EXCEEDED | Monthly quota exceeded. Upgrade at servalsheets.com/upgrade |
+| NETWORK_ERROR  | Cannot reach API. Check your internet connection.           |
+| TIMEOUT        | Request timed out. Try again or contact support.            |
+| SESSION_ERROR  | Failed to establish connection. Please try again.           |
+| API_ERROR      | Server error occurred. Try again in a few moments.          |
+
+**Retry Behavior:**
+
+| Status Code        | Retry? | Reason                         |
+| ------------------ | ------ | ------------------------------ |
+| 401 (Unauthorized) | ❌ No  | Client error - API key invalid |
+| 429 (Quota)        | ❌ No  | Client error - quota exceeded  |
+| 500-599 (Server)   | ✅ Yes | Server error - transient       |
+| Network error      | ✅ Yes | Connection issue - transient   |
+
+**File Stats:**
+
+- Code.gs: 2,050 → 2,147 lines (+97 lines)
+- Sidebar.html: 2,082 → 2,100 lines (+18 lines)
+
+**Benefits:**
+
+- Resilience: Automatic recovery from transient failures
+- User Experience: Clear, actionable error messages instead of technical jargon
+- Debugging: Logged retry attempts for troubleshooting
+- Efficiency: Exponential backoff prevents server overload
+- Fail-fast: Client errors (4xx) don't retry unnecessarily
+
+## 📊 Current Status - Phases 1, 3, 4.1, & 5.1 COMPLETE ✅
 
 - **Endpoint Integration:** ✅ Complete (Phase 1.1)
 - **JSON-RPC Format:** ✅ Complete (Phase 1.1)
@@ -833,6 +893,7 @@ const CONFIG = {
 - **Action History & Undo:** Operation history with one-click undo ✅ Complete (Phase 3.3)
 - **Preview Mode:** Dry-run operations before executing ✅ Complete (Phase 3.4)
 - **Environment Detection:** Auto-detect dev/staging/prod ✅ Complete (Phase 4.1)
+- **Error Handling:** Retry logic + better messages + offline detection ✅ Complete (Phase 5.1)
 - **Deployment Guide:** Complete documentation ✅ Ready (Phase 1.4)
 - **Testing:** ⏳ Ready for Apps Script deployment (Phase 1.5)
 
