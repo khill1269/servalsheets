@@ -293,7 +293,7 @@ describe('ConcurrencyCoordinator', () => {
       const coordinator = getConcurrencyCoordinator();
       const status = coordinator.getStatus();
 
-      expect(status.limit).toBe(15); // Default maxConcurrent
+      expect(status.limit).toBe(25); // Default maxConcurrent
     });
 
     it('should respect environment variable for max concurrent', () => {

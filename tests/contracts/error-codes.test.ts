@@ -170,6 +170,8 @@ describe('Error Code Coverage', () => {
             'SPREADSHEET_NOT_FOUND',
             'SHEET_NOT_FOUND',
             'RANGE_NOT_FOUND',
+            'FILE_NOT_FOUND',
+            'PERMISSION_NOT_FOUND',
             'NOT_FOUND',
           ]).toContain(error.code);
           expect(error.category).toBe('client');

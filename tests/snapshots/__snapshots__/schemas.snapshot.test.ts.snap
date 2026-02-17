@@ -110,6 +110,16 @@ exports[`Schema Snapshots > Input Schemas > DependencyGetStatsInputSchema should
 }
 `;
 
+exports[`Schema Snapshots > Input Schemas > ExportLargeDatasetInputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/ExportLargeDatasetInputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ExportLargeDatasetInputSchema": {},
+  },
+}
+`;
+
 exports[`Schema Snapshots > Input Schemas > ExportXlsxInputSchema should match snapshot 1`] = `
 {
   "$ref": "#/definitions/ExportXlsxInputSchema",
@@ -516,6 +526,16 @@ exports[`Schema Snapshots > Output Schemas > DeduplicateOutputSchema should matc
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
     "DeduplicateOutputSchema": {},
+  },
+}
+`;
+
+exports[`Schema Snapshots > Output Schemas > ExportLargeDatasetOutputSchema should match snapshot 1`] = `
+{
+  "$ref": "#/definitions/ExportLargeDatasetOutputSchema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ExportLargeDatasetOutputSchema": {},
   },
 }
 `;

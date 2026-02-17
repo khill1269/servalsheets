@@ -40,6 +40,11 @@ function createMockRedis() {
       const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
       return [...store.keys()].filter((k) => regex.test(k));
     }),
+    scan: vi.fn(async (_cursor: number, opts: { MATCH: string; COUNT: number }) => {
+      const regex = new RegExp('^' + opts.MATCH.replace(/\*/g, '.*') + '$');
+      const matchedKeys = [...store.keys()].filter((k) => regex.test(k));
+      return { cursor: 0, keys: matchedKeys };
+    }),
   };
 }
 
@@ -199,7 +204,7 @@ describe('UserRateLimiter', () => {
   });
 
   describe('fail-open on Redis errors', () => {
-    it('should allow requests when Redis throws', async () => {
+    it('should allow requests when Redis throws (using local fallback)', async () => {
       const failingRedis = {
         incr: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
         get: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
@@ -211,8 +216,9 @@ describe('UserRateLimiter', () => {
       const limiter = new UserRateLimiter(failingRedis, defaultConfig);
       const result = await limiter.checkLimit('user-1');
 
+      // Falls back to in-memory local limiter (not fail-open with Infinity)
       expect(result.allowed).toBe(true);
-      expect(result.remaining).toBe(Infinity);
+      expect(result.remaining).toBe(defaultConfig.requestsPerMinute - 1);
     });
   });
 });

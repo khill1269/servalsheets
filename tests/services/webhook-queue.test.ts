@@ -26,6 +26,7 @@ describe('WebhookQueue', () => {
       lPop: vi.fn().mockResolvedValue(null),
       lLen: vi.fn().mockResolvedValue(0),
       keys: vi.fn().mockResolvedValue([]),
+      scan: vi.fn().mockResolvedValue({ cursor: 0, keys: [] }),
       del: vi.fn().mockResolvedValue(1),
       expire: vi.fn().mockResolvedValue(1),
     };
@@ -175,7 +176,7 @@ describe('WebhookQueue', () => {
         scheduledAt: now - 1000, // Retry scheduled in the past
       };
 
-      mockRedis.keys.mockResolvedValueOnce([`webhook:queue:retry:${now - 1000}`]);
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: [`webhook:queue:retry:${now - 1000}`] });
       mockRedis.lPop.mockResolvedValueOnce(JSON.stringify(retryJob));
 
       const queue = getWebhookQueue();
@@ -345,10 +346,10 @@ describe('WebhookQueue', () => {
         .mockResolvedValueOnce(10) // pending
         .mockResolvedValueOnce(2); // dlq
 
-      mockRedis.keys.mockResolvedValueOnce([
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: [
         'webhook:queue:retry:1000',
         'webhook:queue:retry:2000',
-      ]);
+      ] });
       mockRedis.lLen
         .mockResolvedValueOnce(3) // retry queue 1
         .mockResolvedValueOnce(5); // retry queue 2

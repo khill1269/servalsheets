@@ -25,6 +25,7 @@ describe('ETagCache', () => {
       setEx: vi.fn().mockResolvedValue('OK'),
       del: vi.fn().mockResolvedValue(1),
       keys: vi.fn().mockResolvedValue([]),
+      scan: vi.fn().mockResolvedValue({ cursor: 0, keys: [] }),
     };
 
     cache = new ETagCache({
@@ -465,14 +466,17 @@ describe('ETagCache', () => {
     });
 
     it('should clear all entries for a spreadsheet from L2 Redis', async () => {
-      mockRedis.keys.mockResolvedValue([
-        'servalsheets:etag:test-123:metadata',
-        'servalsheets:etag:test-123:values:A1:B10',
-      ]);
+      mockRedis.scan.mockResolvedValue({
+        cursor: 0,
+        keys: [
+          'servalsheets:etag:test-123:metadata',
+          'servalsheets:etag:test-123:values:A1:B10',
+        ],
+      });
 
       await cache.invalidateSpreadsheet('test-123');
 
-      expect(mockRedis.keys).toHaveBeenCalledWith('servalsheets:etag:test-123:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith(0, { MATCH: 'servalsheets:etag:test-123:*', COUNT: 100 });
       expect(mockRedis.del).toHaveBeenCalledWith(
         'servalsheets:etag:test-123:metadata',
         'servalsheets:etag:test-123:values:A1:B10'
@@ -480,7 +484,7 @@ describe('ETagCache', () => {
     });
 
     it('should handle no matching keys in Redis', async () => {
-      mockRedis.keys.mockResolvedValue([]);
+      mockRedis.scan.mockResolvedValue({ cursor: 0, keys: [] });
 
       await cache.invalidateSpreadsheet('test-123');
 
@@ -488,7 +492,7 @@ describe('ETagCache', () => {
     });
 
     it('should handle Redis errors gracefully', async () => {
-      mockRedis.keys.mockRejectedValue(new Error('Redis keys failed'));
+      mockRedis.scan.mockRejectedValue(new Error('Redis scan failed'));
 
       await expect(cache.invalidateSpreadsheet('test-123')).resolves.not.toThrow();
     });

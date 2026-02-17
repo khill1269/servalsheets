@@ -5,7 +5,7 @@
  */
 
 import { getRequestContext, getRequestLogger } from './request-context.js';
-import { recordRateLimitHit, recordRetryAttempt } from '../observability/metrics.js';
+import { recordRateLimitHit, recordRetryAttempt, recordHttp2Error } from '../observability/metrics.js';
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -14,10 +14,12 @@ export interface RetryOptions {
   jitterRatio?: number;
   retryable?: (error: unknown) => boolean;
   timeoutMs?: number;
+  /** Called before each retry attempt. Use to reset connections on GOAWAY errors. */
+  onRetry?: (error: unknown, attempt: number) => void | Promise<void>;
 }
 
 const DEFAULT_TIMEOUT_MS = parseInt(process.env['GOOGLE_API_TIMEOUT_MS'] ?? '30000', 10);
-const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutMs'>> = {
+const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryable' | 'timeoutMs' | 'onRetry'>> = {
   maxRetries: parseInt(process.env['GOOGLE_API_MAX_RETRIES'] ?? '3', 10),
   baseDelayMs: parseInt(process.env['GOOGLE_API_RETRY_BASE_DELAY_MS'] ?? '500', 10),
   maxDelayMs: parseInt(process.env['GOOGLE_API_RETRY_MAX_DELAY_MS'] ?? '60000', 10),
@@ -72,6 +74,21 @@ export async function executeWithRetry<T>(
     } catch (error) {
       lastError = error;
 
+      // Track HTTP/2 errors for observability
+      const errCode = typeof (error as { code?: unknown })?.code === 'string'
+        ? (error as { code: string }).code
+        : '';
+      const errMsg = error instanceof Error ? error.message.toLowerCase() : '';
+      if (RETRYABLE_CODES.has(errCode) && errCode.startsWith('ERR_HTTP2_')) {
+        recordHttp2Error(errCode, 'connection');
+      } else if (
+        errMsg.includes('goaway') ||
+        errMsg.includes('new streams cannot be created') ||
+        (errMsg.includes('session') && errMsg.includes('error') && errMsg.includes('http2'))
+      ) {
+        recordHttp2Error(errCode || 'UNKNOWN', 'stream');
+      }
+
       if (attempt >= maxRetries || !retryable(error)) {
         throw error;
       }
@@ -119,6 +136,11 @@ export async function executeWithRetry<T>(
       // Record retry attempt metric
       const retryReason = isRateLimited ? 'rate_limit' : status ? `status_${status}` : 'unknown';
       recordRetryAttempt('google-api', retryReason, false, delay / 1000);
+
+      // Allow caller to reset connections (e.g., on GOAWAY errors)
+      if (options.onRetry) {
+        await options.onRetry(error, attempt);
+      }
 
       await sleep(delay);
     }

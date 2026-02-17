@@ -111,6 +111,8 @@ export function createRateLimitError(params: {
     resolution: `Wait ${retryAfterSeconds} seconds, then retry. Use batch operations to reduce API calls.`,
     resolutionSteps,
     suggestedTools: ['sheets_data'],
+    // Fix: Provide context check action so LLM can review session state before retry
+    fixableVia: { tool: 'sheets_session', action: 'get_context', params: {} },
     details: {
       quotaType,
       retryAfterMs,
@@ -187,18 +189,20 @@ export function createNotFoundError(params: {
     suggestedTools.push('sheets_history');
   }
 
-  // Map resource type to appropriate error code
-  const errorCode =
-    resourceType === 'sheet'
-      ? 'SHEET_NOT_FOUND'
-      : resourceType === 'range'
-        ? 'RANGE_NOT_FOUND'
-        : resourceType === 'operation' || resourceType === 'snapshot'
-          ? 'NOT_FOUND'
-          : 'SPREADSHEET_NOT_FOUND';
+  // Map resource type to error code
+  // External resources (Google API) get specific codes, internal resources get generic NOT_FOUND
+  const errorCodeMap: Record<typeof resourceType, string> = {
+    spreadsheet: 'SPREADSHEET_NOT_FOUND',
+    sheet: 'SHEET_NOT_FOUND',
+    range: 'RANGE_NOT_FOUND',
+    file: 'FILE_NOT_FOUND',
+    permission: 'PERMISSION_NOT_FOUND',
+    operation: 'NOT_FOUND', // Internal resource
+    snapshot: 'NOT_FOUND', // Internal resource
+  };
 
   return {
-    code: errorCode,
+    code: errorCodeMap[resourceType] as ErrorDetail['code'],
     message: `${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} not found: ${resourceId}`,
     category: 'client',
     severity: 'medium',
@@ -207,6 +211,21 @@ export function createNotFoundError(params: {
     resolution: `Verify the ${resourceType} ID is correct and you have access to it`,
     resolutionSteps,
     suggestedTools,
+    // Fix: Provide ready-to-execute recovery action for LLM autonomous error handling
+    fixableVia:
+      resourceType === 'sheet' && parentResourceId
+        ? {
+            tool: 'sheets_core',
+            action: 'list_sheets',
+            params: { spreadsheetId: parentResourceId },
+          }
+        : resourceType === 'range' && parentResourceId
+          ? {
+              tool: 'sheets_core',
+              action: 'get_sheet',
+              params: { spreadsheetId: parentResourceId },
+            }
+          : undefined,
     details: {
       resourceType,
       resourceId,
@@ -284,6 +303,8 @@ export function createAuthenticationError(params: {
     resolution,
     resolutionSteps,
     suggestedTools: [],
+    // Fix: Provide ready-to-execute auth recovery action
+    fixableVia: { tool: 'sheets_auth', action: 'login', params: {} },
     details: {
       reason,
       missingScopes,
@@ -644,8 +665,13 @@ export function enrichErrorWithContext(
     spreadsheetId: baseError.details?.['spreadsheetId'] as string | undefined,
   });
 
-  // Capture stack trace
-  const stackTrace = error instanceof Error ? error.stack : new Error('Stack trace capture').stack;
+  // Capture stack trace (omit in production to avoid leaking internals)
+  const stackTrace =
+    process.env['NODE_ENV'] !== 'production'
+      ? error instanceof Error
+        ? error.stack
+        : new Error('Stack trace capture').stack
+      : undefined;
 
   // Build error history (last 10 errors)
   const errorHistory = previousErrors.slice(-10).map((err) => ({

@@ -1369,6 +1369,34 @@ describe('SheetsAppsScriptHandler', () => {
       expect(result.response.error.retryable).toBe(true);
     });
 
+    it('should handle 429 rate limit with Retry-After header', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: {
+          get: vi.fn().mockImplementation((name: string) => (name === 'retry-after' ? '30' : null)),
+        },
+        text: vi
+          .fn()
+          .mockResolvedValue(
+            JSON.stringify({ error: { message: 'Rate Limit Exceeded' } })
+          ),
+      });
+
+      const result = await handler.handle({
+        request: {
+          action: 'get',
+          scriptId: 'script-123',
+        },
+      });
+
+      expect(result.response.success).toBe(false);
+      expect(result.response.error.code).toBe('UNAVAILABLE');
+      expect(result.response.error.retryable).toBe(true);
+      expect(result.response.error.message).toContain('rate limit');
+    });
+
     it('should handle server errors (500+)', async () => {
       mockFetch.mockResolvedValue({
         ok: false,

@@ -9,6 +9,25 @@
  * - 95%+ cache hit rate for repeated ranges
  * - LRU cache prevents memory bloat (max 500 entries)
  *
+ * RANGE PARSER LANDSCAPE — Don't create a new parser without checking these first:
+ *
+ * 1. THIS FILE (range-helpers.ts) — parseRange()
+ *    Purpose: Lightweight sheet name extraction with LRU cache.
+ *    Returns: { sheetName, cellRef?, original } — splits "Sheet1!A1:B10" into parts.
+ *    Use for: Hot loops, batch operations, anywhere you just need the sheet name separated.
+ *
+ * 2. services/request-merger.ts — parseA1Range()
+ *    Purpose: Full numeric A1 parsing for range overlap detection.
+ *    Returns: { sheetName, startRow, startCol, endRow, endCol, originalA1 }
+ *    Use for: Range merging, overlap detection, bounding-box calculations.
+ *
+ * 3. utils/validation-helpers.ts — parseA1Range(), parseA1Cell()
+ *    Purpose: Strict input validation with error throwing.
+ *    Returns: { startCol, startRow, endCol, endRow, sheetPrefix } (string cols, not numeric)
+ *    Use for: User input validation where you need to reject malformed ranges.
+ *
+ * For column letter ↔ index conversions, use utils/google-sheets-helpers.ts (canonical source).
+ *
  * @category Utils
  */
 
@@ -54,7 +73,9 @@ function parseRangeUncached(range: string): RangeParts {
   if (quotedMatch) {
     // Safe to use non-null assertion: regex guarantees capture group 1 exists
     const sheetName = quotedMatch[1]!.replaceAll("''", "'"); // Unescape doubled quotes
-    const cellRef = quotedMatch[2];
+    const rawCellRef = quotedMatch[2];
+    // Convert empty string to undefined
+    const cellRef = rawCellRef && rawCellRef !== '' ? rawCellRef : undefined;
     return {
       sheetName,
       cellRef,
@@ -68,7 +89,9 @@ function parseRangeUncached(range: string): RangeParts {
   if (unquotedMatch) {
     // Safe to use non-null assertion: regex guarantees capture group 1 exists
     const sheetName = unquotedMatch[1]!;
-    const cellRef = unquotedMatch[2] || undefined; // Convert empty string to undefined
+    const rawCellRef = unquotedMatch[2];
+    // Convert empty string to undefined
+    const cellRef = rawCellRef && rawCellRef !== '' ? rawCellRef : undefined;
     return {
       sheetName,
       cellRef,
