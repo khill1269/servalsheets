@@ -137,15 +137,15 @@
     </div>
 
     <div class="form-group">
-      <label for="api-url">API URL (Advanced)</label>
-      <input
-        type="text"
-        id="api-url"
-        value="http://localhost:3000"
-        placeholder="http://localhost:3000 or https://api.servalsheets.com"
-      >
+      <label for="environment">Environment</label>
+      <select id="environment" style="width: 100%; padding: 10px 12px; border: 1px solid #dadce0; border-radius: 4px; font-size: 14px; font-family: inherit;">
+        <option value="development">Development (localhost:3000)</option>
+        <option value="staging">Staging (staging-api.servalsheets.com)</option>
+        <option value="production">Production (api.servalsheets.com)</option>
+      </select>
       <div class="help-text">
-        Use http://localhost:3000 for local testing, or your production URL.
+        Environment is auto-detected or can be manually set here.
+        <span id="current-url" style="display: block; margin-top: 4px; font-weight: 500;"></span>
       </div>
     </div>
 
@@ -160,19 +160,33 @@
     function saveSettings(event) {
       event.preventDefault();
       const apiKey = document.getElementById('api-key').value.trim();
+      const environment = document.getElementById('environment').value;
 
       if (!apiKey) {
         showAlert('Please enter an API key', 'error');
         return;
       }
 
+      // Save API key first
       google.script.run
         .withSuccessHandler(function(result) {
           if (result.success) {
-            showAlert('Settings saved successfully!', 'success');
-            setTimeout(function() {
-              google.script.host.close();
-            }, 1500);
+            // Then save environment
+            google.script.run
+              .withSuccessHandler(function(envResult) {
+                if (envResult.success) {
+                  showAlert('Settings saved successfully!', 'success');
+                  setTimeout(function() {
+                    google.script.host.close();
+                  }, 1500);
+                } else {
+                  showAlert('Settings saved but environment update failed', 'error');
+                }
+              })
+              .withFailureHandler(function(error) {
+                showAlert('Settings saved but environment update failed: ' + error.message, 'error');
+              })
+              .setEnvironment(environment);
           } else {
             showAlert('Failed to save settings', 'error');
           }
@@ -207,8 +221,9 @@
       alert.style.display = 'block';
     }
 
-    // Load current API key on open
+    // Load current settings on open
     window.addEventListener('load', function() {
+      // Load API key
       google.script.run
         .withSuccessHandler(function(apiKey) {
           if (apiKey) {
@@ -216,7 +231,38 @@
           }
         })
         .getApiKey();
+
+      // Load environment
+      google.script.run
+        .withSuccessHandler(function(envInfo) {
+          if (envInfo) {
+            document.getElementById('environment').value = envInfo.environment;
+            updateCurrentUrl();
+          }
+        })
+        .getEnvironment();
     });
+
+    // Update current URL display when environment changes
+    document.addEventListener('DOMContentLoaded', function() {
+      const envSelect = document.getElementById('environment');
+      if (envSelect) {
+        envSelect.addEventListener('change', updateCurrentUrl);
+      }
+    });
+
+    function updateCurrentUrl() {
+      const env = document.getElementById('environment').value;
+      const urlDisplay = document.getElementById('current-url');
+
+      const urls = {
+        'development': 'http://localhost:3000',
+        'staging': 'https://staging-api.servalsheets.com',
+        'production': 'https://api.servalsheets.com'
+      };
+
+      urlDisplay.textContent = 'API URL: ' + urls[env];
+    }
   </script>
 </body>
 </html>
