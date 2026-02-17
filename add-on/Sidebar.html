@@ -355,6 +355,228 @@
       color: #5f6368;
       line-height: 1.3;
     }
+
+    /* Phase 3.2: Batch Operations Styles */
+    .batch-panel {
+      background: #fff;
+      border-bottom: 1px solid #dadce0;
+      display: flex;
+      flex-direction: column;
+      max-height: 300px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    .batch-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #fff9e6 0%, #fffbf0 100%);
+      border-bottom: 1px solid #ffd966;
+    }
+
+    .batch-icon {
+      font-size: 18px;
+    }
+
+    .batch-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #bf7e00;
+      flex: 1;
+    }
+
+    .batch-count {
+      font-size: 12px;
+      color: #bf7e00;
+      background: #fff;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .batch-close {
+      background: none;
+      border: none;
+      color: #5f6368;
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .batch-close:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .batch-queue {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      min-height: 100px;
+      max-height: 200px;
+    }
+
+    .batch-empty {
+      text-align: center;
+      padding: 20px;
+      color: #5f6368;
+    }
+
+    .batch-empty p {
+      margin: 4px 0;
+      font-size: 13px;
+    }
+
+    .batch-empty-hint {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .batch-item {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s;
+    }
+
+    .batch-item:hover {
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .batch-item-icon {
+      font-size: 16px;
+    }
+
+    .batch-item-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .batch-item-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #202124;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .batch-item-params {
+      font-size: 11px;
+      color: #5f6368;
+      margin-top: 2px;
+    }
+
+    .batch-item-remove {
+      background: none;
+      border: none;
+      color: #dc3545;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      font-size: 16px;
+      line-height: 1;
+      transition: background 0.2s;
+    }
+
+    .batch-item-remove:hover {
+      background: #ffebee;
+    }
+
+    .batch-actions {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: #f8f9fa;
+      border-top: 1px solid #dadce0;
+    }
+
+    .batch-clear-btn {
+      flex: 1;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .batch-clear-btn:hover {
+      background: #f8f9fa;
+      border-color: #5f6368;
+    }
+
+    .batch-execute-btn {
+      flex: 2;
+      background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .batch-execute-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .batch-execute-btn:disabled {
+      background: #dadce0;
+      cursor: not-allowed;
+    }
+
+    .batch-toggle-btn {
+      position: fixed;
+      bottom: 80px;
+      right: 16px;
+      background: linear-gradient(135deg, #ffd966 0%, #ffb800 100%);
+      color: #5f4000;
+      border: none;
+      border-radius: 24px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s;
+      z-index: 100;
+    }
+
+    .batch-toggle-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .batch-toggle-btn:active {
+      transform: translateY(0);
+    }
+
+    #batch-toggle-count {
+      background: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
   </style>
 </head>
 <body>
@@ -374,6 +596,33 @@
     </div>
     <div id="suggestion-list" class="suggestion-list"></div>
   </div>
+
+  <!-- Phase 3.2: Batch Operations Panel -->
+  <div id="batch-panel" class="batch-panel" style="display:none;">
+    <div class="batch-header">
+      <span class="batch-icon">📦</span>
+      <span class="batch-label">Batch Operations</span>
+      <span id="batch-count" class="batch-count">(0)</span>
+      <button class="batch-close" onclick="toggleBatchPanel()">×</button>
+    </div>
+    <div id="batch-queue" class="batch-queue">
+      <div class="batch-empty">
+        <p>No operations queued</p>
+        <p class="batch-empty-hint">Hold Shift while clicking actions to add them to the batch</p>
+      </div>
+    </div>
+    <div class="batch-actions">
+      <button class="batch-clear-btn" onclick="clearBatch()">Clear All</button>
+      <button class="batch-execute-btn" id="batch-execute-btn" onclick="executeBatchOperations()" disabled>
+        Execute All
+      </button>
+    </div>
+  </div>
+
+  <!-- Batch Panel Toggle Button -->
+  <button id="batch-toggle" class="batch-toggle-btn" onclick="toggleBatchPanel()" style="display:none;">
+    📦 <span id="batch-toggle-count">0</span>
+  </button>
 
   <div class="chat-container" id="chat">
     <div class="empty-state">
@@ -623,6 +872,180 @@
       // Wait a moment for the sidebar to fully load
       setTimeout(detectAndShowContext, 500);
     });
+
+    // ==================== Phase 3.2: Batch Operations ====================
+
+    let batchQueue = [];
+
+    /**
+     * Toggles batch panel visibility
+     */
+    function toggleBatchPanel() {
+      const panel = document.getElementById('batch-panel');
+      const isVisible = panel.style.display !== 'none';
+      panel.style.display = isVisible ? 'none' : 'block';
+    }
+
+    /**
+     * Adds operation to batch queue
+     */
+    function addToBatch(operation) {
+      // Validate operation
+      if (!operation.tool || !operation.action || !operation.label) {
+        console.error('Invalid operation:', operation);
+        return false;
+      }
+
+      // Add to queue
+      batchQueue.push({
+        id: Date.now() + Math.random(),
+        tool: operation.tool,
+        action: operation.action,
+        params: operation.params || {},
+        label: operation.label,
+        icon: operation.icon || '📋'
+      });
+
+      updateBatchUI();
+      showBatchToggle();
+      addMessage(`📦 Added to batch: ${operation.label}`, 'system');
+      return true;
+    }
+
+    /**
+     * Removes operation from batch queue
+     */
+    function removeFromBatch(id) {
+      batchQueue = batchQueue.filter(op => op.id !== id);
+      updateBatchUI();
+      if (batchQueue.length === 0) {
+        hideBatchToggle();
+      }
+    }
+
+    /**
+     * Clears all operations from batch
+     */
+    function clearBatch() {
+      if (batchQueue.length === 0) return;
+
+      if (confirm(`Clear all ${batchQueue.length} operation(s)?`)) {
+        batchQueue = [];
+        updateBatchUI();
+        hideBatchToggle();
+        addMessage('📦 Batch cleared', 'system');
+      }
+    }
+
+    /**
+     * Updates batch UI with current queue
+     */
+    function updateBatchUI() {
+      const queueEl = document.getElementById('batch-queue');
+      const countEl = document.getElementById('batch-count');
+      const toggleCountEl = document.getElementById('batch-toggle-count');
+      const executeBtn = document.getElementById('batch-execute-btn');
+
+      // Update counts
+      const count = batchQueue.length;
+      countEl.textContent = `(${count})`;
+      toggleCountEl.textContent = count;
+
+      // Update execute button
+      executeBtn.disabled = count === 0;
+
+      // Update queue display
+      if (count === 0) {
+        queueEl.innerHTML = `
+          <div class="batch-empty">
+            <p>No operations queued</p>
+            <p class="batch-empty-hint">Hold Shift while clicking actions to add them to the batch</p>
+          </div>
+        `;
+      } else {
+        queueEl.innerHTML = batchQueue.map(op => `
+          <div class="batch-item">
+            <span class="batch-item-icon">${op.icon}</span>
+            <div class="batch-item-content">
+              <div class="batch-item-label">${op.label}</div>
+              <div class="batch-item-params">${op.tool} → ${op.action}</div>
+            </div>
+            <button class="batch-item-remove" onclick="removeFromBatch(${op.id})">×</button>
+          </div>
+        `).join('');
+      }
+    }
+
+    /**
+     * Shows batch toggle button
+     */
+    function showBatchToggle() {
+      document.getElementById('batch-toggle').style.display = 'block';
+    }
+
+    /**
+     * Hides batch toggle button
+     */
+    function hideBatchToggle() {
+      document.getElementById('batch-toggle').style.display = 'none';
+      document.getElementById('batch-panel').style.display = 'none';
+    }
+
+    /**
+     * Executes all operations in batch atomically
+     */
+    function executeBatchOperations() {
+      if (batchQueue.length === 0) return;
+
+      const count = batchQueue.length;
+      if (!confirm(`Execute ${count} operation(s) atomically?\n\nAll operations will succeed or fail together.`)) {
+        return;
+      }
+
+      showLoading();
+      setProcessing(true);
+
+      // Close batch panel
+      document.getElementById('batch-panel').style.display = 'none';
+
+      addMessage(`🚀 Executing ${count} operation(s) in batch...`, 'system');
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          setProcessing(false);
+
+          if (result.success) {
+            addMessage(`✅ Batch executed successfully!`, 'ai');
+            addMessage(`📊 Completed ${count} operation(s)`, 'system');
+
+            // Clear batch on success
+            batchQueue = [];
+            updateBatchUI();
+            hideBatchToggle();
+          } else {
+            const completed = result.error?.completedOperations || 0;
+            const total = result.error?.totalOperations || count;
+            addMessage(`❌ Batch execution failed: ${result.error?.message}`, 'error');
+            addMessage(`📊 Completed ${completed}/${total} operation(s) before failure`, 'system');
+            addMessage(`🔄 All changes have been rolled back`, 'system');
+          }
+        })
+        .withFailureHandler(function(error) {
+          hideLoading();
+          setProcessing(false);
+          addMessage(`❌ Batch execution error: ${error.message}`, 'error');
+        })
+        .executeBatch(batchQueue);
+    }
+
+    /**
+     * Detects if Shift key is held during action click
+     * Returns true if should add to batch, false if should execute immediately
+     */
+    function shouldAddToBatch(event) {
+      return event && event.shiftKey;
+    }
 
     function sendMessage() {
       const prompt = promptInput.value.trim();

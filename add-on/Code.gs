@@ -901,3 +901,162 @@ function detectContext() {
     };
   }
 }
+
+// ==================== PHASE 3.2: Batch Operations ====================
+
+/**
+ * Executes multiple operations atomically using transactions
+ * @param {Array<Object>} operations - Array of { tool, action, params, label }
+ * @returns {Object} Batch execution result
+ */
+function executeBatch(operations) {
+  const info = getActiveSpreadsheetInfo();
+  const results = [];
+  let transactionId = null;
+
+  try {
+    // Start transaction
+    const txStart = callServalSheets('sheets_transaction', {
+      action: 'begin',
+      spreadsheetId: info.spreadsheetId
+    });
+
+    if (!txStart.success) {
+      return {
+        success: false,
+        error: {
+          code: 'TRANSACTION_START_FAILED',
+          message: 'Failed to start transaction: ' + (txStart.error?.message || 'Unknown error')
+        }
+      };
+    }
+
+    transactionId = txStart.response?.transactionId;
+    Logger.log('Transaction started: ' + transactionId);
+
+    // Execute each operation in sequence
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+      Logger.log(`Executing operation ${i + 1}/${operations.length}: ${op.label}`);
+
+      try {
+        // Build request with operation parameters
+        const request = {
+          action: op.action,
+          spreadsheetId: info.spreadsheetId,
+          ...op.params
+        };
+
+        // Add transaction ID to request
+        if (transactionId) {
+          request.transactionId = transactionId;
+        }
+
+        // Execute operation
+        const result = callServalSheets(op.tool, request);
+
+        if (result.success) {
+          results.push({
+            operation: op.label,
+            status: 'success',
+            result: result.response
+          });
+        } else {
+          // Operation failed - trigger rollback
+          throw new Error(`Operation failed: ${result.error?.message || 'Unknown error'}`);
+        }
+
+      } catch (opError) {
+        Logger.log(`Operation ${i + 1} failed: ${opError.message}`);
+        throw opError; // Propagate to outer catch for rollback
+      }
+    }
+
+    // All operations succeeded - commit transaction
+    const txCommit = callServalSheets('sheets_transaction', {
+      action: 'commit',
+      spreadsheetId: info.spreadsheetId,
+      transactionId: transactionId
+    });
+
+    if (!txCommit.success) {
+      throw new Error('Failed to commit transaction: ' + (txCommit.error?.message || 'Unknown error'));
+    }
+
+    Logger.log('Transaction committed successfully');
+
+    return {
+      success: true,
+      response: {
+        message: `Successfully executed ${operations.length} operation(s)`,
+        results: results,
+        transactionId: transactionId
+      }
+    };
+
+  } catch (error) {
+    Logger.log('Batch execution failed: ' + error.message);
+
+    // Attempt rollback if transaction was started
+    if (transactionId) {
+      Logger.log('Rolling back transaction: ' + transactionId);
+      try {
+        const txRollback = callServalSheets('sheets_transaction', {
+          action: 'rollback',
+          spreadsheetId: info.spreadsheetId,
+          transactionId: transactionId
+        });
+
+        if (txRollback.success) {
+          Logger.log('Transaction rolled back successfully');
+        } else {
+          Logger.log('Rollback failed: ' + (txRollback.error?.message || 'Unknown error'));
+        }
+      } catch (rollbackError) {
+        Logger.log('Rollback error: ' + rollbackError.message);
+      }
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'BATCH_EXECUTION_FAILED',
+        message: error.message,
+        completedOperations: results.length,
+        totalOperations: operations.length
+      }
+    };
+  }
+}
+
+/**
+ * Validates a batch operation before adding to queue
+ * @param {Object} operation - Operation to validate
+ * @returns {Object} Validation result
+ */
+function validateBatchOperation(operation) {
+  // Check required fields
+  if (!operation.tool || !operation.action) {
+    return {
+      valid: false,
+      error: 'Operation must have tool and action'
+    };
+  }
+
+  // Check tool exists (basic validation)
+  const validTools = [
+    'sheets_data', 'sheets_format', 'sheets_dimensions', 'sheets_core',
+    'sheets_collaborate', 'sheets_visualize', 'sheets_analyze'
+  ];
+
+  if (!validTools.includes(operation.tool)) {
+    return {
+      valid: false,
+      error: `Unknown tool: ${operation.tool}`
+    };
+  }
+
+  return {
+    valid: true
+  };
+}
