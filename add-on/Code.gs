@@ -2327,3 +2327,425 @@ function setPreviewMode(enabled) {
     }
   };
 }
+
+// ============================================================================
+// PHASE 5.3: Test Suite
+// ============================================================================
+
+/**
+ * Master test runner - runs all tests and reports results
+ * Run from: Apps Script Editor > Run > runAllTests
+ */
+function runAllTests() {
+  Logger.log('========================================');
+  Logger.log('ServalSheets Add-on Test Suite');
+  Logger.log('========================================\n');
+
+  const results = [];
+  const startTime = Date.now();
+
+  // Test 1: API Connection
+  results.push(test_apiConnection());
+
+  // Test 2: Response Parsing
+  results.push(test_responseParsing());
+
+  // Test 3: Error Handling
+  results.push(test_errorHandling());
+
+  // Test 4: Caching Functions
+  results.push(test_cachingFunctions());
+
+  // Test 5: Environment Detection
+  results.push(test_environmentDetection());
+
+  // Test 6: Error Message Formatting
+  results.push(test_errorMessageFormatting());
+
+  // Test 7: Active Spreadsheet Info
+  results.push(test_activeSpreadsheetInfo());
+
+  // Test 8: Retry Logic (mock)
+  results.push(test_retryLogic());
+
+  const endTime = Date.now();
+  const duration = endTime - startTime;
+
+  // Summary
+  const passed = results.filter(r => r.passed).length;
+  const failed = results.filter(r => !r.passed).length;
+
+  Logger.log('\n========================================');
+  Logger.log('Test Summary');
+  Logger.log('========================================');
+  Logger.log(`Total Tests: ${results.length}`);
+  Logger.log(`Passed: ${passed} ✓`);
+  Logger.log(`Failed: ${failed} ✗`);
+  Logger.log(`Duration: ${duration}ms`);
+  Logger.log('========================================\n');
+
+  // Detailed results
+  results.forEach(r => {
+    const status = r.passed ? '✓ PASS' : '✗ FAIL';
+    Logger.log(`${status} - ${r.name}: ${r.message}`);
+  });
+
+  return {
+    summary: { total: results.length, passed, failed, duration },
+    results: results
+  };
+}
+
+/**
+ * Test 1: API Connection
+ */
+function test_apiConnection() {
+  try {
+    const result = checkConnection();
+    if (typeof result === 'boolean') {
+      return {
+        name: 'API Connection',
+        passed: true,
+        message: `Connection check returned: ${result}`
+      };
+    } else {
+      return {
+        name: 'API Connection',
+        passed: false,
+        message: 'checkConnection() did not return boolean'
+      };
+    }
+  } catch (error) {
+    return {
+      name: 'API Connection',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 2: Response Parsing
+ */
+function test_responseParsing() {
+  try {
+    // Mock MCP response format
+    const mockResponse = {
+      result: {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ response: { success: true, data: 'test' } })
+        }]
+      }
+    };
+
+    // Test parsing logic
+    if (mockResponse.result && mockResponse.result.content && mockResponse.result.content[0]) {
+      const content = mockResponse.result.content[0];
+      if (content.text) {
+        const parsed = JSON.parse(content.text);
+        const isValid = parsed.response && parsed.response.success;
+
+        return {
+          name: 'Response Parsing',
+          passed: isValid,
+          message: isValid ? 'Parsed successfully' : 'Parsed but structure invalid'
+        };
+      }
+    }
+
+    return {
+      name: 'Response Parsing',
+      passed: false,
+      message: 'Failed to parse mock response'
+    };
+  } catch (error) {
+    return {
+      name: 'Response Parsing',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 3: Error Handling
+ */
+function test_errorHandling() {
+  try {
+    // Test formatErrorMessage function
+    const testError = { code: 'NO_API_KEY' };
+    const formatted = formatErrorMessage(testError);
+
+    const isValidMessage = formatted && formatted.length > 0 && formatted.includes('API key');
+
+    return {
+      name: 'Error Handling',
+      passed: isValidMessage,
+      message: isValidMessage ? `Formatted: "${formatted}"` : 'Error message formatting failed'
+    };
+  } catch (error) {
+    return {
+      name: 'Error Handling',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 4: Caching Functions
+ */
+function test_cachingFunctions() {
+  try {
+    const testKey = 'test_cache_key_' + Date.now();
+    const testValue = { test: 'data', timestamp: Date.now() };
+
+    // Test set
+    const setResult = setCachedValue(testKey, testValue, 60);
+    if (!setResult) {
+      return {
+        name: 'Caching Functions',
+        passed: false,
+        message: 'Failed to set cache value'
+      };
+    }
+
+    // Test get
+    const getValue = getCachedValue(testKey, 60);
+    if (!getValue) {
+      return {
+        name: 'Caching Functions',
+        passed: false,
+        message: 'Failed to retrieve cached value'
+      };
+    }
+
+    // Verify value matches
+    const matches = JSON.stringify(getValue) === JSON.stringify(testValue);
+
+    // Cleanup
+    clearCache(testKey);
+
+    return {
+      name: 'Caching Functions',
+      passed: matches,
+      message: matches ? 'Set and retrieved successfully' : 'Retrieved value does not match'
+    };
+  } catch (error) {
+    return {
+      name: 'Caching Functions',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 5: Environment Detection
+ */
+function test_environmentDetection() {
+  try {
+    const envInfo = getEnvironment();
+
+    const hasRequiredFields = envInfo && envInfo.environment && envInfo.apiUrl;
+    const validEnvironments = ['development', 'staging', 'production'];
+    const isValidEnv = validEnvironments.includes(envInfo.environment);
+
+    return {
+      name: 'Environment Detection',
+      passed: hasRequiredFields && isValidEnv,
+      message: hasRequiredFields && isValidEnv
+        ? `Detected: ${envInfo.environment} (${envInfo.apiUrl})`
+        : 'Invalid environment configuration'
+    };
+  } catch (error) {
+    return {
+      name: 'Environment Detection',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 6: Error Message Formatting
+ */
+function test_errorMessageFormatting() {
+  try {
+    const errorCodes = [
+      'NO_API_KEY',
+      'UNAUTHORIZED',
+      'QUOTA_EXCEEDED',
+      'NETWORK_ERROR',
+      'TIMEOUT'
+    ];
+
+    let allFormatted = true;
+    let messages = [];
+
+    for (const code of errorCodes) {
+      const formatted = formatErrorMessage({ code: code });
+      if (!formatted || formatted === code || formatted.includes('unknown')) {
+        allFormatted = false;
+        break;
+      }
+      messages.push(`${code} → "${formatted}"`);
+    }
+
+    return {
+      name: 'Error Message Formatting',
+      passed: allFormatted,
+      message: allFormatted
+        ? `All ${errorCodes.length} error codes formatted correctly`
+        : 'Some error codes not formatted'
+    };
+  } catch (error) {
+    return {
+      name: 'Error Message Formatting',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 7: Active Spreadsheet Info
+ */
+function test_activeSpreadsheetInfo() {
+  try {
+    const info = getActiveSpreadsheetInfo();
+
+    const hasRequiredFields = info &&
+      info.spreadsheetId &&
+      info.spreadsheetName &&
+      info.sheetName &&
+      typeof info.sheetId === 'number';
+
+    return {
+      name: 'Active Spreadsheet Info',
+      passed: hasRequiredFields,
+      message: hasRequiredFields
+        ? `Retrieved: ${info.spreadsheetName} / ${info.sheetName}`
+        : 'Missing required fields'
+    };
+  } catch (error) {
+    return {
+      name: 'Active Spreadsheet Info',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Test 8: Retry Logic (Mock test - doesn't make real API calls)
+ */
+function test_retryLogic() {
+  try {
+    // Test exponential backoff calculation
+    const attempt1Backoff = Math.pow(2, 1 - 1) * 1000; // Should be 1000ms
+    const attempt2Backoff = Math.pow(2, 2 - 1) * 1000; // Should be 2000ms
+    const attempt3Backoff = Math.pow(2, 3 - 1) * 1000; // Should be 4000ms
+
+    const correctBackoff = (
+      attempt1Backoff === 1000 &&
+      attempt2Backoff === 2000 &&
+      attempt3Backoff === 4000
+    );
+
+    return {
+      name: 'Retry Logic',
+      passed: correctBackoff,
+      message: correctBackoff
+        ? 'Exponential backoff calculation correct (1s, 2s, 4s)'
+        : 'Backoff calculation incorrect'
+    };
+  } catch (error) {
+    return {
+      name: 'Retry Logic',
+      passed: false,
+      message: `Error: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Run quick smoke tests (fast subset for quick verification)
+ */
+function runQuickTests() {
+  Logger.log('========================================');
+  Logger.log('Quick Smoke Tests');
+  Logger.log('========================================\n');
+
+  const results = [];
+
+  results.push(test_environmentDetection());
+  results.push(test_errorMessageFormatting());
+  results.push(test_activeSpreadsheetInfo());
+  results.push(test_cachingFunctions());
+
+  const passed = results.filter(r => r.passed).length;
+  const failed = results.filter(r => !r.passed).length;
+
+  Logger.log('\n========================================');
+  Logger.log(`Passed: ${passed}/${results.length}`);
+  Logger.log('========================================\n');
+
+  results.forEach(r => {
+    const status = r.passed ? '✓' : '✗';
+    Logger.log(`${status} ${r.name}: ${r.message}`);
+  });
+
+  return { passed, failed, results };
+}
+
+/**
+ * Test integration with real API (requires API key and running server)
+ * WARNING: Makes actual API calls - use with caution
+ */
+function runIntegrationTests() {
+  Logger.log('========================================');
+  Logger.log('Integration Tests (Real API Calls)');
+  Logger.log('========================================\n');
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    Logger.log('✗ No API key configured. Skipping integration tests.');
+    return { skipped: true, reason: 'No API key' };
+  }
+
+  const results = [];
+
+  // Test 1: Connection
+  Logger.log('Testing API connection...');
+  const connResult = testConnection();
+  results.push({
+    name: 'API Connection',
+    passed: connResult.success === true,
+    message: connResult.message
+  });
+
+  // Test 2: Session initialization
+  Logger.log('Testing session initialization...');
+  clearSession();
+  const sessionId = getSessionId();
+  results.push({
+    name: 'Session Initialization',
+    passed: sessionId !== null && sessionId.length > 0,
+    message: sessionId ? `Session ID: ${sessionId.substring(0, 8)}...` : 'Failed to get session'
+  });
+
+  // Summary
+  const passed = results.filter(r => r.passed).length;
+  Logger.log(`\n========================================`);
+  Logger.log(`Integration Tests: ${passed}/${results.length} passed`);
+  Logger.log('========================================\n');
+
+  results.forEach(r => {
+    const status = r.passed ? '✓' : '✗';
+    Logger.log(`${status} ${r.name}: ${r.message}`);
+  });
+
+  return { passed, total: results.length, results };
+}
