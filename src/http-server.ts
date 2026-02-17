@@ -82,6 +82,8 @@ import {
   addDeprecationHeaders,
   type VersionSelection,
 } from './versioning/schema-manager.js';
+// import { addGraphQLEndpoint } from './graphql/index.js'; // Temporarily disabled
+import { addAdminRoutes, type AdminSessionManager } from './admin/index.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
@@ -2576,6 +2578,42 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     sessionsTotal.set(sessions.size);
     logger.info('All sessions closed');
   });
+
+  // NOTE: GraphQL handler context function temporarily disabled
+  // const getHandlerContextForGraphQL = (req: Request): HandlerContext => {
+  //   // ... implementation ...
+  // };
+
+  // NOTE: GraphQL endpoint temporarily disabled due to TypeScript issues
+  // Will be re-enabled after fixing handler integration
+  // addGraphQLEndpoint(app, getHandlerContextForGraphQL)
+  //   .then(() => {
+  //     logger.info('GraphQL endpoint initialized at /graphql');
+  //   })
+  //   .catch((error) => {
+  //     logger.error('Failed to initialize GraphQL endpoint', { error });
+  //   });
+
+  // Session manager for admin dashboard
+  const sessionManager: AdminSessionManager = {
+    getAllSessions: () => {
+      return Array.from(sessions.entries()).map(([id]) => ({
+        id,
+        clientName: 'MCP Client',
+        clientVersion: '1.0.0',
+        createdAt: Date.now(), // Approximate - sessions don't track creation time
+      }));
+    },
+    getSessionCount: () => sessions.size,
+    getTotalRequests: () => {
+      // Approximate - use deduplication stats as proxy
+      const stats = requestDeduplicator.getStats();
+      return stats.totalRequests;
+    },
+  };
+
+  // Initialize Admin Dashboard (P3-7)
+  addAdminRoutes(app, sessionManager);
 
   return {
     app,
