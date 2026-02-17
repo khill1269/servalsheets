@@ -14,6 +14,7 @@
     "**/*.test.ts",
     "**/*.spec.ts",
     "src/__tests__/**",
+    "src/ui/tracing-dashboard/**",
     "src/services/discovery-client.ts",
     "src/services/schema-cache.ts",
     "src/services/schema-validator.ts",
