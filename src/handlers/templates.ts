@@ -473,6 +473,7 @@ export class SheetsTemplatesHandler extends BaseHandler<
             fileId: spreadsheetId,
             addParents: req.folderId,
             fields: 'id',
+            supportsAllDrives: true,
           });
         } catch (moveError) {
           logger.warn('Failed to move spreadsheet to folder', {

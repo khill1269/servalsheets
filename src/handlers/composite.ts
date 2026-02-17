@@ -2,7 +2,7 @@
  * ServalSheets - Composite Operations Handler
  *
  * Handles high-level composite operations
- * 10 Actions:
+ * 11 Actions:
  * - Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * - LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
  *
@@ -38,7 +38,10 @@ import type {
   CompositeSetupSheetInput,
   CompositeImportAndFormatInput,
   CompositeCloneStructureInput,
+  // Streaming types
+  CompositeExportLargeDatasetInput,
 } from '../schemas/composite.js';
+import { readDataInChunks, formatBytes } from '../utils/streaming-export.js';
 import type { Intent } from '../core/intent.js';
 import { getRequestLogger, sendProgress } from '../utils/request-context.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
@@ -158,13 +161,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         case 'clone_structure':
           response = await this.handleCloneStructure(req as CompositeCloneStructureInput);
           break;
+        case 'export_large_dataset':
+          response = await this.handleExportLargeDataset(req as CompositeExportLargeDatasetInput);
+          break;
         default: {
           // Exhaustive check - TypeScript ensures this is unreachable
           const _exhaustiveCheck: never = req;
           throw new ValidationError(
             `Unknown action: ${(req as { action: string }).action}`,
             'action',
-            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure'
+            'import_csv | smart_append | bulk_update | deduplicate | export_xlsx | import_xlsx | get_form_responses | setup_sheet | import_and_format | clone_structure | export_large_dataset'
           );
         }
       }
@@ -237,6 +243,9 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     if (env.ENABLE_GRANULAR_PROGRESS) {
       await sendProgress(2, 2, `Imported ${result.rowsImported} rows`);
     }
+
+    // Fix: Invalidate sheet cache after CSV import (may create new sheet)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
 
     return this.success('import_csv', {
       ...result,
@@ -460,13 +469,16 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
       await sendProgress(0, 2, `Deduplicating ${previewResult.totalRows} rows...`);
     }
 
-    // Execute the actual deduplication
+    // Execute the actual deduplication (reuse preview scan to skip redundant API fetch)
     const result: DeduplicateResult = await this.compositeService.deduplicate({
       spreadsheetId: input.spreadsheetId,
       sheet: input.sheet,
       keyColumns: input.keyColumns,
       keep: input.keep,
       preview: false,
+      _preComputedDuplicateRows: previewResult._duplicateRowSet,
+      _preComputedTotalRows: previewResult.totalRows,
+      _preComputedUniqueRows: previewResult.uniqueRows,
     });
 
     if (env.ENABLE_GRANULAR_PROGRESS) {
@@ -521,6 +533,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     const metadataResponse = await this.driveApi.files.get({
       fileId: input.spreadsheetId,
       fields: 'name',
+      supportsAllDrives: true,
     });
     const filename = `${metadataResponse.data.name ?? 'export'}.xlsx`;
 
@@ -602,6 +615,7 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         body: Readable.from(buffer),
       },
       fields: 'id,name',
+      supportsAllDrives: true,
     });
 
     const spreadsheetId = response.data.id!;
@@ -853,6 +867,9 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     // Calculate API calls saved (vs manual: addSheet + values.update + format + freeze + N column widths)
     const apiCallsSaved = Math.max(0, 4 + (input.columnWidths?.length ?? 0) - 3);
 
+    // Fix: Invalidate sheet cache after setup (may have created a new sheet)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return {
       success: true as const,
       action: 'setup_sheet' as const,
@@ -961,6 +978,9 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
 
     // Calculate API calls saved (vs manual: import + format header + freeze + auto-resize)
     const apiCallsSaved = Math.max(0, 4 - 2);
+
+    // Fix: Invalidate sheet cache after import (may have created a new sheet)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
 
     const cellsAffected = importResult.rowsImported * importResult.columnsImported;
     return {
@@ -1113,6 +1133,9 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
     // Calculate API calls saved (vs manual: copy + rename + clear data + clear format + clear validation)
     const apiCallsSaved = Math.max(0, 5 - 2);
 
+    // Fix: Invalidate sheet cache after cloning (created a new sheet via copy + rename)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return {
       success: true as const,
       action: 'clone_structure' as const,
@@ -1130,5 +1153,96 @@ export class CompositeHandler extends BaseHandler<CompositeInput, CompositeOutpu
         {}
       ),
     };
+  }
+
+  // ==========================================================================
+  // Streaming Export Handler
+  // ==========================================================================
+
+  /**
+   * Export Large Dataset - Memory-efficient export for 100K+ rows
+   * Uses chunked reading with progress updates to prevent OOM
+   */
+  private async handleExportLargeDataset(
+    input: CompositeExportLargeDatasetInput
+  ): Promise<CompositeOutput['response']> {
+    const logger = getRequestLogger();
+
+    logger.info('Starting large dataset export', {
+      spreadsheetId: input.spreadsheetId,
+      range: input.range,
+      chunkSize: input.chunkSize,
+      format: input.format,
+    });
+
+    try {
+      // Use streaming export utility
+      const result = await readDataInChunks(this.sheetsApi, input.spreadsheetId, input.range, {
+        chunkSize: input.chunkSize,
+        enableProgress: true,
+        // Force streaming when chunkSize is explicitly provided
+        streamingThreshold: input.chunkSize ? 1 : undefined,
+      });
+
+      // Format data based on requested format
+      let formattedData: string;
+      if (input.format === 'csv') {
+        // Convert to CSV
+        formattedData = result.data
+          .map((row) =>
+            row
+              .map((cell) => {
+                const cellStr = String(cell ?? '');
+                // Always escape internal quotes by doubling them
+                const escaped = cellStr.replace(/"/g, '""');
+                // Only wrap in quotes if contains comma or newline
+                if (cellStr.includes(',') || cellStr.includes('\n')) {
+                  return `"${escaped}"`;
+                }
+                return escaped;
+              })
+              .join(',')
+          )
+          .join('\n');
+      } else {
+        // JSON format
+        formattedData = JSON.stringify(result.data);
+      }
+
+      logger.info('Large dataset export complete', {
+        totalRows: result.stats.totalRows,
+        totalColumns: result.stats.totalColumns,
+        chunksProcessed: result.stats.chunksProcessed,
+        bytesProcessed: formatBytes(result.stats.bytesProcessed),
+        durationMs: result.stats.durationMs,
+        streamed: result.streamed,
+      });
+
+      return {
+        success: true as const,
+        action: 'export_large_dataset' as const,
+        format: input.format ?? 'json',
+        chunkSize: input.chunkSize,
+        totalRows: result.stats.totalRows,
+        totalColumns: result.stats.totalColumns,
+        chunksProcessed: result.stats.chunksProcessed,
+        bytesProcessed: result.stats.bytesProcessed,
+        durationMs: result.stats.durationMs,
+        streamed: result.streamed,
+        data: formattedData,
+        _meta: this.generateMeta(
+          'export_large_dataset',
+          input as unknown as Record<string, unknown>,
+          {
+            totalRows: result.stats.totalRows,
+            bytesProcessed: result.stats.bytesProcessed,
+          } as Record<string, unknown>,
+          {}
+        ),
+      };
+    } catch (error) {
+      logger.error('Large dataset export failed', { error, spreadsheetId: input.spreadsheetId });
+      return this.mapError(error);
+    }
   }
 }

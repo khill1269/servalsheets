@@ -33,7 +33,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify(summary, null, 2),
+              text: JSON.stringify(summary),
             },
           ],
         };
@@ -76,7 +76,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify(dashboard, null, 2),
+              text: JSON.stringify(dashboard),
             },
           ],
         };
@@ -118,7 +118,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify({ operations }, null, 2),
+              text: JSON.stringify({ operations }),
             },
           ],
         };
@@ -160,7 +160,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify({ cache }, null, 2),
+              text: JSON.stringify({ cache }),
             },
           ],
         };
@@ -202,7 +202,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify({ api }, null, 2),
+              text: JSON.stringify({ api }),
             },
           ],
         };
@@ -241,7 +241,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify({ system }, null, 2),
+              text: JSON.stringify({ system }),
             },
           ],
         };
@@ -283,7 +283,7 @@ export function registerMetricsResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify({ service }, null, 2),
+              text: JSON.stringify({ service }),
             },
           ],
         };

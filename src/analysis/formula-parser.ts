@@ -21,7 +21,7 @@ import { getWorkerPool } from '../services/worker-pool.js';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { memoizeWithStats } from '../utils/memoization.js';
+import { memoizeWithStats, type MemoStats } from '../utils/memoization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -486,7 +486,7 @@ export function getReferencedCells(formula: string, maxCells = 1000): Set<string
  * console.log(`Cache size: ${stats.cacheSize} / 500`);
  * ```
  */
-export function getFormulaCacheStats() {
+export function getFormulaCacheStats(): MemoStats {
   return memoizedParseFormula.getStats();
 }
 

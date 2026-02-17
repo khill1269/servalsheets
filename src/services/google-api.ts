@@ -120,7 +120,7 @@ function createHttpAgents(): { http: HttpAgent; https: HttpsAgent } {
     keepAliveMsecs: keepAliveTimeout,
     maxSockets,
     maxFreeSockets: Math.floor(maxSockets / 2),
-    timeout: 60000,
+    timeout: parseInt(process.env['GOOGLE_API_REQUEST_TIMEOUT_MS'] ?? '60000', 10),
     scheduling: 'lifo' as const, // Use most recent connection first
   };
 
@@ -159,7 +159,7 @@ export class GoogleApiClient {
 
   // HTTP/2 Connection Health Management
   private consecutiveErrors = 0;
-  private static readonly CONNECTION_ERROR_THRESHOLD = 3;
+  private static readonly CONNECTION_ERROR_THRESHOLD = 5;
   private lastSuccessfulCall = Date.now();
   private connectionResetInProgress = false;
   private keepaliveInterval?: NodeJS.Timeout;
@@ -354,8 +354,8 @@ export class GoogleApiClient {
     logger.info('Resetting HTTP agents due to credential change');
 
     // Record metric
-    const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
-    http2ConnectionResetsTotal.inc({ reason: 'token_refresh' });
+    const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
+    recordHttp2ConnectionReset('token_refresh');
 
     // Destroy old agents (closes stale HTTP/2 connections)
     this.httpAgents.http.destroy();
@@ -440,8 +440,8 @@ export class GoogleApiClient {
 
     try {
       // Record metric with different reason than token refresh
-      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
-      http2ConnectionResetsTotal.inc({ reason: 'consecutive_errors' });
+      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
+      recordHttp2ConnectionReset('consecutive_errors');
 
       // Reuse the existing agent reset logic
       await this.resetHttpAgents();
@@ -468,8 +468,8 @@ export class GoogleApiClient {
     this.connectionResetInProgress = true;
     try {
       logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
-      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
-      http2ConnectionResetsTotal.inc({ reason: 'goaway_retry' });
+      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
+      recordHttp2ConnectionReset('goaway_retry');
       await this.resetHttpAgents();
       this.consecutiveErrors = 0;
       logger.info('HTTP/2 connections reset successfully for retry');
@@ -533,8 +533,8 @@ export class GoogleApiClient {
         maxIdleMs,
       });
 
-      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
-      http2ConnectionResetsTotal.inc({ reason: 'idle_timeout' });
+      const { recordHttp2ConnectionReset } = await import('../observability/metrics.js');
+      recordHttp2ConnectionReset('idle_timeout');
 
       await this.resetHttpAgents();
       this.lastSuccessfulCall = Date.now();

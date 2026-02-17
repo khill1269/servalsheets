@@ -31,6 +31,7 @@ import {
   type GridRangeInput,
 } from '../utils/google-sheets-helpers.js';
 import { confirmDestructiveAction } from '../mcp/elicitation.js';
+import { createValidationError } from '../utils/error-factory.js';
 import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { RangeResolutionError } from '../core/range-resolver.js';
 import { checkSamplingSupport } from '../mcp/sampling.js';
@@ -80,6 +81,9 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
   // Fix 1.4: Track format operations for auto-consolidation
   private formatQueue = new Map<string, QueuedFormatOperation[]>();
   private flushTimers = new Map<string, NodeJS.Timeout>();
+  // Fix 6: Track sequential individual format calls to suggest batch_format
+  private recentFormatCallCount = 0;
+  private lastFormatCallTime = 0;
 
   constructor(context: HandlerContext, sheetsApi: sheets_v4.Sheets) {
     super('sheets_format', context);
@@ -116,7 +120,11 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
    */
   private mergeFormatOperations(operations: FormatRequest[]): FormatRequest {
     if (operations.length === 0) {
-      throw new Error('Cannot merge empty operations array');
+      throw createValidationError({
+        field: 'operations',
+        value: [],
+        reason: 'Cannot merge empty operations array',
+      });
     }
 
     // Start with the first operation as base
@@ -369,6 +377,36 @@ export class FormatHandler extends BaseHandler<SheetsFormatInput, SheetsFormatOu
                 : undefined
               : undefined,
         });
+      }
+
+      // Fix 6: Track individual format calls and suggest batch_format when pattern detected
+      const individualFormatActions = [
+        'set_format',
+        'set_background',
+        'set_text_format',
+        'set_number_format',
+        'set_alignment',
+        'set_borders',
+        'apply_preset',
+      ];
+      const now = Date.now();
+      if (individualFormatActions.includes(inferredReq.action) && response.success) {
+        // Reset counter if >30s since last call (new formatting session)
+        if (now - this.lastFormatCallTime > 30000) {
+          this.recentFormatCallCount = 0;
+        }
+        this.recentFormatCallCount++;
+        this.lastFormatCallTime = now;
+
+        // Add hint after 3+ sequential individual format calls
+        if (this.recentFormatCallCount >= 3) {
+          const saved = this.recentFormatCallCount - 1;
+          (response as Record<string, unknown>)['_hint'] =
+            `You've made ${this.recentFormatCallCount} separate format calls. Use batch_format to combine them — saves ~${Math.round((saved / this.recentFormatCallCount) * 100)}% API calls.`;
+        }
+      } else if (inferredReq.action === 'batch_format') {
+        // Reset counter when batch_format is used (LLM learned!)
+        this.recentFormatCallCount = 0;
       }
 
       // Apply verbosity filtering (LLM optimization)
@@ -2305,6 +2343,124 @@ Always return valid JSON in the exact format requested.`,
           },
         };
         break;
+
+      case 'negative_red_positive_green': {
+        // Financial preset: red background for negative numbers, green for positive
+        // Creates TWO rules in one call for complete P&L / financial formatting
+        const negativeRule: sheets_v4.Schema$Request = {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [googleRange],
+              booleanRule: {
+                condition: {
+                  type: 'NUMBER_LESS',
+                  values: [{ userEnteredValue: '0' }],
+                },
+                format: {
+                  backgroundColor: { red: 1, green: 0.85, blue: 0.85 },
+                  textFormat: { foregroundColor: { red: 0.8, green: 0, blue: 0 } },
+                },
+              },
+            },
+            index: 0,
+          },
+        };
+        const positiveRule: sheets_v4.Schema$Request = {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [googleRange],
+              booleanRule: {
+                condition: {
+                  type: 'NUMBER_GREATER',
+                  values: [{ userEnteredValue: '0' }],
+                },
+                format: {
+                  backgroundColor: { red: 0.85, green: 1, blue: 0.85 },
+                  textFormat: { foregroundColor: { red: 0, green: 0.5, blue: 0 } },
+                },
+              },
+            },
+            index: 1,
+          },
+        };
+        await this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId: input.spreadsheetId,
+          requestBody: { requests: [negativeRule, positiveRule] },
+        });
+        return this.success('add_conditional_format_rule', { ruleIndex: 0, rulesAdded: 2 });
+      }
+
+      case 'traffic_light':
+        // Three-color gradient: red (low) → yellow (mid) → green (high)
+        request = {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [googleRange],
+              gradientRule: {
+                minpoint: {
+                  type: 'MIN',
+                  color: { red: 1, green: 0.8, blue: 0.8 },
+                },
+                midpoint: {
+                  type: 'PERCENTILE',
+                  value: '50',
+                  color: { red: 1, green: 1, blue: 0.7 },
+                },
+                maxpoint: {
+                  type: 'MAX',
+                  color: { red: 0.8, green: 1, blue: 0.8 },
+                },
+              },
+            },
+            index: 0,
+          },
+        };
+        break;
+
+      case 'variance_highlight': {
+        // Highlights values > +10% with green, < -10% with red (for budget variance analysis)
+        const negVarRule: sheets_v4.Schema$Request = {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [googleRange],
+              booleanRule: {
+                condition: {
+                  type: 'NUMBER_LESS',
+                  values: [{ userEnteredValue: '-0.1' }],
+                },
+                format: {
+                  backgroundColor: { red: 1, green: 0.85, blue: 0.85 },
+                  textFormat: { foregroundColor: { red: 0.8, green: 0, blue: 0 } },
+                },
+              },
+            },
+            index: 0,
+          },
+        };
+        const posVarRule: sheets_v4.Schema$Request = {
+          addConditionalFormatRule: {
+            rule: {
+              ranges: [googleRange],
+              booleanRule: {
+                condition: {
+                  type: 'NUMBER_GREATER',
+                  values: [{ userEnteredValue: '0.1' }],
+                },
+                format: {
+                  backgroundColor: { red: 0.85, green: 1, blue: 0.85 },
+                  textFormat: { foregroundColor: { red: 0, green: 0.5, blue: 0 } },
+                },
+              },
+            },
+            index: 1,
+          },
+        };
+        await this.sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId: input.spreadsheetId,
+          requestBody: { requests: [negVarRule, posVarRule] },
+        });
+        return this.success('add_conditional_format_rule', { ruleIndex: 0, rulesAdded: 2 });
+      }
 
       default:
         return this.error({

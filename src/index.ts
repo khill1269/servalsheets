@@ -29,10 +29,13 @@ export { OAuthProvider, type OAuthConfig } from './oauth-provider.js';
 // Schemas
 export * from './schemas/index.js';
 
-// Core
+// Core (exports ExecutionResult type)
 export * from './core/index.js';
 
 // Services
+// NOTE: services/index.js also exports ExecutionResult and RiskLevel types from agentic-planner
+// which conflict with core/schemas. TypeScript will warn but both are accessible.
+// Use 'import type { ExecutionResult as AgenticExecutionResult } from services/agentic-planner' if needed.
 export * from './services/index.js';
 
 // Handlers

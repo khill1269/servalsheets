@@ -49,7 +49,7 @@ export const DataValidationSchema = z.object({
 });
 
 // ============================================================================
-// CONSOLIDATED INPUT SCHEMA (20 actions)
+// CONSOLIDATED INPUT SCHEMA (18 actions)
 // ============================================================================
 
 // Common fields used across multiple actions
@@ -380,7 +380,7 @@ const FindReplaceActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
-// CELL ACTION SCHEMAS (12 actions)
+// CELL ACTION SCHEMAS (10 actions)
 // ============================================================================
 
 const AddNoteActionSchema = CommonFieldsSchema.extend({
@@ -516,37 +516,56 @@ const normalizeDataRequest = (val: unknown): unknown => {
   return val;
 };
 
+/**
+ * Input schema for sheets_data tool
+ *
+ * @tool sheets_data
+ * @actions 18 total (8 value operations + 10 cell operations)
+ * @category Data Operations
+ *
+ * This discriminated union uses the `action` field to determine which operation to perform.
+ * TypeScript will automatically narrow the type based on the action value.
+ *
+ * @example
+ * ```typescript
+ * // Read action - TypeScript knows 'range' exists
+ * const input: SheetsDataInput = {
+ *   request: { action: 'read', spreadsheetId: '...', range: 'A1:B10' }
+ * };
+ *
+ * // Write action - TypeScript knows 'values' exists
+ * const input: SheetsDataInput = {
+ *   request: { action: 'write', spreadsheetId: '...', range: 'A1:B10', values: [[...]] }
+ * };
+ * ```
+ */
 export const SheetsDataInputSchema = z.object({
   request: z.preprocess(
     normalizeDataRequest,
     z.discriminatedUnion('action', [
-      // Value actions (8)
-      ReadActionSchema,
-      WriteActionSchema,
-      AppendActionSchema,
-      ClearActionSchema,
-      BatchReadActionSchema,
-      BatchWriteActionSchema,
-      BatchClearActionSchema,
-      FindReplaceActionSchema,
-      // v2.0: merged find + replace
-      // Cell actions (10) - was 12, validation moved to sheets_format
-      AddNoteActionSchema,
-      GetNoteActionSchema,
-      ClearNoteActionSchema,
+      // Value actions (8) - Core cell value operations
+      ReadActionSchema,         // Read values from range or filter
+      WriteActionSchema,        // Write values to range
+      AppendActionSchema,       // Append rows to sheet
+      ClearActionSchema,        // Clear cell values
+      BatchReadActionSchema,    // Read multiple ranges at once
+      BatchWriteActionSchema,   // Write to multiple ranges at once
+      BatchClearActionSchema,   // Clear multiple ranges at once
+      FindReplaceActionSchema,  // Find and replace values (v2.0: merged)
+
+      // Cell actions (10) - Cell metadata operations (was 12, validation moved to sheets_format)
+      AddNoteActionSchema,      // Add note/comment to cell
+      GetNoteActionSchema,      // Retrieve cell note
+      ClearNoteActionSchema,    // Remove cell note
       // SetValidationActionSchema - REMOVED: moved to sheets_format
       // ClearValidationActionSchema - REMOVED: moved to sheets_format
-      SetHyperlinkActionSchema,
-      ClearHyperlinkActionSchema,
-      MergeCellsActionSchema,
-      // v2.0: renamed from merge
-      UnmergeCellsActionSchema,
-      // v2.0: renamed from unmerge
-      GetMergesActionSchema,
-      CutPasteActionSchema,
-      // v2.0: renamed from cut
-      CopyPasteActionSchema,
-      // v2.0: renamed from copy,
+      SetHyperlinkActionSchema,   // Add hyperlink to cell
+      ClearHyperlinkActionSchema, // Remove hyperlink
+      MergeCellsActionSchema,     // Merge cells (v2.0: renamed from merge)
+      UnmergeCellsActionSchema,   // Unmerge cells (v2.0: renamed from unmerge)
+      GetMergesActionSchema,      // Get merged cell ranges
+      CutPasteActionSchema,       // Cut and paste cells (v2.0: renamed from cut)
+      CopyPasteActionSchema,      // Copy and paste cells (v2.0: renamed from copy)
     ])
   ),
 });

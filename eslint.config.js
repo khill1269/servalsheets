@@ -21,6 +21,13 @@ export default [
       'src/utils/google-api-inspector.ts',
       'src/utils/protocol-tracer.ts',
       'src/utils/request-replay.ts',
+      // Phase 3 features (deferred)
+      'src/plugins/**',
+      'src/services/agentic-planner.ts',
+      'src/services/checkpoint-manager.ts',
+      'src/services/time-travel.ts',
+      'src/transports/websocket-server.ts',
+      'src/transports/websocket-transport.ts',
     ],
   },
   {

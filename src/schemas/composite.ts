@@ -2,7 +2,7 @@
  * ServalSheets - Composite Operations Schema
  *
  * Schemas for high-level composite operations.
- * 7 Actions: import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
+ * 11 Actions: import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses, quick_report, data_pipeline, conditional_update, stream_append
  *
  * MCP Protocol: 2025-11-25
  * Google Sheets API: v4
@@ -11,7 +11,7 @@
  */
 
 import { z } from 'zod';
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ToolAnnotations } from './shared.js';
 import {
   SpreadsheetIdSchema,
   SheetIdSchema,
@@ -38,7 +38,7 @@ export const SheetReferenceSchema = z.union([
  * Verbosity level for responses
  */
 export const VerbositySchema = z
-  .enum(['minimal', 'standard', 'verbose'])
+  .enum(['minimal', 'standard', 'detailed'])
   .default('standard')
   .describe('Response verbosity level');
 
@@ -590,14 +590,60 @@ export const CloneStructureOutputSchema = z.object({
 });
 
 // ============================================================================
+// Export Large Dataset Action (Streaming)
+// ============================================================================
+
+export const ExportLargeDatasetInputSchema = z.object({
+  action: z
+    .literal('export_large_dataset')
+    .describe('Export large dataset with streaming (100K+ rows)'),
+  spreadsheetId: SpreadsheetIdSchema.describe('Spreadsheet ID to export'),
+  range: z.string().describe('Range to export (e.g., "Sheet1!A:Z" or "Sheet1!A1:Z100000")'),
+  chunkSize: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(10000)
+    .optional()
+    .default(1000)
+    .describe('Rows per chunk (default: 1000)'),
+  format: z
+    .enum(['json', 'csv'])
+    .optional()
+    .default('json')
+    .describe('Output format (default: json)'),
+  verbosity: z
+    .enum(['minimal', 'standard', 'detailed'])
+    .optional()
+    .default('standard')
+    .describe('Response detail level'),
+});
+
+export const ExportLargeDatasetOutputSchema = z.object({
+  success: z.literal(true),
+  action: z.literal('export_large_dataset'),
+  format: z.enum(['json', 'csv']).describe('Output format used'),
+  chunkSize: z.coerce.number().int().optional().describe('Chunk size used for export'),
+  totalRows: z.coerce.number().int().describe('Total rows exported'),
+  totalColumns: z.coerce.number().int().describe('Total columns exported'),
+  chunksProcessed: z.coerce.number().int().describe('Number of chunks processed'),
+  bytesProcessed: z.coerce.number().int().describe('Total bytes processed'),
+  durationMs: z.coerce.number().int().describe('Export duration in milliseconds'),
+  streamed: z.boolean().describe('Whether streaming was used'),
+  data: z.string().describe('Exported data (JSON string or CSV string)'),
+  _meta: ResponseMetaSchema.optional(),
+});
+
+// ============================================================================
 // Combined Composite Input/Output
 // ============================================================================
 
 /**
- * All composite operation inputs (10 actions)
+ * All composite operation inputs (11 actions)
  *
  * Original (7): import_csv, smart_append, bulk_update, deduplicate, export_xlsx, import_xlsx, get_form_responses
  * LLM-Optimized Workflows (3): setup_sheet, import_and_format, clone_structure
+ * Streaming (1): export_large_dataset
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time
@@ -618,11 +664,13 @@ export const CompositeInputSchema = z.object({
     SetupSheetInputSchema,
     ImportAndFormatInputSchema,
     CloneStructureInputSchema,
+    // Streaming actions (1)
+    ExportLargeDatasetInputSchema,
   ]),
 });
 
 /**
- * Success outputs (10 actions)
+ * Success outputs (11 actions)
  *
  * Using z.union() (not discriminated union) because output schemas
  * are only used for runtime validation, not for LLM guidance.
@@ -640,6 +688,8 @@ export const CompositeSuccessOutputSchema = z.union([
   SetupSheetOutputSchema,
   ImportAndFormatOutputSchema,
   CloneStructureOutputSchema,
+  // Streaming outputs
+  ExportLargeDatasetOutputSchema,
 ]);
 
 /**
@@ -664,6 +714,7 @@ export const CompositeResponseSchema = z.discriminatedUnion('success', [
   SetupSheetOutputSchema,
   ImportAndFormatOutputSchema,
   CloneStructureOutputSchema,
+  ExportLargeDatasetOutputSchema,
   CompositeErrorOutputSchema,
 ]);
 
@@ -701,6 +752,9 @@ export type ImportXlsxOutput = z.infer<typeof ImportXlsxOutputSchema>;
 
 export type GetFormResponsesInput = z.infer<typeof GetFormResponsesInputSchema>;
 export type GetFormResponsesOutput = z.infer<typeof GetFormResponsesOutputSchema>;
+
+export type ExportLargeDatasetInput = z.infer<typeof ExportLargeDatasetInputSchema>;
+export type ExportLargeDatasetOutput = z.infer<typeof ExportLargeDatasetOutputSchema>;
 
 // LLM-optimized workflow types
 export type SetupSheetInput = z.infer<typeof SetupSheetInputSchema>;
@@ -751,6 +805,11 @@ export type CompositeImportXlsxInput = CompositeInput['request'] & {
 export type CompositeGetFormResponsesInput = CompositeInput['request'] & {
   action: 'get_form_responses';
   spreadsheetId: string;
+};
+export type CompositeExportLargeDatasetInput = CompositeInput['request'] & {
+  action: 'export_large_dataset';
+  spreadsheetId: string;
+  range: string;
 };
 
 // LLM-optimized workflow type helpers

@@ -178,6 +178,7 @@ export class WebhookWorker {
           },
           body: payloadStr,
           signal: controller.signal,
+          redirect: 'error', // SSRF protection: prevent redirect-based attacks
         });
 
         clearTimeout(timeoutId);

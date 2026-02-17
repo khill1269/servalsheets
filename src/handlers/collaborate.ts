@@ -62,6 +62,15 @@ import { createSnapshotIfNeeded } from '../utils/safety-helpers.js';
 import { createNotFoundError, createValidationError } from '../utils/error-factory.js';
 import { parseA1Notation } from '../utils/google-sheets-helpers.js';
 
+const DRIVE_MIME_TYPES = {
+  GOOGLE_SHEETS: 'application/vnd.google-apps.spreadsheet',
+  GOOGLE_DRIVE_FOLDER: 'application/vnd.google-apps.folder',
+  XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  CSV: 'text/csv',
+  PDF: 'application/pdf',
+  ODS: 'application/vnd.oasis.opendocument.spreadsheet',
+} as const;
+
 type CollaborateSuccess = Extract<CollaborateResponse, { success: true }>;
 
 export class CollaborateHandler extends BaseHandler<
@@ -399,6 +408,7 @@ export class CollaborateHandler extends BaseHandler<
       sendNotificationEmail: input.sendNotification ?? true,
       emailMessage: input.emailMessage,
       requestBody,
+      fields: 'id,type,role,emailAddress,displayName',
       supportsAllDrives: true,
     });
 
@@ -422,6 +432,7 @@ export class CollaborateHandler extends BaseHandler<
         role: input.role,
         expirationTime: input.expirationTime,
       },
+      fields: 'id,type,role,emailAddress,displayName',
       supportsAllDrives: true,
     });
 
@@ -517,6 +528,7 @@ export class CollaborateHandler extends BaseHandler<
         role: 'owner',
         emailAddress: input.newOwnerEmail!,
       },
+      fields: 'id,type,role,emailAddress,displayName',
       supportsAllDrives: true,
     });
 
@@ -554,6 +566,7 @@ export class CollaborateHandler extends BaseHandler<
         type: 'anyone',
         role: input.role ?? 'reader',
       },
+      fields: 'id,type,role,emailAddress,displayName',
     });
 
     return this.success('share_set_link', {
@@ -891,10 +904,12 @@ export class CollaborateHandler extends BaseHandler<
     input: CollaborateVersionListSnapshotsInput
   ): Promise<CollaborateResponse> {
     const response = await this.driveApi!.files.list({
-      q: "mimeType='application/vnd.google-apps.spreadsheet' and name contains 'Snapshot' and trashed=false",
+      q: `mimeType='${DRIVE_MIME_TYPES.GOOGLE_SHEETS}' and name contains 'Snapshot' and trashed=false`,
       spaces: 'drive',
       fields: 'files(id,name,createdTime,size),nextPageToken',
       pageSize: 50,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
     });
 
     const snapshots = (response.data.files ?? []).map((f) => ({
@@ -1044,10 +1059,10 @@ export class CollaborateHandler extends BaseHandler<
   ): Promise<CollaborateResponse> {
     const format = input.format ?? 'xlsx';
     const mimeMap: Record<string, string> = {
-      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      csv: 'text/csv',
-      pdf: 'application/pdf',
-      ods: 'application/vnd.oasis.opendocument.spreadsheet',
+      xlsx: DRIVE_MIME_TYPES.XLSX,
+      csv: DRIVE_MIME_TYPES.CSV,
+      pdf: DRIVE_MIME_TYPES.PDF,
+      ods: DRIVE_MIME_TYPES.ODS,
     };
     const mimeType = mimeMap[format] ?? mimeMap['xlsx'];
 
@@ -1777,7 +1792,12 @@ export class CollaborateHandler extends BaseHandler<
     const metadataId = response.data.matchedDeveloperMetadata?.[0]?.developerMetadata?.metadataId;
 
     if (!metadataId) {
-      throw new Error(`Approval metadata not found for ID: ${approvalId}`);
+      throw createNotFoundError({
+        resourceType: 'operation',
+        resourceId: approvalId,
+        searchSuggestion:
+          'Check if the approval ID is correct or if the approval was already processed',
+      });
     }
 
     // Update metadata

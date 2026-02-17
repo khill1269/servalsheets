@@ -1,35 +1,48 @@
 # Pull Request
 
 ## Description
+
 <!-- Brief description of changes -->
 
 ## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-- [ ] Refactoring (no functional changes)
-- [ ] Performance improvement
 
-## Verification
-- [ ] `npm run verify` passes (typecheck, lint, test, checks)
-- [ ] Added/updated tests for changes
-- [ ] Updated documentation if needed
-- [ ] Tested manually (describe how)
+- [ ] Bug fix (non-breaking change fixing an issue)
+- [ ] New feature (non-breaking change adding functionality)
+- [ ] Breaking change (fix or feature causing existing functionality to change)
+- [ ] Documentation update
+- [ ] Performance improvement
+- [ ] Code refactoring
+
+## Multi-Agent Analysis Results
+
+```bash
+# Run before submitting:
+npm run analyze:file <changed-files>
+```
+
+<!-- Paste multi-agent analysis summary here -->
+
+## Validation Gates
+
+- [ ] G0: Baseline Integrity (`Cmd+G Cmd+0` or `npm run gates:g0`)
+- [ ] G1: Metadata Consistency (`Cmd+G Cmd+1` or `npm run gates:g1`)
+- [ ] Tests passing (`Cmd+Shift+F` or `npm test`)
+- [ ] No silent fallbacks (`npm run check:silent-fallbacks`)
 
 ## Checklist
-- [ ] Code follows style guidelines (ESLint passes)
-- [ ] No silent fallbacks (`npm run check:silent-fallbacks` passes)
-- [ ] No debug prints in handlers (`npm run check:debug-prints` passes)
-- [ ] No TODOs in src/ (`npm run check:placeholders` passes)
-- [ ] Metadata synchronized (`npm run check:drift` passes)
-- [ ] All tests passing (`npm run test` passes)
 
-## Related Issues
-<!-- Link related issues: Fixes #123, Closes #456 -->
+- [ ] Code follows project style (auto-formatted with Prettier)
+- [ ] Self-review completed
+- [ ] Comments added for complex logic
+- [ ] Documentation updated (if applicable)
+- [ ] No breaking changes (or documented if necessary)
+- [ ] All validation gates pass
+- [ ] Multi-agent analysis shows no critical issues
 
 ## Screenshots (if applicable)
+
 <!-- Add screenshots for UI changes -->
 
 ## Additional Notes
-<!-- Any additional context, considerations, or follow-up work -->
+
+<!-- Any additional information for reviewers -->

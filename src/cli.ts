@@ -34,6 +34,35 @@ import {
   requireEncryptionKeyInProduction,
   ensureEncryptionKey,
 } from './startup/lifecycle.js';
+import { runPreflightChecks } from './startup/preflight-validation.js';
+import { enhanceStartupError } from './utils/enhanced-errors.js';
+import {
+  checkRestartBackoff,
+  recordStartupAttempt,
+  recordSuccessfulStartup,
+} from './startup/restart-policy.js';
+
+// Global crash handlers — prevent silent exits that leave Claude Desktop with "Server disconnected"
+// These write to stderr (safe in STDIO mode — only stdout is the MCP channel)
+process.on('unhandledRejection', (reason) => {
+  console.error('ServalSheets unhandled rejection:', reason);
+  logger.error('Unhandled promise rejection', {
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('ServalSheets uncaught exception:', error);
+  logger.error('Uncaught exception — shutting down', {
+    error: error.message,
+    stack: error.stack,
+  });
+  process.exit(1);
+});
+
+// Record startup start time for metrics
+process.env['SERVALSHEETS_STARTUP_TIME'] = Date.now().toString();
 
 const args = process.argv.slice(2);
 
@@ -170,6 +199,40 @@ if (serviceAccountPath) {
 // Initialize and start server
 (async () => {
   try {
+    // Check if we need to enforce backoff delay (prevents rapid restart loops)
+    const backoffDelay = await checkRestartBackoff();
+    if (backoffDelay > 0) {
+      console.error(
+        `⏳ Waiting ${Math.ceil(backoffDelay / 1000)}s before restart (exponential backoff)...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+    }
+
+    // Record this startup attempt (for exponential backoff tracking)
+    await recordStartupAttempt();
+
+    // Run pre-flight validation checks
+    const preflightResults = await runPreflightChecks();
+    if (preflightResults.criticalFailures > 0) {
+      console.error('\n❌ Pre-flight checks failed - cannot start server\n');
+      preflightResults.failures.forEach((f) => {
+        console.error(`  ✗ ${f.name}: ${f.message}`);
+        if (f.fix) console.error(`    Fix: ${f.fix}`);
+      });
+      console.error('');
+      process.exit(1);
+    }
+
+    // Log warnings but continue
+    if (preflightResults.warnings > 0) {
+      console.warn('\n⚠️  Pre-flight warnings:\n');
+      preflightResults.warningList.forEach((w) => {
+        console.warn(`  • ${w.name}: ${w.message}`);
+        if (w.fix) console.warn(`    Fix: ${w.fix}`);
+      });
+      console.warn('');
+    }
+
     // CRITICAL-004 FIX: Validate production security requirements
     // This ensures ENCRYPTION_KEY is set in production mode
     requireEncryptionKeyInProduction();
@@ -203,9 +266,37 @@ if (serviceAccountPath) {
 
       logger.info('ServalSheets STDIO server started successfully');
     }
+
+    // Schedule recording successful startup after SUCCESS_THRESHOLD_MS (default: 30s)
+    // This resets the exponential backoff counter
+    setTimeout(() => {
+      recordSuccessfulStartup().catch(() => {
+        // Ignore errors in background task
+      });
+    }, 30000);
   } catch (error) {
-    console.error('FATAL ERROR starting ServalSheets:', error);
-    logger.error('Failed to start ServalSheets server', { error });
+    // Use enhanced error system for actionable messages
+    const enhancedError = enhanceStartupError(error);
+
+    console.error('\n❌ FATAL: ServalSheets failed to start\n');
+    console.error(`Error: ${enhancedError.message}\n`);
+
+    if (enhancedError.resolution) {
+      console.error(`💡 Fix: ${enhancedError.resolution}\n`);
+    }
+
+    if (enhancedError.resolutionSteps && enhancedError.resolutionSteps.length > 0) {
+      console.error('Steps to resolve:');
+      enhancedError.resolutionSteps.forEach((step) => console.error(`  ${step}`));
+      console.error('');
+    }
+
+    // Structured logging for debugging
+    logger.error('Failed to start ServalSheets server', {
+      error: enhancedError,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     process.exit(1);
   }
 })();

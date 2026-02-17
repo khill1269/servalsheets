@@ -13,7 +13,9 @@ import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import { randomUUID, randomBytes, createHash } from 'crypto';
 import { fileURLToPath } from 'url';
-import { resolve } from 'path';
+import { resolve, join } from 'path';
+import { readFileSync, existsSync } from 'fs';
+import * as swaggerUi from 'swagger-ui-express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -74,6 +76,12 @@ import {
   initializeResourceNotifications,
 } from './resources/index.js';
 import { getTraceAggregator } from './services/trace-aggregator.js';
+import { getRequestRecorder, initRequestRecorder } from './services/request-recorder.js';
+import {
+  extractVersionFromRequest,
+  addDeprecationHeaders,
+  type VersionSelection,
+} from './versioning/schema-manager.js';
 import {
   registerServalSheetsPrompts,
   registerServalSheetsResources,
@@ -337,6 +345,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   const app = express();
 
+  // Derive __dirname for ESM (needed for static file serving)
+  const dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
+
   // Health service for liveness/readiness probes
   // Note: GoogleClient is session-specific, so health checks will report on active sessions
   const healthService = new HealthService(null);
@@ -372,6 +383,55 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   // Response redaction middleware (strips tokens, API keys from error responses)
   // Enabled by default in production, or when ENABLE_RESPONSE_REDACTION=true
   app.use(responseRedactionMiddleware());
+
+  // Schema versioning middleware (P3-5)
+  // Handles version negotiation via query param or header
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const versionSelection = extractVersionFromRequest(req);
+    addDeprecationHeaders(res, versionSelection);
+    (req as any).schemaVersion = versionSelection.selectedVersion;
+    next();
+  });
+
+  // Request recording middleware (P3-6)
+  // Records all tool calls to SQLite for replay and debugging
+  // Controlled by RECORD_REQUESTS env var (default: true)
+  const recorder = getRequestRecorder();
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    const originalJson = res.json.bind(res);
+
+    // Intercept res.json to capture response
+    res.json = function (data: any) {
+      const duration = Date.now() - startTime;
+
+      // Extract tool info from request body
+      const toolName = req.body?.tool || req.body?.name || 'unknown';
+      const action = req.body?.action || req.body?.arguments?.action || 'unknown';
+      const spreadsheetId =
+        req.body?.spreadsheetId ||
+        req.body?.arguments?.spreadsheetId ||
+        req.body?.params?.spreadsheetId ||
+        null;
+
+      // Record the request/response pair
+      recorder.record({
+        timestamp: startTime,
+        tool_name: toolName,
+        action,
+        spreadsheet_id: spreadsheetId,
+        request_body: JSON.stringify(req.body || {}),
+        response_body: JSON.stringify(data),
+        status_code: res.statusCode,
+        duration_ms: duration,
+        error_message: data?.error ? JSON.stringify(data.error) : null,
+      });
+
+      return originalJson(data);
+    };
+
+    next();
+  });
 
   // HTTPS Enforcement (Production Only)
   if (process.env['NODE_ENV'] === 'production') {
@@ -782,12 +842,25 @@ export function createHttpServer(options: HttpServerOptions = {}): {
 
   // Readiness probe - Is the server ready to handle requests?
   app.get('/health/ready', async (_req: Request, res: Response) => {
-    const health = await healthService.checkReadiness();
+    const baseHealth = await healthService.checkReadiness();
+
+    // Extended health response with OAuth and session info
+    const health: typeof baseHealth & {
+      oauth?: {
+        enabled: boolean;
+        configured: boolean;
+        issuer?: string;
+        clientId?: string;
+      };
+      sessions?: {
+        active: number;
+        hasAuthentication: boolean;
+      };
+    } = { ...baseHealth };
 
     // Add OAuth status if enabled
     if (options.enableOAuth && options.oauthConfig) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (health as any).oauth = {
+      health.oauth = {
         enabled: true,
         configured: Boolean(
           options.oauthConfig.googleClientId && options.oauthConfig.googleClientSecret
@@ -798,8 +871,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     }
 
     // Add active session info
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (health as any).sessions = {
+    health.sessions = {
       active: sessions.size,
       hasAuthentication: sessions.size > 0, // Sessions are created with auth tokens
     };
@@ -855,6 +927,9 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       tracesSlow: `${baseUrl}/traces/slow`,
       tracesErrors: `${baseUrl}/traces/errors`,
       tracesStats: `${baseUrl}/traces/stats`,
+      apiDocs: `${baseUrl}/api-docs`,
+      openapiJson: `${baseUrl}/api-docs/openapi.json`,
+      openapiYaml: `${baseUrl}/api-docs/openapi.yaml`,
     };
     if (legacySseEnabled) {
       endpoints['sse'] = `${baseUrl}/sse`;
@@ -884,6 +959,91 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   app.head('/health/live', (_req: Request, res: Response) => res.status(200).end());
   app.head('/health/ready', (_req: Request, res: Response) => res.status(200).end());
   app.head('/info', (_req: Request, res: Response) => res.status(200).end());
+
+  // OpenAPI/Swagger documentation
+  const openapiJsonPath = join(process.cwd(), 'openapi.json');
+  const openapiYamlPath = join(process.cwd(), 'openapi.yaml');
+
+  // Serve OpenAPI spec (JSON)
+  app.get('/api-docs/openapi.json', (req: Request, res: Response) => {
+    try {
+      if (existsSync(openapiJsonPath)) {
+        const spec = JSON.parse(readFileSync(openapiJsonPath, 'utf-8'));
+        res.json(spec);
+      } else {
+        res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'OpenAPI spec not generated. Run: npm run gen:openapi',
+          },
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to serve OpenAPI spec', { error });
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to load OpenAPI spec',
+        },
+      });
+    }
+  });
+
+  // Serve OpenAPI spec (YAML)
+  app.get('/api-docs/openapi.yaml', (req: Request, res: Response) => {
+    try {
+      if (existsSync(openapiYamlPath)) {
+        const spec = readFileSync(openapiYamlPath, 'utf-8');
+        res.set('Content-Type', 'text/yaml');
+        res.send(spec);
+      } else {
+        res.status(404).json({
+          error: {
+            code: 'NOT_FOUND',
+            message: 'OpenAPI spec not generated. Run: npm run gen:openapi',
+          },
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to serve OpenAPI spec', { error });
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to load OpenAPI spec',
+        },
+      });
+    }
+  });
+
+  // Swagger UI
+  if (existsSync(openapiJsonPath)) {
+    try {
+      const openapiSpec = JSON.parse(readFileSync(openapiJsonPath, 'utf-8'));
+      app.use(
+        '/api-docs',
+        swaggerUi.serve,
+        swaggerUi.setup(openapiSpec, {
+          customCss: '.swagger-ui .topbar { display: none }',
+          customSiteTitle: 'ServalSheets API Documentation',
+          customfavIcon: '/favicon.ico',
+        })
+      );
+      logger.info('Swagger UI enabled at /api-docs');
+    } catch (error) {
+      logger.warn('Failed to load OpenAPI spec for Swagger UI', { error });
+    }
+  } else {
+    // Provide placeholder route when spec not generated
+    app.get('/api-docs', (req: Request, res: Response) => {
+      res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'API documentation not available. Generate OpenAPI spec with: npm run gen:openapi',
+          hint: 'Run the generator script to create openapi.json and enable interactive documentation',
+        },
+      });
+    });
+  }
 
   // Prometheus metrics endpoint
   app.get('/metrics', metricsHandler);
@@ -1336,6 +1496,26 @@ export function createHttpServer(options: HttpServerOptions = {}): {
   });
 
   // ==================== End of Trace Endpoints ====================
+
+  // ==================== Tracing UI Routes ====================
+
+  // Integrate tracing dashboard UI (P3-2)
+  // Loaded synchronously - routes are added during server initialization
+  try {
+    import('./http-server-tracing-ui.js')
+      .then(({ addTracingUIRoutes }) => {
+        addTracingUIRoutes(app);
+        logger.info('Tracing UI routes loaded successfully');
+      })
+      .catch((error) => {
+        logger.warn('Failed to load tracing UI routes', { error });
+        // UI routes are optional - server still functions without them
+      });
+  } catch (error) {
+    logger.warn('Failed to initialize tracing UI', { error });
+  }
+
+  // ==================== End of Tracing UI Routes ====================
 
   // Helper function to format uptime
   function formatUptime(seconds: number): string {
@@ -2415,42 +2595,6 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         });
       });
 
-      // WebSocket transport (opt-in via ENABLE_WEBSOCKET)
-      if (envConfig.ENABLE_WEBSOCKET) {
-        try {
-          const { WebSocketServer: WsServer } = await import('./transports/websocket-server.js');
-          const wsPort = envConfig.WEBSOCKET_PORT;
-          const wsServer = new WsServer({ port: wsPort, host });
-          await wsServer.start();
-          logger.info(`WebSocket server listening on ${host}:${wsPort}`);
-
-          // Register shutdown handler for WebSocket server
-          onShutdown(async () => {
-            await wsServer.stop();
-          });
-        } catch (error) {
-          logger.error('Failed to start WebSocket server', { error });
-          logger.warn('Continuing without WebSocket transport');
-        }
-      }
-
-      // Plugin system (opt-in via ENABLE_PLUGINS)
-      if (envConfig.ENABLE_PLUGINS) {
-        try {
-          const { PluginRuntime } = await import('./plugins/index.js');
-          const runtime = new PluginRuntime({
-            pluginDir: envConfig.PLUGINS_DIR,
-          });
-          logger.info('Plugin system initialized', { pluginDir: envConfig.PLUGINS_DIR });
-
-          onShutdown(async () => {
-            await runtime.shutdown();
-          });
-        } catch (error) {
-          logger.error('Failed to initialize plugin system', { error });
-          logger.warn('Continuing without plugin support');
-        }
-      }
     },
     stop: async () => {
       if (httpServer) {

@@ -24,6 +24,7 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
+import { columnLetterToIndex, indexToColumnLetter } from '../utils/google-sheets-helpers.js';
 
 /**
  * Parsed A1 range information
@@ -223,6 +224,8 @@ export class RequestMerger {
 
     const { requests } = group;
     this.stats.windowSizes.push(requests.length);
+    if (this.stats.windowSizes.length > 1000)
+      this.stats.windowSizes = this.stats.windowSizes.slice(-1000);
 
     try {
       // Group by sheet and options
@@ -308,38 +311,62 @@ export class RequestMerger {
   }
 
   /**
-   * Find groups of overlapping/adjacent ranges to merge
+   * Find groups of overlapping/adjacent ranges to merge using Union-Find
+   * for O(n^2 * alpha(n)) instead of O(n^3) worst case.
    */
   private findMergeableGroups(requests: PendingRequest[]): PendingRequest[][] {
-    const groups: PendingRequest[][] = [];
-    const remaining = [...requests];
-
-    while (remaining.length > 0) {
-      const current = remaining.shift()!;
-      const group = [current];
-
-      // Find all requests that overlap with this one
-      let i = 0;
-      while (i < remaining.length) {
-        const candidate = remaining[i]!;
-
-        // Check if any request in the group overlaps with candidate
-        const overlaps = group.some((r) => this.shouldMerge(r.rangeInfo, candidate.rangeInfo));
-
-        if (overlaps) {
-          group.push(candidate);
-          remaining.splice(i, 1);
-          // Restart search from beginning to catch transitive overlaps
-          i = 0;
-        } else {
-          i++;
-        }
-      }
-
-      groups.push(group);
+    const n = requests.length;
+    const parent: number[] = [];
+    const rank: number[] = [];
+    for (let i = 0; i < n; i++) {
+      parent[i] = i;
+      rank[i] = 0;
     }
 
-    return groups;
+    const find = (x: number): number => {
+      while (parent[x] !== x) {
+        parent[x] = parent[parent[x]!]!; // path compression
+        x = parent[x]!;
+      }
+      return x;
+    };
+
+    const union = (a: number, b: number): void => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra === rb) return;
+      if (rank[ra]! < rank[rb]!) {
+        parent[ra] = rb;
+      } else if (rank[ra]! > rank[rb]!) {
+        parent[rb] = ra;
+      } else {
+        parent[rb] = ra;
+        rank[ra] = rank[ra]! + 1;
+      }
+    };
+
+    // Pairwise comparison to find mergeable pairs
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (this.shouldMerge(requests[i]!.rangeInfo, requests[j]!.rangeInfo)) {
+          union(i, j);
+        }
+      }
+    }
+
+    // Collect groups by root
+    const groupMap = new Map<number, PendingRequest[]>();
+    for (let i = 0; i < n; i++) {
+      const root = find(i);
+      let group = groupMap.get(root);
+      if (!group) {
+        group = [];
+        groupMap.set(root, group);
+      }
+      group.push(requests[i]!);
+    }
+
+    return Array.from(groupMap.values());
   }
 
   /**
@@ -503,15 +530,15 @@ export function parseA1Range(range: string): RangeInfo {
     if (match) {
       // Standard range: A1:B10
       if (match[1] !== undefined || match[2] !== undefined) {
-        startCol = match[1] ? letterToColumnIndex(match[1]) + 1 : 0;
+        startCol = match[1] ? columnLetterToIndex(match[1]) + 1 : 0;
         startRow = match[2] ? parseInt(match[2], 10) : 0;
-        endCol = match[3] ? letterToColumnIndex(match[3]) + 1 : startCol || 0;
+        endCol = match[3] ? columnLetterToIndex(match[3]) + 1 : startCol || 0;
         endRow = match[4] ? parseInt(match[4], 10) : startRow || 0;
       }
       // Column range: A:A
       else if (match[5]) {
-        startCol = letterToColumnIndex(match[5]) + 1;
-        endCol = letterToColumnIndex(match[6]!) + 1;
+        startCol = columnLetterToIndex(match[5]) + 1;
+        endCol = columnLetterToIndex(match[6]!) + 1;
         startRow = 0;
         endRow = 0;
       }
@@ -663,7 +690,7 @@ export function formatA1Range(range: RangeInfo): string {
 
   // Format start cell
   if (range.startCol > 0) {
-    parts.push(columnIndexToLetter(range.startCol - 1));
+    parts.push(indexToColumnLetter(range.startCol - 1));
   }
   if (range.startRow > 0) {
     parts.push(range.startRow.toString());
@@ -675,7 +702,7 @@ export function formatA1Range(range: RangeInfo): string {
 
     // Format end cell
     if (range.endCol > 0) {
-      parts.push(columnIndexToLetter(range.endCol - 1));
+      parts.push(indexToColumnLetter(range.endCol - 1));
     }
     if (range.endRow > 0) {
       parts.push(range.endRow.toString());
@@ -728,29 +755,4 @@ export function splitResponse(
     majorDimension: mergedData.majorDimension,
   };
 }
-
-/**
- * Convert column letter to 0-based index
- */
-function letterToColumnIndex(letter: string): number {
-  let index = 0;
-  const upper = letter.toUpperCase();
-  for (let i = 0; i < upper.length; i++) {
-    index = index * 26 + (upper.charCodeAt(i) - 64);
-  }
-  return index - 1;
-}
-
-/**
- * Convert 0-based index to column letter
- */
-function columnIndexToLetter(index: number): string {
-  let letter = '';
-  let temp = index + 1;
-  while (temp > 0) {
-    const mod = (temp - 1) % 26;
-    letter = String.fromCharCode(65 + mod) + letter;
-    temp = Math.floor((temp - 1) / 26);
-  }
-  return letter;
-}
+// Column letter ↔ index conversions now imported from ../utils/google-sheets-helpers.js

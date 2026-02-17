@@ -119,6 +119,7 @@ function getDescription(toolName: string): string {
  */
 export interface ToolDefinition {
   readonly name: string;
+  readonly title: string;
   readonly description: string;
   readonly inputSchema: ZodTypeAny;
   readonly outputSchema: ZodTypeAny;
@@ -154,6 +155,7 @@ export interface ToolDefinition {
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   {
     name: 'sheets_auth',
+    title: 'Authentication',
     description: getDescription('sheets_auth'),
     inputSchema: SheetsAuthInputSchema,
     outputSchema: SheetsAuthOutputSchema,
@@ -161,6 +163,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_core',
+    title: 'Spreadsheet & Sheet Management',
     description: getDescription('sheets_core'),
     inputSchema: SheetsCoreInputSchema,
     outputSchema: SheetsCoreOutputSchema,
@@ -168,6 +171,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_data',
+    title: 'Cell Data Operations',
     description: getDescription('sheets_data'),
     inputSchema: SheetsDataInputSchema,
     outputSchema: SheetsDataOutputSchema,
@@ -175,6 +179,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_format',
+    title: 'Formatting & Styling',
     description: getDescription('sheets_format'),
     inputSchema: SheetsFormatInputSchema,
     outputSchema: SheetsFormatOutputSchema,
@@ -182,6 +187,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_dimensions',
+    title: 'Rows, Columns & Sorting',
     description: getDescription('sheets_dimensions'),
     inputSchema: SheetsDimensionsInputSchema,
     outputSchema: SheetsDimensionsOutputSchema,
@@ -189,6 +195,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_visualize',
+    title: 'Charts & Pivot Tables',
     description: getDescription('sheets_visualize'),
     inputSchema: SheetsVisualizeInputSchema,
     outputSchema: SheetsVisualizeOutputSchema,
@@ -196,6 +203,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_collaborate',
+    title: 'Sharing & Collaboration',
     description: getDescription('sheets_collaborate'),
     inputSchema: SheetsCollaborateInputSchema,
     outputSchema: SheetsCollaborateOutputSchema,
@@ -203,6 +211,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_advanced',
+    title: 'Named Ranges, Protection & Tables',
     description: getDescription('sheets_advanced'),
     inputSchema: SheetsAdvancedInputSchema,
     outputSchema: SheetsAdvancedOutputSchema,
@@ -210,6 +219,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_transaction',
+    title: 'Atomic Batch Operations',
     description: getDescription('sheets_transaction'),
     inputSchema: SheetsTransactionInputSchema,
     outputSchema: SheetsTransactionOutputSchema,
@@ -217,6 +227,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_quality',
+    title: 'Data Validation & Quality',
     description: getDescription('sheets_quality'),
     inputSchema: SheetsQualityInputSchema,
     outputSchema: SheetsQualityOutputSchema,
@@ -224,6 +235,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_history',
+    title: 'Operation History & Undo',
     description: getDescription('sheets_history'),
     inputSchema: SheetsHistoryInputSchema,
     outputSchema: SheetsHistoryOutputSchema,
@@ -234,6 +246,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_confirm',
+    title: 'User Confirmation & Approval',
     description: getDescription('sheets_confirm'),
     inputSchema: SheetsConfirmInputSchema,
     outputSchema: SheetsConfirmOutputSchema,
@@ -241,6 +254,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_analyze',
+    title: 'AI-Powered Analysis',
     description: getDescription('sheets_analyze'),
     inputSchema: SheetsAnalyzeInputSchema,
     outputSchema: SheetsAnalyzeOutputSchema,
@@ -248,6 +262,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_fix',
+    title: 'Auto-Fix Issues',
     description: getDescription('sheets_fix'),
     inputSchema: SheetsFixInputSchema,
     outputSchema: SheetsFixOutputSchema,
@@ -255,6 +270,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_composite',
+    title: 'Multi-Step Operations',
     description: getDescription('sheets_composite'),
     inputSchema: CompositeInputSchema,
     outputSchema: CompositeOutputSchema,
@@ -262,6 +278,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_session',
+    title: 'Session & Context Management',
     description: getDescription('sheets_session'),
     inputSchema: SheetsSessionInputSchema,
     outputSchema: SheetsSessionOutputSchema,
@@ -272,6 +289,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_templates',
+    title: 'Spreadsheet Templates',
     description: getDescription('sheets_templates'),
     inputSchema: SheetsTemplatesInputSchema,
     outputSchema: SheetsTemplatesOutputSchema,
@@ -282,6 +300,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_bigquery',
+    title: 'BigQuery Integration',
     description: getDescription('sheets_bigquery'),
     inputSchema: SheetsBigQueryInputSchema,
     outputSchema: SheetsBigQueryOutputSchema,
@@ -292,6 +311,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_appsscript',
+    title: 'Apps Script Automation',
     description: getDescription('sheets_appsscript'),
     inputSchema: SheetsAppsScriptInputSchema,
     outputSchema: SheetsAppsScriptOutputSchema,
@@ -302,6 +322,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_webhook',
+    title: 'Webhook Notifications',
     description: getDescription('sheets_webhook'),
     inputSchema: SheetsWebhookInputSchema,
     outputSchema: SheetsWebhookOutputSchema,
@@ -309,6 +330,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   },
   {
     name: 'sheets_dependencies',
+    title: 'Formula Dependencies',
     description: getDescription('sheets_dependencies'),
     inputSchema: SheetsDependenciesInputSchema,
     outputSchema: SheetsDependenciesOutputSchema,
@@ -319,6 +341,7 @@ export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   // ============================================================================
   {
     name: 'sheets_federation',
+    title: 'MCP Server Federation',
     description: getDescription('sheets_federation'),
     inputSchema: SheetsFederationInputSchema,
     outputSchema: SheetsFederationOutputSchema,

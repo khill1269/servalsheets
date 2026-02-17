@@ -89,6 +89,15 @@ jobs:
           mkdir -p tests/config
           echo "$GOOGLE_TEST_CREDENTIALS" > tests/config/test-credentials.json
 
+      - name: Download baseline benchmarks
+        uses: actions/cache@v4
+        with:
+          path: benchmarks/baseline.json
+          key: benchmark-baseline-${{ github.base_ref || github.ref_name }}
+          restore-keys: |
+            benchmark-baseline-main
+            benchmark-baseline-
+
       - name: Run tool-level benchmarks
         if: |
           github.event.inputs.benchmark_type == 'tool-level' ||
@@ -99,16 +108,32 @@ jobs:
           RUN_BENCHMARKS: 'true'
         run: npm run bench:tool-level
 
+      - name: Track benchmark results & detect regressions
+        run: npm run benchmarks:track
+        continue-on-error: true
+        id: benchmark-tracking
+        env:
+          BENCHMARK_THRESHOLD: '10'
+
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-tool-level
           path: |
             benchmark-results/
+            benchmarks/latest.json
+            benchmarks/history/
             benchmark-report.json
             benchmark-report.md
           retention-days: 30
           if-no-files-found: ignore
+
+      - name: Update baseline (on main branch)
+        if: github.ref == 'refs/heads/main' && steps.benchmark-tracking.outcome == 'success'
+        run: |
+          mkdir -p benchmarks
+          cp benchmarks/latest.json benchmarks/baseline.json
+          echo "✅ Baseline updated for main branch"
 
   # Action-level benchmarks (manual trigger only - expensive)
   action-benchmarks:

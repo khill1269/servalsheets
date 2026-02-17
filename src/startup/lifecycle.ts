@@ -14,6 +14,7 @@ import { logger } from '../utils/logger.js';
 import { randomBytes } from 'crypto';
 import { initTracer, shutdownTracer, getTracer, type TracerOptions } from '../utils/tracing.js';
 import { shutdownOtlpExporter } from '../observability/otel-export.js';
+import { initTraceAggregator } from '../services/trace-aggregator.js';
 import {
   startConnectionHealthMonitoring,
   stopConnectionHealthMonitoring,
@@ -24,6 +25,8 @@ import { cacheManager } from '../utils/cache-manager.js';
 import { requestDeduplicator } from '../utils/request-deduplication.js';
 import { getBatchEfficiencyStats } from '../utils/batch-efficiency.js';
 import { getWebhookManager, getWebhookWorker } from '../services/index.js';
+import { serverStartupDuration } from '../observability/metrics.js';
+import { DEFER_SCHEMAS } from '../config/constants.js';
 
 // Shutdown timeout (10 seconds)
 const SHUTDOWN_TIMEOUT = 10000;
@@ -339,6 +342,14 @@ export async function startBackgroundTasks(options?: {
   // Initialize OpenTelemetry tracing
   initializeTracing(options?.tracing);
 
+  // Initialize trace aggregator for request trace collection
+  initTraceAggregator({
+    enabled: process.env['OTEL_ENABLED'] === 'true',
+    maxSize: 1000,
+    ttl: 5 * 60 * 1000, // 5 minutes
+  });
+  logger.info('Trace aggregator initialized');
+
   // Initialize connection health monitoring
   initializeConnectionHealth(options?.connectionHealth);
 
@@ -584,8 +595,31 @@ export function logEnvironmentConfig(): void {
   const cacheEnabled = process.env['CACHE_ENABLED'] !== 'false';
   const deduplicationEnabled = process.env['DEDUPLICATION_ENABLED'] !== 'false';
 
+  // Calculate startup timing if available
+  const startupStartTime = process.env['SERVALSHEETS_STARTUP_TIME']
+    ? parseInt(process.env['SERVALSHEETS_STARTUP_TIME'], 10)
+    : Date.now();
+  const startupDurationMs = Date.now() - startupStartTime;
+
+  // Record startup duration metric (Phase 0, Priority 2)
+  const transport = process.env['SERVALSHEETS_TRANSPORT'] || 'stdio';
+  const deferredSchemas = DEFER_SCHEMAS ? 'true' : 'false';
+  const deferredResources =
+    process.env['DISABLE_KNOWLEDGE_RESOURCES'] === 'true' ? 'false' : 'true';
+  serverStartupDuration.observe(
+    {
+      transport,
+      deferred_schemas: deferredSchemas,
+      deferred_resources: deferredResources,
+    },
+    startupDurationMs / 1000
+  );
+
   logger.info('Environment configuration', {
     nodeEnv: isProduction ? 'production' : 'development',
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
     logLevel,
     httpPort,
     hasOAuthClientId: Boolean(process.env['OAUTH_CLIENT_ID']),
@@ -595,5 +629,6 @@ export function logEnvironmentConfig(): void {
     otelLogSpans,
     cacheEnabled,
     deduplicationEnabled,
+    startupDurationMs,
   });
 }

@@ -5,6 +5,7 @@
  * Implementations: in-memory (development), Redis (production)
  */
 
+import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
 import { LRUCache } from 'lru-cache';
 
@@ -141,7 +142,9 @@ export class InMemorySessionStore implements SessionStore {
     }
 
     // Simple glob pattern matching (supports * wildcard)
-    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    // Escape regex special chars before converting glob * to .*
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
     return allKeys.filter((key) => regex.test(key));
   }
 
@@ -201,8 +204,7 @@ export class InMemorySessionStore implements SessionStore {
  * Requires Redis to be installed and running
  */
 export class RedisSessionStore implements SessionStore {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client: any; // Redis client (dynamic import, type not available at compile time)
+  private client: RedisClientType | null = null;
   private connected: boolean = false;
 
   constructor(private redisUrl: string) {
@@ -212,9 +214,9 @@ export class RedisSessionStore implements SessionStore {
   /**
    * Initialize Redis connection (lazy)
    */
-  private async ensureConnected(): Promise<void> {
-    if (this.connected) {
-      return;
+  private async ensureConnected(): Promise<RedisClientType> {
+    if (this.connected && this.client) {
+      return this.client;
     }
 
     try {
@@ -233,6 +235,7 @@ export class RedisSessionStore implements SessionStore {
       await this.client.connect();
       this.connected = true;
       console.error('[RedisSessionStore] Connected to Redis');
+      return this.client;
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
@@ -243,7 +246,7 @@ export class RedisSessionStore implements SessionStore {
   }
 
   async set(key: string, value: unknown, options?: number | { ttlMs: number }): Promise<void> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     // Handle both number (seconds) and object ({ ttlMs }) formats
     let ttlSeconds: number;
@@ -256,13 +259,13 @@ export class RedisSessionStore implements SessionStore {
     }
 
     const serialized = JSON.stringify(value);
-    await this.client.setEx(key, ttlSeconds, serialized);
+    await client.setEx(key, ttlSeconds, serialized);
   }
 
   async get(key: string): Promise<unknown | undefined> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
-    const data = await this.client.get(key);
+    const data = await client.get(key);
 
     if (!data) {
       // OK: Explicit empty - typed as optional, cache miss (Redis)
@@ -278,20 +281,20 @@ export class RedisSessionStore implements SessionStore {
   }
 
   async delete(key: string): Promise<boolean> {
-    await this.ensureConnected();
-    const result = await this.client.del(key);
+    const client = await this.ensureConnected();
+    const result = await client.del(key);
     return result > 0; // Redis returns number of keys deleted
   }
 
   async has(key: string): Promise<boolean> {
-    await this.ensureConnected();
-    const exists = await this.client.exists(key);
+    const client = await this.ensureConnected();
+    const exists = await client.exists(key);
     return exists === 1;
   }
 
   async keys(pattern?: string): Promise<string[]> {
-    await this.ensureConnected();
-    return await this.client.keys(pattern || '*');
+    const client = await this.ensureConnected();
+    return await client.keys(pattern || '*');
   }
 
   async cleanup(): Promise<void> {
@@ -299,8 +302,8 @@ export class RedisSessionStore implements SessionStore {
   }
 
   async stats(): Promise<{ totalKeys: number }> {
-    await this.ensureConnected();
-    const dbSize = await this.client.dbSize();
+    const client = await this.ensureConnected();
+    const dbSize = await client.dbSize();
 
     return {
       totalKeys: dbSize,
@@ -425,7 +428,9 @@ export class MemorySessionStore implements SessionStore {
     }
 
     // Simple glob pattern matching (supports * wildcard)
-    const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+    // Escape regex special chars before converting glob * to .*
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
     return allKeys.filter((key) => regex.test(key));
   }
 

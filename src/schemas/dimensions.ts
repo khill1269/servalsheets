@@ -188,7 +188,7 @@ const FreezeDimensionActionSchema = CommonFieldsSchema.extend({
     val.count = val.position;
   }
   // Remove the deprecated field from the output
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   const { position: _position, ...rest } = val;
   return rest;
 });

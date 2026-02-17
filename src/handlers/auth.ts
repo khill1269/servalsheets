@@ -249,10 +249,17 @@ export class AuthHandler {
         }
 
         // Open browser
+        // IMPORTANT: In STDIO mode, stdout is the MCP JSON-RPC channel.
+        // The `open` package can write status text to stdout, corrupting the protocol.
+        // Use wait:false and suppress child process output to prevent stdout contamination.
         if (autoOpenBrowser) {
           try {
             logger.info('Opening browser for OAuth...', { url: authUrl.substring(0, 100) + '...' });
-            await open(authUrl);
+            const subprocess = await open(authUrl, { wait: false });
+            // Prevent any subprocess output from leaking into STDIO transport
+            subprocess.stdout?.destroy();
+            subprocess.stderr?.destroy();
+            subprocess.unref();
             logger.info('Browser opened successfully');
           } catch (error) {
             logger.error('Failed to open browser - user must open URL manually', {

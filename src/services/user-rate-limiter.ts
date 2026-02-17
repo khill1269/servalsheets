@@ -38,6 +38,20 @@ import { logger } from '../utils/logger.js';
 type RedisClient = any;
 
 /**
+ * Non-blocking SCAN replacement for redis.keys() (O(1) amortized vs O(N) blocking)
+ */
+async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const result = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = result.cursor;
+    keys.push(...result.keys);
+  } while (cursor !== 0);
+  return keys;
+}
+
+/**
  * User rate limit configuration
  */
 export interface UserRateLimitConfig {
@@ -186,15 +200,47 @@ export class UserRateLimiter {
         hourUsage: hourCount,
       };
     } catch (error) {
-      logger.error('Rate limit check failed', { userId, error });
+      logger.error('Rate limit check failed, using local fallback', { userId, error });
 
-      // On error, allow request (fail open for availability)
+      // On Redis error, use in-memory fallback instead of fail-open
+      return this.checkLocalLimit(userId);
+    }
+  }
+
+  /**
+   * In-memory rate limit fallback when Redis is unavailable.
+   * Uses a simple counter per minute window to prevent quota exhaustion.
+   */
+  private localCounters = new Map<string, { count: number; resetAt: number }>();
+
+  private checkLocalLimit(userId: string): RateLimitResult {
+    const now = Date.now();
+    const minuteWindow = Math.floor(now / 60000);
+    const key = `${userId}:${minuteWindow}`;
+    const entry = this.localCounters.get(key);
+
+    if (!entry || entry.resetAt < now) {
+      this.localCounters.set(key, { count: 1, resetAt: (minuteWindow + 1) * 60000 });
+      // Cleanup old entries to prevent memory leak
+      if (this.localCounters.size > 10000) {
+        for (const [k, v] of this.localCounters) {
+          if (v.resetAt < now) this.localCounters.delete(k);
+        }
+      }
       return {
         allowed: true,
-        remaining: Infinity,
-        resetAt: new Date(Date.now() + 60000),
+        remaining: this.config.requestsPerMinute - 1,
+        resetAt: new Date((minuteWindow + 1) * 60000),
       };
     }
+
+    entry.count++;
+    const allowed = entry.count <= this.config.requestsPerMinute;
+    return {
+      allowed,
+      remaining: Math.max(0, this.config.requestsPerMinute - entry.count),
+      resetAt: new Date(entry.resetAt),
+    };
   }
 
   /**
@@ -293,12 +339,12 @@ export class UserRateLimiter {
       const now = Date.now();
       const minuteWindow = Math.floor(now / 60000);
 
-      // Count active users in current minute
-      const keys = await this.redis.keys(`rate:*:minute:${minuteWindow}`);
+      // Count active users in current minute (SCAN instead of KEYS to avoid O(N) blocking)
+      const keys = await scanRedisKeys(this.redis, `rate:*:minute:${minuteWindow}`);
       const activeUsers = keys.length;
 
       // Count total users (across all time windows)
-      const allKeys = await this.redis.keys('rate:*:minute:*');
+      const allKeys = await scanRedisKeys(this.redis, 'rate:*:minute:*');
       const regex = /^rate:([^:]+):/;
       const uniqueUsers = new Set(
         allKeys.map((key: string) => {

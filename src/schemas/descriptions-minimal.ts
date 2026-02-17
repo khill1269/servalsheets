@@ -18,7 +18,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_data: `📝 DATA - Read/write cell values (18 actions). read, write, append, batch_read, batch_write, notes, hyperlinks, merge. Range format: "Sheet1!A1:D10"`,
 
-  sheets_format: `🎨 FORMAT - Cell styling (21 actions). set_format, backgrounds, borders, number formats, conditional rules. For values use sheets_data.`,
+  sheets_format: `🎨 FORMAT - Cell styling (22 actions). set_format, backgrounds, borders, number formats, conditional rules. For values use sheets_data.`,
 
   sheets_dimensions: `📐 DIMENSIONS - Rows/columns (28 actions). insert, delete, resize, hide, freeze, sort, filter. Use dimension:"ROWS"/"COLUMNS". sheetId preferred, sheetName supported.`,
 
@@ -40,7 +40,7 @@ export const TOOL_DESCRIPTIONS_MINIMAL: Record<string, string> = {
 
   sheets_fix: `🔧 FIX - Auto-fix issues (1 action). Requires sheets_analyze first. Fixes: volatile formulas, missing freezes.`,
 
-  sheets_composite: `🔗 COMPOSITE - High-level workflows (10 actions). import_csv, smart_append, deduplicate, setup_sheet. 60-80% API savings.`,
+  sheets_composite: `🔗 COMPOSITE - High-level workflows (11 actions). import_csv, smart_append, deduplicate, setup_sheet. 60-80% API savings.`,
 
   sheets_session: `📋 SESSION - Conversation context (26 actions). set_active, get_context, find_by_reference, checkpoints, alerts, profile. save_checkpoint needs ENABLE_CHECKPOINTS=true.`,
 

@@ -92,6 +92,22 @@ export const batchSizeHistogram = new Histogram({
   buckets: [1, 5, 10, 25, 50, 100, 250, 500],
 });
 
+// Range merging optimization metrics
+export const rangeMergingApiCallsSavedTotal = new Counter({
+  name: 'servalsheets_range_merging_api_calls_saved_total',
+  help: 'Total API calls saved through synchronous range merging',
+  labelNames: ['operation'],
+  registers: [register],
+});
+
+export const rangeMergingReductionHistogram = new Histogram({
+  name: 'servalsheets_range_merging_reduction_percentage',
+  help: 'API call reduction percentage from range merging',
+  labelNames: ['operation'],
+  buckets: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+  registers: [register],
+});
+
 // Error rates by type
 export const errorsByType = new Counter({
   name: 'servalsheets_errors_by_type_total',
@@ -135,6 +151,138 @@ export const lastSuccessfulCallTimestamp = new Gauge({
   registers: [register],
 });
 
+// MCP connection health metrics (Phase 0, Priority 1)
+export const mcpConnectionStatus = new Gauge({
+  name: 'servalsheets_mcp_connection_status',
+  help: 'MCP connection status (0=unknown, 1=healthy, 2=warning, 3=disconnected)',
+  registers: [register],
+});
+
+export const mcpConnectionHeartbeatsTotal = new Counter({
+  name: 'servalsheets_mcp_heartbeats_total',
+  help: 'Total MCP heartbeats recorded',
+  registers: [register],
+});
+
+export const mcpConnectionActivityDelaySeconds = new Gauge({
+  name: 'servalsheets_mcp_activity_delay_seconds',
+  help: 'Seconds since last MCP activity',
+  registers: [register],
+});
+
+export const mcpConnectionDisconnectWarnings = new Counter({
+  name: 'servalsheets_mcp_disconnect_warnings_total',
+  help: 'Total MCP disconnect warnings issued',
+  registers: [register],
+});
+
+export const mcpConnectionUptimeSeconds = new Gauge({
+  name: 'servalsheets_mcp_connection_uptime_seconds',
+  help: 'MCP connection monitoring uptime in seconds',
+  registers: [register],
+});
+
+// Server startup metrics (Phase 0, Priority 2)
+export const serverStartupDuration = new Histogram({
+  name: 'servalsheets_server_startup_duration_seconds',
+  help: 'Server startup duration from process start to ready',
+  labelNames: ['transport', 'deferred_schemas', 'deferred_resources'],
+  buckets: [0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0],
+  registers: [register],
+});
+
+// OTLP export metrics (Phase 0, Priority 3)
+export const otlpSpansExportedTotal = new Counter({
+  name: 'servalsheets_otlp_spans_exported_total',
+  help: 'Total OTLP spans exported',
+  labelNames: ['endpoint'],
+  registers: [register],
+});
+
+export const otlpExportErrorsTotal = new Counter({
+  name: 'servalsheets_otlp_export_errors_total',
+  help: 'Total OTLP export errors',
+  labelNames: ['endpoint', 'error_type'],
+  registers: [register],
+});
+
+export const otlpBufferSizeGauge = new Gauge({
+  name: 'servalsheets_otlp_buffer_size',
+  help: 'Current OTLP span buffer size',
+  registers: [register],
+});
+
+export const otlpExportDurationHistogram = new Histogram({
+  name: 'servalsheets_otlp_export_duration_seconds',
+  help: 'OTLP export duration in seconds',
+  labelNames: ['endpoint'],
+  buckets: [0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0],
+  registers: [register],
+});
+
+// Restart policy metrics (Phase 0, Priority 4)
+export const restartConsecutiveFailuresGauge = new Gauge({
+  name: 'servalsheets_restart_consecutive_failures',
+  help: 'Current number of consecutive restart failures',
+  registers: [register],
+});
+
+export const restartBackoffDelaySeconds = new Gauge({
+  name: 'servalsheets_restart_backoff_delay_seconds',
+  help: 'Current restart backoff delay in seconds',
+  registers: [register],
+});
+
+export const restartUptimeSeconds = new Gauge({
+  name: 'servalsheets_restart_uptime_seconds',
+  help: 'Server uptime since last successful restart in seconds',
+  registers: [register],
+});
+
+// Concurrency coordinator metrics (Dynamic 429 elimination)
+export const concurrencyLimitGauge = new Gauge({
+  name: 'servalsheets_concurrency_limit',
+  help: 'Current dynamic concurrency limit',
+  registers: [register],
+});
+
+export const concurrencyActiveOperationsGauge = new Gauge({
+  name: 'servalsheets_concurrency_active_operations',
+  help: 'Current number of active concurrent operations',
+  registers: [register],
+});
+
+export const concurrencyQueuedOperationsGauge = new Gauge({
+  name: 'servalsheets_concurrency_queued_operations',
+  help: 'Current number of queued operations waiting for permits',
+  registers: [register],
+});
+
+export const concurrencyUtilizationGauge = new Gauge({
+  name: 'servalsheets_concurrency_utilization_percentage',
+  help: 'Current concurrency utilization as percentage (0-100)',
+  registers: [register],
+});
+
+export const rateLimitErrorsTotal = new Counter({
+  name: 'servalsheets_rate_limit_errors_total',
+  help: 'Total 429 rate limit errors encountered',
+  registers: [register],
+});
+
+export const concurrencyAdjustmentsTotal = new Counter({
+  name: 'servalsheets_concurrency_adjustments_total',
+  help: 'Total concurrency limit adjustments',
+  labelNames: ['reason', 'direction'],
+  registers: [register],
+});
+
+export const quotaUtilizationGauge = new Gauge({
+  name: 'servalsheets_quota_utilization_percentage',
+  help: 'Current quota utilization as percentage (0-100)',
+  registers: [register],
+});
+
 // Latency percentiles as Summary (better than Histogram for percentiles)
 export const toolCallLatencySummary = new Summary({
   name: 'servalsheets_tool_call_latency_summary',
@@ -143,6 +291,48 @@ export const toolCallLatencySummary = new Summary({
   percentiles: [0.5, 0.9, 0.95, 0.99],
   registers: [register],
 });
+
+/**
+ * Helper: Record concurrency coordinator status
+ */
+export function recordConcurrencyStatus(status: {
+  limit: number;
+  active: number;
+  queued: number;
+  utilization: number;
+}): void {
+  concurrencyLimitGauge.set(status.limit);
+  concurrencyActiveOperationsGauge.set(status.active);
+  concurrencyQueuedOperationsGauge.set(status.queued);
+  concurrencyUtilizationGauge.set(status.utilization);
+}
+
+/**
+ * Helper: Record 429 rate limit error
+ */
+export function record429Error(): void {
+  rateLimitErrorsTotal.inc();
+}
+
+/**
+ * Helper: Record concurrency limit adjustment
+ */
+export function recordConcurrencyAdjustment(
+  reason: string,
+  oldLimit: number,
+  newLimit: number
+): void {
+  const direction =
+    newLimit > oldLimit ? 'increase' : newLimit < oldLimit ? 'decrease' : 'no_change';
+  concurrencyAdjustmentsTotal.inc({ reason, direction });
+}
+
+/**
+ * Helper: Record quota utilization
+ */
+export function recordQuotaUtilization(utilizationPercentage: number): void {
+  quotaUtilizationGauge.set(utilizationPercentage);
+}
 
 // Batch efficiency ratio
 export const batchEfficiencyRatio = new Gauge({
@@ -289,6 +479,18 @@ export function updateRequestQueueDepth(depth: number): void {
  */
 export function recordCacheEviction(reason: string): void {
   cacheEvictions.inc({ reason });
+}
+
+/**
+ * Record range merging optimization
+ */
+export function recordRangeMerging(
+  operation: string,
+  apiCallsSaved: number,
+  reductionPercentage: number
+): void {
+  rangeMergingApiCallsSavedTotal.inc({ operation }, apiCallsSaved);
+  rangeMergingReductionHistogram.observe({ operation }, reductionPercentage);
 }
 
 // Rate limit and retry metrics (P3-1)
@@ -471,4 +673,29 @@ export function updateConnectionHealth(
   consecutiveErrorsGauge.set(consecutiveErrors);
   connectionHealthScore.set(healthScore);
   lastSuccessfulCallTimestamp.set(lastSuccessTimestamp / 1000); // Convert ms to seconds
+}
+
+/**
+ * Update MCP connection health metrics (Phase 0, Priority 1)
+ */
+export function updateMcpConnectionHealth(
+  status: 'unknown' | 'healthy' | 'warning' | 'disconnected',
+  totalHeartbeats: number,
+  timeSinceLastActivityMs: number,
+  disconnectWarnings: number,
+  uptimeSeconds: number
+): void {
+  // Map status to numeric value for Prometheus gauge
+  const statusValue = {
+    unknown: 0,
+    healthy: 1,
+    warning: 2,
+    disconnected: 3,
+  }[status];
+
+  mcpConnectionStatus.set(statusValue);
+  mcpConnectionHeartbeatsTotal.inc(totalHeartbeats);
+  mcpConnectionActivityDelaySeconds.set(timeSinceLastActivityMs / 1000);
+  mcpConnectionDisconnectWarnings.inc(disconnectWarnings);
+  mcpConnectionUptimeSeconds.set(uptimeSeconds);
 }

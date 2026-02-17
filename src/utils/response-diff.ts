@@ -5,8 +5,12 @@
  * Highlights additions, deletions, and modifications.
  */
 
-import type { DiffResult } from 'deep-diff';
 import { diff as deepDiff } from 'deep-diff';
+
+/**
+ * deep-diff result type (approximation since package doesn't export types)
+ */
+type DiffResult = any;
 
 /**
  * Diff change types
@@ -97,7 +101,7 @@ export function diffResponses(original: any, actual: any): ResponseDiff {
 /**
  * Convert deep-diff change to DiffEntry
  */
-function convertDiffToEntry(change: DiffResult<any, any>): DiffEntry {
+function convertDiffToEntry(change: any): DiffEntry {
   const path = formatPath(change.path);
 
   switch (change.kind) {

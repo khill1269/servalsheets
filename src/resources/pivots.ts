@@ -52,7 +52,7 @@ export function registerPivotResources(
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(data, null, 2),
+              text: JSON.stringify(data),
             },
           ],
         };

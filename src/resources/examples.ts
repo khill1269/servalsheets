@@ -1005,7 +1005,7 @@ export async function readExamplesResource(uri: string): Promise<{
       {
         uri,
         mimeType: 'application/json',
-        text: JSON.stringify(exampleSet, null, 2),
+        text: JSON.stringify(exampleSet),
       },
     ],
   };

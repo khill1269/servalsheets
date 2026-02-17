@@ -275,6 +275,19 @@ export class SheetsAppsScriptHandler extends BaseHandler<
 
   private async handleApiResponse<T>(response: Response, path: string): Promise<T> {
     if (!response.ok) {
+      // Handle 429 rate limiting before other error processing
+      if (response.status === 429) {
+        const retryAfter = response.headers?.get('retry-after');
+        const retryAfterMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60000;
+        throw new ServiceError(
+          'Apps Script API rate limit exceeded. Try again later.',
+          'UNAVAILABLE',
+          'AppsScript',
+          true,
+          { statusCode: 429, path, retryAfterMs, code: 'RATE_LIMIT' }
+        );
+      }
+
       const errorBody = await response.text();
       let errorMessage = `Apps Script API error: ${response.status} ${response.statusText}`;
       let errorCode:

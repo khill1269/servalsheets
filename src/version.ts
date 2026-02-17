@@ -20,21 +20,11 @@ export const SERVER_INFO = {
   protocolVersion: MCP_PROTOCOL_VERSION,
 } as const;
 
-/** Server icon metadata for client UIs */
+/** Server icon metadata for client UIs (inline SVG to avoid dead GitHub asset URLs) */
 export const SERVER_ICONS: Icon[] = [
   {
-    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon.svg',
+    src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIj48cGF0aCBkPSJNMTQgMkg2YTIgMiAwIDAgMC0yIDJ2MTZhMiAyIDAgMCAwIDIgMmgxMmEyIDIgMCAwIDAgMi0yVjhsLTYtNnoiLz48cGF0aCBkPSJNMTQgMnY2aDYiLz48cGF0aCBkPSJNOCAxM2g4Ii8+PHBhdGggZD0iTTggMTdoOCIvPjwvc3ZnPg==',
     mimeType: 'image/svg+xml',
-  },
-  {
-    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-256.png',
-    mimeType: 'image/png',
-    sizes: ['256x256'],
-  },
-  {
-    src: 'https://raw.githubusercontent.com/khill1269/servalsheets/main/assets/icon-120.png',
-    mimeType: 'image/png',
-    sizes: ['120x120'],
   },
 ];
 

@@ -498,7 +498,7 @@ export class AdvancedHandler extends BaseHandler<SheetsAdvancedInput, SheetsAdva
   ): Promise<AdvancedResponse> {
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId: req.spreadsheetId!,
-      fields: 'sheets.protectedRanges,sheets.properties.sheetId',
+      fields: 'sheets.protectedRanges,sheets.properties(sheetId,title)',
     });
 
     const ranges: NonNullable<AdvancedSuccess['protectedRanges']> = [];

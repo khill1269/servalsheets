@@ -20,6 +20,12 @@
 import { logger } from '../utils/logger.js';
 import { VERSION } from '../version.js';
 import { getOtlpExportConfig } from '../config/env.js';
+import {
+  otlpSpansExportedTotal,
+  otlpExportErrorsTotal,
+  otlpBufferSizeGauge,
+  otlpExportDurationHistogram,
+} from './metrics.js';
 
 /**
  * OpenTelemetry span status codes
@@ -211,6 +217,10 @@ export class OtlpExporter {
     const spans = this.spanBuffer.splice(0, this.config.batchSize);
     this.pendingExports++;
 
+    // Record buffer size metric (Phase 0, Priority 3)
+    otlpBufferSizeGauge.set(this.spanBuffer.length);
+
+    const exportStartTime = Date.now();
     try {
       const request = this.buildOtlpRequest(spans);
       const response = await fetch(`${this.config.endpoint}/v1/traces`, {
@@ -229,8 +239,18 @@ export class OtlpExporter {
 
       this.stats.spansExported += spans.length;
       this.stats.lastExportTime = Date.now();
+
+      // Record successful export metrics (Phase 0, Priority 3)
+      otlpSpansExportedTotal.inc({ endpoint: this.config.endpoint }, spans.length);
+      const exportDuration = (Date.now() - exportStartTime) / 1000;
+      otlpExportDurationHistogram.observe({ endpoint: this.config.endpoint }, exportDuration);
     } catch (error) {
       this.stats.exportErrors++;
+
+      // Record error metrics (Phase 0, Priority 3)
+      const errorType = error instanceof Error ? error.constructor.name : 'Unknown';
+      otlpExportErrorsTotal.inc({ endpoint: this.config.endpoint, error_type: errorType });
+
       logger.error('OTLP export error', {
         error: error instanceof Error ? error.message : String(error),
         spansLost: spans.length,

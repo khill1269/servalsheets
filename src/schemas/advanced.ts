@@ -2,7 +2,7 @@
  * Tool 15: sheets_advanced
  * Advanced features: named ranges, protected ranges, metadata, banding, tables, and smart chips
  *
- * 23 Actions:
+ * 26 Actions:
  * Named Ranges (5): add_named_range, update_named_range, delete_named_range, list_named_ranges, get_named_range
  * Protected Ranges (4): add_protected_range, update_protected_range, delete_protected_range, list_protected_ranges
  * Metadata (3): set_metadata, get_metadata, delete_metadata
@@ -230,7 +230,7 @@ const ListBandingActionSchema = CommonFieldsSchema.extend({
 });
 
 // ============================================================================
-// Table Action Schemas (3 actions)
+// Table Action Schemas (6 actions)
 // ============================================================================
 
 const CreateTableActionSchema = CommonFieldsSchema.extend({
@@ -355,7 +355,7 @@ const ListChipsActionSchema = CommonFieldsSchema.extend({
 // ============================================================================
 
 /**
- * All advanced operation inputs (23 actions)
+ * All advanced operation inputs (26 actions)
  *
  * Proper discriminated union using Zod v4's z.discriminatedUnion() for:
  * - Better type safety at compile-time

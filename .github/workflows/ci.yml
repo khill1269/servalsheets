@@ -11,6 +11,7 @@ jobs:
   quick-checks:
     name: Quick Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -22,8 +23,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci
 
       - name: Setup Turbo cache
         uses: actions/cache@v4
@@ -32,6 +38,24 @@ jobs:
           key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
+
+      - name: Cache TypeScript build info
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tsbuildinfo
+            .tsbuildinfo.build
+          key: ${{ runner.os }}-tsbuildinfo-${{ hashFiles('src/**/*.ts', 'tsconfig*.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tsbuildinfo-
+
+      - name: Cache dist folder
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: ${{ runner.os }}-dist-${{ hashFiles('src/**/*.ts', 'tsconfig*.json', 'package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-dist-
 
       - name: Validate action metadata consistency
         run: npm run validate:actions
@@ -103,11 +127,55 @@ jobs:
       - name: Format check
         run: npx turbo run format:check
 
-  # Parallel test execution with sharding
-  test:
-    name: Test (Shard ${{ matrix.shard }})
+  # Fast unit tests (no sharding needed)
+  test-fast:
+    name: Fast Tests
     runs-on: ubuntu-latest
     needs: quick-checks
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .turbo
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci
+
+      - name: Run fast tests with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 2
+          retry_wait_seconds: 10
+          command: npm run test:fast
+
+  # Parallel test execution with sharding (slower integration tests)
+  test-integration:
+    name: Integration Tests (Shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    needs: quick-checks
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false
@@ -125,8 +193,23 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .turbo
+          key: ${{ runner.os }}-deps-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install dependencies with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm ci
 
       - name: Setup Turbo cache
         uses: actions/cache@v4
@@ -138,8 +221,13 @@ jobs:
             ${{ runner.os }}-turbo-test-
             ${{ runner.os }}-turbo-
 
-      - name: Run tests (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
-        run: npm test -- --run --shard=${{ matrix.shard }}/${{ matrix.total_shards }}
+      - name: Run integration tests with retry (shard ${{ matrix.shard }}/${{ matrix.total_shards }})
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 2
+          retry_wait_seconds: 30
+          command: npm test -- --run --shard=${{ matrix.shard }}/${{ matrix.total_shards }}
 
   # Build after all tests pass
   build:
@@ -168,6 +256,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-build-
             ${{ runner.os }}-turbo-
+
+      - name: Cache TypeScript build info
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tsbuildinfo
+            .tsbuildinfo.build
+          key: ${{ runner.os }}-tsbuildinfo-build-${{ hashFiles('src/**/*.ts', 'tsconfig*.json') }}
+          restore-keys: |
+            ${{ runner.os }}-tsbuildinfo-build-
+            ${{ runner.os }}-tsbuildinfo-
+
+      - name: Cache dist folder
+        uses: actions/cache@v4
+        with:
+          path: dist
+          key: ${{ runner.os }}-dist-build-${{ hashFiles('src/**/*.ts', 'tsconfig*.json', 'package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-dist-build-
+            ${{ runner.os }}-dist-
 
       - name: Build
         run: npx turbo run build

@@ -267,17 +267,14 @@ async function openBrowser(url: string): Promise<void> {
     await open(url);
   } catch (_error) {
     // If open package not available, try platform-specific commands
-    const { exec } = await import('child_process');
+    // Use execFile (not exec) to prevent command injection via URL
+    const { execFile } = await import('child_process');
     const platform = process.platform;
 
-    const command =
-      platform === 'darwin'
-        ? `open "${url}"`
-        : platform === 'win32'
-          ? `start "${url}"`
-          : `xdg-open "${url}"`;
+    const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open';
+    const args = platform === 'win32' ? ['/c', 'start', url] : [url];
 
-    exec(command, (error) => {
+    execFile(cmd, args, (error) => {
       if (error) {
         throw error;
       }
@@ -427,8 +424,37 @@ async function main(): Promise<void> {
     // Create OAuth2 client
     const oauth2Client: OAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 
-    // Get recommended scopes (includes all features: Sheets, Drive, BigQuery, Apps Script)
+    // Get recommended scopes (deployment-aware: full for self-hosted, standard for SaaS)
     const scopes = Array.from(getRecommendedScopes());
+
+    // Determine effective scope mode for user feedback
+    const explicitMode = process.env['OAUTH_SCOPE_MODE'];
+    const deploymentMode = process.env['DEPLOYMENT_MODE'] ?? 'self-hosted';
+    const scopeMode = explicitMode ?? (deploymentMode === 'saas' ? 'standard' : 'full');
+
+    console.log(
+      `${colors.cyan}Scope mode: ${colors.bright}${scopeMode}${colors.reset} (${scopes.length} permissions)`
+    );
+    console.log('');
+
+    // Warn about disabled features in standard mode
+    if (scopeMode === 'standard') {
+      console.log(
+        `${colors.yellow}⚠️  Standard scope mode - some features will be disabled:${colors.reset}`
+      );
+      console.log(`  • Sharing/collaboration (sheets_collaborate)`);
+      console.log(`  • BigQuery integration (sheets_bigquery)`);
+      console.log(`  • Apps Script automation (sheets_appsscript)`);
+      console.log(`  • Webhook notifications (sheets_webhook)`);
+      console.log('');
+      console.log(
+        `${colors.cyan}💡 To enable all features, set: ${colors.bright}OAUTH_SCOPE_MODE=full${colors.reset}`
+      );
+      console.log('');
+    } else if (scopeMode === 'full') {
+      console.log(`${colors.green}✓${colors.reset} All features enabled (298/298 actions)`);
+      console.log('');
+    }
 
     console.log(`${colors.cyan}Requesting the following permissions:${colors.reset}`);
     console.log('');

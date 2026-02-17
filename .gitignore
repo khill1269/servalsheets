@@ -5,8 +5,13 @@ node_modules/
 dist/
 .tsbuildinfo
 .tsbuildinfo.build
+*.tsbuildinfo
 .eslintcache
 .turbo
+
+# Code analysis reports
+.jscpd/
+jscpd-report.json
 
 # IDE
 .idea/
@@ -64,6 +69,9 @@ test-performance.json
 test-results-comprehensive.json
 test-results*.json
 
+# Performance tracking history
+.performance-history/
+
 # Temporary files
 tmp/
 temp/
@@ -91,8 +99,23 @@ test-replay.jsonl
 /*REPORT*.md
 /*PLAN*.md
 
+# Root-level adhoc test/benchmark scripts (should be in scripts/ or tests/)
+/test-*.mjs
+/test-*.js
+/test-*.sh
+/perf-*.mjs
+/perf-*.js
+/profile-*.mjs
+/profile-*.js
+/benchmark-*.mjs
+/benchmark-*.js
+/run-*-tests.sh
+/*-test-results*.txt
+/*-test-results*.json
+
 # Documentation - Auto-generated (TypeDoc)
 docs/generated/
+docs/.vitepress/dist/
 
 # Analysis reports (Word/Excel documents)
 reports/
@@ -138,3 +161,56 @@ src/__tests__/
 
 # Root-level HTML reports
 /*.html
+
+# Large source assets (optional to commit)
+assets/source/
+
+# Generated OpenAPI specs and SDKs
+openapi.yaml
+openapi.json
+sdks/
+
+# Agent Framework (ephemeral context)
+.agent-context/
+.claude/agent-memory-local/
+
+# Stryker mutation testing sandboxes
+.stryker-tmp/
+stryker.conf.mjs
+stryker.critical.conf.mjs
+stryker.minimal.conf.mjs
+mutation-output.txt
+
+# Test results and artifacts
+test-results/
+audit-output/
+
+# Development scratch dirs (not source code)
+developmentfiles/
+servalroot/
+dashboard/
+releases/
+
+# Binary documents in docs/ (use Google Drive instead)
+docs/**/*.docx
+docs/**/*.xlsx
+docs/reports/
+docs/business/*.docx
+docs/business/*.xlsx
+
+# Claude Code auto-generated docs (keep agents/ and settings)
+.claude/*_COMPLETE.md
+.claude/*_REPORT.md
+.claude/*_SUMMARY.md
+.claude/*_STATUS.md
+.claude/AGENT_*.md
+.claude/FRAMEWORK_*.md
+.claude/IMPROVEMENTS_*.md
+.claude/SETUP_*.md
+.claude/CONFIGURATION_*.md
+.claude/COMMAND_REFERENCE.md
+.claude/MODEL_SELECTION_GUIDE.md
+.claude/QUICK_START*.md
+
+# Tracing env files
+.env.tracing.*

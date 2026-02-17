@@ -466,19 +466,87 @@ export class AnalyzeHandler {
             break;
           }
 
-          // Use helpers from analysis/helpers.ts for pattern detection
-          const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } =
-            await import('../analysis/helpers.js');
+          // Check if dataset is large enough to benefit from worker pool
+          const rowCount = data.length;
+          const useWorkerPool = rowCount > 10000;
 
           try {
-            // Detect anomalies using statistical methods
-            const anomalies = detectAnomalies(data);
+            let anomalies: Array<{
+              cell: string;
+              value: number;
+              expected: string;
+              deviation: string;
+              zScore: string;
+            }>;
+            let trends: Array<{
+              column: number;
+              trend: 'increasing' | 'decreasing' | 'stable';
+              changeRate: string;
+              confidence: number;
+            }>;
+            let correlations: Array<{
+              columns: number[];
+              correlation: string;
+              strength: string;
+            }>;
 
-            // Analyze trends
-            const trends = analyzeTrends(data);
+            if (useWorkerPool) {
+              // Offload to worker thread for large datasets (10K+ rows)
+              logger.info('Using worker pool for large dataset analysis', {
+                component: 'analyze-handler',
+                action: 'detect_patterns',
+                rowCount,
+              });
 
-            // Analyze correlations
-            const correlations = analyzeCorrelationsData(data);
+              const { getWorkerPool } = await import('../services/worker-pool.js');
+              const { fileURLToPath } = await import('url');
+              const { dirname, resolve } = await import('path');
+
+              const __filename = fileURLToPath(import.meta.url);
+              const __dirname = dirname(__filename);
+              const workerScriptPath = resolve(__dirname, '../workers/analysis-worker.js');
+
+              const pool = getWorkerPool();
+              pool.registerWorker('analysis', workerScriptPath);
+
+              // Run full analysis in worker thread
+              const workerResult = await pool.execute<
+                {
+                  operation: 'fullAnalysis';
+                  data: unknown[][];
+                },
+                {
+                  trends: typeof trends;
+                  anomalies: typeof anomalies;
+                  correlations: typeof correlations;
+                  rowCount: number;
+                  columnCount: number;
+                  duration: number;
+                }
+              >('analysis', {
+                operation: 'fullAnalysis',
+                data,
+              });
+
+              anomalies = workerResult.anomalies;
+              trends = workerResult.trends;
+              correlations = workerResult.correlations;
+
+              logger.info('Worker pool analysis completed', {
+                component: 'analyze-handler',
+                action: 'detect_patterns',
+                rowCount,
+                workerDuration: workerResult.duration,
+              });
+            } else {
+              // Use inline helpers for smaller datasets (< 10K rows)
+              const { detectAnomalies, analyzeTrends, analyzeCorrelationsData } =
+                await import('../analysis/helpers.js');
+
+              anomalies = detectAnomalies(data);
+              trends = analyzeTrends(data);
+              correlations = analyzeCorrelationsData(data);
+            }
 
             const duration = Date.now() - startTime;
 
