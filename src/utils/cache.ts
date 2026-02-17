@@ -65,6 +65,7 @@ export interface CacheStats {
  * ```
  */
 export class LRUCache<K, V> {
+  // lru-cache requires K,V to extend {} (object types), but we support all types
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private cache: LRU<any, any>;
   private hitCount = 0;
@@ -75,6 +76,7 @@ export class LRUCache<K, V> {
     const { maxSize, ttl, onEviction, sizeCalculation, trackHits = false } = options;
 
     this.trackHits = trackHits;
+    // lru-cache requires K,V to extend {} (object types)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.cache = new LRU<any, any>({
       max: maxSize,

@@ -75,9 +75,17 @@ export class WebhookVerificationError extends Error {
 }
 
 /**
+ * Express Request with rawBody property
+ */
+export interface RequestWithRawBody extends Request {
+  rawBody?: Buffer | string;
+  body: Buffer | string | Record<string, unknown> | null;
+}
+
+/**
  * Webhook request with verified signature
  */
-export interface VerifiedWebhookRequest extends Request {
+export interface VerifiedWebhookRequest extends RequestWithRawBody {
   webhook?: {
     webhookId: string;
     deliveryId: string;
@@ -85,7 +93,6 @@ export interface VerifiedWebhookRequest extends Request {
     isValid: boolean;
     payload: unknown;
   };
-  rawBody?: Buffer;
 }
 
 /**
@@ -205,14 +212,11 @@ export function webhookVerificationMiddleware(
 
       // Handle raw body - try different sources
       let rawBody: Buffer;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (typeof (req as any).rawBody === 'string') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rawBody = Buffer.from((req as any).rawBody, 'utf8');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } else if (Buffer.isBuffer((req as any).rawBody)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        rawBody = (req as any).rawBody;
+      const reqWithRaw = req as RequestWithRawBody;
+      if (typeof reqWithRaw.rawBody === 'string') {
+        rawBody = Buffer.from(reqWithRaw.rawBody, 'utf8');
+      } else if (Buffer.isBuffer(reqWithRaw.rawBody)) {
+        rawBody = reqWithRaw.rawBody;
       } else if (Buffer.isBuffer(req.body)) {
         rawBody = req.body;
       } else if (typeof req.body === 'string') {
@@ -366,15 +370,13 @@ export function captureRawBody(req: Request, res: Response, next: NextFunction):
     });
 
     req.on('end', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (req as any).rawBody = Buffer.from(data, 'utf8');
+      const reqWithRaw = req as RequestWithRawBody;
+      reqWithRaw.rawBody = Buffer.from(data, 'utf8');
       // Parse JSON for body property
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (req as any).body = JSON.parse(data);
+        reqWithRaw.body = JSON.parse(data);
       } catch {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (req as any).body = data;
+        reqWithRaw.body = data;
       }
       next();
     });

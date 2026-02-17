@@ -28,7 +28,11 @@ import { compactResponse, isCompactModeEnabled } from '../../utils/response-comp
 import { recordSpreadsheetId, TOOL_ACTIONS } from '../completions.js';
 import { TOOL_EXECUTION_CONFIG, TOOL_ICONS } from '../features-2025-11-25.js';
 import { getHistoryService } from '../../services/history-service.js';
+import { getTraceAggregator } from '../../services/trace-aggregator.js';
 import { getSessionContext } from '../../services/session-context.js';
+import { getCostTracker } from '../../services/cost-tracker.js';
+import { getAuditLogger } from '../../services/audit-logger.js';
+import { getEnv } from '../../config/env.js';
 import type { OperationHistory } from '../../types/history.js';
 import {
   prepareSchemaForRegistrationCached,
@@ -480,8 +484,12 @@ export function createToolHandlerMap(
       );
   }
 
-  // Wrap all handlers with idempotency middleware
-  return wrapToolMapWithIdempotency(map);
+  // Wrap all handlers with idempotency middleware (feature-flagged)
+  if (getEnv().ENABLE_IDEMPOTENCY) {
+    return wrapToolMapWithIdempotency(map);
+  }
+
+  return map;
 }
 
 // ============================================================================
@@ -790,12 +798,14 @@ export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   const rootParams = record['params'];
   if (rootParams && typeof rootParams === 'object') {
     const action = typeof record['action'] === 'string' ? { action: record['action'] } : {};
-    return { request: { ...(rootParams as Record<string, unknown>), ...action } };
+    return {
+      request: normalizeRangeFields({ ...(rootParams as Record<string, unknown>), ...action }),
+    };
   }
 
   const request = record['request'];
   if (!request || typeof request !== 'object') {
-    return { request: record };
+    return { request: normalizeRangeFields(record) };
   }
 
   const requestRecord = request as Record<string, unknown>;
@@ -803,10 +813,60 @@ export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   if (params && typeof params === 'object') {
     const action =
       typeof requestRecord['action'] === 'string' ? { action: requestRecord['action'] } : {};
-    return { request: { ...(params as Record<string, unknown>), ...action } };
+    return { request: normalizeRangeFields({ ...(params as Record<string, unknown>), ...action }) };
   }
 
-  return { request: requestRecord };
+  return { request: normalizeRangeFields(requestRecord) };
+}
+
+/**
+ * Normalize range fields from object format {a1: "..."} to plain string.
+ * Claude clients sometimes send range as {a1: "Sheet1!A1:B2"} instead of "Sheet1!A1:B2".
+ * This prevents "range is required and must be a non-empty string" errors.
+ */
+function normalizeRangeFields(record: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...record };
+
+  // Normalize top-level 'range' field
+  if (result['range'] && typeof result['range'] === 'object' && result['range'] !== null) {
+    const rangeObj = result['range'] as Record<string, unknown>;
+    if (typeof rangeObj['a1'] === 'string') {
+      result['range'] = rangeObj['a1'];
+    }
+  }
+
+  // Normalize 'ranges' array (for batch_read)
+  if (Array.isArray(result['ranges'])) {
+    result['ranges'] = (result['ranges'] as unknown[]).map((r) => {
+      if (r && typeof r === 'object' && 'a1' in (r as Record<string, unknown>)) {
+        return (r as Record<string, unknown>)['a1'];
+      }
+      return r;
+    });
+  }
+
+  // Normalize 'data' array items (for batch_write)
+  if (Array.isArray(result['data'])) {
+    result['data'] = (result['data'] as unknown[]).map((item) => {
+      if (item && typeof item === 'object') {
+        const dataItem = { ...(item as Record<string, unknown>) };
+        if (
+          dataItem['range'] &&
+          typeof dataItem['range'] === 'object' &&
+          dataItem['range'] !== null
+        ) {
+          const rangeObj = dataItem['range'] as Record<string, unknown>;
+          if (typeof rangeObj['a1'] === 'string') {
+            dataItem['range'] = rangeObj['a1'];
+          }
+        }
+        return dataItem;
+      }
+      return item;
+    });
+  }
+
+  return result;
 }
 
 function createToolCallHandler(
@@ -818,10 +878,29 @@ function createToolCallHandler(
 ) => Promise<CallToolResult> {
   return async (
     args: Record<string, unknown>,
-    extra?: { requestId?: string | number; elicit?: unknown; sample?: unknown }
+    extra?: {
+      requestId?: string | number;
+      elicit?: unknown;
+      sample?: unknown;
+      traceId?: string;
+      spanId?: string;
+      parentSpanId?: string;
+      requestHeaders?: Record<string, string>;
+    }
   ) => {
     const requestId = extra?.requestId ? String(extra.requestId) : undefined;
-    const requestContext = createRequestContext({ requestId });
+
+    // Extract trace context from extra params or headers (W3C Trace Context support)
+    const traceId = extra?.traceId || extra?.requestHeaders?.['x-trace-id'];
+    const spanId = extra?.spanId || extra?.requestHeaders?.['x-span-id'];
+    const parentSpanId = extra?.parentSpanId || extra?.requestHeaders?.['x-parent-span-id'];
+
+    const requestContext = createRequestContext({
+      requestId,
+      traceId,
+      spanId,
+      parentSpanId,
+    });
 
     // Generate operation ID and start time for history tracking
     const operationId = randomUUID();
@@ -962,6 +1041,60 @@ function createToolCallHandler(
         recordToolCall(tool.name, action, status, durationSeconds);
         recordToolCallLatency(tool.name, action, durationSeconds);
 
+        // Record trace for debugging/performance analysis
+        const traceAggregator = getTraceAggregator();
+        if (traceAggregator.isEnabled()) {
+          // Collect spans from the tracer for this request
+          const { getTracer } = await import('../../utils/tracing.js');
+          const tracer = getTracer();
+          const recordedSpans = tracer.getSpans();
+
+          // Convert Span objects to TraceSpan format
+          const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
+          const convertedSpans = recordedSpans.map((span) =>
+            TraceAggregatorImpl.spanToTraceSpan(span)
+          );
+
+          traceAggregator.recordTrace({
+            requestId: requestId || operationId,
+            traceId: traceId || operationId,
+            timestamp: startTime,
+            duration,
+            tool: tool.name,
+            action,
+            success: status === 'success',
+            errorCode: extractErrorCode(result) ?? undefined,
+            errorMessage: extractErrorMessage(result) ?? undefined,
+            spans: convertedSpans,
+          });
+        }
+
+        // Track cost per tenant (opt-in via ENABLE_COST_TRACKING)
+        const envConfig = getEnv();
+        if (envConfig.ENABLE_COST_TRACKING) {
+          try {
+            getCostTracker().trackApiCall(requestId || 'anonymous', 'sheets');
+          } catch {
+            // Cost tracking is non-critical — never block tool execution
+          }
+        }
+
+        // Audit logging for compliance (opt-in via ENABLE_AUDIT_LOGGING)
+        if (envConfig.ENABLE_AUDIT_LOGGING) {
+          try {
+            void getAuditLogger().logToolCall({
+              tool: tool.name,
+              action,
+              userId: requestId || 'anonymous',
+              spreadsheetId: extractSpreadsheetId(args) || undefined,
+              outcome: status === 'success' ? 'success' : 'failure',
+              duration,
+            });
+          } catch {
+            // Audit logging is non-critical — never block tool execution
+          }
+        }
+
         return buildToolResponse(result, tool.name, tool.outputSchema);
       } catch (error) {
         const duration = Date.now() - startTime;
@@ -1037,6 +1170,34 @@ function createToolCallHandler(
         const action = extractAction(args);
         recordToolCall(tool.name, action, 'error', duration / 1000);
         recordError(error instanceof Error ? error.name : 'UnknownError', tool.name, action);
+
+        // Record error trace for debugging
+        const traceAggregator = getTraceAggregator();
+        if (traceAggregator.isEnabled()) {
+          // Collect spans from the tracer for error cases too
+          const { getTracer } = await import('../../utils/tracing.js');
+          const tracer = getTracer();
+          const recordedSpans = tracer.getSpans();
+
+          // Convert Span objects to TraceSpan format
+          const { TraceAggregatorImpl } = await import('../../services/trace-aggregator.js');
+          const convertedSpans = recordedSpans.map((span) =>
+            TraceAggregatorImpl.spanToTraceSpan(span)
+          );
+
+          traceAggregator.recordTrace({
+            requestId: requestId || operationId,
+            traceId: traceId || operationId,
+            timestamp: startTime,
+            duration,
+            tool: tool.name,
+            action,
+            success: false,
+            errorCode,
+            errorMessage,
+            spans: convertedSpans,
+          });
+        }
 
         // Return structured error instead of throwing (Task 1.2)
         // buildToolResponse classifies recoverable error codes as non-fatal MCP results.
@@ -1157,6 +1318,16 @@ export async function registerServalSheetsTools(
           ),
       };
 
+  // Validate tool names comply with MCP spec (SEP-986: snake_case only)
+  const TOOL_NAME_REGEX = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+  for (const tool of ACTIVE_TOOL_DEFINITIONS) {
+    if (!TOOL_NAME_REGEX.test(tool.name)) {
+      throw new Error(
+        `Tool name "${tool.name}" violates MCP naming convention: must be snake_case (lowercase, digits, underscores)`
+      );
+    }
+  }
+
   for (const tool of ACTIVE_TOOL_DEFINITIONS) {
     // Prepare schemas for SDK registration with caching (P0-2 optimization)
     const inputSchemaForRegistration = prepareSchemaForRegistrationCached(
@@ -1187,7 +1358,7 @@ export async function registerServalSheetsTools(
       server.experimental.tasks.registerToolTask<AnySchema, AnySchema>(
         tool.name,
         {
-          title: tool.annotations.title,
+          title: tool.title,
           description: tool.description,
           inputSchema: inputSchemaForRegistration as AnySchema,
           outputSchema: outputSchemaForRegistration as AnySchema,

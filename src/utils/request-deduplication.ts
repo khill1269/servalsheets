@@ -61,6 +61,7 @@ interface DeduplicationOptions {
  */
 export class RequestDeduplicator {
   private pendingRequests: Map<string, PendingRequest<unknown>>;
+  // lru-cache requires V to extend {} (object type), but results can be any type
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private resultCache: LRUCache<string, any>;
   private options: Required<DeduplicationOptions>;
@@ -86,7 +87,7 @@ export class RequestDeduplicator {
       resultCacheMaxSize: options.resultCacheMaxSize ?? 1000,
     };
 
-    // Initialize result cache
+    // Initialize result cache (lru-cache requires V to extend {})
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.resultCache = new LRUCache<string, any>({
       max: this.options.resultCacheMaxSize,
