@@ -277,6 +277,11 @@
       <button class="quick-action" onclick="quickPrompt('Create a formula for...')">🔢 Formula</button>
       <button class="quick-action" onclick="quickPrompt('Suggest a chart for this data')">📈 Chart</button>
       <button class="quick-action" onclick="quickPrompt('Find patterns in this data')">🔍 Patterns</button>
+      <button class="quick-action" onclick="quickAction_listSheets()">📋 Sheets</button>
+      <button class="quick-action" onclick="quickAction_addSheet()">➕ Add Sheet</button>
+      <button class="quick-action" onclick="quickAction_insertRows()">➕ Rows</button>
+      <button class="quick-action" onclick="quickAction_share()">👥 Share</button>
+      <button class="quick-action" onclick="quickAction_comments()">💬 Comments</button>
     </div>
 
     <div class="input-group">
@@ -316,6 +321,107 @@
     function quickPrompt(text) {
       promptInput.value = text;
       promptInput.focus();
+    }
+
+    // Quick action handlers for new tools
+    function quickAction_listSheets() {
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          if (result.success && result.response && result.response.sheets) {
+            const sheets = result.response.sheets;
+            const sheetList = sheets.map(s => `• ${s.properties?.title || 'Untitled'} (ID: ${s.properties?.sheetId})`).join('\n');
+            addMessage(`📋 Sheets in this spreadsheet:\n\n${sheetList}`, 'ai');
+          } else {
+            addMessage('Unable to list sheets', 'error');
+          }
+        })
+        .withFailureHandler(handleError)
+        .listSheets();
+    }
+
+    function quickAction_addSheet() {
+      const sheetName = prompt('Enter new sheet name:');
+      if (!sheetName) return;
+
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          if (result.success) {
+            addMessage(`✅ Sheet "${sheetName}" created successfully!`, 'ai');
+          } else {
+            addMessage('Failed to create sheet: ' + (result.error?.message || 'Unknown error'), 'error');
+          }
+        })
+        .withFailureHandler(handleError)
+        .addSheet(sheetName);
+    }
+
+    function quickAction_insertRows() {
+      const startIndex = prompt('Start row index (0-based):');
+      if (startIndex === null) return;
+
+      const count = prompt('Number of rows to insert:', '1');
+      if (count === null) return;
+
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          if (result.success) {
+            addMessage(`✅ Inserted ${count} row(s) at index ${startIndex}`, 'ai');
+          } else {
+            addMessage('Failed to insert rows: ' + (result.error?.message || 'Unknown error'), 'error');
+          }
+        })
+        .withFailureHandler(handleError)
+        .insertRows(parseInt(startIndex), parseInt(count));
+    }
+
+    function quickAction_share() {
+      const email = prompt('Enter email address to share with:');
+      if (!email) return;
+
+      const role = prompt('Permission level (reader/writer/commenter):', 'reader');
+      if (!role) return;
+
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          if (result.success) {
+            addMessage(`✅ Shared with ${email} as ${role}`, 'ai');
+          } else {
+            addMessage('Failed to share: ' + (result.error?.message || 'Unknown error'), 'error');
+          }
+        })
+        .withFailureHandler(handleError)
+        .shareWithUser(email, role);
+    }
+
+    function quickAction_comments() {
+      showLoading();
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          if (result.success && result.response && result.response.comments) {
+            const comments = result.response.comments;
+            if (comments.length === 0) {
+              addMessage('💬 No comments found', 'ai');
+            } else {
+              const commentList = comments.map(c =>
+                `• ${c.author?.displayName || 'Unknown'}: ${c.content}\n  ${c.resolved ? '✅ Resolved' : '⏳ Open'}`
+              ).join('\n\n');
+              addMessage(`💬 Comments (${comments.length}):\n\n${commentList}`, 'ai');
+            }
+          } else {
+            addMessage('Unable to list comments', 'error');
+          }
+        })
+        .withFailureHandler(handleError)
+        .listComments();
     }
 
     function sendMessage() {

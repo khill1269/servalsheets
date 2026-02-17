@@ -99,7 +99,8 @@ function getPlan() {
 }
 
 /**
- * Core function to call ServalSheets API
+ * Core function to call ServalSheets API via MCP protocol
+ * Uses JSON-RPC 2.0 format as required by /mcp endpoint
  */
 function callServalSheets(tool, request) {
   const apiKey = getApiKey();
@@ -115,10 +116,18 @@ function callServalSheets(tool, request) {
   }
 
   try {
-    const url = `${CONFIG.API_URL}/api/v1/mcp/call-tool`;
+    // Use actual /mcp endpoint (MCP protocol over HTTP)
+    const url = `${CONFIG.API_URL}/mcp`;
+
+    // Use JSON-RPC 2.0 format required by MCP protocol
     const payload = {
-      name: tool,
-      arguments: { request }
+      jsonrpc: '2.0',
+      id: Date.now(),  // Unique request ID
+      method: 'tools/call',
+      params: {
+        name: tool,
+        arguments: { request }
+      }
     };
 
     const options = {
@@ -126,7 +135,8 @@ function callServalSheets(tool, request) {
       contentType: 'application/json',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'X-MCP-Client': 'workspace-addon/1.0.0'
+        'X-MCP-Client': 'workspace-addon/1.0.0',
+        'Accept': 'application/json, text/event-stream'  // Required by MCP protocol
       },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
@@ -167,24 +177,27 @@ function callServalSheets(tool, request) {
       };
     }
 
-    // Extract response from MCP envelope
-    if (result.content && result.content[0]) {
-      // Parse structured content if available
-      if (result.content[0].text) {
+    // Handle JSON-RPC 2.0 response format
+    // Response: { jsonrpc: '2.0', id: X, result: { content: [...] } }
+    if (result.result && result.result.content && result.result.content[0]) {
+      const content = result.result.content[0];
+
+      if (content.text) {
         try {
-          const parsed = JSON.parse(result.content[0].text);
+          const parsed = JSON.parse(content.text);
           return parsed;
         } catch (e) {
           // Not JSON, return as-is
           return {
             success: true,
-            response: { text: result.content[0].text }
+            response: { text: content.text }
           };
         }
       }
     }
 
-    return result;
+    // Fallback: return result as-is
+    return result.result || result;
 
   } catch (error) {
     return {
@@ -328,6 +341,178 @@ function applyFormatting(range, format) {
     format: format
   });
 }
+
+// ============================================================================
+// Core Operations - Spreadsheet Management (sheets_core)
+// ============================================================================
+
+/**
+ * Get spreadsheet metadata
+ */
+function getSpreadsheet() {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_core', {
+    action: 'get',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+/**
+ * List all sheets/tabs in spreadsheet
+ */
+function listSheets() {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_core', {
+    action: 'list_sheets',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+/**
+ * Add a new sheet/tab
+ */
+function addSheet(sheetName, rowCount, columnCount) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_core', {
+    action: 'add_sheet',
+    spreadsheetId: info.spreadsheetId,
+    title: sheetName,
+    rowCount: rowCount || 1000,
+    columnCount: columnCount || 26
+  });
+}
+
+/**
+ * Delete a sheet/tab by ID
+ */
+function deleteSheet(sheetId) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_core', {
+    action: 'delete_sheet',
+    spreadsheetId: info.spreadsheetId,
+    sheetId: sheetId
+  });
+}
+
+/**
+ * Copy sheet to another spreadsheet
+ */
+function copySheetTo(sheetId, destinationSpreadsheetId) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_core', {
+    action: 'copy_sheet_to',
+    spreadsheetId: info.spreadsheetId,
+    sheetId: sheetId,
+    destinationSpreadsheetId: destinationSpreadsheetId
+  });
+}
+
+// ============================================================================
+// Dimension Operations - Rows & Columns (sheets_dimensions)
+// ============================================================================
+
+/**
+ * Insert rows
+ */
+function insertRows(startIndex, count) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_dimensions', {
+    action: 'insert',
+    spreadsheetId: info.spreadsheetId,
+    sheetId: info.sheetId,
+    dimension: 'ROWS',
+    startIndex: startIndex,
+    count: count || 1
+  });
+}
+
+/**
+ * Delete rows
+ */
+function deleteRows(startIndex, endIndex) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_dimensions', {
+    action: 'delete',
+    spreadsheetId: info.spreadsheetId,
+    sheetId: info.sheetId,
+    dimension: 'ROWS',
+    startIndex: startIndex,
+    endIndex: endIndex
+  });
+}
+
+/**
+ * Insert columns
+ */
+function insertColumns(startIndex, count) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_dimensions', {
+    action: 'insert',
+    spreadsheetId: info.spreadsheetId,
+    sheetId: info.sheetId,
+    dimension: 'COLUMNS',
+    startIndex: startIndex,
+    count: count || 1
+  });
+}
+
+// ============================================================================
+// Collaboration Operations (sheets_collaborate)
+// ============================================================================
+
+/**
+ * Share spreadsheet with user
+ */
+function shareWithUser(email, role, sendNotification) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_collaborate', {
+    action: 'share_add',
+    spreadsheetId: info.spreadsheetId,
+    type: 'user',
+    emailAddress: email,
+    role: role || 'reader',
+    sendNotification: sendNotification !== false
+  });
+}
+
+/**
+ * Add comment to range
+ */
+function addComment(range, text) {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_collaborate', {
+    action: 'comment_add',
+    spreadsheetId: info.spreadsheetId,
+    content: text,
+    anchor: range
+  });
+}
+
+/**
+ * List all comments
+ */
+function listComments() {
+  const info = getActiveSpreadsheetInfo();
+
+  return callServalSheets('sheets_collaborate', {
+    action: 'comment_list',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+// ============================================================================
+// Usage Statistics & Testing
+// ============================================================================
 
 /**
  * Get usage statistics
