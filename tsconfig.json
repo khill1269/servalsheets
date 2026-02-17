@@ -17,17 +17,12 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false,  /* Disabled: incompatible with googleapis types */
+    "exactOptionalPropertyTypes": false /* Disabled: incompatible with googleapis types */,
     "noPropertyAccessFromIndexSignature": true,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "noEmit": true
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests",
-    "src/__tests__"
-  ]
+  "exclude": ["node_modules", "dist", "tests", "src/__tests__", "src/ui/tracing-dashboard"]
 }
