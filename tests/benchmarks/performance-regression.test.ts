@@ -37,8 +37,9 @@ const THRESHOLDS = {
   },
   // Memory allocation thresholds (bytes)
   // Note: Large data validation (1000x26 arrays) requires more memory
+  // 10 iterations of 1000x26 Zod validation can use ~25MB heap
   memory: {
-    schemaValidation: 20 * 1024 * 1024,  // 20MB for large validations
+    schemaValidation: 30 * 1024 * 1024,  // 30MB for large validations
     handlerExecution: 5 * 1024 * 1024,   // 5MB
   },
 };

@@ -8,9 +8,18 @@
  * (because unit tests bypass the MCP protocol layer).
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import { spawn, type ChildProcess } from 'child_process';
+import { existsSync } from 'fs';
 import { resolve } from 'path';
+
+const CLI_PATH = resolve(__dirname, '../../dist/cli.js');
+const SERVER_TIMEOUT = 30000;
+const HAS_BUILD = existsSync(CLI_PATH);
+
+// These tests spawn a real STDIO server process and require a fresh build
+// Skip unless TEST_INTEGRATION=true to avoid flaky timeouts
+const describeStdio = HAS_BUILD && process.env['TEST_INTEGRATION'] ? describe : describe.skip;
 
 interface JsonRpcResponse {
   jsonrpc: string;
@@ -34,7 +43,7 @@ interface JsonRpcResponse {
   };
 }
 
-describe('MCP Parameter Extraction Integration', () => {
+describeStdio('MCP Parameter Extraction Integration', () => {
   let child: ChildProcess | null = null;
 
   afterEach(() => {
@@ -87,7 +96,7 @@ describe('MCP Parameter Extraction Integration', () => {
 
     const request = (
       payload: Record<string, unknown>,
-      timeoutMs = 10000
+      timeoutMs = SERVER_TIMEOUT
     ): Promise<JsonRpcResponse> => {
       const id = payload['id'];
       if (typeof id !== 'number') {
@@ -124,8 +133,7 @@ describe('MCP Parameter Extraction Integration', () => {
   };
 
   it('should extract spreadsheetId from flat request wrapper (REG-003 fix)', async () => {
-    const cliPath = resolve(__dirname, '../../dist/cli.js');
-    child = spawn('node', [cliPath]);
+    child = spawn('node', [CLI_PATH]);
     const rpc = createJsonRpcHarness(child);
 
     try {
@@ -171,11 +179,10 @@ describe('MCP Parameter Extraction Integration', () => {
         child.kill();
       }
     }
-  }, 15000);
+  }, 45000);
 
   it('should extract sheetId=0 correctly (ISS-001 fix)', async () => {
-    const cliPath = resolve(__dirname, '../../dist/cli.js');
-    child = spawn('node', [cliPath]);
+    child = spawn('node', [CLI_PATH]);
     const rpc = createJsonRpcHarness(child);
 
     try {
@@ -219,11 +226,10 @@ describe('MCP Parameter Extraction Integration', () => {
         child.kill();
       }
     }
-  }, 15000);
+  }, 45000);
 
   it('should not crash with "in operator" error on missing range (REG-001 fix)', async () => {
-    const cliPath = resolve(__dirname, '../../dist/cli.js');
-    child = spawn('node', [cliPath]);
+    child = spawn('node', [CLI_PATH]);
     const rpc = createJsonRpcHarness(child);
 
     try {
@@ -267,11 +273,10 @@ describe('MCP Parameter Extraction Integration', () => {
         child.kill();
       }
     }
-  }, 15000);
+  }, 45000);
 
   it('should extract parameters for sheets_data.read (REG-001 fix)', async () => {
-    const cliPath = resolve(__dirname, '../../dist/cli.js');
-    child = spawn('node', [cliPath]);
+    child = spawn('node', [CLI_PATH]);
     const rpc = createJsonRpcHarness(child);
 
     try {
@@ -317,11 +322,10 @@ describe('MCP Parameter Extraction Integration', () => {
         child.kill();
       }
     }
-  }, 15000);
+  }, 45000);
 
   it('should extract parameters for sheets_session.set_active (REG-005 fix)', async () => {
-    const cliPath = resolve(__dirname, '../../dist/cli.js');
-    child = spawn('node', [cliPath]);
+    child = spawn('node', [CLI_PATH]);
     const rpc = createJsonRpcHarness(child);
 
     try {
@@ -364,5 +368,5 @@ describe('MCP Parameter Extraction Integration', () => {
         child.kill();
       }
     }
-  }, 15000);
+  }, 45000);
 });

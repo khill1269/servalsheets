@@ -179,15 +179,29 @@ export const parseCellReference = memoize(_parseCellReference, {
 });
 
 /**
+ * Pre-computed column index cache for fast repeated lookups.
+ * Canonical implementation — all column letter/index conversions should use this file.
+ * See also: indexToColumnLetter() below for the reverse conversion.
+ */
+const COLUMN_INDEX_CACHE = new Map<string, number>();
+
+/**
  * Convert column letter to 0-based index (A=0, B=1, Z=25, AA=26)
+ * Uses Map caching for O(1) repeated lookups.
  */
 export function columnLetterToIndex(letter: string): number {
-  let index = 0;
   const upper = letter.toUpperCase();
+  const cached = COLUMN_INDEX_CACHE.get(upper);
+  if (cached !== undefined) return cached;
+
+  let index = 0;
   for (let i = 0; i < upper.length; i++) {
     index = index * 26 + (upper.charCodeAt(i) - 64);
   }
-  return index - 1;
+  index -= 1; // Convert to 0-based
+
+  COLUMN_INDEX_CACHE.set(upper, index);
+  return index;
 }
 
 /**

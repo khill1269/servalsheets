@@ -18,6 +18,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SetLevelRequestSchema, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 
 import { OAuthProvider } from './oauth-provider.js';
 import { validateEnv, env, getEnv } from './config/env.js';
@@ -30,7 +31,7 @@ import { ACTION_COUNT, TOOL_COUNT } from './schemas/action-counts.js';
 import { VERSION, SERVER_INFO, SERVER_ICONS } from './version.js';
 import { logger } from './utils/logger.js';
 import { HealthService } from './server/health.js';
-import { metricsHandler } from './observability/metrics.js';
+import { metricsHandler, sessionsTotal } from './observability/metrics.js';
 import { UserRateLimiter, createUserRateLimiterFromEnv } from './services/user-rate-limiter.js';
 import { responseRedactionMiddleware } from './middleware/redaction.js';
 import { circuitBreakerRegistry } from './services/circuit-breaker-registry.js';
@@ -58,6 +59,19 @@ import {
   registerAnalyzeResources,
   registerReferenceResources,
   registerSchemaResources,
+  registerCostDashboardResources,
+  registerGuideResources,
+  registerDecisionResources,
+  registerExamplesResources,
+  registerPatternResources,
+  registerSheetResources,
+  registerDiscoveryResources,
+  registerConnectionHealthResource,
+  registerRestartHealthResource,
+  registerMasterIndexResource,
+  registerKnowledgeIndexResource,
+  registerKnowledgeSearchResource,
+  initializeResourceNotifications,
 } from './resources/index.js';
 import { getTraceAggregator } from './services/trace-aggregator.js';
 import {
@@ -143,6 +157,7 @@ async function createMcpServerInstance(
 
   let handlers = null;
   let googleClient: GoogleApiClient | null = null;
+  let context: HandlerContext | null = null;
 
   if (googleToken) {
     googleClient = await createGoogleApiClient({
@@ -171,7 +186,7 @@ async function createMcpServerInstance(
       queryOptimizer,
     } = await initializePerformanceOptimizations(googleClient.sheets);
 
-    const context: HandlerContext = {
+    context = {
       batchCompiler: new BatchCompiler({
         rateLimiter: new RateLimiter(),
         diffEngine: new DiffEngine({ sheetsApi: googleClient.sheets }),
@@ -252,10 +267,39 @@ async function createMcpServerInstance(
   // Register schema resources for deferred loading (SERVAL_DEFER_SCHEMAS=true)
   registerSchemaResources(mcpServer);
 
+  // Register cost dashboard resources (billing integration)
+  registerCostDashboardResources(mcpServer);
+
+  // Register discovery resources (requires Google client)
+  if (googleClient) {
+    registerDiscoveryResources(mcpServer);
+  }
+
+  // Register dynamic sheet discovery (requires Google client + context)
+  if (googleClient && context) {
+    registerSheetResources(mcpServer, context);
+  }
+
+  // Register guide, decision, examples, and pattern resources
+  registerGuideResources(mcpServer);
+  registerDecisionResources(mcpServer);
+  registerExamplesResources(mcpServer);
+  registerPatternResources(mcpServer);
+
+  // Register health resources
+  registerConnectionHealthResource(mcpServer);
+  registerRestartHealthResource(mcpServer);
+
+  // Register index and knowledge search resources
+  registerMasterIndexResource(mcpServer);
+  registerKnowledgeIndexResource(mcpServer);
+  registerKnowledgeSearchResource(mcpServer);
+
+  // Initialize resource change notifications
+  initializeResourceNotifications(mcpServer);
+
   // Register logging handler
-  // Note: Using 'as any' to bypass TypeScript's deep type inference issues
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mcpServer.server.setRequestHandler(SetLevelRequestSchema as any, async (request: any) => {
+  mcpServer.server.setRequestHandler(SetLevelRequestSchema, async (request: z.infer<typeof SetLevelRequestSchema>) => {
     const level = request.params.level;
     const response = await handleLoggingSetLevel({ level });
     logger.info('Log level changed via logging/setLevel', {
@@ -648,6 +692,38 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     res.setHeader('X-Request-ID', requestId);
     next();
   });
+
+  // Enterprise middleware (all feature-flagged, default OFF)
+  // Uses lazy loading: middleware modules are imported on first request to avoid
+  // blocking startup, while maintaining correct middleware ordering.
+
+  // Tenant Isolation (must be before RBAC - tenant context needed for RBAC decisions)
+  if (envConfig.ENABLE_TENANT_ISOLATION) {
+    let tenantMw: Promise<typeof import('./middleware/tenant-isolation.js')> | null = null;
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (!tenantMw) {
+        tenantMw = import('./middleware/tenant-isolation.js');
+        logger.info('HTTP Server: Tenant isolation middleware enabled');
+      }
+      void tenantMw.then((mod) => {
+        mod.tenantIsolationMiddleware()(req, res, next);
+      }).catch(next);
+    });
+  }
+
+  // RBAC (Role-Based Access Control)
+  if (envConfig.ENABLE_RBAC) {
+    let rbacMw: Promise<typeof import('./middleware/rbac-middleware.js')> | null = null;
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (!rbacMw) {
+        rbacMw = import('./middleware/rbac-middleware.js');
+        logger.info('HTTP Server: RBAC middleware enabled');
+      }
+      void rbacMw.then((mod) => {
+        mod.rbacMiddleware()(req, res, next);
+      }).catch(next);
+    });
+  }
 
   // W3C Trace Context middleware (distributed tracing)
   // Spec: https://www.w3.org/TR/trace-context/
@@ -1365,8 +1441,28 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       taskStore: TaskStoreAdapter;
       eventStore?: InMemoryEventStore | RedisEventStore;
       securityContext: SessionSecurityContext; // Security binding to prevent hijacking
+      lastActivity: number; // Timestamp of last request for idle eviction
     }
   >();
+
+  // Idle session cleanup (prevents memory leak from abandoned sessions)
+  const sessionTimeoutMs = envConfig.SESSION_TIMEOUT_MS;
+
+  const sessionCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [id, session] of sessions) {
+      if (now - session.lastActivity > sessionTimeoutMs) {
+        sessions.delete(id);
+        sessionsTotal.set(sessions.size);
+        sessionLimiter.unregisterSession(id);
+        clearEventStore(session.eventStore);
+        if (typeof session.transport.close === 'function') {
+          session.transport.close();
+        }
+        logger.info('Evicted idle session', { sessionId: id });
+      }
+    }
+  }, 60000);
 
   // Resource Indicator validation (RFC 8707) - validates tokens if present
   const serverUrl = process.env['SERVER_URL'] || `http://${host}:${port}`;
@@ -1437,7 +1533,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       // Extract Google token - from OAuth or Authorization header
       const googleToken =
         options.enableOAuth && oauth
-          ? (oauth.getGoogleToken(req) ?? undefined)
+          ? ((await oauth.getGoogleToken(req)) ?? undefined)
           : req.headers.authorization?.startsWith('Bearer ')
             ? req.headers.authorization.slice(7)
             : undefined;
@@ -1574,7 +1670,8 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         // Create and connect MCP server with task store
         const { mcpServer, taskStore } = await createMcpServerInstance(googleToken);
         await mcpServer.connect(transport);
-        sessions.set(sessionId, { transport, mcpServer, taskStore, securityContext, eventStore });
+        sessions.set(sessionId, { transport, mcpServer, taskStore, securityContext, eventStore, lastActivity: Date.now() });
+        sessionsTotal.set(sessions.size);
 
         // Cleanup on disconnect
         req.on('close', () => {
@@ -1583,6 +1680,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
             // Session cleanup logic can be added here if needed
           }
           sessions.delete(sessionId);
+          sessionsTotal.set(sessions.size);
           sessionLimiter.unregisterSession(sessionId);
           if (typeof transport.close === 'function') {
             transport.close();
@@ -1630,6 +1728,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         }
 
         const session = sessions.get(sessionId);
+        if (session) session.lastActivity = Date.now();
         const transport = session?.transport;
 
         if (!transport) {
@@ -1701,6 +1800,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     try {
       // Create transport if new session (POST + initialize only)
       let session = sessionId ? sessions.get(sessionId) : undefined;
+      if (session) session.lastActivity = Date.now();
       let transport = session?.transport;
 
       if (sessionId && session && !(transport instanceof StreamableHTTPServerTransport)) {
@@ -1804,10 +1904,13 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           taskStore,
           eventStore,
           securityContext,
+          lastActivity: Date.now(),
         });
+        sessionsTotal.set(sessions.size);
 
         newTransport.onclose = () => {
           sessions.delete(newSessionId);
+          sessionsTotal.set(sessions.size);
           sessionLimiter.unregisterSession(newSessionId);
           clearEventStore(eventStore);
         };
@@ -1882,6 +1985,7 @@ export function createHttpServer(options: HttpServerOptions = {}): {
       }
       clearEventStore(session.eventStore);
       sessions.delete(sessionId);
+      sessionsTotal.set(sessions.size);
       sessionLimiter.unregisterSession(sessionId);
       res.json({ success: true, message: 'Session terminated' });
     } else {
@@ -2267,6 +2371,11 @@ export function createHttpServer(options: HttpServerOptions = {}): {
     }
   });
 
+  // Clear session cleanup interval on shutdown
+  onShutdown(async () => {
+    clearInterval(sessionCleanupInterval);
+  });
+
   // Register shutdown callback to close all sessions
   onShutdown(async () => {
     logger.info(`Closing ${sessions.size} active sessions...`);
@@ -2284,13 +2393,14 @@ export function createHttpServer(options: HttpServerOptions = {}): {
         logger.error('Error closing transport', { sessionId, error });
       }
     }
+    sessionsTotal.set(sessions.size);
     logger.info('All sessions closed');
   });
 
   return {
     app,
-    start: () => {
-      return new Promise<void>((resolve) => {
+    start: async () => {
+      await new Promise<void>((resolve) => {
         httpServer = app.listen(port, host, () => {
           logger.info(`ServalSheets HTTP server listening on ${host}:${port}`);
           if (legacySseEnabled) {
@@ -2304,6 +2414,43 @@ export function createHttpServer(options: HttpServerOptions = {}): {
           resolve();
         });
       });
+
+      // WebSocket transport (opt-in via ENABLE_WEBSOCKET)
+      if (envConfig.ENABLE_WEBSOCKET) {
+        try {
+          const { WebSocketServer: WsServer } = await import('./transports/websocket-server.js');
+          const wsPort = envConfig.WEBSOCKET_PORT;
+          const wsServer = new WsServer({ port: wsPort, host });
+          await wsServer.start();
+          logger.info(`WebSocket server listening on ${host}:${wsPort}`);
+
+          // Register shutdown handler for WebSocket server
+          onShutdown(async () => {
+            await wsServer.stop();
+          });
+        } catch (error) {
+          logger.error('Failed to start WebSocket server', { error });
+          logger.warn('Continuing without WebSocket transport');
+        }
+      }
+
+      // Plugin system (opt-in via ENABLE_PLUGINS)
+      if (envConfig.ENABLE_PLUGINS) {
+        try {
+          const { PluginRuntime } = await import('./plugins/index.js');
+          const runtime = new PluginRuntime({
+            pluginDir: envConfig.PLUGINS_DIR,
+          });
+          logger.info('Plugin system initialized', { pluginDir: envConfig.PLUGINS_DIR });
+
+          onShutdown(async () => {
+            await runtime.shutdown();
+          });
+        } catch (error) {
+          logger.error('Failed to initialize plugin system', { error });
+          logger.warn('Continuing without plugin support');
+        }
+      }
     },
     stop: async () => {
       if (httpServer) {

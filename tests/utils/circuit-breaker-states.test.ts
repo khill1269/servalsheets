@@ -113,8 +113,8 @@ describe('CircuitBreaker - State Transitions', () => {
       }
       expect(breaker.getState()).toBe('open');
 
-      // Wait for timeout
-      await new Promise((r) => setTimeout(r, 600));
+      // Wait for timeout + jitter (up to 30%)
+      await new Promise((r) => setTimeout(r, 1000));
 
       // Next execute should be allowed (half-open probe)
       await breaker.execute(async () => 'probe-success');
@@ -133,8 +133,8 @@ describe('CircuitBreaker - State Transitions', () => {
         ).rejects.toThrow();
       }
 
-      // Wait for timeout → half_open
-      await new Promise((r) => setTimeout(r, 600));
+      // Wait for timeout + jitter (up to 30%) → half_open
+      await new Promise((r) => setTimeout(r, 1000));
 
       // successThreshold is 2: need 2 consecutive successes
       await breaker.execute(async () => 'success-1');
@@ -155,8 +155,8 @@ describe('CircuitBreaker - State Transitions', () => {
         ).rejects.toThrow();
       }
 
-      // Wait for timeout → half_open
-      await new Promise((r) => setTimeout(r, 600));
+      // Wait for timeout + jitter (up to 30%) → half_open
+      await new Promise((r) => setTimeout(r, 1000));
 
       // First call succeeds (probe)
       await breaker.execute(async () => 'ok');

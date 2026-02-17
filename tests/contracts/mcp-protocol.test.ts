@@ -62,7 +62,7 @@ describe('MCP Protocol Compliance', () => {
   });
 
   describe('Tool Registration', () => {
-    it('should register exactly 21 tools', () => {
+    it('should register exactly 23 tools', () => {
       // Access private _registeredTools field (it's an object, not a Map)
       const tools = getPrivateField<Record<string, unknown>>(server as unknown, '_registeredTools');
 

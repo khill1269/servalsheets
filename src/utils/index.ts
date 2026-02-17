@@ -20,7 +20,6 @@ export * from './retry.js';
 
 // Error Handling
 export * from './error-factory.js';
-export * from './error-messages.js';
 
 // Google Sheets Helpers
 export * from './google-sheets-helpers.js';
@@ -45,7 +44,6 @@ export * from './request-context.js';
 export * from './request-deduplication.js';
 export * from './response-enhancer.js';
 export * from './response-compactor.js';
-export * from './response-pool.js';
 export * from './session-limiter.js';
 export * from './keepalive.js';
 export * from './checkpoint.js';

@@ -28,6 +28,7 @@
  */
 
 import { logger } from './logger.js';
+import { updateMcpConnectionHealth } from '../observability/metrics.js';
 
 export interface ConnectionHealthConfig {
   /** Heartbeat check interval in ms (default: 15000 = 15 seconds) */
@@ -248,6 +249,17 @@ export class ConnectionHealthMonitor {
         thresholdMs: this.config.warnThresholdMs,
       });
     }
+
+    // Update MCP connection health metrics
+    const status: ConnectionStats['status'] = this.isDisconnected
+      ? 'disconnected'
+      : timeSinceActivity >= this.config.warnThresholdMs
+        ? 'warning'
+        : 'healthy';
+    const uptimeSeconds = this.monitoringStarted > 0
+      ? Math.floor((now - this.monitoringStarted) / 1000)
+      : 0;
+    updateMcpConnectionHealth(status, 0, timeSinceActivity, 0, uptimeSeconds);
   }
 
   /**

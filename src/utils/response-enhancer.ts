@@ -168,6 +168,205 @@ export function generateSuggestions(context: EnhancementContext): ToolSuggestion
     }
   }
 
+  // === NEW SYNERGY PATTERNS (17 additional patterns) ===
+
+  // HIGH PRIORITY: After import → suggest analysis
+  if (action === 'import_csv' || action === 'import_data') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Data imported successfully - analyze quality before processing',
+      tool: 'sheets_analyze',
+      action: 'analyze_quality',
+      reason: 'Imported data may have encoding issues, missing values, or format inconsistencies',
+      priority: 'high',
+    });
+  }
+
+  // HIGH PRIORITY: After large dataset → suggest BigQuery
+  if (action === 'read' && result) {
+    const values = result['values'] as unknown[][] | undefined;
+    if (values && values.length > 10000) {
+      suggestions.push({
+        type: 'optimization',
+        message: `Very large dataset (${values.length} rows) - BigQuery integration recommended`,
+        tool: 'sheets_bigquery',
+        action: 'export_to_bigquery',
+        reason:
+          'BigQuery handles 10K+ rows 100x faster than Sheets with SQL queries and better performance',
+        priority: 'high',
+      });
+    }
+  }
+
+  // HIGH PRIORITY: After duplicate data → suggest deduplication
+  if (result && hasDuplicates(result)) {
+    const dupCount = getDuplicateCount(result);
+    suggestions.push({
+      type: 'warning',
+      message: `${dupCount} duplicate rows detected - deduplication recommended`,
+      tool: 'sheets_data',
+      action: 'deduplicate',
+      reason: 'Duplicate data skews analysis results and wastes storage quota',
+      priority: 'high',
+    });
+  }
+
+  // HIGH PRIORITY: After API rate limit → suggest caching
+  if (context.apiCallsMade && context.apiCallsMade > 20) {
+    suggestions.push({
+      type: 'warning',
+      message: `High API usage (${context.apiCallsMade} calls) - enable caching to reduce quota consumption`,
+      tool: 'sheets_session',
+      action: 'set_config',
+      reason: 'Caching reduces repeated API calls by 60-80%, extending your quota headroom',
+      priority: 'high',
+    });
+  }
+
+  // MEDIUM PRIORITY: After analysis → suggest visualization
+  if (action === 'analyze_data' || action === 'analyze_quality') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Analysis complete - create charts to visualize findings',
+      tool: 'sheets_visualize',
+      action: 'chart_create',
+      reason: 'Visual patterns reveal insights not obvious in statistical summaries',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After chart → suggest trendlines
+  if (action === 'chart_create' && result) {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Chart created - add trendlines for predictive insights',
+      tool: 'sheets_visualize',
+      action: 'chart_add_trendline',
+      reason: 'Trendlines show data direction and enable forecasting',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After formula calculation → suggest named ranges
+  if (action === 'calculate' || (action === 'write' && hasFormulas(input))) {
+    suggestions.push({
+      type: 'optimization',
+      message: 'Formulas detected - named ranges improve readability and maintenance',
+      tool: 'sheets_advanced',
+      action: 'create_named_range',
+      reason: 'Named ranges (e.g., "Revenue" instead of "A2:A100") make formulas self-documenting',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After pivot table → suggest refresh schedule
+  if (action === 'pivot_create') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Pivot table created - set up automatic refresh for live data',
+      tool: 'sheets_webhook',
+      action: 'create_webhook',
+      reason: 'Webhooks trigger pivot refresh when source data changes, keeping analysis current',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After filtering → suggest protected ranges
+  if (action === 'filter_create' || action === 'filter_apply') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Filter applied - protect filter criteria from accidental changes',
+      tool: 'sheets_collaborate',
+      action: 'protect_range',
+      reason: 'Protected ranges prevent users from breaking complex filters',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After collaboration → suggest notification rules
+  if (action === 'share_add' || action === 'share_update') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Sharing configured - set up change notifications for collaborators',
+      tool: 'sheets_webhook',
+      action: 'create_webhook',
+      reason: 'Notifications keep team members informed of data changes without manual checking',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After transaction → suggest rollback point
+  if (tool === 'sheets_transaction' && action === 'commit') {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Transaction committed - create checkpoint for easy rollback',
+      tool: 'sheets_collaborate',
+      action: 'version_create_snapshot',
+      reason: 'Snapshots provide instant rollback if the transaction causes issues',
+      priority: 'medium',
+    });
+  }
+
+  // MEDIUM PRIORITY: After batch operation → suggest progress tracking
+  if (action.includes('batch') && cellsAffected && cellsAffected > 1000) {
+    suggestions.push({
+      type: 'optimization',
+      message: 'Large batch operation - enable progress tracking for better visibility',
+      tool: 'sheets_session',
+      action: 'enable_progress',
+      reason: 'Progress tracking shows completion percentage for long-running operations',
+      priority: 'medium',
+    });
+  }
+
+  // LOW PRIORITY: After slow operation → suggest optimization
+  if (context.duration && context.duration > 2000) {
+    suggestions.push({
+      type: 'optimization',
+      message: `Operation took ${Math.round(context.duration / 1000)}s - optimization recommended`,
+      tool: 'sheets_analyze',
+      action: 'suggest_optimization',
+      reason: 'Slow operations often have simple fixes (batching, field masks, caching)',
+      priority: 'low',
+    });
+  }
+
+  // LOW PRIORITY: After missing data → suggest data validation
+  if (result && hasMissingData(result)) {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Missing data detected - set up validation rules to prevent future gaps',
+      tool: 'sheets_format',
+      action: 'set_validation',
+      reason: 'Data validation prevents empty cells and enforces required fields',
+      priority: 'low',
+    });
+  }
+
+  // LOW PRIORITY: After inconsistent formats → suggest standardization
+  if (result && hasInconsistentFormats(result)) {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Format inconsistencies found - apply preset for standardization',
+      tool: 'sheets_format',
+      action: 'apply_preset',
+      reason: 'Consistent formatting improves readability and prevents parsing errors',
+      priority: 'low',
+    });
+  }
+
+  // LOW PRIORITY: After security concern → suggest access control
+  if (action === 'write' && cellsAffected && cellsAffected > 1000) {
+    suggestions.push({
+      type: 'follow_up',
+      message: 'Large data modification - review access permissions for security',
+      tool: 'sheets_collaborate',
+      action: 'get_permissions',
+      reason: 'Verify only authorized users can modify critical data ranges',
+      priority: 'low',
+    });
+  }
+
   // Sort by priority (HIGH first, then MEDIUM, then LOW)
   return suggestions.sort(
     (a, b) => PRIORITY_ORDER[a.priority || 'medium'] - PRIORITY_ORDER[b.priority || 'medium']
@@ -204,6 +403,54 @@ function hasVisualizableData(values: unknown[][]): boolean {
 
   const hasNumbers = firstDataRow.some((cell) => typeof cell === 'number');
   return hasNumbers;
+}
+
+/**
+ * Check if result contains duplicate rows
+ */
+function hasDuplicates(result: Record<string, unknown>): boolean {
+  const analysis = result['analysis'] as { duplicates?: unknown } | undefined;
+  const duplicates = analysis?.duplicates as { count?: number } | undefined;
+  return (duplicates?.count || 0) > 0;
+}
+
+/**
+ * Get count of duplicate rows
+ */
+function getDuplicateCount(result: Record<string, unknown>): number {
+  const analysis = result['analysis'] as { duplicates?: unknown } | undefined;
+  const duplicates = analysis?.duplicates as { count?: number } | undefined;
+  return duplicates?.count || 0;
+}
+
+/**
+ * Check if input contains formulas
+ */
+function hasFormulas(input: Record<string, unknown>): boolean {
+  const values = input['values'] as unknown[][] | undefined;
+  if (!values) return false;
+
+  return values.some((row) =>
+    Array.isArray(row)
+      ? row.some((cell) => typeof cell === 'string' && cell.startsWith('='))
+      : false
+  );
+}
+
+/**
+ * Check if result contains missing data
+ */
+function hasMissingData(result: Record<string, unknown>): boolean {
+  const analysis = result['analysis'] as { missingCells?: number } | undefined;
+  return (analysis?.missingCells || 0) > 0;
+}
+
+/**
+ * Check if result has inconsistent formats
+ */
+function hasInconsistentFormats(result: Record<string, unknown>): boolean {
+  const quality = result['quality'] as { formatInconsistencies?: number } | undefined;
+  return (quality?.formatInconsistencies || 0) > 0;
 }
 
 /**

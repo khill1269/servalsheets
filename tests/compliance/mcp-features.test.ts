@@ -113,21 +113,21 @@ describe('MCP 2025-11-25 Feature Compliance', () => {
 
     it('should include quota awareness section', () => {
       expect(instructions).toContain('quotaStatus');
-      expect(instructions).toContain('burnRate');
+      expect(instructions).toContain('batch_read');
     });
 
     it('should include formula expertise section', () => {
-      expect(instructions).toContain('Formula Performance Hierarchy');
+      expect(instructions).toContain('Quick formula tips');
       expect(instructions).toContain('VLOOKUP');
       expect(instructions).toContain('INDEX/MATCH');
     });
 
     it('should include collaborative workflow pattern', () => {
-      expect(instructions).toContain('Phase 1: UNDERSTAND');
-      expect(instructions).toContain('Phase 2: GATHER');
-      expect(instructions).toContain('Phase 3: PLAN');
-      expect(instructions).toContain('Phase 4: APPROVE');
-      expect(instructions).toContain('Phase 5: EXECUTE');
+      expect(instructions).toContain('Gather requirements');
+      expect(instructions).toContain('Plan execution steps');
+      expect(instructions).toContain('Wait for user approval');
+      expect(instructions).toContain('Execute with safety checks');
+      expect(instructions).toContain('Verify results and report back');
     });
 
     it('should include Tier 7 tools in decision tree', () => {

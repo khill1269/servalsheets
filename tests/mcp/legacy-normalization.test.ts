@@ -68,14 +68,15 @@ describe('legacy schema wrapper hardening', () => {
     const handlers = createMockHandlers();
     const map = createToolHandlerMap(handlers);
 
-    await expect(
-      map.sheets_core({
+    // Should reject with ZodError for invalid action
+    await expect(async () => {
+      await map.sheets_core({
         request: {
-          action: 'not_a_real_action',
+          action: 'not_a_real_action' as any,
           spreadsheetId: 'sheet-123',
         },
-      })
-    ).rejects.toThrow();
+      });
+    }).rejects.toThrow(/Invalid action|No matching discriminator/);
 
     expect(handlers.core.handle).not.toHaveBeenCalled();
   });

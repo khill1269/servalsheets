@@ -27,6 +27,7 @@ describe('WebhookManager', () => {
       get: vi.fn().mockResolvedValue(null),
       del: vi.fn().mockResolvedValue(1),
       keys: vi.fn().mockResolvedValue([]),
+      scan: vi.fn().mockResolvedValue({ cursor: 0, keys: [] }),
       sAdd: vi.fn().mockResolvedValue(1),
       sRem: vi.fn().mockResolvedValue(1),
       sMembers: vi.fn().mockResolvedValue([]),
@@ -190,7 +191,7 @@ describe('WebhookManager', () => {
     });
 
     it('should list all webhooks', async () => {
-      mockRedis.keys.mockResolvedValueOnce(['webhook:webhook_1', 'webhook:webhook_2']);
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_1', 'webhook:webhook_2'] });
       mockRedis.get
         .mockResolvedValueOnce(
           JSON.stringify({
@@ -257,7 +258,7 @@ describe('WebhookManager', () => {
     });
 
     it('should filter by active status', async () => {
-      mockRedis.keys.mockResolvedValueOnce(['webhook:webhook_1', 'webhook:webhook_2']);
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_1', 'webhook:webhook_2'] });
       mockRedis.get
         .mockResolvedValueOnce(
           JSON.stringify({
@@ -416,7 +417,7 @@ describe('WebhookManager', () => {
         expiresAt: now - 1000, // Expired 1 second ago
       });
 
-      mockRedis.keys.mockResolvedValueOnce(['webhook:webhook_old']);
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_old'] });
       mockRedis.get
         .mockResolvedValueOnce(expiredWebhook) // First call in cleanupExpired loop
         .mockResolvedValueOnce(expiredWebhook); // Second call in unregister
@@ -436,7 +437,7 @@ describe('WebhookManager', () => {
         expiresAt: now + 7 * 24 * 60 * 60 * 1000, // Expires in 7 days
       });
 
-      mockRedis.keys.mockResolvedValueOnce(['webhook:webhook_active']);
+      mockRedis.scan.mockResolvedValueOnce({ cursor: 0, keys: ['webhook:webhook_active'] });
       mockRedis.get.mockResolvedValueOnce(activeWebhook);
 
       const manager = getWebhookManager();

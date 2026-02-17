@@ -120,7 +120,20 @@ export function hasActionAnnotations(toolName: string, actionName: string): bool
 /**
  * Get the complete annotation object for an action.
  */
-export function getActionAnnotation(toolName: string, actionName: string) {
+export function getActionAnnotation(
+  toolName: string,
+  actionName: string
+):
+  | {
+      apiCalls?: number;
+      idempotent?: boolean;
+      batchAlternative?: string;
+      prerequisites?: string[];
+      commonMistakes?: string[];
+      whenToUse?: string;
+      whenNotToUse?: string;
+    }
+  | undefined {
   const key = `${toolName}.${actionName}`;
   return ACTION_ANNOTATIONS[key];
 }

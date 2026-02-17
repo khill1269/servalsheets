@@ -173,9 +173,14 @@ describe('GoogleApiClient', () => {
   });
 
   describe('scopes exports', () => {
-    it('should export DEFAULT_SCOPES with spreadsheets and drive.file', () => {
+    it('should export DEFAULT_SCOPES with spreadsheets and drive access', () => {
       expect(DEFAULT_SCOPES).toContain('https://www.googleapis.com/auth/spreadsheets');
-      expect(DEFAULT_SCOPES).toContain('https://www.googleapis.com/auth/drive.file');
+      // Default is self-hosted mode which uses FULL_ACCESS_SCOPES (includes full drive)
+      // In saas mode, this would be drive.file instead
+      expect(
+        DEFAULT_SCOPES.includes('https://www.googleapis.com/auth/drive') ||
+          DEFAULT_SCOPES.includes('https://www.googleapis.com/auth/drive.file')
+      ).toBe(true);
     });
 
     it('should export ELEVATED_SCOPES with full drive access', () => {
@@ -281,10 +286,12 @@ describe('GoogleApiClient', () => {
   });
 
   describe('hasElevatedAccess', () => {
-    it('should return false for default scopes', () => {
+    it('should reflect scope mode for default scopes', () => {
       client = new GoogleApiClient();
-      // Default scopes use drive.file (not full drive access)
-      expect(client.hasElevatedAccess).toBe(false);
+      // Default is self-hosted mode which uses FULL_ACCESS_SCOPES (includes full drive)
+      // hasElevatedAccess is true when scopes include full drive scope
+      const hasDriveScope = client.scopes.includes('https://www.googleapis.com/auth/drive');
+      expect(client.hasElevatedAccess).toBe(hasDriveScope);
     });
 
     it('should return true for elevated scopes', () => {

@@ -290,6 +290,72 @@ function getErrorSuggestions(code: string, context?: Record<string, unknown>): E
         suggestedTools: ['sheets_auth'],
       };
 
+    // Startup error codes
+    case 'BUILD_REQUIRED':
+      return {
+        title: (context?.['resolution'] as string) || 'Run build command to compile TypeScript',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Run: npm run build',
+          '2. Verify dist/cli.js exists',
+          '3. Check for build errors',
+          '4. Retry starting the server',
+        ],
+      };
+
+    case 'DEPENDENCY_MISSING':
+      return {
+        title: (context?.['resolution'] as string) || 'Install dependencies',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Run: npm install',
+          '2. Verify package.json exists',
+          '3. Retry starting the server',
+        ],
+      };
+
+    case 'FILE_NOT_FOUND':
+      return {
+        title: (context?.['resolution'] as string) || 'Check file paths and run build',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Run: npm run build',
+          '2. Verify .env file exists',
+          '3. Check file permissions',
+          '4. Retry starting the server',
+        ],
+      };
+
+    case 'PORT_IN_USE':
+      return {
+        title:
+          (context?.['resolution'] as string) || 'Use a different port or stop conflicting process',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Find process using port: lsof -ti:3000',
+          '2. Kill process or use different port',
+          '3. Retry starting the server',
+        ],
+      };
+
+    case 'CONFIG_INVALID':
+    case 'INVALID_CONFIG':
+      return {
+        title: (context?.['resolution'] as string) || 'Fix configuration errors',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Check environment variables',
+          '2. Verify configuration format',
+          '3. Retry starting the server',
+        ],
+      };
+
+    case 'REDIS_CONNECTION_FAILED':
+      return {
+        title: (context?.['resolution'] as string) || 'Start Redis or use development mode',
+        steps: (context?.['resolutionSteps'] as string[]) || [
+          '1. Check if Redis is running: redis-cli ping',
+          '2. Start Redis: redis-server',
+          '3. Or set NODE_ENV=development to skip Redis',
+          '4. Retry starting the server',
+        ],
+      };
+
     default:
       return {
         title: 'Error occurred - See details',
@@ -554,4 +620,236 @@ export function createEnhancedError(
     success: false,
     error: enhanceError(code, message, context),
   };
+}
+
+/**
+ * Enhance startup errors with actionable fixes
+ *
+ * Converts raw Node.js/system errors into user-friendly messages with
+ * clear resolution steps. Covers common startup failure scenarios:
+ * - MODULE_NOT_FOUND (missing build or dependencies)
+ * - ENOENT (missing files/directories)
+ * - EACCES (permission denied)
+ * - EADDRINUSE (port already in use)
+ * - Invalid configuration (ENCRYPTION_KEY, Redis, etc.)
+ */
+export function enhanceStartupError(error: unknown): ErrorDetail {
+  const err = error instanceof Error ? error : new Error(String(error));
+
+  // MODULE_NOT_FOUND - most common startup error
+  if (err.message.includes('Cannot find module') || err.message.includes('MODULE_NOT_FOUND')) {
+    // Check if it's missing dist/cli.js or dist/server.js
+    if (
+      err.message.includes('dist/cli.js') ||
+      err.message.includes('dist/server.js') ||
+      err.message.includes('dist/')
+    ) {
+      return enhanceError('BUILD_REQUIRED', 'Missing compiled files - project not built', {
+        module: 'dist/',
+        resolution: 'Run build command to compile TypeScript',
+        resolutionSteps: [
+          '1. Run: npm run build',
+          '2. Verify dist/cli.js exists: ls -la dist/cli.js',
+          '3. Check for build errors in output',
+          '4. Retry starting the server',
+        ],
+        details: { originalError: err.message },
+      });
+    }
+
+    // Missing dependency in node_modules
+    const moduleMatch = err.message.match(/Cannot find module '(.+?)'/);
+    const moduleName = moduleMatch ? moduleMatch[1] : 'unknown';
+
+    return enhanceError('DEPENDENCY_MISSING', `Missing required dependency: ${moduleName}`, {
+      module: moduleName,
+      resolution: 'Install dependencies',
+      resolutionSteps: [
+        '1. Run: npm install',
+        '2. Verify package.json exists',
+        '3. Check node_modules directory was created',
+        '4. If errors persist, try: rm -rf node_modules package-lock.json && npm install',
+        '5. Retry starting the server',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // ENOENT - File/directory not found
+  if (err.message.includes('ENOENT') || err.message.includes('no such file')) {
+    return enhanceError('FILE_NOT_FOUND', 'Required file or directory not found', {
+      resolution: 'Check file paths and run build',
+      resolutionSteps: [
+        '1. Run: npm run build',
+        '2. Verify .env file exists (copy from .env.example if needed)',
+        '3. Check file permissions: ls -la',
+        '4. Ensure working directory is project root',
+        '5. Retry starting the server',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // EACCES - Permission denied
+  if (err.message.includes('EACCES') || err.message.includes('permission denied')) {
+    return enhanceError('PERMISSION_DENIED', 'Permission denied - cannot access required files', {
+      resolution: 'Grant file permissions',
+      resolutionSteps: [
+        '1. Check ownership: ls -la ~/.servalsheets/',
+        '2. Grant permissions: chmod -R 755 ~/.servalsheets/',
+        '3. If running as different user, check file ownership',
+        '4. Retry starting the server',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // EADDRINUSE - Port already in use (HTTP mode)
+  if (err.message.includes('EADDRINUSE') || err.message.includes('address already in use')) {
+    const portMatch = err.message.match(/port (\d+)|:(\d+)/);
+    const port = portMatch ? portMatch[1] || portMatch[2] : '3000';
+
+    return enhanceError('PORT_IN_USE', `Port ${port} is already in use`, {
+      port,
+      resolution: 'Use a different port or stop conflicting process',
+      resolutionSteps: [
+        `1. Find process using port: lsof -ti:${port}`,
+        `2. Kill process: kill $(lsof -ti:${port})`,
+        `3. Or use different port: servalsheets --http --port 8080`,
+        '4. Verify port is free: lsof -ti:8080 (should return nothing)',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // ENCRYPTION_KEY validation errors (from lifecycle.ts)
+  if (err.message.includes('ENCRYPTION_KEY')) {
+    return enhanceError('CONFIG_INVALID', 'Invalid encryption key configuration', {
+      resolution: 'Set valid encryption key',
+      resolutionSteps: [
+        '1. Generate key: openssl rand -hex 32',
+        '2. Add to .env file: ENCRYPTION_KEY=<generated-key>',
+        '3. Verify length is 64 hex characters (32 bytes)',
+        '4. In production, use secure key management (AWS Secrets Manager, etc.)',
+        '5. Retry starting the server',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // Redis connection errors
+  if (
+    err.message.includes('Redis') ||
+    err.message.includes('ECONNREFUSED') ||
+    err.message.includes('redis')
+  ) {
+    return enhanceError('REDIS_CONNECTION_FAILED', 'Cannot connect to Redis server', {
+      resolution: 'Start Redis or disable Redis requirement',
+      resolutionSteps: [
+        '1. Check Redis is running: redis-cli ping',
+        '2. Start Redis: redis-server',
+        '3. Or set NODE_ENV=development to use in-memory storage',
+        '4. Verify REDIS_URL in .env: redis://localhost:6379',
+        '5. Check Redis is accessible from your network',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // OAuth configuration errors
+  if (
+    err.message.includes('OAUTH') ||
+    err.message.includes('OAuth') ||
+    err.message.includes('CLIENT_ID') ||
+    err.message.includes('CLIENT_SECRET')
+  ) {
+    return enhanceError('OAUTH_CONFIG_INVALID', 'Invalid OAuth configuration', {
+      resolution: 'Set valid OAuth credentials',
+      resolutionSteps: [
+        '1. Get credentials from Google Cloud Console',
+        '2. Create OAuth 2.0 Client ID (Web application type)',
+        '3. Add to .env: OAUTH_CLIENT_ID=<your-client-id>',
+        '4. Add to .env: OAUTH_CLIENT_SECRET=<your-client-secret>',
+        '5. Add to .env: SESSION_SECRET=<random-string>',
+        '6. Configure redirect URIs in Google Cloud Console',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // Session store errors
+  if (err.message.includes('session') && err.message.includes('production')) {
+    return enhanceError('SESSION_STORE_REQUIRED', 'Production requires persistent session store', {
+      resolution: 'Configure Redis session store',
+      resolutionSteps: [
+        '1. Set SESSION_STORE_TYPE=redis in .env',
+        '2. Set REDIS_URL=redis://your-redis-host:6379 in .env',
+        '3. Ensure Redis is running and accessible',
+        '4. Or for local testing only: ALLOW_MEMORY_SESSIONS=true',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // DNS / Network errors during startup (ENOTFOUND, ETIMEDOUT, EAI_AGAIN)
+  if (
+    err.message.includes('ENOTFOUND') ||
+    err.message.includes('getaddrinfo') ||
+    err.message.includes('ETIMEDOUT') ||
+    err.message.includes('EAI_AGAIN')
+  ) {
+    return enhanceError(
+      'NETWORK_ERROR',
+      'Cannot reach Google APIs — check your internet connection',
+      {
+        resolution: 'Verify network connectivity',
+        resolutionSteps: [
+          '1. Check your internet connection (try opening a webpage)',
+          '2. If on VPN, verify it allows access to googleapis.com',
+          '3. Try flushing DNS cache: sudo dscacheutil -flushcache (macOS)',
+          '4. Wait a few seconds and retry starting the server',
+          '5. If persistent, check firewall/proxy settings for sheets.googleapis.com',
+        ],
+        details: { originalError: err.message },
+      }
+    );
+  }
+
+  // Google API errors during startup
+  if (
+    err.message.includes('google') ||
+    err.message.includes('Google') ||
+    err.message.includes('GOOGLE_APPLICATION_CREDENTIALS')
+  ) {
+    return enhanceError('GOOGLE_AUTH_FAILED', 'Google API authentication failed', {
+      resolution: 'Configure Google service account or OAuth',
+      resolutionSteps: [
+        '1. Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json',
+        '2. Or configure OAuth with OAUTH_CLIENT_ID/OAUTH_CLIENT_SECRET',
+        '3. Verify service account has required permissions',
+        '4. Check service account JSON file is valid',
+        '5. Ensure APIs are enabled in Google Cloud Console',
+      ],
+      details: { originalError: err.message },
+    });
+  }
+
+  // Generic startup error with helpful fallback
+  return enhanceError('STARTUP_FAILED', err.message || 'Unknown startup error', {
+    resolution: 'Check error details and verify configuration',
+    resolutionSteps: [
+      '1. Check all environment variables in .env file',
+      '2. Run: npm run build (ensure project is built)',
+      '3. Run: npm install (ensure dependencies installed)',
+      '4. Run: npm run verify (runs full test suite)',
+      '5. Check logs for detailed error information',
+      '6. If error persists, report issue with full stack trace',
+    ],
+    details: {
+      originalError: err.message,
+      stack: err.stack,
+      nodeVersion: process.version,
+      platform: process.platform,
+    },
+  });
 }

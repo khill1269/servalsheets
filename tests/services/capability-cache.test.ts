@@ -26,6 +26,7 @@ describe('CapabilityCacheService', () => {
       setEx: vi.fn().mockResolvedValue('OK'),
       del: vi.fn().mockResolvedValue(1),
       keys: vi.fn().mockResolvedValue([]),
+      scan: vi.fn().mockResolvedValue({ cursor: 0, keys: [] }),
     };
 
     service = new CapabilityCacheService(mockRedis);
@@ -261,14 +262,17 @@ describe('CapabilityCacheService', () => {
     });
 
     it('should clear all Redis cache entries', async () => {
-      mockRedis.keys.mockResolvedValue([
-        'servalsheets:capabilities:session-1',
-        'servalsheets:capabilities:session-2',
-      ]);
+      mockRedis.scan.mockResolvedValue({
+        cursor: 0,
+        keys: [
+          'servalsheets:capabilities:session-1',
+          'servalsheets:capabilities:session-2',
+        ],
+      });
 
       await service.clearAll();
 
-      expect(mockRedis.keys).toHaveBeenCalledWith('servalsheets:capabilities:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith(0, { MATCH: 'servalsheets:capabilities:*', COUNT: 100 });
       expect(mockRedis.del).toHaveBeenCalledWith(
         'servalsheets:capabilities:session-1',
         'servalsheets:capabilities:session-2'
@@ -276,7 +280,7 @@ describe('CapabilityCacheService', () => {
     });
 
     it('should handle no Redis keys', async () => {
-      mockRedis.keys.mockResolvedValue([]);
+      mockRedis.scan.mockResolvedValue({ cursor: 0, keys: [] });
 
       await service.clearAll();
 
@@ -284,7 +288,7 @@ describe('CapabilityCacheService', () => {
     });
 
     it('should handle Redis errors gracefully', async () => {
-      mockRedis.keys.mockRejectedValue(new Error('Redis keys failed'));
+      mockRedis.scan.mockRejectedValue(new Error('Redis scan failed'));
 
       await expect(service.clearAll()).resolves.not.toThrow();
     });

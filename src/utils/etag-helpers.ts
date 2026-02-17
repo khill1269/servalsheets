@@ -18,10 +18,13 @@ import type { GaxiosResponse } from 'gaxios';
  * - etag: "abc123" (standard)
  * - ETag: "abc123" (alternative casing)
  *
- * @param response - Google API response
+ * Accepts any response type (GaxiosResponse, GaxiosResponseWithHTTP2, etc.)
+ * since we only access the headers property which is common to all.
+ *
+ * @param response - Google API response (any type with headers)
  * @returns ETag string or null if not present
  */
-export function extractETag(response: GaxiosResponse): string | null {
+export function extractETag(response: { headers?: unknown }): string | null {
   const headers = response.headers as unknown as Record<string, unknown>;
   const etag = headers?.['etag'] || headers?.['ETag'];
   return typeof etag === 'string' ? etag : null;

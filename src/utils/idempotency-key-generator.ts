@@ -8,6 +8,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
+import { logger } from './logger.js';
 
 /**
  * Generate a random idempotency key (UUID v4)
@@ -156,17 +157,20 @@ export function extractIdempotencyKeyFromHeaders(
     headers['Idempotency-Key'];
 
   if (!key) {
+    // OK: No idempotency key header present — request proceeds without idempotency
     return undefined;
   }
 
   const keyStr = Array.isArray(key) ? key[0] : key;
   if (!keyStr) {
+    // OK: Idempotency key header present but empty — treated as absent
     return undefined;
   }
 
   const normalized = normalizeIdempotencyKey(keyStr);
 
   if (!validateIdempotencyKey(normalized)) {
+    logger.debug('Invalid idempotency key rejected', { key: normalized.substring(0, 20) });
     return undefined;
   }
 

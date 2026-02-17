@@ -11,27 +11,58 @@ import { CachedSheetsApi, resetCachedSheetsApi } from '../../src/services/cached
 // Mock the etag-cache to control caching behavior
 vi.mock('../../src/services/etag-cache.js', () => {
   const cache = new Map<string, unknown>();
+  const etagMap = new Map<string, string>();
 
   return {
     getETagCache: () => ({
+      getETag: vi.fn((key: unknown) => {
+        const keyStr = JSON.stringify(key);
+        return etagMap.get(keyStr) ?? null;
+      }),
       getCachedData: vi.fn(async (key: unknown) => {
         const keyStr = JSON.stringify(key);
         return cache.get(keyStr) ?? null;
       }),
-      setETag: vi.fn(async (key: unknown, _etag: string, data: unknown) => {
+      setETag: vi.fn(async (key: unknown, etag: string, data: unknown) => {
         const keyStr = JSON.stringify(key);
-        cache.set(keyStr, data);
+        etagMap.set(keyStr, etag);
+        if (data !== undefined) {
+          cache.set(keyStr, data);
+        }
       }),
       invalidate: vi.fn(async (pattern: unknown) => {
         const patternStr = JSON.stringify(pattern);
         for (const [key] of cache) {
           if (key.includes(patternStr) || key.includes(String(pattern))) {
             cache.delete(key);
+            etagMap.delete(key);
           }
         }
       }),
+      invalidateSpreadsheet: vi.fn(async (spreadsheetId: string) => {
+        for (const [key] of cache) {
+          if (key.includes(spreadsheetId)) {
+            cache.delete(key);
+            etagMap.delete(key);
+          }
+        }
+      }),
+      getKeysForSpreadsheet: vi.fn(async (spreadsheetId: string) => {
+        const keys: string[] = [];
+        for (const [key] of cache) {
+          if (key.includes(spreadsheetId)) {
+            keys.push(key);
+          }
+        }
+        return keys;
+      }),
+      invalidateKey: vi.fn(async (key: string) => {
+        cache.delete(key);
+        etagMap.delete(key);
+      }),
       // Expose for test cleanup
       _cache: cache,
+      _etagMap: etagMap,
     }),
   };
 });
@@ -72,6 +103,9 @@ describe('CachedSheetsApi', () => {
   let mockSheets: ReturnType<typeof createMockSheetsApi>;
 
   beforeEach(async () => {
+    // Disable conditional requests so tests use the simpler local cache path
+    process.env['ENABLE_CONDITIONAL_REQUESTS'] = 'false';
+
     // Reset singleton
     resetCachedSheetsApi();
     mockSheets = createMockSheetsApi();
@@ -81,6 +115,7 @@ describe('CachedSheetsApi', () => {
     const { getETagCache } = await import('../../src/services/etag-cache.js');
     const cache = getETagCache() as any;
     if (cache._cache) cache._cache.clear();
+    if (cache._etagMap) cache._etagMap.clear();
   });
 
   describe('getSpreadsheet', () => {
