@@ -320,6 +320,152 @@ function checkConnection() {
   }
 }
 
+// ============================================================================
+// Caching Layer (Performance Optimization)
+// ============================================================================
+
+/**
+ * Get cached value from CacheService with TTL
+ * @param {string} key - Cache key
+ * @param {number} ttl - Time to live in seconds (optional)
+ * @returns {any} Cached value or null if not found/expired
+ */
+function getCachedValue(key, ttl) {
+  const cache = CacheService.getUserCache();
+  const cachedData = cache.get(key);
+
+  if (cachedData) {
+    try {
+      const parsed = JSON.parse(cachedData);
+
+      // Check if TTL is still valid (if provided)
+      if (parsed.timestamp && ttl) {
+        const age = (Date.now() - parsed.timestamp) / 1000;
+        if (age > ttl) {
+          // Cache expired, remove it
+          cache.remove(key);
+          return null;
+        }
+      }
+
+      return parsed.value;
+    } catch (e) {
+      // Invalid cache data, remove it
+      cache.remove(key);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Set cached value in CacheService with metadata
+ * @param {string} key - Cache key
+ * @param {any} value - Value to cache
+ * @param {number} ttl - Time to live in seconds (max 21600 = 6 hours)
+ */
+function setCachedValue(key, value, ttl) {
+  const cache = CacheService.getUserCache();
+  const cacheData = {
+    value: value,
+    timestamp: Date.now()
+  };
+
+  try {
+    // Apps Script CacheService max TTL is 6 hours (21600 seconds)
+    const maxTtl = 21600;
+    const actualTtl = Math.min(ttl, maxTtl);
+
+    cache.put(key, JSON.stringify(cacheData), actualTtl);
+    return true;
+  } catch (e) {
+    Logger.log('Failed to cache value: ' + e.message);
+    return false;
+  }
+}
+
+/**
+ * Clear specific cache key
+ */
+function clearCache(key) {
+  const cache = CacheService.getUserCache();
+  cache.remove(key);
+  return { success: true };
+}
+
+/**
+ * Clear all cache for current user
+ */
+function clearAllCache() {
+  const cache = CacheService.getUserCache();
+  cache.removeAll(['spreadsheet_metadata_', 'user_plan', 'user_profile']);
+  return { success: true, message: 'Cache cleared' };
+}
+
+/**
+ * Get spreadsheet metadata with caching (5 min TTL)
+ */
+function getSpreadsheetMetadataCached() {
+  const info = getActiveSpreadsheetInfo();
+  const cacheKey = 'spreadsheet_metadata_' + info.spreadsheetId;
+  const cacheTtl = 300; // 5 minutes
+
+  // Try cache first
+  const cached = getCachedValue(cacheKey, cacheTtl);
+  if (cached) {
+    Logger.log('Cache hit: spreadsheet metadata');
+    return cached;
+  }
+
+  // Cache miss - fetch from API
+  Logger.log('Cache miss: fetching spreadsheet metadata from API');
+  const result = callServalSheets('sheets_core', {
+    action: 'get',
+    spreadsheetId: info.spreadsheetId
+  });
+
+  // Cache successful results
+  if (result && result.success) {
+    setCachedValue(cacheKey, result, cacheTtl);
+  }
+
+  return result;
+}
+
+/**
+ * Get user plan with caching (1 hour TTL)
+ */
+function getUserPlanCached() {
+  const cacheKey = 'user_plan';
+  const cacheTtl = 3600; // 1 hour
+
+  // Try cache first
+  const cached = getCachedValue(cacheKey, cacheTtl);
+  if (cached) {
+    Logger.log('Cache hit: user plan');
+    return cached;
+  }
+
+  // Cache miss - get from properties or default
+  Logger.log('Cache miss: user plan');
+  const plan = getPlan();
+
+  // Cache the result
+  setCachedValue(cacheKey, plan, cacheTtl);
+
+  return plan;
+}
+
+/**
+ * Invalidate cache for spreadsheet after modification
+ */
+function invalidateSpreadsheetCache(spreadsheetId) {
+  const cacheKey = 'spreadsheet_metadata_' + (spreadsheetId || getActiveSpreadsheetInfo().spreadsheetId);
+  clearCache(cacheKey);
+  Logger.log('Invalidated cache for: ' + cacheKey);
+}
+
 /**
  * Core function to call ServalSheets API via MCP protocol
  * Uses JSON-RPC 2.0 format as required by /mcp endpoint
@@ -582,12 +728,19 @@ function readData(range) {
 function writeData(range, values) {
   const info = getActiveSpreadsheetInfo();
 
-  return callServalSheets('sheets_data', {
+  const result = callServalSheets('sheets_data', {
     action: 'write',
     spreadsheetId: info.spreadsheetId,
     range: range,
     values: values
   });
+
+  // Invalidate cache after successful write
+  if (result && result.success) {
+    invalidateSpreadsheetCache(info.spreadsheetId);
+  }
+
+  return result;
 }
 
 /**
@@ -708,13 +861,20 @@ function listSheets() {
 function addSheet(sheetName, rowCount, columnCount) {
   const info = getActiveSpreadsheetInfo();
 
-  return callServalSheets('sheets_core', {
+  const result = callServalSheets('sheets_core', {
     action: 'add_sheet',
     spreadsheetId: info.spreadsheetId,
     title: sheetName,
     rowCount: rowCount || 1000,
     columnCount: columnCount || 26
   });
+
+  // Invalidate cache after successful sheet addition
+  if (result && result.success) {
+    invalidateSpreadsheetCache(info.spreadsheetId);
+  }
+
+  return result;
 }
 
 /**
@@ -723,11 +883,18 @@ function addSheet(sheetName, rowCount, columnCount) {
 function deleteSheet(sheetId) {
   const info = getActiveSpreadsheetInfo();
 
-  return callServalSheets('sheets_core', {
+  const result = callServalSheets('sheets_core', {
     action: 'delete_sheet',
     spreadsheetId: info.spreadsheetId,
     sheetId: sheetId
   });
+
+  // Invalidate cache after successful sheet deletion
+  if (result && result.success) {
+    invalidateSpreadsheetCache(info.spreadsheetId);
+  }
+
+  return result;
 }
 
 /**
@@ -754,7 +921,7 @@ function copySheetTo(sheetId, destinationSpreadsheetId) {
 function insertRows(startIndex, count) {
   const info = getActiveSpreadsheetInfo();
 
-  return callServalSheets('sheets_dimensions', {
+  const result = callServalSheets('sheets_dimensions', {
     action: 'insert',
     spreadsheetId: info.spreadsheetId,
     sheetId: info.sheetId,
@@ -762,6 +929,13 @@ function insertRows(startIndex, count) {
     startIndex: startIndex,
     count: count || 1
   });
+
+  // Invalidate cache after successful row insertion
+  if (result && result.success) {
+    invalidateSpreadsheetCache(info.spreadsheetId);
+  }
+
+  return result;
 }
 
 /**
@@ -865,11 +1039,19 @@ function beginTransaction() {
  */
 function commitTransaction(transactionId) {
   const info = getActiveSpreadsheetInfo();
-  return callServalSheets('sheets_transaction', {
+
+  const result = callServalSheets('sheets_transaction', {
     action: 'commit',
     spreadsheetId: info.spreadsheetId,
     transactionId: transactionId
   });
+
+  // Invalidate cache after successful transaction commit
+  if (result && result.success) {
+    invalidateSpreadsheetCache(info.spreadsheetId);
+  }
+
+  return result;
 }
 
 /**
