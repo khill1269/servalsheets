@@ -5,11 +5,34 @@
  */
 
 import { GraphQLError } from 'graphql';
-import { TOOL_REGISTRY, TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
+import { TOOL_COUNT, ACTION_COUNT } from '../schemas/index.js';
 import { VERSION, MCP_PROTOCOL_VERSION } from '../version.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import type { HandlerContext } from '../handlers/index.js';
-import { createHandlers } from '../handlers/index.js';
+import {
+  SheetsAdvancedInputSchema,
+  SheetsAnalyzeInputSchema,
+  SheetsAppsScriptInputSchema,
+  SheetsAuthInputSchema,
+  SheetsBigQueryInputSchema,
+  SheetsCollaborateInputSchema,
+  CompositeInputSchema,
+  SheetsConfirmInputSchema,
+  SheetsCoreInputSchema,
+  SheetsDataInputSchema,
+  SheetsDependenciesInputSchema,
+  SheetsDimensionsInputSchema,
+  SheetsFederationInputSchema,
+  SheetsFixInputSchema,
+  SheetsFormatInputSchema,
+  SheetsHistoryInputSchema,
+  SheetsQualityInputSchema,
+  SheetsSessionInputSchema,
+  SheetsTemplatesInputSchema,
+  SheetsTransactionInputSchema,
+  SheetsVisualizeInputSchema,
+  SheetsWebhookInputSchema,
+} from '../schemas/index.js';
 
 /**
  * GraphQL context - includes authenticated user and handler context
@@ -40,32 +63,92 @@ export const resolvers = {
      * List all available tools
      */
     tools: () => {
-      return TOOL_REGISTRY.map((schema) => ({
-        name: schema.name,
-        description: schema.description || '',
-        inputSchema: schema.inputSchema,
-        actions: schema.actions || [],
-        actionCount: schema.actions?.length || 0,
-      }));
+      const schemas = [
+        { name: 'sheets_advanced', schema: SheetsAdvancedInputSchema },
+        { name: 'sheets_analyze', schema: SheetsAnalyzeInputSchema },
+        { name: 'sheets_appsscript', schema: SheetsAppsScriptInputSchema },
+        { name: 'sheets_auth', schema: SheetsAuthInputSchema },
+        { name: 'sheets_bigquery', schema: SheetsBigQueryInputSchema },
+        { name: 'sheets_collaborate', schema: SheetsCollaborateInputSchema },
+        { name: 'sheets_composite', schema: CompositeInputSchema },
+        { name: 'sheets_confirm', schema: SheetsConfirmInputSchema },
+        { name: 'sheets_core', schema: SheetsCoreInputSchema },
+        { name: 'sheets_data', schema: SheetsDataInputSchema },
+        { name: 'sheets_dependencies', schema: SheetsDependenciesInputSchema },
+        { name: 'sheets_dimensions', schema: SheetsDimensionsInputSchema },
+        { name: 'sheets_federation', schema: SheetsFederationInputSchema },
+        { name: 'sheets_fix', schema: SheetsFixInputSchema },
+        { name: 'sheets_format', schema: SheetsFormatInputSchema },
+        { name: 'sheets_history', schema: SheetsHistoryInputSchema },
+        { name: 'sheets_quality', schema: SheetsQualityInputSchema },
+        { name: 'sheets_session', schema: SheetsSessionInputSchema },
+        { name: 'sheets_templates', schema: SheetsTemplatesInputSchema },
+        { name: 'sheets_transaction', schema: SheetsTransactionInputSchema },
+        { name: 'sheets_visualize', schema: SheetsVisualizeInputSchema },
+        { name: 'sheets_webhook', schema: SheetsWebhookInputSchema },
+      ];
+
+      return schemas.map(({ name, schema }) => {
+        const actions = 'shape' in schema && 'action' in schema.shape
+          ? (schema.shape.action as any)._def?.values || []
+          : [];
+
+        return {
+          name,
+          description: schema.description || '',
+          inputSchema: schema,
+          actions,
+          actionCount: actions.length,
+        };
+      });
     },
 
     /**
      * Get a specific tool by name
      */
     tool: (_parent: unknown, { name }: { name: string }) => {
-      const schema = TOOL_REGISTRY.find((s) => s.name === name);
+      const schemaMap: Record<string, any> = {
+        sheets_advanced: SheetsAdvancedInputSchema,
+        sheets_analyze: SheetsAnalyzeInputSchema,
+        sheets_appsscript: SheetsAppsScriptInputSchema,
+        sheets_auth: SheetsAuthInputSchema,
+        sheets_bigquery: SheetsBigQueryInputSchema,
+        sheets_collaborate: SheetsCollaborateInputSchema,
+        sheets_composite: CompositeInputSchema,
+        sheets_confirm: SheetsConfirmInputSchema,
+        sheets_core: SheetsCoreInputSchema,
+        sheets_data: SheetsDataInputSchema,
+        sheets_dependencies: SheetsDependenciesInputSchema,
+        sheets_dimensions: SheetsDimensionsInputSchema,
+        sheets_federation: SheetsFederationInputSchema,
+        sheets_fix: SheetsFixInputSchema,
+        sheets_format: SheetsFormatInputSchema,
+        sheets_history: SheetsHistoryInputSchema,
+        sheets_quality: SheetsQualityInputSchema,
+        sheets_session: SheetsSessionInputSchema,
+        sheets_templates: SheetsTemplatesInputSchema,
+        sheets_transaction: SheetsTransactionInputSchema,
+        sheets_visualize: SheetsVisualizeInputSchema,
+        sheets_webhook: SheetsWebhookInputSchema,
+      };
+
+      const schema = schemaMap[name];
       if (!schema) {
         throw new GraphQLError(`Tool not found: ${name}`, {
           extensions: { code: 'TOOL_NOT_FOUND' },
         });
       }
 
+      const actions = 'shape' in schema && 'action' in schema.shape
+        ? (schema.shape.action as any)._def?.values || []
+        : [];
+
       return {
-        name: schema.name,
+        name,
         description: schema.description || '',
-        inputSchema: schema.inputSchema,
-        actions: schema.actions || [],
-        actionCount: schema.actions?.length || 0,
+        inputSchema: schema,
+        actions,
+        actionCount: actions.length,
       };
     },
 
@@ -74,13 +157,16 @@ export const resolvers = {
      */
     circuitBreakers: () => {
       const breakers = circuitBreakerRegistry.getAll();
-      return breakers.map((entry) => ({
-        name: entry.name,
-        state: entry.breaker.getState(),
-        failureCount: entry.breaker.getFailureCount(),
-        successCount: entry.breaker.getSuccessCount(),
-        lastFailureTime: entry.breaker.getLastFailureTime(),
-      }));
+      return breakers.map((entry) => {
+        const stats = entry.breaker.getStats();
+        return {
+          name: entry.name,
+          state: stats.state,
+          failureCount: stats.failureCount,
+          successCount: stats.successCount,
+          lastFailureTime: stats.lastFailure,
+        };
+      });
     },
 
     /**
@@ -91,28 +177,25 @@ export const resolvers = {
       { spreadsheetId }: { spreadsheetId: string },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const coreHandler = handlers.core;
-
       try {
-        const result = await coreHandler.executeAction({
-          request: {
-            action: 'get_spreadsheet',
-            spreadsheetId,
-          },
-        });
-
-        if (!result.response?.success) {
-          throw new GraphQLError('Failed to fetch spreadsheet', {
-            extensions: { code: 'FETCH_FAILED' },
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
           });
         }
 
+        const sheetsApi = googleClient.sheets;
+        const response = await sheetsApi.spreadsheets.get({
+          spreadsheetId,
+        });
+
         return {
           spreadsheetId,
-          title: result.response.data.properties?.title,
-          sheets: result.response.data.sheets,
-          properties: result.response.data.properties,
+          title: response.data.properties?.title,
+          sheets: response.data.sheets,
+          properties: response.data.properties,
         };
       } catch (error) {
         throw new GraphQLError('Failed to fetch spreadsheet', {
@@ -132,27 +215,24 @@ export const resolvers = {
       { spreadsheetId, range }: { spreadsheetId: string; range: string },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const dataHandler = handlers.data;
-
       try {
-        const result = await dataHandler.executeAction({
-          request: {
-            action: 'read_range',
-            spreadsheetId,
-            range,
-          },
-        });
-
-        if (!result.response?.success) {
-          throw new GraphQLError('Failed to read range', {
-            extensions: { code: 'READ_FAILED' },
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
           });
         }
 
-        const values = result.response.data.values || [];
-        return {
+        const sheetsApi = googleClient.sheets;
+        const response = await sheetsApi.spreadsheets.values.get({
+          spreadsheetId,
           range,
+        });
+
+        const values = response.data.values || [];
+        return {
+          range: response.data.range || range,
           values,
           rowCount: values.length,
           columnCount: values[0]?.length || 0,
@@ -175,24 +255,22 @@ export const resolvers = {
       { spreadsheetId }: { spreadsheetId: string },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const coreHandler = handlers.core;
-
       try {
-        const result = await coreHandler.executeAction({
-          request: {
-            action: 'list_sheets',
-            spreadsheetId,
-          },
-        });
-
-        if (!result.response?.success) {
-          throw new GraphQLError('Failed to list sheets', {
-            extensions: { code: 'LIST_FAILED' },
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
           });
         }
 
-        return result.response.data.sheets || [];
+        const sheetsApi = googleClient.sheets;
+        const response = await sheetsApi.spreadsheets.get({
+          spreadsheetId,
+          fields: 'sheets(properties(sheetId,title,index,gridProperties))',
+        });
+
+        return response.data.sheets || [];
       } catch (error) {
         throw new GraphQLError('Failed to list sheets', {
           extensions: {
@@ -217,25 +295,31 @@ export const resolvers = {
       }: { spreadsheetId: string; range: string; values: string[][] },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const dataHandler = handlers.data;
-
       try {
-        const result = await dataHandler.executeAction({
-          request: {
-            action: 'write_range',
-            spreadsheetId,
-            range,
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+
+        const sheetsApi = googleClient.sheets;
+        const response = await sheetsApi.spreadsheets.values.update({
+          spreadsheetId,
+          range,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
             values,
           },
         });
 
         return {
-          success: result.response?.success || false,
+          success: true,
           message: 'Range written successfully',
           spreadsheetId,
-          updatedCells: values.length * (values[0]?.length || 0),
-          data: result.response?.data,
+          updatedCells: response.data.updatedCells || 0,
+          data: response.data,
         };
       } catch (error) {
         return {
@@ -263,25 +347,40 @@ export const resolvers = {
       }: { spreadsheetId: string; title: string; rowCount?: number; columnCount?: number },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const coreHandler = handlers.core;
-
       try {
-        const result = await coreHandler.executeAction({
-          request: {
-            action: 'create_sheet',
-            spreadsheetId,
-            title,
-            rowCount,
-            columnCount,
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+
+        const sheetsApi = googleClient.sheets;
+        const response = await sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                addSheet: {
+                  properties: {
+                    title,
+                    gridProperties: {
+                      rowCount,
+                      columnCount,
+                    },
+                  },
+                },
+              },
+            ],
           },
         });
 
         return {
-          success: result.response?.success || false,
+          success: true,
           message: `Sheet "${title}" created successfully`,
           spreadsheetId,
-          data: result.response?.data,
+          data: response.data.replies?.[0]?.addSheet,
         };
       } catch (error) {
         return {
@@ -304,23 +403,33 @@ export const resolvers = {
       { spreadsheetId, sheetId }: { spreadsheetId: string; sheetId: number },
       context: GraphQLContext
     ) => {
-      const handlers = createHandlers(context.handlerContext);
-      const coreHandler = handlers.core;
-
       try {
-        const result = await coreHandler.executeAction({
-          request: {
-            action: 'delete_sheet',
-            spreadsheetId,
-            sheetId,
+        // Use Google Sheets API directly
+        const googleClient = context.handlerContext.googleClient;
+        if (!googleClient) {
+          throw new GraphQLError('Authentication required', {
+            extensions: { code: 'UNAUTHENTICATED' },
+          });
+        }
+
+        const sheetsApi = googleClient.sheets;
+        await sheetsApi.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: {
+            requests: [
+              {
+                deleteSheet: {
+                  sheetId,
+                },
+              },
+            ],
           },
         });
 
         return {
-          success: result.response?.success || false,
+          success: true,
           message: 'Sheet deleted successfully',
           spreadsheetId,
-          data: result.response?.data,
         };
       } catch (error) {
         return {
