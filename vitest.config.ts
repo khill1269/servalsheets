@@ -16,6 +16,14 @@ export default defineConfig({
       NODE_ENV: 'test',
       OAUTH_AUTO_OPEN_BROWSER: 'false',
     },
+    // Parallel execution with thread pool
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        maxThreads: 4,
+        minThreads: 1,
+      },
+    },
     // Test sharding support for parallel execution
     // Use: npm run test:shard 1/4 to run 1st quarter of tests
     // Use: npm run test:unit to run unit tests only

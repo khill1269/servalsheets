@@ -18,10 +18,10 @@ tags: [sheets, prometheus]
 
 ### Tool & Action Counts
 
-| Metric           | Source File            | Line              | Current Value | Verification Command                                    |
-| ---------------- | ---------------------- | ----------------- | ------------- | ------------------------------------------------------- |
-| **TOOL_COUNT**   | `src/schemas/index.ts` | exported constant | `19`          | `grep "export const TOOL_COUNT" src/schemas/index.ts`   |
-| **ACTION_COUNT** | `src/schemas/index.ts` | exported constant | `244`         | `grep "export const ACTION_COUNT" src/schemas/index.ts` |
+| Metric           | Source File                      | Line              | Current Value | Verification Command                                              |
+| ---------------- | -------------------------------- | ----------------- | ------------- | ----------------------------------------------------------------- |
+| **TOOL_COUNT**   | `src/schemas/action-counts.ts`   | exported constant | `22`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`     |
+| **ACTION_COUNT** | `src/schemas/action-counts.ts`   | exported constant | `299`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts`   |
 
 **Verification:**
 
@@ -30,7 +30,7 @@ tags: [sheets, prometheus]
 npm run check:drift
 
 # Output should show:
-# ✅ Total: 22 tools, 298 actions
+# ✅ Total: 22 tools, 299 actions
 ```
 
 **⚠️ CRITICAL:** Never hardcode `53` or `188` or any other outdated values. Always verify from source.
@@ -125,7 +125,7 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 ```bash
 npm run check:drift | grep "Total:"
-# Output: ✅ Total: 22 tools, 298 actions
+# Output: ✅ Total: 22 tools, 299 actions
 ```
 
 ---
@@ -204,7 +204,7 @@ Evidence: <file:line> OR <command → output>
 ✅ **Good:**
 
 ```
-Claim: ServalSheets has 298 actions
+Claim: ServalSheets has 299 actions
 Evidence: src/schemas/index.ts exports ACTION_COUNT = 298
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
 Output: export const ACTION_COUNT = 298;
@@ -300,7 +300,7 @@ A: Let me verify...
 Command: grep "export const ACTION_COUNT" src/schemas/index.ts
 Output: export const ACTION_COUNT = 298;
 
-ServalSheets has 298 actions across 22 tools.
+ServalSheets has 299 actions across 22 tools.
 Evidence: src/schemas/index.ts exports ACTION_COUNT = 298
 ```
 

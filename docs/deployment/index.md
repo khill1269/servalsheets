@@ -87,8 +87,38 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `OAUTH_CLIENT_ID`                | OAuth    | Google OAuth client ID                                   |
 | `OAUTH_CLIENT_SECRET`            | OAuth    | Google OAuth client secret                               |
 | `SESSION_SECRET`                 | OAuth    | Session encryption secret                                |
+| `DEPLOYMENT_MODE`                |          | `self-hosted` (default, full scopes) or `saas` (standard scopes) |
+| `OAUTH_SCOPE_MODE`               |          | Explicit scope override: `full`, `standard`, `minimal`, `readonly` |
 | `LOG_LEVEL`                      |          | `debug`, `info`, `warn`, `error`                         |
 | `REDIS_URL`                      |          | Redis URL for HA sessions + Streamable HTTP resumability |
+
+### OAuth Scope Modes
+
+ServalSheets uses deployment-aware OAuth scopes:
+
+**Self-Hosted (Default)** - All 299 actions work:
+
+```bash
+# No configuration needed - defaults to full scopes
+docker run -d -p 3000:3000 servalsheets:latest
+```
+
+**SaaS/Marketplace** - Fast Google verification (3-5 days vs 4-6 weeks):
+
+```bash
+# Standard scopes: 260/299 actions, faster verification
+docker run -d \
+  -p 3000:3000 \
+  -e DEPLOYMENT_MODE=saas \
+  servalsheets:latest
+```
+
+**Disabled in standard mode:**
+
+- Sharing/collaboration (sheets_collaborate)
+- BigQuery integration (sheets_bigquery)
+- Apps Script automation (sheets_appsscript)
+- Webhook notifications (sheets_webhook)
 
 ## Health Checks
 

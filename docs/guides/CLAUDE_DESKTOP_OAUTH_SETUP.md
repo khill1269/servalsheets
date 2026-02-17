@@ -23,7 +23,7 @@ User runs in terminal:
 
 ```bash
 cd ~/Documents/mcp-servers/servalsheets
-./setup-oauth.sh
+./scripts/setup-oauth.sh
 ```
 
 The script asks for:
@@ -169,7 +169,7 @@ The credentials are:
 **Time**: 5 minutes
 
 1. Get OAuth credentials from Google Cloud Console
-2. Run `./setup-oauth.sh`
+2. Run `./scripts/setup-oauth.sh`
 3. Enter credentials when prompted
 4. Click authorization link
 5. Sign in with Google

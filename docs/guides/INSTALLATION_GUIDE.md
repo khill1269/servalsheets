@@ -23,7 +23,7 @@ Complete installation guide for all deployment scenarios.
 cd /path/to/servalsheets
 npm install
 npm run build
-./setup-oauth.sh
+./scripts/setup-oauth.sh
 ```
 
 **What it does:**

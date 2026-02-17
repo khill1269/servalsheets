@@ -239,7 +239,7 @@ describe('ValuesHandler', () => {
 ```typescript
 // tests/integration/mcp-tools-list.test.ts
 describe('MCP tools/list integration', () => {
-  it('should return all 21 tools with valid schemas', async () => {
+  it('should return all 22 tools with valid schemas', async () => {
     const tools = await server.listTools();
 
     expect(tools.tools).toHaveLength(16);

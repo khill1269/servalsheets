@@ -100,6 +100,8 @@ Comprehensive reference for all environment variables and feature flags that con
 | `ENABLE_DATAFILTER_BATCH` | boolean | `true` | Enable DataFilter batch operations: `batch_read`, `batch_write`, `batch_clear` with dataFilters. Production-ready feature flag. |
 | `ENABLE_TABLE_APPENDS` | boolean | `true` | Enable tableId-based appends for Tables API. Production-ready feature flag. Allows appending to tables by ID. |
 | `ENABLE_PAYLOAD_VALIDATION` | boolean | `true` | Enable payload size validation and warnings. Recommended for production. Helps identify oversized requests. |
+| `ENABLE_AGGRESSIVE_FIELD_MASKS` | boolean | `true` | Enable aggressive field masking for Google API calls (Priority 8). Provides 40-60% payload reduction for spreadsheet metadata. Handlers use `getFieldMask()` helper to apply optimized masks. |
+| `ENABLE_CONDITIONAL_REQUESTS` | boolean | `true` | Enable ETag-based conditional requests (Priority 9). Uses If-None-Match headers to get 304 Not Modified responses when data hasn't changed. Provides 10-20% quota savings. Google API ETags are cached and reused for subsequent requests. |
 | `ENABLE_LEGACY_SSE` | boolean | `true` | Enable legacy SSE endpoints (`/sse`, `/sse/message`) for backward compatibility. Keep enabled unless migrating away from legacy endpoints. |
 
 ---
@@ -202,6 +204,7 @@ Additional variables documented in `.env.production.example` that are commonly c
 ## Environment Variable Priority
 
 (Highest to lowest):
+
 1. System environment variables (set in shell/CI/CD)
 2. `.env` file (loaded at startup)
 3. Default values in `src/config/env.ts` (Zod schema)
@@ -219,6 +222,7 @@ All environment variables are validated at startup using Zod schema in `src/conf
 - **Regex validation:** URLs validated against URL_REGEX pattern
 
 If validation fails, the application will:
+
 1. Log detailed error messages for each invalid variable
 2. Output reference to `.env.example` for correct configuration
 3. Exit with status code 1
@@ -304,6 +308,7 @@ ServalSheets uses feature flags for staged rollout:
 - **Production:** Start with conservative settings, gradually enable new features
 
 Common rollout pattern:
+
 1. Set flag to `true` in limited production instances
 2. Monitor metrics and logs for issues
 3. Gradually increase percentage of traffic
@@ -313,16 +318,17 @@ Common rollout pattern:
 
 ## Total Feature Flags & Variables Count
 
-**Total Environment Variables Documented:** 97
+**Total Environment Variables Documented:** 99
 
-### Breakdown by Category:
+### Breakdown by Category
+
 - Environment & Runtime: 5
 - Authentication & Authorization: 11
 - Google API Integration: 5
 - Connection Pooling & Network: 8
 - Session & Storage: 6
 - Performance & Caching: 8
-- Feature Flags (Staged Rollout): 4
+- Feature Flags (Staged Rollout): 6
 - Observability & Debugging: 6
 - Resilience & Error Handling: 3
 - Safety Limits & Timeouts: 3
