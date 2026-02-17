@@ -20,6 +20,18 @@ import { logger } from '../utils/logger.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
 
+/** Non-blocking SCAN replacement for redis.keys() */
+async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const result = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = result.cursor;
+    keys.push(...result.keys);
+  } while (cursor !== 0);
+  return keys;
+}
+
 export interface ClientCapabilities {
   elicitation?:
     | {
@@ -177,7 +189,7 @@ export class CapabilityCacheService {
 
     if (this.redis) {
       try {
-        const keys = await this.redis.keys(`${CACHE_KEY_PREFIX}*`);
+        const keys = await scanRedisKeys(this.redis, `${CACHE_KEY_PREFIX}*`);
         if (keys.length > 0) {
           await this.redis.del(...keys);
           logger.info('Cleared all capability caches', { count: keys.length });

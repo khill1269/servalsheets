@@ -23,6 +23,7 @@
 import { readFileSync } from 'fs';
 import { TOOL_DEFINITIONS } from '../src/mcp/registration/tool-definitions.js';
 import { TOOL_ACTIONS } from '../src/mcp/completions.js';
+import { TOOL_COUNT as actionCountsToolCount, ACTION_COUNT as actionCountsActionCount } from '../src/schemas/action-counts.js';
 
 interface ValidationResult {
   file: string;
@@ -32,7 +33,7 @@ interface ValidationResult {
 }
 
 /**
- * Validate src/schemas/index.ts constants against source-of-truth maps
+ * Validate src/schemas/index.ts re-exports action-counts.ts correctly
  */
 function validateSchemaIndex(expectedToolCount: number, expectedActionCount: number): ValidationResult {
   const filePath = './src/schemas/index.ts';
@@ -40,32 +41,34 @@ function validateSchemaIndex(expectedToolCount: number, expectedActionCount: num
 
   const issues: string[] = [];
 
-  // Extract TOOL_COUNT
-  const toolCountMatch = content.match(/export const TOOL_COUNT = (\d+);/);
-  const toolCount = toolCountMatch ? parseInt(toolCountMatch[1]) : 0;
+  // Check that index.ts re-exports action-counts.ts
+  const reExportCheck = content.includes("export * from './action-counts.js'");
+  if (!reExportCheck) {
+    issues.push('index.ts does not re-export action-counts.js');
+  }
 
-  // Extract ACTION_COUNT
-  const actionCountMatch = content.match(/export const ACTION_COUNT = (\d+);/);
-  const actionCount = actionCountMatch ? parseInt(actionCountMatch[1]) : 0;
+  // Use constants imported from action-counts.ts
+  const toolCount = actionCountsToolCount;
+  const actionCount = actionCountsActionCount;
 
   if (toolCount !== expectedToolCount) {
     issues.push(
-      `TOOL_COUNT constant (${toolCount}) doesn't match source of truth (${expectedToolCount})`
+      `TOOL_COUNT from action-counts.ts (${toolCount}) doesn't match source of truth (${expectedToolCount})`
     );
   }
 
   if (actionCount !== expectedActionCount) {
     issues.push(
-      `ACTION_COUNT constant (${actionCount}) doesn't match source of truth (${expectedActionCount})`
+      `ACTION_COUNT from action-counts.ts (${actionCount}) doesn't match source of truth (${expectedActionCount})`
     );
   }
 
   if (toolCount === 0) {
-    issues.push('TOOL_COUNT not found or is 0');
+    issues.push('TOOL_COUNT from action-counts.ts is 0');
   }
 
   if (actionCount === 0) {
-    issues.push('ACTION_COUNT not found or is 0');
+    issues.push('ACTION_COUNT from action-counts.ts is 0');
   }
 
   return {

@@ -146,6 +146,12 @@ export interface DeduplicateOptions {
   keep?: 'first' | 'last';
   /** Preview only, don't delete (default: false) */
   preview?: boolean;
+  /** Pre-computed duplicate row indices from a prior preview pass (optimization: skips re-scan) */
+  _preComputedDuplicateRows?: Set<number>;
+  /** Pre-fetched row count from a prior preview pass (used with _preComputedDuplicateRows) */
+  _preComputedTotalRows?: number;
+  /** Pre-fetched unique count from a prior preview pass (used with _preComputedDuplicateRows) */
+  _preComputedUniqueRows?: number;
 }
 
 /**
@@ -171,6 +177,8 @@ export interface DeduplicateResult {
     >;
     keepStatus: 'keep' | 'delete';
   }>;
+  /** Internal: duplicate row indices for reuse in execute pass (optimization) */
+  _duplicateRowSet?: Set<number>;
 }
 
 // ============================================================================
@@ -575,7 +583,16 @@ export class CompositeOperationsService {
    * Deduplicate rows in a sheet
    */
   async deduplicate(options: DeduplicateOptions): Promise<DeduplicateResult> {
-    const { spreadsheetId, sheet, keyColumns, keep = 'first', preview = false } = options;
+    const {
+      spreadsheetId,
+      sheet,
+      keyColumns,
+      keep = 'first',
+      preview = false,
+      _preComputedDuplicateRows,
+      _preComputedTotalRows,
+      _preComputedUniqueRows,
+    } = options;
 
     // Resolve target sheet
     const resolved = await this.sheetResolver.resolve(spreadsheetId, {
@@ -583,6 +600,34 @@ export class CompositeOperationsService {
       sheetId: typeof sheet === 'number' ? sheet : undefined,
     });
     const targetSheet = resolved.sheet;
+
+    // Fast path: reuse pre-computed duplicate rows from a prior preview pass
+    // Skips the expensive values.get API call and in-memory scan entirely
+    if (_preComputedDuplicateRows && _preComputedDuplicateRows.size > 0 && !preview) {
+      const duplicateRows = [..._preComputedDuplicateRows].sort((a, b) => b - a);
+      const requests = duplicateRows.map((rowIndex) => ({
+        deleteDimension: {
+          range: {
+            sheetId: targetSheet.sheetId,
+            dimension: 'ROWS' as const,
+            startIndex: rowIndex,
+            endIndex: rowIndex + 1,
+          },
+        },
+      }));
+
+      await this.sheetsApi.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests },
+      });
+
+      return {
+        totalRows: _preComputedTotalRows ?? 0,
+        uniqueRows: _preComputedUniqueRows ?? 0,
+        duplicatesFound: _preComputedDuplicateRows.size,
+        rowsDeleted: duplicateRows.length,
+      };
+    }
 
     // Get all data
     const dataResponse = await this.sheetsApi.spreadsheets.values.get({
@@ -622,7 +667,7 @@ export class CompositeOperationsService {
 
     // Track duplicates
     const seen = new Map<string, number>(); // key -> first row index
-    const duplicateRows: number[] = [];
+    const duplicateRowSet = new Set<number>();
     const duplicatePreview: Array<{
       rowNumber: number;
       keyValues: Record<
@@ -642,11 +687,11 @@ export class CompositeOperationsService {
         // keepRow is the row we're keeping (opposite of deleteRow)
         const _keepRow = keep === 'first' ? existingRow : i;
 
-        if (keep === 'last' && !duplicateRows.includes(existingRow)) {
-          duplicateRows.push(existingRow);
+        if (keep === 'last') {
+          duplicateRowSet.add(existingRow);
         }
         if (keep === 'first') {
-          duplicateRows.push(i);
+          duplicateRowSet.add(i);
         }
 
         if (preview) {
@@ -675,6 +720,7 @@ export class CompositeOperationsService {
 
     // Delete duplicate rows (if not preview)
     let rowsDeleted = 0;
+    const duplicateRows = [...duplicateRowSet];
     if (!preview && duplicateRows.length > 0) {
       // Sort in reverse order to delete from bottom up
       duplicateRows.sort((a, b) => b - a);
@@ -702,9 +748,10 @@ export class CompositeOperationsService {
     return {
       totalRows: allRows.length - 1,
       uniqueRows: seen.size,
-      duplicatesFound: duplicateRows.length,
+      duplicatesFound: duplicateRowSet.size,
       rowsDeleted,
       duplicatePreview: preview ? duplicatePreview : undefined,
+      _duplicateRowSet: preview ? duplicateRowSet : undefined,
     };
   }
 

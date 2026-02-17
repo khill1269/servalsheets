@@ -1107,6 +1107,7 @@ export class SheetExtractor {
       const permResponse = await this.driveApi.permissions.list({
         fileId: spreadsheetId,
         fields: 'permissions(id,type,role,emailAddress,domain,displayName)',
+        supportsAllDrives: true,
       });
 
       if (permResponse.data.permissions) {
@@ -1178,6 +1179,7 @@ export class SheetExtractor {
       const fileResponse = await this.driveApi.files.get({
         fileId: spreadsheetId,
         fields: 'createdTime,modifiedTime',
+        supportsAllDrives: true,
       });
 
       if (fileResponse.data.createdTime) {

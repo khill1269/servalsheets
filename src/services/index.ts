@@ -47,6 +47,7 @@ export {
   resetSamplingAnalysisService,
 } from './sampling-analysis.js';
 
+
 // LLM Fallback (for when MCP sampling is not supported)
 export {
   createLLMMessage,
@@ -96,3 +97,16 @@ export {
   getSchemaValidator,
   type ValidationResult as SchemaValidationResult,
 } from './schema-validator.js';
+
+// Compliance & Audit
+export {
+  AuditLogger,
+  getAuditLogger,
+  type AuditEvent,
+  type AuditResource,
+  type MutationEvent,
+  type PermissionEvent,
+  type AuthenticationEvent,
+  type ConfigurationEvent,
+  type ExportEvent,
+} from './audit-logger.js';

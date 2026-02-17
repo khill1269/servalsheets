@@ -647,6 +647,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         name: title,
         ...(input.destinationFolderId ? { parents: [input.destinationFolderId] } : {}),
       },
+      fields: 'id,name,mimeType,webViewLink',
+      supportsAllDrives: true,
     };
 
     try {
@@ -1069,6 +1071,8 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         orderBy,
         fields: 'files(id,name,createdTime,modifiedTime,webViewLink,owners,lastModifyingUser)',
         spaces: 'drive',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       });
 
       const spreadsheets = (response.data.files || [])
@@ -1147,6 +1151,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       tabColor: this.convertTabColor(newSheet?.tabColor),
     };
 
+    // Fix: Invalidate sheet cache so subsequent lookups see the new sheet
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return this.success('add_sheet', { sheet });
   }
 
@@ -1203,6 +1210,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       },
     });
 
+    // Fix: Invalidate sheet cache after deletion
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return this.success('delete_sheet', {
       snapshotId: snapshot?.snapshotId,
     });
@@ -1239,6 +1249,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       columnCount: newSheet?.gridProperties?.columnCount ?? 0,
       hidden: newSheet?.hidden ?? false,
     };
+
+    // Fix: Invalidate sheet cache after duplication
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
 
     return this.success('duplicate_sheet', { sheet });
   }
@@ -1394,6 +1407,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       tabColor: this.convertTabColor(sheetData.properties.tabColor),
     };
 
+    // Fix: Invalidate sheet cache after property update (title, index, hidden, etc.)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return this.success('update_sheet', { sheet });
   }
 
@@ -1417,6 +1433,10 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       columnCount: response.data.gridProperties?.columnCount ?? 0,
       hidden: response.data.hidden ?? false,
     };
+
+    // Fix: Invalidate cache for both source and destination spreadsheets
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+    this.context.sheetResolver?.invalidate(input.destinationSpreadsheetId);
 
     return this.success('copy_sheet_to', {
       sheet,
@@ -1613,6 +1633,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       requestBody: { requests },
     });
 
+    // Fix: Invalidate sheet cache after batch deletion
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
+
     return this.success('batch_delete_sheets', {
       deletedCount: sheetsToDelete.length,
       skippedSheetIds: skippedSheetIds.length > 0 ? skippedSheetIds : undefined,
@@ -1677,6 +1700,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
       spreadsheetId: input.spreadsheetId,
       requestBody: { requests },
     });
+
+    // Fix: Invalidate sheet cache after batch property updates
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
 
     return this.success('batch_update_sheets', {
       updatedCount: input.updates.length,
@@ -1752,6 +1778,24 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
 
     const sheetTitle = targetSheet.properties.title;
     const _escapedTitle = sheetTitle.replace(/'/g, "''"); // Reserved for future use in A1 notation
+
+    // Request confirmation for destructive operation if elicitation is supported
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'clear_sheet',
+        `Clear all data from sheet "${sheetTitle}" in spreadsheet ${input.spreadsheetId}. This will remove all cell values${input.clearFormats ? ', formatting' : ''}${input.clearNotes ? ', and notes' : ''}. This action cannot be undone without a snapshot.`
+      );
+
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
+        });
+      }
+    }
 
     // Determine what to clear based on options
     const clearValues = input.clearValues !== false; // default true
@@ -1946,6 +1990,9 @@ export class SheetsCoreHandler extends BaseHandler<SheetsCoreInput, SheetsCoreOu
         `Warning: Sheet "${movedSheet.properties?.title}" is hidden. Moving a hidden sheet may not have the expected visual effect. Consider unhiding it first with sheets_dimensions action:"show".`
       );
     }
+
+    // Fix: Invalidate sheet cache after move (index changes affect resolution)
+    this.context.sheetResolver?.invalidate(input.spreadsheetId);
 
     return this.success('move_sheet', {
       sheetId: resolvedSheetId,

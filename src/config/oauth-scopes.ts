@@ -57,6 +57,7 @@ export const FULL_ACCESS_SCOPES = [
   'https://www.googleapis.com/auth/script.projects',
   'https://www.googleapis.com/auth/script.deployments',
   'https://www.googleapis.com/auth/script.processes',
+  'https://www.googleapis.com/auth/script.external_request',
 ] as const;
 
 /**
@@ -95,13 +96,38 @@ export function getRecommendedScopes(): readonly string[] {
 /**
  * Get scopes based on environment or configuration
  *
- * Defaults to 'standard' which uses drive.file (sensitive scope).
+ * Deployment-aware defaults:
+ * - self-hosted (default): Uses 'full' scopes - all 298 actions work
+ * - saas: Uses 'standard' scopes - 260/298 actions, faster verification
+ *
+ * Explicit OAUTH_SCOPE_MODE takes precedence over DEPLOYMENT_MODE.
+ *
  * Set OAUTH_SCOPE_MODE=full for all features including sharing & BigQuery.
+ * Set DEPLOYMENT_MODE=saas for fast Google verification (3-5 days).
  */
 export function getConfiguredScopes(): readonly string[] {
-  const scopeMode = process.env['OAUTH_SCOPE_MODE'] ?? 'standard';
+  // Explicit scope mode takes precedence (only if non-empty)
+  const explicitMode = process.env['OAUTH_SCOPE_MODE'];
+  if (explicitMode && explicitMode.trim() !== '') {
+    return getScopesByMode(explicitMode);
+  }
 
-  switch (scopeMode) {
+  // Deployment mode determines default
+  // self-hosted: Full features (backwards compatible, all 298 actions)
+  // saas: Fast verification (standard scopes, 260/298 actions + incremental consent)
+  const deploymentMode = process.env['DEPLOYMENT_MODE'] ?? 'self-hosted';
+  const defaultMode = deploymentMode === 'saas' ? 'standard' : 'full';
+
+  return getScopesByMode(defaultMode);
+}
+
+/**
+ * Get scope set by mode name
+ *
+ * @internal Used by getConfiguredScopes
+ */
+function getScopesByMode(mode: string): readonly string[] {
+  switch (mode) {
     case 'minimal':
       return MINIMAL_SCOPES;
     case 'readonly':
@@ -134,6 +160,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Create and update Google Apps Script projects',
   'https://www.googleapis.com/auth/script.deployments': 'Manage Apps Script deployments',
   'https://www.googleapis.com/auth/script.processes': 'View Apps Script processes and executions',
+  'https://www.googleapis.com/auth/script.external_request':
+    'Allow Apps Script to make external HTTP requests',
   'https://www.googleapis.com/auth/spreadsheets.readonly': 'View your Google Sheets spreadsheets',
   'https://www.googleapis.com/auth/drive.readonly': 'View your Google Drive files',
 };

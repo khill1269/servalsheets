@@ -415,7 +415,14 @@ export class DiffEngine {
    * Detect sheet-level changes between two states
    * (Phase 4.2A - Fine-Grained Event Filtering)
    */
-  private detectSheetChanges(before: SpreadsheetState, after: SpreadsheetState) {
+  private detectSheetChanges(
+    before: SpreadsheetState,
+    after: SpreadsheetState
+  ): {
+    sheetsAdded: Array<{ sheetId: number; title: string }>;
+    sheetsRemoved: Array<{ sheetId: number; title: string }>;
+    sheetsRenamed: Array<{ sheetId: number; oldTitle: string; newTitle: string }>;
+  } {
     const beforeSheetMap = new Map(before.sheets.map((s) => [s.sheetId, s]));
     const afterSheetMap = new Map(after.sheets.map((s) => [s.sheetId, s]));
 

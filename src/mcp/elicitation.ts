@@ -550,8 +550,8 @@ export async function confirmDestructiveAction(
     // User declined or cancelled
     return { confirmed: false };
   } catch (_error) {
-    // Timeout or error - proceed by default (backward compatibility)
-    return { confirmed: true };
+    // Timeout or error - fail-safe: deny destructive operations
+    return { confirmed: false };
   }
 }
 

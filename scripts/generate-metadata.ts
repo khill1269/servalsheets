@@ -286,7 +286,9 @@ for (const file of schemaFiles) {
   }
 }
 
-const TOOL_COUNT = analyses.length;
+// Only count schemas that have actions (excludes non-tool schema files like handler-deviations.ts)
+const toolAnalyses = analyses.filter((a) => a.actionCount > 0);
+const TOOL_COUNT = toolAnalyses.length;
 const ACTION_COUNT = totalActions;
 
 console.log(`\n✅ Total: ${TOOL_COUNT} tools, ${ACTION_COUNT} actions\n`);
@@ -471,8 +473,6 @@ const serverJson = {
     'logging',
     'completions',
     'tasks',
-    'elicitation',
-    'sampling',
   ],
   metadata: {
     toolCount: TOOL_COUNT,

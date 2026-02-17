@@ -16,7 +16,10 @@
 
 import type { sheets_v4 } from 'googleapis';
 import { getETagCache } from './etag-cache.js';
+import { getCacheInvalidationGraph } from './cache-invalidation-graph.js';
+import { extractETag } from '../utils/etag-helpers.js';
 import { logger } from '../utils/logger.js';
+import { cacheHitsTotal, cacheMissesTotal } from '../observability/metrics.js';
 
 /**
  * Statistics for cached API operations
@@ -69,12 +72,68 @@ export class CachedSheetsApi {
       params: options,
     };
 
-    // Check cache first
+    // Check if conditional requests are enabled (Priority 9)
+    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+
+    if (conditionalRequestsEnabled) {
+      // Try conditional request with If-None-Match header
+      const cachedETag = this.cache.getETag(cacheKey);
+
+      if (cachedETag) {
+        try {
+          // Make conditional request with If-None-Match
+          const response = await this.sheetsApi.spreadsheets.get(
+            {
+              spreadsheetId,
+              includeGridData: options.includeGridData,
+              ranges: options.ranges,
+              fields: options.fields,
+            },
+            { headers: { 'If-None-Match': cachedETag } }
+          );
+
+          // 200 OK - Data changed, update cache with new ETag
+          this.stats.cacheMisses++;
+          cacheMissesTotal.inc({ namespace: 'etag' });
+          const newETag = extractETag(response);
+          if (newETag) {
+            await this.cache.setETag(cacheKey, newETag, response.data);
+          }
+
+          return response.data;
+        } catch (error: unknown) {
+          // Check for 304 Not Modified
+          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+            this.stats.cacheHits++;
+            cacheHitsTotal.inc({ namespace: 'etag' });
+            const cachedData = (await this.cache.getCachedData(
+              cacheKey
+            )) as sheets_v4.Schema$Spreadsheet | null;
+
+            if (cachedData) {
+              logger.debug('304 Not Modified - using cached metadata', {
+                spreadsheetId,
+                quotaSaved: true,
+              });
+              return cachedData;
+            }
+
+            // No cached data, fall through to full request
+            logger.warn('304 but no cached data, refetching', { spreadsheetId });
+          }
+
+          // Other errors fall through to regular request below
+        }
+      }
+    }
+
+    // Check local cache (L1/L2)
     const cached = (await this.cache.getCachedData(
       cacheKey
     )) as sheets_v4.Schema$Spreadsheet | null;
     if (cached) {
       this.stats.cacheHits++;
+      cacheHitsTotal.inc({ namespace: 'local' });
       logger.debug('Cache hit for spreadsheet metadata', {
         spreadsheetId,
         savedApiCall: true,
@@ -84,6 +143,7 @@ export class CachedSheetsApi {
 
     // Cache miss - fetch from API
     this.stats.cacheMisses++;
+    cacheMissesTotal.inc({ namespace: 'local' });
     const response = await this.sheetsApi.spreadsheets.get({
       spreadsheetId,
       includeGridData: options.includeGridData,
@@ -91,8 +151,9 @@ export class CachedSheetsApi {
       fields: options.fields,
     });
 
-    // Cache the response
-    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    // Cache with real ETag if available, otherwise use timestamp
+    const etag = extractETag(response) || `cached-${Date.now()}`;
+    await this.cache.setETag(cacheKey, etag, response.data);
 
     return response.data;
   }
@@ -123,10 +184,68 @@ export class CachedSheetsApi {
       params: options,
     };
 
-    // Check cache first
+    // Check if conditional requests are enabled (Priority 9)
+    const conditionalRequestsEnabled = process.env['ENABLE_CONDITIONAL_REQUESTS'] !== 'false';
+
+    if (conditionalRequestsEnabled) {
+      // Try conditional request with If-None-Match header
+      const cachedETag = this.cache.getETag(cacheKey);
+
+      if (cachedETag) {
+        try {
+          // Make conditional request with If-None-Match
+          const response = await this.sheetsApi.spreadsheets.values.get(
+            {
+              spreadsheetId,
+              range,
+              valueRenderOption: options.valueRenderOption,
+              dateTimeRenderOption: options.dateTimeRenderOption,
+              majorDimension: options.majorDimension,
+            },
+            { headers: { 'If-None-Match': cachedETag } }
+          );
+
+          // 200 OK - Data changed, update cache with new ETag
+          this.stats.cacheMisses++;
+          cacheMissesTotal.inc({ namespace: 'etag' });
+          const newETag = extractETag(response);
+          if (newETag) {
+            await this.cache.setETag(cacheKey, newETag, response.data);
+          }
+
+          return response.data;
+        } catch (error: unknown) {
+          // Check for 304 Not Modified
+          if (error && typeof error === 'object' && 'code' in error && error.code === 304) {
+            this.stats.cacheHits++;
+            cacheHitsTotal.inc({ namespace: 'etag' });
+            const cachedData = (await this.cache.getCachedData(
+              cacheKey
+            )) as sheets_v4.Schema$ValueRange | null;
+
+            if (cachedData) {
+              logger.debug('304 Not Modified - using cached values', {
+                spreadsheetId,
+                range,
+                quotaSaved: true,
+              });
+              return cachedData;
+            }
+
+            // No cached data, fall through to full request
+            logger.warn('304 but no cached data, refetching', { spreadsheetId, range });
+          }
+
+          // Other errors fall through to regular request below
+        }
+      }
+    }
+
+    // Check local cache (L1/L2)
     const cached = (await this.cache.getCachedData(cacheKey)) as sheets_v4.Schema$ValueRange | null;
     if (cached) {
       this.stats.cacheHits++;
+      cacheHitsTotal.inc({ namespace: 'local' });
       logger.debug('Cache hit for values', {
         spreadsheetId,
         range,
@@ -137,6 +256,7 @@ export class CachedSheetsApi {
 
     // Cache miss - fetch from API
     this.stats.cacheMisses++;
+    cacheMissesTotal.inc({ namespace: 'local' });
     const response = await this.sheetsApi.spreadsheets.values.get({
       spreadsheetId,
       range,
@@ -145,8 +265,9 @@ export class CachedSheetsApi {
       majorDimension: options.majorDimension,
     });
 
-    // Cache the response
-    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    // Cache with real ETag if available, otherwise use timestamp
+    const etag = extractETag(response) || `cached-${Date.now()}`;
+    await this.cache.setETag(cacheKey, etag, response.data);
 
     return response.data;
   }
@@ -195,6 +316,7 @@ export class CachedSheetsApi {
     )) as sheets_v4.Schema$BatchGetValuesResponse | null;
     if (cached) {
       this.stats.cacheHits++;
+      cacheHitsTotal.inc({ namespace: 'local' });
       logger.debug('Cache hit for batchGet', {
         spreadsheetId,
         rangeCount: uniqueRanges.length,
@@ -217,8 +339,9 @@ export class CachedSheetsApi {
       majorDimension: options.majorDimension,
     });
 
-    // Cache the response
-    await this.cache.setETag(cacheKey, `cached-${Date.now()}`, response.data);
+    // Cache with real ETag if available, otherwise use timestamp
+    const etag = extractETag(response) || `cached-${Date.now()}`;
+    await this.cache.setETag(cacheKey, etag, response.data);
 
     // Map results back to original order if duplicates existed
     if (duplicatesEliminated > 0) {
@@ -275,6 +398,50 @@ export class CachedSheetsApi {
   async invalidateSpreadsheet(spreadsheetId: string): Promise<void> {
     await this.cache.invalidateSpreadsheet(spreadsheetId);
     logger.debug('Cache invalidated after mutation', { spreadsheetId });
+  }
+
+  /**
+   * Selective cache invalidation using invalidation graph
+   *
+   * Only invalidates cache entries affected by the specific operation,
+   * improving cache hit rate by preserving unaffected data.
+   *
+   * @param spreadsheetId - Spreadsheet ID
+   * @param tool - Tool name (e.g., 'sheets_data')
+   * @param action - Action name (e.g., 'write')
+   *
+   * @example
+   * // After formatting operation, only format cache is invalidated
+   * await cached.invalidateSelective(id, 'sheets_format', 'set_format');
+   * // Values and metadata caches remain valid
+   */
+  async invalidateSelective(spreadsheetId: string, tool: string, action: string): Promise<void> {
+    const graph = getCacheInvalidationGraph();
+    const patterns = graph.getInvalidationKeys(tool, action);
+
+    logger.debug('Selective cache invalidation', {
+      spreadsheetId,
+      operation: `${tool}.${action}`,
+      patterns,
+      cascade: graph.shouldCascade(tool, action),
+    });
+
+    // Get all cache keys for this spreadsheet
+    const allKeys = await this.cache.getKeysForSpreadsheet(spreadsheetId);
+
+    // Match patterns and invalidate
+    const keysToInvalidate = graph.getKeysToInvalidate(tool, action, allKeys);
+
+    for (const key of keysToInvalidate) {
+      await this.cache.invalidateKey(key);
+    }
+
+    logger.info('Selective invalidation complete', {
+      spreadsheetId,
+      operation: `${tool}.${action}`,
+      invalidatedKeys: keysToInvalidate.length,
+      preservedKeys: allKeys.length - keysToInvalidate.length,
+    });
   }
 
   /**

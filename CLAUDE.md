@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-ServalSheets is a production-grade MCP (Model Context Protocol) server for Google Sheets with 22 tools and 298 actions. It provides AI-powered spreadsheet operations with safety rails, transactions, batch operations, and enterprise features.
+ServalSheets is a production-grade MCP (Model Context Protocol) server for Google Sheets with 22 tools and 299 actions. It provides AI-powered spreadsheet operations with safety rails, transactions, batch operations, and enterprise features.
 
 **Version:** 1.6.0 | **Protocol:** MCP 2025-11-25 | **Runtime:** Node.js + TypeScript (strict)
 
@@ -173,7 +173,7 @@ src/
 │   └── index.ts              # Handler factory + registry
 ├── mcp/                      # MCP protocol layer
 │   ├── registration/
-│   │   ├── tool-definitions.ts    # TOOL_DEFINITIONS array (21 entries with input/output schemas)
+│   │   ├── tool-definitions.ts    # TOOL_DEFINITIONS array (22 entries with input/output schemas)
 │   │   ├── tool-handlers.ts       # createToolCallHandler + buildToolResponse
 │   │   ├── schema-helpers.ts      # Zod → JSON Schema conversion + caching
 │   │   ├── tools-list-compat.ts   # tools/list response formatting
@@ -309,6 +309,30 @@ tests/
    - Use structured errors with `ErrorCode` enum
    - Run `npm run check:silent-fallbacks` to verify
 
+6. **Dead code claims require coverage proof:**
+   - NEVER claim code is "dead" or "unreachable" without running `npm run validate:dead-code <file> <start-line> <end-line>`
+   - If tests pass AND coverage > 0%, code is NOT dead
+   - Dead code claims must show 0% coverage proof
+   - Use `.github/AUDIT_TEMPLATE.md` for proper audit format
+
+7. **Schema-handler alignment validation:**
+   - Run `npm run validate:alignment` to check all 22 tools
+   - Understand distinction: Action-level cases vs Parameter-level cases
+   - Action-level: `switch (request.action)` → Must match schema discriminated union
+   - Parameter-level: `switch (input.preset)` → Implementation detail, NOT schema actions
+   - Contract test enforces alignment: `tests/contracts/schema-handler-alignment.test.ts`
+   - **Acceptable deviations:** Documented in `src/schemas/handler-deviations.ts`
+     - Aliases/shortcuts are allowed if explicitly documented
+     - Example: `sheets_core` has 6 documented aliases (copy_to → copy_sheet_to, hide_sheet → update_sheet, etc.)
+     - UNDOCUMENTED deviations cause CI failure
+     - Add new deviations to `ACCEPTABLE_DEVIATIONS` array with clear justification
+
+8. **Audit document validation:**
+   - All audit documents MUST pass `npm run validate:audit`
+   - Include command outputs proving claims
+   - Show test results and coverage data
+   - Follow `.github/AUDIT_TEMPLATE.md` format
+
 ## Required Verification Pipeline
 
 ```bash
@@ -323,9 +347,17 @@ npm run check:drift         # Metadata sync
 npm run check:placeholders  # No TODO/FIXME in src/
 npm run check:debug-prints  # No console.log in handlers
 npm run check:silent-fallbacks  # No silent {} returns
+npm run validate:alignment  # Schema-handler alignment (NEW)
+npm run validate:audit      # Audit document validation (NEW)
+
+# Dead code verification
+npm run validate:dead-code <file> <start> <end>  # Verify dead code claims
 
 # Build verification
 npm run verify:build        # Build + validate + smoke
+
+# Full gate pipeline (G0-G5)
+npm run gates               # Run all validation gates
 ```
 
 ## Fast Development Workflows
@@ -413,7 +445,7 @@ return buildToolResponse({ response: { success: true, data } });
 
 ### 3. Hardcoded Counts in Documentation
 
-**Symptom:** README shows outdated counts but CI says "22 tools, 298 actions"
+**Symptom:** README shows outdated counts but CI says "22 tools, 299 actions"
 
 **Cause:** Using hardcoded numbers instead of source file references
 
@@ -421,7 +453,7 @@ return buildToolResponse({ response: { success: true, data } });
 - Tool count: See `src/schemas/index.ts:63` → `TOOL_COUNT`
 - Action count: See `src/schemas/index.ts:63` → `ACTION_COUNT`
 
-**Example:** "Currently 22 tools with 298 actions (see src/schemas/index.ts:63)"
+**Example:** "Currently 22 tools with 299 actions (see src/schemas/index.ts:63)"
 
 **Prevention:** CI checks 42+ documentation files for hardcoded count mismatches
 
@@ -538,7 +570,7 @@ When starting work, operate as an auditor:
 
 | Metric               | Source File            | Current Value  |
 | -------------------- | ---------------------- | -------------- |
-| **ACTION_COUNT**     | `src/schemas/index.ts` | 298 actions    |
+| **ACTION_COUNT**     | `src/schemas/index.ts` | 299 actions    |
 | **TOOL_COUNT**       | `src/schemas/index.ts` | 22 tools       |
 | **Protocol Version** | `src/version.ts:14`    | MCP 2025-11-25 |
 | **Zod Version**      | `package.json`         | 4.3.6          |
@@ -710,7 +742,7 @@ All verification checks passing:
 2. Added sheets_session tool to all registry locations
 3. Completed Wave 5 consolidation (merged sheets_formulas into sheets_advanced)
 4. Added Tier 7 enterprise tools (sheets_appsscript, sheets_bigquery, sheets_templates)
-5. Current state: 22 tools with 298 actions
+5. Current state: 22 tools with 299 actions
 6. Synchronized metadata across all files
 7. Fixed TypeScript strict mode issues in handlers
 
@@ -758,10 +790,10 @@ The `sheets_session` tool provides conversational context management.
 - ✅ `src/schemas/index.ts` - In `TOOL_REGISTRY` export
 - ✅ `src/schemas/fast-validators.ts` - Comment updated to "ALL 22 tools"
 - ✅ `tests/contracts/schema-contracts.test.ts` - TOOL_SCHEMAS array has 22 entries
-- ✅ `src/mcp/completions.ts` - Comment updated to "298 actions across 22 tools"
+- ✅ `src/mcp/completions.ts` - Comment updated to "299 actions across 22 tools"
 - ✅ Tool is functional and working
 
-**Note:** After Wave 5 consolidation and Tier 7 additions, we have 22 total tools with 298 actions (as of 2026-02-14)
+**Note:** After Wave 5 consolidation and Tier 7 additions, we have 22 total tools with 299 actions (as of 2026-02-14)
 
 ---
 
@@ -806,6 +838,54 @@ startRemoteServer({ port: 3000 }); // Uses OAuth mode
 ```
 
 **Code Reduction:** ~540 LOC of duplicated code eliminated
+
+---
+
+## Safe Rollback Strategy
+
+When you need to undo changes during Phase implementation:
+
+### Recommended: Phase-Specific Branches
+
+```bash
+# Create phase branch before starting
+git checkout -b phase-0-foundation
+git commit -m "checkpoint: Phase 0 start" --allow-empty
+
+# Work on phase...
+
+# If you need to rollback specific files
+git restore --source=HEAD~3 -- src/handlers/data.ts
+
+# If you need to abandon entire phase
+git checkout main
+git branch -D phase-0-foundation
+```
+
+### Per-File Rollback (Safe)
+
+```bash
+# Restore specific file from 3 commits ago
+git restore --source=HEAD~3 -- <file>
+
+# Restore file from specific commit
+git restore --source=<commit-hash> -- <file>
+
+# See file history first
+git log --oneline -- <file>
+```
+
+### ❌ NEVER Use These (Destructive)
+
+```bash
+❌ git checkout -- .           # Discards all uncommitted work
+❌ git reset --hard HEAD       # Destroys commits + work
+❌ git clean -fd               # Deletes untracked files permanently
+```
+
+**Why:** These commands can destroy uncommitted work across the entire workspace, potentially losing hours of progress from yourself or collaborators.
+
+**Rule:** Always use targeted `git restore --source=<commit> -- <file>` or phase branches instead of workspace-wide destructive operations.
 
 ---
 

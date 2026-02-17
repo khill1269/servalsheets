@@ -80,7 +80,7 @@ export function registerChartResources(
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify({ charts: data, total: data.length }, null, 2),
+              text: JSON.stringify({ charts: data, total: data.length }),
             },
           ],
         };
@@ -149,7 +149,7 @@ export function registerChartResources(
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(data, null, 2),
+              text: JSON.stringify(data),
             },
           ],
         };

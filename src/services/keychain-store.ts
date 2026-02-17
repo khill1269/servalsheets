@@ -31,6 +31,21 @@ const SERVICE_NAME = 'servalsheets';
 const ACCOUNT_NAME = 'oauth-tokens';
 
 /**
+ * Validate keychain service/account names to prevent unexpected CLI behavior.
+ * While execFile doesn't use a shell (safe from injection), the security CLI
+ * may interpret certain characters in arguments.
+ */
+const SAFE_KEYCHAIN_NAME = /^[a-zA-Z0-9\-_.]+$/;
+
+function validateKeychainName(name: string, field: string): void {
+  if (!SAFE_KEYCHAIN_NAME.test(name)) {
+    throw new Error(
+      `Invalid ${field}: must contain only alphanumeric characters, hyphens, underscores, and dots`
+    );
+  }
+}
+
+/**
  * Keytar interface for type safety (keytar is an optional dependency)
  */
 interface KeytarInterface {
@@ -72,6 +87,8 @@ class MacOSKeychain {
   }
 
   static async get(service: string, account: string): Promise<string | null> {
+    validateKeychainName(service, 'service');
+    validateKeychainName(account, 'account');
     try {
       const result = await this.exec([
         'find-generic-password',
@@ -88,6 +105,8 @@ class MacOSKeychain {
   }
 
   static async set(service: string, account: string, password: string): Promise<void> {
+    validateKeychainName(service, 'service');
+    validateKeychainName(account, 'account');
     // Delete existing entry first (ignore errors)
     try {
       await this.exec(['delete-generic-password', '-s', service, '-a', account]);
@@ -109,6 +128,8 @@ class MacOSKeychain {
   }
 
   static async delete(service: string, account: string): Promise<void> {
+    validateKeychainName(service, 'service');
+    validateKeychainName(account, 'account');
     try {
       await this.exec(['delete-generic-password', '-s', service, '-a', account]);
     } catch {

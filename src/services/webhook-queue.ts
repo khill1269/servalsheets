@@ -26,6 +26,18 @@ import { updateWebhookQueueDepth } from '../observability/metrics.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
 
+/** Non-blocking SCAN replacement for redis.keys() */
+async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const result = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = result.cursor;
+    keys.push(...result.keys);
+  } while (cursor !== 0);
+  return keys;
+}
+
 /**
  * Webhook delivery job
  */
@@ -173,7 +185,7 @@ export class WebhookQueue {
       const now = Date.now();
 
       // Find retry queues with timestamps <= now
-      const keys = await this.redis.keys('webhook:queue:retry:*');
+      const keys = await scanRedisKeys(this.redis, 'webhook:queue:retry:*');
       const retryKeys = (keys as string[])
         .filter((key) => {
           const timestamp = Number.parseInt(key.split(':')[3] || '0', 10);
@@ -307,7 +319,7 @@ export class WebhookQueue {
       ]);
 
       // Count retry queue entries
-      const retryKeys = await this.redis.keys('webhook:queue:retry:*');
+      const retryKeys = await scanRedisKeys(this.redis, 'webhook:queue:retry:*');
       let retryCount = 0;
       for (const key of retryKeys as string[]) {
         const count = await this.redis.lLen(key);
@@ -338,7 +350,7 @@ export class WebhookQueue {
       const dlqCount = (await this.redis.lLen('webhook:queue:dlq')) as number;
 
       // Count retry queue entries
-      const retryKeys = await this.redis.keys('webhook:queue:retry:*');
+      const retryKeys = await scanRedisKeys(this.redis, 'webhook:queue:retry:*');
       let retryCount = 0;
       for (const key of retryKeys as string[]) {
         const count = await this.redis.lLen(key);

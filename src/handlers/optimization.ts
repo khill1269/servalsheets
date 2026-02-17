@@ -352,25 +352,10 @@ export function estimateRangeCells(range: string): number {
   return rows * cols;
 }
 
-// Pre-computed column index cache (A-ZZ = 702 columns)
-const COLUMN_INDEX_CACHE = new Map<string, number>();
-
-/**
- * Fast column letter to index conversion with caching
- */
-export function columnLetterToIndex(letter: string): number {
-  const cached = COLUMN_INDEX_CACHE.get(letter);
-  if (cached !== undefined) return cached;
-
-  let index = 0;
-  for (let i = 0; i < letter.length; i++) {
-    index = index * 26 + (letter.charCodeAt(i) - 64);
-  }
-  index -= 1; // Convert to 0-based
-
-  COLUMN_INDEX_CACHE.set(letter, index);
-  return index;
-}
+// Column letter ↔ index conversions: canonical implementation in ../utils/google-sheets-helpers.ts
+// Re-exported here for backward compatibility with existing consumers of HandlerOptimization.
+import { columnLetterToIndex } from '../utils/google-sheets-helpers.js';
+export { columnLetterToIndex };
 
 // ============================================================================
 // EXPORTS

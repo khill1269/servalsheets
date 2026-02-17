@@ -206,6 +206,11 @@ const PreviewActionSchema = z.object({
     .optional()
     .default('standard')
     .describe('Response detail level'),
+  estimateCost: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Run a dry-run cost estimation before executing the preview query (opt-in)'),
   // Query control parameters (for preview)
   timeoutMs: z.coerce
     .number()
@@ -500,7 +505,7 @@ export type SheetsBigQueryOutput = z.infer<typeof SheetsBigQueryOutputSchema>;
 export type BigQueryResponse = z.infer<typeof BigQueryResponseSchema>;
 export type BigQueryRequest = SheetsBigQueryInput['request'];
 
-// Type narrowing helpers for each action (15 actions)
+// Type narrowing helpers for each action (14 actions)
 export type BigQueryConnectInput = SheetsBigQueryInput['request'] & { action: 'connect' };
 export type BigQueryConnectLookerInput = SheetsBigQueryInput['request'] & {
   action: 'connect_looker';

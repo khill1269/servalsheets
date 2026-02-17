@@ -7,6 +7,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { zodSchemaToJsonSchema } from '../../utils/schema-compat.js';
 
 const EMPTY_OBJECT_JSON_SCHEMA = { type: 'object', properties: {} };
@@ -49,10 +50,8 @@ export function registerToolsListCompatibilityHandler(server: McpServer): void {
   )._registeredTools;
 
   protocolServer.setRequestHandler(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK schema is runtime-validated
-    ListToolsRequestSchema as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accept cursor param for MCP spec compliance
-    (request: any) => {
+    ListToolsRequestSchema,
+    (request: z.infer<typeof ListToolsRequestSchema>) => {
       // Accept cursor param per MCP 2025-11-25 spec (single-page response for ≤22 tools)
       const _cursor: string | undefined = request?.params?.cursor;
 

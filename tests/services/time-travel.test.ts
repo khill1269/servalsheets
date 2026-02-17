@@ -1,612 +1,315 @@
-/**
- * Time-Travel Debugger Tests
- *
- * Tests for checkpoint management, replay, blame analysis, and branching.
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TimeTravelDebugger } from '../../src/services/time-travel.js';
-import { CheckpointManager } from '../../src/services/checkpoint-manager.js';
-import { OperationReplay } from '../../src/services/operation-replay.js';
+import { TimeTravelDebugger, resetTimeTravelDebugger } from '../../src/services/time-travel.js';
+import { HistoryService } from '../../src/services/history-service.js';
 import type { OperationHistory } from '../../src/types/history.js';
-import type { GoogleApiClient } from '../../src/services/google-api.js';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function makeOp(overrides: Partial<OperationHistory> = {}): OperationHistory {
+  return {
+    id: `op-${Math.random().toString(36).substring(2, 9)}`,
+    timestamp: new Date().toISOString(),
+    tool: 'sheets_data',
+    action: 'write_range',
+    params: { range: 'Sheet1!A1:B10' },
+    result: 'success',
+    duration: 50,
+    spreadsheetId: 'ss-1',
+    ...overrides,
+  };
+}
+
+function createMockSnapshotService() {
+  return {
+    create: vi.fn().mockResolvedValue('snap-1'),
+    delete: vi.fn().mockResolvedValue(undefined),
+    list: vi.fn().mockReturnValue([]),
+    get: vi.fn().mockReturnValue(undefined),
+    restore: vi.fn().mockResolvedValue('restored-id'),
+    getUrl: vi.fn().mockReturnValue(undefined),
+    clearCache: vi.fn(),
+  };
+}
+
+// ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('TimeTravelDebugger', () => {
-  let timeTravelDebugger: TimeTravelDebugger;
-  let mockGoogleClient: GoogleApiClient;
-  let mockHistoryService: {
-    getAll: ReturnType<typeof vi.fn>;
-    getById: ReturnType<typeof vi.fn>;
-  };
+  let history: HistoryService;
+  let snapshotService: ReturnType<typeof createMockSnapshotService>;
+  let debugger_: TimeTravelDebugger;
 
   beforeEach(() => {
-    mockGoogleClient = {
-      sheets: {
-        spreadsheets: {
-          get: vi.fn(),
-          values: {
-            get: vi.fn(),
-            batchGet: vi.fn(),
-          },
-          batchUpdate: vi.fn(),
-        },
-      },
-    } as unknown as GoogleApiClient;
-
-    mockHistoryService = {
-      getAll: vi.fn().mockReturnValue([]),
-      getById: vi.fn(),
-    };
-
-    timeTravelDebugger = new TimeTravelDebugger({
-      googleClient: mockGoogleClient,
-      historyService: mockHistoryService as any,
-      maxCheckpoints: 10,
-      compressionEnabled: true,
-      autoCheckpointInterval: 0, // Disable auto-checkpoint for tests
+    resetTimeTravelDebugger();
+    history = new HistoryService({ maxSize: 100 });
+    snapshotService = createMockSnapshotService();
+    debugger_ = new TimeTravelDebugger({
+      historyService: history,
+      snapshotService: snapshotService as any,
     });
   });
 
-  describe('createCheckpoint', () => {
-    it('creates checkpoint with current state', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+  // ─── Checkpoint Tests ───────────────────────────────────────────────────
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          properties: { title: 'Test Sheet' },
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
-      });
+  describe('Checkpoint Management', () => {
+    it('creates a checkpoint with snapshot + operation history', async () => {
+      const op = makeOp();
+      history.record(op);
 
-      mockHistoryService.getAll.mockReturnValue([
-        {
-          id: 'op1',
-          timestamp: new Date().toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1', values: [[1]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-      ]);
+      const id = await debugger_.createCheckpoint('ss-1', 'Before edit');
 
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'test-checkpoint');
+      expect(id).toMatch(/^ckpt_/);
+      expect(snapshotService.create).toHaveBeenCalledWith('ss-1', 'Before edit');
 
-      expect(checkpoint).toMatchObject({
-        name: 'test-checkpoint',
-        operations: expect.any(Array),
-        state: expect.any(Object),
-        timestamp: expect.any(Number),
-      });
-      expect(checkpoint.id).toMatch(/^chk-/);
-      expect(checkpoint.operations).toHaveLength(1);
+      const state = debugger_.inspectState(id);
+      expect(state.name).toBe('Before edit');
+      expect(state.operations).toHaveLength(1);
+      expect(state.operations[0].id).toBe(op.id);
     });
 
-    it('auto-prunes old checkpoints when max reached', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+    it('lists checkpoints sorted by creation time', async () => {
+      await debugger_.createCheckpoint('ss-1', 'First');
+      await debugger_.createCheckpoint('ss-1', 'Second');
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      // Create max + 1 checkpoints
-      for (let i = 0; i < 11; i++) {
-        await timeTravelDebugger.createCheckpoint(spreadsheetId, `checkpoint-${i}`);
-      }
-
-      const checkpoints = await timeTravelDebugger.listCheckpoints(spreadsheetId);
-      expect(checkpoints).toHaveLength(10); // Max limit enforced
-      expect(checkpoints[0]?.name).toBe('checkpoint-1'); // First was pruned
+      const list = debugger_.listCheckpoints('ss-1');
+      expect(list).toHaveLength(2);
+      expect(list[0].name).toBe('First');
+      expect(list[1].name).toBe('Second');
     });
 
-    it('calculates checkpoint size with delta compression', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+    it('deletes checkpoint and its snapshot', async () => {
+      const id = await debugger_.createCheckpoint('ss-1', 'Temp');
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
+      await debugger_.deleteCheckpoint(id);
+
+      expect(snapshotService.delete).toHaveBeenCalledWith('snap-1');
+      expect(debugger_.listCheckpoints('ss-1')).toHaveLength(0);
+    });
+
+    it('throws NotFoundError for missing checkpoint', () => {
+      expect(() => debugger_.inspectState('nonexistent')).toThrow('not found');
+    });
+
+    it('prunes old checkpoints when exceeding max', async () => {
+      const smallDebugger = new TimeTravelDebugger({
+        historyService: history,
+        snapshotService: snapshotService as any,
+        maxCheckpoints: 2,
       });
 
-      mockHistoryService.getAll.mockReturnValue([]);
+      await smallDebugger.createCheckpoint('ss-1', 'One');
+      await smallDebugger.createCheckpoint('ss-1', 'Two');
+      await smallDebugger.createCheckpoint('ss-1', 'Three');
 
-      const checkpoint1 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'first');
-      const checkpoint2 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'second');
-
-      // Second checkpoint should be smaller (delta from first)
-      expect(checkpoint2.metadata?.deltaSize).toBeDefined();
-      expect(checkpoint2.metadata?.deltaFrom).toBe(checkpoint1.id);
+      const list = smallDebugger.listCheckpoints('ss-1');
+      expect(list).toHaveLength(2);
+      expect(list[0].name).toBe('Two');
+      expect(list[1].name).toBe('Three');
     });
   });
 
-  describe('listCheckpoints', () => {
-    it('returns checkpoints in chronological order', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+  // ─── Blame Analysis ─────────────────────────────────────────────────────
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
+  describe('Blame Analysis', () => {
+    it('blameCell finds operations that overlap target cell', () => {
+      const op1 = makeOp({ params: { range: 'Sheet1!A1:B10' } });
+      const op2 = makeOp({ params: { range: 'Sheet1!C1:D5' } });
+      const op3 = makeOp({ params: { range: 'Sheet1!A5:A5' } });
+      history.record(op1);
+      history.record(op2);
+      history.record(op3);
+
+      const result = debugger_.blameCell('ss-1', 'Sheet1!A5');
+
+      // op1 (A1:B10) and op3 (A5:A5) overlap A5; op2 (C1:D5) does not
+      const ids = result.operations.map((op) => op.id);
+      expect(ids).toContain(op1.id);
+      expect(ids).toContain(op3.id);
+      expect(ids).not.toContain(op2.id);
+    });
+
+    it('blameCell returns empty for no matching operations', () => {
+      const op = makeOp({ params: { range: 'Sheet1!A1:B2' } });
+      history.record(op);
+
+      const result = debugger_.blameCell('ss-1', 'Sheet1!Z99');
+      expect(result.operations).toHaveLength(0);
+    });
+
+    it('blameOperation finds dependent operations', () => {
+      const now = Date.now();
+      const op1 = makeOp({
+        id: 'op-target',
+        timestamp: new Date(now).toISOString(),
+        params: { range: 'Sheet1!A1:B10' },
       });
+      const op2 = makeOp({
+        id: 'op-dependent',
+        timestamp: new Date(now + 1000).toISOString(),
+        params: { range: 'Sheet1!A5:B5' },
+      });
+      const op3 = makeOp({
+        id: 'op-unrelated',
+        timestamp: new Date(now + 2000).toISOString(),
+        params: { range: 'Sheet1!Z1:Z10' },
+      });
+      history.record(op1);
+      history.record(op2);
+      history.record(op3);
 
-      mockHistoryService.getAll.mockReturnValue([]);
+      const result = debugger_.blameOperation('ss-1', 'op-target');
 
-      await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-1');
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-2');
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-3');
+      expect(result.operation.id).toBe('op-target');
+      expect(result.dependents).toHaveLength(1);
+      expect(result.dependents[0].id).toBe('op-dependent');
+    });
 
-      const checkpoints = await timeTravelDebugger.listCheckpoints(spreadsheetId);
+    it('blameOperation returns empty dependents when no range', () => {
+      const op = makeOp({ id: 'op-no-range', params: {} });
+      history.record(op);
 
-      expect(checkpoints).toHaveLength(3);
-      expect(checkpoints.map((c) => c.name)).toEqual([
-        'checkpoint-1',
-        'checkpoint-2',
-        'checkpoint-3',
-      ]);
+      const result = debugger_.blameOperation('ss-1', 'op-no-range');
+      expect(result.dependents).toHaveLength(0);
     });
   });
 
-  describe('deleteCheckpoint', () => {
-    it('deletes checkpoint and updates dependencies', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+  // ─── Branching ──────────────────────────────────────────────────────────
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
+  describe('Branching', () => {
+    it('creates a branch from current history', () => {
+      const op = makeOp();
+      history.record(op);
 
-      mockHistoryService.getAll.mockReturnValue([]);
+      const branch = debugger_.createBranch('ss-1', 'feature-1');
 
-      const checkpoint1 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'first');
-      const checkpoint2 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'second');
-
-      await timeTravelDebugger.deleteCheckpoint(checkpoint1.id);
-
-      const checkpoints = await timeTravelDebugger.listCheckpoints(spreadsheetId);
-      expect(checkpoints).toHaveLength(1);
-      expect(checkpoints[0]?.id).toBe(checkpoint2.id);
-    });
-  });
-
-  describe('replayToCheckpoint', () => {
-    it('replays operations to restore checkpoint state', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-      const operations: OperationHistory[] = [
-        {
-          id: 'op1',
-          timestamp: new Date(Date.now() - 2000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1', values: [[1]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-        {
-          id: 'op2',
-          timestamp: new Date(Date.now() - 1000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A2', values: [[2]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-      ];
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      mockGoogleClient.sheets.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
-        data: { replies: [{}, {}] },
-      });
-
-      mockHistoryService.getAll.mockReturnValue(operations);
-
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'test');
-
-      // Add more operations after checkpoint
-      operations.push({
-        id: 'op3',
-        timestamp: new Date().toISOString(),
-        tool: 'sheets_data',
-        action: 'write',
-        params: { range: 'A3', values: [[3]] },
-        result: 'success',
-        duration: 100,
-        spreadsheetId,
-      });
-
-      mockHistoryService.getAll.mockReturnValue(operations);
-
-      const result = await timeTravelDebugger.replayToCheckpoint(checkpoint.id);
-
-      expect(result.success).toBe(true);
-      expect(result.operationsReplayed).toBeGreaterThan(0);
-      expect(result.duration).toBeGreaterThanOrEqual(0); // Allow 0 in test environment
-      expect(mockGoogleClient.sheets.spreadsheets.batchUpdate).toHaveBeenCalled();
+      expect(branch.name).toBe('feature-1');
+      expect(branch.operations).toHaveLength(1);
     });
 
-    it('throws error if checkpoint not found', async () => {
-      await expect(timeTravelDebugger.replayToCheckpoint('invalid-id')).rejects.toThrow(
-        'Checkpoint invalid-id not found'
+    it('creates a branch from checkpoint', async () => {
+      const op1 = makeOp({ id: 'op-1' });
+      history.record(op1);
+      const cpId = await debugger_.createCheckpoint('ss-1', 'Base');
+
+      // Add more ops after checkpoint
+      const op2 = makeOp({ id: 'op-2' });
+      history.record(op2);
+
+      const branch = debugger_.createBranch('ss-1', 'from-cp', cpId);
+      // Branch should only have op1 (from checkpoint), not op2
+      expect(branch.operations).toHaveLength(1);
+      expect(branch.operations[0].id).toBe('op-1');
+    });
+
+    it('switches active branch', () => {
+      debugger_.createBranch('ss-1', 'dev');
+
+      expect(debugger_.getCurrentBranch('ss-1')).toBe('main');
+      debugger_.switchBranch('ss-1', 'dev');
+      expect(debugger_.getCurrentBranch('ss-1')).toBe('dev');
+    });
+
+    it('throws on duplicate branch name', () => {
+      debugger_.createBranch('ss-1', 'dup');
+      expect(() => debugger_.createBranch('ss-1', 'dup')).toThrow('already exists');
+    });
+
+    it('throws on switch to nonexistent branch', () => {
+      expect(() => debugger_.switchBranch('ss-1', 'ghost')).toThrow('not found');
+    });
+
+    it('merges branch operations into target', () => {
+      const op1 = makeOp({ id: 'shared-op' });
+      history.record(op1);
+
+      debugger_.createBranch('ss-1', 'source');
+      debugger_.createBranch('ss-1', 'target');
+
+      // Add unique op to source
+      const sourceBranch = debugger_['branches'].get('ss-1:source')!;
+      const newOp = makeOp({ id: 'new-op', params: { range: 'Sheet1!Z1' } });
+      sourceBranch.operations.push(newOp);
+
+      const result = debugger_.mergeBranch('ss-1', 'source', 'target');
+
+      expect(result.mergedOperations.map((op) => op.id)).toContain('new-op');
+    });
+
+    it('detects merge conflicts on overlapping ranges', () => {
+      debugger_.createBranch('ss-1', 'source');
+      debugger_.createBranch('ss-1', 'target');
+
+      const sourceBranch = debugger_['branches'].get('ss-1:source')!;
+      const targetBranch = debugger_['branches'].get('ss-1:target')!;
+
+      sourceBranch.operations.push(
+        makeOp({ id: 'src-op', params: { range: 'Sheet1!A1:B5' } })
       );
+      targetBranch.operations.push(
+        makeOp({ id: 'tgt-op', params: { range: 'Sheet1!A3:B3' } })
+      );
+
+      const result = debugger_.mergeBranch('ss-1', 'source', 'target');
+
+      expect(result.success).toBe(false);
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0].sourceOp.id).toBe('src-op');
+      expect(result.conflicts[0].targetOp.id).toBe('tgt-op');
     });
   });
 
-  describe('inspectState', () => {
-    it('returns checkpoint state snapshot', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+  // ─── Diffing ────────────────────────────────────────────────────────────
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          properties: { title: 'Test Sheet' },
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
-      });
+  describe('Diffing', () => {
+    it('diffs two checkpoints showing added/removed operations', async () => {
+      const op1 = makeOp({ id: 'op-1' });
+      history.record(op1);
+      const cp1 = await debugger_.createCheckpoint('ss-1', 'CP1');
 
-      mockHistoryService.getAll.mockReturnValue([]);
+      const op2 = makeOp({ id: 'op-2' });
+      history.record(op2);
+      const cp2 = await debugger_.createCheckpoint('ss-1', 'CP2');
 
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'test');
-      const state = await timeTravelDebugger.inspectState(checkpoint.id);
+      const diff = debugger_.diffCheckpoints(cp1, cp2);
 
-      expect(state).toMatchObject({
-        properties: expect.any(Object),
-        sheets: expect.any(Array),
-      });
+      expect(diff.operationsAdded).toHaveLength(1);
+      expect(diff.operationsAdded[0].id).toBe('op-2');
+      expect(diff.operationsRemoved).toHaveLength(0);
+      expect(diff.timeDelta).toBeGreaterThanOrEqual(0);
+    });
+
+    it('throws for nonexistent checkpoint in diff', async () => {
+      const cpId = await debugger_.createCheckpoint('ss-1', 'Real');
+      expect(() => debugger_.diffCheckpoints(cpId, 'fake')).toThrow('not found');
+      expect(() => debugger_.diffCheckpoints('fake', cpId)).toThrow('not found');
     });
   });
 
-  describe('blameCell', () => {
-    it('finds operations that modified a cell', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-      const operations: OperationHistory[] = [
-        {
-          id: 'op1',
-          timestamp: new Date(Date.now() - 3000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1', values: [[1]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-          userId: 'user1',
-        },
-        {
-          id: 'op2',
-          timestamp: new Date(Date.now() - 2000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1:B2', values: [[2, 3], [4, 5]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-          userId: 'user2',
-        },
-        {
-          id: 'op3',
-          timestamp: new Date(Date.now() - 1000).toISOString(),
-          tool: 'sheets_format',
-          action: 'set_background',
-          params: { range: 'A1', backgroundColor: { red: 1, green: 0, blue: 0 } },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-          userId: 'user1',
-        },
-      ];
+  // ─── Edge Cases ─────────────────────────────────────────────────────────
 
-      mockHistoryService.getAll.mockReturnValue(operations);
-
-      const blame = await timeTravelDebugger.blameCell(spreadsheetId, 'A1');
-
-      expect(blame).toHaveLength(3);
-      expect(blame[0]).toMatchObject({
-        range: 'A1',
-        operation: expect.objectContaining({ id: 'op1' }),
-        user: 'user1',
-        changeType: 'value',
-      });
-      expect(blame[1]).toMatchObject({
-        changeType: 'value',
-        user: 'user2',
-      });
-      expect(blame[2]).toMatchObject({
-        changeType: 'format',
-        user: 'user1',
-      });
+  describe('Edge Cases', () => {
+    it('handles empty history gracefully', () => {
+      const result = debugger_.blameCell('ss-1', 'Sheet1!A1');
+      expect(result.operations).toHaveLength(0);
     });
 
-    it('returns empty array if cell never modified', async () => {
-      mockHistoryService.getAll.mockReturnValue([]);
+    it('handles operations without range param', () => {
+      const op = makeOp({ params: { action: 'list_sheets' } });
+      history.record(op);
 
-      const blame = await timeTravelDebugger.blameCell('test-spreadsheet', 'Z99');
-
-      expect(blame).toEqual([]);
-    });
-  });
-
-  describe('blameOperation', () => {
-    it('returns detailed operation information', async () => {
-      const operation: OperationHistory = {
-        id: 'op1',
-        timestamp: new Date().toISOString(),
-        tool: 'sheets_data',
-        action: 'write',
-        params: { range: 'A1', values: [[1]] },
-        result: 'success',
-        duration: 100,
-        spreadsheetId: 'test-spreadsheet',
-        userId: 'user1',
-        cellsAffected: 1,
-      };
-
-      mockHistoryService.getById.mockReturnValue(operation);
-
-      const details = await timeTravelDebugger.blameOperation('op1');
-
-      expect(details).toMatchObject({
-        operation,
-        affectedRanges: expect.any(Array),
-        dependentOperations: expect.any(Array),
-      });
-    });
-  });
-
-  describe('createBranch', () => {
-    it('creates new branch from current state', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'base');
-      const branch = await timeTravelDebugger.createBranch(spreadsheetId, 'experiment', checkpoint.id);
-
-      expect(branch).toMatchObject({
-        name: 'experiment',
-        fromCheckpoint: checkpoint.id,
-        spreadsheetId,
-        createdAt: expect.any(Number),
-      });
-      expect(branch.id).toMatch(/^branch-/);
+      const result = debugger_.blameCell('ss-1', 'Sheet1!A1');
+      expect(result.operations).toHaveLength(0);
     });
 
-    it('creates branch from latest checkpoint if none specified', async () => {
-      const spreadsheetId = 'test-spreadsheet';
+    it('operations on different sheets do not overlap', () => {
+      const op = makeOp({ params: { range: 'Sheet2!A1:B10' } });
+      history.record(op);
 
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-1');
-      const checkpoint2 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-2');
-
-      const branch = await timeTravelDebugger.createBranch(spreadsheetId, 'experiment');
-
-      expect(branch.fromCheckpoint).toBe(checkpoint2.id);
-    });
-  });
-
-  describe('switchBranch', () => {
-    it('switches to different branch', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      mockGoogleClient.sheets.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
-        data: { replies: [] },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'base');
-      const branch = await timeTravelDebugger.createBranch(spreadsheetId, 'experiment', checkpoint.id);
-
-      await timeTravelDebugger.switchBranch(spreadsheetId, branch.name);
-
-      const currentBranch = timeTravelDebugger.getCurrentBranch(spreadsheetId);
-      expect(currentBranch).toBe(branch.name);
-    });
-  });
-
-  describe('mergeBranch', () => {
-    it('merges operations from source to target branch', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      mockGoogleClient.sheets.spreadsheets.batchUpdate = vi.fn().mockResolvedValue({
-        data: { replies: [] },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'base');
-      const branch1 = await timeTravelDebugger.createBranch(spreadsheetId, 'branch1', checkpoint.id);
-      const branch2 = await timeTravelDebugger.createBranch(spreadsheetId, 'branch2', checkpoint.id);
-
-      const result = await timeTravelDebugger.mergeBranch(spreadsheetId, branch1.name, branch2.name);
-
-      expect(result).toMatchObject({
-        success: true,
-        operationsMerged: expect.any(Number),
-        conflicts: expect.any(Array),
-      });
-    });
-  });
-
-  describe('getOperationHistory', () => {
-    it('returns filtered operation history', async () => {
-      const operations: OperationHistory[] = [
-        {
-          id: 'op1',
-          timestamp: new Date(Date.now() - 3000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: {},
-          result: 'success',
-          duration: 100,
-          spreadsheetId: 'test-spreadsheet',
-        },
-        {
-          id: 'op2',
-          timestamp: new Date(Date.now() - 2000).toISOString(),
-          tool: 'sheets_format',
-          action: 'set_background',
-          params: {},
-          result: 'success',
-          duration: 100,
-          spreadsheetId: 'test-spreadsheet',
-        },
-      ];
-
-      mockHistoryService.getAll.mockImplementation((filter?: any) => {
-        // Mock the filtering logic
-        if (filter?.tool) {
-          return operations.filter((op) => op.tool === filter.tool);
-        }
-        return operations;
-      });
-
-      const history = await timeTravelDebugger.getOperationHistory('test-spreadsheet', {
-        tool: 'sheets_data',
-        limit: 10,
-      });
-
-      expect(history).toHaveLength(1);
-      expect(history[0]?.tool).toBe('sheets_data');
-    });
-  });
-
-  describe('diffCheckpoints', () => {
-    it('returns differences between two checkpoints', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([
-        {
-          id: 'op1',
-          timestamp: new Date().toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1', values: [[1]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-      ]);
-
-      const checkpoint1 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-1');
-
-      // Add more operations
-      mockHistoryService.getAll.mockReturnValue([
-        {
-          id: 'op1',
-          timestamp: new Date().toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A1', values: [[1]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-        {
-          id: 'op2',
-          timestamp: new Date().toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: 'A2', values: [[2]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        },
-      ]);
-
-      const checkpoint2 = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'checkpoint-2');
-
-      const diff = await timeTravelDebugger.diffCheckpoints(checkpoint1.id, checkpoint2.id);
-
-      expect(diff).toMatchObject({
-        checkpoint1: checkpoint1.id,
-        checkpoint2: checkpoint2.id,
-        operationsAdded: expect.any(Array),
-        timeDelta: expect.any(Number),
-      });
-      expect(diff.operationsAdded.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('performance', () => {
-    it('creates checkpoint in under 200ms', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: {
-          spreadsheetId,
-          sheets: [{ properties: { sheetId: 0, title: 'Sheet1' } }],
-        },
-      });
-
-      mockHistoryService.getAll.mockReturnValue([]);
-
-      const startTime = Date.now();
-      await timeTravelDebugger.createCheckpoint(spreadsheetId, 'performance-test');
-      const duration = Date.now() - startTime;
-
-      expect(duration).toBeLessThan(200);
+      const result = debugger_.blameCell('ss-1', 'Sheet1!A5');
+      expect(result.operations).toHaveLength(0);
     });
 
-    it('handles 1000 operations in checkpoint', async () => {
-      const spreadsheetId = 'test-spreadsheet';
-
-      mockGoogleClient.sheets.spreadsheets.get = vi.fn().mockResolvedValue({
-        data: { spreadsheetId, sheets: [] },
-      });
-
-      const operations: OperationHistory[] = [];
-      for (let i = 0; i < 1000; i++) {
-        operations.push({
-          id: `op${i}`,
-          timestamp: new Date(Date.now() - i * 1000).toISOString(),
-          tool: 'sheets_data',
-          action: 'write',
-          params: { range: `A${i}`, values: [[i]] },
-          result: 'success',
-          duration: 100,
-          spreadsheetId,
-        });
-      }
-
-      mockHistoryService.getAll.mockReturnValue(operations);
-
-      const checkpoint = await timeTravelDebugger.createCheckpoint(spreadsheetId, 'large-checkpoint');
-
-      expect(checkpoint.operations).toHaveLength(1000);
+    it('blameOperation throws for missing operation', () => {
+      expect(() => debugger_.blameOperation('ss-1', 'nonexistent')).toThrow('not found');
     });
   });
 });

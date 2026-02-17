@@ -101,7 +101,7 @@ const SparklineConfigSchema = z
   .describe('Sparkline visualization configuration');
 
 // ============================================================================
-// INPUT SCHEMA (21 actions)
+// INPUT SCHEMA (22 actions)
 // ============================================================================
 
 const CommonFieldsSchema = z.object({
@@ -526,6 +526,25 @@ Use this UNLESS you need highly custom rules (then use rule_add_conditional_form
             negative: 'below_average',
             negative_numbers: 'below_average',
             highlight_negative: 'below_average',
+            // Financial: negative red / positive green
+            negative_red_positive_green: 'negative_red_positive_green',
+            red_green_numbers: 'negative_red_positive_green',
+            financial: 'negative_red_positive_green',
+            pnl: 'negative_red_positive_green',
+            profit_loss: 'negative_red_positive_green',
+            accounting: 'negative_red_positive_green',
+            negative_red: 'negative_red_positive_green',
+            // Traffic light (red/yellow/green gradient)
+            traffic_light: 'traffic_light',
+            stoplight: 'traffic_light',
+            rag: 'traffic_light',
+            red_amber_green: 'traffic_light',
+            red_yellow_green: 'traffic_light',
+            // Variance highlight (>±10%)
+            variance: 'variance_highlight',
+            variance_highlight: 'variance_highlight',
+            budget_variance: 'variance_highlight',
+            deviation: 'variance_highlight',
           };
           return aliases[normalized] || normalized;
         }
@@ -542,10 +561,13 @@ Use this UNLESS you need highly custom rules (then use rule_add_conditional_form
         'bottom_10_percent',
         'above_average',
         'below_average',
+        'negative_red_positive_green',
+        'traffic_light',
+        'variance_highlight',
       ])
     )
     .describe(
-      'Preset rule type. Accepts many aliases: duplicates, blanks, errors, green_red/heatmap, blue_red, data_bars/bars, top_10/highest, bottom_10/lowest, above_avg/positive, below_avg/negative'
+      'Preset rule type. Accepts many aliases: duplicates, blanks, errors, green_red/heatmap, blue_red, data_bars/bars, top_10/highest, bottom_10/lowest, above_avg/positive, below_avg/negative, financial/pnl/negative_red_positive_green, traffic_light/rag/stoplight, variance/budget_variance'
     ),
 });
 

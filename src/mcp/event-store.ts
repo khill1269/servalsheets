@@ -12,6 +12,7 @@ import type {
   EventId,
   StreamId,
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
 
 type StoredEvent = {
@@ -120,8 +121,7 @@ export class InMemoryEventStore implements EventStore {
 }
 
 export class RedisEventStore implements EventStore {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private static client: any | null = null;
+  private static client: RedisClientType | null = null;
   private static connected = false;
   private static connecting: Promise<void> | null = null;
   private static redisUrl: string | null = null;
@@ -276,7 +276,7 @@ export class RedisEventStore implements EventStore {
           });
           await client.connect();
 
-          RedisEventStore.client = client;
+          RedisEventStore.client = client as RedisClientType;
           RedisEventStore.connected = true;
           logger.info('Redis event store connected');
         } catch (error) {
@@ -344,9 +344,14 @@ export class RedisEventStore implements EventStore {
   }
 
   private async deleteStream(streamId: StreamId): Promise<void> {
+    const client = RedisEventStore.client;
+    if (!client) {
+      throw new Error('Redis client not connected');
+    }
+
     const eventsKey = this.getEventsKey(streamId);
-    const eventIds = (await RedisEventStore.client!.zRange(eventsKey, 0, -1)) as string[];
-    const pipeline = RedisEventStore.client!.multi();
+    const eventIds = (await client.zRange(eventsKey, 0, -1)) as string[];
+    const pipeline = client.multi();
 
     if (eventIds.length > 0) {
       const eventKeys = eventIds
@@ -354,7 +359,8 @@ export class RedisEventStore implements EventStore {
         .filter((entry): entry is { streamId: StreamId; sequence: number } => Boolean(entry))
         .map((entry) => this.getEventKey(entry.streamId, entry.sequence));
       if (eventKeys.length > 0) {
-        pipeline.del(...eventKeys);
+        // Use array spread - pipeline.del accepts variadic arguments
+        pipeline.del(eventKeys as [string, ...string[]]);
       }
     }
 

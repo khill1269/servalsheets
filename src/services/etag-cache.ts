@@ -14,10 +14,24 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { LRUCache } from 'lru-cache';
+import { recordCacheEviction } from '../observability/metrics.js';
 
 // Use generic Redis client type to avoid complex type compatibility issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
+
+/** Non-blocking SCAN replacement for redis.keys() */
+async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const result = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = result.cursor;
+    keys.push(...result.keys);
+  } while (cursor !== 0);
+  return keys;
+}
 
 /**
  * Cached ETag entry
@@ -52,16 +66,25 @@ const REDIS_TTL_SECONDS = 600; // 10 minutes (longer than L1)
  * - L2 (Redis): Distributed, 10min TTL, survives pod restarts
  */
 export class ETagCache {
-  private cache: Map<string, ETagEntry>;
+  private cache: LRUCache<string, ETagEntry>;
   private readonly maxAge: number; // milliseconds
   private readonly maxSize: number;
   private readonly redis?: RedisClient;
 
   constructor(options: { maxAge?: number; maxSize?: number; redis?: RedisClient } = {}) {
-    this.cache = new Map();
     this.maxAge = options.maxAge ?? 5 * 60 * 1000; // 5 minutes default
     this.maxSize = options.maxSize ?? 1000; // Max 1000 entries
     this.redis = options.redis;
+    this.cache = new LRUCache<string, ETagEntry>({
+      max: this.maxSize,
+      ttl: this.maxAge,
+      updateAgeOnGet: true,
+      dispose: (_value, key, reason) => {
+        const evictionReason = reason === 'evict' ? 'lru_evict' : reason === 'expire' ? 'ttl_expire' : reason;
+        recordCacheEviction(evictionReason);
+        logger.debug('ETag cache entry evicted', { key, reason: evictionReason });
+      },
+    });
 
     if (this.redis) {
       logger.info('ETag cache initialized with Redis L2', {
@@ -111,14 +134,7 @@ export class ETagCache {
       return null;
     }
 
-    // Check if expired
     const age = Date.now() - entry.cachedAt;
-    if (age > this.maxAge) {
-      this.cache.delete(cacheKey);
-      logger.debug('ETag expired', { key: cacheKey, ageMs: age });
-      return null;
-    }
-
     logger.debug('ETag cache hit', {
       key: cacheKey,
       etag: entry.etag.substring(0, 16),
@@ -143,13 +159,8 @@ export class ETagCache {
     // Check L1 cache (memory) first
     const entry = this.cache.get(cacheKey);
     if (entry && entry.cachedData) {
-      const age = Date.now() - entry.cachedAt;
-      if (age <= this.maxAge) {
-        logger.debug('ETag data cache hit (L1)', { key: cacheKey });
-        return entry.cachedData;
-      }
-      // Expired in L1
-      this.cache.delete(cacheKey);
+      logger.debug('ETag data cache hit (L1)', { key: cacheKey });
+      return entry.cachedData;
     }
 
     // Check L2 cache (Redis) if available
@@ -193,15 +204,6 @@ export class ETagCache {
 
     const cacheKey = this.getCacheKey(key);
     const now = Date.now();
-
-    // Enforce max size (LRU-style: delete oldest if at capacity)
-    if (this.cache.size >= this.maxSize && !this.cache.has(cacheKey)) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey) {
-        this.cache.delete(oldestKey);
-        logger.debug('ETag cache eviction (max size)', { evicted: oldestKey });
-      }
-    }
 
     const entry: ETagEntry = {
       etag,
@@ -278,7 +280,7 @@ export class ETagCache {
     let count = 0;
 
     // Invalidate L1 (memory)
-    for (const [key] of this.cache) {
+    for (const key of this.cache.keys()) {
       if (key.startsWith(`${spreadsheetId}:`)) {
         this.cache.delete(key);
         count++;
@@ -289,7 +291,7 @@ export class ETagCache {
     if (this.redis) {
       try {
         const pattern = `${REDIS_KEY_PREFIX}${spreadsheetId}:*`;
-        const keys = await this.redis.keys(pattern);
+        const keys = await scanRedisKeys(this.redis, pattern);
         if (keys.length > 0) {
           await this.redis.del(...keys);
           logger.debug('Invalidated spreadsheet ETags from Redis', {
@@ -311,6 +313,75 @@ export class ETagCache {
   }
 
   /**
+   * Get all cache keys for a spreadsheet
+   *
+   * Returns array of cache key strings that can be used with selective invalidation.
+   *
+   * @param spreadsheetId - Spreadsheet ID
+   * @returns Array of cache keys (e.g., ['spreadsheetId:metadata', 'spreadsheetId:values:A1:B10'])
+   */
+  async getKeysForSpreadsheet(spreadsheetId: string): Promise<string[]> {
+    const keys: string[] = [];
+
+    // Get from L1 (memory)
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(`${spreadsheetId}:`)) {
+        keys.push(key);
+      }
+    }
+
+    // Get from L2 (Redis) if available
+    if (this.redis) {
+      try {
+        const pattern = `${REDIS_KEY_PREFIX}${spreadsheetId}:*`;
+        const redisKeys = await scanRedisKeys(this.redis, pattern);
+        // Strip Redis prefix to get actual cache keys
+        const cacheKeys = redisKeys.map((k: string) => k.replace(REDIS_KEY_PREFIX, ''));
+        // Merge with L1 keys (deduplicate)
+        for (const key of cacheKeys) {
+          if (!keys.includes(key)) {
+            keys.push(key);
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to get keys from Redis', {
+          spreadsheetId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return keys;
+  }
+
+  /**
+   * Invalidate a specific cache key by string
+   *
+   * Used by selective cache invalidation to invalidate matched keys.
+   *
+   * @param cacheKey - Full cache key string (e.g., 'spreadsheetId:metadata')
+   */
+  async invalidateKey(cacheKey: string): Promise<void> {
+    // Invalidate L1 (memory)
+    this.cache.delete(cacheKey);
+
+    // Invalidate L2 (Redis)
+    if (this.redis) {
+      try {
+        const redisKey = `${REDIS_KEY_PREFIX}${cacheKey}`;
+        await this.redis.del(redisKey);
+      } catch (error) {
+        logger.warn('Failed to invalidate key from Redis', {
+          key: cacheKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    logger.debug('Cache key invalidated', { key: cacheKey });
+  }
+
+  /**
    * Clear all cached ETags
    */
   clear(): void {
@@ -329,10 +400,13 @@ export class ETagCache {
     entries: Array<{ key: string; age: number }>;
   } {
     const now = Date.now();
-    const entries = Array.from(this.cache.entries()).map(([key, entry]) => ({
-      key,
-      age: now - entry.cachedAt,
-    }));
+    const entries: Array<{ key: string; age: number }> = [];
+    for (const key of this.cache.keys()) {
+      const entry = this.cache.peek(key);
+      if (entry) {
+        entries.push({ key, age: now - entry.cachedAt });
+      }
+    }
 
     return {
       size: this.cache.size,

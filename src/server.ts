@@ -9,6 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import type { AnySchema } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type {
   ToolTaskHandler,
@@ -102,6 +103,9 @@ import {
   registerKnowledgeIndexResource,
   registerKnowledgeSearchResource,
   initializeResourceNotifications,
+  registerConnectionHealthResource,
+  registerRestartHealthResource,
+  registerCostDashboardResources,
 } from './resources/index.js';
 import { cacheManager } from './utils/cache-manager.js';
 import { requestDeduplicator } from './utils/request-deduplication.js';
@@ -170,6 +174,9 @@ export class ServalSheetsServer {
   private taskAbortControllers = new Map<string, AbortController>();
   private healthMonitor: HealthMonitor;
   private connectionHealthCheck: ReturnType<typeof createConnectionHealthCheck>;
+
+  // Cached handler map (rebuilt only when handlers change)
+  private cachedHandlerMap: Record<string, (args: unknown, extra?: unknown) => Promise<unknown>> | null = null;
 
   // Resource lazy loading state
   private resourcesRegistered = false;
@@ -263,6 +270,7 @@ export class ServalSheetsServer {
         prefetchPredictor,
         accessPatternTracker,
         queryOptimizer,
+        prefetchingSystem,
       } = await initializePerformanceOptimizations(this.googleClient.sheets);
 
       // Create reusable context and handlers
@@ -295,6 +303,7 @@ export class ServalSheetsServer {
         prefetchPredictor, // Phase 3: Predictive prefetching (200-500ms latency reduction)
         accessPatternTracker, // Phase 3: Access pattern learning for smarter predictions
         queryOptimizer, // Phase 3B: Adaptive query optimization (-25% avg latency)
+        prefetchingSystem, // Pattern-based prefetching (80% latency reduction on sequential ops)
         snapshotService, // Pass to context for HistoryHandler undo/revert (Task 1.3)
         auth: {
           // Use getter to always read live value from GoogleApiClient
@@ -321,6 +330,7 @@ export class ServalSheetsServer {
         bigqueryApi: this.googleClient.bigquery ?? undefined,
       });
       this.handlers = handlers;
+      this.cachedHandlerMap = null; // Invalidate cached handler map
 
       // Removed: initWorkflowEngine (Claude orchestrates natively via MCP)
       // Removed: initPlanningAgent, initInsightsService (replaced by MCP-native Elicitation/Sampling)
@@ -734,8 +744,9 @@ export class ServalSheetsServer {
             });
           }
 
-          // Route to appropriate handler
-          const handlerMap = createToolHandlerMap(this.handlers, this.authHandler ?? undefined);
+          // Route to appropriate handler (cached — handlers don't change between requests)
+          this.cachedHandlerMap ??= createToolHandlerMap(this.handlers, this.authHandler ?? undefined);
+          const handlerMap = this.cachedHandlerMap;
 
           const handler = handlerMap[toolName];
           if (!handler) {
@@ -944,6 +955,17 @@ export class ServalSheetsServer {
     // These resources expose full tool schemas on-demand when using minimal registration
     registerSchemaResources(this._server);
 
+    // Register cost dashboard resources (billing integration)
+    registerCostDashboardResources(this._server);
+
+    // Register connection health resource (Phase 0, Priority 1)
+    // Exposes real-time connection health statistics for monitoring
+    registerConnectionHealthResource(this._server);
+
+    // Register restart policy health resource (Phase 0, Priority 4)
+    // Exposes restart policy state and backoff monitoring
+    registerRestartHealthResource(this._server);
+
     // Register master index resource (servalsheets://index)
     // Entry point for Claude to discover all available resources
     registerMasterIndexResource(this._server);
@@ -1033,12 +1055,9 @@ export class ServalSheetsServer {
    */
   private registerLogging(): void {
     try {
-      // Note: Using 'as any' to bypass TypeScript's deep type inference issues with SetLevelRequestSchema
       this._server.server.setRequestHandler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        SetLevelRequestSchema as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (request: any) => {
+        SetLevelRequestSchema,
+        async (request: z.infer<typeof SetLevelRequestSchema>) => {
           // Extract level from request params
           const level = request.params.level;
 
@@ -1150,6 +1169,7 @@ export class ServalSheetsServer {
     this.authHandler = null;
     this.handlers = null;
     this.context = null;
+    this.cachedHandlerMap = null;
 
     baseLogger.info('ServalSheets: Shutdown complete');
   }

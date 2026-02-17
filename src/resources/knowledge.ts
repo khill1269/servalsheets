@@ -463,7 +463,7 @@ export function registerKnowledgeIndexResource(server: McpServer): void {
           {
             uri: typeof uri === 'string' ? uri : uri.toString(),
             mimeType: 'application/json',
-            text: JSON.stringify(indexContent, null, 2),
+            text: JSON.stringify(indexContent),
           },
         ],
       };

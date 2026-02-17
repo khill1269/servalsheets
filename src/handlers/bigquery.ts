@@ -32,6 +32,7 @@ import { CircuitBreaker } from '../utils/circuit-breaker.js';
 import { getCircuitBreakerConfig } from '../config/env.js';
 import { circuitBreakerRegistry } from '../services/circuit-breaker-registry.js';
 import { ServiceError } from '../core/errors.js';
+import { createValidationError } from '../utils/error-factory.js';
 import type {
   SheetsBigQueryInput,
   SheetsBigQueryOutput,
@@ -53,6 +54,51 @@ import type {
   BigQueryImportInput,
 } from '../schemas/index.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Dangerous SQL patterns that should be blocked in Connected Sheets queries.
+ * Connected Sheets executes queries in BigQuery with the user's permissions,
+ * so we validate to prevent accidental destructive operations and cost attacks.
+ */
+const DANGEROUS_SQL_PATTERNS = [
+  /\bDROP\s+(TABLE|DATABASE|SCHEMA|VIEW|FUNCTION|PROCEDURE)\b/i,
+  /\bDELETE\s+FROM\b/i,
+  /\bTRUNCATE\s+TABLE\b/i,
+  /\bALTER\s+(TABLE|DATABASE|SCHEMA)\b/i,
+  /\bCREATE\s+(TABLE|DATABASE|SCHEMA|VIEW|FUNCTION|PROCEDURE)\b/i,
+  /\bINSERT\s+INTO\b/i,
+  /\bUPDATE\s+\S+\s+SET\b/i,
+  /\bMERGE\s+INTO\b/i,
+  /\bGRANT\b/i,
+  /\bREVOKE\b/i,
+  /\bEXECUTE\s+IMMEDIATE\b/i,
+];
+
+function validateBigQuerySql(query: string): void {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    throw createValidationError({ field: 'query', value: '', reason: 'BigQuery query cannot be empty' });
+  }
+
+  // Strip SQL comments to prevent evasion (e.g., DROP/**/TABLE)
+  let sanitized = trimmed;
+  sanitized = sanitized.replace(/--[^\n]*/g, ' '); // Single-line comments
+  sanitized = sanitized.replace(/\/\*[\s\S]*?\*\//g, ' '); // Multi-line comments
+  sanitized = sanitized.replace(/'([^'\\]|\\.)*'/g, ' '); // Single-quoted strings
+  sanitized = sanitized.replace(/"([^"\\]|\\.)*"/g, ' '); // Double-quoted strings
+  sanitized = sanitized.replace(/`([^`\\]|\\.)*`/g, ' '); // Backtick-quoted identifiers
+  sanitized = sanitized.replace(/\s+/g, ' '); // Collapse whitespace
+
+  for (const pattern of DANGEROUS_SQL_PATTERNS) {
+    if (pattern.test(sanitized)) {
+      throw createValidationError({
+        field: 'query',
+        value: trimmed.substring(0, 50),
+        reason: `BigQuery query contains a potentially destructive statement matching ${pattern.source}. Only SELECT queries are allowed.`,
+      });
+    }
+  }
+}
 
 export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, SheetsBigQueryOutput> {
   private sheetsApi: sheets_v4.Sheets;
@@ -210,6 +256,252 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
   }
 
   /**
+   * Execute a BigQuery query using the async job pattern with polling.
+   * Falls back to synchronous jobs.query for short queries.
+   *
+   * The async pattern: jobs.insert → poll jobs.get → jobs.getQueryResults
+   * This handles queries that take longer than the synchronous timeout.
+   */
+  private async executeQueryWithJobPolling(
+    bigquery: bigquery_v2.Bigquery,
+    params: {
+      projectId: string;
+      query: string;
+      maxResults?: number;
+      useLegacySql?: boolean;
+      timeoutMs?: number;
+      maximumBytesBilled?: string;
+      dryRun?: boolean;
+      useQueryCache?: boolean;
+      location?: string;
+      parameterMode?: string;
+      queryParameters?: bigquery_v2.Schema$QueryParameter[];
+    }
+  ): Promise<{
+    rows: unknown[][];
+    columns: string[];
+    totalRows: number;
+    bytesProcessed: number;
+    jobId?: string;
+    cacheHit?: boolean;
+  }> {
+    // Step 1: Try synchronous query first (fast path for small queries)
+    const syncResponse = await this.withBigQueryCircuitBreaker(() =>
+      bigquery.jobs.query({
+        projectId: params.projectId,
+        requestBody: {
+          query: params.query,
+          maxResults: params.maxResults ?? 10000,
+          useLegacySql: params.useLegacySql ?? false,
+          timeoutMs: params.timeoutMs ?? 10000,
+          maximumBytesBilled: params.maximumBytesBilled,
+          dryRun: params.dryRun ?? false,
+          useQueryCache: params.useQueryCache ?? true,
+          location: params.location,
+          parameterMode: params.parameterMode,
+          queryParameters: params.queryParameters,
+        },
+      })
+    );
+
+    const jobId = syncResponse.data.jobReference?.jobId;
+    const jobComplete = syncResponse.data.jobComplete ?? false;
+
+    // If job completed synchronously, return results directly
+    if (jobComplete) {
+      // Check for errors even in sync response
+      const syncErrors = syncResponse.data.errors;
+      if (syncErrors && syncErrors.length > 0) {
+        throw new ServiceError(`BigQuery query failed: ${syncErrors[0]?.message ?? 'Unknown error'}`, 'INTERNAL_ERROR', 'bigquery');
+      }
+
+      const schema = syncResponse.data.schema?.fields ?? [];
+      const columns = schema.map((f) => f.name ?? '');
+      let allRows = syncResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+
+      // Handle pagination for large result sets
+      let pageToken: string | undefined = syncResponse.data.pageToken ?? undefined;
+      while (pageToken && jobId) {
+        const currentToken = pageToken;
+        const pageResponse = await this.withBigQueryCircuitBreaker(() =>
+          bigquery.jobs.getQueryResults({
+            projectId: params.projectId,
+            jobId,
+            pageToken: currentToken,
+            maxResults: params.maxResults ?? 10000,
+          })
+        );
+        const pageRows =
+          pageResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+        allRows = allRows.concat(pageRows);
+        pageToken = pageResponse.data.pageToken ?? undefined;
+
+        // Safety limit: don't fetch more than 100K rows
+        if (allRows.length > 100000) {
+          logger.warn('BigQuery result set truncated at 100K rows', { jobId });
+          break;
+        }
+      }
+
+      return {
+        rows: allRows,
+        columns,
+        totalRows: allRows.length,
+        bytesProcessed: parseInt(syncResponse.data.totalBytesProcessed ?? '0', 10),
+        jobId: jobId ?? undefined,
+        cacheHit: syncResponse.data.cacheHit ?? undefined,
+      };
+    }
+
+    // Step 2: Job didn't complete synchronously - poll for completion
+    if (!jobId) {
+      throw new ServiceError('BigQuery query did not return a job ID', 'INTERNAL_ERROR', 'bigquery');
+    }
+
+    logger.info('BigQuery query running asynchronously, polling for completion', {
+      jobId,
+      projectId: params.projectId,
+    });
+
+    const MAX_POLL_ATTEMPTS = 60;
+    const INITIAL_POLL_MS = 1000;
+    const MAX_POLL_MS = 10000;
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+      const delay = Math.min(INITIAL_POLL_MS * Math.pow(1.5, attempt), MAX_POLL_MS);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      const jobStatus = await this.withBigQueryCircuitBreaker(() =>
+        bigquery.jobs.get({
+          projectId: params.projectId,
+          jobId,
+          location: params.location,
+        })
+      );
+
+      const state = jobStatus.data.status?.state;
+
+      if (state === 'DONE') {
+        // Check for errors
+        const errors = jobStatus.data.status?.errors;
+        if (errors && errors.length > 0) {
+          throw new ServiceError(`BigQuery query failed: ${errors[0]?.message ?? 'Unknown error'}`, 'INTERNAL_ERROR', 'bigquery');
+        }
+
+        // Fetch results
+        const resultsResponse = await this.withBigQueryCircuitBreaker(() =>
+          bigquery.jobs.getQueryResults({
+            projectId: params.projectId,
+            jobId,
+            maxResults: params.maxResults ?? 10000,
+          })
+        );
+
+        const schema = resultsResponse.data.schema?.fields ?? [];
+        const columns = schema.map((f) => f.name ?? '');
+        let allRows =
+          resultsResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+
+        // Paginate remaining results
+        let pageToken: string | undefined = resultsResponse.data.pageToken ?? undefined;
+        while (pageToken) {
+          const currentToken = pageToken;
+          const pageResponse = await this.withBigQueryCircuitBreaker(() =>
+            bigquery.jobs.getQueryResults({
+              projectId: params.projectId,
+              jobId,
+              pageToken: currentToken,
+              maxResults: params.maxResults ?? 10000,
+            })
+          );
+          const pageRows =
+            pageResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+          allRows = allRows.concat(pageRows);
+          pageToken = pageResponse.data.pageToken ?? undefined;
+
+          if (allRows.length > 100000) {
+            logger.warn('BigQuery result set truncated at 100K rows', { jobId });
+            break;
+          }
+        }
+
+        return {
+          rows: allRows,
+          columns,
+          totalRows: allRows.length,
+          bytesProcessed: parseInt(jobStatus.data.statistics?.query?.totalBytesBilled ?? '0', 10),
+          jobId,
+          cacheHit: jobStatus.data.statistics?.query?.cacheHit ?? undefined,
+        };
+      }
+
+      logger.debug('BigQuery job still running', { jobId, state, attempt });
+    }
+
+    throw new ServiceError(
+      `BigQuery query timed out after ${MAX_POLL_ATTEMPTS} poll attempts. Job ID: ${jobId} - check BigQuery console for status.`,
+      'DEADLINE_EXCEEDED',
+      'bigquery'
+    );
+  }
+
+  /**
+   * Map BigQuery API errors to structured ServalSheets errors
+   */
+  private mapBigQueryError(err: unknown): BigQueryResponse {
+    const error = err as {
+      response?: { data?: { error?: { code?: number; status?: string; message?: string } } };
+      message?: string;
+    };
+    const apiError = error.response?.data?.error;
+
+    if (apiError) {
+      switch (apiError.status) {
+        case 'PERMISSION_DENIED':
+          return this.error({
+            code: 'PERMISSION_DENIED',
+            message: `BigQuery access denied: ${apiError.message ?? 'Check permissions'}`,
+            retryable: false,
+            suggestedFix:
+              'Ensure OAuth scopes include bigquery and the user has access to the dataset.',
+          });
+        case 'NOT_FOUND':
+          return this.error({
+            code: 'NOT_FOUND',
+            message: `BigQuery resource not found: ${apiError.message ?? 'Check project/dataset/table IDs'}`,
+            retryable: false,
+            suggestedFix: 'Verify projectId, datasetId, and tableId are correct.',
+          });
+        case 'INVALID_ARGUMENT':
+          return this.error({
+            code: 'INVALID_PARAMS',
+            message: `Invalid BigQuery query: ${apiError.message ?? 'Check SQL syntax'}`,
+            retryable: false,
+            suggestedFix: 'Check SQL syntax. Use preview with dryRun:true to validate queries.',
+          });
+        default:
+          break;
+      }
+
+      if (apiError.code === 429) {
+        return this.error({
+          code: 'QUOTA_EXCEEDED',
+          message: 'BigQuery API rate limit exceeded. Try again later.',
+          retryable: true,
+          suggestedFix: 'Wait 60 seconds and retry, or reduce query frequency.',
+        });
+      }
+    }
+
+    return this.error({
+      code: 'UNAVAILABLE',
+      message: `BigQuery operation failed: ${error.message ?? 'Unknown error'}`,
+      retryable: true,
+      suggestedFix: 'Try again. If the issue persists, check the BigQuery console.',
+    });
+  }
+
+  /**
    * Connect: Create a BigQuery Connected Sheets data source
    */
   private async handleConnect(req: BigQueryConnectInput): Promise<BigQueryResponse> {
@@ -229,6 +521,8 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
           tableId: req.spec.tableId,
         };
       } else if (req.spec.query) {
+        // Validate query to prevent destructive SQL operations
+        validateBigQuerySql(req.spec.query);
         dataSourceSpec.bigQuery!.querySpec = {
           rawQuery: req.spec.query,
         };
@@ -492,6 +786,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
    * Query: Execute a BigQuery SQL query via Connected Sheets
    */
   private async handleQuery(req: BigQueryQueryInput): Promise<BigQueryResponse> {
+    // Validate query to prevent destructive SQL operations
+    validateBigQuerySql(req.query);
+
     try {
       // If existing data source, update its query
       if (req.dataSourceId) {
@@ -576,39 +873,59 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
    * Preview: Preview query results without full execution
    */
   private async handlePreview(req: BigQueryPreviewInput): Promise<BigQueryResponse> {
+    // Validate query to prevent destructive SQL operations
+    validateBigQuerySql(req.query);
+
     const bigquery = this.requireBigQuery();
 
     try {
-      // Use BigQuery jobs.query with query controls (wrapped with circuit breaker - P2-4)
-      const queryResponse = await this.withBigQueryCircuitBreaker(() =>
-        bigquery.jobs.query({
-          projectId: req.projectId,
-          requestBody: {
-            query: req.query,
-            maxResults: req.maxRows ?? 10,
-            useLegacySql: false,
-            // Query control parameters (P1-2)
-            timeoutMs: req.timeoutMs,
-            dryRun: req.dryRun ?? false,
-            useQueryCache: req.useQueryCache ?? true,
-            location: req.location,
-          },
-        })
-      );
+      // Opt-in cost estimation: run dry run first when estimateCost is true
+      if (req.estimateCost && !req.dryRun) {
+        const dryRunResponse = await this.withBigQueryCircuitBreaker(() =>
+          bigquery.jobs.query({
+            projectId: req.projectId,
+            requestBody: {
+              query: req.query,
+              useLegacySql: false,
+              dryRun: true,
+            },
+          })
+        );
+        const estimatedBytes = parseInt(dryRunResponse.data.totalBytesProcessed ?? '0', 10);
+        const estimatedGB = estimatedBytes / (1024 * 1024 * 1024);
 
-      const schema = queryResponse.data.schema?.fields ?? [];
-      const columns = schema.map((f) => f.name ?? '');
-      const rows = queryResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+        // Warn if query will scan more than 1GB
+        if (estimatedGB > 1) {
+          logger.warn('BigQuery preview will scan large dataset', {
+            estimatedBytes,
+            estimatedGB: estimatedGB.toFixed(2),
+            query: req.query.substring(0, 100),
+          });
+        }
+      }
+
+      // Use async job pattern for reliable execution
+      const result = await this.executeQueryWithJobPolling(bigquery, {
+        projectId: req.projectId,
+        query: req.query,
+        maxResults: req.maxRows ?? 10,
+        timeoutMs: req.timeoutMs,
+        dryRun: req.dryRun ?? false,
+        useQueryCache: req.useQueryCache ?? true,
+        location: req.location,
+      });
 
       return this.success('preview', {
-        rowCount: rows.length,
-        columns,
-        rows,
-        bytesProcessed: parseInt(queryResponse.data.totalBytesProcessed ?? '0', 10),
+        rowCount: result.rows.length,
+        columns: result.columns,
+        rows: result.rows as (string | number | boolean | null)[][],
+        bytesProcessed: result.bytesProcessed,
+        cacheHit: result.cacheHit,
+        jobId: result.jobId,
       });
     } catch (err) {
       logger.error('Failed to preview BigQuery query', { err, req });
-      throw err;
+      return this.mapBigQueryError(err);
     }
   }
 
@@ -916,6 +1233,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
    * Import from BigQuery: Import BigQuery query results to a sheet
    */
   private async handleImportFromBigQuery(req: BigQueryImportInput): Promise<BigQueryResponse> {
+    // Validate query to prevent destructive SQL operations
+    validateBigQuerySql(req.query);
+
     const bigquery = this.requireBigQuery();
 
     try {
@@ -928,29 +1248,22 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         },
       }));
 
-      // Run the query with control parameters (wrapped with circuit breaker - P2-4)
-      const queryResponse = await this.withBigQueryCircuitBreaker(() =>
-        bigquery.jobs.query({
-          projectId: req.projectId,
-          requestBody: {
-            query: req.query,
-            maxResults: req.maxResults ?? 10000,
-            useLegacySql: false,
-            // Query control parameters (P1-2)
-            timeoutMs: req.timeoutMs,
-            maximumBytesBilled: req.maximumBytesBilled,
-            dryRun: req.dryRun ?? false,
-            useQueryCache: req.useQueryCache ?? true,
-            location: req.location,
-            parameterMode: queryParameters ? 'NAMED' : undefined,
-            queryParameters,
-          },
-        })
-      );
+      // Use async job pattern with pagination for reliable large query execution
+      const queryResult = await this.executeQueryWithJobPolling(bigquery, {
+        projectId: req.projectId,
+        query: req.query,
+        maxResults: req.maxResults ?? 10000,
+        timeoutMs: req.timeoutMs,
+        maximumBytesBilled: req.maximumBytesBilled,
+        dryRun: req.dryRun ?? false,
+        useQueryCache: req.useQueryCache ?? true,
+        location: req.location,
+        parameterMode: queryParameters ? 'NAMED' : undefined,
+        queryParameters,
+      });
 
-      const schema = queryResponse.data.schema?.fields ?? [];
-      const columns = schema.map((f) => f.name ?? '');
-      const rows = queryResponse.data.rows?.map((row) => row.f?.map((cell) => cell.v) ?? []) ?? [];
+      const columns = queryResult.columns;
+      const rows = queryResult.rows;
 
       // Prepare values array for sheet
       const values: unknown[][] = [];
@@ -1008,7 +1321,9 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
         columns,
         sheetId: targetSheetId ?? undefined,
         sheetName: targetSheetName,
-        bytesProcessed: parseInt(queryResponse.data.totalBytesProcessed ?? '0', 10),
+        bytesProcessed: queryResult.bytesProcessed,
+        cacheHit: queryResult.cacheHit,
+        jobId: queryResult.jobId,
         mutation: {
           cellsAffected: values.length * (columns.length || 1),
           sheetsModified: [targetSheetName],
@@ -1016,7 +1331,7 @@ export class SheetsBigQueryHandler extends BaseHandler<SheetsBigQueryInput, Shee
       });
     } catch (err) {
       logger.error('Failed to import from BigQuery', { err, req });
-      throw err;
+      return this.mapBigQueryError(err);
     }
   }
 }

@@ -57,6 +57,25 @@ const REDACTION_PATTERNS: Array<{
       /(?<=(?:Error|at|stack|trace|caused by)[^\n]{0,200})[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi,
     replacement: '[EMAIL_REDACTED]',
   },
+  // JWT tokens (header.payload.signature, each part is base64url)
+  {
+    name: 'jwt_token',
+    pattern: /eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/g,
+    replacement: '[JWT_REDACTED]',
+  },
+  // Private keys (RSA, EC, generic)
+  {
+    name: 'private_key',
+    pattern:
+      /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC )?PRIVATE KEY-----/g,
+    replacement: '[PRIVATE_KEY_REDACTED]',
+  },
+  // Redis URLs with credentials (redis://user:password@host)
+  {
+    name: 'redis_credentials',
+    pattern: /redis:\/\/[^:]+:[^@]+@/g,
+    replacement: 'redis://[CREDENTIALS_REDACTED]@',
+  },
 ];
 
 /**

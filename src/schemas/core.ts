@@ -2,7 +2,7 @@
  * Tool: sheets_core (Consolidated)
  * Core spreadsheet and sheet/tab operations
  *
- * Consolidates legacy sheets_spreadsheet (8 actions) + sheets_sheet (7 actions) = 15 actions
+ * Consolidates legacy sheets_spreadsheet (8 actions) + sheets_sheet (9 actions) + batch (2 actions) = 19 actions
  * MCP Protocol: 2025-11-25
  */
 
@@ -619,7 +619,7 @@ export type CoreResponse = z.infer<typeof CoreResponseSchema>;
 /** The unwrapped request type (the discriminated union of actions) */
 export type CoreRequest = SheetsCoreInput['request'];
 
-// Type narrowing helpers for handler methods (15 action types)
+// Type narrowing helpers for handler methods (19 action types)
 // Spreadsheet actions
 export type CoreGetInput = SheetsCoreInput['request'] & {
   action: 'get';

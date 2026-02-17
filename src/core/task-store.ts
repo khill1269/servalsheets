@@ -6,6 +6,7 @@
  */
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { RedisClientType } from 'redis';
 import { logger } from '../utils/logger.js';
 import { registerCleanup } from '../utils/resource-cleanup.js';
 
@@ -356,8 +357,7 @@ export class InMemoryTaskStore implements TaskStore {
  * - Redis SCAN for efficient task listing
  */
 export class RedisTaskStore implements TaskStore {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private client: any; // Redis client (dynamic import, type not available at compile time)
+  private client: RedisClientType | null = null;
   private connected: boolean = false;
   private keyPrefix: string;
 
@@ -370,10 +370,11 @@ export class RedisTaskStore implements TaskStore {
 
   /**
    * Initialize Redis connection (lazy)
+   * @throws Error if connection fails
    */
-  private async ensureConnected(): Promise<void> {
-    if (this.connected) {
-      return;
+  private async ensureConnected(): Promise<RedisClientType> {
+    if (this.connected && this.client) {
+      return this.client;
     }
 
     try {
@@ -392,6 +393,7 @@ export class RedisTaskStore implements TaskStore {
       await this.client.connect();
       this.connected = true;
       logger.info('Redis task store connected');
+      return this.client;
     } catch (error) {
       throw new Error(
         `Failed to connect to Redis at ${this.redisUrl}. ` +
@@ -413,7 +415,7 @@ export class RedisTaskStore implements TaskStore {
    * Create a new task
    */
   async createTask(options: { ttl?: number } = {}): Promise<Task> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     const now = new Date().toISOString();
@@ -430,7 +432,7 @@ export class RedisTaskStore implements TaskStore {
 
     // Store as Redis hash
     const taskKey = this.getTaskKey(taskId);
-    await this.client.hSet(taskKey, {
+    await client.hSet(taskKey, {
       taskId,
       status: task.status,
       createdAt: task.createdAt,
@@ -441,7 +443,7 @@ export class RedisTaskStore implements TaskStore {
 
     // Set expiration (convert ms to seconds)
     const ttlSeconds = Math.ceil(ttl / 1000);
-    await this.client.expire(taskKey, ttlSeconds);
+    await client.expire(taskKey, ttlSeconds);
 
     return task;
   }
@@ -450,23 +452,32 @@ export class RedisTaskStore implements TaskStore {
    * Get task by ID
    */
   async getTask(taskId: string): Promise<Task | null> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
-    const taskData = await this.client.hGetAll(taskKey);
+    const taskData = await client.hGetAll(taskKey);
 
     if (!taskData || Object.keys(taskData).length === 0) {
       return null;
     }
 
-    // Parse task data
+    // Parse task data - Redis hash values can be undefined
+    const taskIdValue = taskData['taskId'];
+    const createdAtValue = taskData['createdAt'];
+    const lastUpdatedAtValue = taskData['lastUpdatedAt'];
+    const ttlValue = taskData['ttl'];
+
+    if (!taskIdValue || !createdAtValue || !lastUpdatedAtValue || !ttlValue) {
+      return null;
+    }
+
     const task: Task = {
-      taskId: taskData['taskId'],
+      taskId: taskIdValue,
       status: taskData['status'] as TaskStatus,
       statusMessage: taskData['statusMessage'],
-      createdAt: taskData['createdAt'],
-      lastUpdatedAt: taskData['lastUpdatedAt'],
-      ttl: parseInt(taskData['ttl'], 10),
+      createdAt: createdAtValue,
+      lastUpdatedAt: lastUpdatedAtValue,
+      ttl: parseInt(ttlValue, 10),
       pollInterval: taskData['pollInterval'] ? parseInt(taskData['pollInterval'], 10) : undefined,
     };
 
@@ -485,12 +496,12 @@ export class RedisTaskStore implements TaskStore {
    * Update task status and message
    */
   async updateTaskStatus(taskId: string, status: TaskStatus, message?: string): Promise<void> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
 
     // Check if task exists
-    const exists = await this.client.exists(taskKey);
+    const exists = await client.exists(taskKey);
     if (!exists) {
       throw new Error(`Task not found: ${taskId}`);
     }
@@ -505,7 +516,7 @@ export class RedisTaskStore implements TaskStore {
       updates['statusMessage'] = message;
     }
 
-    await this.client.hSet(taskKey, updates);
+    await client.hSet(taskKey, updates);
   }
 
   /**
@@ -516,7 +527,7 @@ export class RedisTaskStore implements TaskStore {
     status: 'completed' | 'failed' | 'cancelled',
     result: CallToolResult
   ): Promise<void> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     // Update task status
     await this.updateTaskStatus(taskId, status);
@@ -524,13 +535,13 @@ export class RedisTaskStore implements TaskStore {
     // Store result as JSON
     const resultKey = this.getResultKey(taskId);
     const taskResult: TaskResult = { result, status };
-    await this.client.set(resultKey, JSON.stringify(taskResult));
+    await client.set(resultKey, JSON.stringify(taskResult));
 
     // Set same expiration as task
     const taskKey = this.getTaskKey(taskId);
-    const ttl = await this.client.ttl(taskKey);
+    const ttl = await client.ttl(taskKey);
     if (ttl > 0) {
-      await this.client.expire(resultKey, ttl);
+      await client.expire(resultKey, ttl);
     }
   }
 
@@ -538,10 +549,10 @@ export class RedisTaskStore implements TaskStore {
    * Get task result
    */
   async getTaskResult(taskId: string): Promise<TaskResult | null> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const resultKey = this.getResultKey(taskId);
-    const resultData = await this.client.get(resultKey);
+    const resultData = await client.get(resultKey);
 
     if (!resultData) {
       return null;
@@ -559,12 +570,12 @@ export class RedisTaskStore implements TaskStore {
    * Delete task and its result
    */
   async deleteTask(taskId: string): Promise<void> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
     const resultKey = this.getResultKey(taskId);
 
-    await this.client.del([taskKey, resultKey]);
+    await client.del([taskKey, resultKey]);
   }
 
   /**
@@ -574,14 +585,14 @@ export class RedisTaskStore implements TaskStore {
    * explicit cleanup for monitoring purposes
    */
   async cleanupExpiredTasks(): Promise<number> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     let cleaned = 0;
     let cursor = '0';
 
     // Use SCAN to iterate over task keys
     do {
-      const result = await this.client.scan(cursor, {
+      const result = await client.scan(cursor, {
         MATCH: `${this.keyPrefix}*`,
         COUNT: 100,
       });
@@ -594,7 +605,7 @@ export class RedisTaskStore implements TaskStore {
         if (key.includes(':result:')) continue;
 
         // Check if key still exists (may have been expired)
-        const exists = await this.client.exists(key);
+        const exists = await client.exists(key);
         if (!exists) {
           cleaned++;
         }
@@ -608,7 +619,7 @@ export class RedisTaskStore implements TaskStore {
    * Get all active tasks
    */
   async getAllTasks(): Promise<Task[]> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const tasks: Task[] = [];
     const now = Date.now();
@@ -616,7 +627,7 @@ export class RedisTaskStore implements TaskStore {
 
     // Use SCAN to iterate over task keys
     do {
-      const result = await this.client.scan(cursor, {
+      const result = await client.scan(cursor, {
         MATCH: `${this.keyPrefix}task_*`,
         COUNT: 100,
       });
@@ -628,15 +639,25 @@ export class RedisTaskStore implements TaskStore {
         // Skip result keys
         if (key.includes(':result:')) continue;
 
-        const taskData = await this.client.hGetAll(key);
+        const taskData = await client.hGetAll(key);
         if (taskData && Object.keys(taskData).length > 0) {
+          // Redis hash values can be undefined
+          const taskIdValue = taskData['taskId'];
+          const createdAtValue = taskData['createdAt'];
+          const lastUpdatedAtValue = taskData['lastUpdatedAt'];
+          const ttlValue = taskData['ttl'];
+
+          if (!taskIdValue || !createdAtValue || !lastUpdatedAtValue || !ttlValue) {
+            continue;
+          }
+
           const task: Task = {
-            taskId: taskData['taskId'],
+            taskId: taskIdValue,
             status: taskData['status'] as TaskStatus,
             statusMessage: taskData['statusMessage'],
-            createdAt: taskData['createdAt'],
-            lastUpdatedAt: taskData['lastUpdatedAt'],
-            ttl: parseInt(taskData['ttl'], 10),
+            createdAt: createdAtValue,
+            lastUpdatedAt: lastUpdatedAtValue,
+            ttl: parseInt(ttlValue, 10),
             pollInterval: taskData['pollInterval']
               ? parseInt(taskData['pollInterval'], 10)
               : undefined,
@@ -699,10 +720,10 @@ export class RedisTaskStore implements TaskStore {
    * @param reason - Optional reason for cancellation
    */
   async cancelTask(taskId: string, reason?: string): Promise<void> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const taskKey = this.getTaskKey(taskId);
-    const task = await this.client.hGetAll(taskKey);
+    const task = await client.hGetAll(taskKey);
 
     if (!task || Object.keys(task).length === 0) {
       throw new Error(`Task ${taskId} not found`);
@@ -715,8 +736,9 @@ export class RedisTaskStore implements TaskStore {
 
     // Store cancellation reason
     const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
-    const ttlSeconds = Math.ceil(parseInt(task['ttl'], 10) / 1000);
-    await this.client.set(cancelKey, reason || 'Cancelled by client', {
+    const ttlValue = task['ttl'];
+    const ttlSeconds = ttlValue ? Math.ceil(parseInt(ttlValue, 10) / 1000) : 3600;
+    await client.set(cancelKey, reason || 'Cancelled by client', {
       EX: ttlSeconds,
     });
 
@@ -733,10 +755,10 @@ export class RedisTaskStore implements TaskStore {
    * @returns true if task was cancelled
    */
   async isTaskCancelled(taskId: string): Promise<boolean> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
-    const reason = await this.client.get(cancelKey);
+    const reason = await client.get(cancelKey);
     return reason !== null;
   }
 
@@ -747,9 +769,9 @@ export class RedisTaskStore implements TaskStore {
    * @returns Cancellation reason or null
    */
   async getCancellationReason(taskId: string): Promise<string | null> {
-    await this.ensureConnected();
+    const client = await this.ensureConnected();
 
     const cancelKey = `${this.keyPrefix}cancelled:${taskId}`;
-    return await this.client.get(cancelKey);
+    return await client.get(cancelKey);
   }
 }

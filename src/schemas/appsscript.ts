@@ -250,19 +250,23 @@ const DeployActionSchema = z.object({
     .enum(['WEB_APP', 'EXECUTION_API'])
     .optional()
     .default('EXECUTION_API')
-    .describe('Type of deployment'),
+    .describe(
+      'Deployment type (WEB_APP, EXECUTION_API). Note: Must be set in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
+    ),
   access: z
     .enum(['MYSELF', 'DOMAIN', 'ANYONE', 'ANYONE_ANONYMOUS'])
     .optional()
     .default('MYSELF')
     .describe(
-      'Who can access: MYSELF, DOMAIN (Workspace), ANYONE (Google account), ANYONE_ANONYMOUS'
+      'Who can access: MYSELF, DOMAIN (Workspace), ANYONE (Google account), ANYONE_ANONYMOUS. Note: Must be configured in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
     ),
   executeAs: z
     .enum(['USER_ACCESSING', 'USER_DEPLOYING'])
     .optional()
     .default('USER_DEPLOYING')
-    .describe('Execute as: USER_ACCESSING (end user) or USER_DEPLOYING (you)'),
+    .describe(
+      'Execute as: USER_ACCESSING (end user) or USER_DEPLOYING (you). Note: Must be configured in manifest (appsscript.json) via update_content action before deploying - the Deployments API reads this from the manifest.'
+    ),
   verbosity: VerbositySchema,
 });
 

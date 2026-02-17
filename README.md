@@ -1,6 +1,9 @@
 # ServalSheets
 
-Production-grade Google Sheets MCP Server with 22 tools, 298 actions, safety rails, and enterprise features.
+![Audit Score](https://img.shields.io/badge/audit-130.83%25-brightgreen)
+
+
+Production-grade Google Sheets MCP Server with 22 tools, 299 actions, safety rails, and enterprise features.
 
 [![MCP Protocol](https://img.shields.io/badge/MCP-2025--11--25-blue)](https://modelcontextprotocol.io)
 [![npm version](https://img.shields.io/npm/v/servalsheets)](https://www.npmjs.com/package/servalsheets)
@@ -70,7 +73,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 Full compliance with Model Context Protocol 2025-11-25:
 
 - ✅ **JSON-RPC 2.0**: Full compliance via @modelcontextprotocol/sdk v1.26.0
-- ✅ **Tools**: 22 tools with 298 actions using discriminated unions
+- ✅ **Tools**: 22 tools with 299 actions using discriminated unions
 - ✅ **Resources**: 6 URI templates + 7 knowledge resources
   - `sheets:///{spreadsheetId}` - Spreadsheet metadata
   - `sheets:///{spreadsheetId}/{range}` - Range values
@@ -120,6 +123,22 @@ Full compliance with Model Context Protocol 2025-11-25:
 - **Intent-Based Architecture**: Single BatchCompiler for all mutations
 - **User Confirmations**: Elicitation dialogs for destructive operations (SEP-1036)
 
+### API Documentation 📚
+
+- **OpenAPI 3.1 Specification**: Auto-generated from Zod schemas
+- **Interactive Swagger UI**: Test endpoints at `/api-docs` when HTTP server is running
+- **Multiple Formats**: JSON and YAML exports for SDK generation
+- **22 Tools Documented**: Complete API reference with request/response schemas
+- **Authentication Schemes**: Bearer token and OAuth 2.0 documented
+
+**Access Documentation:**
+```bash
+npm run start:http        # Start HTTP server
+open http://localhost:3000/api-docs  # View Swagger UI
+```
+
+See [OpenAPI Documentation Guide](docs/guides/OPENAPI_DOCUMENTATION.md) for details.
+
 ## Quick Start
 
 ### Installation
@@ -155,6 +174,48 @@ npm run start:http
 # Or with environment variables
 PORT=3000 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx npm run start:http
 ```
+
+### OAuth Scope Modes
+
+ServalSheets uses deployment-aware OAuth scopes to balance functionality and Google verification speed:
+
+| Mode | Actions Available | Use Case | Google Verification Time |
+|------|-------------------|----------|--------------------------|
+| **full** (default) | 298/298 | Self-hosted, enterprise | 4-6 weeks |
+| **standard** | 260/298 | SaaS, marketplace apps | 3-5 days |
+| **minimal** | ~180/298 | Basic operations only | 3-5 days |
+| **readonly** | ~120/298 | Analysis/reporting only | 3-5 days |
+
+**Self-Hosted (Default)**
+
+All features work out of the box with full scopes:
+
+```bash
+npm run auth
+npm run start:http
+```
+
+**SaaS/Marketplace Deployment**
+
+For faster Google verification (3-5 days instead of 4-6 weeks):
+
+```bash
+export DEPLOYMENT_MODE=saas
+npm run auth
+npm run start:http
+```
+
+**Disabled features in standard mode:**
+- Sharing/collaboration (sheets_collaborate)
+- BigQuery integration (sheets_bigquery)
+- Apps Script automation (sheets_appsscript)
+- Webhook notifications (sheets_webhook)
+
+**Enable all features:** Set `OAUTH_SCOPE_MODE=full` (accepts longer verification time)
+
+**Environment Variables:**
+- `DEPLOYMENT_MODE`: `self-hosted` (default, full scopes) or `saas` (standard scopes)
+- `OAUTH_SCOPE_MODE`: Explicit override - `full`, `standard`, `minimal`, `readonly`
 
 ## Documentation
 
@@ -260,7 +321,7 @@ See the [Developer Workflow Guide](./docs/development/DEVELOPER_WORKFLOW.md) for
 
 ## Tools Reference
 
-### Tool Summary (22 tools, 298 actions)
+### Tool Summary (22 tools, 299 actions)
 
 | Tool                  | Actions | Description                                                       |
 | --------------------- | ------- | ----------------------------------------------------------------- |
@@ -1001,7 +1062,7 @@ graph TB
 
 ## Schema Architecture: Discriminated Unions
 
-ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 298 actions. This architecture provides:
+ServalSheets uses **Zod discriminated unions** for type-safe action dispatch across 22 tools and 299 actions. This architecture provides:
 
 ### Pattern Overview
 
@@ -1805,7 +1866,7 @@ ServalSheets is **fully compliant** with the Model Context Protocol (MCP) specif
 | Feature | Status | Version | Implementation |
 |---------|--------|---------|-----------------|
 | **JSON-RPC 2.0** | ✅ Full | 2.0 | @modelcontextprotocol/sdk v1.26.0 |
-| **Tools** | ✅ Full | 2025-11-25 | 22 tools, 298 actions, discriminated unions |
+| **Tools** | ✅ Full | 2025-11-25 | 22 tools, 299 actions, discriminated unions |
 | **Resources** | ✅ Full | 2025-11-25 | 6 URI templates + 7 knowledge resources |
 | **Prompts** | ✅ Full | 2025-11-25 | 6 guided workflows with arguments |
 | **Completions** | ✅ Full | 2025-11-25 | Argument autocompletion |

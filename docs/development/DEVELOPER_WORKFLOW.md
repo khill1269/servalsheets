@@ -1,18 +1,18 @@
 ---
 title: Developer Workflow Guide
 category: development
-last_updated: 2026-01-31
-description: 'Version: 1.0'
-version: 1.6.0
-tags: [sheets]
+last_updated: 2026-02-17
+description: 'Complete onboarding and workflow guide for ServalSheets contributors'
+version: 2.0
+tags: [onboarding, workflow, development, testing, validation]
 ---
 
 # Developer Workflow Guide
 
-**Version:** 1.0
+**Version:** 2.0 (Updated for Phase -1 validation infrastructure)
 **For:** Contributors to ServalSheets
-**Time to read:** 20-30 minutes
-**Last Updated:** 2026-01-11
+**Time to read:** 30-40 minutes
+**Last Updated:** 2026-02-17
 
 ---
 
@@ -20,12 +20,15 @@ tags: [sheets]
 
 1. [Quick Start (5 minutes)](#quick-start-5-minutes)
 2. [Setup (First Time)](#setup-first-time)
-3. [Development Loop](#development-loop)
-4. [Testing Discipline](#testing-discipline)
-5. [Pre-PR Checklist](#pre-pr-checklist)
-6. [Common Tasks](#common-tasks)
-7. [Debugging Patterns](#debugging-patterns)
-8. [Anti-Patterns](#anti-patterns)
+3. [⚡ Quick Reference Cards](#quick-reference-cards)
+4. [Development Loop](#development-loop)
+5. [Validation Gates (Phase -1)](#validation-gates-phase--1)
+6. [Testing Discipline](#testing-discipline)
+7. [Pre-PR Checklist](#pre-pr-checklist)
+8. [Common Tasks](#common-tasks)
+9. [Debugging Patterns](#debugging-patterns)
+10. [Anti-Patterns](#anti-patterns)
+11. [Common Error Scenarios](#common-error-scenarios)
 
 ---
 
@@ -112,6 +115,193 @@ If all three commands succeed, you're ready to contribute!
 
 ---
 
+## ⚡ Quick Reference Cards
+
+### Essential Commands (Memorize These)
+
+```bash
+# Verification (use before every commit)
+npm run gates:g0               # 20s - Baseline checks
+npm run verify                 # 45s - Full verification
+npm run schema:commit          # 60s - Schema change workflow
+
+# Testing (during development)
+npm run test:fast              # 12s - Fast test suite
+npm test -- <pattern>          # Run specific tests
+npm run test:watch             # Auto-run on changes
+
+# Checking (quick validation)
+npm run check:drift            # 3s  - Metadata sync
+npm run typecheck              # 10s - TypeScript errors
+npm run lint                   # 8s  - Code quality
+```
+
+### VS Code Keyboard Shortcuts
+
+Install from `.vscode/tasks.json`:
+
+```
+⌨️ VALIDATION GATES
+Cmd+G Cmd+0    → G0: Baseline Integrity (20s)
+Cmd+G Cmd+1    → G1: Metadata Consistency (8s)
+Cmd+G Cmd+A    → All gates (3 min)
+
+⌨️ TESTING
+Cmd+Shift+T    → Run all tests
+Cmd+Shift+F    → Test current file
+Cmd+K Cmd+F    → Fast tests only
+
+⌨️ QUICK CHECKS
+Cmd+K Cmd+V    → Full verify
+Cmd+K Cmd+C    → Check drift
+Cmd+K Cmd+B    → Build
+
+⌨️ SCHEMA WORKFLOW
+Cmd+Shift+S    → Schema commit workflow
+Cmd+Shift+M    → Generate metadata
+```
+
+**Setup:** Copy `.vscode/tasks.json` and `.vscode/keybindings.json` to your workspace.
+
+### Common Workflows Cheat Sheet
+
+#### 1️⃣ Bug Fix Workflow (10-20 min)
+
+```bash
+git checkout -b fix/issue-123
+# 1. Write failing test
+code tests/handlers/data.test.ts
+npm test tests/handlers/data.test.ts  # ❌ Fails
+
+# 2. Fix bug
+code src/handlers/data.ts
+
+# 3. Verify
+npm test tests/handlers/data.test.ts  # ✅ Passes
+npm run gates:g0                      # ✅ Quick check
+
+# 4. Commit
+git add tests/ src/
+git commit -m "fix(data): handle empty arrays"
+```
+
+#### 2️⃣ Schema Change Workflow (2-5 min)
+
+```bash
+# 1. Edit schema
+code src/schemas/data.ts
+# Add action to z.enum([...])
+
+# 2. ONE command completes everything
+npm run schema:commit
+# Runs: gen:metadata → check:drift → typecheck → test:fast → git add
+
+# 3. Commit
+git commit -m "feat(data): add export_csv action"
+```
+
+#### 3️⃣ Feature Addition Workflow (30-60 min)
+
+```bash
+git checkout -b feat/new-tool
+
+# 1. Create files
+code src/schemas/my-tool.ts       # Schema
+code src/handlers/my-tool.ts      # Handler
+code tests/handlers/my-tool.test.ts  # Tests
+
+# 2. Register tool
+code src/mcp/registration/tool-definitions.ts
+# Add to TOOL_DEFINITIONS array
+
+# 3. Generate metadata + verify
+npm run schema:commit
+npm run verify
+
+# 4. Commit + PR
+git add .
+git commit -m "feat: add sheets_mytool handler"
+git push origin feat/new-tool
+```
+
+### File Location Quick Reference
+
+```
+📁 Project Structure (What Goes Where)
+
+src/
+├── schemas/           → Zod schemas (source of truth)
+│   ├── index.ts       → TOOL_COUNT, ACTION_COUNT (GENERATED)
+│   ├── annotations.ts → ACTION_COUNTS map (GENERATED)
+│   └── <tool>.ts      → Individual tool schemas
+├── handlers/          → Business logic (1 per tool)
+│   ├── base.ts        → BaseHandler class (inherit from this)
+│   └── <tool>.ts      → Handler implementation
+├── mcp/registration/  → MCP protocol layer
+│   ├── tool-definitions.ts  → TOOL_DEFINITIONS array
+│   ├── tool-handlers.ts     → Request routing
+│   └── completions.ts       → TOOL_ACTIONS map (GENERATED)
+├── services/          → Infrastructure services
+├── utils/             → Shared utilities
+└── cli.ts             → CLI entrypoint
+
+tests/
+├── contracts/         → Schema guarantees (667 tests)
+├── handlers/          → Handler unit tests
+├── integration/       → Cross-layer tests
+└── unit/              → Pure unit tests
+
+scripts/
+├── generate-metadata.ts      → Regenerate counts
+├── validation-gates.sh       → Multi-level gates
+└── check-*.sh                → Verification scripts
+
+docs/
+├── development/       → Developer guides
+├── guides/            → User guides
+└── reference/         → API reference
+```
+
+### Error Message Quick Fixes
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `❌ Metadata drift detected` | Schema changed without regen | `npm run schema:commit` |
+| `❌ action is required` | Missing action in discriminated union | Add to `z.enum([...])` |
+| `❌ Unknown action: xyz` | Handler missing case | Add `case 'xyz':` to handler |
+| `❌ TODO found in src/` | Placeholder in source | Remove or move to issue |
+| `❌ TypeScript error TS2345` | Type mismatch | Check schema vs handler types |
+| `❌ Schema/handler mismatch` | Action count mismatch | Check deviations or fix handler |
+
+### Decision Tree: Which Command to Run?
+
+```
+START: What do you need?
+│
+├─ 📝 Changed schema file?
+│  └─ npm run schema:commit (60s)
+│
+├─ 🐛 Fixed a bug?
+│  └─ npm run gates:g0 (20s)
+│
+├─ ✨ Added new feature?
+│  └─ npm run verify (45s)
+│
+├─ 🧪 Writing tests?
+│  └─ npm run test:watch
+│
+├─ 📊 Before commit?
+│  └─ npm run gates:g0 (20s)
+│
+├─ 🚀 Before PR?
+│  └─ npm run verify (45s)
+│
+└─ 🎯 Before release?
+   └─ npm run gates (3 min)
+```
+
+---
+
 ## Development Loop
 
 Follow the **Red-Green-Refactor Cycle:**
@@ -188,6 +378,239 @@ npm run verify
 # ✅ Lint passed
 # ✅ Format check passed
 # ✅ Tests passed (1762/1762)
+```
+
+---
+
+## Validation Gates (Phase -1)
+
+**Added:** 2026-02-17
+**Purpose:** Incremental validation system for faster feedback
+
+### What Are Validation Gates?
+
+Validation gates are **progressive checkpoints** that validate different aspects of your code:
+
+- **G0:** Quick baseline checks (20s) - Run before every commit
+- **G1:** Metadata consistency (8s) - Run after schema changes
+- **G2:** Phase behavior (45s) - Run after handler changes
+- **G3:** API/Protocol/Docs (15s) - Run before doc updates
+- **G4:** Final truth check (60s) - Run before releases
+
+**Why gates?** Instead of running everything (3 min), run only what's needed (20s).
+
+### Gate Levels Explained
+
+#### G0: Baseline Integrity (MOST IMPORTANT)
+
+**When:** Before EVERY commit
+**Time:** ~20 seconds
+**Command:** `npm run gates:g0` or `Cmd+G Cmd+0`
+
+**What it checks:**
+```bash
+1. TypeScript compilation (tsc --noEmit)
+2. ESLint rules
+3. Metadata drift (schema sync)
+4. Fast test suite (unit + contracts)
+```
+
+**Example output:**
+```
+🚦 Gate G0: Baseline Integrity
+  ├─ TypeScript... ✅ (5.2s)
+  ├─ ESLint... ✅ (3.8s)
+  ├─ Drift check... ✅ (2.1s)
+  └─ Fast tests... ✅ (8.9s)
+✅ G0 passed (20.0s)
+```
+
+**If it fails:** Fix immediately - this is the minimum bar for code quality.
+
+---
+
+#### G1: Metadata Consistency
+
+**When:** After schema changes
+**Time:** ~8 seconds
+**Command:** `npm run gates:g1` or `Cmd+G Cmd+1`
+
+**What it checks:**
+```bash
+1. Schema/handler alignment (validate-action-counts.ts)
+2. Documentation hardcoded counts (check-hardcoded-counts.sh)
+```
+
+**Example output:**
+```
+🚦 Gate G1: Metadata Consistency
+  ├─ Action counts... ✅ (5.3s)
+  └─ Doc counts... ✅ (2.8s)
+✅ G1 passed (8.1s)
+```
+
+**Common failure:** Schema added action but handler didn't implement it.
+
+**Fix:** Run `npm run schema:commit` which includes G1 automatically.
+
+---
+
+#### G2: Phase Behavior
+
+**When:** After handler implementation, before phase completion
+**Time:** ~45 seconds
+**Command:** `npm run gates:g2` or `Cmd+G Cmd+2`
+
+**What it checks:**
+```bash
+1. Handler tests (all 22 handlers)
+2. Integration tests (cross-layer)
+3. Compliance tests (MCP protocol)
+```
+
+**Use case:** You added a new action and handler - verify it works end-to-end.
+
+---
+
+#### G3: API/Protocol/Docs
+
+**When:** Before documentation updates, after API changes
+**Time:** ~15 seconds
+**Command:** `npm run gates:g3` or `Cmd+G Cmd+3`
+
+**What it checks:**
+```bash
+1. API compliance validation
+2. MCP protocol compliance
+3. Documentation validation (links, spelling, formatting)
+```
+
+**Use case:** You updated API documentation - verify all links work.
+
+---
+
+#### G4: Final Truth Check
+
+**When:** Before npm publish, before releases
+**Time:** ~60 seconds
+**Command:** `npm run gates:g4` or `Cmd+G Cmd+4`
+
+**What it checks:**
+```bash
+1. Production build (clean compile)
+2. Runtime constant verification (TOOL_COUNT/ACTION_COUNT)
+3. Smoke tests (--version check)
+```
+
+**Use case:** Final gate before release - ensures build artifacts are correct.
+
+---
+
+### Using Gates in Practice
+
+#### Daily Development
+
+```bash
+# Morning: Start work
+git pull
+npm install
+npm run gates:g0  # Baseline check (20s)
+
+# During work: Quick checks
+npm run test:fast  # Every 5-10 min
+
+# Before each commit:
+npm run gates:g0   # Quick validation (20s)
+git add . && git commit -m "..."
+
+# End of day:
+npm run verify     # Full check (45s)
+git push
+```
+
+#### Schema Changes
+
+```bash
+# Modify schema
+code src/schemas/data.ts
+
+# ONE command (includes G0 + G1)
+npm run schema:commit  # 60s
+
+# Commit
+git commit -m "feat(data): add action"
+```
+
+#### Handler Changes
+
+```bash
+# Modify handler
+code src/handlers/data.ts
+
+# Run relevant gates
+npm run gates:g0   # Baseline (20s)
+npm run gates:g2   # Handler tests (45s)
+
+# Commit
+git add . && git commit -m "..."
+```
+
+#### Before PR
+
+```bash
+# Full verification
+npm run verify     # 45s
+
+# Or run all gates
+npm run gates      # 3 min (G0→G4)
+```
+
+### Gate Failure Scenarios
+
+#### Scenario 1: G0 Fails on Drift Check
+
+```bash
+npm run gates:g0
+
+# Output:
+# ✅ TypeScript (5.2s)
+# ✅ ESLint (3.8s)
+# ❌ Drift check failed (2.1s)
+#    → Metadata out of sync
+
+# Fix:
+npm run schema:commit
+```
+
+#### Scenario 2: G1 Fails on Action Count
+
+```bash
+npm run gates:g1
+
+# Output:
+# ❌ Action count mismatch
+#    sheets_data: 18 schema actions, 19 handler cases
+#    Extra in handler: ['export_csv']
+
+# Fix: Either
+# 1. Add 'export_csv' to schema z.enum([...])
+# OR
+# 2. Remove case 'export_csv' from handler
+```
+
+#### Scenario 3: G2 Fails on Tests
+
+```bash
+npm run gates:g2
+
+# Output:
+# ❌ Handler tests failed (12.3s)
+#    tests/handlers/data.test.ts:45
+#    Expected 200 rows, got 0
+
+# Fix: Debug test, fix handler logic
+code tests/handlers/data.test.ts
+npm test tests/handlers/data.test.ts
 ```
 
 ---
@@ -795,6 +1218,404 @@ git push
     }
   ]
 }
+```
+
+---
+
+## Common Error Scenarios
+
+**New in v2.0:** Comprehensive troubleshooting guide based on 6 months of development.
+
+### Build & Compilation Errors
+
+#### Error: `TS2345: Argument of type 'X' is not assignable to type 'Y'`
+
+**Cause:** Type mismatch between schema definition and handler usage.
+
+**Example:**
+```typescript
+// Schema defines:
+action: z.literal('read_range')
+
+// Handler tries:
+const action: string = input.action;  // ❌ Wrong type
+```
+
+**Fix:**
+```typescript
+// Use discriminated union properly:
+const action: 'read_range' = input.action;  // ✅ Correct
+
+// Or use schema type:
+type Input = z.infer<typeof SheetsDataInputSchema>;
+const action: Input['action'] = input.action;  // ✅ Also correct
+```
+
+**Prevention:** Always use `z.infer<typeof Schema>` for handler types.
+
+---
+
+#### Error: `TS2322: Type 'undefined' is not assignable to type 'string'`
+
+**Cause:** Optional field not handled in handler.
+
+**Example:**
+```typescript
+// Schema:
+range: z.string().optional()
+
+// Handler:
+const range: string = input.range;  // ❌ Might be undefined
+```
+
+**Fix:**
+```typescript
+// Option 1: Handle undefined
+const range: string | undefined = input.range;
+if (!range) throw new ValidationError('Range required');
+
+// Option 2: Use default
+const range = input.range ?? 'A1:Z100';
+
+// Option 3: Non-null assertion (only if certain)
+const range = input.range!;
+```
+
+---
+
+#### Error: `Cannot find module './schemas/index.js'`
+
+**Cause:** Import path uses `.ts` extension or is missing `.js`.
+
+**Fix:**
+```typescript
+// ❌ Wrong
+import { Schema } from './schemas/index';
+import { Schema } from './schemas/index.ts';
+
+// ✅ Correct (ESM requires .js)
+import { Schema } from './schemas/index.js';
+```
+
+**Why:** TypeScript ESM modules require `.js` extensions even for `.ts` files.
+
+---
+
+### Metadata & Schema Errors
+
+#### Error: `❌ Metadata drift detected`
+
+**Cause:** Schema file modified without regenerating metadata.
+
+**Files out of sync:**
+- `src/schemas/index.ts` (TOOL_COUNT, ACTION_COUNT)
+- `src/schemas/annotations.ts` (ACTION_COUNTS)
+- `src/mcp/completions.ts` (TOOL_ACTIONS)
+- `server.json` (full metadata)
+- `package.json` (description)
+
+**Fix:**
+```bash
+npm run schema:commit
+# Automatically regenerates all 5 files + runs verification
+```
+
+**Prevention:** ALWAYS use `npm run schema:commit` after schema changes.
+
+---
+
+#### Error: `❌ Schema/handler action count mismatch`
+
+**Cause:** Schema defines actions that handler doesn't implement (or vice versa).
+
+**Example:**
+```typescript
+// Schema: 18 actions
+action: z.enum(['read', 'write', 'update', 'delete', ...])
+
+// Handler: 19 cases (extra 'export')
+switch (action) {
+  case 'read': ...
+  case 'write': ...
+  case 'export': ...  // ❌ Not in schema!
+}
+```
+
+**Fix Option 1:** Add to schema
+```typescript
+action: z.enum(['read', 'write', 'update', 'delete', 'export', ...])
+npm run schema:commit
+```
+
+**Fix Option 2:** Remove from handler
+```typescript
+switch (action) {
+  case 'read': ...
+  case 'write': ...
+  // Removed 'export' case
+}
+```
+
+**Fix Option 3:** Document as acceptable deviation
+```typescript
+// In src/schemas/handler-deviations.ts
+export const ACCEPTABLE_DEVIATIONS = {
+  sheets_data: ['export'],  // Alias for 'export_csv'
+};
+```
+
+---
+
+#### Error: `❌ action is required`
+
+**Cause:** Test input missing `action` field or not wrapped in legacy envelope.
+
+**Example:**
+```typescript
+// ❌ Wrong (for tests)
+const input = {
+  spreadsheetId: 'test123',
+  range: 'A1:B10'
+};
+
+// ✅ Correct (legacy envelope)
+const input = {
+  request: {
+    action: 'read_range',
+    spreadsheetId: 'test123',
+    range: 'A1:B10'
+  }
+};
+```
+
+**Why:** Tests need legacy envelope wrapper, production MCP requests don't.
+
+---
+
+### Test Failures
+
+#### Error: `Expected [] but got undefined`
+
+**Cause:** Handler returns `undefined` instead of empty array.
+
+**Example:**
+```typescript
+// ❌ Wrong
+if (!values) return undefined;
+
+// ✅ Correct
+if (!values || values.length === 0) {
+  return {
+    response: {
+      success: true,
+      values: []
+    }
+  };
+}
+```
+
+---
+
+#### Error: `Timeout of 5000ms exceeded`
+
+**Cause:** Test makes real API call instead of using mock.
+
+**Fix:**
+```typescript
+// Add mock before test
+mockApi.spreadsheets.values.get.mockResolvedValue({
+  data: { values: [['test']] }
+});
+
+// Verify mock was called
+expect(mockApi.spreadsheets.values.get).toHaveBeenCalled();
+```
+
+---
+
+#### Error: `Test suite failed to run` (import error)
+
+**Cause:** Circular dependency or missing mock.
+
+**Fix:**
+```typescript
+// Check for circular imports
+npm run check:architecture
+
+// Ensure vi.mock() is before imports
+vi.mock('../services/google-api', () => ({
+  GoogleApiClient: vi.fn()
+}));
+
+import { handler } from '../handlers/data.js';
+```
+
+---
+
+### Runtime Errors
+
+#### Error: `Unknown action: xyz`
+
+**Cause:** MCP client sent action not defined in schema.
+
+**Debug:**
+```bash
+# Check what actions are defined
+npm run show:tools | grep xyz
+
+# Check handler switch statement
+grep "case 'xyz'" src/handlers/*.ts
+```
+
+**Fix:** Add action to schema and handler, then `npm run schema:commit`.
+
+---
+
+#### Error: `Sheet not found`
+
+**Cause:** Invalid spreadsheet ID or missing permissions.
+
+**Debug:**
+```typescript
+// Add logging in handler
+logger.debug('Attempting to access spreadsheet', {
+  spreadsheetId,
+  sheetName,
+  userId
+});
+
+// Check Google API response
+const result = await this.context.googleClient.sheets.spreadsheets.get({
+  spreadsheetId
+});
+logger.debug('Spreadsheet response', result);
+```
+
+**Common causes:**
+1. Wrong spreadsheet ID format
+2. Spreadsheet deleted
+3. OAuth token expired
+4. Missing Drive API scope
+
+---
+
+#### Error: `CircuitBreakerOpen: Too many failures`
+
+**Cause:** Google API endpoint failing repeatedly (>5 times).
+
+**Debug:**
+```bash
+# Check circuit breaker state
+npm run metrics | grep circuit_breaker
+
+# Check error logs
+grep "Circuit breaker" logs/servalsheets.log
+```
+
+**Fix:**
+1. Wait 30s for half-open state
+2. Check Google API status: https://www.google.com/appsstatus
+3. Verify OAuth credentials
+4. Check rate limits
+
+---
+
+### Documentation Errors
+
+#### Error: `❌ Hardcoded count found in docs`
+
+**Cause:** Documentation has hardcoded tool/action counts instead of references.
+
+**Example:**
+```markdown
+❌ Wrong:
+ServalSheets has 22 tools and 299 actions.
+
+✅ Correct:
+ServalSheets has 22 tools and 299 actions (see src/schemas/index.ts:63).
+```
+
+**Fix:**
+```bash
+# Find all hardcoded counts
+bash scripts/check-hardcoded-counts.sh
+
+# Update documentation with source references
+code docs/README.md
+```
+
+---
+
+#### Error: `❌ Broken link: docs/guides/MISSING.md`
+
+**Cause:** Documentation references file that doesn't exist.
+
+**Fix:**
+```bash
+# Check all doc links
+npm run docs:check-links
+
+# Fix broken links
+code docs/path/to/file.md
+```
+
+---
+
+### VS Code / Editor Issues
+
+#### Error: "Cannot find module" (red squiggles) but builds fine
+
+**Cause:** VS Code TypeScript version out of sync.
+
+**Fix:**
+1. Open Command Palette (`Cmd+Shift+P`)
+2. Run "TypeScript: Select TypeScript Version"
+3. Choose "Use Workspace Version"
+4. Reload window
+
+---
+
+#### Error: ESLint not running in VS Code
+
+**Cause:** ESLint extension not installed or disabled.
+
+**Fix:**
+```bash
+# Install extension
+code --install-extension dbaeumer.vscode-eslint
+
+# Verify in .vscode/settings.json
+{
+  "eslint.enable": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
+}
+```
+
+---
+
+### Quick Diagnostic Commands
+
+```bash
+# Check current state
+npm run verify 2>&1 | tee verify.log   # Full verification with log
+
+# TypeScript issues
+npm run typecheck                      # Compile errors
+npm run typecheck -- --listFilesOnly   # See all included files
+
+# Metadata issues
+npm run check:drift                    # Metadata sync
+npm run validate:actions               # Action count alignment
+
+# Test issues
+npm test -- --reporter=verbose         # Detailed test output
+npm test -- --no-coverage              # Skip coverage (faster)
+
+# Build issues
+npm run clean                          # Clean dist/
+npm run build 2>&1 | tee build.log     # Build with log
 ```
 
 ---

@@ -98,7 +98,7 @@ export function registerDiscoveryResources(server: McpServer): number {
             {
               uri: typeof uri === 'string' ? uri : uri.toString(),
               mimeType: 'application/json',
-              text: JSON.stringify(health, null, 2),
+              text: JSON.stringify(health),
             },
           ],
         };

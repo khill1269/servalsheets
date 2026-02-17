@@ -689,191 +689,21 @@ If quality dropped: sheets_fix auto-repair
    - Wrong: Protect every cell "just in case"
    - Right: Strategic protection (headers, formulas only)
 
-## 📐 FORMULA EXPERTISE (Master Class)
+## 📐 FORMULA & PERFORMANCE REFERENCE
 
-### Formula Performance Hierarchy
+For detailed formula expertise, performance optimization, and spreadsheet limits,
+consult the knowledge base files in the \`knowledge/\` directory via resources.
 
-**Fastest → Slowest:**
-1. Static values (instant)
-2. Simple arithmetic (+, -, *, /)
-3. Basic functions (SUM, AVERAGE, COUNT)
-4. Lookup functions (VLOOKUP, INDEX/MATCH)
-5. Array formulas (FILTER, SORT, UNIQUE)
-6. Volatile functions (NOW, TODAY, RAND) - recalculate constantly
-7. External data (IMPORTRANGE, GOOGLEFINANCE)
-8. Apps Script custom functions
-
-### When to Use Which Formula Type
-
-**VLOOKUP vs INDEX/MATCH vs XLOOKUP:**
+**Quick formula tips:**
 - VLOOKUP: Simple left-to-right lookups, column index known
 - INDEX/MATCH: More flexible, any direction, better performance on large data
 - XLOOKUP: Most powerful but newer (not all sheets support it)
 
-**Array Formulas (FILTER, SORT, UNIQUE) when:**
-- Data changes frequently (auto-updates)
-- Multiple conditions needed
-- Result needs to expand dynamically
-- Performance: Good for <10K rows, slow for >50K
-
-**Helper Columns when:**
-- Formula becomes unreadable (>80 chars)
-- Same calculation needed multiple times
-- Performance critical (>50K rows)
-- Debugging needed
-
-### Volatile Function Management
-
-**Problem:** RAND(), NOW(), TODAY() recalculate on EVERY sheet edit
-**Impact:** Slows down the entire sheet for all users
-
-**Solution:**
-- Use NOW() only in ONE cell, reference that cell elsewhere
-- Use named range for dynamic "current date" cell
-- Consider Apps Script for time-based updates instead
-
-### Array Formula Optimization
-
-**Slow:**
-\`\`\`
-=ARRAYFORMULA(IF(A2:A1000<>"", VLOOKUP(A2:A1000, Sheet2!A:B, 2, FALSE), ""))
-\`\`\`
-
-**Fast:**
-\`\`\`
-=QUERY(Sheet2!A:B, "SELECT B WHERE A = '"&A2&"'")
-\`\`\`
-
-**Why:** QUERY is optimized by Google, ARRAYFORMULA evaluates row-by-row
-
-### Circular Reference Patterns
-
-**When Circular References Are Useful:**
-- Iterative calculations (Newton's method, optimization)
-- Recursive formulas (Fibonacci, compounding)
-- Enable iterative calculation: File → Settings → Calculation → Iterative
-
-**When They're Problems:**
-- Accidental self-reference
-- Cross-sheet dependencies create loops
-- Detection: Use sheets_dependencies detect_cycles
-
-### Formula Maintenance Strategy
-
-**Best Practices:**
-1. Use named ranges (formulas survive column insertions)
-2. Document complex formulas in comment cells
-3. Version control formulas via sheets_collaborate snapshots
-4. Test with sheets_dependencies analyze_impact before changing
-5. Use IFERROR for production (graceful degradation)
-
-## ⚡ PERFORMANCE OPTIMIZATION (Expert Decision Tree)
-
-### Problem: Slow Read Operations
-
-**Symptoms:** reads take >2 seconds
-**Diagnosis Tree:**
-├─ Reading >1K rows? → Use batch_read instead of multiple reads
-├─ Reading formatted values? → Use valueRenderOption: UNFORMATTED_VALUE (3x faster)
-├─ Reading from multiple sheets? → Use batch_get (parallel fetching)
-└─ Need only specific columns? → Use column ranges (A:A, C:C) not full rows
-
-**Optimization Examples:**
-\`\`\`typescript
-// Slow: 5 separate reads (5 API calls, ~2.5s)
-for (let i = 0; i < 5; i++) {
-  await sheets_data.read(range: \`Sheet\${i}!A1:Z100\`)
-}
-
-// Fast: 1 batch read (1 API call, ~500ms)
-await sheets_data.batch_read(ranges: ["Sheet0!A1:Z100", ..., "Sheet4!A1:Z100"])
-
-// Faster: Unformatted values (1 API call, ~300ms)
-await sheets_data.batch_read(ranges: [...], valueRenderOption: "UNFORMATTED_VALUE")
-\`\`\`
-
-### Problem: Slow Write Operations
-
-**Symptoms:** writes take >5 seconds
-**Diagnosis Tree:**
-├─ Writing <100 cells? → Direct sheets_data write (no optimization needed)
-├─ Writing 100-1000 cells? → Use batch_write (70% faster)
-├─ Writing >1000 cells in sequence? → Use sheets_transaction (80% quota savings)
-└─ Writing with formulas? → Set formulas separately (faster than values with embedded formulas)
-
-**Quota Impact:**
-\`\`\`
-Naive approach (write 500 cells individually):
-- API calls: 500
-- Quota used: ~500 units
-- Time: ~250 seconds (30 req/min rate limit)
-
-Transaction approach:
-- API calls: 3 (begin, commit with 500 operations, end)
-- Quota used: ~100 units (80% savings)
-- Time: ~3 seconds
-
-Recommendation: sheets_transaction for ANY sequential write >50 cells
-\`\`\`
-
-### Problem: Formula Recalculation Lag
-
-**Symptoms:** Sheet freezes on edit, "calculating..." appears frequently
-**Diagnosis Tree:**
-├─ Volatile functions (NOW, TODAY, RAND) present? → Consolidate to 1 cell
-├─ ARRAYFORMULA on >10K rows? → Replace with helper columns
-├─ Circular references? → Check iterative calculation settings
-├─ External data (IMPORTRANGE, GOOGLEFINANCE)? → Cache results, refresh periodically
-└─ Complex nested formulas? → Break into intermediate steps
-
-**Detection:**
-\`\`\`typescript
-// Use sheets_analyze to identify performance issues
-const analysis = await sheets_analyze.analyze_performance({
-  spreadsheetId,
-  checkFormulas: true,
-  checkVolatility: true
-});
-
-// Returns:
-{
-  volatileFunctionCount: 47,  // Red flag if >10
-  circularReferences: [],
-  formulaComplexity: "high",  // Based on nesting depth
-  recommendations: [
-    "Reduce volatile functions from 47 to <5",
-    "Replace ARRAYFORMULA in column D with helper columns"
-  ]
-}
-\`\`\`
-
-### Problem: Concurrent User Slowdown
-
-**Symptoms:** Multiple users editing causes lag
-**Diagnosis Tree:**
-├─ >10 simultaneous editors? → Expect natural lag (Google limitation)
-├─ Protected ranges count >50? → Reduce protection granularity
-├─ Real-time formulas (IMPORTRANGE, GOOGLEFINANCE)? → Replace with periodic refreshes
-└─ Large conditional formatting rules (>100K cells)? → Simplify rule scope
-
-**Mitigation:**
-\`\`\`typescript
-// Pattern: Periodic refresh instead of real-time
-// Instead of: =IMPORTRANGE("other-sheet", "A1:Z1000") in every cell
-// Do: sheets_appsscript time-based trigger to refresh every 5 minutes
-\`\`\`
-
-### Memory Optimization
-
-**Google Sheets Cell Limits:**
-- Max cells per sheet: 10 million (e.g., 10K rows × 1K cols)
-- Performance degrades at: 200K cells with formulas
-- Recommended limit: 100K cells with formulas for good performance
-
-**Strategy:**
-- Archive old data to separate sheets
-- Use sheets_bigquery for historical analysis
-- Keep active working set <50K rows
+- Array formulas: Good for <10K rows, use helper columns for >50K
+- Volatile functions (NOW, RAND): Consolidate to 1 cell, reference elsewhere
+- QUERY is faster than ARRAYFORMULA+VLOOKUP for lookups
+- Use named ranges for formula stability
+- Max cells: 10M per sheet, keep formulas <100K cells for performance
 
 ## ⚠️ COMMON ERRORS AND RECOVERY
 
@@ -908,312 +738,38 @@ Before destructive operations (delete, clear, overwrite):
 - **Quotas:** 60 requests/min/user, 300 requests/min/project
 - **Large data:** Use \`sheets_composite action:"import_csv"\` for bulk imports
 
-## 🤝 COLLABORATIVE WORKFLOW PATTERN (Natural Language Requests)
+## 🤝 COLLABORATIVE WORKFLOW
 
-When a user provides a natural language request, follow this collaborative pattern to gather context, plan carefully, and execute with confidence.
+**For ambiguous requests, ask clarifying questions first:**
+- What spreadsheet? (ID or create new?)
+- What data/columns?
+- What format/output?
 
-### Phase 1: UNDERSTAND (Ask Questions First)
-
-**Before taking any action, assess ambiguity:**
-
-Ambiguous request indicators:
-- **Vague scope**: "make a report", "analyze data", "clean this up", "fix the spreadsheet"
-- **Missing target**: No spreadsheet ID or unclear "which spreadsheet?"
-- **Missing details**: What columns? What format? What criteria? What time period?
-- **Multi-step implications**: Request requires 3+ operations
-
-**If ambiguous, ask clarifying questions FIRST:**
-
-Example conversation:
-\`\`\`
-User: "Create a sales report for me"
-
-✅ Good response:
-"I can help create a sales report! To make sure I build exactly what you need, let me ask a few questions:
-
-1. Which spreadsheet should I use? (Or should I create a new one?)
-2. What data source contains your sales data? (spreadsheet ID and sheet name)
-3. What time period? (e.g., Q1 2024, last month, year-to-date)
-4. What metrics do you want? (e.g., total sales, sales by region, top products)
-5. Any specific format? (pivot table, chart, formatted table)
+**Execution pattern:**
 
 Let me know and I'll build the perfect report!"
 
-❌ Bad response:
-sheets_core action:"create" title:"Sales Report"  // Too hasty! Doesn't understand what user actually needs
-\`\`\`
+1. Gather requirements (ask clarifying questions)
+2. Plan execution steps (show user before executing)
+3. Wait for user approval
+4. Execute with safety checks (dryRun, snapshots for destructive ops)
+5. Verify results and report back
 
-**Use sheets_session to track the conversation:**
-\`\`\`
-sheets_session action:"set_pending" {
-  type: "requirement_gathering",
-  step: 1,
-  totalSteps: 3,
-  context: {
-    userIntent: "create sales report",
-    gathered: {},
-    stillNeeded: ["spreadsheet", "timeframe", "metrics"]
-  }
-}
-\`\`\`
+Use \`sheets_session action:"record_operation"\` to track each step for undo capability.
 
-### Phase 2: GATHER (Iterative Context Building)
+**Skip this pattern for:** explicit unambiguous commands, single-step reads, or when user says "just do it".
+**Always use for:** destructive ops (>100 cells), multi-step workflows, vague requests.
 
-Continue asking questions until you have minimum required context:
+## 💰 QUOTA AWARENESS
 
-**Minimum required context:**
-- ✅ Target spreadsheet ID (or explicit "create new")
-- ✅ Specific actions to perform (write, format, chart, etc.)
-- ✅ Data sources and ranges
-- ✅ Success criteria (how will we know it's done?)
+Check \`_meta.quotaStatus\` in responses. When quota is low:
+- Use \`batch_read\`/\`batch_write\` instead of multiple calls (saves 85-90%)
+- Use \`sheets_transaction\` for atomic multi-op (saves 80%)
+- If \`recommendation\` exists in quotaStatus → prioritize that suggestion
 
-**Optional but recommended:**
-- User preferences (formatting style, confirmation level)
-- Safety constraints (dry-run first? snapshot before?)
-- Expected impact (number of rows/cells affected)
+## 🔔 MONITORING
 
-**Update pending context as you learn more:**
-\`\`\`
-sheets_session action:"set_pending" {
-  type: "requirement_gathering",
-  step: 2,
-  totalSteps: 3,
-  context: {
-    userIntent: "create sales report",
-    gathered: {
-      spreadsheetId: "1ABC...",
-      sourceSheet: "Sales Data",
-      timeframe: "Q1 2024"
-    },
-    stillNeeded: ["metrics", "format"]
-  }
-}
-\`\`\`
-
-### Phase 3: PLAN (Show Execution Plan)
-
-Once you have sufficient context, create a step-by-step plan:
-
-**Format:**
-\`\`\`
-Here's my plan to create your Q1 2024 sales report:
-
-**Execution Plan:**
-
-1. Read sales data from "Sales Data" sheet (range A1:F1000)
-2. Filter for Q1 2024 transactions (Jan-Mar)
-3. Calculate metrics:
-   - Total revenue by region
-   - Top 10 products by units sold
-   - Month-over-month growth
-4. Create new sheet "Q1 2024 Report"
-5. Write summary table with formatted headers
-6. Add column chart for revenue by region
-7. Apply conditional formatting to highlight top performers
-
-**Safety measures:**
-- Dry-run: No (data read is safe)
-- Snapshot: Yes (before writing to new sheet)
-- Estimated cells affected: ~200
-
-May I proceed with this plan?
-\`\`\`
-
-**Track the plan:**
-\`\`\`
-sheets_session action:"set_pending" {
-  type: "awaiting_approval",
-  step: 3,
-  totalSteps: 3,
-  context: {
-    plan: {
-      steps: [...],
-      safetyMeasures: {...},
-      estimatedImpact: {...}
-    }
-  }
-}
-\`\`\`
-
-### Phase 4: APPROVE (Wait for Confirmation)
-
-**DO NOT execute until user approves.**
-
-Acceptable approval signals:
-- ✅ "Yes", "Go ahead", "Proceed", "Do it", "Looks good"
-- ✅ "Make those changes", "Execute the plan"
-- ✅ Emoji approval: 👍, ✅, ✓
-
-**If user modifies the plan:**
-- Update the plan based on feedback
-- Show revised plan
-- Ask for approval again
-
-**If user says "skip approval next time":**
-\`\`\`
-sheets_session action:"update_preferences" {
-  confirmationLevel: "never"
-}
-\`\`\`
-
-### Phase 5: EXECUTE (With Progress Tracking)
-
-Once approved, execute the plan step-by-step:
-
-**1. Record each operation:**
-\`\`\`
-sheets_session action:"record_operation" {
-  tool: "sheets_data",
-  toolAction: "write",
-  spreadsheetId: "1ABC...",
-  description: "Wrote Q1 sales summary to Report sheet",
-  undoable: true,
-  cellsAffected: 150
-}
-\`\`\`
-
-**2. Report progress for long operations:**
-\`\`\`
-✓ Step 1/7: Read sales data (1000 rows)
-✓ Step 2/7: Filtered to Q1 (245 transactions)
-⚙ Step 3/7: Calculating metrics...
-\`\`\`
-
-**3. Handle errors gracefully:**
-\`\`\`
-⚠️ Encountered an issue at step 3/7:
-
-**Error:** Permission denied when trying to read "Finance Data" sheet
-**Likely cause:** This sheet may be protected or you don't have access
-
-**Options:**
-A. Continue with steps 4-7 (skip the finance data analysis)
-B. Stop here and ask sheet owner for access
-C. Use a different data source
-
-What would you like to do?
-\`\`\`
-
-**4. Summarize completion:**
-\`\`\`
-✅ Report created successfully!
-
-**What I did:**
-- Read 1000 rows of sales data
-- Filtered to 245 Q1 transactions
-- Created "Q1 2024 Report" sheet
-- Added summary table (6 columns × 25 rows)
-- Added revenue chart (column chart, 4 regions)
-- Applied conditional formatting to top 10 products
-
-**Results:**
-- Total Q1 revenue: $1.2M (+15% vs Q4)
-- Top region: West ($450K)
-- Top product: Widget Pro (850 units)
-
-View your report: [spreadsheet link]
-
-Would you like me to add anything else?
-\`\`\`
-
-**5. Clear pending state:**
-\`\`\`
-sheets_session action:"clear_pending"
-\`\`\`
-
-### 🎯 When to Skip This Pattern
-
-**Immediate execution is okay for:**
-- ✅ Explicit, unambiguous commands: \`sheets_data action:"read" spreadsheetId:"1ABC" range:"A1:B10"\`
-- ✅ Single-step read operations: "Show me the data in A1:D10"
-- ✅ User explicitly says: "Just do it", "Skip questions", "I trust you"
-- ✅ \`sheets_session\` shows \`preferences.confirmationLevel = "never"\`
-
-**Always use this pattern for:**
-- ❌ Destructive operations affecting >100 cells
-- ❌ Multi-step workflows (3+ operations)
-- ❌ Vague requests: "fix this", "make it better", "analyze"
-- ❌ First-time requests from new users
-
-### 💡 Tips for Natural Conversations
-
-**Ask smart questions:**
-- Be specific: "Which column contains the dates?" not "What data?"
-- Offer options: "Should I (A) create a new sheet or (B) add to existing?"
-- Show understanding: "I see you have 'Sales' and 'Revenue' columns - are these the same?"
-
-**Use context effectively:**
-\`\`\`
-// Check if we've worked with this user before
-sheets_session action:"get_context"
-// Returns: activeSpreadsheet, recentSpreadsheets, lastOperation, preferences
-\`\`\`
-
-**Learn from history:**
-- "I noticed last time you preferred bold headers - should I do that again?"
-- "You're working with the Budget spreadsheet again - same sheet as before?"
-
-**Be proactive but not presumptuous:**
-- Good: "I can add a chart to visualize this - would you like that?"
-- Bad: *adds chart without asking*
-
-**Handle "just do it" gracefully:**
-\`\`\`
-User: "Just do it"
-Response: "⚠️ Executing without full context. If results aren't what you expected, I can adjust.
-
-Here's what I'm doing:
-- Creating a new spreadsheet titled 'Sales Report'
-- Adding a summary sheet with basic metrics
-- Using Q1 2024 data from your active spreadsheet
-
-I'll let you know when it's ready!"
-\`\`\`
-
-## 💰 QUOTA AWARENESS (Predictive Quota Management)
-
-Every response includes **quotaStatus** in \`_meta\`:
-\`\`\`typescript
-{
-  response: { ... },
-  _meta: {
-    quotaStatus: {
-      current: 9500,      // Current quota usage
-      limit: 10000,       // Total quota limit
-      remaining: 500,     // Calls remaining
-      resetIn: "47 minutes",
-      burnRate: 50,       // Requests per minute
-      projection: {       // Appears when quota is being consumed
-        willExceedIn: "10 minutes",
-        confidence: 0.85
-      },
-      recommendation: {   // Appears when action needed
-        action: "switch_to_batch_operations",
-        reason: "Will hit quota in 10 min",
-        savings: "Batch operations use 90% fewer API calls"
-      }
-    }
-  }
-}
-\`\`\`
-
-**When recommendation suggests batch operations:**
-- Use \`batch_read\` instead of multiple \`read()\` calls → **saves 90%**
-- Use \`batch_write\` instead of multiple \`write()\` calls → **saves 85%**
-- Use \`sheets_transaction\` for atomic multi-op → **saves 80%**
-
-**Proactive quota management:**
-1. Check \`_meta.quotaStatus\` after each response
-2. If \`projection.willExceedIn < "15 minutes"\` → switch to batch operations
-3. If \`recommendation\` exists → **prioritize that suggestion immediately**
-4. If quota exceeded → wait for reset or suggest user upgrade
-
-## 🔔 PROACTIVE MONITORING (Alert System)
-
-**Check for alerts every 10-15 tool calls:**
-\`\`\`
-sheets_session action:"get_alerts"
-\`\`\`
+Check \`sheets_session action:"get_alerts"\` periodically for quality regressions.
 
 **If critical alerts exist:**
 1. Address them BEFORE continuing with user's request
@@ -1258,6 +814,27 @@ All colors use **0-1 scale** (NOT 0-255):
 \`\`\`json
 { "red": 0.2, "green": 0.6, "blue": 0.8 }
 \`\`\`
+
+## ⚡ PERFORMANCE OPTIMIZATION
+
+- **Multi-range reads:** Use \`sheets_data action:"batch_read"\` instead of multiple \`read_range\` calls (saves 90% quota)
+- **New spreadsheet setup:** Use \`sheets_composite action:"setup_sheet"\` to create + format + populate in 1 call (vs 5+ calls)
+- **Bulk data import:** Use \`sheets_composite action:"import_csv"\` for large CSV/TSV ingestion (streaming, chunked)
+- **Overlapping reads:** The server auto-merges overlapping range reads within 50ms — no client optimization needed
+
+## 📚 RESOURCE DISCOVERY
+
+- Read \`servalsheets://index\` to discover all available resources and their URIs
+- Read \`schema://tools/{name}\` before calling tools with complex parameters
+- Search \`knowledge:///search?q={query}\` for domain-specific guidance (formulas, API limits, templates)
+- Read \`servalsheets://guides/{topic}\` for optimization guides (quota, batching, caching, error recovery)
+
+## 🛡️ DATA QUALITY
+
+- Run \`sheets_quality action:"validate"\` before bulk writes to catch type mismatches and missing fields
+- Use \`sheets_analyze action:"scout"\` for quick overview (1 API call), \`action:"comprehensive"\` for deep analysis (2 calls)
+- Always use \`sheets_confirm action:"request"\` before destructive multi-sheet operations (delete, clear, bulk overwrite)
+- After large writes, check \`sheets_session action:"get_alerts"\` for quality regressions
 `;
 
   const deferredSchemaInstructions = `

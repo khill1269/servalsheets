@@ -21,8 +21,10 @@
  */
 
 import { randomUUID } from 'crypto';
+import dns from 'node:dns';
 import type { GoogleApiClient } from './google-api.js';
 import { logger } from '../utils/logger.js';
+import { recordWebhookRenewal, updateActiveWebhookCount } from '../observability/metrics.js';
 import { DiffEngine, type SpreadsheetState } from '../core/diff-engine.js';
 import { generateWebhookSecret } from '../security/webhook-signature.js';
 import { resourceNotifications } from '../resources/notifications.js';
@@ -33,9 +35,131 @@ import type {
   WebhookRegisterResponse,
 } from '../schemas/webhook.js';
 
+/**
+ * Check if an IPv4 address string is in a private/internal range.
+ */
+function isPrivateIPv4(ip: string): boolean {
+  const match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return false;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  return (
+    a === 10 || // 10.0.0.0/8
+    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+    (a === 192 && b === 168) || // 192.168.0.0/16
+    (a === 169 && b === 254) || // 169.254.0.0/16 (link-local)
+    a === 127 || // 127.0.0.0/8 (loopback)
+    a === 0 // 0.0.0.0/8
+  );
+}
+
+/**
+ * Check if an IPv6 address string is private/internal.
+ */
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase().replace(/[[\]]/g, '');
+  if (
+    lower.startsWith('fc') ||
+    lower.startsWith('fd') || // Unique local
+    lower.startsWith('fe80') || // Link-local
+    lower === '::1' // Loopback
+  ) {
+    return true;
+  }
+  // IPv4-mapped IPv6 (::ffff:x.x.x.x) - extract and check the IPv4 part
+  const v4MappedMatch = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4MappedMatch) {
+    return isPrivateIPv4(v4MappedMatch[1]!);
+  }
+  return false;
+}
+
+/**
+ * SSRF protection: Block webhook URLs pointing to private/internal networks.
+ * Validates that webhook URLs use HTTPS and don't target internal IP ranges.
+ * Includes DNS rebinding protection by resolving hostnames and re-validating.
+ */
+async function validateWebhookUrl(urlString: string): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    throw new Error(`Invalid webhook URL: ${urlString}`);
+  }
+
+  // Require HTTPS
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Webhook URL must use HTTPS');
+  }
+
+  const hostname = parsed.hostname;
+
+  // Block localhost
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    throw new Error('Webhook URL cannot target localhost');
+  }
+
+  // Block decimal IP encoding (e.g., 2130706433 = 127.0.0.1)
+  if (/^\d+$/.test(hostname)) {
+    throw new Error('Webhook URL cannot use decimal IP encoding');
+  }
+
+  // Block hex IP encoding (e.g., 0x7f000001 = 127.0.0.1)
+  if (/^0x[0-9a-fA-F]+$/.test(hostname)) {
+    throw new Error('Webhook URL cannot use hex IP encoding');
+  }
+
+  // Block private IP ranges (IPv4)
+  if (isPrivateIPv4(hostname)) {
+    throw new Error('Webhook URL cannot target private/internal IP addresses');
+  }
+
+  // Block IPv6 private ranges
+  if (hostname.startsWith('[') || hostname.includes(':')) {
+    if (isPrivateIPv6(hostname)) {
+      throw new Error('Webhook URL cannot target private/internal IPv6 addresses');
+    }
+  }
+
+  // DNS rebinding protection: resolve hostname and re-validate resolved IPs
+  try {
+    const addresses = await dns.promises.resolve(hostname);
+    for (const addr of addresses) {
+      if (isPrivateIPv4(addr) || isPrivateIPv6(addr)) {
+        throw new Error(
+          'Webhook URL hostname resolves to a private/internal IP address (DNS rebinding protection)'
+        );
+      }
+    }
+  } catch (error) {
+    // Re-throw our own SSRF errors
+    if (error instanceof Error && error.message.includes('DNS rebinding')) {
+      throw error;
+    }
+    // DNS resolution failures for non-IP hostnames are suspicious but not blocking
+    // (hostname may resolve later, or use AAAA records only)
+    logger.warn('DNS resolution failed during SSRF validation', {
+      hostname,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // Use any for Redis client to avoid type conflicts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RedisClient = any;
+
+/** Non-blocking SCAN replacement for redis.keys() */
+async function scanRedisKeys(redis: RedisClient, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const result = await redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = result.cursor;
+    keys.push(...result.keys);
+  } while (cursor !== 0);
+  return keys;
+}
 
 /**
  * Webhook storage record (stored in Redis)
@@ -91,6 +215,9 @@ export class WebhookManager {
     if (!this.redis) {
       throw new Error('Redis required for webhook functionality');
     }
+
+    // SSRF protection: validate webhook URL before registration
+    await validateWebhookUrl(input.webhookUrl);
 
     const webhookId = `webhook_${randomUUID()}`;
     const channelId = `channel_${randomUUID()}`;
@@ -172,6 +299,10 @@ export class WebhookManager {
       // Add to spreadsheet index
       await this.redis.sAdd(`webhooks:spreadsheet:${input.spreadsheetId}`, webhookId);
 
+      // Update active webhook count metric
+      const allKeys = await scanRedisKeys(this.redis, 'webhook:webhook_*');
+      updateActiveWebhookCount(allKeys.length);
+
       logger.info('Webhook registered', {
         webhookId,
         spreadsheetId: input.spreadsheetId,
@@ -248,6 +379,10 @@ export class WebhookManager {
       await this.redis.del(`webhook:${webhookId}`);
       await this.redis.sRem(`webhooks:spreadsheet:${record.spreadsheetId}`, webhookId);
 
+      // Update active webhook count metric
+      const allKeys = await scanRedisKeys(this.redis, 'webhook:webhook_*');
+      updateActiveWebhookCount(allKeys.length);
+
       logger.info('Webhook unregistered', { webhookId });
 
       return {
@@ -299,7 +434,7 @@ export class WebhookManager {
         webhookIds = ids as string[];
       } else {
         // Get all webhook IDs
-        const keys = await this.redis.keys('webhook:*');
+        const keys = await scanRedisKeys(this.redis, 'webhook:*');
         webhookIds = (keys as string[]).map((key) => key.replace('webhook:', ''));
       }
 
@@ -443,7 +578,7 @@ export class WebhookManager {
 
     try {
       const now = Date.now();
-      const keys = await this.redis.keys('webhook:*');
+      const keys = await scanRedisKeys(this.redis, 'webhook:*');
       let cleanedCount = 0;
 
       for (const key of keys as string[]) {
@@ -488,7 +623,7 @@ export class WebhookManager {
     try {
       const now = Date.now();
       const renewalThreshold = now + renewalWindowMs;
-      const keys = await this.redis.keys('webhook:*');
+      const keys = await scanRedisKeys(this.redis, 'webhook:*');
       let renewedCount = 0;
 
       for (const key of keys as string[]) {
@@ -545,6 +680,7 @@ export class WebhookManager {
             });
 
             renewedCount++;
+            recordWebhookRenewal('file', 'expiring');
             logger.info('Webhook channel renewed', {
               webhookId: record.webhookId,
               newChannelId,

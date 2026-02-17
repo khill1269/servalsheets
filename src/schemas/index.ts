@@ -62,4 +62,4 @@ export { TOOL_ACTIONS } from '../mcp/completions.js';
 // TOOL_COUNT, ACTION_COUNT, ACTION_COUNTS are re-exported from action-counts.ts (line 16)
 // Last updated: 2026-02-17
 // See ACTION_COUNTS in annotations.ts for per-tool breakdown
-// Sum: 298 actions across 22 tools (see ACTION_COUNTS in action-counts.ts)
+// Sum: 299 actions across 22 tools (see ACTION_COUNTS in action-counts.ts)

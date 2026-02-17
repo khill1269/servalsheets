@@ -8,7 +8,7 @@
  * 4. **TOP 3 ACTIONS** - Most common usage patterns
  * 5. **SAFETY** - Destructive operation warnings
  *
- * Total: 22 tools, 298 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
+ * Total: 22 tools, 299 actions (see TOOL_COUNT/ACTION_COUNT in index.ts)
  *
  * PREREQUISITES documented for each tool to prevent wrong-order calls.
  */
@@ -1001,12 +1001,9 @@ Example workflow:
 
 **scriptId format:** "1abc123def456..." (from Apps Script editor)
 **functionName examples:** "myFunction", "onEdit", "doGet", "doPost"
-**deploymentType options:** WEB_APP, API_EXECUTABLE, ADDON
+**deploymentType options:** WEB_APP, EXECUTION_API
 
-**SAFETY WARNINGS:**
-- 🔴 run: Executes code with SIDE EFFECTS - may send emails, modify docs, etc.
-- 🔴 deploy: Creates PUBLIC endpoints - review access settings carefully
-- ⚠️ User OAuth only - does NOT work with service accounts
+**⚠️ User OAuth only - does NOT work with service accounts**
 
 **TIP:** Use devMode:true in run action to test latest saved code (owner only) before deploying.`,
 

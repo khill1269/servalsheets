@@ -61,7 +61,7 @@ export function createPermissionError(params: {
 
   return {
     code: 'PERMISSION_DENIED',
-    message: `Permission denied: Cannot ${operation}. Current access: ${currentPermission}, required: ${requiredPermission}`,
+    message: `[PERMISSION_DENIED] Cannot ${operation}: Current access is ${currentPermission}, but ${requiredPermission} is required\nSuggestion: Request ${requiredPermission} access from the ${resourceType} owner or use read-only operations`,
     category: 'auth',
     severity: 'high',
     retryable: false,
@@ -102,7 +102,7 @@ export function createRateLimitError(params: {
 
   return {
     code: 'RATE_LIMITED',
-    message: `Rate limit exceeded for ${quotaType} quota. Retry after ${retryAfterSeconds} seconds.`,
+    message: `[RATE_LIMITED] ${quotaType} quota exceeded: Google API rate limit reached\nSuggestion: Wait ${retryAfterSeconds} seconds before retrying, or use batch operations to reduce API call count`,
     category: 'quota',
     severity: 'medium',
     retryable: true,
@@ -201,9 +201,10 @@ export function createNotFoundError(params: {
     snapshot: 'NOT_FOUND', // Internal resource
   };
 
+  const resourceName = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
   return {
     code: errorCodeMap[resourceType] as ErrorDetail['code'],
-    message: `${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} not found: ${resourceId}`,
+    message: `[${errorCodeMap[resourceType]}] ${resourceName} "${resourceId}" not found: Resource does not exist or is inaccessible\nSuggestion: ${searchSuggestion || `Verify the ${resourceType} ID is correct and you have access to it`}`,
     category: 'client',
     severity: 'medium',
     retryable: false,
@@ -250,7 +251,7 @@ export function createAuthenticationError(params: {
 
   switch (reason) {
     case 'missing_token':
-      message = 'Authentication failed: No access token provided';
+      message = '[PERMISSION_DENIED] Authentication required: No access token provided\nSuggestion: Run authentication flow with "npm run auth" and grant required permissions';
       resolution = 'Run authentication flow to obtain access token';
       resolutionSteps.push(
         '1. Run authentication: npm run auth',
@@ -261,7 +262,7 @@ export function createAuthenticationError(params: {
       break;
 
     case 'invalid_token':
-      message = 'Authentication failed: Invalid access token';
+      message = '[PERMISSION_DENIED] Invalid access token: Token is malformed or revoked\nSuggestion: Clear token storage and re-authenticate with "npm run auth"';
       resolution = 'Re-authenticate to obtain a new valid token';
       resolutionSteps.push(
         '1. Clear existing token storage',
@@ -272,7 +273,7 @@ export function createAuthenticationError(params: {
       break;
 
     case 'expired_token':
-      message = 'Authentication failed: Access token expired';
+      message = '[PERMISSION_DENIED] Access token expired: Token needs refresh\nSuggestion: Token should auto-refresh, but if it fails, re-authenticate with "npm run auth"';
       resolution = 'Refresh the access token or re-authenticate';
       resolutionSteps.push(
         '1. Token refresh should happen automatically',
@@ -282,7 +283,7 @@ export function createAuthenticationError(params: {
       break;
 
     case 'insufficient_scopes':
-      message = `Authentication failed: Insufficient permissions. Missing scopes: ${missingScopes?.join(', ')}`;
+      message = `[PERMISSION_DENIED] Insufficient permissions: Missing required OAuth scopes (${missingScopes?.join(', ')})\nSuggestion: Re-authenticate with "npm run auth" and grant all requested permissions including Google Sheets scope`;
       resolution = 'Re-authenticate with additional required scopes';
       resolutionSteps.push(
         '1. Run authentication with force consent: npm run auth',
@@ -343,12 +344,23 @@ export function createValidationError(params: {
     `6. Correct the value and retry`
   );
 
-  let message = `Invalid value for '${field}'`;
+  let message = `[INVALID_REQUEST] Invalid value for '${field}': `;
   if (reason) {
-    message += `: ${reason}`;
+    message += reason;
   } else if (expectedFormat) {
-    message += `. Expected format: ${expectedFormat}`;
+    message += `Expected format: ${expectedFormat}`;
+  } else {
+    message += 'Value does not match expected format';
   }
+
+  let suggestion = `Correct the '${field}' parameter`;
+  if (expectedFormat) {
+    suggestion += ` to match format: ${expectedFormat}`;
+  } else if (allowedValues && allowedValues.length > 0) {
+    suggestion += `. Allowed values: ${allowedValues.join(', ')}`;
+  }
+
+  message += `\nSuggestion: ${suggestion}`;
 
   return {
     code: 'INVALID_REQUEST',

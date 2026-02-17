@@ -69,3 +69,18 @@ export { registerMasterIndexResource } from './master-index.js';
 
 // Resource change notifications (MCP notifications/resources/list_changed)
 export { resourceNotifications, initializeResourceNotifications } from './notifications.js';
+
+// Connection health resource (Phase 0, Priority 1)
+export {
+  registerConnectionHealthResource,
+  readConnectionHealthResource,
+} from './connection-health-resource.js';
+
+// Restart policy health resource (Phase 0, Priority 4)
+export {
+  registerRestartHealthResource,
+  readRestartHealthResource,
+} from './restart-health-resource.js';
+
+// Cost dashboard and billing resources
+export { registerCostDashboardResources } from './cost-dashboard.js';

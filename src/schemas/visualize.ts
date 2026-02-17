@@ -246,7 +246,7 @@ const PivotFilterSchema = z.object({
 });
 
 // ============================================================================
-// CONSOLIDATED INPUT SCHEMA (16 actions)
+// CONSOLIDATED INPUT SCHEMA (18 actions)
 // ============================================================================
 
 const CommonFieldsSchema = z.object({
@@ -260,7 +260,7 @@ const CommonFieldsSchema = z.object({
   safety: SafetyOptionsSchema.optional().describe('Safety options (dryRun, createSnapshot, etc.)'),
 });
 
-// ===== CHART ACTION SCHEMAS (9 actions) =====
+// ===== CHART ACTION SCHEMAS (11 actions) =====
 
 const ChartCreateActionSchema = CommonFieldsSchema.extend({
   action: z

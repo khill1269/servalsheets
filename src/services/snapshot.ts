@@ -79,6 +79,8 @@ export class SnapshotService {
       return await this.driveApi.files.copy({
         fileId: spreadsheetId,
         requestBody,
+        fields: 'id,name,mimeType,webViewLink',
+        supportsAllDrives: true,
       });
     });
 
@@ -155,6 +157,8 @@ export class SnapshotService {
         requestBody: {
           name: `Restored from ${snapshot.name}`,
         },
+        fields: 'id,name,mimeType,webViewLink',
+        supportsAllDrives: true,
       });
     });
 
@@ -185,6 +189,7 @@ export class SnapshotService {
     await this.driveCircuit.execute(async () => {
       return await this.driveApi.files.delete({
         fileId: snapshot.copySpreadsheetId,
+        supportsAllDrives: true,
       });
     });
 

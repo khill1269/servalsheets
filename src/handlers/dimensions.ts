@@ -816,6 +816,22 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('clear_basic_filter', {}, undefined, true);
     }
 
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'clear_basic_filter',
+        `Remove the basic filter from sheet ${input.sheetId} in spreadsheet ${input.spreadsheetId}. Filtered rows will become visible again.`
+      );
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
+        });
+      }
+    }
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -1098,6 +1114,22 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
       return this.success('delete_filter_view', {}, undefined, true);
     }
 
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_filter_view',
+        `Delete filter view ${input.filterViewId} from spreadsheet ${input.spreadsheetId}. This cannot be undone.`
+      );
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
+        });
+      }
+    }
+
     await this.sheetsApi.spreadsheets.batchUpdate({
       spreadsheetId: input.spreadsheetId,
       requestBody: {
@@ -1265,6 +1297,22 @@ export class DimensionsHandler extends BaseHandler<SheetsDimensionsInput, Sheets
   ): Promise<DimensionsResponse> {
     if (input.safety?.dryRun) {
       return this.success('delete_slicer', {}, undefined, true);
+    }
+
+    if (this.context.elicitationServer) {
+      const confirmation = await confirmDestructiveAction(
+        this.context.elicitationServer,
+        'delete_slicer',
+        `Delete slicer ${input.slicerId} from spreadsheet ${input.spreadsheetId}. This cannot be undone.`
+      );
+      if (!confirmation.confirmed) {
+        return this.error({
+          code: 'PRECONDITION_FAILED',
+          message: confirmation.reason || 'User cancelled the operation',
+          retryable: false,
+          suggestedFix: 'Review the operation requirements and try again',
+        });
+      }
     }
 
     await this.sheetsApi.spreadsheets.batchUpdate({

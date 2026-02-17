@@ -64,7 +64,7 @@ export function getToolSchema(toolName: string): string | null {
     annotations: tool.annotations,
   };
 
-  const content = JSON.stringify(schemaDoc, null, 2);
+  const content = JSON.stringify(schemaDoc);
 
   // Cache for future requests
   schemaCache.set(toolName as string, { content });
@@ -98,7 +98,7 @@ export function getSchemaIndex(): string {
     },
   };
 
-  return JSON.stringify(index, null, 2);
+  return JSON.stringify(index);
 }
 
 /**

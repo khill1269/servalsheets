@@ -24,6 +24,12 @@ import type { sheets_v4 } from 'googleapis';
 import { logger } from '../utils/logger.js';
 import { getConcurrencyCoordinator } from './concurrency-coordinator.js';
 import { extractSheetName } from '../utils/range-helpers.js';
+import {
+  estimatePayloadSize,
+  calculateOptimalBatchSize,
+  PAYLOAD_LIMITS,
+} from '../utils/payload-validator.js';
+import { updateBatchEfficiency } from '../observability/metrics.js';
 
 /**
  * Supported operation types that can be batched
@@ -420,8 +426,49 @@ export class BatchingSystem {
     this.pendingBatches.delete(batchKey);
     this.cancelBatchTimer(batchKey);
 
+    // **Priority 7: Payload-aware batch sizing**
+    // Estimate total payload size and split if needed to prevent 413 errors
+    const estimatedPayloadSize = estimatePayloadSize(operations);
+    const safetyThreshold = PAYLOAD_LIMITS.MAX_SIZE * 0.85; // 85% of 9MB = 7.65MB
+
+    if (estimatedPayloadSize > safetyThreshold && operations.length > 1) {
+      // Payload too large - split into smaller batches
+      const optimalBatchSize = calculateOptimalBatchSize(operations.length, estimatedPayloadSize);
+
+      if (this.verboseLogging) {
+        logger.info('Splitting oversized batch for safety', {
+          batchKey,
+          originalSize: operations.length,
+          estimatedPayloadMB: (estimatedPayloadSize / 1_000_000).toFixed(2),
+          targetBatchSize: optimalBatchSize,
+          estimatedSplits: Math.ceil(operations.length / optimalBatchSize),
+        });
+      }
+
+      // Split and execute recursively
+      for (let i = 0; i < operations.length; i += optimalBatchSize) {
+        const subBatch = operations.slice(i, i + optimalBatchSize);
+        await this.executeSingleBatch(subBatch, batchKey);
+      }
+
+      return;
+    }
+
+    // Payload within limits - execute as single batch
+    await this.executeSingleBatch(operations, batchKey);
+  }
+
+  /**
+   * Execute a single batch (without splitting)
+   */
+  private async executeSingleBatch(
+    operations: BatchableOperation[],
+    batchKey: string
+  ): Promise<void> {
     this.stats.totalBatches++;
     this.stats.batchSizes.push(operations.length);
+    if (this.stats.batchSizes.length > 1000)
+      this.stats.batchSizes = this.stats.batchSizes.slice(-1000);
 
     // Adjust adaptive window based on batch size
     if (this.useAdaptiveWindow && this.adaptiveWindow) {
@@ -462,8 +509,14 @@ export class BatchingSystem {
 
       this.stats.totalApiCalls++; // Single API call for the batch
 
+      // Record batch efficiency: ratio of operations batched per API call
+      const operationType = operations[0]?.type ?? 'unknown';
+      updateBatchEfficiency(operationType, operations.length / 1);
+
       const duration = Date.now() - startTime;
       this.stats.batchDurations.push(duration);
+      if (this.stats.batchDurations.length > 1000)
+        this.stats.batchDurations = this.stats.batchDurations.slice(-1000);
 
       if (this.verboseLogging) {
         logger.info('Batch executed successfully', {

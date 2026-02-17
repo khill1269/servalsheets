@@ -309,7 +309,7 @@ export function registerMasterIndexResource(server: McpServer): void {
           {
             uri: typeof uri === 'string' ? uri : uri.toString(),
             mimeType: 'application/json',
-            text: JSON.stringify(indexContent, null, 2),
+            text: JSON.stringify(indexContent),
           },
         ],
       };
@@ -360,7 +360,7 @@ export function registerMasterIndexResource(server: McpServer): void {
           {
             uri: typeof uri === 'string' ? uri : uri.toString(),
             mimeType: 'application/json',
-            text: JSON.stringify(capabilities, null, 2),
+            text: JSON.stringify(capabilities),
           },
         ],
       };

@@ -571,7 +571,7 @@ export async function readDecisionResource(uri: string): Promise<{
       {
         uri,
         mimeType: 'application/json',
-        text: JSON.stringify(decisionTree, null, 2),
+        text: JSON.stringify(decisionTree),
       },
     ],
   };

@@ -7,11 +7,10 @@
   "include": [
     "src/**/*.ts",
     "tests/**/*.ts",
-    "scripts/**/*.ts",
     "vitest.config.ts",
-    "vitest.config.chaos.ts",
-    "vitest.config.live.ts",
-    "vitest.config.load.ts"
+    "tests/config/vitest.config.chaos.ts",
+    "tests/config/vitest.config.live.ts",
+    "tests/config/vitest.config.load.ts"
   ],
   "exclude": ["node_modules", "dist", "coverage"]
 }

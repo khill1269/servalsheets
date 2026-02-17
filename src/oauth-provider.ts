@@ -954,14 +954,25 @@ export class OAuthProvider {
     // Generate tokens
     const userId = randomUUID();
 
+    // SECURITY: Store Google tokens in session store, NOT in JWT payload.
+    // JWTs are signed but not encrypted — base64-decode would expose Google credentials.
+    if (authCode.googleAccessToken || authCode.googleRefreshToken) {
+      await this.sessionStore.set(
+        `google_tokens:${userId}`,
+        {
+          googleAccessToken: authCode.googleAccessToken,
+          googleRefreshToken: authCode.googleRefreshToken,
+        },
+        this.config.refreshTokenTtl // Same TTL as refresh token
+      );
+    }
+
     const accessToken = jwt.sign(
       {
         sub: userId,
         aud: this.config.clientId,
         iss: this.config.issuer,
         scope: authCode.scope,
-        googleAccessToken: authCode.googleAccessToken,
-        googleRefreshToken: authCode.googleRefreshToken,
       } as Partial<TokenPayload>,
       this.jwtSecrets[0]!, // Use primary secret for signing
       {
@@ -1010,14 +1021,13 @@ export class OAuthProvider {
 
     const tokenData = tokenDataRaw as RefreshTokenData;
 
-    // Generate new access token (preserve Google tokens)
+    // Generate new access token (Google tokens stored in session store, not JWT)
     const accessToken = jwt.sign(
       {
         sub: tokenData.userId,
         aud: tokenData.clientId,
         iss: this.config.issuer,
         scope: tokenData.scope,
-        googleRefreshToken: tokenData.googleRefreshToken,
       } as Partial<TokenPayload>,
       this.jwtSecrets[0]!, // Use primary secret for signing
       {
@@ -1102,16 +1112,28 @@ export class OAuthProvider {
   }
 
   /**
-   * Extract Google access token from validated request
+   * Extract Google access token from session store (keyed by userId from JWT)
    */
-  getGoogleToken(req: Request): string | undefined {
-    return (req as Request & { auth?: TokenPayload }).auth?.googleAccessToken;
+  async getGoogleToken(req: Request): Promise<string | undefined> {
+    const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
+    if (!userId) return undefined;
+
+    const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
+      | { googleAccessToken?: string; googleRefreshToken?: string }
+      | undefined;
+    return tokens?.googleAccessToken;
   }
 
   /**
-   * Extract Google refresh token from validated request
+   * Extract Google refresh token from session store (keyed by userId from JWT)
    */
-  getGoogleRefreshToken(req: Request): string | undefined {
-    return (req as Request & { auth?: TokenPayload }).auth?.googleRefreshToken;
+  async getGoogleRefreshToken(req: Request): Promise<string | undefined> {
+    const userId = (req as Request & { auth?: TokenPayload }).auth?.sub;
+    if (!userId) return undefined;
+
+    const tokens = (await this.sessionStore.get(`google_tokens:${userId}`)) as
+      | { googleAccessToken?: string; googleRefreshToken?: string }
+      | undefined;
+    return tokens?.googleRefreshToken;
   }
 }

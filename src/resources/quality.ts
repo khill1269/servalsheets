@@ -120,7 +120,7 @@ export function registerQualityResources(
             {
               uri: uri.href,
               mimeType: 'application/json',
-              text: JSON.stringify(data, null, 2),
+              text: JSON.stringify(data),
             },
           ],
         };
