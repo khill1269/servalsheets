@@ -688,7 +688,7 @@ describe('MCP Protocol Integration', () => {
   });
 
   describe('tools/list', () => {
-    it('should return all 21 tools', async () => {
+    it('should return all 22 tools', async () => {
       const tools = await client.listTools();
       expect(tools.tools).toHaveLength(21);
     });

@@ -154,7 +154,7 @@ Change from stdio to HTTP transport:
 **Or use the automated script**:
 
 ```bash
-./setup-oauth.sh
+./scripts/setup-oauth.sh
 ```
 
 ---

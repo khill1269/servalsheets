@@ -453,7 +453,7 @@ describe('MCP tools/list', () => {
 ### Phase 4: Verification
 
 - Run full test suite
-- Test tools/list with all 21 tools
+- Test tools/list with all 22 tools
 - Verify no empty schemas
 
 ---

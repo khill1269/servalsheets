@@ -51,7 +51,7 @@ Documentation for AI assistants like Claude:
 | ---------------------------------- | ----------------------------------------- | --------------------------------- |
 | **[SKILL.md](../guides/SKILL.md)** | How to use ServalSheets tools effectively | AI assistants (Claude, GPT, etc.) |
 
-**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 21 tools and 294 actions. It includes best practices, safety guidelines, and common patterns.
+**Note**: SKILL.md is specifically written for AI assistants to understand how to use the 22 tools and 299 actions. It includes best practices, safety guidelines, and common patterns.
 
 ---
 
