@@ -725,3 +725,179 @@ function testConnection() {
     };
   }
 }
+
+// ==================== PHASE 3.1: Contextual Tool Suggestions ====================
+
+/**
+ * Detects context from user's current selection and suggests relevant tools
+ * @returns {Object} Context object with suggestions
+ */
+function detectContext() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const range = SpreadsheetApp.getActiveRange();
+
+    if (!range) {
+      return {
+        hasSelection: false,
+        suggestions: [
+          { action: 'analyze', label: '📊 Analyze Sheet', description: 'Get insights from your data' },
+          { action: 'listSheets', label: '📋 List All Sheets', description: 'View all sheets in this spreadsheet' }
+        ]
+      };
+    }
+
+    const values = range.getValues();
+    const rowCount = values.length;
+    const colCount = values[0] ? values[0].length : 0;
+
+    // Sample first 10 rows to detect types
+    const sampleSize = Math.min(10, rowCount);
+    let hasNumbers = false;
+    let hasDates = false;
+    let hasText = false;
+    let hasFormulas = false;
+    let emptyCount = 0;
+    let totalCells = 0;
+
+    for (let i = 0; i < sampleSize; i++) {
+      for (let j = 0; j < colCount; j++) {
+        totalCells++;
+        const cell = values[i][j];
+
+        if (cell === '' || cell === null || cell === undefined) {
+          emptyCount++;
+        } else if (typeof cell === 'number') {
+          hasNumbers = true;
+        } else if (cell instanceof Date) {
+          hasDates = true;
+        } else if (typeof cell === 'string') {
+          hasText = true;
+          if (cell.startsWith('=')) {
+            hasFormulas = true;
+          }
+        }
+      }
+    }
+
+    const emptyCellPercent = (emptyCount / totalCells) * 100;
+    const isLargeRange = rowCount > 100 || colCount > 10;
+    const isSmallRange = rowCount <= 5 && colCount <= 5;
+
+    // Build context-aware suggestions
+    const suggestions = [];
+
+    // Large dataset suggestions
+    if (isLargeRange) {
+      suggestions.push({
+        action: 'analyze',
+        label: '📊 Analyze Large Dataset',
+        description: `Analyze ${rowCount} rows × ${colCount} columns`
+      });
+
+      if (hasNumbers) {
+        suggestions.push({
+          action: 'patterns',
+          label: '🔍 Find Patterns',
+          description: 'Detect trends and anomalies'
+        });
+      }
+    }
+
+    // Numeric data suggestions
+    if (hasNumbers && rowCount > 2) {
+      suggestions.push({
+        action: 'chart',
+        label: '📈 Create Chart',
+        description: 'Visualize numeric data'
+      });
+
+      if (!hasFormulas && rowCount > 1) {
+        suggestions.push({
+          action: 'formula',
+          label: '🔢 Add Formulas',
+          description: 'Generate calculations'
+        });
+      }
+    }
+
+    // Date column suggestions
+    if (hasDates) {
+      suggestions.push({
+        action: 'timeline',
+        label: '📅 Timeline Chart',
+        description: 'Visualize data over time'
+      });
+    }
+
+    // Data quality suggestions
+    if (emptyCellPercent > 10) {
+      suggestions.push({
+        action: 'quality',
+        label: '✅ Check Data Quality',
+        description: `${emptyCellPercent.toFixed(0)}% empty cells detected`
+      });
+    }
+
+    // Formatting suggestions for small ranges
+    if (isSmallRange && hasNumbers) {
+      suggestions.push({
+        action: 'format',
+        label: '🎨 Format Cells',
+        description: 'Apply number formatting'
+      });
+    }
+
+    // Text data suggestions
+    if (hasText && !hasNumbers && rowCount > 5) {
+      suggestions.push({
+        action: 'analyze',
+        label: '📝 Analyze Text',
+        description: 'Extract insights from text'
+      });
+    }
+
+    // Default suggestions if none matched
+    if (suggestions.length === 0) {
+      suggestions.push({
+        action: 'analyze',
+        label: '📊 Analyze Selection',
+        description: 'Get AI insights'
+      });
+      suggestions.push({
+        action: 'formula',
+        label: '🔢 Generate Formula',
+        description: 'Create custom formulas'
+      });
+    }
+
+    return {
+      hasSelection: true,
+      range: range.getA1Notation(),
+      size: {
+        rows: rowCount,
+        cols: colCount
+      },
+      types: {
+        hasNumbers,
+        hasDates,
+        hasText,
+        hasFormulas
+      },
+      metrics: {
+        emptyCellPercent: emptyCellPercent.toFixed(1),
+        isLargeRange,
+        isSmallRange
+      },
+      suggestions: suggestions.slice(0, 4) // Limit to 4 suggestions
+    };
+
+  } catch (error) {
+    Logger.log('Error detecting context: ' + error.message);
+    return {
+      hasSelection: false,
+      error: error.message,
+      suggestions: []
+    };
+  }
+}
