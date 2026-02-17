@@ -10,11 +10,36 @@
  * - Sidebar.html provides the UI (client-side)
  */
 
-// Configuration
+// Configuration with auto-detection
 const CONFIG = {
-  // For local testing, use: http://localhost:3000
-  // For production, use: https://api.servalsheets.com (or your deployed URL)
-  API_URL: 'http://localhost:3000',
+  // Auto-detect environment or use manual override
+  API_URL: (() => {
+    try {
+      // Check script properties for environment override
+      const props = PropertiesService.getScriptProperties();
+      const envOverride = props.getProperty('API_URL');
+      if (envOverride) return envOverride;
+
+      // Auto-detect based on deployment context
+      // Production deployments should have PROD_ prefix in script ID
+      // Staging deployments should have STAGING_ prefix
+      // Everything else defaults to localhost (development)
+      const deploymentId = ScriptApp.getScriptId();
+
+      if (deploymentId.startsWith('PROD_')) {
+        return 'https://api.servalsheets.com';
+      } else if (deploymentId.startsWith('STAGING_')) {
+        return 'https://staging-api.servalsheets.com';
+      } else {
+        // Default to localhost for development
+        return 'http://localhost:3000';
+      }
+    } catch (error) {
+      // Fallback to localhost if detection fails
+      Logger.log('Environment detection failed: ' + error.message);
+      return 'http://localhost:3000';
+    }
+  })(),
 
   // API key stored in user properties (set via Settings dialog)
   API_KEY_PROPERTY: 'SERVALSHEETS_API_KEY',
@@ -99,6 +124,63 @@ function saveApiKey(apiKey) {
 function getPlan() {
   const props = PropertiesService.getUserProperties();
   return props.getProperty(CONFIG.PLAN_PROPERTY) || 'free';
+}
+
+/**
+ * Set environment (production/staging/development)
+ * This overrides the automatic detection
+ *
+ * @param {string} env - Environment: 'production', 'staging', or 'development'
+ */
+function setEnvironment(env) {
+  const props = PropertiesService.getScriptProperties();
+
+  if (env === 'production') {
+    props.setProperty('API_URL', 'https://api.servalsheets.com');
+    Logger.log('Environment set to: production (https://api.servalsheets.com)');
+  } else if (env === 'staging') {
+    props.setProperty('API_URL', 'https://staging-api.servalsheets.com');
+    Logger.log('Environment set to: staging (https://staging-api.servalsheets.com)');
+  } else if (env === 'development') {
+    props.setProperty('API_URL', 'http://localhost:3000');
+    Logger.log('Environment set to: development (http://localhost:3000)');
+  } else {
+    throw new Error('Invalid environment. Use: production, staging, or development');
+  }
+
+  return { success: true, environment: env };
+}
+
+/**
+ * Get current environment configuration
+ */
+function getEnvironment() {
+  const props = PropertiesService.getScriptProperties();
+  const apiUrl = props.getProperty('API_URL') || CONFIG.API_URL;
+
+  let detectedEnv = 'development';
+  if (apiUrl.includes('api.servalsheets.com')) {
+    detectedEnv = 'production';
+  } else if (apiUrl.includes('staging-api.servalsheets.com')) {
+    detectedEnv = 'staging';
+  }
+
+  return {
+    environment: detectedEnv,
+    apiUrl: apiUrl,
+    deploymentId: ScriptApp.getScriptId(),
+    isOverridden: props.getProperty('API_URL') !== null
+  };
+}
+
+/**
+ * Clear environment override (revert to auto-detection)
+ */
+function clearEnvironment() {
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty('API_URL');
+  Logger.log('Environment override cleared. Using auto-detection.');
+  return { success: true, message: 'Reverted to auto-detection' };
 }
 
 // ============================================================================

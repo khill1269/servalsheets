@@ -494,21 +494,25 @@ function isPreviewModeEnabled() / setPreviewMode(enabled) {
 **Priority 1 Tools Added (14 wrappers):**
 
 **sheets_transaction (3 functions):**
+
 - `beginTransaction()` - Start atomic transaction
 - `commitTransaction(transactionId)` - Commit changes
 - `rollbackTransaction(transactionId)` - Revert changes
 
 **sheets_quality (3 functions):**
+
 - `validateData(range, type, options)` - Validate data rules
 - `detectConflicts(range)` - Find data conflicts
 - `analyzeImpact(range, change)` - Analyze change impact
 
 **sheets_composite (3 functions):**
+
 - `importCsv(data, range, options)` - Import CSV
 - `smartAppend(data, options)` - Intelligent append
 - `bulkUpdate(updates)` - Multi-range update
 
 **sheets_session (4 functions):**
+
 - `setActiveContext(spreadsheetId, sheet)` - Set context
 - `getSessionContext()` - Get current context
 - `storeContextVar(key, value)` - Store variable
@@ -519,44 +523,53 @@ function isPreviewModeEnabled() / setPreviewMode(enabled) {
 **Priority 2 Tools Added (42 wrappers):**
 
 **sheets_advanced (4 functions):**
+
 - `addNamedRange(name, range)` - Create named range
 - `updateNamedRange(name, newRange)` - Update range
 - `deleteNamedRange(name)` - Remove range
 - `addConditionalFormat(range, condition, format)` - Add formatting rule
 
 **sheets_confirm (2 functions):**
+
 - `requestConfirmation(operation, details)` - Request confirmation
 - `getConfirmationStats()` - Get confirmation statistics
 
 **sheets_fix (1 function):**
+
 - `autoFix(range, issues)` - Auto-fix data issues
 
 **sheets_templates (3 functions):**
+
 - `listTemplates(category)` - List available templates
 - `getTemplate(templateId)` - Get template details
 - `createFromTemplate(templateId, name)` - Create from template
 
 **sheets_bigquery (3 functions):**
+
 - `connectBigQuery(projectId, datasetId)` - Connect to BigQuery
 - `queryBigQuery(query, targetRange)` - Run query
 - `exportToBigQuery(range, tableName)` - Export data
 
 **sheets_appsscript (3 functions):**
+
 - `createAppsScript(projectName)` - Create project
 - `getAppsScriptContent(projectId)` - Get code
 - `deployAppsScript(projectId, version)` - Deploy script
 
 **sheets_webhook (3 functions):**
+
 - `registerWebhook(url, events)` - Register webhook
 - `listWebhooks()` - List all webhooks
 - `unregisterWebhook(webhookId)` - Unregister webhook
 
 **sheets_dependencies (3 functions):**
+
 - `buildDependencyGraph()` - Build graph
 - `analyzeDependencyImpact(cellRef)` - Analyze impact
 - `detectCircularDependencies()` - Detect cycles
 
 **sheets_auth (3 functions):**
+
 - `getAuthStatus()` - Check auth status
 - `loginOAuth()` - Start OAuth flow
 - `logoutUser()` - Logout user
@@ -574,6 +587,143 @@ function isPreviewModeEnabled() / setPreviewMode(enabled) {
 - Users can access every ServalSheets capability
 - No tool left behind
 - Full feature parity with backend
+
+### Phase 4.1: Environment Detection ✅
+
+**Date:** 2026-02-17 (Complete)
+
+**Feature:** Automatic environment detection and configuration for dev/staging/production deployments.
+
+**Problem Solved:**
+
+- Previously: Hardcoded `API_URL` required manual editing for each environment
+- Now: Auto-detects environment based on deployment context with manual override capability
+
+**Key Features:**
+
+1. **Auto-Detection Logic:**
+   - Checks `ScriptProperties` for manual override
+   - Falls back to deployment ID prefix detection
+   - PROD\_ prefix → Production (https://api.servalsheets.com)
+   - STAGING\_ prefix → Staging (https://staging-api.servalsheets.com)
+   - Default → Development (http://localhost:3000)
+
+2. **Manual Override Functions:**
+   - `setEnvironment(env)` - Set production/staging/development
+   - `getEnvironment()` - Get current config with detection info
+   - `clearEnvironment()` - Revert to auto-detection
+
+3. **Settings UI Integration:**
+   - Environment dropdown in Settings dialog
+   - Shows current API URL dynamically
+   - Updates on environment change
+   - Persists selection in ScriptProperties
+
+**Implementation Details:**
+
+**Code.gs changes (+70 lines):**
+
+```javascript
+const CONFIG = {
+  API_URL: (() => {
+    try {
+      // Check for manual override
+      const props = PropertiesService.getScriptProperties();
+      const envOverride = props.getProperty('API_URL');
+      if (envOverride) return envOverride;
+
+      // Auto-detect from deployment ID
+      const deploymentId = ScriptApp.getScriptId();
+      if (deploymentId.startsWith('PROD_')) {
+        return 'https://api.servalsheets.com';
+      } else if (deploymentId.startsWith('STAGING_')) {
+        return 'https://staging-api.servalsheets.com';
+      } else {
+        return 'http://localhost:3000';
+      }
+    } catch (error) {
+      return 'http://localhost:3000';
+    }
+  })(),
+  // ... rest of config
+};
+
+function setEnvironment(env) {
+  const props = PropertiesService.getScriptProperties();
+  if (env === 'production') {
+    props.setProperty('API_URL', 'https://api.servalsheets.com');
+  } else if (env === 'staging') {
+    props.setProperty('API_URL', 'https://staging-api.servalsheets.com');
+  } else {
+    props.setProperty('API_URL', 'http://localhost:3000');
+  }
+  return { success: true, environment: env };
+}
+
+function getEnvironment() {
+  const props = PropertiesService.getScriptProperties();
+  const apiUrl = props.getProperty('API_URL') || CONFIG.API_URL;
+  // ... detection logic
+  return { environment, apiUrl, deploymentId, isOverridden };
+}
+
+function clearEnvironment() {
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty('API_URL');
+  return { success: true };
+}
+```
+
+**Settings.html changes (+40 lines):**
+
+- Replaced hardcoded API URL input with environment dropdown
+- Added dynamic URL display showing current API endpoint
+- Load current environment on dialog open
+- Save environment selection on form submit
+- Auto-update URL display on dropdown change
+
+**File Stats:**
+
+- Code.gs: 1,968 → 2,038 lines (+70 lines)
+- Settings.html: 223 → 263 lines (+40 lines)
+
+**Usage:**
+
+**Development (default):**
+
+```javascript
+// Auto-detected for local testing
+// API_URL: http://localhost:3000
+```
+
+**Staging (manual override):**
+
+```javascript
+setEnvironment('staging');
+// API_URL: https://staging-api.servalsheets.com
+```
+
+**Production (manual override OR deployment ID):**
+
+```javascript
+setEnvironment('production');
+// API_URL: https://api.servalsheets.com
+```
+
+**Check current environment:**
+
+```javascript
+getEnvironment();
+// Returns: { environment: 'development', apiUrl: 'http://localhost:3000', ... }
+```
+
+**Benefits:**
+
+- **Zero configuration** for local development
+- **One command** to switch environments: `setEnvironment('production')`
+- **Visual feedback** in Settings UI showing current environment
+- **Fail-safe fallback** to localhost if detection fails
+- **Ready for production** deployment without code changes
 
 ## 📋 Next Steps
 
@@ -668,20 +818,21 @@ const CONFIG = {
 };
 ```
 
-## 📊 Current Status - Phase 1 & 3 COMPLETE ✅
+## 📊 Current Status - Phases 1, 3, & 4.1 COMPLETE ✅
 
 - **Endpoint Integration:** ✅ Complete (Phase 1.1)
 - **JSON-RPC Format:** ✅ Complete (Phase 1.1)
 - **Accept Headers:** ✅ Complete (Phase 1.1)
 - **Response Parsing:** ✅ Complete (Phase 1.1)
 - **Claude Desktop Verification:** ✅ No conflicts (Phase 1.1)
-- **Tool Wrappers:** 19 wrappers covering 7/22 tools ✅ Complete (Phase 1.2)
+- **Tool Wrappers:** 75 wrappers covering 22/22 tools ✅ Complete (Phase 1.2 + Expansion)
 - **UI Updates:** 9 quick actions implemented ✅ Complete (Phase 1.3)
 - **Session Management:** MCP session lifecycle ✅ Complete (Phase 1.4)
 - **Contextual Suggestions:** AI-powered context detection ✅ Complete (Phase 3.1)
 - **Batch Operations:** Atomic transaction-based execution ✅ Complete (Phase 3.2)
 - **Action History & Undo:** Operation history with one-click undo ✅ Complete (Phase 3.3)
 - **Preview Mode:** Dry-run operations before executing ✅ Complete (Phase 3.4)
+- **Environment Detection:** Auto-detect dev/staging/prod ✅ Complete (Phase 4.1)
 - **Deployment Guide:** Complete documentation ✅ Ready (Phase 1.4)
 - **Testing:** ⏳ Ready for Apps Script deployment (Phase 1.5)
 
