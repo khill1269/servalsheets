@@ -19,6 +19,7 @@ TEMP_FILE=$(mktemp)
 #   - src/examples/*.ts (example code)
 #   - src/config/*.ts (configuration error handling)
 #   - src/analysis/*.ts (has commented-out debug code)
+#   - src/ui/**/*.ts (React UI console logging is acceptable)
 rg "console\.(log|error|warn)" src/ --type ts \
   --glob '!src/cli.ts' \
   --glob '!src/cli/*.ts' \
@@ -28,6 +29,8 @@ rg "console\.(log|error|warn)" src/ --type ts \
   --glob '!src/examples/*.ts' \
   --glob '!src/config/*.ts' \
   --glob '!src/analysis/*.ts' \
+  --glob '!src/ui/**/*.ts' \
+  --glob '!src/ui/**/*.tsx' \
   -n 2>/dev/null > "$TEMP_FILE" || true
 
 if [ -s "$TEMP_FILE" ]; then
