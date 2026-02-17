@@ -816,6 +816,227 @@
     .history-toggle-btn:active {
       transform: translateY(0);
     }
+
+    /* Phase 3.4: Preview Mode Styles */
+    .preview-mode-toggle {
+      padding: 8px 16px;
+      background: #fff3e0;
+      border-bottom: 1px solid #ffb74d;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .preview-mode-toggle.active {
+      background: #e3f2fd;
+      border-color: #42a5f5;
+    }
+
+    .preview-toggle-label {
+      flex: 1;
+      color: #5f6368;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preview-toggle-label.active {
+      color: #1976d2;
+      font-weight: 500;
+    }
+
+    .preview-icon {
+      font-size: 16px;
+    }
+
+    .preview-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #dadce0;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .preview-switch.active {
+      background: #42a5f5;
+    }
+
+    .preview-switch-knob {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .preview-switch.active .preview-switch-knob {
+      transform: translateX(20px);
+    }
+
+    .preview-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s;
+    }
+
+    .preview-modal.visible {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .preview-dialog {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .preview-dialog-header {
+      padding: 16px;
+      border-bottom: 1px solid #dadce0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .preview-dialog-icon {
+      font-size: 24px;
+    }
+
+    .preview-dialog-title {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 500;
+      color: #202124;
+    }
+
+    .preview-dialog-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .preview-section {
+      margin-bottom: 16px;
+    }
+
+    .preview-section-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #5f6368;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .preview-section-content {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: #202124;
+    }
+
+    .preview-code {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .preview-warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .preview-warning-icon {
+      color: #f57c00;
+      font-size: 18px;
+    }
+
+    .preview-warning-text {
+      flex: 1;
+      font-size: 12px;
+      color: #5f4000;
+    }
+
+    .preview-dialog-footer {
+      padding: 16px;
+      border-top: 1px solid #dadce0;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .preview-dialog-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .preview-dialog-btn.cancel {
+      background: white;
+      border: 1px solid #dadce0;
+      color: #5f6368;
+    }
+
+    .preview-dialog-btn.cancel:hover {
+      background: #f8f9fa;
+    }
+
+    .preview-dialog-btn.execute {
+      background: linear-gradient(135deg, #4285f4 0%, #1a73e8 100%);
+      border: none;
+      color: white;
+    }
+
+    .preview-dialog-btn.execute:hover {
+      background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -825,6 +1046,34 @@
   </div>
 
   <div id="quota-status" class="quota-status"></div>
+
+  <!-- Phase 3.4: Preview Mode Toggle -->
+  <div id="preview-mode-toggle" class="preview-mode-toggle">
+    <div class="preview-toggle-label" id="preview-toggle-label">
+      <span class="preview-icon">👁️</span>
+      <span>Preview before executing</span>
+    </div>
+    <div class="preview-switch" id="preview-switch" onclick="togglePreviewMode()">
+      <div class="preview-switch-knob"></div>
+    </div>
+  </div>
+
+  <!-- Phase 3.4: Preview Modal -->
+  <div id="preview-modal" class="preview-modal">
+    <div class="preview-dialog">
+      <div class="preview-dialog-header">
+        <span class="preview-dialog-icon">👁️</span>
+        <span class="preview-dialog-title">Preview Operation</span>
+      </div>
+      <div class="preview-dialog-body" id="preview-dialog-body">
+        <!-- Dynamically populated -->
+      </div>
+      <div class="preview-dialog-footer">
+        <button class="preview-dialog-btn cancel" onclick="closePreviewModal()">Cancel</button>
+        <button class="preview-dialog-btn execute" onclick="executeAfterPreview()">Execute</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Phase 3.1: Context Suggestions Panel -->
   <div id="context-suggestions" class="context-panel" style="display:none;">
@@ -1494,6 +1743,195 @@
         })
         .undoLastOperations(1);
     }
+
+    // ==================== Phase 3.4: Preview Mode ====================
+
+    let previewModeEnabled = false;
+    let pendingOperation = null;
+
+    /**
+     * Toggles preview mode on/off
+     */
+    function togglePreviewMode() {
+      previewModeEnabled = !previewModeEnabled;
+
+      const toggleEl = document.getElementById('preview-mode-toggle');
+      const switchEl = document.getElementById('preview-switch');
+      const labelEl = document.getElementById('preview-toggle-label');
+
+      if (previewModeEnabled) {
+        toggleEl.classList.add('active');
+        switchEl.classList.add('active');
+        labelEl.classList.add('active');
+        addMessage('👁️ Preview mode enabled - operations will show preview first', 'system');
+      } else {
+        toggleEl.classList.remove('active');
+        switchEl.classList.remove('active');
+        labelEl.classList.remove('active');
+        addMessage('👁️ Preview mode disabled', 'system');
+      }
+
+      // Save preference
+      google.script.run
+        .withFailureHandler(function(error) {
+          console.error('Failed to save preview mode:', error);
+        })
+        .setPreviewMode(previewModeEnabled);
+    }
+
+    /**
+     * Shows preview modal with operation details
+     */
+    function showPreviewModal(operation, previewResult) {
+      const modal = document.getElementById('preview-modal');
+      const body = document.getElementById('preview-dialog-body');
+
+      // Store pending operation for later execution
+      pendingOperation = operation;
+
+      // Build preview display
+      let html = '';
+
+      // Warning message
+      html += `
+        <div class="preview-warning">
+          <span class="preview-warning-icon">⚠️</span>
+          <div class="preview-warning-text">
+            This is a preview. No changes have been made yet.
+            Review the details below and click "Execute" to proceed.
+          </div>
+        </div>
+      `;
+
+      // Operation details
+      html += `
+        <div class="preview-section">
+          <div class="preview-section-title">Operation</div>
+          <div class="preview-section-content">
+            <strong>${operation.tool}</strong> → ${operation.action}
+          </div>
+        </div>
+      `;
+
+      // Preview result
+      if (previewResult.success && previewResult.response) {
+        const preview = previewResult.response.wouldDo || previewResult.response;
+
+        html += `
+          <div class="preview-section">
+            <div class="preview-section-title">What will happen</div>
+            <div class="preview-section-content preview-code">${JSON.stringify(preview, null, 2)}</div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="preview-section">
+            <div class="preview-section-title">Error</div>
+            <div class="preview-section-content" style="color: #d32f2f;">
+              ${previewResult.error?.message || 'Preview failed'}
+            </div>
+          </div>
+        `;
+      }
+
+      body.innerHTML = html;
+      modal.classList.add('visible');
+    }
+
+    /**
+     * Closes preview modal
+     */
+    function closePreviewModal() {
+      const modal = document.getElementById('preview-modal');
+      modal.classList.remove('visible');
+      pendingOperation = null;
+    }
+
+    /**
+     * Executes operation after preview confirmation
+     */
+    function executeAfterPreview() {
+      if (!pendingOperation) {
+        console.error('No pending operation');
+        return;
+      }
+
+      closePreviewModal();
+      addMessage(`🚀 Executing: ${pendingOperation.label}`, 'system');
+
+      // Execute without dry run flag
+      const operation = pendingOperation;
+      pendingOperation = null;
+
+      showLoading();
+      setProcessing(true);
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          hideLoading();
+          setProcessing(false);
+
+          if (result.success) {
+            addMessage('✅ Operation completed successfully', 'ai');
+          } else {
+            addMessage('❌ Operation failed: ' + (result.error?.message || 'Unknown error'), 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          hideLoading();
+          setProcessing(false);
+          addMessage('❌ Execution error: ' + error.message, 'error');
+        })
+        .callServalSheets(operation.tool, operation.request);
+    }
+
+    /**
+     * Checks if preview mode is active and shows preview if needed
+     * Returns true if preview is shown, false if should execute immediately
+     */
+    function checkPreviewMode(operation, callback) {
+      if (!previewModeEnabled) {
+        // Preview mode disabled - execute immediately
+        callback();
+        return false;
+      }
+
+      // Preview mode enabled - show preview first
+      addMessage(`👁️ Generating preview for: ${operation.label}`, 'system');
+      showLoading();
+
+      google.script.run
+        .withSuccessHandler(function(previewResult) {
+          hideLoading();
+          showPreviewModal(operation, previewResult);
+        })
+        .withFailureHandler(function(error) {
+          hideLoading();
+          addMessage('❌ Preview error: ' + error.message, 'error');
+          // On preview error, ask if user wants to proceed anyway
+          if (confirm('Preview failed. Execute anyway?')) {
+            callback();
+          }
+        })
+        .previewOperation(operation.tool, operation.request);
+
+      return true;
+    }
+
+    /**
+     * Load preview mode state on startup
+     */
+    window.addEventListener('load', function() {
+      google.script.run
+        .withSuccessHandler(function(enabled) {
+          if (enabled) {
+            // Simulate toggle to set UI state
+            previewModeEnabled = false;
+            togglePreviewMode();
+          }
+        })
+        .isPreviewModeEnabled();
+    });
 
     function sendMessage() {
       const prompt = promptInput.value.trim();
