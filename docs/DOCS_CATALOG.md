@@ -3,32 +3,31 @@ title: ServalSheets Documentation Catalog
 description: Comprehensive index of all ServalSheets documentation
 category: general
 version: 1.6.0
-last_updated: 2026-01-31
+last_updated: 2026-02-17
 tags: [index, catalog, navigation]
 ---
 
 # ServalSheets Documentation Catalog
 
-> **Auto-generated documentation index** - Last updated: 2026-01-31
+> **Auto-generated documentation index** - Last updated: 2026-02-17
 
 ## Overview
 
-- **Total Documents:** 142
-- **Categories:** 10
-- **Last Catalog Update:** 2026-01-31T21:44:53.161Z
+- **Total Documents:** 154
+- **Categories:** 9
+- **Last Catalog Update:** 2026-02-17T01:43:23.600Z
 
 ## Categories
 
 - [architecture](#architecture) (1 docs)
 - [business](#business) (11 docs)
-- [development](#development) (27 docs)
+- [development](#development) (28 docs)
 - [example](#example) (6 docs)
-- [general](#general) (45 docs)
-- [guide](#guide) (33 docs)
+- [general](#general) (57 docs)
+- [guide](#guide) (35 docs)
 - [index](#index) (1 docs)
-- [metrics](#metrics) (1 docs)
-- [reference](#reference) (9 docs)
-- [runbook](#runbook) (8 docs)
+- [reference](#reference) (6 docs)
+- [runbook](#runbook) (9 docs)
 
 ## guide
 
@@ -100,17 +99,17 @@ Comprehensive guide to error handling patterns and best practices in ServalSheet
 
 **Difficulty:** intermediate | **Audience:** user
 
-### [Error Recovery Quick Reference](/guides/error-recovery.md)
+### [Error Recovery Guide](/guides/error-recovery.md)
 
-Quick Reference for AI Agents - condensed error handling guide
+Quick Reference for AI Agents
 
 **Difficulty:** intermediate | **Audience:** user
 
 **Tags:** sheets
 
-### [Error Recovery Comprehensive Guide](/guides/ERROR_RECOVERY.md)
+### [Error Recovery Guide](/guides/ERROR_RECOVERY.md)
 
-Complete error recovery documentation with all 40+ error codes
+Version: 1.6.0
 
 **Difficulty:** intermediate | **Audience:** user
 
@@ -138,11 +137,11 @@ Complete guide to manual and automated testing using MCP Inspector. Covers inter
 
 ### [Monitoring and Observability Guide](/guides/MONITORING.md)
 
-This guide covers monitoring, logging, and observability strategies for ServalSheets in production.
+This guide covers monitoring, logging, and observability strategies for ServalSheets in production, including automatic background quality analysis.
 
 **Difficulty:** intermediate | **Audience:** user
 
-**Tags:** monitoring, observability, sheets, prometheus, grafana, docker, kubernetes
+**Tags:** monitoring, observability, sheets, prometheus, grafana, docker, kubernetes, quality-analysis
 
 ### [OAuth Incremental Consent Guide](/guides/OAUTH_INCREMENTAL_CONSENT.md)
 
@@ -162,11 +161,11 @@ This guide sets up ServalSheets to prompt you for Google login instead of using 
 
 ### [Performance Tuning Guide](/guides/PERFORMANCE.md)
 
-This guide covers performance optimization strategies for ServalSheets in production environments.
+This guide covers performance optimization strategies for ServalSheets in production environments, including distributed caching with Redis.
 
 **Difficulty:** intermediate | **Audience:** user
 
-**Tags:** performance, optimization, sheets
+**Tags:** performance, optimization, sheets, caching, redis, distributed-caching
 
 ### [Quick Start: Get Google Credentials](/guides/QUICKSTART_CREDENTIALS.md)
 
@@ -250,6 +249,22 @@ Tool: sheetsadvanced (chip actions)
 
 **Tags:** sheets
 
+### [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
+
+Complete guide to setting up OAuth with full scopes for all ServalSheets features
+
+**Difficulty:** beginner | **Audience:** user
+
+**Tags:** oauth, authentication, setup, scopes, google-api
+
+### [Submission Checklist](/guides/SUBMISSION_CHECKLIST.md)
+
+Checklist for preparing a ServalSheets Remote MCP Server submission.
+
+**Difficulty:** intermediate | **Audience:** developer
+
+**Tags:** mcp, submission, claude
+
 ### [Table Management Guide](/guides/TABLE_MANAGEMENT.md)
 
 Tool: sheetsadvanced (table actions)
@@ -282,6 +297,10 @@ You've successfully installed ServalSheets. Here's how to get started in Claude 
 
 ## reference
 
+### [Documentation Metrics Dashboard](/reference/METRICS_DASHBOARD.md)
+
+Real-time metrics and health indicators for ServalSheets documentation
+
 ### [Knowledge Base Resources](/reference/knowledge.md)
 
 ServalSheets includes embedded knowledge resources for Google Sheets API patterns, formulas, and best practices.
@@ -306,18 +325,6 @@ Version: 1.6.0
 
 **Tags:** api, sheets
 
-### [sheets_analyze Tool Reference](/reference/tools/sheets_analyze.md)
-
-Analyze spreadsheets for formulas, quality, performance, and structure.
-
-**Stability:** stable
-
-### [sheets_visualize Tool Reference](/reference/tools/sheets_visualize.md)
-
-Create, customize, and manage charts and visualizations.
-
-**Stability:** stable
-
 ### [sheets_data](/reference/tools/sheets_data.md)
 
 Core data operations for reading and writing spreadsheet data.
@@ -325,18 +332,6 @@ Core data operations for reading and writing spreadsheet data.
 **Stability:** stable
 
 **Tags:** sheets
-
-### [sheets_format Tool Reference](/reference/tools/sheets_format.md)
-
-Apply cell formatting, number formats, colors, and text styles.
-
-**Stability:** stable
-
-### [sheets_core Tool Reference](/reference/tools/sheets_core.md)
-
-Manage spreadsheet and sheet structure, metadata, and organization.
-
-**Stability:** stable
 
 ### [Tools Overview](/reference/tools.md)
 
@@ -390,7 +385,7 @@ Complete guide to all documentation automation tools and workflows
 
 ### [Durable MCP Schema Pattern](/development/DURABLE_SCHEMA_PATTERN.md)
 
-Root Cause: MCP SDK's normalizeObjectSchema() expects top-level z.object() schemas. Root-level discriminated unions cause empty schemas {\"type\":\"object\"}
+Root Cause: MCP SDK''s normalizeObjectSchema() expects top-level z.object() schemas. Root-level discriminated unions cause empty schemas {"type":"object"}
 
 ### [Implementation Guardrails for Tier 7 Enterprise Tools](/development/IMPLEMENTATION_GUARDRAILS.md)
 
@@ -415,6 +410,12 @@ This guide explains how to set up and run integration tests for ServalSheets tha
 Get integration tests running in 5 minutes!
 
 **Tags:** testing, sheets
+
+### [Project Status](/development/PROJECT_STATUS.md)
+
+Current build status and verification results
+
+**Tags:** development, status
 
 ### [ServalSheets - Scripts Reference](/development/SCRIPTS_REFERENCE.md)
 
@@ -511,6 +512,12 @@ ServalSheets backup and restore procedures for production deployments. This guid
 **Time:** 15-30 minutes
 
 **Tags:** prometheus, docker, kubernetes
+
+### [Degradation Modes](/operations/DEGRADATION_MODES.md)
+
+How ServalSheets behaves under various failure conditions
+
+**Tags:** degradation, circuit-breaker, rate-limiting, error-handling, monitoring
 
 ### [Disaster Recovery Runbook](/operations/disaster-recovery.md)
 
@@ -676,9 +683,11 @@ Prepared by: Strategic Analysis Team
 
 ## general
 
-### [Action Naming Standard](/ACTION_NAMING_STANDARD.md)
+### [Action Naming Standard](/reference/ACTION_NAMING_STANDARD.md)
 
-Status: Defined (Phase 4 - Infrastructure Complete)
+Standardized action naming conventions for all ServalSheets tools
+
+**Tags:** development, standards
 
 ### [Agent 1: Core Functional Analysis (Categories 1-21)](/analysis/agent-prompts/agent1-functional.md)
 
@@ -730,7 +739,9 @@ Deploy ServalSheets using Docker for quick setup and easy management.
 
 ### [Documentation Map & Governance](/DOCS_MAP.md)
 
-Metadata Source: server.json
+Documentation structure overview and governance guidelines
+
+**Tags:** documentation, governance
 
 ### [GCP Deployment (Terraform)](/deployment/gcp.md)
 
@@ -738,23 +749,23 @@ Deploy ServalSheets on Google Cloud using Cloud Run with Terraform.
 
 **Tags:** deployment, sheets
 
-### [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
+### [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/reference/api/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
 
-Generated: January 17, 2026
-
-**Tags:** api, mcp, sheets
-
-### [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/API_MCP_MAPPING_MATRIX.md)
-
-┌─────────────────────────────────────────────────────────────────────────────────┐
+Updated: February 4, 2026
 
 **Tags:** api, mcp, sheets
 
-### [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/API-COMPLIANCE-MATRIX.md)
+### [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/reference/api/API_MCP_MAPPING_MATRIX.md)
 
-| Metric | Google API v4 | ServalSheets | Coverage |
+Complete API-to-MCP mapping reference for Google Sheets operations
 
-**Tags:** api, sheets
+**Tags:** api, mcp, sheets
+
+### [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/reference/api/API-COMPLIANCE-MATRIX.md)
+
+Comprehensive mapping between Google Sheets API v4 and ServalSheets MCP tools
+
+**Tags:** api, sheets, compliance
 
 ### [Helm Chart Deployment](/deployment/helm.md)
 
@@ -774,7 +785,7 @@ Deploy ServalSheets on Kubernetes for production-grade scalability and reliabili
 
 **Tags:** deployment, prometheus, grafana, kubernetes
 
-### [MCP 2025-11-25 Compliance Checklist](/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)
+### [MCP 2025-11-25 Compliance Checklist](/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)
 
 > ServalSheets MCP Protocol Compliance Audit & Testing Guide
 
@@ -824,6 +835,66 @@ Deploy ServalSheets using PM2 process manager for Node.js applications.
 
 ### [Production Ready](/index.md)
 
+### [Runbook: Authentication Failures](/runbooks/auth-failures.md)
+
+Alert Name: HighAuthenticationFailureRate
+
+**Tags:** sheets, prometheus, kubernetes
+
+### [Runbook: Circuit Breaker Open/Half-Open](/runbooks/circuit-breaker.md)
+
+Alert Names: CircuitBreakerOpen, CircuitBreakerHalfOpen
+
+**Tags:** sheets, prometheus
+
+### [Runbook: Google API Errors](/runbooks/google-api-errors.md)
+
+Alert Name: GoogleApiErrors
+
+**Tags:** api, sheets, grafana
+
+### [Runbook: Google API Quota Near Limit](/runbooks/quota-near-limit.md)
+
+Alert Name: QuotaNearLimit
+
+**Tags:** sheets, grafana
+
+### [Runbook: High Error Rate](/runbooks/high-error-rate.md)
+
+Alert Name: HighErrorRate
+
+**Tags:** grafana
+
+### [Runbook: High Latency](/runbooks/high-latency.md)
+
+Alert Name: HighLatency
+
+**Tags:** grafana
+
+### [Runbook: Low Cache Hit Rate](/runbooks/low-cache-hit-rate.md)
+
+Alert Name: LowCacheHitRate
+
+**Tags:** grafana
+
+### [Runbook: Memory Exhaustion](/runbooks/memory-exhaustion.md)
+
+Alert Name: MemoryExhaustion
+
+**Tags:** grafana
+
+### [Runbook: Service Down](/runbooks/service-down.md)
+
+Alert Name: ServiceDown
+
+**Tags:** prometheus, docker, kubernetes
+
+### [Runbook: Slow Google API Calls](/runbooks/slow-google-api.md)
+
+Alert Name: SlowGoogleApi
+
+**Tags:** api, sheets, grafana
+
 ### [ServalSheets Analysis - Quick Start](/analysis/00_QUICKSTART.md)
 
 You are analyzing ServalSheets, a production-grade MCP server for Google Sheets.
@@ -846,9 +917,11 @@ Goal: Transform ServalSheets into the most LLM-ergonomic, intelligent, and effic
 
 **Tags:** sheets
 
-### [ServalSheets Bug Fixes Applied](/BUG_FIXES_2026-01-30.md)
+### [ServalSheets Bug Fixes Applied](/releases/BUG_FIXES_2026-01-30.md)
 
-Date: January 30, 2026
+Bug fixes from test gap analysis session on January 30, 2026
+
+**Tags:** bugfix, development
 
 ### [ServalSheets Case Studies](/CASE_STUDIES.md)
 
@@ -862,43 +935,55 @@ Real-world implementations demonstrating ServalSheets capabilities.
 
 **Tags:** sheets
 
-### [ServalSheets Documentation Audit Report](/DOCUMENTATION_AUDIT_REPORT.md)
+### [ServalSheets Documentation Audit Report](/compliance/DOCUMENTATION_AUDIT_REPORT.md)
 
-Date: January 30, 2026
+Comprehensive audit of documentation quality and coverage
 
-**Tags:** sheets
+**Tags:** documentation, audit
 
-### [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+### [ServalSheets Integration Plan: Existing Features → Production](/planning/INTEGRATION_PLAN.md)
+
+Goal: Wire in ~1500 LOC of existing production-ready code to deliver 40% of top 1% value in 2-3 weeks
+
+### [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
 
 Comprehensive analysis of ServalSheets architecture, MCP compliance, security implementation, and alignment with industry best practices. Includes 96% compliance score and enterprise-grade feature evaluation.
 
 **Tags:** sheets, docker, analysis, architecture, compliance
 
-### [ServalSheets TODO List - HISTORICAL ARCHIVE](/planning/TODO.md)
+### [ServalSheets Operational Runbooks](/runbooks/README.md)
 
-⚠️ DEPRECATED: This document is a historical archive from January 2026 planning sessions.
+Comprehensive troubleshooting and incident response guides for ServalSheets operations.
 
-### [ServalSheets v1.6.0 - Skill Package and MCP Server Cards](/RELEASE_NOTES_1.6.0.md)
+**Tags:** sheets, prometheus, grafana, docker, kubernetes
+
+### [ServalSheets v1.6.0 - Skill Package and MCP Server Cards](/releases/RELEASE_NOTES_1.6.0.md)
 
 Successfully packaged the skill and implemented MCP Server Cards (SEP-1649).
 
 **Tags:** sheets
 
-### [ServalSheets v1.6.0 Release Notes](/releases/RELEASE_NOTES_v1.1.1.md)
+### [ServalSheets v1.6.0 Release Notes](/releases/RELEASE_NOTES_v1.6.0.md)
 
 Release Date: 2026-01-04
 
 **Tags:** sheets
 
-### [ServalSheets vs Alternatives](/COMPARISON_MATRIX.md)
+### [ServalSheets vs Alternatives](/reference/COMPARISON_MATRIX.md)
 
 A comprehensive comparison of Google Sheets integration options for AI/LLM applications.
 
 **Tags:** sheets
 
-### [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/API_MCP_REFERENCE.md)
+### [ServalSheets: Comprehensive Improvement Roadmap](/planning/COMPREHENSIVE_IMPROVEMENT_ROADMAP.md)
 
-Version: 1.4.0
+>
+
+**Tags:** prometheus, grafana
+
+### [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/reference/API_MCP_REFERENCE.md)
+
+Comprehensive reference for Google Sheets API v4 and MCP protocol integration
 
 **Tags:** api, mcp, sheets
 
@@ -920,34 +1005,35 @@ Comprehensive index of all ServalSheets documentation
 
 **Tags:** index, catalog, navigation
 
-## metrics
-
-### [Documentation Metrics Dashboard](/METRICS_DASHBOARD.md)
-
-Real-time metrics and health indicators for ServalSheets documentation
-
 ## Tag Index
 
 ### analysis
 
-- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
 - [Part 7: Scoring Rubric & Report Template](/analysis/07_SCORING.md)
 
 ### api
 
-- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
-- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/API_MCP_REFERENCE.md)
-- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/API_MCP_MAPPING_MATRIX.md)
-- [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/API-COMPLIANCE-MATRIX.md)
+- [Runbook: Slow Google API Calls](/runbooks/slow-google-api.md)
+- [Runbook: Google API Errors](/runbooks/google-api-errors.md)
+- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/reference/API_MCP_REFERENCE.md)
 - [ServalSheets API Consistency Reference](/reference/API_CONSISTENCY.md)
+- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/reference/api/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/reference/api/API_MCP_MAPPING_MATRIX.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/reference/api/API-COMPLIANCE-MATRIX.md)
 
 ### architecture
 
-- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+
+### audit
+
+- [ServalSheets Documentation Audit Report](/compliance/DOCUMENTATION_AUDIT_REPORT.md)
 
 ### authentication
 
 - [OAuth User Authentication Setup](/guides/OAUTH_USER_SETUP.md)
+- [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
 - [OAuth Incremental Consent Guide](/guides/OAUTH_INCREMENTAL_CONSENT.md)
 - [Claude Desktop OAuth Setup (User Experience)](/guides/CLAUDE_DESKTOP_OAUTH_SETUP.md)
 - [OAuth Authentication Flow](/examples/oauth.md)
@@ -956,13 +1042,30 @@ Real-time metrics and health indicators for ServalSheets documentation
 
 - [Documentation Tools Reference](/DOCUMENTATION_TOOLS.md)
 
+### bugfix
+
+- [ServalSheets Bug Fixes Applied](/releases/BUG_FIXES_2026-01-30.md)
+
+### caching
+
+- [Performance Tuning Guide](/guides/PERFORMANCE.md)
+
 ### catalog
 
 - [ServalSheets Documentation Catalog](/DOCS_CATALOG.md)
 
+### circuit-breaker
+
+- [Degradation Modes](/operations/DEGRADATION_MODES.md)
+
+### claude
+
+- [Submission Checklist](/guides/SUBMISSION_CHECKLIST.md)
+
 ### compliance
 
-- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/reference/api/API-COMPLIANCE-MATRIX.md)
 
 ### configuration
 
@@ -973,6 +1076,10 @@ Real-time metrics and health indicators for ServalSheets documentation
 - [VS Code Setup Guide for ServalSheets](/development/VSCODE_SETUP.md)
 - [Integration Test Setup Guide](/development/testing/INTEGRATION_TEST_SETUP.md)
 - [CI/CD Integration Test Setup](/development/testing/CI_SETUP.md)
+
+### degradation
+
+- [Degradation Modes](/operations/DEGRADATION_MODES.md)
 
 ### deployment
 
@@ -986,10 +1093,22 @@ Real-time metrics and health indicators for ServalSheets documentation
 - [AWS Deployment (Terraform)](/deployment/aws.md)
 - [ServalSheets Deployment & Marketing Partners Research](/business/DEPLOYMENT_AND_MARKETING_PARTNERS.md)
 
+### development
+
+- [ServalSheets Bug Fixes Applied](/releases/BUG_FIXES_2026-01-30.md)
+- [Action Naming Standard](/reference/ACTION_NAMING_STANDARD.md)
+- [Project Status](/development/PROJECT_STATUS.md)
+
+### distributed-caching
+
+- [Performance Tuning Guide](/guides/PERFORMANCE.md)
+
 ### docker
 
-- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
 - [ServalSheets Case Studies](/CASE_STUDIES.md)
+- [Runbook: Service Down](/runbooks/service-down.md)
+- [ServalSheets Operational Runbooks](/runbooks/README.md)
+- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
 - [Scaling Guide](/operations/scaling.md)
 - [Version Migration Guide](/operations/migrations.md)
 - [JWT Secret Rotation](/operations/jwt-secret-rotation.md)
@@ -1015,16 +1134,39 @@ Real-time metrics and health indicators for ServalSheets documentation
 ### documentation
 
 - [Documentation Tools Reference](/DOCUMENTATION_TOOLS.md)
+- [Documentation Map & Governance](/DOCS_MAP.md)
 - [Documentation Maintenance Guide](/DOCS_MAINTENANCE.md)
+- [ServalSheets Documentation Audit Report](/compliance/DOCUMENTATION_AUDIT_REPORT.md)
+
+### error-handling
+
+- [Degradation Modes](/operations/DEGRADATION_MODES.md)
 
 ### evaluation
 
 - [Part 7: Scoring Rubric & Report Template](/analysis/07_SCORING.md)
 
+### google-api
+
+- [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
+
+### governance
+
+- [Documentation Map & Governance](/DOCS_MAP.md)
+
 ### grafana
 
 - [Troubleshooting Guide](/TROUBLESHOOTING.md)
 - [ServalSheets Case Studies](/CASE_STUDIES.md)
+- [Runbook: Slow Google API Calls](/runbooks/slow-google-api.md)
+- [Runbook: Google API Quota Near Limit](/runbooks/quota-near-limit.md)
+- [Runbook: Memory Exhaustion](/runbooks/memory-exhaustion.md)
+- [Runbook: Low Cache Hit Rate](/runbooks/low-cache-hit-rate.md)
+- [Runbook: High Latency](/runbooks/high-latency.md)
+- [Runbook: High Error Rate](/runbooks/high-error-rate.md)
+- [Runbook: Google API Errors](/runbooks/google-api-errors.md)
+- [ServalSheets Operational Runbooks](/runbooks/README.md)
+- [ServalSheets: Comprehensive Improvement Roadmap](/planning/COMPREHENSIVE_IMPROVEMENT_ROADMAP.md)
 - [ServalSheets Metrics Reference](/operations/METRICS_REFERENCE.md)
 - [Monitoring and Observability Guide](/guides/MONITORING.md)
 - [ServalSheets Documentation Index](/development/DOCUMENTATION.md)
@@ -1042,6 +1184,9 @@ Real-time metrics and health indicators for ServalSheets documentation
 ### kubernetes
 
 - [ServalSheets Case Studies](/CASE_STUDIES.md)
+- [Runbook: Service Down](/runbooks/service-down.md)
+- [Runbook: Authentication Failures](/runbooks/auth-failures.md)
+- [ServalSheets Operational Runbooks](/runbooks/README.md)
 - [Scaling Guide](/operations/scaling.md)
 - [Version Migration Guide](/operations/migrations.md)
 - [JWT Secret Rotation](/operations/jwt-secret-rotation.md)
@@ -1062,14 +1207,16 @@ Real-time metrics and health indicators for ServalSheets documentation
 
 ### mcp
 
-- [MCP 2025-11-25 Compliance Checklist](/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)
-- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
-- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/API_MCP_REFERENCE.md)
-- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/API_MCP_MAPPING_MATRIX.md)
+- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/reference/API_MCP_REFERENCE.md)
+- [Submission Checklist](/guides/SUBMISSION_CHECKLIST.md)
 - [MCP Inspector Testing Guide - ServalSheets](/guides/MCP_INSPECTOR_TESTING_GUIDE.md)
+- [MCP 2025-11-25 Compliance Checklist](/compliance/MCP_2025-11-25_COMPLIANCE_CHECKLIST.md)
+- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/reference/api/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/reference/api/API_MCP_MAPPING_MATRIX.md)
 
 ### monitoring
 
+- [Degradation Modes](/operations/DEGRADATION_MODES.md)
 - [Monitoring and Observability Guide](/guides/MONITORING.md)
 
 ### navigation
@@ -1079,6 +1226,7 @@ Real-time metrics and health indicators for ServalSheets documentation
 ### oauth
 
 - [OAuth User Authentication Setup](/guides/OAUTH_USER_SETUP.md)
+- [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
 - [OAuth Incremental Consent Guide](/guides/OAUTH_INCREMENTAL_CONSENT.md)
 - [Claude Desktop OAuth Setup (User Experience)](/guides/CLAUDE_DESKTOP_OAUTH_SETUP.md)
 - [OAuth Authentication Flow](/examples/oauth.md)
@@ -1105,6 +1253,11 @@ Real-time metrics and health indicators for ServalSheets documentation
 
 - [Troubleshooting Guide](/TROUBLESHOOTING.md)
 - [ServalSheets Case Studies](/CASE_STUDIES.md)
+- [Runbook: Service Down](/runbooks/service-down.md)
+- [Runbook: Circuit Breaker Open/Half-Open](/runbooks/circuit-breaker.md)
+- [Runbook: Authentication Failures](/runbooks/auth-failures.md)
+- [ServalSheets Operational Runbooks](/runbooks/README.md)
+- [ServalSheets: Comprehensive Improvement Roadmap](/planning/COMPREHENSIVE_IMPROVEMENT_ROADMAP.md)
 - [TLS/SSL Certificate Rotation](/operations/certificate-rotation.md)
 - [Backup and Restore Procedures](/operations/backup-restore.md)
 - [ServalSheets Metrics Reference](/operations/METRICS_REFERENCE.md)
@@ -1124,6 +1277,22 @@ Real-time metrics and health indicators for ServalSheets documentation
 - [ServalSheets: Investor Pitch Deck Narrative](/business/2026-01-strategy/INVESTOR_PITCH_NARRATIVE.md)
 - [ServalSheets: Strategic Business Analysis & Acquisition Assessment](/business/2026-01-strategy/BUSINESS_ANALYSIS_ACQUISITION_ASSESSMENT.md)
 
+### quality-analysis
+
+- [Monitoring and Observability Guide](/guides/MONITORING.md)
+
+### rate-limiting
+
+- [Degradation Modes](/operations/DEGRADATION_MODES.md)
+
+### redis
+
+- [Performance Tuning Guide](/guides/PERFORMANCE.md)
+
+### scopes
+
+- [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
+
 ### scoring
 
 - [Part 7: Scoring Rubric & Report Template](/analysis/07_SCORING.md)
@@ -1136,6 +1305,7 @@ Real-time metrics and health indicators for ServalSheets documentation
 
 - [ServalSheets Test Account Setup Guide](/guides/TEST_ACCOUNT_SETUP.md)
 - [OAuth User Authentication Setup](/guides/OAUTH_USER_SETUP.md)
+- [Standardized OAuth Setup Guide](/guides/OAUTH_STANDARDIZED_SETUP.md)
 - [Claude Desktop Setup Guide](/guides/CLAUDE_DESKTOP_SETUP.md)
 - [Claude Desktop OAuth Setup (User Experience)](/guides/CLAUDE_DESKTOP_OAUTH_SETUP.md)
 - [VS Code Setup Guide for ServalSheets](/development/VSCODE_SETUP.md)
@@ -1146,21 +1316,23 @@ Real-time metrics and health indicators for ServalSheets documentation
 
 - [ServalSheets Architecture Diagrams](/architecture-diagrams.md)
 - [Troubleshooting Guide](/TROUBLESHOOTING.md)
-- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
-- [ServalSheets v1.6.0 - Skill Package and MCP Server Cards](/RELEASE_NOTES_1.6.0.md)
 - [ServalSheets Documentation](/README.md)
-- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
-- [ServalSheets Documentation Audit Report](/DOCUMENTATION_AUDIT_REPORT.md)
-- [ServalSheets vs Alternatives](/COMPARISON_MATRIX.md)
 - [ServalSheets Case Studies](/CASE_STUDIES.md)
-- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/API_MCP_REFERENCE.md)
-- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/API_MCP_MAPPING_MATRIX.md)
-- [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/API-COMPLIANCE-MATRIX.md)
 - [HTTP Transport Authentication](/security/HTTP_AUTH.md)
-- [ServalSheets v1.6.0 Release Notes](/releases/RELEASE_NOTES_v1.1.1.md)
+- [Runbook: Slow Google API Calls](/runbooks/slow-google-api.md)
+- [Runbook: Google API Quota Near Limit](/runbooks/quota-near-limit.md)
+- [Runbook: Google API Errors](/runbooks/google-api-errors.md)
+- [Runbook: Circuit Breaker Open/Half-Open](/runbooks/circuit-breaker.md)
+- [Runbook: Authentication Failures](/runbooks/auth-failures.md)
+- [ServalSheets Operational Runbooks](/runbooks/README.md)
+- [ServalSheets v1.6.0 Release Notes](/releases/RELEASE_NOTES_v1.6.0.md)
+- [ServalSheets v1.6.0 - Skill Package and MCP Server Cards](/releases/RELEASE_NOTES_1.6.0.md)
 - [Tools Overview](/reference/tools.md)
 - [MCP Resources](/reference/resources.md)
 - [Knowledge Base Resources](/reference/knowledge.md)
+- [ServalSheets MCP Server: Comprehensive Analysis & Best Practices Alignment](/reference/SERVALSHEETS_ANALYSIS_AND_BEST_PRACTICES.md)
+- [ServalSheets vs Alternatives](/reference/COMPARISON_MATRIX.md)
+- [ServalSheets: Google Sheets API v4 & MCP Protocol Reference](/reference/API_MCP_REFERENCE.md)
 - [ServalSheets API Consistency Reference](/reference/API_CONSISTENCY.md)
 - [ServalSheets Analysis Optimization Plan](/planning/ANALYSIS_OPTIMIZATION_PLAN.md)
 - [Scaling Guide](/operations/scaling.md)
@@ -1212,6 +1384,9 @@ Real-time metrics and health indicators for ServalSheets documentation
 - [Part 2: Protocol Compliance (Categories 13-16)](/analysis/02_PROTOCOL.md)
 - [ServalSheets Analysis - Quick Start](/analysis/00_QUICKSTART.md)
 - [sheets_data](/reference/tools/sheets_data.md)
+- [Google Sheets API v4 → ServalSheets MCP Compliance Audit](/reference/api/GOOGLE_SHEETS_API_V4_MCP_AUDIT.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Complete Mapping](/reference/api/API_MCP_MAPPING_MATRIX.md)
+- [Google Sheets API v4 ↔ ServalSheets MCP Compliance Matrix](/reference/api/API-COMPLIANCE-MATRIX.md)
 - [ServalSheets Test Patterns](/development/testing/TEST_PATTERNS.md)
 - [Integration Tests - Quick Start](/development/testing/QUICK_START.md)
 - [Integration Test Setup Guide](/development/testing/INTEGRATION_TEST_SETUP.md)
@@ -1224,6 +1399,18 @@ Real-time metrics and health indicators for ServalSheets documentation
 - [ServalSheets: Executive Summary & Action Plan](/business/2026-01-strategy/EXECUTIVE_SUMMARY_ACTION_PLAN.md)
 - [ServalSheets: Strategic Business Analysis & Acquisition Assessment](/business/2026-01-strategy/BUSINESS_ANALYSIS_ACQUISITION_ASSESSMENT.md)
 - [Agent 1: Core Functional Analysis (Categories 1-21)](/analysis/agent-prompts/agent1-functional.md)
+
+### standards
+
+- [Action Naming Standard](/reference/ACTION_NAMING_STANDARD.md)
+
+### status
+
+- [Project Status](/development/PROJECT_STATUS.md)
+
+### submission
+
+- [Submission Checklist](/guides/SUBMISSION_CHECKLIST.md)
 
 ### templates
 
