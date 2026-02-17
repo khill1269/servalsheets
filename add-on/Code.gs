@@ -20,7 +20,10 @@ const CONFIG = {
   API_KEY_PROPERTY: 'SERVALSHEETS_API_KEY',
 
   // Plan tier (detected from API responses)
-  PLAN_PROPERTY: 'SERVALSHEETS_PLAN'
+  PLAN_PROPERTY: 'SERVALSHEETS_PLAN',
+
+  // Session ID for MCP protocol (stored per user)
+  SESSION_ID_PROPERTY: 'SERVALSHEETS_SESSION_ID'
 };
 
 /**
@@ -98,6 +101,97 @@ function getPlan() {
   return props.getProperty(CONFIG.PLAN_PROPERTY) || 'free';
 }
 
+// ============================================================================
+// Session Management (MCP Protocol Requirement)
+// ============================================================================
+
+/**
+ * Initialize MCP session and get session ID
+ * Must be called before any tool calls
+ */
+function initializeSession() {
+  try {
+    const url = `${CONFIG.API_URL}/mcp`;
+    const payload = {
+      jsonrpc: '2.0',
+      id: Date.now(),
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: {
+          name: 'workspace-addon',
+          version: '1.0.0'
+        }
+      }
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'Accept': 'application/json, text/event-stream',
+        'X-MCP-Client': 'workspace-addon/1.0.0'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const statusCode = response.getResponseCode();
+
+    if (statusCode === 200) {
+      // Parse SSE response to extract session ID
+      const text = response.getContentText();
+      const lines = text.split('\n');
+
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('id: ')) {
+          const sessionId = lines[i].substring(4).trim();
+          // Save session ID
+          const props = PropertiesService.getUserProperties();
+          props.setProperty(CONFIG.SESSION_ID_PROPERTY, sessionId);
+          Logger.log('MCP session initialized: ' + sessionId);
+          return sessionId;
+        }
+      }
+    }
+
+    Logger.log('Failed to initialize MCP session: ' + statusCode);
+    return null;
+  } catch (error) {
+    Logger.log('Error initializing MCP session: ' + error.message);
+    return null;
+  }
+}
+
+/**
+ * Get current session ID (or create new session if needed)
+ */
+function getSessionId() {
+  const props = PropertiesService.getUserProperties();
+  let sessionId = props.getProperty(CONFIG.SESSION_ID_PROPERTY);
+
+  if (!sessionId) {
+    sessionId = initializeSession();
+  }
+
+  return sessionId;
+}
+
+/**
+ * Clear session (force re-initialization on next call)
+ */
+function clearSession() {
+  const props = PropertiesService.getUserProperties();
+  props.deleteProperty(CONFIG.SESSION_ID_PROPERTY);
+  return { success: true };
+}
+
+// ============================================================================
+// MCP Tool Calls
+// ============================================================================
+
 /**
  * Core function to call ServalSheets API via MCP protocol
  * Uses JSON-RPC 2.0 format as required by /mcp endpoint
@@ -111,6 +205,19 @@ function callServalSheets(tool, request) {
       error: {
         code: 'NO_API_KEY',
         message: 'API key not configured. Go to ServalSheets > Settings to add your API key.'
+      }
+    };
+  }
+
+  // Get or create MCP session
+  let sessionId = getSessionId();
+
+  if (!sessionId) {
+    return {
+      success: false,
+      error: {
+        code: 'SESSION_ERROR',
+        message: 'Failed to establish MCP session'
       }
     };
   }
@@ -136,7 +243,8 @@ function callServalSheets(tool, request) {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'X-MCP-Client': 'workspace-addon/1.0.0',
-        'Accept': 'application/json, text/event-stream'  // Required by MCP protocol
+        'Accept': 'application/json, text/event-stream',  // Required by MCP protocol
+        'Mcp-Session-Id': sessionId  // Required for all tool calls
       },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
@@ -153,6 +261,51 @@ function callServalSheets(tool, request) {
         error: {
           code: 'UNAUTHORIZED',
           message: 'Invalid API key. Please check your settings.'
+        }
+      };
+    }
+
+    if (statusCode === 400 && result.error?.code === 'INVALID_REQUEST') {
+      // Session might be invalid - retry once with new session
+      Logger.log('Session invalid, retrying with new session...');
+      clearSession();
+      sessionId = getSessionId();
+
+      if (sessionId) {
+        // Retry the request with new session
+        options.headers['Mcp-Session-Id'] = sessionId;
+        const retryResponse = UrlFetchApp.fetch(url, options);
+        const retryStatusCode = retryResponse.getResponseCode();
+        const retryResult = JSON.parse(retryResponse.getContentText());
+
+        if (retryStatusCode !== 200) {
+          return {
+            success: false,
+            error: {
+              code: 'API_ERROR',
+              message: retryResult.error?.message || `API returned status ${retryStatusCode}`
+            }
+          };
+        }
+
+        // Parse retry result
+        if (retryResult.result && retryResult.result.content && retryResult.result.content[0]) {
+          const content = retryResult.result.content[0];
+          if (content.text) {
+            try {
+              return JSON.parse(content.text);
+            } catch (e) {
+              return { success: true, response: { text: content.text } };
+            }
+          }
+        }
+      }
+
+      return {
+        success: false,
+        error: {
+          code: 'SESSION_ERROR',
+          message: 'Failed to establish valid session'
         }
       };
     }
