@@ -222,18 +222,81 @@ function detectContext() {
 - Sidebar.html: 573 → 773 lines (+200 lines)
 - Total add-on code: 1,968 lines
 
+### Phase 3.2: Batch Operations UI ✅
+
+**Date:** 2026-02-17 (Complete)
+
+**Feature:** Queue multiple operations and execute them atomically with automatic rollback on failure.
+
+**Key Features:**
+
+1. **Transaction Support:**
+   - Uses sheets_transaction tool for atomic execution
+   - Automatic BEGIN → operations → COMMIT flow
+   - Automatic ROLLBACK on any operation failure
+   - All changes succeed together or fail together
+
+2. **Batch Queue Management:**
+   - Add operations to queue (manual API or future Shift+Click)
+   - Remove individual operations from queue
+   - Clear entire queue with confirmation
+   - Visual queue display with operation details
+
+3. **UI Components:**
+   - Collapsible batch panel with gradient yellow theme
+   - Floating toggle button (shows count badge)
+   - Operation cards with icon, label, and tool/action info
+   - "Execute All" button (disabled when queue empty)
+   - "Clear All" button with confirmation
+
+4. **Error Handling:**
+   - Progress messages during execution
+   - Success: "✅ Batch executed successfully!"
+   - Failure: Shows completed/total operations + rollback message
+   - Detailed error messages with operation context
+
+**Implementation Details:**
+
+**Code.gs changes (+159 lines):**
+
+```javascript
+function executeBatch(operations) {
+  // 1. Start transaction
+  // 2. Execute each operation sequentially
+  // 3. On success: commit transaction
+  // 4. On failure: rollback transaction
+  // Returns: { success, response: { results, transactionId } }
+}
+
+function validateBatchOperation(operation) {
+  // Validates tool/action before adding to queue
+}
+```
+
+**Sidebar.html changes (+423 lines):**
+
+- Batch panel HTML (collapsible, yellow gradient theme)
+- 240+ lines of CSS (panel, queue items, buttons, animations)
+- 180+ lines of JavaScript (queue management, execution, UI updates)
+- Floating toggle button with count badge
+- Empty state with helpful hint
+
+**File Stats:**
+
+- Code.gs: 903 → 1,062 lines (+159 lines)
+- Sidebar.html: 773 → 1,196 lines (+423 lines)
+- Total add-on code: 2,258 lines
+
+**Usage Example:**
+
+1. User adds operations to batch queue (via JavaScript API)
+2. Operations displayed in collapsible batch panel
+3. Click floating "📦 3" button to open batch panel
+4. Review queued operations
+5. Click "Execute All" → Atomic transaction
+6. If any operation fails → Automatic rollback
+
 ## 📋 Next Steps
-
-### Phase 3.2: Batch Operations UI (Optional)
-
-**Goal:** Allow users to queue multiple operations for atomic execution
-
-**Features:**
-
-- Batch queue panel with add/remove/reorder
-- Execute all button with transaction support
-- Progress indicator during execution
-- Rollback on error using sheets_transaction tool
 
 ### Phase 3.3: Action History & Undo (Optional)
 
@@ -337,7 +400,7 @@ const CONFIG = {
 };
 ```
 
-## 📊 Current Status - Phase 1 & 3.1 COMPLETE ✅
+## 📊 Current Status - Phase 1 & 3 (Partial) COMPLETE ✅
 
 - **Endpoint Integration:** ✅ Complete (Phase 1.1)
 - **JSON-RPC Format:** ✅ Complete (Phase 1.1)
@@ -348,6 +411,7 @@ const CONFIG = {
 - **UI Updates:** 9 quick actions implemented ✅ Complete (Phase 1.3)
 - **Session Management:** MCP session lifecycle ✅ Complete (Phase 1.4)
 - **Contextual Suggestions:** AI-powered context detection ✅ Complete (Phase 3.1)
+- **Batch Operations:** Atomic transaction-based execution ✅ Complete (Phase 3.2)
 - **Deployment Guide:** Complete documentation ✅ Ready (Phase 1.4)
 - **Testing:** ⏳ Ready for Apps Script deployment (Phase 1.5)
 
