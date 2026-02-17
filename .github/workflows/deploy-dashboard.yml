@@ -1,0 +1,124 @@
+name: Deploy Audit Dashboard
+
+on:
+  workflow_run:
+    workflows: ["106-Category Audit"]
+    types:
+      - completed
+
+  workflow_dispatch:
+
+  push:
+    branches: [main]
+    paths:
+      - 'audit-output/results.json'
+      - 'dashboard/**'
+      - '.github/workflows/deploy-dashboard.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build-dashboard:
+    name: Build Dashboard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for historical data
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check if audit results exist
+        id: check-results
+        run: |
+          if [ -f "audit-output/results.json" ]; then
+            echo "results_exist=true" >> $GITHUB_OUTPUT
+            echo "✓ Audit results found"
+          else
+            echo "results_exist=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No audit results found, will run audit first"
+          fi
+
+      - name: Run audit if needed
+        if: steps.check-results.outputs.results_exist != 'true'
+        run: |
+          npm run audit:full || echo "Audit failed, continuing with what we have"
+
+      - name: Generate dashboard
+        run: |
+          npm run dashboard:generate
+
+          if [ ! -f "dashboard/index.html" ]; then
+            echo "❌ Dashboard generation failed"
+            exit 1
+          fi
+
+          echo "✓ Dashboard generated successfully"
+
+      - name: Create deployment directory
+        run: |
+          mkdir -p _site/audit
+          cp -r dashboard/* _site/audit/
+
+          # Create root index.html that redirects to audit dashboard
+          cat > _site/index.html <<EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>ServalSheets - Redirecting...</title>
+            <meta http-equiv="refresh" content="0; url=/audit/">
+          </head>
+          <body>
+            <p>Redirecting to <a href="/audit/">Audit Dashboard</a>...</p>
+          </body>
+          </html>
+          EOF
+
+          echo "✓ Deployment directory created"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build-dashboard
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Deployment summary
+        run: |
+          echo "## ✓ Dashboard Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Dashboard URL: ${{ steps.deployment.outputs.page_url }}audit/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The audit dashboard has been successfully deployed to GitHub Pages." >> $GITHUB_STEP_SUMMARY

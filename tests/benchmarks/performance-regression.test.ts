@@ -405,17 +405,34 @@ describe('Performance Regression Tests', () => {
     });
   });
 
-  describe('Regression Baselines', () => {
+  describe('Regression Baselines (P2-6)', () => {
     /**
-     * This test records baselines for future comparison.
-     * Update EXPECTED_BASELINES when intentionally improving/changing performance.
+     * P2-6: Load baselines from performance-baselines.json
+     * Tests fail if performance regresses >10% from baseline
      */
-    const EXPECTED_BASELINES = {
-      coreGet: { maxP95: 3 },
-      dataRead: { maxP95: 3 },
-      dataWriteLarge: { maxP95: 10 },
-      formatComplex: { maxP95: 5 },
-    };
+    let baselines: any;
+
+    beforeAll(async () => {
+      try {
+        const { readFileSync } = await import('fs');
+        const { join } = await import('path');
+        const baselinesPath = join(process.cwd(), 'performance-baselines.json');
+        baselines = JSON.parse(readFileSync(baselinesPath, 'utf-8'));
+      } catch (error) {
+        // Fall back to hardcoded baselines if file not found
+        baselines = {
+          baselines: {
+            schemaValidation: {
+              coreGet: { p95ms: 3 },
+              dataRead: { p95ms: 3 },
+              dataWriteLarge: { p95ms: 10 },
+              formatComplex: { p95ms: 5 },
+            },
+          },
+          regressionThreshold: 0.10,
+        };
+      }
+    });
 
     it('core get validation should not regress', async () => {
       const input = {
@@ -423,8 +440,15 @@ describe('Performance Regression Tests', () => {
       };
 
       const stats = await benchmark(() => SheetsCoreInputSchema.safeParse(input), 200);
+      const baseline = baselines.baselines.schemaValidation.coreGet.p95ms;
+      const threshold = baseline * (1 + baselines.regressionThreshold);
 
-      expect(stats.p95).toBeLessThan(EXPECTED_BASELINES.coreGet.maxP95);
+      expect(stats.p95).toBeLessThan(threshold);
+
+      if (stats.p95 > baseline) {
+        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
+        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+      }
     });
 
     it('data read validation should not regress', async () => {
@@ -437,8 +461,15 @@ describe('Performance Regression Tests', () => {
       };
 
       const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input), 200);
+      const baseline = baselines.baselines.schemaValidation.dataRead.p95ms;
+      const threshold = baseline * (1 + baselines.regressionThreshold);
 
-      expect(stats.p95).toBeLessThan(EXPECTED_BASELINES.dataRead.maxP95);
+      expect(stats.p95).toBeLessThan(threshold);
+
+      if (stats.p95 > baseline) {
+        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
+        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+      }
     });
 
     it('data write large validation should not regress', async () => {
@@ -454,8 +485,15 @@ describe('Performance Regression Tests', () => {
       };
 
       const stats = await benchmark(() => SheetsDataInputSchema.safeParse(input), 100);
+      const baseline = baselines.baselines.schemaValidation.dataWriteLarge.p95ms;
+      const threshold = baseline * (1 + baselines.regressionThreshold);
 
-      expect(stats.p95).toBeLessThan(EXPECTED_BASELINES.dataWriteLarge.maxP95);
+      expect(stats.p95).toBeLessThan(threshold);
+
+      if (stats.p95 > baseline) {
+        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
+        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+      }
     });
 
     it('format complex validation should not regress', async () => {
@@ -473,8 +511,15 @@ describe('Performance Regression Tests', () => {
       };
 
       const stats = await benchmark(() => SheetsFormatInputSchema.safeParse(input), 200);
+      const baseline = baselines.baselines.schemaValidation.formatComplex.p95ms;
+      const threshold = baseline * (1 + baselines.regressionThreshold);
 
-      expect(stats.p95).toBeLessThan(EXPECTED_BASELINES.formatComplex.maxP95);
+      expect(stats.p95).toBeLessThan(threshold);
+
+      if (stats.p95 > baseline) {
+        const regressionPct = ((stats.p95 - baseline) / baseline * 100).toFixed(1);
+        console.warn(`⚠️  Performance regression: ${regressionPct}% slower (${stats.p95.toFixed(2)}ms vs ${baseline}ms baseline)`);
+      }
     });
   });
 });

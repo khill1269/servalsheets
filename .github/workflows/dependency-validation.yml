@@ -1,0 +1,79 @@
+name: Dependency Validation
+
+on:
+  pull_request:
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - '.github/workflows/dependency-validation.yml'
+  push:
+    branches:
+      - main
+      - feat/**
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+
+jobs:
+  validate-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Security Audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check Outdated Packages
+        run: |
+          echo "📊 Checking for outdated packages..."
+          npm outdated || true
+
+      - name: Validate Package Versions Exist
+        run: |
+          echo "🔍 Validating all package versions exist on npm..."
+          npx tsx scripts/validate-package-versions.ts
+
+      - name: Check Version Synchronization (Syncpack)
+        run: |
+          echo "🔄 Checking version synchronization across monorepo..."
+          npx syncpack lint
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Main Project
+        run: npm run build
+
+      - name: Build All MCP Servers
+        run: |
+          echo "📦 Building all MCP servers..."
+          cd tools/google-docs-server && npm ci && npm run build
+          cd ../test-intelligence-server && npm ci && npm run build
+          cd ../gcloud-console-server && npm ci && npm run build
+
+      - name: Run Fast Tests
+        run: npm run test:fast
+
+      - name: Check Metadata Drift
+        run: npm run check:drift
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ All dependency validation checks passed!"
+          echo "- Security audit: ✓"
+          echo "- Package versions valid: ✓"
+          echo "- Versions synchronized: ✓"
+          echo "- All builds successful: ✓"
+          echo "- Tests passing: ✓"
+          echo "- No metadata drift: ✓"

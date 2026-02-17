@@ -16,12 +16,13 @@ export default defineConfig({
       NODE_ENV: 'test',
       OAUTH_AUTO_OPEN_BROWSER: 'false',
     },
-    // Parallel execution with thread pool
+    // Parallel execution with thread pool (increased for P2-2 optimization)
     pool: 'threads',
+    maxConcurrency: 8,
     poolOptions: {
       threads: {
-        maxThreads: 4,
-        minThreads: 1,
+        maxThreads: 8,
+        minThreads: 2,
       },
     },
     // Test sharding support for parallel execution

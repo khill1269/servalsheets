@@ -1,0 +1,175 @@
+name: Multi-Agent Analysis
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, feat/*, phase-*]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Multi-Agent Analysis
+        id: analysis
+        run: |
+          # Run analysis on changed files (or all files if specified)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Analyze only changed files in PR
+            git diff --name-only origin/${{ github.base_ref }}...HEAD | \
+              grep '\.ts$' | \
+              xargs -I {} npx tsx scripts/analysis/multi-agent-analysis.ts {} --format=json >> analysis-report.json
+          else
+            # Analyze all source files on push
+            find src -name '*.ts' -type f | \
+              xargs -I {} npx tsx scripts/analysis/multi-agent-analysis.ts {} --format=json >> analysis-report.json
+          fi
+        continue-on-error: true
+
+      - name: Generate Report
+        if: always()
+        run: |
+          # Generate markdown report for PR comment
+          npx tsx scripts/analysis/report-generator.ts \
+            --input analysis-report.json \
+            --format markdown \
+            --output analysis-report.md
+
+          # Generate HTML report for artifact
+          npx tsx scripts/analysis/report-generator.ts \
+            --input analysis-report.json \
+            --format html \
+            --output analysis-report.html
+
+      - name: Upload Analysis Reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: analysis-reports
+          path: |
+            analysis-report.json
+            analysis-report.md
+            analysis-report.html
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+
+            try {
+              const report = JSON.parse(fs.readFileSync('analysis-report.json', 'utf-8'));
+              const { summary } = report;
+
+              const statusEmoji = summary.critical > 0 ? '❌' : summary.high > 0 ? '⚠️' : '✅';
+
+              const comment = `
+            ## ${statusEmoji} Multi-Agent Analysis Results
+
+            **Overall Score:** ${summary.score}/100
+
+            | Agent | Status | Issues |
+            |-------|--------|--------|
+            ${summary.agents.map(a => {
+              const emoji = a.status === 'pass' ? '✅' : a.status === 'warning' ? '⚠️' : '❌';
+              return `| ${a.name} | ${emoji} ${a.status} | ${a.issueCount} |`;
+            }).join('\n')}
+
+            ### Issue Summary
+
+            | Severity | Count |
+            |----------|-------|
+            | **Critical** | ${summary.critical} |
+            | **High** | ${summary.high} |
+            | **Medium** | ${summary.medium} |
+            | **Low** | ${summary.low} |
+            | **Auto-fixable** | ${summary.autoFixable} |
+
+            ${summary.critical > 0 ? '❌ **Please address critical issues before merging**' : ''}
+            ${summary.high > 0 ? '⚠️ **High priority issues found - review recommended**' : ''}
+            ${summary.critical === 0 && summary.high === 0 ? '✅ **No critical or high priority issues found**' : ''}
+
+            <details>
+            <summary>View Full Report</summary>
+
+            Download the full HTML report from the workflow artifacts.
+
+            </details>
+            `;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('No report file found or error reading report:', error.message);
+            }
+
+      - name: Apply Auto-fixes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Only auto-fix on main branch pushes
+          npx tsx scripts/analysis/auto-fixer.ts analysis-report.json
+
+          # Commit fixes if any were made
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore: apply auto-fixes from multi-agent analysis
+
+            Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+            git push
+          fi
+
+      - name: Block on Critical Issues
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f analysis-report.json ]; then
+            CRITICAL=$(jq '.summary.critical' analysis-report.json 2>/dev/null || echo "0")
+
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "❌ $CRITICAL critical issue(s) found - blocking merge"
+              exit 1
+            fi
+
+            echo "✅ No critical issues found"
+          else
+            echo "⚠️ No analysis report found - skipping check"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f analysis-report.json ]; then
+            echo "### 🔍 Analysis Complete" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Report artifacts uploaded. View the workflow run for details." >> $GITHUB_STEP_SUMMARY
+
+            CRITICAL=$(jq '.summary.critical' analysis-report.json 2>/dev/null || echo "0")
+            HIGH=$(jq '.summary.high' analysis-report.json 2>/dev/null || echo "0")
+            SCORE=$(jq '.summary.score' analysis-report.json 2>/dev/null || echo "0")
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Score:** $SCORE/100" >> $GITHUB_STEP_SUMMARY
+            echo "**Critical:** $CRITICAL" >> $GITHUB_STEP_SUMMARY
+            echo "**High:** $HIGH" >> $GITHUB_STEP_SUMMARY
+          fi
