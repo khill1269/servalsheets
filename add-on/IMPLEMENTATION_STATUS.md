@@ -296,18 +296,94 @@ function validateBatchOperation(operation) {
 5. Click "Execute All" → Atomic transaction
 6. If any operation fails → Automatic rollback
 
+### Phase 3.3: Action History & Undo ✅
+
+**Date:** 2026-02-17 (Complete)
+
+**Feature:** View operation history and undo previous actions with one click.
+
+**Key Features:**
+
+1. **Operation History Tracking:**
+   - Lists last 10 operations with timestamps
+   - Shows tool name, action, and description
+   - Real-time relative timestamps (e.g., "2m ago", "1h ago")
+   - Automatic refresh on panel open
+   - Manual refresh button (rotates on hover)
+
+2. **Undo Capabilities:**
+   - Individual undo per operation (if undoable)
+   - "Undo Last" button for quick access
+   - Confirmation dialogs before undo
+   - Success/failure messaging
+   - Auto-refresh history after undo
+
+3. **UI Components:**
+   - Collapsible history panel with green gradient theme
+   - Floating "🕐 History" toggle button
+   - Operation cards with icon, title, time, details
+   - Empty state with helpful message
+   - Undo buttons per operation (if undoable)
+
+4. **Smart Formatting:**
+   - Tool-specific icons (📋 data, 🎨 format, 📐 dimensions, etc.)
+   - Relative timestamps (Just now, 2m ago, 1h ago, 2d ago)
+   - Operation details (tool → action)
+   - Clear error messages
+
+**Implementation Details:**
+
+**Code.gs changes (+217 lines):**
+
+```javascript
+function getOperationHistory(limit) {
+  // Lists recent operations from sheets_history tool
+  // Returns: { operations: [...], total: number }
+}
+
+function getHistoryStats() {
+  // Gets statistics about operation history
+}
+
+function undoOperation(operationId) {
+  // Undoes specific operation by ID
+}
+
+function undoLastOperations(count) {
+  // Undoes last N operations (default: 1)
+}
+
+function clearHistory() {
+  // Clears all operation history
+}
+```
+
+**Sidebar.html changes (+448 lines):**
+
+- History panel HTML (collapsible, green gradient theme)
+- 240+ lines of CSS (panel, cards, buttons, animations)
+- 208+ lines of JavaScript (history management, undo logic, formatting)
+- Floating green toggle button
+- Empty state and loading states
+- Icon mapping for operation types
+- Relative time formatting
+
+**File Stats:**
+
+- Code.gs: 1,062 → 1,279 lines (+217 lines)
+- Sidebar.html: 1,196 → 1,644 lines (+448 lines)
+- Total add-on code: 2,923 lines
+
+**Usage Example:**
+
+1. Click "🕐 History" button (green, bottom right)
+2. View last 10 operations with timestamps
+3. Click "↶ Undo" on any operation to reverse it
+4. Or click "↶ Undo Last" to undo most recent
+5. History auto-refreshes after undo
+6. Confirmation dialog prevents accidents
+
 ## 📋 Next Steps
-
-### Phase 3.3: Action History & Undo (Optional)
-
-**Goal:** Show operation history with one-click undo
-
-**Features:**
-
-- History panel with last 10 operations
-- Undo button per operation
-- Uses sheets_history tool
-- Timestamps and operation names
 
 ### Phase 1.4: Integration Testing (Current Status)
 
@@ -400,7 +476,7 @@ const CONFIG = {
 };
 ```
 
-## 📊 Current Status - Phase 1 & 3 (Partial) COMPLETE ✅
+## 📊 Current Status - Phase 1 & 3 COMPLETE ✅
 
 - **Endpoint Integration:** ✅ Complete (Phase 1.1)
 - **JSON-RPC Format:** ✅ Complete (Phase 1.1)
@@ -412,6 +488,7 @@ const CONFIG = {
 - **Session Management:** MCP session lifecycle ✅ Complete (Phase 1.4)
 - **Contextual Suggestions:** AI-powered context detection ✅ Complete (Phase 3.1)
 - **Batch Operations:** Atomic transaction-based execution ✅ Complete (Phase 3.2)
+- **Action History & Undo:** Operation history with one-click undo ✅ Complete (Phase 3.3)
 - **Deployment Guide:** Complete documentation ✅ Ready (Phase 1.4)
 - **Testing:** ⏳ Ready for Apps Script deployment (Phase 1.5)
 
