@@ -1060,3 +1060,220 @@ function validateBatchOperation(operation) {
     valid: true
   };
 }
+
+// ==================== PHASE 3.3: Action History & Undo ====================
+
+/**
+ * Lists recent operation history
+ * @param {number} limit - Maximum number of operations to return
+ * @returns {Object} History list result
+ */
+function getOperationHistory(limit) {
+  const info = getActiveSpreadsheetInfo();
+  limit = limit || 10;
+
+  try {
+    const result = callServalSheets('sheets_history', {
+      action: 'list',
+      spreadsheetId: info.spreadsheetId,
+      limit: limit
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        response: {
+          operations: result.response?.operations || [],
+          total: result.response?.total || 0
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error getting history: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'HISTORY_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
+
+/**
+ * Gets detailed history statistics
+ * @returns {Object} History stats result
+ */
+function getHistoryStats() {
+  const info = getActiveSpreadsheetInfo();
+
+  try {
+    const result = callServalSheets('sheets_history', {
+      action: 'stats',
+      spreadsheetId: info.spreadsheetId
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        response: result.response
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error getting history stats: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'HISTORY_STATS_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
+
+/**
+ * Undoes a specific operation by ID
+ * @param {string} operationId - Operation ID to undo
+ * @returns {Object} Undo result
+ */
+function undoOperation(operationId) {
+  const info = getActiveSpreadsheetInfo();
+
+  try {
+    if (!operationId) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_OPERATION_ID',
+          message: 'Operation ID is required'
+        }
+      };
+    }
+
+    Logger.log('Undoing operation: ' + operationId);
+
+    const result = callServalSheets('sheets_history', {
+      action: 'undo',
+      spreadsheetId: info.spreadsheetId,
+      operationId: operationId
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        response: {
+          message: 'Operation undone successfully',
+          operationId: operationId,
+          ...result.response
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error undoing operation: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'UNDO_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
+
+/**
+ * Undoes the last N operations
+ * @param {number} count - Number of operations to undo (default: 1)
+ * @returns {Object} Undo result
+ */
+function undoLastOperations(count) {
+  const info = getActiveSpreadsheetInfo();
+  count = count || 1;
+
+  try {
+    Logger.log(`Undoing last ${count} operation(s)`);
+
+    const result = callServalSheets('sheets_history', {
+      action: 'undo_last',
+      spreadsheetId: info.spreadsheetId,
+      count: count
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        response: {
+          message: `Undone ${count} operation(s)`,
+          count: count,
+          ...result.response
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error undoing operations: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'UNDO_LAST_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
+
+/**
+ * Clears operation history (careful!)
+ * @returns {Object} Clear result
+ */
+function clearHistory() {
+  const info = getActiveSpreadsheetInfo();
+
+  try {
+    const result = callServalSheets('sheets_history', {
+      action: 'clear',
+      spreadsheetId: info.spreadsheetId
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        response: {
+          message: 'History cleared'
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error clearing history: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'CLEAR_HISTORY_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
