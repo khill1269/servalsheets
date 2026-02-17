@@ -1,15 +1,15 @@
 ---
 title: ServalSheets - Source of Truth Reference
 category: development
-last_updated: 2026-01-31
-description: 'Last Updated: 2026-01-20'
+last_updated: 2026-02-17
+description: 'Last Updated: 2026-02-17'
 version: 1.6.0
 tags: [sheets, prometheus]
 ---
 
 # ServalSheets - Source of Truth Reference
 
-**Last Updated:** 2026-01-20
+**Last Updated:** 2026-02-17
 **Purpose:** Single authoritative reference for all quantitative facts about the codebase
 
 ---
@@ -18,10 +18,10 @@ tags: [sheets, prometheus]
 
 ### Tool & Action Counts
 
-| Metric           | Source File                      | Line              | Current Value | Verification Command                                              |
-| ---------------- | -------------------------------- | ----------------- | ------------- | ----------------------------------------------------------------- |
-| **TOOL_COUNT**   | `src/schemas/action-counts.ts`   | exported constant | `22`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`     |
-| **ACTION_COUNT** | `src/schemas/action-counts.ts`   | exported constant | `299`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts`   |
+| Metric           | Source File                    | Line              | Current Value | Verification Command                                            |
+| ---------------- | ------------------------------ | ----------------- | ------------- | --------------------------------------------------------------- |
+| **TOOL_COUNT**   | `src/schemas/action-counts.ts` | exported constant | `22`          | `grep "export const TOOL_COUNT" src/schemas/action-counts.ts`   |
+| **ACTION_COUNT** | `src/schemas/action-counts.ts` | exported constant | `299`         | `grep "export const ACTION_COUNT" src/schemas/action-counts.ts` |
 
 **Verification:**
 
@@ -85,8 +85,8 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 | File                     | Lines (Actual) | Command                      |
 | ------------------------ | -------------- | ---------------------------- |
-| **src/server.ts**        | 920            | `wc -l src/server.ts`        |
-| **src/handlers/base.ts** | 654            | `wc -l src/handlers/base.ts` |
+| **src/server.ts**        | 1383           | `wc -l src/server.ts`        |
+| **src/handlers/base.ts** | 1605           | `wc -l src/handlers/base.ts` |
 
 **⚠️ NEVER use estimates like "~760" or "~400"** - always run `wc -l` for accuracy.
 
@@ -96,30 +96,33 @@ Run `wc -l <file>` to get exact counts. **Do not estimate.**
 
 ### Per-Tool Action Counts
 
-**Source:** `npm run check:drift` output or `src/schemas/annotations.ts`
+**Source:** `npm run check:drift` output or `src/schemas/action-counts.ts`
 
-| Tool                 | Actions | Schema File                  |
-| -------------------- | ------- | ---------------------------- |
-| `sheets_auth`        | 5       | `src/schemas/auth.ts`        |
-| `sheets_core`        | 17      | `src/schemas/core.ts`        |
-| `sheets_data`        | 14      | `src/schemas/data.ts`        |
-| `sheets_format`      | 24      | `src/schemas/format.ts`      |
-| `sheets_dimensions`  | 35      | `src/schemas/dimensions.ts`  |
-| `sheets_visualize`   | 15      | `src/schemas/visualize.ts`   |
-| `sheets_collaborate` | 21      | `src/schemas/collaborate.ts` |
-| `sheets_advanced`    | 27      | `src/schemas/advanced.ts`    |
-| `sheets_transaction` | 10      | `src/schemas/transaction.ts` |
-| `sheets_quality`     | 14      | `src/schemas/quality.ts`     |
-| `sheets_history`     | 8       | `src/schemas/history.ts`     |
-| `sheets_confirm`     | 5       | `src/schemas/confirm.ts`     |
-| `sheets_analyze`     | 11      | `src/schemas/analyze.ts`     |
-| `sheets_fix`         | 8       | `src/schemas/fix.ts`         |
-| `sheets_composite`   | 6       | `src/schemas/composite.ts`   |
-| `sheets_session`     | 8       | `src/schemas/session.ts`     |
-| `sheets_templates`   | 8       | `src/schemas/templates.ts`   |
-| `sheets_bigquery`    | 8       | `src/schemas/bigquery.ts`    |
-| `sheets_appsscript`  | 8       | `src/schemas/appsscript.ts`  |
-| **TOTAL**            | **244** | —                            |
+| Tool                  | Actions | Schema File                   |
+| --------------------- | ------- | ----------------------------- |
+| `sheets_advanced`     | 26      | `src/schemas/advanced.ts`     |
+| `sheets_analyze`      | 16      | `src/schemas/analyze.ts`      |
+| `sheets_appsscript`   | 14      | `src/schemas/appsscript.ts`   |
+| `sheets_auth`         | 4       | `src/schemas/auth.ts`         |
+| `sheets_bigquery`     | 14      | `src/schemas/bigquery.ts`     |
+| `sheets_collaborate`  | 35      | `src/schemas/collaborate.ts`  |
+| `sheets_composite`    | 11      | `src/schemas/composite.ts`    |
+| `sheets_confirm`      | 5       | `src/schemas/confirm.ts`      |
+| `sheets_core`         | 19      | `src/schemas/core.ts`         |
+| `sheets_data`         | 18      | `src/schemas/data.ts`         |
+| `sheets_dependencies` | 7       | `src/schemas/dependencies.ts` |
+| `sheets_dimensions`   | 28      | `src/schemas/dimensions.ts`   |
+| `sheets_federation`   | 4       | `src/schemas/federation.ts`   |
+| `sheets_fix`          | 1       | `src/schemas/fix.ts`          |
+| `sheets_format`       | 22      | `src/schemas/format.ts`       |
+| `sheets_history`      | 7       | `src/schemas/history.ts`      |
+| `sheets_quality`      | 4       | `src/schemas/quality.ts`      |
+| `sheets_session`      | 26      | `src/schemas/session.ts`      |
+| `sheets_templates`    | 8       | `src/schemas/templates.ts`    |
+| `sheets_transaction`  | 6       | `src/schemas/transaction.ts`  |
+| `sheets_visualize`    | 18      | `src/schemas/visualize.ts`    |
+| `sheets_webhook`      | 6       | `src/schemas/webhook.ts`      |
+| **TOTAL**             | **299** | —                             |
 
 **Verification:**
 
@@ -205,9 +208,9 @@ Evidence: <file:line> OR <command → output>
 
 ```
 Claim: ServalSheets has 299 actions
-Evidence: src/schemas/index.ts exports ACTION_COUNT = 298
-Command: grep "export const ACTION_COUNT" src/schemas/index.ts
-Output: export const ACTION_COUNT = 298;
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 299
+Command: grep "export const ACTION_COUNT" src/schemas/action-counts.ts
+Output: export const ACTION_COUNT = Object.values(ACTION_COUNTS).reduce((sum, count) => sum + count, 0);
 ```
 
 ❌ **Bad:**
@@ -247,19 +250,19 @@ npm run verify
 
 ---
 
-## 📋 Quick Reference: Current Values (2026-01-20)
+## 📋 Quick Reference: Current Values (2026-02-17)
 
 ```
-TOOL_COUNT:         19
-ACTION_COUNT:       244
+TOOL_COUNT:         22
+ACTION_COUNT:       299
 MCP_PROTOCOL:       2025-11-25
 ZOD_VERSION:        4.3.5
 SDK_VERSION:        ^1.25.2
 GOOGLEAPIS_VERSION: ^170.0.0
 
 Line Counts:
-  src/server.ts:         920 lines
-  src/handlers/base.ts:  654 lines
+  src/server.ts:         1383 lines
+  src/handlers/base.ts:  1605 lines
 
 Build Status:
   npm run verify:      ✅ PASSING
@@ -268,7 +271,7 @@ Build Status:
   Metadata Drift:      ✅ PASSING
 ```
 
-**Last Verified:** 2026-01-20 via `npm run verify`
+**Last Verified:** 2026-02-17 via `npm run verify`
 
 ---
 
@@ -301,7 +304,7 @@ Command: grep "export const ACTION_COUNT" src/schemas/index.ts
 Output: export const ACTION_COUNT = 298;
 
 ServalSheets has 299 actions across 22 tools.
-Evidence: src/schemas/index.ts exports ACTION_COUNT = 298
+Evidence: src/schemas/action-counts.ts exports ACTION_COUNT = 299
 ```
 
 ---
