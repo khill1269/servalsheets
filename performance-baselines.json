@@ -1,0 +1,65 @@
+{
+  "$schema": "./scripts/performance-baseline-schema.json",
+  "version": "1.0.0",
+  "updatedAt": "2026-02-17T00:00:00.000Z",
+  "baselines": {
+    "schemaValidation": {
+      "coreGet": {
+        "p95ms": 3.0,
+        "meanMs": 0.5
+      },
+      "dataRead": {
+        "p95ms": 3.0,
+        "meanMs": 0.5
+      },
+      "dataWriteLarge": {
+        "p95ms": 10.0,
+        "meanMs": 5.0
+      },
+      "formatComplex": {
+        "p95ms": 5.0,
+        "meanMs": 2.0
+      },
+      "batchRead50": {
+        "p95ms": 50.0,
+        "meanMs": 25.0
+      },
+      "batchWrite20": {
+        "p95ms": 50.0,
+        "meanMs": 20.0
+      }
+    },
+    "handlerExecution": {
+      "coreGet": {
+        "p95ms": 10.0,
+        "meanMs": 3.0
+      },
+      "dataRead": {
+        "p95ms": 10.0,
+        "meanMs": 3.0
+      },
+      "dataWrite": {
+        "p95ms": 15.0,
+        "meanMs": 5.0
+      }
+    },
+    "memory": {
+      "schemaValidation10Iterations": {
+        "maxBytes": 31457280
+      },
+      "handler1000Operations": {
+        "maxGrowthBytes": 10485760
+      }
+    },
+    "throughput": {
+      "validationOpsPerSec": 1000,
+      "concurrent100ValidationsMs": 100
+    }
+  },
+  "regressionThreshold": 0.10,
+  "notes": [
+    "P2-6: Performance regression baseline tracking",
+    "Thresholds allow 10% regression before failing tests",
+    "Update baselines using: npm run perf:update-baselines"
+  ]
+}
