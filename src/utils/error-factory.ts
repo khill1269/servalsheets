@@ -86,8 +86,9 @@ export function createRateLimitError(params: {
   quotaType?: 'read' | 'write' | 'requests';
   retryAfterMs?: number;
   endpoint?: string;
+  circuitBreakerState?: 'closed' | 'open' | 'half_open';
 }): ErrorDetail {
-  const { quotaType = 'requests', retryAfterMs = 60000, endpoint } = params;
+  const { quotaType = 'requests', retryAfterMs = 60000, endpoint, circuitBreakerState } = params;
 
   const retryAfterSeconds = Math.ceil(retryAfterMs / 1000);
 
@@ -115,6 +116,7 @@ export function createRateLimitError(params: {
       retryAfterMs,
       endpoint,
       resetTime: new Date(Date.now() + retryAfterMs).toISOString(),
+      ...(circuitBreakerState && { circuitBreakerState }),
     },
   };
 }

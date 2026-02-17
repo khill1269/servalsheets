@@ -1165,9 +1165,57 @@ export class ServalSheetsServer {
    * Start the server with signal handling
    */
   async start(): Promise<void> {
+    const startTime = performance.now();
+
     // Initialize first (register handlers), then connect
-    await this.initialize();
+    baseLogger.info('[Phase 1/3] Initializing handlers...');
+    const initStart = performance.now();
+    // Wrap initialization in try-catch to provide better error context
+    try {
+      await this.initialize();
+      const initDuration = performance.now() - initStart;
+      baseLogger.info('[Phase 1/3] ✓ Handlers initialized', {
+        durationMs: initDuration.toFixed(2),
+      });
+    } catch (error) {
+      baseLogger.error('[Phase 1/3] ✗ Initialization failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw error; // Re-throw for CLI to handle with enhanced errors
+    }
+
+    baseLogger.info('[Phase 2/3] Creating STDIO transport');
+    const transportStart = performance.now();
     const transport = new StdioServerTransport();
+    const transportDuration = performance.now() - transportStart;
+    let isConnected = false;
+
+    // Add transport error handlers BEFORE connecting
+    transport.onclose = () => {
+      if (!this.isShutdown) {
+        baseLogger.warn('MCP transport closed unexpectedly', {
+          wasConnected: isConnected,
+          suggestion: isConnected
+            ? 'Client (Claude Desktop) may have crashed or disconnected'
+            : 'Initial connection failed - check client MCP configuration',
+        });
+
+        // Graceful shutdown to clean up resources
+        this.shutdown().catch((err) => {
+          baseLogger.error('Shutdown after transport close failed', { error: err });
+        });
+      }
+    };
+
+    transport.onerror = (error: Error) => {
+      baseLogger.error('MCP transport error', {
+        error: error.message,
+        stack: error.stack,
+        isConnected,
+        suggestion: 'Check Claude Desktop logs and MCP server configuration',
+      });
+    };
 
     // Handle process signals for graceful shutdown
     const handleShutdown = async (signal: string): Promise<void> => {
@@ -1194,10 +1242,38 @@ export class ServalSheetsServer {
     });
 
     // Connect after initialization (handlers are registered)
-    await this._server.connect(transport);
-    baseLogger.info(
-      `ServalSheets MCP Server started (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`
-    );
+    baseLogger.info('[Phase 3/3] Connecting transport');
+    const connectStart = performance.now();
+    // Wrap connect in try-catch to handle immediate connection failures
+    try {
+      await this._server.connect(transport);
+      isConnected = true;
+      const connectDuration = performance.now() - connectStart;
+      const totalDuration = performance.now() - startTime;
+      baseLogger.info(
+        `[Phase 3/3] ✓ ServalSheets ready (${TOOL_COUNT} tools, ${ACTION_COUNT} actions)`,
+        {
+          transport: 'stdio',
+          connectionId: new Date().toISOString(),
+          timing: {
+            initMs: (performance.now() - startTime - connectDuration - transportDuration).toFixed(
+              2
+            ),
+            transportMs: transportDuration.toFixed(2),
+            connectMs: connectDuration.toFixed(2),
+            totalMs: totalDuration.toFixed(2),
+          },
+        }
+      );
+    } catch (error) {
+      baseLogger.error('[Phase 3/3] ✗ Connection failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        transport: 'stdio',
+        suggestion: 'Check Claude Desktop MCP configuration and server.json',
+      });
+      throw error; // Re-throw for CLI to handle
+    }
   }
 
   /**

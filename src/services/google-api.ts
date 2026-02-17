@@ -457,6 +457,30 @@ export class GoogleApiClient {
   }
 
   /**
+   * Force reset HTTP/2 connections on GOAWAY or similar connection errors.
+   * Called by the retry wrapper before retrying a failed request.
+   */
+  public async resetOnConnectionError(): Promise<void> {
+    if (this.connectionResetInProgress) {
+      return; // Already resetting
+    }
+
+    this.connectionResetInProgress = true;
+    try {
+      logger.warn('Resetting HTTP/2 connections due to GOAWAY error during retry');
+      const { http2ConnectionResetsTotal } = await import('../observability/metrics.js');
+      http2ConnectionResetsTotal.inc({ reason: 'goaway_retry' });
+      await this.resetHttpAgents();
+      this.consecutiveErrors = 0;
+      logger.info('HTTP/2 connections reset successfully for retry');
+    } catch (error) {
+      logger.error('Failed to reset connections for retry', { error });
+    } finally {
+      this.connectionResetInProgress = false;
+    }
+  }
+
+  /**
    * Track API call success/failure for connection health monitoring.
    * Call this after each API operation completes.
    *
@@ -1000,6 +1024,13 @@ export class GoogleApiClient {
   }
 
   /**
+   * Get current circuit breaker state
+   */
+  getCircuitBreakerState(): 'closed' | 'open' | 'half_open' {
+    return this.circuit.getStats().state;
+  }
+
+  /**
    * Generate OAuth2 authorization URL
    */
   getAuthUrl(additionalScopes?: string[]): string {
@@ -1346,6 +1377,24 @@ function wrapGoogleApi<T extends object>(
         if (typeof value === 'function') {
           return async (...args: unknown[]) => {
             try {
+              const retryOptions = {
+                ...options,
+                // Reset HTTP/2 connections on GOAWAY errors before retrying
+                onRetry: client
+                  ? async (error: unknown) => {
+                      const msg =
+                        error instanceof Error ? error.message.toLowerCase() : String(error);
+                      const code = (error as { code?: string })?.code ?? '';
+                      if (
+                        code === 'ERR_HTTP2_GOAWAY_SESSION' ||
+                        msg.includes('goaway') ||
+                        msg.includes('new streams cannot be created')
+                      ) {
+                        await client.resetOnConnectionError();
+                      }
+                    }
+                  : undefined,
+              };
               const operation = (): Promise<unknown> =>
                 executeWithRetry((signal) => {
                   const callArgs = injectSignal(args, signal);
@@ -1353,7 +1402,7 @@ function wrapGoogleApi<T extends object>(
                     target,
                     callArgs
                   );
-                }, options);
+                }, retryOptions);
 
               // Wrap with circuit breaker if available
               const result = circuit ? await circuit.execute(operation) : await operation();

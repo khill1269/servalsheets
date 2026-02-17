@@ -167,7 +167,13 @@ export class ErrorPatternLearner {
     let confidence = 0.5;
 
     // Analyze error type
-    if (pattern.errorCode === 'SPREADSHEET_NOT_FOUND') {
+    if (pattern.errorCode === 'MODULE_NOT_FOUND') {
+      steps.push('Run: npm run build (compiles TypeScript to dist/)');
+      steps.push('Ensure dist/cli.js and dist/server.js exist');
+      steps.push('Check package.json has "prestart" hook configured');
+      steps.push('Avoid deleting dist/ directory manually');
+      confidence = 0.95;
+    } else if (pattern.errorCode === 'SPREADSHEET_NOT_FOUND') {
       steps.push('Verify spreadsheet ID exists before operations');
       steps.push('Use sheets_info get_metadata to check access');
       confidence = 0.9;
