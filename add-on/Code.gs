@@ -664,6 +664,506 @@ function listComments() {
 }
 
 // ============================================================================
+// PRIORITY 1 TOOLS: Transaction, Quality, History, Composite, Session
+// ============================================================================
+
+// Transaction Operations (sheets_transaction)
+// ============================================================================
+
+/**
+ * Begin a transaction
+ */
+function beginTransaction() {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_transaction', {
+    action: 'begin',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+/**
+ * Commit a transaction
+ */
+function commitTransaction(transactionId) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_transaction', {
+    action: 'commit',
+    spreadsheetId: info.spreadsheetId,
+    transactionId: transactionId
+  });
+}
+
+/**
+ * Rollback a transaction
+ */
+function rollbackTransaction(transactionId) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_transaction', {
+    action: 'rollback',
+    spreadsheetId: info.spreadsheetId,
+    transactionId: transactionId
+  });
+}
+
+// Quality & Validation Operations (sheets_quality)
+// ============================================================================
+
+/**
+ * Validate data in a range
+ */
+function validateData(range, validationType, options) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_quality', {
+    action: 'validate',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    validationType: validationType,
+    options: options
+  });
+}
+
+/**
+ * Detect data conflicts
+ */
+function detectConflicts(range) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_quality', {
+    action: 'detect_conflicts',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range
+  });
+}
+
+/**
+ * Analyze impact of data change
+ */
+function analyzeImpact(range, proposedChange) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_quality', {
+    action: 'analyze_impact',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    proposedChange: proposedChange
+  });
+}
+
+// Composite Operations (sheets_composite)
+// ============================================================================
+
+/**
+ * Import CSV data
+ */
+function importCsv(csvData, targetRange, options) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_composite', {
+    action: 'import_csv',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    csvData: csvData,
+    targetRange: targetRange,
+    options: options
+  });
+}
+
+/**
+ * Smart append data
+ */
+function smartAppend(data, options) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_composite', {
+    action: 'smart_append',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    data: data,
+    options: options
+  });
+}
+
+/**
+ * Bulk update multiple ranges
+ */
+function bulkUpdate(updates) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_composite', {
+    action: 'bulk_update',
+    spreadsheetId: info.spreadsheetId,
+    updates: updates
+  });
+}
+
+// Session & Context Operations (sheets_session)
+// ============================================================================
+
+/**
+ * Set active spreadsheet/sheet
+ */
+function setActiveContext(spreadsheetId, sheetName) {
+  return callServalSheets('sheets_session', {
+    action: 'set_active',
+    spreadsheetId: spreadsheetId,
+    sheetName: sheetName
+  });
+}
+
+/**
+ * Get current session context
+ */
+function getSessionContext() {
+  return callServalSheets('sheets_session', {
+    action: 'get_context'
+  });
+}
+
+/**
+ * Store context variable
+ */
+function storeContextVar(key, value) {
+  return callServalSheets('sheets_session', {
+    action: 'store_var',
+    key: key,
+    value: value
+  });
+}
+
+/**
+ * Retrieve context variable
+ */
+function retrieveContextVar(key) {
+  return callServalSheets('sheets_session', {
+    action: 'retrieve_var',
+    key: key
+  });
+}
+
+// ============================================================================
+// PRIORITY 2 TOOLS: Advanced, Confirm, Fix, Templates, BigQuery, etc.
+// ============================================================================
+
+// Advanced Operations (sheets_advanced)
+// ============================================================================
+
+/**
+ * Add named range
+ */
+function addNamedRange(name, range) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_advanced', {
+    action: 'add_named_range',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    name: name,
+    range: range
+  });
+}
+
+/**
+ * Update named range
+ */
+function updateNamedRange(name, newRange) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_advanced', {
+    action: 'update_named_range',
+    spreadsheetId: info.spreadsheetId,
+    name: name,
+    range: newRange
+  });
+}
+
+/**
+ * Delete named range
+ */
+function deleteNamedRange(name) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_advanced', {
+    action: 'delete_named_range',
+    spreadsheetId: info.spreadsheetId,
+    name: name
+  });
+}
+
+/**
+ * Add conditional formatting rule
+ */
+function addConditionalFormat(range, condition, format) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_advanced', {
+    action: 'add_conditional_format',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    condition: condition,
+    format: format
+  });
+}
+
+// Confirmation Operations (sheets_confirm)
+// ============================================================================
+
+/**
+ * Request user confirmation for operation
+ */
+function requestConfirmation(operation, details) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_confirm', {
+    action: 'request',
+    spreadsheetId: info.spreadsheetId,
+    operation: operation,
+    details: details
+  });
+}
+
+/**
+ * Get confirmation statistics
+ */
+function getConfirmationStats() {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_confirm', {
+    action: 'get_stats',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+// Auto-Fix Operations (sheets_fix)
+// ============================================================================
+
+/**
+ * Auto-fix data issues
+ */
+function autoFix(range, issues) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_fix', {
+    action: 'fix',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    issues: issues
+  });
+}
+
+// Template Operations (sheets_templates)
+// ============================================================================
+
+/**
+ * List available templates
+ */
+function listTemplates(category) {
+  return callServalSheets('sheets_templates', {
+    action: 'list',
+    category: category
+  });
+}
+
+/**
+ * Get template details
+ */
+function getTemplate(templateId) {
+  return callServalSheets('sheets_templates', {
+    action: 'get',
+    templateId: templateId
+  });
+}
+
+/**
+ * Create spreadsheet from template
+ */
+function createFromTemplate(templateId, name) {
+  return callServalSheets('sheets_templates', {
+    action: 'create',
+    templateId: templateId,
+    name: name
+  });
+}
+
+// BigQuery Operations (sheets_bigquery)
+// ============================================================================
+
+/**
+ * Connect to BigQuery
+ */
+function connectBigQuery(projectId, datasetId) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_bigquery', {
+    action: 'connect',
+    spreadsheetId: info.spreadsheetId,
+    projectId: projectId,
+    datasetId: datasetId
+  });
+}
+
+/**
+ * Query BigQuery
+ */
+function queryBigQuery(query, targetRange) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_bigquery', {
+    action: 'query',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    query: query,
+    targetRange: targetRange
+  });
+}
+
+/**
+ * Export to BigQuery
+ */
+function exportToBigQuery(range, tableName) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_bigquery', {
+    action: 'export',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    tableName: tableName
+  });
+}
+
+// Apps Script Operations (sheets_appsscript)
+// ============================================================================
+
+/**
+ * Create Apps Script project
+ */
+function createAppsScript(projectName) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_appsscript', {
+    action: 'create',
+    spreadsheetId: info.spreadsheetId,
+    projectName: projectName
+  });
+}
+
+/**
+ * Get Apps Script content
+ */
+function getAppsScriptContent(projectId) {
+  return callServalSheets('sheets_appsscript', {
+    action: 'get_content',
+    projectId: projectId
+  });
+}
+
+/**
+ * Deploy Apps Script
+ */
+function deployAppsScript(projectId, version) {
+  return callServalSheets('sheets_appsscript', {
+    action: 'deploy',
+    projectId: projectId,
+    version: version
+  });
+}
+
+// Webhook Operations (sheets_webhook)
+// ============================================================================
+
+/**
+ * Register webhook
+ */
+function registerWebhook(url, events) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_webhook', {
+    action: 'register',
+    spreadsheetId: info.spreadsheetId,
+    url: url,
+    events: events
+  });
+}
+
+/**
+ * List webhooks
+ */
+function listWebhooks() {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_webhook', {
+    action: 'list',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+/**
+ * Unregister webhook
+ */
+function unregisterWebhook(webhookId) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_webhook', {
+    action: 'unregister',
+    spreadsheetId: info.spreadsheetId,
+    webhookId: webhookId
+  });
+}
+
+// Dependency Operations (sheets_dependencies)
+// ============================================================================
+
+/**
+ * Build dependency graph
+ */
+function buildDependencyGraph() {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_dependencies', {
+    action: 'build',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+/**
+ * Analyze impact of change
+ */
+function analyzeDependencyImpact(cellReference) {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_dependencies', {
+    action: 'analyze_impact',
+    spreadsheetId: info.spreadsheetId,
+    cellReference: cellReference
+  });
+}
+
+/**
+ * Detect circular dependencies
+ */
+function detectCircularDependencies() {
+  const info = getActiveSpreadsheetInfo();
+  return callServalSheets('sheets_dependencies', {
+    action: 'detect_cycles',
+    spreadsheetId: info.spreadsheetId
+  });
+}
+
+// Authentication Operations (sheets_auth)
+// ============================================================================
+
+/**
+ * Get authentication status
+ */
+function getAuthStatus() {
+  return callServalSheets('sheets_auth', {
+    action: 'status'
+  });
+}
+
+/**
+ * Login (OAuth flow)
+ */
+function loginOAuth() {
+  return callServalSheets('sheets_auth', {
+    action: 'login'
+  });
+}
+
+/**
+ * Logout
+ */
+function logoutUser() {
+  return callServalSheets('sheets_auth', {
+    action: 'logout'
+  });
+}
+
+// ============================================================================
 // Usage Statistics & Testing
 // ============================================================================
 
