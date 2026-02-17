@@ -12,8 +12,8 @@
  *
  * DECLARED CAPABILITIES (via createServerCapabilities):
  * - tools: 22 tools with 298 actions (current consolidated set)
- * - resources: 2 URI templates + 7 knowledge resources
- * - prompts: 6 guided workflows for common operations
+ * - resources: 2 URI templates + 28 registered resources
+ * - prompts: 38 guided workflows for common operations
  * - completions: Argument autocompletion for prompts/resources
  * - tasks: Background execution with TaskStoreAdapter (SEP-1686)
  * - logging: Dynamic log level control via logging/setLevel handler
