@@ -383,6 +383,106 @@ function clearHistory() {
 5. History auto-refreshes after undo
 6. Confirmation dialog prevents accidents
 
+### Phase 3.4: Preview Mode (Dry Run) ✅
+
+**Date:** 2026-02-17 (Complete)
+
+**Feature:** Preview operations before executing them with dry-run mode - see exactly what will happen without making changes.
+
+**Key Features:**
+
+1. **Global Preview Toggle:**
+   - Prominent toggle switch below header
+   - "👁️ Preview before executing" label
+   - Animated switch (slides left/right)
+   - Visual feedback (orange → blue when active)
+   - Persists across sessions
+
+2. **Preview Modal:**
+   - Shows operation details before execution
+   - Displays "What will happen" with formatted JSON
+   - Warning banner: "No changes have been made yet"
+   - Cancel or Execute buttons
+   - Click outside to close
+
+3. **Preview Capabilities:**
+   - previewOperation() - Any tool operation
+   - previewWrite() - Data write operations
+   - previewFormat() - Formatting operations
+   - previewDimensions() - Row/column changes
+   - previewBatch() - Entire batch queues
+
+4. **Smart Integration:**
+   - Automatic preview check before execution
+   - Falls back to execution if preview fails (with confirmation)
+   - Works with all tool wrappers
+   - Preserves original operation for post-preview execution
+
+**Implementation Details:**
+
+**Code.gs changes (+189 lines):**
+
+```javascript
+function previewOperation(tool, request) {
+  // Adds dryRun: true flag to request
+  // Returns preview without making changes
+}
+
+function previewWrite(range, values) {
+  // Previews data write operation
+}
+
+function previewFormat(range, format) {
+  // Previews formatting operation
+}
+
+function previewDimensions(dimension, operation, startIndex, count) {
+  // Previews insert/delete rows/columns
+}
+
+function previewBatch(operations) {
+  // Previews entire batch
+  // Shows what each operation would do
+}
+
+function isPreviewModeEnabled() / setPreviewMode(enabled) {
+  // Persists preview mode state in UserProperties
+}
+```
+
+**Sidebar.html changes (+438 lines):**
+
+- Preview toggle UI (animated switch)
+- Preview modal (overlay + dialog)
+- 210+ lines of CSS (modal, dialog, animations)
+- 228+ lines of JavaScript (preview logic, modal management)
+- Auto-load preview mode state on startup
+- Integration with existing tool wrappers
+
+**File Stats:**
+
+- Code.gs: 1,279 → 1,468 lines (+189 lines)
+- Sidebar.html: 1,644 → 2,082 lines (+438 lines)
+- Total add-on code: 3,550 lines
+
+**Usage Example:**
+
+1. Click preview mode toggle (turns blue when active)
+2. Click any action button (e.g., "Insert Rows")
+3. Modal appears showing:
+   - Operation: sheets_dimensions → insert
+   - What will happen: {"startIndex": 5, "count": 3, ...}
+4. Review preview details
+5. Click "Execute" to proceed or "Cancel" to abort
+6. Toggle off preview mode for direct execution
+
+**Benefits:**
+
+- **Safety:** See exactly what will happen before committing
+- **Learning:** Understand tool behavior and parameters
+- **Debugging:** Verify operations work as expected
+- **Confidence:** No surprises, no mistakes
+
 ## 📋 Next Steps
 
 ### Phase 1.4: Integration Testing (Current Status)
@@ -489,6 +589,7 @@ const CONFIG = {
 - **Contextual Suggestions:** AI-powered context detection ✅ Complete (Phase 3.1)
 - **Batch Operations:** Atomic transaction-based execution ✅ Complete (Phase 3.2)
 - **Action History & Undo:** Operation history with one-click undo ✅ Complete (Phase 3.3)
+- **Preview Mode:** Dry-run operations before executing ✅ Complete (Phase 3.4)
 - **Deployment Guide:** Complete documentation ✅ Ready (Phase 1.4)
 - **Testing:** ⏳ Ready for Apps Script deployment (Phase 1.5)
 

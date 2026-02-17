@@ -1277,3 +1277,192 @@ function clearHistory() {
     };
   }
 }
+
+// ==================== PHASE 3.4: Preview Mode (Dry Run) ====================
+
+/**
+ * Executes operation in preview mode (dry run)
+ * @param {string} tool - Tool name
+ * @param {Object} request - Request parameters
+ * @returns {Object} Preview result showing what would happen
+ */
+function previewOperation(tool, request) {
+  try {
+    // Add dryRun flag to request
+    const previewRequest = {
+      ...request,
+      dryRun: true
+    };
+
+    Logger.log('Running preview for: ' + tool);
+
+    // Execute with dryRun flag
+    const result = callServalSheets(tool, previewRequest);
+
+    if (result.success) {
+      return {
+        success: true,
+        response: {
+          preview: true,
+          message: 'Preview completed - no changes made',
+          wouldDo: result.response,
+          tool: tool,
+          action: request.action
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+  } catch (error) {
+    Logger.log('Error previewing operation: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'PREVIEW_ERROR',
+        message: error.message
+      }
+    };
+  }
+}
+
+/**
+ * Previews data write operation
+ * @param {string} range - Target range
+ * @param {Array} values - Values to write
+ * @returns {Object} Preview result
+ */
+function previewWrite(range, values) {
+  const info = getActiveSpreadsheetInfo();
+
+  return previewOperation('sheets_data', {
+    action: 'write',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    values: values
+  });
+}
+
+/**
+ * Previews formatting operation
+ * @param {string} range - Target range
+ * @param {Object} format - Format to apply
+ * @returns {Object} Preview result
+ */
+function previewFormat(range, format) {
+  const info = getActiveSpreadsheetInfo();
+
+  return previewOperation('sheets_format', {
+    action: 'set_format',
+    spreadsheetId: info.spreadsheetId,
+    sheetName: info.sheetName,
+    range: range,
+    format: format
+  });
+}
+
+/**
+ * Previews dimension changes (insert/delete rows/columns)
+ * @param {string} dimension - 'ROWS' or 'COLUMNS'
+ * @param {string} operation - 'insert' or 'delete'
+ * @param {number} startIndex - Start index
+ * @param {number} count - Number of rows/columns
+ * @returns {Object} Preview result
+ */
+function previewDimensions(dimension, operation, startIndex, count) {
+  const info = getActiveSpreadsheetInfo();
+
+  return previewOperation('sheets_dimensions', {
+    action: operation,
+    spreadsheetId: info.spreadsheetId,
+    sheetId: info.sheetId,
+    dimension: dimension,
+    startIndex: startIndex,
+    count: count
+  });
+}
+
+/**
+ * Previews batch operations
+ * @param {Array} operations - Operations to preview
+ * @returns {Object} Batch preview result
+ */
+function previewBatch(operations) {
+  const info = getActiveSpreadsheetInfo();
+  const previews = [];
+
+  try {
+    Logger.log(`Previewing ${operations.length} operation(s)`);
+
+    // Preview each operation individually
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+      const previewRequest = {
+        action: op.action,
+        spreadsheetId: info.spreadsheetId,
+        ...op.params,
+        dryRun: true
+      };
+
+      const result = callServalSheets(op.tool, previewRequest);
+
+      previews.push({
+        operation: op.label,
+        tool: op.tool,
+        action: op.action,
+        success: result.success,
+        preview: result.response,
+        error: result.error
+      });
+    }
+
+    return {
+      success: true,
+      response: {
+        preview: true,
+        message: `Preview of ${operations.length} operation(s) - no changes made`,
+        previews: previews,
+        allSuccessful: previews.every(p => p.success)
+      }
+    };
+
+  } catch (error) {
+    Logger.log('Error previewing batch: ' + error.message);
+    return {
+      success: false,
+      error: {
+        code: 'BATCH_PREVIEW_ERROR',
+        message: error.message,
+        completedPreviews: previews.length
+      }
+    };
+  }
+}
+
+/**
+ * Gets global preview mode state
+ * @returns {boolean} Whether preview mode is enabled
+ */
+function isPreviewModeEnabled() {
+  const props = PropertiesService.getUserProperties();
+  return props.getProperty('PREVIEW_MODE_ENABLED') === 'true';
+}
+
+/**
+ * Sets global preview mode state
+ * @param {boolean} enabled - Enable or disable preview mode
+ */
+function setPreviewMode(enabled) {
+  const props = PropertiesService.getUserProperties();
+  props.setProperty('PREVIEW_MODE_ENABLED', enabled ? 'true' : 'false');
+  return {
+    success: true,
+    response: {
+      previewMode: enabled,
+      message: enabled ? 'Preview mode enabled' : 'Preview mode disabled'
+    }
+  };
+}
